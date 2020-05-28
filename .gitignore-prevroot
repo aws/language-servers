@@ -5,3 +5,9 @@ build
 **/node_modules
 **/out
 **/*.tgz
+.testresults/**
+
+# Visual Studio Related
+**/.vs
+**/bin
+**/obj
