@@ -11,3 +11,7 @@ build
 **/.vs
 **/bin
 **/obj
+
+# C# Telemetry Client Generator Related
+telemetry/csharp/buildtemp/**
+telemetry/csharp/AwsToolkit.Telemetry.SDK/Generated/**
