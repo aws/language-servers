@@ -18,7 +18,10 @@ jobs:
               uses: actions/checkout@v2
             - name: Build
               run: |
-                  dotnet build -c Release .\telemetry\csharp\AwsToolkit.Telemetry.sln
+                  dotnet build -c Release ./telemetry/csharp/AwsToolkit.Telemetry.sln
             - name: Test
               run: |
                   dotnet test -c Release ./telemetry/csharp/AwsToolkit.Telemetry.sln
+            - name: Build Events NuGet Package
+              run: |
+                  dotnet msbuild -property:Configuration=Release ./telemetry/csharp/TelemetryPackage.proj
