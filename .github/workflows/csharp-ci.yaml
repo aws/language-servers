@@ -1,9 +1,9 @@
 name: CI for C# Toolkit Common Telemetry
 on:
     push:
-        branches: [master]
+        branches: [main, master]
     pull_request:
-        branches: [master, feature/*]
+        branches: [main, master, feature/*]
 
 env:
     DOTNET_CLI_TELEMETRY_OPTOUT: 1
