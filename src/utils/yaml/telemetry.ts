@@ -1,10 +1,5 @@
-
-import {
-
-    Connection
-} from 'vscode-languageserver'
+import { Connection } from 'vscode-languageserver'
 import { TelemetryEvent } from 'yaml-language-server/out/server/src/languageservice/telemetry'
-
 
 // This interface is from the yaml-language-server. We should get them to export it
 export interface Telemetry {
@@ -14,7 +9,7 @@ export interface Telemetry {
 }
 
 export class YAMLTelemetry implements Telemetry {
-    constructor(private connection: Connection) { }
+    constructor(private connection: Connection) {}
 
     send(event: TelemetryEvent): void {
         // stub implementation

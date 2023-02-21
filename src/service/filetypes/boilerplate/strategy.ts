@@ -5,14 +5,10 @@ import { LanguageServiceStrategy } from '../../registry/types'
 
 import { BoilerplateService } from './service'
 
-
 export class BoilerplateServiceStrategy implements LanguageServiceStrategy {
-
     private parser: DocumentParserVisitor
 
-    constructor(
-        parser: DocumentParserVisitor = new DocumentParser(),
-    ) {
+    constructor(parser: DocumentParserVisitor = new DocumentParser()) {
         // Use this if you need access to an AST
         this.parser = parser
     }

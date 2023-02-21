@@ -5,7 +5,8 @@ Language server for AWS File types
 ## Functionality
 
 This Language Server currently supports completion, hover, diagnostics for the following file types:
-- Buildspec
+
+-   Buildspec
 
 ## Structure
 
@@ -28,11 +29,13 @@ This Language Server currently supports completion, hover, diagnostics for the f
 ```
 
 ## How To Contribute
+
 [How to contribute to the language server.](CONTRIBUTING.md#contributing)
 
 ## Building The Language Server
+
 [How to build the language server.](CONTRIBUTING.md#building-the-language-server)
 
-
 ## Troubleshooting
+
 [Troubleshooting information.](CONTRIBUTING.md#troubleshooting)

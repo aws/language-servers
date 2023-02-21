@@ -8,7 +8,7 @@ import { CachedUriContentResolver, HttpUriContentResolver } from '../../../../sr
 
 describe(`Test ${CachedUriContentResolver.name}`, async () => {
     describe(`Test getContent()`, async () => {
-        const realHttpUri = URI.parse("https://json.schemastore.org/mocharc.json")
+        const realHttpUri = URI.parse('https://json.schemastore.org/mocharc.json')
         let expectedUriContent: string
         let tmpDir: ITempDirectorySync
         let httpDownloaderSpy: SinonSpiedInstance<HttpUriContentResolver>
@@ -19,7 +19,6 @@ describe(`Test ${CachedUriContentResolver.name}`, async () => {
             // Download actual content to verify against in tests
             expectedUriContent = (await new DefaultHttpRequester().request(realHttpUri.toString())).responseText
         })
-
 
         beforeEach(async () => {
             tmpDir = createTempDirectorySync()
@@ -61,7 +60,8 @@ describe(`Test ${CachedUriContentResolver.name}`, async () => {
 
             // Stub the timer to be timed out
             timeStub.inMilliseconds.resetBehavior()
-            const millisecondAfterTimeoutPeriod = new Time().inMilliseconds() + CachedUriContentResolver.timeoutPeriodInMillis + 1
+            const millisecondAfterTimeoutPeriod =
+                new Time().inMilliseconds() + CachedUriContentResolver.timeoutPeriodInMillis + 1
             timeStub.inMilliseconds.returns(millisecondAfterTimeoutPeriod)
 
             // Second request will download, but with eTag
@@ -69,10 +69,7 @@ describe(`Test ${CachedUriContentResolver.name}`, async () => {
             assert.strictEqual(result, expectedUriContent)
             // Assert second request uses eTag
             assert(httpDownloaderSpy.getContent.calledTwice)
-            assert.deepStrictEqual(
-                httpDownloaderSpy.getContent.secondCall.args[1],
-                instance.getETag(realHttpUri)
-            )
+            assert.deepStrictEqual(httpDownloaderSpy.getContent.secondCall.args[1], instance.getETag(realHttpUri))
         })
     })
 })

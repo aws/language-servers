@@ -5,7 +5,6 @@ import { parseJson } from './json'
 import { DocumentParserVisitor } from './types'
 import { parseYaml } from './yaml'
 
-
 export class DocumentParser implements DocumentParserVisitor {
     parseYAML(td: TextDocument): YAMLDocument {
         return parseYaml(td)

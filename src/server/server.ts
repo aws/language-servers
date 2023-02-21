@@ -10,7 +10,7 @@ import {
     ProposedFeatures,
     TextDocumentPositionParams,
     TextDocuments,
-    TextDocumentSyncKind
+    TextDocumentSyncKind,
 } from 'vscode-languageserver/node'
 
 import { TextDocument } from 'vscode-languageserver-textdocument'
@@ -54,16 +54,16 @@ connection.onInitialize((params: InitializeParams) => {
             textDocumentSync: TextDocumentSyncKind.Full,
             // Tell the client that this server supports code completion.
             completionProvider: {
-                resolveProvider: false
+                resolveProvider: false,
             },
-            hoverProvider: true
-        }
+            hoverProvider: true,
+        },
     }
     if (hasWorkspaceFolderCapability) {
         result.capabilities.workspace = {
             workspaceFolders: {
-                supported: true
-            }
+                supported: true,
+            },
         }
     }
     return result
@@ -88,7 +88,7 @@ connection.onDidChangeConfiguration(change => {
 
 // Only keep settings for open documents
 // eslint-disable-next-line @typescript-eslint/no-empty-function
-documents.onDidClose(e => { })
+documents.onDidClose(e => {})
 
 // The content of a text document has changed. This event is emitted
 // when the text document first opened or when its content has changed.
@@ -135,21 +135,21 @@ connection.onCompletion(
     }
 )
 
-connection.onHover(
-    async (params: HoverParams): Promise<Hover | null | undefined> => {
-        const textDoc = documents.get(params.textDocument.uri)
-        if (textDoc === undefined) {
-            return undefined
-        }
-        const service = await fileRegistry.getLanguageService(textDoc)
-        if (service === undefined) {
-            return undefined
-        }
-        return service.hover(textDoc, params)
+connection.onHover(async (params: HoverParams): Promise<Hover | null | undefined> => {
+    const textDoc = documents.get(params.textDocument.uri)
+    if (textDoc === undefined) {
+        return undefined
     }
-)
+    const service = await fileRegistry.getLanguageService(textDoc)
+    if (service === undefined) {
+        return undefined
+    }
+    return service.hover(textDoc, params)
+})
 
-connection.onShutdown(async () => { return undefined })
+connection.onShutdown(async () => {
+    return undefined
+})
 
 // Make the text document manager listen on the connection
 // for open, change and close text document events
@@ -158,4 +158,4 @@ documents.listen(connection)
 // Listen on the connection
 connection.listen()
 
-connection.console.info("AWS Documents LS started!")
+connection.console.info('AWS Documents LS started!')

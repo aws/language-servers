@@ -1,4 +1,5 @@
 # Language Server Clients
+
 This directory contains LS clients for IDEs that
 will work with the AWS Documents Language Server.
 

@@ -37,7 +37,7 @@ completionResults = languageService.completion(incomingTextDocument, ...)
 ```mermaid
 classDiagram
 
-    
+
 
     class JSONDocument {
 
@@ -49,7 +49,7 @@ classDiagram
 
     }
 
-    
+
     JSONDocument <|.. YAMLDocument : Extends
 
     class DocumentParserVisitor {
@@ -62,7 +62,7 @@ classDiagram
     class CachedDocumentParser {
 
     }
-    
+
     CachedDocumentParser ..|> DocumentParserVisitor : Implements
 
     %% ---
@@ -118,22 +118,22 @@ classDiagram
 
 The following explains the classes within the above diagram.
 
-### *Document Class
+### \*Document Class
 
 Similar to a JavaScript HTML DOM, we need a structure that models
 the text of a file which we can interact with through code.
 
-* This concept is the [Abstract Syntax Tree (AST)](https://en.wikipedia.org/wiki/Abstract_syntax_tree)
-which is a structural representation of text, in this case
-our AWS Document filetypes.
+-   This concept is the [Abstract Syntax Tree (AST)](https://en.wikipedia.org/wiki/Abstract_syntax_tree)
+    which is a structural representation of text, in this case
+    our AWS Document filetypes.
 
-* The process of creating an AST is called **parsing**. And each AST
-is specific to a certain syntax. For example, an AST that represents
-a YAML file is structured differently than a TOML file.
+-   The process of creating an AST is called **parsing**. And each AST
+    is specific to a certain syntax. For example, an AST that represents
+    a YAML file is structured differently than a TOML file.
 
-* An AST is a tree that is composed of AST Nodes, the concept
-of an AST Node is consistent across all syntaxes but the specific
-details of the AST Node varies between syntaxes.
+-   An AST is a tree that is composed of AST Nodes, the concept
+    of an AST Node is consistent across all syntaxes but the specific
+    details of the AST Node varies between syntaxes.
 
 The `JSONDocument` and `YAMLDocument` are existing implementations
 of an AST created by the parsing methods of a separate node module.
@@ -142,30 +142,29 @@ extends it.
 
 ### DocumentParserVisitor Class
 
-* `DocumentParserVisitor` uses the [Visitor Pattern](https://refactoring.guru/design-patterns/visitor).
+-   `DocumentParserVisitor` uses the [Visitor Pattern](https://refactoring.guru/design-patterns/visitor).
 
-* `DocumentParserVisitor` knows how to parse many types of files such as YAML or JSON.
+-   `DocumentParserVisitor` knows how to parse many types of files such as YAML or JSON.
 
-* Users of `DocumentParserVisitor` need to choose the specific parsing method they want to use.
+-   Users of `DocumentParserVisitor` need to choose the specific parsing method they want to use.
 
-* This can be injected in to a `LanguageService` and/or `LanguageServiceStrategy` to provide access
-  to an AST if needed.
+-   This can be injected in to a `LanguageService` and/or `LanguageServiceStrategy` to provide access
+    to an AST if needed.
 
 ### LanguageService Class
 
-* The AWS Documents Language Server will support multiple Language types such as the 
-  [Amazon States Language (Step Functions)](https://states-language.net/spec.html),
-  or [Codebuild buildspec](https://docs.aws.amazon.com/codebuild/latest/userguide/build-spec-ref.html) language.
+-   The AWS Documents Language Server will support multiple Language types such as the
+    [Amazon States Language (Step Functions)](https://states-language.net/spec.html),
+    or [Codebuild buildspec](https://docs.aws.amazon.com/codebuild/latest/userguide/build-spec-ref.html) language.
 
-* A `LanguageService` implementation knows how to provide language support (completion, validation, ...)
-  for a specific language.
+-   A `LanguageService` implementation knows how to provide language support (completion, validation, ...)
+    for a specific language.
 
-* As an example, the `BuildspecService` can provide support for `buildspec` files.
-
+-   As an example, the `BuildspecService` can provide support for `buildspec` files.
 
 ### LanguageServiceContext/LanguageServiceStrategy Class
 
-* A `LanguageServiceStrategy` can determine if it is able to provide language support based off a given `TextDocument`
+-   A `LanguageServiceStrategy` can determine if it is able to provide language support based off a given `TextDocument`
 
-* `LanguageServiceStrategy` instances are added to a `LanguageServiceContext`, then the `LanguageServiceContext` uses the strategies
-  to determine which `LanguageService` implementation to return.
+-   `LanguageServiceStrategy` instances are added to a `LanguageServiceContext`, then the `LanguageServiceContext` uses the strategies
+    to determine which `LanguageService` implementation to return.

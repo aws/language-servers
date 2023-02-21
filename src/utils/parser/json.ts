@@ -6,4 +6,3 @@ const jsonService = createJsonLanguageService()
 export function parseJson(td: TextDocument): JSONDocument {
     return jsonService.parseJSONDocument(td)
 }
-

@@ -7,7 +7,7 @@ import { LanguageServiceContext, LanguageServiceStrategy } from './types'
  * for the given input.
  */
 export class LanguageServiceRegistry implements LanguageServiceContext {
-    constructor(private readonly strategies: LanguageServiceStrategy[] = []) { }
+    constructor(private readonly strategies: LanguageServiceStrategy[] = []) {}
 
     /**
      * Add an additional strategy to be part of the registry.

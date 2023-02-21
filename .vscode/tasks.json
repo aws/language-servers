@@ -9,9 +9,7 @@
                 "panel": "dedicated",
                 "reveal": "never"
             },
-            "problemMatcher": [
-                "$tsc"
-            ]
+            "problemMatcher": ["$tsc"]
         },
         {
             "label": "watch",
@@ -26,9 +24,7 @@
                 "panel": "dedicated",
                 "reveal": "never"
             },
-            "problemMatcher": [
-                "$tsc-watch"
-            ]
+            "problemMatcher": ["$tsc-watch"]
         },
         {
             "label": "pkgCompress",

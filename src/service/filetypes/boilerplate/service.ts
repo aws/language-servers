@@ -1,4 +1,11 @@
-import { CompletionItem, CompletionList, Diagnostic, Hover, HoverParams, TextDocumentPositionParams } from 'vscode-languageserver'
+import {
+    CompletionItem,
+    CompletionList,
+    Diagnostic,
+    Hover,
+    HoverParams,
+    TextDocumentPositionParams,
+} from 'vscode-languageserver'
 import { TextDocument } from 'vscode-languageserver-textdocument'
 import { createJsonLanguageService, JsonLanguageService } from '../../../utils/json/service'
 import { DocumentParser } from '../../../utils/parser/document'
@@ -9,7 +16,6 @@ import { BaseLanguageService } from '../../types'
 const SCHEMA_URL = 'https://my.website.com/schema.js'
 
 export class BoilerplateService extends BaseLanguageService {
-
     private parser: DocumentParserVisitor
     private yaml: YamlLanguageService
     private json: JsonLanguageService
@@ -18,7 +24,7 @@ export class BoilerplateService extends BaseLanguageService {
         parser: DocumentParserVisitor = new DocumentParser(),
         yaml: YamlLanguageService = new YamlLanguageService(SCHEMA_URL),
         json: JsonLanguageService = createJsonLanguageService()
-    ) { 
+    ) {
         super()
 
         // Use this if you need an AST
@@ -31,7 +37,10 @@ export class BoilerplateService extends BaseLanguageService {
         this.json = json
     }
 
-    completion(document: TextDocument, textDocumentPositionParams: TextDocumentPositionParams): Promise<CompletionItem[] | CompletionList> {
+    completion(
+        document: TextDocument,
+        textDocumentPositionParams: TextDocumentPositionParams
+    ): Promise<CompletionItem[] | CompletionList> {
         return Promise.resolve([])
     }
 

@@ -4,12 +4,15 @@ import {
     Diagnostic,
     Hover,
     HoverParams,
-    TextDocumentPositionParams
+    TextDocumentPositionParams,
 } from 'vscode-languageserver'
 import { TextDocument } from 'vscode-languageserver-textdocument'
 
-export class BaseLanguageService implements LanguageService{
-    completion(document: TextDocument, textDocumentPosition: TextDocumentPositionParams): Promise<CompletionList | CompletionItem[]> {
+export class BaseLanguageService implements LanguageService {
+    completion(
+        document: TextDocument,
+        textDocumentPosition: TextDocumentPositionParams
+    ): Promise<CompletionList | CompletionItem[]> {
         throw new Error(`completion() not implemented for this Service.`)
     }
     diagnostic(document: TextDocument): Promise<Diagnostic[]> {
@@ -20,23 +23,21 @@ export class BaseLanguageService implements LanguageService{
     }
 }
 
-
 /**
  * This is the core interface of the Language Service.
  * It defines all the functionalities that a Language Service
  * can support.
- * 
+ *
  * These will closely map to the [Language Features defined
  * by the LSP](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#languageFeatures),
  * though the parameters may vary.
  */
 export interface LanguageService {
-
     /**
      * Given a position in a text document, provide a suggestion(s)
      * which the user can eventually select to be autocompleted in their
      * document.
-     * 
+     *
      * In some IDEs this functionality can be triggered by
      * doing Ctrl + Space
      */

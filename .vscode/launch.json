@@ -29,7 +29,7 @@
             "name": "Unit Tests",
             "program": "${workspaceRoot}/node_modules/mocha/bin/_mocha",
             "args": ["${workspaceRoot}/out/test/unit/**/*.js"],
-            "cwd": "${workspaceRoot}",
+            "cwd": "${workspaceRoot}"
         },
         {
             "type": "node",
@@ -38,7 +38,7 @@
             "name": "Unit Tests (Current File)",
             "program": "${workspaceRoot}/node_modules/mocha/bin/_mocha",
             "args": ["${workspaceRoot}/out/test/unit/**/${fileBasenameNoExtension}.js"],
-            "cwd": "${workspaceRoot}",
+            "cwd": "${workspaceRoot}"
         },
         {
             "type": "node",
@@ -46,7 +46,7 @@
             "preLaunchTask": "watch",
             "name": "Integration Tests",
             "program": "${workspaceRoot}/node_modules/mocha/bin/_mocha",
-            "args": ["${workspaceRoot}/out/test/integration/**/*.js"],
+            "args": ["${workspaceRoot}/out/test/integration/**/*.js"]
         },
         {
             "type": "node",
@@ -54,8 +54,8 @@
             "preLaunchTask": "watch",
             "name": "Integration Tests (Current File)",
             "program": "${workspaceRoot}/node_modules/mocha/bin/_mocha",
-            "args": ["${workspaceRoot}/out/test/integration/**/${fileBasenameNoExtension}.js"],
-        },
+            "args": ["${workspaceRoot}/out/test/integration/**/${fileBasenameNoExtension}.js"]
+        }
     ],
     "compounds": [
         {

@@ -6,7 +6,7 @@ import { DefaultHttpRequester, HttpRequestHeaders, HttpResponse } from '../../..
 
 describe('Test HttpRequest class', async () => {
     describe('Test request()', async () => {
-        const url = "https://my.url.com/some/path"
+        const url = 'https://my.url.com/some/path'
         const implReturnObj: SinonStubbedInstance<HttpResponse> = stubInterface()
 
         let instance: DefaultHttpRequester

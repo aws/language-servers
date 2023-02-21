@@ -1,4 +1,3 @@
-
 import { createHash } from 'crypto'
 import * as fs from 'fs'
 import * as path from 'path'
@@ -6,7 +5,6 @@ import { URI } from 'vscode-uri'
 import { LanguageServerCacheDir } from '../configurationDirectory'
 import { Time } from '../datetime'
 import { DefaultHttpRequester, getETag, HttpRequester, HttpRequestHeaders, HttpResponse } from '../http/request'
-
 
 /** Represents the `metadata` file structure */
 interface UriCacheMetadata {
@@ -21,20 +19,20 @@ interface UriCacheMetadataEntry {
 }
 
 export class UriContentResolver {
-    constructor(private readonly fileUriContentResolver = new FileUriContentResolver(),
+    constructor(
+        private readonly fileUriContentResolver = new FileUriContentResolver(),
         private readonly cachedUriContentResolver = new CachedUriContentResolver(),
-        private readonly httpUriContentResolver = new HttpUriContentResolver()) { }
+        private readonly httpUriContentResolver = new HttpUriContentResolver()
+    ) {}
 
     async getContent(uri: URI, useCache = true) {
         let content: string | undefined
         if (uri.scheme.startsWith('file')) {
             content = this.fileUriContentResolver.getContent(uri)
-        }
-        else if (uri.scheme.startsWith('http')) {
+        } else if (uri.scheme.startsWith('http')) {
             if (useCache) {
                 content = await this.cachedUriContentResolver.getContent(uri)
-            }
-            else {
+            } else {
                 content = (await this.httpUriContentResolver.getContent(uri)).content
             }
         }
@@ -52,7 +50,7 @@ class FileUriContentResolver {
         if (!(uri.scheme == 'file')) {
             return undefined
         }
-        return fs.readFileSync(uri.fsPath, { encoding: "utf8" })
+        return fs.readFileSync(uri.fsPath, { encoding: 'utf8' })
     }
 }
 
@@ -60,27 +58,27 @@ class FileUriContentResolver {
  * Provides functionality to retrieve the content
  * of a URI. Content is cached locally for efficient
  * repeated reads.
- * 
+ *
  * Cache is considered stale after {@link thirtyMinutesInMillis}
  * and is refreshed.
- * 
- * The structure of the cache directory looks as follows: 
- * 
+ *
+ * The structure of the cache directory looks as follows:
+ *
  * {@link cacheDirRoot}/
  * └── cachedUris/
  *     ├── metadata
  *     ├── d8e3b6aadda6a6e9e <- Hashed uri for unique name, holds the actual data
  *     ├── 6a6e9ec3c66bf70fb
  *     └── bd37ce0972ac0351f
- * 
+ *
  * `metadata` has information about all cached uris.
- * 
+ *
  * Every other file with a hashed name represents the
  * latest content of a specific uri.
- * 
+ *
  * `metadata` contains a json entry for each uri that
  * will have information about that uri, including the
- * hashed file name that contains the cached content.  
+ * hashed file name that contains the cached content.
  */
 export class CachedUriContentResolver {
     private static readonly thirtyMinutesInMillis = 60 * 30 * 1000
@@ -101,7 +99,7 @@ export class CachedUriContentResolver {
         // Setup cache metadata file
         this.cacheMetadataPath = path.join(this.cachedUrisDirPath, 'metadata')
         if (!fs.existsSync(this.cacheMetadataPath)) {
-            fs.writeFileSync(this.cacheMetadataPath, "{}")
+            fs.writeFileSync(this.cacheMetadataPath, '{}')
         }
     }
 
@@ -160,7 +158,7 @@ export class CachedUriContentResolver {
         const metadataEntry: UriCacheMetadataEntry = {
             contentFileName: contentFileName,
             eTag,
-            lastUpdated: this.time.inMilliseconds()
+            lastUpdated: this.time.inMilliseconds(),
         }
 
         const allMetadata = this.getAllMetadata()
@@ -188,7 +186,7 @@ export class CachedUriContentResolver {
         }
 
         const diff = this.time.inMilliseconds() - lastUpdated
-        return (diff) > CachedUriContentResolver.thirtyMinutesInMillis
+        return diff > CachedUriContentResolver.thirtyMinutesInMillis
     }
 
     /** Updates the 'metadata' file with the given input */
@@ -207,7 +205,7 @@ export class CachedUriContentResolver {
             return
         }
 
-        return fs.readFileSync(absolutePath, { encoding: "utf8" })
+        return fs.readFileSync(absolutePath, { encoding: 'utf8' })
     }
 
     private writeContentFileText(contentFileName: string, text: string): void {
@@ -222,24 +220,21 @@ export class CachedUriContentResolver {
 }
 
 export class HttpUriContentResolver {
-
-    constructor(
-        readonly httpContentDownloader: HttpRequester = new DefaultHttpRequester(),
-    ) { }
+    constructor(readonly httpContentDownloader: HttpRequester = new DefaultHttpRequester()) {}
 
     /**
      * Downloads the content of a HTTP uri.
-     * 
+     *
      * Additionally if an eTag is provided it will use it in the request.
      * In the scenario the eTag matches the destinations, the content
      * returned will be undefined.
-     * 
+     *
      * In any other scenario an error will be thrown.
-     * @param uri 
-     * @param eTag 
+     * @param uri
+     * @param eTag
      * @returns text content and eTag if it exists, on undefined content it is an eTag match
      */
-    async getContent(uri: URI, eTag?: string): Promise<{ content: string | undefined, eTag: string | undefined }> {
+    async getContent(uri: URI, eTag?: string): Promise<{ content: string | undefined; eTag: string | undefined }> {
         if (!uri.scheme.startsWith('http')) {
             throw new Error(`Only uri with http(s) scheme is supported, but was: ${uri.toString()}`)
         }
@@ -258,8 +253,7 @@ export class HttpUriContentResolver {
         try {
             response = await this.httpContentDownloader.request(uri.toString(), { headers })
             latestETag = getETag(response.headers)
-        }
-        catch (err) {
+        } catch (err) {
             if ((err as HttpResponse).status == 304) {
                 // The current http request library throws an error on,
                 // I'm assuming non 200 status codes, so we need to catch this
@@ -272,5 +266,4 @@ export class HttpUriContentResolver {
         }
         return { content: response.responseText, eTag: latestETag }
     }
-
 }

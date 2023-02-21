@@ -1,21 +1,24 @@
-
-
 import {
-
     CompletionItem,
     CompletionList,
-    Diagnostic, Hover, HoverParams, TextDocumentPositionParams
+    Diagnostic,
+    Hover,
+    HoverParams,
+    TextDocumentPositionParams,
 } from 'vscode-languageserver'
 import { TextDocument } from 'vscode-languageserver-textdocument'
 import { createConnection } from 'vscode-languageserver/lib/node/main'
 import { URI } from 'vscode-uri'
 import {
-    getLanguageService as getYamlLanguageService, LanguageService as OriginalYamlLanguageService, LanguageSettings, SchemaRequestService, SchemasSettings
+    getLanguageService as getYamlLanguageService,
+    LanguageService as OriginalYamlLanguageService,
+    LanguageSettings,
+    SchemaRequestService,
+    SchemasSettings,
 } from 'yaml-language-server'
 import { LanguageService } from '../../service/types'
 import { UriContentResolver } from '../uri/resolve'
 import { YAMLTelemetry } from './telemetry'
-
 
 /**
  * This class wraps {@link OriginalYamlLanguageService}.
@@ -23,24 +26,24 @@ import { YAMLTelemetry } from './telemetry'
  * the call to {@link OriginalYamlLanguageService}.
  * ---
  * ## Why?
- * 
+ *
  * We need this class due to the design of the YAML Language
  * Service. We cannot use it as if it were a function, passing
  * ALL arguments that it would need to perform a function.
- * 
+ *
  * Instead, the current implementation requires us to set some
  * properties on the instance PRIOR to using its functionality.
- * 
+ *
  * An example is the schema, the YAML service requires the user
  * pre-define the mapping between uri and schema. This is not
  * a good way to do it. [See code here.](https://github.com/redhat-developer/yaml-language-server/blob/d3e36a385f74b7fe58cace8db4824f51f35d3b62/src/languageservice/yamlLanguageService.ts#L207)
- * 
+ *
  * Instead, the user should be passing the correct schema from
  * their end as an additional argument. The user should be in
  * charge of ensuring they provide the correct schema.
  * ---
  * # TODO
- * 
+ *
  * Update the YAML Language Service api to allow us to
  * pass in additional arguments directly in to the function
  * calls. Then this class will not be necessary anymore.
@@ -48,9 +51,12 @@ import { YAMLTelemetry } from './telemetry'
 export class YamlLanguageService implements LanguageService {
     private _instance = new YamlLanguageServiceBuilder().instance()
 
-    constructor(private readonly schemaUri: string) { }
+    constructor(private readonly schemaUri: string) {}
 
-    completion(document: TextDocument, textDocumentPosition: TextDocumentPositionParams): Promise<CompletionItem[] | CompletionList> {
+    completion(
+        document: TextDocument,
+        textDocumentPosition: TextDocumentPositionParams
+    ): Promise<CompletionItem[] | CompletionList> {
         this.updateSchemaMapping(document.uri)
         return this._instance.doComplete(document, textDocumentPosition.position, false)
     }
@@ -64,7 +70,10 @@ export class YamlLanguageService implements LanguageService {
     }
 
     private updateSchemaMapping(documentUri: string): void {
-        const languageSettings = YamlLanguageServiceBuilder.createLanguageSettings({ fileMatch: [documentUri], uri: this.schemaUri })
+        const languageSettings = YamlLanguageServiceBuilder.createLanguageSettings({
+            fileMatch: [documentUri],
+            uri: this.schemaUri,
+        })
         this._instance.configure(languageSettings)
     }
 }
@@ -79,17 +88,11 @@ export class YamlLanguageServiceBuilder {
         const workspaceContext = {
             resolveRelativePath(relativePath: string, resource: string) {
                 return new URL(relativePath, resource).href
-            }
+            },
         }
         const connection = createConnection()
         const yamlTelemetry = new YAMLTelemetry(connection)
-        const yaml = getYamlLanguageService(
-            schemaResolver,
-            workspaceContext,
-            connection,
-            yamlTelemetry,
-            null as any
-        )
+        const yaml = getYamlLanguageService(schemaResolver, workspaceContext, connection, yamlTelemetry, null as any)
 
         if (languageSettings) {
             yaml.configure(languageSettings)
@@ -103,7 +106,7 @@ export class YamlLanguageServiceBuilder {
             hover: true,
             completion: true,
             validate: true,
-            customTags: []
+            customTags: [],
         }
         if (schemaSettings) {
             defaultLanguageSettings.schemas = [schemaSettings]
@@ -111,5 +114,3 @@ export class YamlLanguageServiceBuilder {
         return defaultLanguageSettings
     }
 }
-
-

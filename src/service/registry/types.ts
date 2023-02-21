@@ -1,10 +1,9 @@
 import { TextDocument } from 'vscode-languageserver-textdocument'
 import { LanguageService } from '../types'
 
-
 /**
  * This is a 'Strategy' of the Strategy design pattern.
- * 
+ *
  * It will help in providing the correct {@link LanguageService}
  * implementation.
  */
@@ -19,7 +18,7 @@ export interface LanguageServiceStrategy {
 
 /**
  * This is the 'Context' of the Strategy design pattern.
- * 
+ *
  * It will decide which strategy to use and return a
  * {@link LanguageService} instance if it can be resolved.
  */

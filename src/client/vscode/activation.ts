@@ -10,15 +10,14 @@ import { ExtensionContext, workspace } from 'vscode'
 import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind } from 'vscode-languageclient/node'
 
 export async function activateDocumentsLanguageServer(extensionContext: ExtensionContext) {
-
     /**
      * In launch.json when we launch as vscode extension we set
      * "--extensionDevelopmentPath=${workspaceFolder}/src/client/vscode"
      * the output of extensionContext.extension path will be this directory.
-     * 
+     *
      * We do this so that we can use the package.json for the client, and
      * not the package.json for the server which is in the root.
-     * 
+     *
      * Additonally, this is why we use multiple '..', to get to the output directory
      * with the javascript files.
      */
@@ -48,12 +47,7 @@ export async function activateDocumentsLanguageServer(extensionContext: Extensio
     }
 
     // Create the language client and start the client.
-    const client = new LanguageClient(
-        'awsDocuments',
-        'AWS Documents Language Server',
-        serverOptions,
-        clientOptions
-    )
+    const client = new LanguageClient('awsDocuments', 'AWS Documents Language Server', serverOptions, clientOptions)
 
     client.start()
 

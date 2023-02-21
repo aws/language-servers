@@ -4,11 +4,12 @@ How to contribute.
 
 ## Pre-Requisites + Initial Setup
 
-* `node` version 18+
-* `npm`
-* VSCode (recommended)
+-   `node` version 18+
+-   `npm`
+-   VSCode (recommended)
 
 Run:
+
 ```
 git clone git@github.com:aws/aws-toolkit-common.git && \
 
@@ -24,6 +25,7 @@ npm install
 This project currently supports building a standalone language server through [pkg](https://github.com/vercel/pkg). pkg takes the project and packages it into an executable alongside a node binary.
 
 In order to build the standalone language server first install the pkg cli
+
 ```bash
 npm install pkg -g
 ```
@@ -35,21 +37,25 @@ For reference, see [pkg usage](https://github.com/vercel/pkg#usage).
 ### pkg Examples
 
 If you want to create windows-x64, macos-x64, linux-x64 binaries you can use:
+
 ```bash
 pkg .
 ```
 
 if you have a different node version installed (eg: node19) from your target package (eg: node18) you can do:
+
 ```bash
 pkg --targets node18 .
 ```
 
 to create a standalone executable for node16 for windows on arm you can do
+
 ```bash
 pkg --targets node16-windows-arm64 .
 ```
 
 to ensure the standalone language server is compressed even more you can do:
+
 ```bash
 pkg --compress GZip .
 ```
@@ -75,6 +81,7 @@ and be able to debug it all.
 > **NOTE**: The cloned git repos must be adjacent to each other in the filesystem since commands are currently using relative paths.
 
 1. Clone the [`aws-toolkit-vscode`](https://github.com/aws/aws-toolkit-vscode) repo:
+
     ```
     git clone git@github.com:aws/aws-toolkit-vscode.git
 
@@ -86,6 +93,7 @@ and be able to debug it all.
     ```
 
 2. Clone the [`aws-toolkit-common`](https://github.com/aws/aws-toolkit-common) repo:
+
     ```console
     git clone git@github.com:aws/aws-toolkit-common.git && \
 
@@ -99,20 +107,22 @@ and be able to debug it all.
 3. Open each project in their own VSCode window.
 
 4. In `aws-toolkit-common` run:
+
     ```console
     npm run watch
     ```
 
 5. In `aws-toolkit-vscode` start the extesion in `Run & Debug` using the `"Extension"` launch config.
-A new window will open.
+   A new window will open.
 
 6. In the new window enable the language server in the VSCode settings under `aws.experiments` and check `lsp`. This will start the language server using the output you generated in step `4`.
 
 7. In the `aws-toolkit-common` VSCode window connect the debugger in `Run & Debug` using the `"Attach to AWS Documents Language Server"` launch config. Set breakpoints where needed.
 
-
 ## Testing
+
 ### Running Tests
+
 **In VSCode**
 
 In the `Run & Debug` menu are options to separately
@@ -124,28 +134,33 @@ can test the file that is currently open.
 How to test using the CLI.
 
 Unit Testing:
+
 ```bash
 npm test
 ```
 
 Integration Testing:
+
 ```bash
 npm run testInt
 ```
+
 ---
+
 ### Writing Tests
 
-* The modules used in testing are:
-    * `mocha`: Testing framework
-    * `chai`: For assertions
-    * `sinon`: stub/mock/spy
+-   The modules used in testing are:
 
-* The design of the source code is written with [dependency injection](https://en.wikipedia.org/wiki/Dependency_injection)
-in mind.
-    * An object or function receives other objects or functions
+    -   `mocha`: Testing framework
+    -   `chai`: For assertions
+    -   `sinon`: stub/mock/spy
+
+-   The design of the source code is written with [dependency injection](https://en.wikipedia.org/wiki/Dependency_injection)
+    in mind.
+    _ An object or function receives other objects or functions
     for functionality that it depends on, instead of all functionality
     existing statically in one place.
-    * This simplifies testing and influences how tests are to be written.
+    _ This simplifies testing and influences how tests are to be written.
 
 #### How To Use `sinon`
 
@@ -155,6 +170,7 @@ These are the core components that complement the testing of a dependency inject
 The following is a quick summary of how to use `sinon` in this project.
 
 **Summary:**
+
 ```typescript
 // Use to stub interfaces (must explicitly set type in declaration)
 stubInterface()
@@ -171,14 +187,14 @@ let myClassStub: MyClass
 ```
 
 **Imports:**
+
 ```typescript
 import { stubInterface } from 'ts-sinon' // Only use this module for `stubInterface`
 import { SinonStubbedInstance, SinonStubbedMember, createStubInstance, stub } from 'sinon'
 ```
 
-
-
 **Object Instance Stub:**
+
 ```typescript
 let myClassStub: SinonStubbedInstance<MyClass> = stub(new MyClass())
 // Do this if you want myFunc() to execute its actual functionality
@@ -192,6 +208,7 @@ myClassStub.myFunc.returns(3)
 ```
 
 **Interface Stub:**
+
 ```typescript
 // Note the need for `ts-sinon.stubInterface()` to stub interfaces.
 // `sinon` does not provide the ability to stub interfaces.
@@ -201,17 +218,20 @@ myInterfaceStub.someFunctionItDefined.returns('my value')
 ```
 
 **Function Stub:**
+
 ```typescript
 interface myFuncInterface {
-	(x: string): string
+    (x: string): string
 }
-myFunc: myFuncInterface = (x: string) => { return x}
+myFunc: myFuncInterface = (x: string) => {
+    return x
+}
 
 // Note `SinonStubedMember` instead of `SinonStubbedInstance` for functions
 const myFuncStub: SinonStubbedMember<myFuncI> = stub(myFunc)
 
 // Must explicitly type with `SinonStubbedMember` on assignment for this to pass linting
-myFuncStub.callThrough() 
+myFuncStub.callThrough()
 ```
 
 **Resetting `callThrough()`:**
@@ -225,12 +245,13 @@ myStubbedFunc.callThrough()
 myStubbedFunc.resetBehaviour()
 myStubbedFunc.returns()
 ```
+
 ---
 
 ## Troubleshooting
 
 ### Viewing Logs in VSCode
 
-* Change the setting `awsDocuments.trace.server` to `"verbose"`. This shows all communication between the client and server.
-* In the top left menu bar: `View > Output`
-* Select `"AWS Documents Language Server"` from the dropdown menu in the topright.
+-   Change the setting `awsDocuments.trace.server` to `"verbose"`. This shows all communication between the client and server.
+-   In the top left menu bar: `View > Output`
+-   Select `"AWS Documents Language Server"` from the dropdown menu in the topright.
