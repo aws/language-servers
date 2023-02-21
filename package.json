@@ -19,12 +19,15 @@
     },
     "main": "./out/src/server/server.js",
     "scripts": {
+        "prepare": "cd .. && husky install lsp/.husky",
         "vscode:prepublish": "npm run compile",
         "compile": "tsc -b",
         "package-x64": "pkg --targets node18-linux-x64,node18-win-x64,node18-macos-x64 --compress GZip .",
         "package-arm": "pkg --targets node18-linux-arm64,node18-win-arm64,node18-macos-arm64 --compress GZip .",
         "watch": "tsc -b -w",
-        "lint": "eslint src --ext .ts,.tsx",
+        "lint": "eslint src --ext .ts,.tsx && prettier --check .",
+        "format": "prettier --write .",
+        "format-staged": "npx pretty-quick --staged",
         "test": "mocha out/test/unit/**/*.js",
         "testInt": "mocha out/test/integration/**/*.js"
     },
@@ -47,11 +50,24 @@
         "create-temp-directory": "^2.2.0",
         "eslint": "^8.26.0",
         "eslint-plugin-unused-imports": "^2.0.0",
+        "husky": "^8.0.3",
         "mocha": "^10.2.0",
         "pkg": "^5.8.0",
+        "prettier": "^2.8.4",
+        "pretty-quick": "^3.1.3",
         "sinon": "^15.0.1",
         "ts-sinon": "^2.0.2",
         "typescript": "^4.8.4",
         "vscode-languageclient": "^8.0.2"
+    },
+    "prettier": {
+        "printWidth": 120,
+        "trailingComma": "es5",
+        "tabWidth": 4,
+        "singleQuote": true,
+        "semi": false,
+        "bracketSpacing": true,
+        "arrowParens": "avoid",
+        "endOfLine": "lf"
     }
 }

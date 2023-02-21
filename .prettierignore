@@ -1,0 +1,6 @@
+package-lock.json
+dist/
+node_modules/
+out/
+**/bin/
+**/obj/
