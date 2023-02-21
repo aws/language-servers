@@ -1,0 +1,52 @@
+name: Language Server CI
+on:
+    push:
+        branches: [main, dev, test-typescript-lsp]
+    pull_request:
+        branches: [main, dev, test-typescript-lsp]
+
+jobs:
+    test:
+        name: Test
+        runs-on: ubuntu-latest
+        steps:
+            - name: Sync Code
+              uses: actions/checkout@v3
+            - name: Set up Node
+              uses: actions/setup-node@v3
+              with:
+                node-version: 18
+            - name: Build
+              run: |
+                  cd lsp
+                  npm install
+                  npm run compile
+            - name: Test
+              run: |
+                  cd lsp
+                  npm run test
+    build:
+        name: Package
+        runs-on: ubuntu-latest
+        steps:
+            - name: Sync Code
+              uses: actions/checkout@v3
+            - name: Set up Node
+              uses: actions/setup-node@v3
+              with:
+                node-version: 18
+            - name: Build
+              run: |
+                  cd lsp
+                  npm install
+                  npm run compile
+            - name: Create binaries
+              run: |
+                  cd lsp
+                  npm run package-x64
+            # TODO : Can we easily create ARM binaries from GitHub?
+            - name: Attach binaries
+              uses: actions/upload-artifact@v3
+              with:
+                name: langauge-server
+                path: lsp/awsdocuments-language-server-*

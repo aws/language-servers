@@ -1,0 +1,6 @@
+.vscode/**
+**/*.ts
+**/*.map
+.gitignore
+tsconfig.json
+docs/contributing.md

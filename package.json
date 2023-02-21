@@ -1,0 +1,57 @@
+{
+    "name": "awsdocuments-language-server",
+    "description": "Language Server for AWS Filetypes",
+    "author": "AWS",
+    "license": "MIT",
+    "version": "0.1.0",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/aws/awsdocuments-language-server"
+    },
+    "publisher": "aws",
+    "categories": [],
+    "keywords": [],
+    "engines": {
+        "vscode": "^1.74.0"
+    },
+    "bin": {
+        "awsdocuments-language-server": "./out/src/server/server.js"
+    },
+    "main": "./out/src/server/server.js",
+    "scripts": {
+        "vscode:prepublish": "npm run compile",
+        "compile": "tsc -b",
+        "package-x64": "pkg --targets node18-linux-x64,node18-win-x64,node18-macos-x64 --compress GZip .",
+        "package-arm": "pkg --targets node18-linux-arm64,node18-win-arm64,node18-macos-arm64 --compress GZip .",
+        "watch": "tsc -b -w",
+        "lint": "eslint src --ext .ts,.tsx",
+        "test": "mocha out/test/unit/**/*.js",
+        "testInt": "mocha out/test/integration/**/*.js"
+    },
+    "dependencies": {
+        "request-light": "^0.6.0",
+        "vscode-languageserver": "^7.0.0",
+        "vscode-languageserver-textdocument": "^1.0.4",
+        "vscode-uri": "^3.0.7",
+        "yaml-language-server": "^1.11.0"
+    },
+    "devDependencies": {
+        "@types/chai": "^4.3.4",
+        "@types/mocha": "^9.1.0",
+        "@types/node": "^16.11.7",
+        "@types/sinon": "^10.0.13",
+        "@types/vscode": "^1.74.0",
+        "@typescript-eslint/eslint-plugin": "^5.42.0",
+        "@typescript-eslint/parser": "^5.42.0",
+        "chai": "^4.3.7",
+        "create-temp-directory": "^2.2.0",
+        "eslint": "^8.26.0",
+        "eslint-plugin-unused-imports": "^2.0.0",
+        "mocha": "^10.2.0",
+        "pkg": "^5.8.0",
+        "sinon": "^15.0.1",
+        "ts-sinon": "^2.0.2",
+        "typescript": "^4.8.4",
+        "vscode-languageclient": "^8.0.2"
+    }
+}
