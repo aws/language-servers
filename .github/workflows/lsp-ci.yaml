@@ -1,9 +1,9 @@
 name: Language Server CI
 on:
     push:
-        branches: [main, dev, test-typescript-lsp]
+        branches: [main, dev]
     pull_request:
-        branches: [main, dev, test-typescript-lsp]
+        branches: [main, dev]
 
 jobs:
     test:
@@ -15,7 +15,7 @@ jobs:
             - name: Set up Node
               uses: actions/setup-node@v3
               with:
-                node-version: 18
+                  node-version: 18
             - name: Build
               run: |
                   cd lsp
@@ -34,7 +34,7 @@ jobs:
             - name: Set up Node
               uses: actions/setup-node@v3
               with:
-                node-version: 18
+                  node-version: 18
             - name: Build
               run: |
                   cd lsp
@@ -48,5 +48,5 @@ jobs:
             - name: Attach binaries
               uses: actions/upload-artifact@v3
               with:
-                name: langauge-server
-                path: lsp/awsdocuments-language-server-*
+                  name: langauge-server
+                  path: lsp/bin/awsdocuments-language-server-*

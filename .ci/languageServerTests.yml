@@ -1,0 +1,21 @@
+version: 0.2
+
+phases:
+    install:
+        runtime-versions:
+            nodejs: 16
+
+    build:
+        # Build and package the language server, then run tests.
+        # Packaged binaries will be emitted as CodeBuild artifacts.
+        commands:
+            - |
+                cd lsp
+                npm install
+                npm run compile
+                npm run package-x64
+                npm run test
+artifacts:
+    discard-paths: yes
+    files:
+        - lsp/bin/**
