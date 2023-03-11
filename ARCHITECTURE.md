@@ -1,4 +1,18 @@
-# Architechture
+# Architecture
+
+The application consists of two components: the language server, and the language services.
+
+The **Language Server** is the containing application. It hosts language services, implements the Language server protocol (LSP), and queries information from language services in order to resepond to LSP requests.
+
+The **Language Services** are document-specific implementations that understand how to parse and interpret certain file types. These are used by the language server in order to provide LSP clients with details that power language assistance functionality.
+
+## Language Server
+
+![Langauge server architecture diagram](docs/images/language-server-architecture.svg)
+
+At start-up, the language server registers its language services, waits for an LSP client to connect, then responds to requests. When feature specific requests are made by the LSP client, the language server makes a query to relevant language services, and the results are returned to the LSP client.
+
+Language service can vary in their supported capabilities, and in how much business logic they define. Language services can also share a common parser - for example, several document types may be based on YAML or JSON parsing.
 
 ## Language Service
 
