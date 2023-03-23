@@ -106,7 +106,7 @@ classDiagram
 
     class LanguageService {
         <<interface>>
-        +completion(TextDocument td, Position position) Promise~CompletionItem[] | CompletionList~
+        +completion(TextDocument td, Position position) Promise~CompletionItem[]|CompletionList~
         +diagnostic(TextDocument td) Promise~Diagnostic[]~
         +hover(TextDocument td, Position position) Promise~Diagnostic[]~
     }
