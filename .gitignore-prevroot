@@ -23,4 +23,3 @@ lsp/node_modules
 lsp/.vscode-test
 lsp/awsdocuments-language-server-*
 !lsp/bin
-
