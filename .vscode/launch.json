@@ -7,7 +7,7 @@
             "type": "node",
             "request": "attach",
             "port": 6012, // Hard defined in the vscode client activation.ts
-            "outFiles": ["${workspaceFolder}/out/src/server/**/*.js"],
+            "outFiles": ["${workspaceFolder}/out/src/server/**/*.js", "${workspaceFolder}/out/src/service/**/*.js"],
             "restart": {
                 "maxAttempts": 10,
                 "delay": 1000
