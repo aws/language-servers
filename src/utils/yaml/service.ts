@@ -10,11 +10,11 @@ import { TextDocument } from 'vscode-languageserver-textdocument'
 import { createConnection } from 'vscode-languageserver/lib/node/main'
 import { URI } from 'vscode-uri'
 import {
-    getLanguageService as getYamlLanguageService,
-    LanguageService as OriginalYamlLanguageService,
     LanguageSettings,
+    LanguageService as OriginalYamlLanguageService,
     SchemaRequestService,
     SchemasSettings,
+    getLanguageService as getYamlLanguageService,
 } from 'yaml-language-server'
 import { LanguageService } from '../../service/types'
 import { UriContentResolver } from '../uri/resolve'
@@ -92,7 +92,12 @@ export class YamlLanguageServiceBuilder {
         }
         const connection = createConnection()
         const yamlTelemetry = new YAMLTelemetry(connection)
-        const yaml = getYamlLanguageService(schemaResolver, workspaceContext, connection, yamlTelemetry, null as any)
+        const yaml = getYamlLanguageService({
+            schemaRequestService: schemaResolver,
+            workspaceContext,
+            connection,
+            telemetry: yamlTelemetry,
+        })
 
         if (languageSettings) {
             yaml.configure(languageSettings)
