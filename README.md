@@ -22,6 +22,9 @@ Monorepo
     └── visualStudio/ - Minimal Visual Studio extension to test the language server
     └── vscode/ - Minimal vscode extension to test the language server
 ── core - contains supporting libraries used by app and server packages
+    └── aws-lsp-core - core support code
+    └── aws-lsp-json-common - reusable code related to JSON language service handling
+    └── aws-lsp-yaml-common - reusable code related to YAML language service handling
     └── todo : IDE-10874
 ── server - packages that contain Language Server implementations
     └── todo : IDE-10874

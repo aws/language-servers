@@ -1,7 +1,7 @@
 {
     "name": "monorepo-aws-languages",
     "version": "1.0.0",
-    "description": "A monorepo for AWS Language Servers (@christou-lsp-test)",
+    "description": "A monorepo for AWS Language Servers (@lsp-placeholder)",
     "private": true,
     "workspaces": [
         "app/*",

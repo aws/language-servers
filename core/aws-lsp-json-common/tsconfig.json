@@ -3,23 +3,16 @@
         "module": "UMD",
         "target": "ES2021",
         "moduleResolution": "node",
+        "lib": ["ES2021"],
         "rootDir": "./src",
         "outDir": "./out",
         "declaration": true,
+        "sourceMap": true,
         "skipLibCheck": true,
         "forceConsistentCasingInFileNames": true,
-        "strict": true
+        "strict": true,
+        "composite": true
     },
-    "files": [],
-    "references": [
-        {
-            "path": "./core/aws-lsp-core"
-        },
-        {
-            "path": "./core/aws-lsp-json-common"
-        },
-        {
-            "path": "./core/aws-lsp-yaml-common"
-        }
-    ]
+    "include": ["src", "test"],
+    "exclude": ["node_modules"]
 }
