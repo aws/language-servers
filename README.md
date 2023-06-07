@@ -1,31 +1,30 @@
 # AWS Documents Language Server
 
-Language server for AWS File types
+Language servers for AWS File types
 
 ## Functionality
 
-This Language Server currently supports completion, hover, diagnostics for the following file types:
-
--   Buildspec
+This Language Server will initially support completion, hover, diagnostics for select document types. The plan is to use JSON Schemas for certain documents, but we will explore additional language servers as well.
 
 ## Structure
 
+** This page is out of date while working in a feature branch **
+
+Monorepo
+
 ```
 .
-── src
-    └── client
-        └── vscode/ - Minimal vscode extension to test the language server
-    └── server
-        └── server.ts - Language Server entry point
-        └── registry.ts - Registry of items
-        └── service.ts - Interfaces for Language Service and implementation of Backend Services that we call into (json language service, yaml language service)
-        └── utils/ - Utilities for general functionality
-        └── filetypes/ - Folder where filetype implementations live
-── test
-    └── unit/ - Unit tests
-        └── ... - These directories mirror src
-    └── integration/ - Integration tests
-        └── ... - These directories mirror src
+── app - binaries for distribution and integration into IDEs
+    └── todo : IDE-10874
+── client - Sample LSP integrations for various IDEs.
+            Used to test out the Language Servers
+    └── jetbrains/ - Minimal JetBrains extension to test the language server
+    └── visualStudio/ - Minimal Visual Studio extension to test the language server
+    └── vscode/ - Minimal vscode extension to test the language server
+── core - contains supporting libraries used by app and server packages
+    └── todo : IDE-10874
+── server - packages that contain Language Server implementations
+    └── todo : IDE-10874
 ```
 
 ## How To Contribute

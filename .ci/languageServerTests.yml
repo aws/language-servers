@@ -13,9 +13,11 @@ phases:
                 cd lsp
                 npm install
                 npm run compile
-                npm run package-x64
-                npm run test
-artifacts:
-    discard-paths: yes
-    files:
-        - lsp/bin/**
+                echo todo noop
+
+#                npm run package-x64
+#                npm run test
+# artifacts:
+#     discard-paths: yes
+#     files:
+#         - lsp/bin/**

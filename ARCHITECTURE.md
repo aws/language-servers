@@ -1,3 +1,5 @@
+# TODO : IDE-10874 : This page is out of date while working in a feature branch
+
 # Architecture
 
 The application consists of two components: the language server, and the language services.

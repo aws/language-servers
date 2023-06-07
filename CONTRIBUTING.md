@@ -1,3 +1,5 @@
+# TODO : IDE-10874 : This page is out of date while working in a feature branch
+
 # Contributing
 
 How to contribute.
