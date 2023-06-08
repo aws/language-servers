@@ -12,7 +12,7 @@ import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind } f
 export async function activateDocumentsLanguageServer(extensionContext: ExtensionContext) {
     /**
      * In launch.json when we launch as vscode extension we set
-     * "--extensionDevelopmentPath=${workspaceFolder}/src/client/vscode"
+     * "--extensionDevelopmentPath=${workspaceFolder}/client/vscode"
      * the output of extensionContext.extension path will be this directory.
      *
      * We do this so that we can use the package.json for the client, and
@@ -20,8 +20,13 @@ export async function activateDocumentsLanguageServer(extensionContext: Extensio
      *
      * Additonally, this is why we use multiple '..', to get to the output directory
      * with the javascript files.
+     *
+     * To load this sample language client with a specific language server,
+     * set the LSP_SERVER environment variable to the server's main
+     * .js entrypoint.
      */
-    const serverModule = path.join(extensionContext.extensionPath, '../../../out/src/server/server.js')
+    const fallbackPath = path.join(extensionContext.extensionPath, '../../../out/src/server/server.js')
+    const serverModule = process.env.LSP_SERVER ?? fallbackPath
 
     const debugOptions = { execArgv: ['--nolazy', '--inspect=6012', '--preserve-symlinks'] }
 

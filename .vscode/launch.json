@@ -14,12 +14,15 @@
             }
         },
         {
-            "name": "Launch as VSCode Extension",
+            "name": "Debug BuildSpec Server in VSCode",
             "type": "extensionHost",
             "request": "launch",
             "runtimeExecutable": "${execPath}",
-            "args": ["--extensionDevelopmentPath=${workspaceFolder}/src/client/vscode"],
-            "outFiles": ["${workspaceFolder}/out/src/client/vscode/**/*.js"],
+            "args": ["--extensionDevelopmentPath=${workspaceFolder}/client/vscode"],
+            "outFiles": ["${workspaceFolder}/client/vscode/out/**/*.js"],
+            "env": {
+                "LSP_SERVER": "${workspaceFolder}/app/aws-lsp-buildspec-binary/out/index.js"
+            },
             "preLaunchTask": "npm: compile"
         },
         {
@@ -60,7 +63,7 @@
     "compounds": [
         {
             "name": "Launch as VSCode Extension + Debugging",
-            "configurations": ["Launch as VSCode Extension", "Attach to AWS Documents Language Server"]
+            "configurations": ["Debug BuildSpec Server in VSCode", "Attach to AWS Documents Language Server"]
         }
     ]
 }
