@@ -2,7 +2,7 @@ import { assert } from 'chai'
 import { XHRRequest } from 'request-light'
 import { SinonStubbedInstance, SinonStubbedMember, stub } from 'sinon'
 import { stubInterface } from 'ts-sinon'
-import { DefaultHttpRequester, HttpRequestHeaders, HttpResponse } from '../../../../src/utils/http/request'
+import { DefaultHttpRequester, HttpRequestHeaders, HttpResponse } from './requesters'
 
 describe('Test HttpRequest class', async () => {
     describe('Test request()', async () => {

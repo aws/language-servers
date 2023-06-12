@@ -5,28 +5,25 @@ import {
     createCloudFormationService,
     jsonSchemaUrl,
 } from '@lsp-placeholder/aws-lsp-cloudformation'
-import { httpsUtils } from '@lsp-placeholder/aws-lsp-core'
+import { HttpHandler, SchemaProvider, SchemaProviderBuilder, httpsUtils } from '@lsp-placeholder/aws-lsp-core'
 import { ProposedFeatures, createConnection } from 'vscode-languageserver/node'
 
-const connection = createConnection(ProposedFeatures.all)
+function createSchemaProvider(): SchemaProvider {
+    const builder = new SchemaProviderBuilder()
 
-// simple in-memory 'cache'
-let cfnSchema: string | undefined
+    // TODO : Add more handlers here as they're implemented
+
+    builder.addHandler(new HttpHandler())
+
+    return builder.build()
+}
+
+const connection = createConnection(ProposedFeatures.all)
 
 const serviceProps: CloudFormationServiceProps = {
     displayName: CloudFormationServer.serverId,
     defaultSchemaUri: jsonSchemaUrl,
-    schemaProvider: async (uri: string) => {
-        switch (uri) {
-            case jsonSchemaUrl:
-                if (!cfnSchema) {
-                    cfnSchema = await getFileAsync(uri)
-                }
-                return cfnSchema
-            default:
-                throw new Error(`Unknown schema '${uri}'.`)
-        }
-    },
+    schemaProvider: createSchemaProvider(),
 }
 
 const cloudformationService = createCloudFormationService(serviceProps)

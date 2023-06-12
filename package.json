@@ -15,7 +15,8 @@
         "format": "prettier --write .",
         "format-staged": "npx pretty-quick --staged",
         "compile": "tsc --build --verbose",
-        "watch": "tsc --build --watch"
+        "watch": "tsc --build --watch",
+        "test": "npm run test --workspaces --if-present"
     },
     "dependencies": {
         "typescript": "^5.0.4"
