@@ -14,7 +14,7 @@
             }
         },
         {
-            "name": "Debug BuildSpec Server in VSCode",
+            "name": "BuildSpec Server",
             "type": "extensionHost",
             "request": "launch",
             "runtimeExecutable": "${execPath}",
@@ -22,6 +22,18 @@
             "outFiles": ["${workspaceFolder}/client/vscode/out/**/*.js"],
             "env": {
                 "LSP_SERVER": "${workspaceFolder}/app/aws-lsp-buildspec-binary/out/index.js"
+            },
+            "preLaunchTask": "npm: compile"
+        },
+        {
+            "name": "CloudFormation Server",
+            "type": "extensionHost",
+            "request": "launch",
+            "runtimeExecutable": "${execPath}",
+            "args": ["--extensionDevelopmentPath=${workspaceFolder}/client/vscode"],
+            "outFiles": ["${workspaceFolder}/client/vscode/out/**/*.js"],
+            "env": {
+                "LSP_SERVER": "${workspaceFolder}/app/aws-lsp-cloudformation-binary/out/index.js"
             },
             "preLaunchTask": "npm: compile"
         },
