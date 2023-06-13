@@ -4,7 +4,7 @@
     "description": "CodeBuild CloudFormation Language Server Binary",
     "main": "out/index.js",
     "bin": {
-        "awsdocuments-language-server": "./out/index.js"
+        "aws-lsp-cloudformation-binary": "./out/index.js"
     },
     "scripts": {
         "compile": "tsc --build",

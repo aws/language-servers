@@ -13,10 +13,10 @@ phases:
                 cd lsp
                 npm install
                 npm run compile
-                echo todo noop
+                npm run test
 
+# TODO : IDE-10874 : establish a top level packaging command
 #                npm run package-x64
-#                npm run test
 # artifacts:
 #     discard-paths: yes
 #     files:
