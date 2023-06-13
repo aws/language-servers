@@ -14,6 +14,7 @@
         "lint": "eslint src --ext .ts,.tsx && prettier --check .",
         "format": "prettier --write .",
         "format-staged": "npx pretty-quick --staged",
+        "clean": "ts-node ./script/clean.ts",
         "compile": "tsc --build --verbose",
         "watch": "tsc --build --watch",
         "test": "npm run test --workspaces --if-present"
