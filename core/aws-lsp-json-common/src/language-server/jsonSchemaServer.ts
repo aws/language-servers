@@ -1,4 +1,4 @@
-import { AwsLanguageService, SchemaProvider, textDocumentUtils } from '@lsp-placeholder/aws-lsp-core'
+import { AwsLanguageService, UriResolver, textDocumentUtils } from '@lsp-placeholder/aws-lsp-core'
 import {
     Connection,
     InitializeParams,
@@ -12,7 +12,7 @@ import { JsonLanguageService } from './jsonLanguageService'
 export type JsonSchemaServerProps = {
     connection: Connection
     defaultSchemaUri?: string
-    schemaProvider?: SchemaProvider
+    uriResolver?: UriResolver
 }
 
 /**

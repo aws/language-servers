@@ -1,4 +1,4 @@
-import { AwsLanguageService, SchemaProvider } from '@lsp-placeholder/aws-lsp-core'
+import { AwsLanguageService, UriResolver } from '@lsp-placeholder/aws-lsp-core'
 import { CompletionList, Diagnostic, Hover, Position, Range, TextEdit } from 'vscode-languageserver'
 import { TextDocument } from 'vscode-languageserver-textdocument'
 import { LanguageService, getLanguageService } from 'yaml-language-server'
@@ -7,7 +7,7 @@ import { YamlFormattingOptions } from './formattingOptions'
 export type YamlLanguageServiceProps = {
     displayName: string
     defaultSchemaUri: string
-    schemaProvider: SchemaProvider
+    uriResolver: UriResolver
 }
 
 /**
@@ -25,7 +25,7 @@ export class YamlLanguageService implements AwsLanguageService {
         }
 
         this.yamlService = getLanguageService({
-            schemaRequestService: this.props.schemaProvider,
+            schemaRequestService: this.props.uriResolver,
             workspaceContext,
         })
 

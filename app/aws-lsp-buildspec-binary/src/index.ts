@@ -9,7 +9,7 @@ let buildSpecSchema: string | undefined
 const props: BuildspecServerProps = {
     connection,
     defaultSchemaUri: jsonSchemaUrl,
-    schemaProvider: async (uri: string) => {
+    uriResolver: async (uri: string) => {
         switch (uri) {
             case jsonSchemaUrl:
                 if (!buildSpecSchema) {

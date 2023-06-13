@@ -1,9 +1,4 @@
-import {
-    AwsLanguageService,
-    SchemaProvider,
-    completionItemUtils,
-    textDocumentUtils,
-} from '@lsp-placeholder/aws-lsp-core'
+import { AwsLanguageService, UriResolver, completionItemUtils, textDocumentUtils } from '@lsp-placeholder/aws-lsp-core'
 import {
     Connection,
     InitializeParams,
@@ -18,7 +13,7 @@ export type YamlSchemaServerProps = {
     displayName: string
     connection: Connection
     defaultSchemaUri: string
-    schemaProvider: SchemaProvider
+    uriResolver: UriResolver
 }
 
 /**

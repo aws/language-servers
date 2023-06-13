@@ -8,17 +8,17 @@ import {
     ContentRequestMiddlewareDelegate,
     ContentRequestResponse,
 } from './contentRequestMiddleware'
-import { SchemaProviderBuilder } from './schemaProviderBuilder'
+import { UriResolverBuilder } from './uriResolverBuilder'
 
 chai.use(chaiAsPromised)
 
-describe('Test SchemaProviderBuilder', async () => {
+describe('Test UriResolverBuilder', async () => {
     const sampleUri = 'file://sample/location'
-    let sut: SchemaProviderBuilder
+    let sut: UriResolverBuilder
     let delegatingMiddlewareCallCount = 0
 
     beforeEach(async () => {
-        sut = new SchemaProviderBuilder()
+        sut = new UriResolverBuilder()
         delegatingMiddlewareCallCount = 0
     })
 

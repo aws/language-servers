@@ -1,11 +1,11 @@
-import { AwsLanguageService, SchemaProvider } from '@lsp-placeholder/aws-lsp-core'
+import { AwsLanguageService, UriResolver } from '@lsp-placeholder/aws-lsp-core'
 import { JSONDocument, LanguageService, getLanguageService } from 'vscode-json-languageservice'
 import { CompletionList, Diagnostic, FormattingOptions, Hover, Range } from 'vscode-languageserver'
 import { Position, TextDocument, TextEdit } from 'vscode-languageserver-textdocument'
 
 export type JsonLanguageServiceProps = {
     defaultSchemaUri?: string
-    schemaProvider?: SchemaProvider
+    uriResolver?: UriResolver
 }
 
 /**
@@ -17,7 +17,7 @@ export class JsonLanguageService implements AwsLanguageService {
 
     constructor(private readonly props: JsonLanguageServiceProps) {
         this.jsonService = getLanguageService({
-            schemaRequestService: props.schemaProvider?.bind(this),
+            schemaRequestService: props.uriResolver?.bind(this),
         })
 
         const schemas = props.defaultSchemaUri ? [{ fileMatch: ['*.json'], uri: props.defaultSchemaUri }] : undefined

@@ -1,7 +1,7 @@
 import {
     AwsLanguageService,
     MutuallyExclusiveLanguageService,
-    SchemaProvider,
+    UriResolver,
     completionItemUtils,
     textDocumentUtils,
 } from '@lsp-placeholder/aws-lsp-core'
@@ -19,7 +19,7 @@ import { TextDocument } from 'vscode-languageserver-textdocument'
 export type BuildspecServerProps = {
     connection: Connection
     defaultSchemaUri: string
-    schemaProvider: SchemaProvider
+    uriResolver: UriResolver
 }
 
 /**
