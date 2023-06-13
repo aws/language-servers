@@ -1,6 +1,6 @@
-export class Time {
+export class TimeProvider {
     /** Number of milliseconds elapsed since Unix epoch */
-    inMilliseconds(): number {
+    currentMilliseconds(): number {
         return Date.now()
     }
 }

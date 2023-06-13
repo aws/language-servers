@@ -16,9 +16,11 @@
         "@types/chai": "^4.3.5",
         "@types/chai-as-promised": "^7.1.5",
         "@types/mocha": "^10.0.1",
+        "@types/mock-fs": "^4.13.1",
         "chai": "^4.3.7",
         "chai-as-promised": "^7.1.1",
         "mocha": "^10.2.0",
+        "mock-fs": "^5.2.0",
         "sinon": "^15.1.0",
         "ts-sinon": "^2.0.2"
     }
