@@ -7,17 +7,16 @@ phases:
 
     build:
         # Build and package the language server, then run tests.
+        # Packaging takes place before the tests, in case tests mutate the output folder.
         # Packaged binaries will be emitted as CodeBuild artifacts.
         commands:
             - |
                 cd lsp
                 npm install
                 npm run compile
+                npm run package
                 npm run test
-
-# TODO : IDE-10874 : establish a top level packaging command
-#                npm run package-x64
-# artifacts:
-#     discard-paths: yes
-#     files:
-#         - lsp/bin/**
+artifacts:
+    discard-paths: yes
+    files:
+        - lsp/app/**/bin/**

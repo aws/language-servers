@@ -17,7 +17,8 @@
         "clean": "ts-node ./script/clean.ts",
         "compile": "tsc --build --verbose",
         "watch": "tsc --build --watch",
-        "test": "npm run test --workspaces --if-present"
+        "test": "npm run test --workspaces --if-present",
+        "package": "npm install && npm run compile && npm run package-x64 --workspaces --if-present"
     },
     "dependencies": {
         "typescript": "^5.0.4"
