@@ -1,5 +1,3 @@
-# TODO : IDE-10874 : This page is out of date while working in a feature branch
-
 # Contributing
 
 How to contribute.
@@ -13,28 +11,31 @@ How to contribute.
 Run:
 
 ```
-git clone git@github.com:aws/aws-toolkit-common.git && \
+git clone git@github.com:aws/aws-toolkit-common.git
 
-cd aws-toolkit-common && \
-
-git fetch origin test-typescript-lsp && git checkout test-typescript-lsp && \
+cd aws-toolkit-common
 
 npm install
 ```
 
-## Building The Language Server
-
-This project currently supports building a standalone language server through [pkg](https://github.com/vercel/pkg). pkg takes the project and packages it into an executable alongside a node binary.
-
-In order to build the standalone language server first install the pkg cli
+## Building the Repo
 
 ```bash
-npm install pkg -g
+npm run compile
 ```
 
-Now you have the ability to create standalone language server executables depending on the arguments you pass into pkg.
+Builds are typically incremental. If you need to recompile (for example when you switch branches):
 
-For reference, see [pkg usage](https://github.com/vercel/pkg#usage).
+```bash
+npm run clean
+npm run compile
+```
+
+Language servers are built into their own packages (under ./server).
+
+A separate set of packages (under ./app) then instantiate these language servers. These packages are packaged into standalone binary applications, with the intention of being integrated into IDEs. Packaging is performed using [vercel/pkg](https://github.com/vercel/pkg), which bundles both the project and nodejs into a binary. These binaries don't require nodejs to be installed on the system they are run on.
+
+For details on how to configure bundling with pkg, see [pkg usage](https://github.com/vercel/pkg#usage).
 
 ### pkg Examples
 
@@ -125,26 +126,10 @@ and be able to debug it all.
 
 ### Running Tests
 
-**In VSCode**
-
-In the `Run & Debug` menu are options to separately
-run unit or integration tests. Additionally, you
-can test the file that is currently open.
-
-**On CLI**
-
-How to test using the CLI.
-
-Unit Testing:
+#### Running Tests from the Command Line
 
 ```bash
 npm test
-```
-
-Integration Testing:
-
-```bash
-npm run testInt
 ```
 
 ---

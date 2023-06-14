@@ -54,22 +54,6 @@
             "program": "${workspaceRoot}/node_modules/mocha/bin/_mocha",
             "args": ["${workspaceRoot}/out/test/unit/**/${fileBasenameNoExtension}.js"],
             "cwd": "${workspaceRoot}"
-        },
-        {
-            "type": "node",
-            "request": "launch",
-            "preLaunchTask": "watch",
-            "name": "Integration Tests",
-            "program": "${workspaceRoot}/node_modules/mocha/bin/_mocha",
-            "args": ["${workspaceRoot}/out/test/integration/**/*.js"]
-        },
-        {
-            "type": "node",
-            "request": "launch",
-            "preLaunchTask": "watch",
-            "name": "Integration Tests (Current File)",
-            "program": "${workspaceRoot}/node_modules/mocha/bin/_mocha",
-            "args": ["${workspaceRoot}/out/test/integration/**/${fileBasenameNoExtension}.js"]
         }
     ],
     "compounds": [

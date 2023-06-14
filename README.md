@@ -1,6 +1,6 @@
 # AWS Documents Language Server
 
-Language servers for AWS File types
+Language servers for AWS Document types
 
 ## Functionality
 
@@ -8,14 +8,13 @@ This Language Server will initially support completion, hover, diagnostics for s
 
 ## Structure
 
-** This page is out of date while working in a feature branch **
-
 Monorepo
 
 ```
 .
 ── app - binaries for distribution and integration into IDEs
-    └── todo : IDE-10874
+    └── aws-lsp-buildspec-binary - application binaries (win/mac/linux) containing the buildspec language server
+    └── aws-lsp-cloudformation-binary - application binaries (win/mac/linux) containing the CloudFormation language server
 ── client - Sample LSP integrations for various IDEs.
             Used to test out the Language Servers
     └── jetbrains/ - Minimal JetBrains extension to test the language server
@@ -25,9 +24,10 @@ Monorepo
     └── aws-lsp-core - core support code
     └── aws-lsp-json-common - reusable code related to JSON language service handling
     └── aws-lsp-yaml-common - reusable code related to YAML language service handling
-    └── todo : IDE-10874
+── script - loose scripts used to create `npm foo` commands in the root folder
 ── server - packages that contain Language Server implementations
-    └── todo : IDE-10874
+    └── aws-lsp-buildspec - Language Server that wraps a JSON Schema for CodeBuild buildspec
+    └── aws-lsp-cloudformation - Language Server that wraps a JSON Schema for CloudFormation
 ```
 
 ## How To Contribute
