@@ -5,7 +5,7 @@
     "main": "out/index.js",
     "scripts": {
         "compile": "tsc --build",
-        "test": "mocha ./out/**/*.test.js"
+        "test": "mocha './out/**/*.test.js'"
     },
     "dependencies": {
         "vscode-languageserver-textdocument": "^1.0.8",
