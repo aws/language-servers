@@ -3,12 +3,38 @@
         "module": "UMD",
         "target": "ES2021",
         "moduleResolution": "node",
-        "lib": ["ES2021"],
-        "outDir": "out",
-        "sourceMap": true,
+        "rootDir": "./src",
+        "outDir": "./out",
+        "declaration": true,
         "skipLibCheck": true,
+        "forceConsistentCasingInFileNames": true,
         "strict": true
     },
-    "include": ["src", "test"],
-    "exclude": ["node_modules"]
+    "files": [],
+    "references": [
+        {
+            "path": "./client/vscode"
+        },
+        {
+            "path": "./core/aws-lsp-core"
+        },
+        {
+            "path": "./core/aws-lsp-json-common"
+        },
+        {
+            "path": "./core/aws-lsp-yaml-common"
+        },
+        {
+            "path": "./server/aws-lsp-buildspec"
+        },
+        {
+            "path": "./server/aws-lsp-cloudformation"
+        },
+        {
+            "path": "./app/aws-lsp-buildspec-binary"
+        },
+        {
+            "path": "./app/aws-lsp-cloudformation-binary"
+        }
+    ]
 }

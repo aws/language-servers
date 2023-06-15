@@ -1,0 +1,15 @@
+{
+    "compilerOptions": {
+        "module": "UMD",
+        "target": "ES2021",
+        "moduleResolution": "node",
+        "lib": ["ES2021"],
+        "declaration": true,
+        "sourceMap": true,
+        "skipLibCheck": true,
+        "forceConsistentCasingInFileNames": true,
+        "strict": true,
+        "composite": true
+    },
+    "exclude": ["node_modules"]
+}

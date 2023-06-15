@@ -1,31 +1,33 @@
 # AWS Documents Language Server
 
-Language server for AWS File types
+Language servers for AWS Document types
 
 ## Functionality
 
-This Language Server currently supports completion, hover, diagnostics for the following file types:
-
--   Buildspec
+This Language Server will initially support completion, hover, diagnostics for select document types. The plan is to use JSON Schemas for certain documents, but we will explore additional language servers as well.
 
 ## Structure
 
+Monorepo
+
 ```
 .
-── src
-    └── client
-        └── vscode/ - Minimal vscode extension to test the language server
-    └── server
-        └── server.ts - Language Server entry point
-        └── registry.ts - Registry of items
-        └── service.ts - Interfaces for Language Service and implementation of Backend Services that we call into (json language service, yaml language service)
-        └── utils/ - Utilities for general functionality
-        └── filetypes/ - Folder where filetype implementations live
-── test
-    └── unit/ - Unit tests
-        └── ... - These directories mirror src
-    └── integration/ - Integration tests
-        └── ... - These directories mirror src
+── app - binaries for distribution and integration into IDEs
+    └── aws-lsp-buildspec-binary - application binaries (win/mac/linux) containing the buildspec language server
+    └── aws-lsp-cloudformation-binary - application binaries (win/mac/linux) containing the CloudFormation language server
+── client - Sample LSP integrations for various IDEs.
+            Used to test out the Language Servers
+    └── jetbrains/ - Minimal JetBrains extension to test the language server
+    └── visualStudio/ - Minimal Visual Studio extension to test the language server
+    └── vscode/ - Minimal vscode extension to test the language server
+── core - contains supporting libraries used by app and server packages
+    └── aws-lsp-core - core support code
+    └── aws-lsp-json-common - reusable code related to JSON language service handling
+    └── aws-lsp-yaml-common - reusable code related to YAML language service handling
+── script - loose scripts used to create `npm foo` commands in the root folder
+── server - packages that contain Language Server implementations
+    └── aws-lsp-buildspec - Language Server that wraps a JSON Schema for CodeBuild buildspec
+    └── aws-lsp-cloudformation - Language Server that wraps a JSON Schema for CloudFormation
 ```
 
 ## How To Contribute

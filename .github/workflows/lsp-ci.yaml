@@ -1,9 +1,9 @@
 name: Language Server CI
 on:
     push:
-        branches: [main, dev]
+        branches: [main, dev, feature/*]
     pull_request:
-        branches: [main, dev]
+        branches: [main, dev, feature/*]
 
 jobs:
     test:
@@ -43,10 +43,11 @@ jobs:
             - name: Create binaries
               run: |
                   cd lsp
-                  npm run package-x64
+                  npm run package
             # TODO : Can we easily create ARM binaries from GitHub?
             - name: Attach binaries
               uses: actions/upload-artifact@v3
               with:
-                  name: langauge-server
-                  path: lsp/bin/awsdocuments-language-server-*
+                  name: langauge-servers
+                  # Make sure you don't include lsp/node_modules
+                  path: lsp/app/**/bin/*

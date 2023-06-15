@@ -14,12 +14,27 @@
             }
         },
         {
-            "name": "Launch as VSCode Extension",
+            "name": "BuildSpec Server",
             "type": "extensionHost",
             "request": "launch",
             "runtimeExecutable": "${execPath}",
-            "args": ["--extensionDevelopmentPath=${workspaceFolder}/src/client/vscode"],
-            "outFiles": ["${workspaceFolder}/out/src/client/vscode/**/*.js"],
+            "args": ["--extensionDevelopmentPath=${workspaceFolder}/client/vscode"],
+            "outFiles": ["${workspaceFolder}/client/vscode/out/**/*.js"],
+            "env": {
+                "LSP_SERVER": "${workspaceFolder}/app/aws-lsp-buildspec-binary/out/index.js"
+            },
+            "preLaunchTask": "npm: compile"
+        },
+        {
+            "name": "CloudFormation Server",
+            "type": "extensionHost",
+            "request": "launch",
+            "runtimeExecutable": "${execPath}",
+            "args": ["--extensionDevelopmentPath=${workspaceFolder}/client/vscode"],
+            "outFiles": ["${workspaceFolder}/client/vscode/out/**/*.js"],
+            "env": {
+                "LSP_SERVER": "${workspaceFolder}/app/aws-lsp-cloudformation-binary/out/index.js"
+            },
             "preLaunchTask": "npm: compile"
         },
         {
@@ -39,28 +54,12 @@
             "program": "${workspaceRoot}/node_modules/mocha/bin/_mocha",
             "args": ["${workspaceRoot}/out/test/unit/**/${fileBasenameNoExtension}.js"],
             "cwd": "${workspaceRoot}"
-        },
-        {
-            "type": "node",
-            "request": "launch",
-            "preLaunchTask": "watch",
-            "name": "Integration Tests",
-            "program": "${workspaceRoot}/node_modules/mocha/bin/_mocha",
-            "args": ["${workspaceRoot}/out/test/integration/**/*.js"]
-        },
-        {
-            "type": "node",
-            "request": "launch",
-            "preLaunchTask": "watch",
-            "name": "Integration Tests (Current File)",
-            "program": "${workspaceRoot}/node_modules/mocha/bin/_mocha",
-            "args": ["${workspaceRoot}/out/test/integration/**/${fileBasenameNoExtension}.js"]
         }
     ],
     "compounds": [
         {
             "name": "Launch as VSCode Extension + Debugging",
-            "configurations": ["Launch as VSCode Extension", "Attach to AWS Documents Language Server"]
+            "configurations": ["Debug BuildSpec Server in VSCode", "Attach to AWS Documents Language Server"]
         }
     ]
 }
