@@ -15,6 +15,7 @@ Monorepo
 ── app - binaries for distribution and integration into IDEs
     └── aws-lsp-buildspec-binary - application binaries (win/mac/linux) containing the buildspec language server
     └── aws-lsp-cloudformation-binary - application binaries (win/mac/linux) containing the CloudFormation language server
+    └── aws-lsp-s3-binary - application binaries (win/mac/linux) containing the S3 language server
 ── client - Sample LSP integrations for various IDEs.
             Used to test out the Language Servers
     └── jetbrains/ - Minimal JetBrains extension to test the language server
@@ -28,6 +29,7 @@ Monorepo
 ── server - packages that contain Language Server implementations
     └── aws-lsp-buildspec - Language Server that wraps a JSON Schema for CodeBuild buildspec
     └── aws-lsp-cloudformation - Language Server that wraps a JSON Schema for CloudFormation
+    └── aws-lsp-s3 - Example language server that provides S3 bucket names as completion items
 ```
 
 ## How To Contribute
