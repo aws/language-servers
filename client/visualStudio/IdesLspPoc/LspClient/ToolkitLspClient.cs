@@ -1,7 +1,6 @@
 ﻿using Microsoft.VisualStudio.LanguageServer.Client;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Threading;
-using Microsoft.VisualStudio.Utilities;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.Composition;
@@ -17,13 +16,10 @@ namespace IdesLspPoc.LspClient
 
     // Design thoughts - one of these for each distinct LSP we manage. We could have multiple ContentType declarations.
 
-    [ContentType("yaml")]
-    // [ContentType(BuildSpec.ContentType)] // Only add this if you're supporting custom file extensions
-    [Export(typeof(ILanguageClient))]
-    public class ToolkitLspClient : ILanguageClient
+    public abstract class ToolkitLspClient : ILanguageClient
     {
         [Import]
-        private OutputWindow _outputWindow;
+        protected OutputWindow _outputWindow;
 
         public event AsyncEventHandler<EventArgs> StartAsync;
         public event AsyncEventHandler<EventArgs> StopAsync;
@@ -32,7 +28,7 @@ namespace IdesLspPoc.LspClient
         /// Name of Language Client; displayed to user
         /// For example, if the LSP writes logs to an output window, this is where they will appear
         /// </summary>
-        public string Name => "AWS Toolkit language client for AWS Documents";
+        public abstract string Name { get; }
 
         /// <summary>
         /// Used if we set up a JSON that drives some behavior through settings
@@ -148,13 +144,10 @@ namespace IdesLspPoc.LspClient
 
         private Process CreateLspProcess()
         {
-            // to try using this extension, update dir to wherever your lsp service executable is
-            var dir = @"C:\code\aws-toolkit-common\lsp";
-
             ProcessStartInfo info = new ProcessStartInfo
             {
-                WorkingDirectory = dir,
-                FileName = $@"{dir}\awsdocuments-language-server-win.exe",
+                WorkingDirectory = GetServerWorkingDir(),
+                FileName = GetServerPath(),
                 Arguments = "--stdio",
                 RedirectStandardInput = true,
                 RedirectStandardOutput = true,
@@ -169,5 +162,9 @@ namespace IdesLspPoc.LspClient
 
             return process;
         }
+
+        protected abstract string GetServerWorkingDir();
+
+        protected abstract string GetServerPath();
     }
 }

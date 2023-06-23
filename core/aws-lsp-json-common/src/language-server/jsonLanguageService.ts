@@ -27,7 +27,9 @@ export class JsonLanguageService implements AwsLanguageService {
 
     public isSupported(document: TextDocument): boolean {
         const languageId = document.languageId
-        return languageId === 'json' || languageId === 'christou-test-json'
+        // placeholder-test-json comes from the sample Visual Studio Client (Extension) in the repo
+        // see client/visualStudio/IdesLspPoc/ContentDefinitions/JsonContentType.cs
+        return languageId === 'json' || languageId === 'placeholder-test-json'
     }
 
     public doValidation(textDocument: TextDocument): Thenable<Diagnostic[]> {
