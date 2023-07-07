@@ -31,6 +31,9 @@
             "path": "./server/aws-lsp-cloudformation"
         },
         {
+            "path": "./server/aws-lsp-codewhisperer"
+        },
+        {
             "path": "./server/aws-lsp-s3"
         },
         {
@@ -38,6 +41,9 @@
         },
         {
             "path": "./app/aws-lsp-cloudformation-binary"
+        },
+        {
+            "path": "./app/aws-lsp-codewhisperer-binary"
         },
         {
             "path": "./app/aws-lsp-s3-binary"

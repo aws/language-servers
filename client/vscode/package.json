@@ -16,7 +16,8 @@
     },
     "main": "./out/extension.js",
     "activationEvents": [
-        "onLanguage:yaml"
+        "onLanguage:yaml",
+        "onLanguage:typescript"
     ],
     "contributes": {
         "configuration": {

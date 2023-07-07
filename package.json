@@ -15,7 +15,7 @@
         "format": "prettier --write .",
         "format-staged": "npx pretty-quick --staged",
         "clean": "ts-node ./script/clean.ts",
-        "compile": "tsc --build --verbose",
+        "compile": "tsc --build --verbose && npm run postcompile --workspaces --if-present",
         "watch": "tsc --build --watch",
         "test": "npm run test --workspaces --if-present",
         "package": "npm install && npm run compile && npm run package-x64 --workspaces --if-present"
