@@ -1,6 +1,6 @@
 {
     "compilerOptions": {
-        "module": "UMD",
+        "module": "CommonJS",
         "target": "ES2021",
         "moduleResolution": "node",
         "lib": ["ES2021"],
