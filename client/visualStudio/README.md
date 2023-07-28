@@ -20,6 +20,12 @@ This is an example Visual Studio extension that wraps the experimental LSP servi
 
 -   the hover contents contain escape sequences. This is an artifact of the YAML handler used by the LSP service. The fix will be made on the backend.
 
+# Working Credentials example
+
+This extension contains functioning code that shows an example of how extensions can resolve AWS credentials, then pass them to the server using encryption.
+
+The S3 bucket listing server has been set up as a working example. The intent behind this concept code is to show how an extension could "push" credentials to the server whenever they are resolved (eg: when a user configures credentials for use with the server, or when the credentials have been refreshed). To simulate these events, the extension re-resolves the local `default` shared credentials profile every 10 seconds, and sends the resolved credentials to the server.
+
 ## Diagnostic Tracing
 
 Diagnostics tracing can be enabled to output all messages between the client and server, which can be useful when debugging issues. This extension has this enabled in `LspClientSettings.json`. If you open a folder in Visual Studio and interact with some files, the LSP tracing can be found in `%temp%\VSLogs` in a file named something like "VS3B4F7AF9.LSPClient.IdesLspPoc.LspClient.ToolkitLspClient.NHEX.svclog". You can double click this file to view it in the Microsoft Service Trace Viewer (part of the Windows SDK).

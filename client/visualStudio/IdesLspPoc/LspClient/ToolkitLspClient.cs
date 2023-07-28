@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.Composition;
 using System.Diagnostics;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using OutputWindow = IdesLspPoc.Output.OutputWindow;
@@ -49,7 +50,7 @@ namespace IdesLspPoc.LspClient
         /// https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#initialize
         /// </summary>
         /// <inheritdoc cref="ILanguageClient.InitializationOptions"/>
-        public object InitializationOptions { get; } = null;
+        public virtual object InitializationOptions { get; } = null;
 
         public IEnumerable<string> FilesToWatch { get; } = new List<string>()
         {
@@ -73,7 +74,7 @@ namespace IdesLspPoc.LspClient
         /// VS Calls this when the extension has loaded
         /// </summary>
         /// <inheritdoc cref="ILanguageClient.OnLoadedAsync"/>
-        public async Task OnLoadedAsync()
+        public virtual async Task OnLoadedAsync()
         {
             // Just exploring how to query for VS what file types it knows about
             // var x = ContentTypeRegistryService.ContentTypes.ToList();
@@ -107,7 +108,19 @@ namespace IdesLspPoc.LspClient
                 return null;
             }
 
+            await OnBeforeLspConnectionStartsAsync(lspProcess);
+
             return new Connection(lspProcess.StandardOutput.BaseStream, lspProcess.StandardInput.BaseStream);
+        }
+
+        /// <summary>
+        /// Used by implementing classes that need to interact with the language server process prior to 
+        /// starting up the LSP protocol.
+        /// </summary>
+        /// <param name="lspProcess">Language server process</param>
+        protected virtual Task OnBeforeLspConnectionStartsAsync(Process lspProcess)
+        {
+            return Task.CompletedTask;
         }
 
         /// <summary>
@@ -148,7 +161,7 @@ namespace IdesLspPoc.LspClient
             {
                 WorkingDirectory = GetServerWorkingDir(),
                 FileName = GetServerPath(),
-                Arguments = "--stdio",
+                Arguments = string.Join(" ", GetLspProcessArgs()),
                 RedirectStandardInput = true,
                 RedirectStandardOutput = true,
                 UseShellExecute = false,
@@ -161,6 +174,11 @@ namespace IdesLspPoc.LspClient
             };
 
             return process;
+        }
+
+        protected virtual IEnumerable<string> GetLspProcessArgs()
+        {
+            return new[] { "--stdio" };
         }
 
         protected abstract string GetServerWorkingDir();

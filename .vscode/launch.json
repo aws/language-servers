@@ -51,14 +51,15 @@
             "preLaunchTask": "npm: compile"
         },
         {
-            "name": "S3 Server",
+            "name": "S3 Server (with Credentials support)",
             "type": "extensionHost",
             "request": "launch",
             "runtimeExecutable": "${execPath}",
             "args": ["--extensionDevelopmentPath=${workspaceFolder}/client/vscode"],
             "outFiles": ["${workspaceFolder}/client/vscode/out/**/*.js"],
             "env": {
-                "LSP_SERVER": "${workspaceFolder}/app/aws-lsp-s3-binary/out/index.js"
+                "LSP_SERVER": "${workspaceFolder}/app/aws-lsp-s3-binary/out/index.js",
+                "ENABLE_IAM_PROVIDER": "true"
             },
             "preLaunchTask": "npm: compile"
         },

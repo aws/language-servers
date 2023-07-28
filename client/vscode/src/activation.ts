@@ -3,11 +3,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import * as cp from 'child_process'
 import * as path from 'path'
 
 import { ExtensionContext, workspace } from 'vscode'
 
 import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind } from 'vscode-languageclient/node'
+import {
+    configureCredentialsCapabilities,
+    registerIamCredentialsProviderSupport,
+    writeEncryptionInit,
+} from './credentialsActivation'
 import { registerInlineCompletion } from './inlineCompletionActivation'
 
 export async function activateDocumentsLanguageServer(extensionContext: ExtensionContext) {
@@ -37,13 +43,34 @@ export async function activateDocumentsLanguageServer(extensionContext: Extensio
      */
     const enableInlineCompletion = process.env.ENABLE_INLINE_COMPLETION === 'true'
 
+    /**
+     * If you are iterating with a language server that uses credentials...
+     * set envvar ENABLE_IAM_PROVIDER to "true" if this extension is expected to provide IAM Credentials
+     * set envvar ENABLE_TOKEN_PROVIDER to "true" if this extension is expected to provide bearer tokens
+     */
+    const enableIamProvider = process.env.ENABLE_IAM_PROVIDER === 'true'
+    // enableBearerTokenProvider is not used yet
+    const enableBearerTokenProvider = process.env.ENABLE_TOKEN_PROVIDER === 'true'
+    const enableEncryptionInit = enableIamProvider || enableBearerTokenProvider
+
     const debugOptions = { execArgv: ['--nolazy', '--inspect=6012', '--preserve-symlinks'] }
 
     // If the extension is launch in debug mode the debug server options are use
     // Otherwise the run options are used
-    const serverOptions: ServerOptions = {
+    let serverOptions: ServerOptions = {
         run: { module: serverModule, transport: TransportKind.ipc, options: debugOptions },
         debug: { module: serverModule, transport: TransportKind.ipc, options: debugOptions },
+    }
+
+    if (enableEncryptionInit) {
+        // If the host is going to encrypt credentials,
+        // receive the encryption key over stdin before starting the language server.
+        debugOptions.execArgv.push('--stdio')
+        debugOptions.execArgv.push('--pre-init-encryption')
+        const child = cp.spawn('node', [serverModule, ...debugOptions.execArgv])
+        writeEncryptionInit(child.stdin)
+
+        serverOptions = () => Promise.resolve(child)
     }
 
     // Options to control the language client
@@ -59,13 +86,22 @@ export async function activateDocumentsLanguageServer(extensionContext: Extensio
             { scheme: 'file', language: 'typescript' },
             { scheme: 'untitled', language: 'typescript' },
         ],
+        initializationOptions: {},
         synchronize: {
             fileEvents: workspace.createFileSystemWatcher('**/*.{json,yml,yaml,ts}'),
         },
     }
 
+    if (enableIamProvider) {
+        configureCredentialsCapabilities(clientOptions)
+    }
+
     // Create the language client and start the client.
     const client = new LanguageClient('awsDocuments', 'AWS Documents Language Server', serverOptions, clientOptions)
+
+    if (enableIamProvider) {
+        await registerIamCredentialsProviderSupport(client, extensionContext)
+    }
 
     if (enableInlineCompletion) {
         registerInlineCompletion(client)

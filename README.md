@@ -29,7 +29,12 @@ Monorepo
 ── server - packages that contain Language Server implementations
     └── aws-lsp-buildspec - Language Server that wraps a JSON Schema for CodeBuild buildspec
     └── aws-lsp-cloudformation - Language Server that wraps a JSON Schema for CloudFormation
+    └── aws-lsp-codewhisperer - Language Server that surfaces CodeWhisperer recommendations
+                              - experimental. Shows how recommendations can surface through
+                                completion lists and as ghost text
     └── aws-lsp-s3 - Example language server that provides S3 bucket names as completion items
+                   - Shows a concept where credentials can be provided from an IDE extension
+                     (See vscode and vs client readmes)
 ```
 
 ## How To Contribute

@@ -47,8 +47,12 @@
   <ItemGroup>
     <Compile Include="ContentDefinitions\BuildSpec.cs" />
     <Compile Include="ContentDefinitions\JsonContentType.cs" />
+    <Compile Include="Credentials\UpdateCredentialsRequest.cs" />
     <Compile Include="LspClient\BuildspecLspClient.cs" />
+    <Compile Include="Credentials\UpdateIamCredentialsRequestData.cs" />
+    <Compile Include="LspClient\S3LspClient.cs" />
     <Compile Include="LspClient\CloudFormationLspClient.cs" />
+    <Compile Include="LspClient\S3\S3CredentialsUpdater.cs" />
     <Compile Include="LspClient\ToolkitLspClient.cs" />
     <Compile Include="Output\OutputWindow.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
@@ -70,6 +74,12 @@
     <Reference Include="System" />
   </ItemGroup>
   <ItemGroup>
+    <PackageReference Include="AWSSDK.Core">
+      <Version>3.7.107.9</Version>
+    </PackageReference>
+    <PackageReference Include="BouncyCastle.Cryptography">
+      <Version>2.2.1</Version>
+    </PackageReference>
     <PackageReference Include="Microsoft.VisualStudio.LanguageServer.Client">
       <Version>17.0.5165</Version>
     </PackageReference>
