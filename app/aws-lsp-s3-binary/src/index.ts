@@ -5,7 +5,7 @@ import {
     shouldWaitForEncryptionKey,
     validateEncryptionDetails,
 } from '@lsp-placeholder/aws-lsp-core'
-import { S3Server, S3ServerProps, S3ServiceProps, createS3ervice } from '@lsp-placeholder/aws-lsp-s3'
+import { S3Server, S3ServerProps, S3ServiceProps, createS3Service } from '@lsp-placeholder/aws-lsp-s3'
 import { Readable } from 'stream'
 import { ProposedFeatures, createConnection } from 'vscode-languageserver/node'
 
@@ -68,7 +68,7 @@ function createServer(connection: any, key?: string): S3Server {
         credentialsProvider,
     }
 
-    const service = createS3ervice(serviceProps)
+    const service = createS3Service(serviceProps)
 
     const props: S3ServerProps = {
         connection,
