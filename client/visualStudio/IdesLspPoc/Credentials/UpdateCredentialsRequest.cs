@@ -15,22 +15,10 @@ namespace IdesLspPoc.Credentials
     public class UpdateCredentialsRequest
     {
         /// <summary>
-        /// Initialization vector for encrypted data, in base64
-        /// </summary>
-        [JsonProperty("iv")]
-        public string Iv;
-
-        /// <summary>
-        /// Encrypted data, in base64. The data contents will vary based on the request made.
-        /// (eg: The payload is different when requesting IAM vs Bearer token)
+        /// Encrypted token (JWT or PASETO)
+        /// The token's contents differ whether IAM or Bearer token is sent
         /// </summary>
         [JsonProperty("data")]
         public string Data;
-
-        /// <summary>
-        /// Encrypted data's authTag - used for decryption validation
-        /// </summary>
-        [JsonProperty("authTag")]
-        public string AuthTag;
     }
 }

@@ -3,7 +3,6 @@ using IdesLspPoc.LspClient.S3;
 using Microsoft.VisualStudio.LanguageServer.Client;
 using Microsoft.VisualStudio.Utilities;
 using Newtonsoft.Json;
-using Org.BouncyCastle.Security;
 using StreamJsonRpc;
 using System;
 using System.Collections.Generic;
@@ -11,6 +10,7 @@ using System.ComponentModel.Composition;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Security.Cryptography;
 using System.Threading.Tasks;
 
 namespace IdesLspPoc.LspClient
@@ -58,8 +58,13 @@ namespace IdesLspPoc.LspClient
         public S3LspClient()
         {
             // Create encryption key for this session
-            SecureRandom random = new SecureRandom();
-            random.NextBytes(_aesKey);
+            using (var aes = Aes.Create())
+            {
+                aes.KeySize = 32 * 8;
+                aes.GenerateKey();
+
+                Array.Copy(aes.Key, _aesKey, _aesKey.Length);
+            }
         }
 
         protected override string GetServerWorkingDir()
@@ -94,6 +99,7 @@ namespace IdesLspPoc.LspClient
             var json = JsonConvert.SerializeObject(new
             {
                 version = "1.0",
+                mode = "JWT",
                 key = Convert.ToBase64String(_aesKey),
             });
 

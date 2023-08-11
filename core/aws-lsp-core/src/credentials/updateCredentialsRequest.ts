@@ -10,17 +10,8 @@
  */
 export interface UpdateCredentialsRequest {
     /**
-     * Initialization vector for encrypted data, in base64
-     */
-    iv: string
-
-    /**
-     * Encrypted data, in base64. The data contents will vary based on the notification used.
-     * (eg: The payload is different for IAM vs Bearer token)
+     * Encrypted token (JWT or PASETO)
+     * The token's contents differ whether IAM or Bearer token is sent
      */
     data: string
-    /**
-     * Encrypted data's authTag - used for decryption validation
-     */
-    authTag: string
 }

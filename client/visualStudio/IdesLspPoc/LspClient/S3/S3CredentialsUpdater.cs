@@ -2,16 +2,13 @@
 using Amazon.Runtime.CredentialManagement;
 using IdesLspPoc.Credentials;
 using IdesLspPoc.Output;
+using Jose;
 using Microsoft.VisualStudio.Threading;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Serialization;
-using Org.BouncyCastle.Crypto.Engines;
-using Org.BouncyCastle.Crypto.Modes;
-using Org.BouncyCastle.Crypto.Parameters;
-using Org.BouncyCastle.Security;
 using StreamJsonRpc;
 using System;
-using System.Text;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using System.Timers;
 
@@ -108,42 +105,34 @@ namespace IdesLspPoc.LspClient.S3
         /// </summary>
         private static UpdateCredentialsRequest CreateUpdateCredentialsRequest(object data, byte[] aesKey)
         {
-            byte[] iv = CreateInitializationVector();
+            var payload = new Dictionary<string, object>()
+            {
+                { "data", data },
+            };
 
-            var aesEngine = new AesEngine();
-            int macSize = 8 * aesEngine.GetBlockSize();
+            // We are handling the JSON serialization (instead of JWT.Encode) to ensure the fields are shaped with the correct casing.
+            // Otherwise, the server may not receive the expected fields.
+            var payloadJson = JsonConvert.SerializeObject(payload);
 
-            GcmBlockCipher cipher = new GcmBlockCipher(aesEngine);
-            AeadParameters parameters = new AeadParameters(new KeyParameter(aesKey), macSize, iv);
-            cipher.Init(true, parameters);
+            var notBefore = new DateTimeOffset(DateTime.UtcNow.AddMinutes(-1)).ToUnixTimeSeconds();
+            var expiresOn = new DateTimeOffset(DateTime.UtcNow.AddMinutes(1)).ToUnixTimeSeconds();
 
-            var json = JsonConvert.SerializeObject(data, _serializerSettings);
+            var headers = new Dictionary<string, object>()
+            {
+                { "nbf", notBefore },
+                { "exp", expiresOn },
+            };
 
-            // Encrypt json
-            byte[] cipherText = new byte[cipher.GetOutputSize(json.Length)];
-            int len = cipher.ProcessBytes(Encoding.UTF8.GetBytes(json), 0, json.Length, cipherText, 0);
-            cipher.DoFinal(cipherText, len);
-
-            // Get the authTag
-            byte[] mac = cipher.GetMac();
-            string authtag = Convert.ToBase64String(mac);
-            var dataLength = cipherText.Length - mac.Length;
+            string jwt = JWT.Encode(
+                payloadJson, aesKey,
+                JweAlgorithm.DIR, JweEncryption.A256GCM,
+                null,
+                headers);
 
             return new UpdateCredentialsRequest
             {
-                Iv = Convert.ToBase64String(iv),
-                // Remove Mac from end of cipherText
-                Data = Convert.ToBase64String(cipherText, 0, dataLength),
-                AuthTag = authtag,
+                Data = jwt,
             };
-        }
-
-        private static byte[] CreateInitializationVector()
-        {
-            var iv = new byte[16];
-            SecureRandom random = new SecureRandom();
-            random.NextBytes(iv);
-            return iv;
         }
     }
 }

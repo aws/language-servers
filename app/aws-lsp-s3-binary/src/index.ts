@@ -1,5 +1,6 @@
 import {
     AwsInitializationOptions,
+    CredentialsEncoding,
     EncryptionInitialization,
     IdeCredentialsProvider,
     shouldWaitForEncryptionKey,
@@ -21,7 +22,7 @@ if (shouldWaitForEncryptionKey()) {
 
         validateEncryptionDetails(encryptionDetails)
 
-        createServer(lspConnection, encryptionDetails.key)
+        createServer(lspConnection, encryptionDetails.key, encryptionDetails.mode)
     })
 } else {
     createServer(lspConnection)
@@ -60,8 +61,8 @@ function readLine(stream: Readable): Promise<string> {
     })
 }
 
-function createServer(connection: any, key?: string): S3Server {
-    const credentialsProvider = new IdeCredentialsProvider(connection, key)
+function createServer(connection: any, key?: string, credentialsEncoding?: CredentialsEncoding): S3Server {
+    const credentialsProvider = new IdeCredentialsProvider(connection, key, credentialsEncoding)
 
     const serviceProps: S3ServiceProps = {
         displayName: S3Server.serverId,

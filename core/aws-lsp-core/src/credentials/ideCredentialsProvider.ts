@@ -1,7 +1,8 @@
-import * as crypto from 'crypto'
+import { jwtDecrypt } from 'jose'
 import { CancellationToken, Connection } from 'vscode-languageserver'
 import { AwsInitializationOptions } from '../initialization/awsInitializationOptions'
 import { CredentialsProvider, IamCredentials, credentialsProtocolMethodNames } from './credentialsProvider'
+import { CredentialsEncoding } from './encryption'
 import { NoCredentialsError } from './error/noCredentialsError'
 import { UpdateCredentialsRequest } from './updateCredentialsRequest'
 
@@ -12,9 +13,12 @@ import { UpdateCredentialsRequest } from './updateCredentialsRequest'
  */
 export class IdeCredentialsProvider implements CredentialsProvider {
     private key: Buffer | undefined
+    private credentialsEncoding: CredentialsEncoding | undefined
     private pushedCredentials: IamCredentials | undefined
 
-    constructor(private readonly connection: Connection, key?: string) {
+    constructor(private readonly connection: Connection, key?: string, credentialsEncoding?: CredentialsEncoding) {
+        this.connection.console.info(`Server: I was initialized with credentials encoding: ${credentialsEncoding}`)
+        this.credentialsEncoding = credentialsEncoding
         if (key) {
             this.key = Buffer.from(key, 'base64')
             this.connection.console.info('Server: I was initialized with an encryption key')
@@ -48,10 +52,20 @@ export class IdeCredentialsProvider implements CredentialsProvider {
         // Handle when host sends us credentials to use
         this.connection.onNotification(
             credentialsProtocolMethodNames.iamCredentialsUpdate,
-            (request: UpdateCredentialsRequest) => {
-                const requestData = this.decryptUpdateCredentialsRequestData(request)
-                this.pushedCredentials = JSON.parse(requestData) as IamCredentials
-                this.connection.console.info('Server: The language server received updated credentials data.')
+            async (request: UpdateCredentialsRequest) => {
+                try {
+                    const iamCredentials = await this.decodeCredentialsRequestToken<IamCredentials>(request)
+
+                    this.validateIamCredentialsFields(iamCredentials)
+
+                    this.pushedCredentials = iamCredentials
+                    this.connection.console.info('Server: The language server received updated credentials data.')
+                } catch (error) {
+                    this.pushedCredentials = undefined
+                    this.connection.console.error(
+                        `Server: Failed to set credentials: ${error}. Credentials have been unset.`
+                    )
+                }
             }
         )
 
@@ -60,6 +74,20 @@ export class IdeCredentialsProvider implements CredentialsProvider {
             this.pushedCredentials = undefined
             this.connection.console.info('Server: The language server does not have credentials anymore.')
         })
+    }
+
+    /**
+     * Throws an error if credentials fields are missing
+     */
+    private validateIamCredentialsFields(credentials: IamCredentials): void {
+        // Currently this is a proof of concept
+        // TODO : validate that iamCredentials fields are actually set
+        if (credentials.accessKeyId === undefined) {
+            throw new Error('Missing property: accessKeyId')
+        }
+        if (credentials.secretAccessKey === undefined) {
+            throw new Error('Missing property: secretAccessKey')
+        }
     }
 
     /**
@@ -73,17 +101,24 @@ export class IdeCredentialsProvider implements CredentialsProvider {
         return this.pushedCredentials
     }
 
-    private decryptUpdateCredentialsRequestData(request: UpdateCredentialsRequest): string {
+    private async decodeCredentialsRequestToken<T>(request: UpdateCredentialsRequest): Promise<T> {
         if (!this.key) {
             throw new Error('no encryption key')
         }
 
-        const iv = Buffer.from(request.iv, 'base64')
-        const decipher = crypto.createDecipheriv('aes-256-gcm', this.key, iv, {
-            authTagLength: 16,
-        })
-        decipher.setAuthTag(Buffer.from(request.authTag, 'base64'))
+        if (this.credentialsEncoding === 'JWT') {
+            const result = await jwtDecrypt(request.data, this.key)
 
-        return decipher.update(request.data, 'base64', 'utf8') + decipher.final('utf8')
+            // PROOF OF CONCEPT. Additional validations would normally get added.
+            // TODO : validate that result.protectedHeader.alg is 'dir'
+            // TODO : validate that result.protectedHeader.enc is 'A256GCM'
+            // TODO : validate that result.payload.nbf is before current time
+            // TODO : validate that result.payload.exp is after current time
+            // TODO : validate that result.payload.data exists
+
+            return result.payload.data as T
+        }
+
+        throw new Error(`Token encoding not implemented: ${this.credentialsEncoding}`)
     }
 }

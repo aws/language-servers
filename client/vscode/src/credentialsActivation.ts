@@ -1,6 +1,7 @@
 import { fromIni } from '@aws-sdk/credential-providers'
 import { AwsCredentialIdentity } from '@aws-sdk/types'
 import * as crypto from 'crypto'
+import * as jose from 'jose'
 import { Writable } from 'stream'
 import { ExtensionContext, commands, window } from 'vscode'
 import { LanguageClient, LanguageClientOptions, NotificationType } from 'vscode-languageclient/node'
@@ -11,19 +12,10 @@ import { LanguageClient, LanguageClientOptions, NotificationType } from 'vscode-
  */
 export interface UpdateCredentialsRequest {
     /**
-     * Initialization vector for encrypted data, in base64
-     */
-    iv: string
-
-    /**
-     * Encrypted data, in base64. The data contents will vary based on the notification used.
-     * (eg: The payload is different for IAM vs Bearer token)
+     * Encrypted token (JWT or PASETO)
+     * The token's contents differ whether IAM or Bearer token is sent
      */
     data: string
-    /**
-     * Encrypted data's authTag - used for decryption validation
-     */
-    authTag: string
 }
 
 export interface UpdateIamCredentialsRequestData {
@@ -52,6 +44,7 @@ const notificationTypes = {
 export function writeEncryptionInit(stream: Writable): void {
     const request = {
         version: '1.0',
+        mode: 'JWT',
         key: encryptionKey.toString('base64'),
     }
     stream.write(JSON.stringify(request))
@@ -109,7 +102,7 @@ function createSelectProfileCommand(languageClient: LanguageClient) {
             profile: profileName,
         })()
 
-        const request = createUpdateIamCredentialsRequest(awsCredentials)
+        const request = await createUpdateIamCredentialsRequest(awsCredentials)
         await sendIamCredentialsUpdate(request, languageClient)
 
         languageClient.info(`Client: The language server is now using credentials profile: ${profileName}`)
@@ -119,25 +112,27 @@ function createSelectProfileCommand(languageClient: LanguageClient) {
 /**
  * Creates an "update credentials" request that contains encrypted data
  */
-function createUpdateIamCredentialsRequest(awsCredentials: AwsCredentialIdentity): UpdateCredentialsRequest {
-    const responseData: UpdateIamCredentialsRequestData = {
+async function createUpdateIamCredentialsRequest(
+    awsCredentials: AwsCredentialIdentity
+): Promise<UpdateCredentialsRequest> {
+    const requestData: UpdateIamCredentialsRequestData = {
         accessKeyId: awsCredentials.accessKeyId,
         secretAccessKey: awsCredentials.secretAccessKey,
         sessionToken: awsCredentials.sessionToken,
     }
 
-    // encrypt the data field and create the response
-    const iv = crypto.randomBytes(16)
-    const encoder = crypto.createCipheriv('aes-256-gcm', encryptionKey, iv, {
-        authTagLength: 16,
-    })
-    const data = encoder.update(JSON.stringify(responseData), 'utf-8', 'base64') + encoder.final('base64')
-    const authTag = encoder.getAuthTag().toString('base64')
+    const payload = new TextEncoder().encode(
+        JSON.stringify({
+            data: requestData,
+        })
+    )
+
+    const jwt = await new jose.CompactEncrypt(payload)
+        .setProtectedHeader({ alg: 'dir', enc: 'A256GCM' })
+        .encrypt(encryptionKey)
 
     return {
-        iv: iv.toString('base64'),
-        data,
-        authTag,
+        data: jwt,
     }
 }
 
