@@ -1,10 +1,6 @@
-# AWS Documents Language Server
+# AWS Language Servers
 
-Language servers for AWS Document types
-
-## Functionality
-
-This Language Server will initially support completion, hover, diagnostics for select document types. The plan is to use JSON Schemas for certain documents, but we will explore additional language servers as well.
+Language servers for integration with IDEs and Editors
 
 ## Structure
 
@@ -48,3 +44,12 @@ Monorepo
 ## Troubleshooting
 
 [Troubleshooting information.](CONTRIBUTING.md#troubleshooting)
+
+## Security
+
+See [CONTRIBUTING](CONTRIBUTING.md#security-issue-notifications) for more information.
+
+## License
+
+This project is licensed under the Apache-2.0 License.
+
