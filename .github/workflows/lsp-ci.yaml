@@ -18,12 +18,10 @@ jobs:
                   node-version: 18
             - name: Build
               run: |
-                  cd lsp
                   npm install
                   npm run compile
             - name: Test
               run: |
-                  cd lsp
                   npm run test
     build:
         name: Package
@@ -37,17 +35,15 @@ jobs:
                   node-version: 18
             - name: Build
               run: |
-                  cd lsp
                   npm install
                   npm run compile
             - name: Create binaries
               run: |
-                  cd lsp
                   npm run package
             # TODO : Can we easily create ARM binaries from GitHub?
             - name: Attach binaries
               uses: actions/upload-artifact@v3
               with:
                   name: langauge-servers
-                  # Make sure you don't include lsp/node_modules
-                  path: lsp/app/**/bin/*
+                  # Make sure you don't include node_modules
+                  path: app/**/bin/*

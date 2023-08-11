@@ -3,17 +3,7 @@
 
 version: 2
 updates:
-  - package-ecosystem: "npm"
-    directory: "/telemetry/vscode"
-    schedule:
-      interval: "daily"
-
-  - package-ecosystem: "gradle"
-    directory: "/telemetry/jetbrains"
-    schedule:
-      interval: "daily"
-
-  - package-ecosystem: "nuget"
-    directory: "/telemetry/csharp"
-    schedule:
-      interval: "daily"
+    - package-ecosystem: 'npm'
+      directory: '/'
+      schedule:
+          interval: 'weekly'

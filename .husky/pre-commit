@@ -2,6 +2,5 @@
 . "$(dirname -- "$0")/_/husky.sh"
 
 echo [pre-commit] formatting staged files...
-cd lsp
 npm run format-staged
 echo [pre-commit] done formatting staged files

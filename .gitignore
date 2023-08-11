@@ -1,5 +1,19 @@
-dist/
-node_modules/
-**/node_modules/
-out/
+.DS_Store
+build
+.gradle
+.idea
+**/*.tgz
+.testresults/**
+
+# Visual Studio Related
+**/.vs
+**/bin
+**/obj
+
+# LSP Related
+**/dist
+**/out
+**/node_modules
+**/.vscode-test
+!/bin
 *.tsbuildinfo

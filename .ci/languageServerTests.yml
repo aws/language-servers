@@ -11,7 +11,6 @@ phases:
         # Packaged binaries will be emitted as CodeBuild artifacts.
         commands:
             - |
-                cd lsp
                 npm install
                 npm run compile
                 npm run package
@@ -19,4 +18,4 @@ phases:
 artifacts:
     discard-paths: yes
     files:
-        - lsp/app/**/bin/**
+        - app/**/bin/**
