@@ -1,0 +1,26 @@
+name: Sync repository with CodeCommit
+on:
+  push
+env:
+  AWS_REGION : "eu-west-1"
+  REPOSITORY_NAME: ${{ github.event.repository.name }}
+permissions:
+      id-token: write
+      contents: read
+jobs:
+  SyncWithCodeCommit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Git clone the repository
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: configure aws credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: arn:aws:iam::237723108500:role/GitHubCodeCommitAction
+          role-session-name: samplerolesession
+          aws-region: ${{ env.AWS_REGION }}
+      - name:  Sync repository with CodeCommit
+        run: ./.github/scripts/sync-repo.sh
+        shell: bash
