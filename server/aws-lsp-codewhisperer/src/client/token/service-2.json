@@ -1,0 +1,331 @@
+{
+    "version": "2.0",
+    "metadata": {
+        "apiVersion": "2022-11-11",
+        "endpointPrefix": "amazoncodewhispererservice",
+        "jsonVersion": "1.0",
+        "protocol": "json",
+        "serviceFullName": "Amazon CodeWhisperer",
+        "serviceId": "CodeWhispererRuntime",
+        "signingName": "amazoncodewhispererservice",
+        "targetPrefix": "AmazonCodeWhispererService",
+        "uid": "codewhispererruntime-2022-11-11"
+    },
+    "operations": {
+        "GenerateCompletions": {
+            "name": "GenerateCompletions",
+            "http": {
+                "method": "POST",
+                "requestUri": "/"
+            },
+            "input": {
+                "shape": "GenerateCompletionsRequest"
+            },
+            "output": {
+                "shape": "GenerateCompletionsResponse"
+            },
+            "errors": [
+                {
+                    "shape": "ThrottlingException"
+                },
+                {
+                    "shape": "InternalServerException"
+                },
+                {
+                    "shape": "ValidationException"
+                },
+                {
+                    "shape": "AccessDeniedException"
+                }
+            ]
+        }
+    },
+    "shapes": {
+        "AccessDeniedException": {
+            "type": "structure",
+            "required": ["message"],
+            "members": {
+                "message": {
+                    "shape": "String"
+                }
+            },
+            "exception": true
+        },
+        "Completion": {
+            "type": "structure",
+            "required": ["content"],
+            "members": {
+                "content": {
+                    "shape": "CompletionContentString"
+                },
+                "references": {
+                    "shape": "References"
+                },
+                "mostRelevantMissingImports": {
+                    "shape": "Imports"
+                }
+            }
+        },
+        "CompletionContentString": {
+            "type": "string",
+            "max": 5120,
+            "min": 1,
+            "sensitive": true
+        },
+        "Completions": {
+            "type": "list",
+            "member": {
+                "shape": "Completion"
+            },
+            "max": 10,
+            "min": 0
+        },
+        "ConflictException": {
+            "type": "structure",
+            "required": ["message"],
+            "members": {
+                "message": {
+                    "shape": "String"
+                }
+            },
+            "exception": true
+        },
+        "FileContext": {
+            "type": "structure",
+            "required": ["leftFileContent", "rightFileContent", "filename", "programmingLanguage"],
+            "members": {
+                "leftFileContent": {
+                    "shape": "FileContextLeftFileContentString"
+                },
+                "rightFileContent": {
+                    "shape": "FileContextRightFileContentString"
+                },
+                "filename": {
+                    "shape": "FileContextFilenameString"
+                },
+                "programmingLanguage": {
+                    "shape": "ProgrammingLanguage"
+                }
+            }
+        },
+        "FileContextFilenameString": {
+            "type": "string",
+            "max": 1024,
+            "min": 1
+        },
+        "FileContextLeftFileContentString": {
+            "type": "string",
+            "max": 10240,
+            "min": 0,
+            "sensitive": true
+        },
+        "FileContextRightFileContentString": {
+            "type": "string",
+            "max": 10240,
+            "min": 0,
+            "sensitive": true
+        },
+        "GenerateCompletionsRequest": {
+            "type": "structure",
+            "required": ["fileContext"],
+            "members": {
+                "fileContext": {
+                    "shape": "FileContext"
+                },
+                "maxResults": {
+                    "shape": "GenerateCompletionsRequestMaxResultsInteger"
+                },
+                "nextToken": {
+                    "shape": "GenerateCompletionsRequestNextTokenString"
+                },
+                "referenceTrackerConfiguration": {
+                    "shape": "ReferenceTrackerConfiguration"
+                }
+            }
+        },
+        "GenerateCompletionsRequestMaxResultsInteger": {
+            "type": "integer",
+            "box": true,
+            "max": 10,
+            "min": 1
+        },
+        "GenerateCompletionsRequestNextTokenString": {
+            "type": "string",
+            "max": 2048,
+            "min": 0,
+            "pattern": "(?:[A-Za-z0-9\\+/]{4})*(?:[A-Za-z0-9\\+/]{2}\\=\\=|[A-Za-z0-9\\+/]{3}\\=)?"
+        },
+        "GenerateCompletionsResponse": {
+            "type": "structure",
+            "members": {
+                "completions": {
+                    "shape": "Completions"
+                },
+                "nextToken": {
+                    "shape": "String"
+                }
+            }
+        },
+        "Import": {
+            "type": "structure",
+            "members": {
+                "statement": {
+                    "shape": "ImportStatementString"
+                }
+            }
+        },
+        "ImportStatementString": {
+            "type": "string",
+            "max": 1024,
+            "min": 1,
+            "sensitive": true
+        },
+        "Imports": {
+            "type": "list",
+            "member": {
+                "shape": "Import"
+            },
+            "max": 10,
+            "min": 0
+        },
+        "InternalServerException": {
+            "type": "structure",
+            "required": ["message"],
+            "members": {
+                "message": {
+                    "shape": "String"
+                }
+            },
+            "exception": true,
+            "fault": true,
+            "retryable": {
+                "throttling": false
+            }
+        },
+        "ProgrammingLanguage": {
+            "type": "structure",
+            "required": ["languageName"],
+            "members": {
+                "languageName": {
+                    "shape": "ProgrammingLanguageLanguageNameString"
+                }
+            }
+        },
+        "ProgrammingLanguageLanguageNameString": {
+            "type": "string",
+            "max": 128,
+            "min": 1,
+            "pattern": "(python|javascript|java|csharp|typescript|c|cpp|go|kotlin|php|ruby|rust|scala|shell|sql)"
+        },
+        "RecommendationsWithReferencesPreference": {
+            "type": "string",
+            "enum": ["BLOCK", "ALLOW"]
+        },
+        "Reference": {
+            "type": "structure",
+            "members": {
+                "licenseName": {
+                    "shape": "ReferenceLicenseNameString"
+                },
+                "repository": {
+                    "shape": "ReferenceRepositoryString"
+                },
+                "url": {
+                    "shape": "ReferenceUrlString"
+                },
+                "recommendationContentSpan": {
+                    "shape": "Span"
+                }
+            }
+        },
+        "ReferenceLicenseNameString": {
+            "type": "string",
+            "max": 1024,
+            "min": 1
+        },
+        "ReferenceRepositoryString": {
+            "type": "string",
+            "max": 1024,
+            "min": 1
+        },
+        "ReferenceTrackerConfiguration": {
+            "type": "structure",
+            "required": ["recommendationsWithReferences"],
+            "members": {
+                "recommendationsWithReferences": {
+                    "shape": "RecommendationsWithReferencesPreference"
+                }
+            }
+        },
+        "ReferenceUrlString": {
+            "type": "string",
+            "max": 1024,
+            "min": 1
+        },
+        "References": {
+            "type": "list",
+            "member": {
+                "shape": "Reference"
+            },
+            "max": 10,
+            "min": 0
+        },
+        "ResourceNotFoundException": {
+            "type": "structure",
+            "required": ["message"],
+            "members": {
+                "message": {
+                    "shape": "String"
+                }
+            },
+            "exception": true
+        },
+        "Span": {
+            "type": "structure",
+            "members": {
+                "start": {
+                    "shape": "SpanStartInteger"
+                },
+                "end": {
+                    "shape": "SpanEndInteger"
+                }
+            }
+        },
+        "SpanEndInteger": {
+            "type": "integer",
+            "box": true,
+            "min": 0
+        },
+        "SpanStartInteger": {
+            "type": "integer",
+            "box": true,
+            "min": 0
+        },
+        "String": {
+            "type": "string"
+        },
+        "ThrottlingException": {
+            "type": "structure",
+            "required": ["message"],
+            "members": {
+                "message": {
+                    "shape": "String"
+                }
+            },
+            "exception": true,
+            "retryable": {
+                "throttling": false
+            }
+        },
+        "ValidationException": {
+            "type": "structure",
+            "required": ["message"],
+            "members": {
+                "message": {
+                    "shape": "String"
+                }
+            },
+            "exception": true
+        }
+    }
+}

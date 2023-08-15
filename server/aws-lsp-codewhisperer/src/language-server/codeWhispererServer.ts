@@ -1,4 +1,4 @@
-import { AwsLanguageService } from '@lsp-placeholder/aws-lsp-core'
+import { AwsInitializationOptions, AwsLanguageService } from '@lsp-placeholder/aws-lsp-core'
 import {
     CancellationToken,
     CompletionParams,
@@ -16,6 +16,7 @@ import { CodeWhispererService } from './codeWhispererService'
 export type CodeWhispererServerProps = {
     connection: Connection
     codeWhispererService: AwsLanguageService
+    onInitialize: (params: AwsInitializationOptions) => void
 }
 
 /**
@@ -34,6 +35,7 @@ export class CodeWhispererServer {
     protected service: CodeWhispererService
 
     protected connection: Connection
+    private initializationOptions?: AwsInitializationOptions
 
     constructor(private readonly props: CodeWhispererServerProps) {
         this.connection = props.connection
@@ -42,6 +44,9 @@ export class CodeWhispererServer {
 
         this.connection.onInitialize((params: InitializeParams) => {
             // this.options = params;
+            this.initializationOptions = params.initializationOptions as AwsInitializationOptions
+            this.props.onInitialize(this.initializationOptions)
+
             const result: InitializeResult = {
                 // serverInfo: initialisationOptions?.serverInfo,
                 capabilities: {
@@ -88,16 +93,19 @@ export class CodeWhispererServer {
             const results: InlineCompletionList = {
                 items: [],
             }
-            params.context
 
-            const textDocument = this.getTextDocument(params.textDocument.uri)
-            if (this.service.isSupported(textDocument)) {
-                return await this.service.doInlineCompletion({
-                    textDocument,
-                    position: params.position,
-                    context: params.context,
-                    token,
-                })
+            try {
+                const textDocument = this.getTextDocument(params.textDocument.uri)
+                if (this.service.isSupported(textDocument)) {
+                    return await this.service.doInlineCompletion({
+                        textDocument,
+                        position: params.position,
+                        context: params.context,
+                        token,
+                    })
+                }
+            } catch (err) {
+                this.connection.console.error(`Recommendation failure: ${err}`)
             }
 
             return results

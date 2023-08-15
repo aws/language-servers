@@ -1,7 +1,7 @@
 import { jwtDecrypt } from 'jose'
 import { CancellationToken, Connection } from 'vscode-languageserver'
 import { AwsInitializationOptions } from '../initialization/awsInitializationOptions'
-import { CredentialsProvider, IamCredentials, credentialsProtocolMethodNames } from './credentialsProvider'
+import { BearerToken, CredentialsProvider, IamCredentials, credentialsProtocolMethodNames } from './credentialsProvider'
 import { CredentialsEncoding } from './encryption'
 import { NoCredentialsError } from './error/noCredentialsError'
 import { UpdateCredentialsRequest } from './updateCredentialsRequest'
@@ -15,6 +15,7 @@ export class IdeCredentialsProvider implements CredentialsProvider {
     private key: Buffer | undefined
     private credentialsEncoding: CredentialsEncoding | undefined
     private pushedCredentials: IamCredentials | undefined
+    private pushedToken: BearerToken | undefined
 
     constructor(private readonly connection: Connection, key?: string, credentialsEncoding?: CredentialsEncoding) {
         this.connection.console.info(`Server: I was initialized with credentials encoding: ${credentialsEncoding}`)
@@ -41,8 +42,7 @@ export class IdeCredentialsProvider implements CredentialsProvider {
         }
 
         if (props.credentials?.providesBearerToken) {
-            this.connection.console.info('Server: (stub) Registering bearer token credentials push handlers')
-            // TODO : Set up Bearer token handlers
+            this.registerBearerTokenPushHandlers()
         }
     }
 
@@ -63,7 +63,7 @@ export class IdeCredentialsProvider implements CredentialsProvider {
                 } catch (error) {
                     this.pushedCredentials = undefined
                     this.connection.console.error(
-                        `Server: Failed to set credentials: ${error}. Credentials have been unset.`
+                        `Server: Failed to set credentials: ${error}. Server credentials have been removed.`
                     )
                 }
             }
@@ -72,7 +72,7 @@ export class IdeCredentialsProvider implements CredentialsProvider {
         // Handle when host tells us we have no credentials to use
         this.connection.onNotification(credentialsProtocolMethodNames.iamCredentialsDelete, () => {
             this.pushedCredentials = undefined
-            this.connection.console.info('Server: The language server does not have credentials anymore.')
+            this.connection.console.info('Server: The language server credentials have been removed.')
         })
     }
 
@@ -90,6 +90,47 @@ export class IdeCredentialsProvider implements CredentialsProvider {
         }
     }
 
+    private registerBearerTokenPushHandlers(): void {
+        this.connection.console.info('Server: Registering bearer token push handlers')
+
+        // Handle when host sends us credentials to use
+        this.connection.onNotification(
+            credentialsProtocolMethodNames.iamBearerTokenUpdate,
+            async (request: UpdateCredentialsRequest) => {
+                try {
+                    const bearerToken = await this.decodeCredentialsRequestToken<BearerToken>(request)
+
+                    this.validateBearerTokenFields(bearerToken)
+
+                    this.pushedToken = bearerToken
+                    this.connection.console.info('Server: The language server received an updated bearer token.')
+                } catch (error) {
+                    this.pushedToken = undefined
+                    this.connection.console.error(
+                        `Server: Failed to set bearer token: ${error}. Server bearer token has been removed.`
+                    )
+                }
+            }
+        )
+
+        // Handle when host tells us we have no credentials to use
+        this.connection.onNotification(credentialsProtocolMethodNames.iamBearerTokenDelete, () => {
+            this.pushedToken = undefined
+            this.connection.console.info('Server: The language server bearer token has been removed.')
+        })
+    }
+
+    /**
+     * Throws an error if credentials fields are missing
+     */
+    private validateBearerTokenFields(bearerToken: BearerToken): void {
+        // Currently this is a proof of concept
+        // TODO : validate that BearerToken fields are actually set
+        if (bearerToken.token === undefined) {
+            throw new Error('Missing property: token')
+        }
+    }
+
     /**
      * Provides IAM based credentials. Throws NoCredentialsError if no credentials are available
      */
@@ -99,6 +140,17 @@ export class IdeCredentialsProvider implements CredentialsProvider {
         }
 
         return this.pushedCredentials
+    }
+
+    /**
+     * Provides a bearer token. Throws NoCredentialsError if bearer token is not available
+     */
+    public async resolveBearerToken(token: CancellationToken): Promise<BearerToken> {
+        if (!this.pushedToken) {
+            throw new NoCredentialsError()
+        }
+
+        return this.pushedToken
     }
 
     private async decodeCredentialsRequestToken<T>(request: UpdateCredentialsRequest): Promise<T> {
