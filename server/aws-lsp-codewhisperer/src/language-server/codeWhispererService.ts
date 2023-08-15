@@ -36,7 +36,7 @@ interface DoInlineCompletionParams {
     token: CancellationToken
 }
 
-interface GetRcommendationsParams {
+interface GetRecommendationsParams {
     textDocument: TextDocument
     position: Position
     maxResults: number
@@ -121,7 +121,7 @@ export class CodeWhispererService implements AwsLanguageService {
     }
 
     // HACK : IAM vs Token response shapes are the same. We should use our own type, not CodeWhispererClient.Recommendation.
-    private async getRecommendations(params: GetRcommendationsParams): Promise<CodeWhispererClient.Recommendation[]> {
+    private async getRecommendations(params: GetRecommendationsParams): Promise<CodeWhispererClient.Recommendation[]> {
         // This uses bearer tokens.
         // We'll need the language server to be able to query using the IAM based service client or the
         // bearer token based service client depending on what host the server is integrated with.
