@@ -6,6 +6,10 @@ export interface IamCredentials {
     sessionToken?: string
 }
 
+export interface BearerToken {
+    token: string
+}
+
 export const credentialsProtocolMethodNames = {
     /**
      * Called by host to push new IAM credentials whenever credentials state changes
@@ -16,6 +20,15 @@ export const credentialsProtocolMethodNames = {
      * Called by host to un-set any stored IAM credentials
      */
     iamCredentialsDelete: '$/aws/credentials/iam/delete',
+    /**
+     * Called by host to push a new bearer token whenever credentials state changes
+     * (and there is a valid token)
+     */
+    iamBearerTokenUpdate: '$/aws/credentials/token/update',
+    /**
+     * Called by host to un-set any stored bearer token
+     */
+    iamBearerTokenDelete: '$/aws/credentials/token/delete',
 }
 
 /**
@@ -23,5 +36,5 @@ export const credentialsProtocolMethodNames = {
  */
 export interface CredentialsProvider {
     resolveIamCredentials(token: CancellationToken): Promise<IamCredentials>
-    // TODO : establish a bearer token resolver
+    resolveBearerToken(token: CancellationToken): Promise<BearerToken>
 }

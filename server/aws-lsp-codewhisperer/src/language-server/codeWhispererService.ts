@@ -1,9 +1,12 @@
-import { AwsLanguageService } from '@lsp-placeholder/aws-lsp-core'
-import { ServiceConfigurationOptions } from 'aws-sdk/lib/service'
+import { AwsLanguageService, CredentialsProvider } from '@lsp-placeholder/aws-lsp-core'
+import { Credentials } from 'aws-sdk'
 import { CancellationToken, CompletionItem, CompletionItemKind, Connection } from 'vscode-languageserver'
 import { Position, Range, TextDocument, TextEdit } from 'vscode-languageserver-textdocument'
 import { CompletionList, Diagnostic, FormattingOptions, Hover } from 'vscode-languageserver-types'
-import { createCodeWhispererClient } from '../client/codewhisperer'
+import {
+    CodeWhispererTokenClientConfigurationOptions,
+    createCodeWhispererTokenClient,
+} from '../client/token/codewhisperer'
 import {
     InlineCompletionContext,
     InlineCompletionItem,
@@ -11,11 +14,13 @@ import {
     InlineCompletionTriggerKind,
 } from '../inline/futureTypes'
 import CodeWhispererClient = require('../client/codewhispererclient')
+import CodeWhispererTokenClient = require('../client/token/codewhispererclient')
 
 export type CodeWhispererServiceProps = {
     displayName: string
     // HACK: connection is passed in for logging purposes
     connection: Connection
+    credentialsProvider: CredentialsProvider
 }
 
 export interface CompletionParams {
@@ -39,6 +44,9 @@ interface GetRcommendationsParams {
 }
 
 export class CodeWhispererService implements AwsLanguageService {
+    private readonly codeWhispererRegion = 'us-east-1'
+    private readonly codeWhispererEndpoint = 'https://codewhisperer.us-east-1.amazonaws.com/'
+
     constructor(private readonly props: CodeWhispererServiceProps) {}
 
     isSupported(document: TextDocument): boolean {
@@ -112,16 +120,34 @@ export class CodeWhispererService implements AwsLanguageService {
         return completions
     }
 
+    // HACK : IAM vs Token response shapes are the same. We should use our own type, not CodeWhispererClient.Recommendation.
     private async getRecommendations(params: GetRcommendationsParams): Promise<CodeWhispererClient.Recommendation[]> {
-        // This just uses the system's default credentials. A future investigation will
-        // look at providing credentials from the LSP client.
-        const options: ServiceConfigurationOptions = {
-            region: 'us-east-1',
+        // This uses bearer tokens.
+        // We'll need the language server to be able to query using the IAM based service client or the
+        // bearer token based service client depending on what host the server is integrated with.
+        // These are different clients, with different types.
+        // Also, the IAM client has a generateRecommendations call, but the token client has a generateCompletions call.
+        // This will need to be smoothed out later on.
+        // I've left the IAM version's usage commented out below.
+        const bearerToken = (await this.props.credentialsProvider.resolveBearerToken(CancellationToken.None)).token
+
+        const options: CodeWhispererTokenClientConfigurationOptions = {
+            region: this.codeWhispererRegion,
+            endpoint: this.codeWhispererEndpoint,
+            credentials: new Credentials({ accessKeyId: 'xxx', secretAccessKey: 'xxx' }),
+            onRequestSetup: [
+                req => {
+                    req.on('build', ({ httpRequest }) => {
+                        httpRequest.headers['Authorization'] = `Bearer ${bearerToken}`
+                    })
+                },
+            ],
         }
 
         // CONCEPT: This is using the IAM credentials client.
         // We want to build up to using the bearer token client.
-        const client = createCodeWhispererClient(options)
+        // const client = createCodeWhispererClient(options)
+        const client: CodeWhispererTokenClient = createCodeWhispererTokenClient(options)
 
         const left = params.textDocument.getText({
             start: { line: 0, character: 0 },
@@ -132,7 +158,8 @@ export class CodeWhispererService implements AwsLanguageService {
             end: params.textDocument.positionAt(params.textDocument.getText().length),
         })
 
-        const request: CodeWhispererClient.GenerateRecommendationsRequest = {
+        // const request: CodeWhispererClient.GenerateRecommendationsRequest = {
+        const request: CodeWhispererTokenClient.GenerateCompletionsRequest = {
             fileContext: {
                 filename: params.textDocument.uri,
                 programmingLanguage: {
@@ -155,12 +182,17 @@ export class CodeWhispererService implements AwsLanguageService {
                 return []
             }
 
-            const response = await client.generateRecommendations(request).promise()
+            // const response = await client.generateRecommendations(request).promise()
+            const response = await client.generateCompletions(request).promise()
 
             request.nextToken = response.nextToken
 
-            if (response.recommendations) {
-                results.push(...response.recommendations)
+            // if (response.recommendations) {
+            //     results.push(...response.recommendations)
+            // }
+            if (response.completions) {
+                // HACK : IAM vs Token response shapes are the same. We should use our own type, not CodeWhispererClient.Recommendation.
+                results.push(...response.completions)
             }
         } while (request.nextToken !== undefined && request.nextToken !== '' && results.length < params.maxResults)
 

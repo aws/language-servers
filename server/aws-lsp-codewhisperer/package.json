@@ -6,7 +6,7 @@
     "scripts": {
         "compile": "tsc --build",
         "postcompile": "npm run copyServiceClient",
-        "copyServiceClient": "copyfiles -u 1 --error ./src/client/*.json out"
+        "copyServiceClient": "copyfiles -u 1 --error ./src/client/*.json out && copyfiles -u 1 --error ./src/client/token/*.json out"
     },
     "dependencies": {
         "@lsp-placeholder/aws-lsp-core": "^0.0.1",
