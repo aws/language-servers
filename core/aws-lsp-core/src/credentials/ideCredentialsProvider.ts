@@ -63,7 +63,7 @@ export class IdeCredentialsProvider implements CredentialsProvider {
                 } catch (error) {
                     this.pushedCredentials = undefined
                     this.connection.console.error(
-                        `Server: Failed to set credentials: ${error}. Credentials have been unset.`
+                        `Server: Failed to set credentials: ${error}. Server credentials have been removed.`
                     )
                 }
             }
@@ -72,7 +72,7 @@ export class IdeCredentialsProvider implements CredentialsProvider {
         // Handle when host tells us we have no credentials to use
         this.connection.onNotification(credentialsProtocolMethodNames.iamCredentialsDelete, () => {
             this.pushedCredentials = undefined
-            this.connection.console.info('Server: The language server does not have credentials anymore.')
+            this.connection.console.info('Server: The language server credentials have been removed.')
         })
     }
 
@@ -107,7 +107,7 @@ export class IdeCredentialsProvider implements CredentialsProvider {
                 } catch (error) {
                     this.pushedToken = undefined
                     this.connection.console.error(
-                        `Server: Failed to set bearer token: ${error}. Credentials have been unset.`
+                        `Server: Failed to set bearer token: ${error}. Server bearer token has been removed.`
                     )
                 }
             }
@@ -116,7 +116,7 @@ export class IdeCredentialsProvider implements CredentialsProvider {
         // Handle when host tells us we have no credentials to use
         this.connection.onNotification(credentialsProtocolMethodNames.iamBearerTokenDelete, () => {
             this.pushedToken = undefined
-            this.connection.console.info('Server: The language server does not have a bearer token anymore.')
+            this.connection.console.info('Server: The language server bearer token has been removed.')
         })
     }
 
