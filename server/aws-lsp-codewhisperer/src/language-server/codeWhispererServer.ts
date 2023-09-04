@@ -10,9 +10,8 @@ export const CodeWhispererServer: Server = (features: {
     logging: Logging
     telemetry: Telemetry
 }) => {
-    features.logging.log = console.log
-
-    const codeWhispererService = new CodeWhispererService({ displayName: 'aws-lsp-codewhisperer' })
+    const { auth, lsp, workspace, logging, telemetry } = features
+    const codeWhispererService = new CodeWhispererService()
 
     const onCompletionHandler = async (
         params: CompletionParams,
@@ -23,24 +22,29 @@ export const CodeWhispererServer: Server = (features: {
             isIncomplete: false,
         }
 
-        const textDocument = await features.workspace.getTextDocument(params.textDocument.uri)
+        const textDocument = await workspace.getTextDocument(params.textDocument.uri)
         // todo determine file type and check if supported
         if (textDocument) {
             try {
                 const recommendations = await codeWhispererService.doComplete(textDocument, params.position)
                 if (recommendations) {
                     return recommendations
+                    const recommendations = await codeWhispererService.doComplete(textDocument, params.position)
+                    if (recommendations) {
+                        return recommendations
+                    }
+                } catch (err) {
+                    logging.log(`Recommendation failure: ${err}`)
                 }
-            } catch (err) {
-                console.log(err)
             }
         }
 
         return completions
+        return completions
     }
 
-    features.lsp.onCompletion(onCompletionHandler)
-    features.logging.log('Codewhisperer server has been initialised')
+    lsp.onCompletion(onCompletionHandler)
+    logging.log('Codewhisperer server has been initialised')
 
-    return () => {}
+    return () => { }
 }

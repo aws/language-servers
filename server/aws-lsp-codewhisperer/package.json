@@ -9,7 +9,7 @@
         "copyServiceClient": "copyfiles -u 1 --error ./src/client/*.json out && copyfiles -u 1 --error ./src/client/token/*.json out"
     },
     "dependencies": {
-        "@aws-placeholder/aws-language-server-runtimes": "file:aws-placeholder-aws-language-server-runtimes-0.1.0.tgz",
+        "@aws-placeholder/aws-language-server-runtimes": "file:../../bin/aws-placeholder-aws-language-server-runtimes-0.1.0.tgz",
         "@lsp-placeholder/aws-lsp-core": "^0.0.1",
         "aws-sdk": "^2.1403.0",
         "vscode-languageserver": "^8.0.1",
