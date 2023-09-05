@@ -46,8 +46,7 @@ export class CodeWhispererService implements AwsLanguageService {
             credentials: new Credentials({
                 accessKeyId: 'xx',
                 secretAccessKey: 'xx',
-                sessionToken:
-                    'xx',
+                sessionToken: 'xx',
             }),
         }
 

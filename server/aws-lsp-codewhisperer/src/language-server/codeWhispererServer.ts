@@ -29,20 +29,13 @@ export const CodeWhispererServer: Server = (features: {
                 const recommendations = await codeWhispererService.doComplete(textDocument, params.position)
                 if (recommendations) {
                     return recommendations
-                    const recommendations = await codeWhispererService.doComplete(textDocument, params.position)
-                    if (recommendations) {
-                        return recommendations
-                    }
-                } catch (err) {
-                    logging.log(`Recommendation failure: ${err}`)
                 }
+            } catch (err) {
+                logging.log(`Recommendation failure: ${err}`)
             }
         }
-
-        return completions
         return completions
     }
-
     lsp.onCompletion(onCompletionHandler)
     logging.log('Codewhisperer server has been initialised')
 
