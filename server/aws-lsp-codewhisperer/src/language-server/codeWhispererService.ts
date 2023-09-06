@@ -5,14 +5,18 @@ import {
     InlineCompletionTriggerKind,
 } from '@aws-placeholder/aws-language-server-runtimes/out/features/lsp/inline-completions/futureTypes'
 import { AwsLanguageService } from '@lsp-placeholder/aws-lsp-core'
-import { Credentials } from 'aws-sdk'
+import { AWSError, Credentials, Request } from 'aws-sdk'
 import { CancellationToken, CompletionItem, CompletionItemKind } from 'vscode-languageserver'
 import { Position, Range, TextDocument, TextEdit } from 'vscode-languageserver-textdocument'
 import { CompletionList, Diagnostic, FormattingOptions, Hover } from 'vscode-languageserver-types'
 import { createCodeWhispererClient } from '../client/codewhisperer'
-import { CodeWhispererTokenClientConfigurationOptions } from '../client/token/codewhisperer'
+import {
+    CodeWhispererTokenClientConfigurationOptions,
+    createCodeWhispererTokenClient,
+} from '../client/token/codewhisperer'
 
 import CodeWhispererClient = require('../client/codewhispererclient')
+import CodeWhispererTokenClient = require('../client/token/codewhispererclient')
 
 export interface CompletionParams {
     textDocument: TextDocument
@@ -34,43 +38,22 @@ interface GetRecommendationsParams {
     token: CancellationToken
 }
 
-export class CodeWhispererService implements AwsLanguageService {
-    private readonly codeWhispererRegion = 'us-east-1'
-    private readonly codeWhispererEndpoint = 'https://codewhisperer.us-east-1.amazonaws.com/'
-    private client
-
-    constructor() {
-        const options: CodeWhispererTokenClientConfigurationOptions = {
-            region: this.codeWhispererRegion,
-            endpoint: this.codeWhispererEndpoint,
-            credentials: new Credentials({
-                accessKeyId: 'xx',
-                secretAccessKey: 'xx',
-                sessionToken: 'xx',
-            }),
-        }
-
-        // CONCEPT: This is using the IAM credentials client.
-        this.client = createCodeWhispererClient(options)
-    }
-
-    isSupported(document: TextDocument): boolean {
-        return true
-    }
-
-    async doComplete(textDocument: TextDocument, position: Position): Promise<CompletionList | null> {
-        return this.doComplete2({ textDocument, position, token: CancellationToken.None })
-    }
+export abstract class CodeWhispererServiceBase implements AwsLanguageService {
+    abstract client: CodeWhispererClient | CodeWhispererTokenClient
 
     // TODO : Design notes : We may want to change the AwsLanguageService signatures
     // to provide more details coming in through the LSP event.
     // In this case, we also want access to the cancellation token.
-    async doComplete2(params: CompletionParams): Promise<CompletionList | null> {
+    async doComplete(
+        textDocument: TextDocument,
+        position: Position,
+        token: CancellationToken = CancellationToken.None
+    ): Promise<CompletionList | null> {
         const recommendations = await this.getRecommendations({
-            textDocument: params.textDocument,
-            position: params.position,
+            textDocument: textDocument,
+            position: position,
             maxResults: 5,
-            token: params.token,
+            token: token,
         })
 
         let count = 1
@@ -88,7 +71,6 @@ export class CodeWhispererService implements AwsLanguageService {
                 },
                 documentation: r.content,
                 kind: CompletionItemKind.Snippet,
-                // filterText: 'aaa CodeWhisperer',
                 // filterText: 'aaa CodeWhisperer',
             }
         })
@@ -162,7 +144,8 @@ export class CodeWhispererService implements AwsLanguageService {
                 return []
             }
 
-            const response = await this.client.generateRecommendations(request).promise()
+            // const response = await this.client.generateRecommendations(request).promise()
+            const response = await this.generateRecommendationsOrCompletions(request).promise()
 
             request.nextToken = response.nextToken
 
@@ -174,13 +157,80 @@ export class CodeWhispererService implements AwsLanguageService {
         return results
     }
 
+    isSupported(document: TextDocument): boolean {
+        return true
+    }
+
     doValidation(textDocument: TextDocument): PromiseLike<Diagnostic[]> {
         throw new Error('Method not implemented.')
     }
+
     doHover(textDocument: TextDocument, position: Position): PromiseLike<Hover | null> {
         throw new Error('Method not implemented.')
     }
+
     format(textDocument: TextDocument, range: Range, options: FormattingOptions): TextEdit[] {
         throw new Error('Method not implemented.')
+    }
+
+    abstract generateRecommendationsOrCompletions(
+        request:
+            | CodeWhispererTokenClient.GenerateCompletionsRequest
+            | CodeWhispererClient.GenerateRecommendationsRequest
+    ): Request<CodeWhispererClient.Types.GenerateRecommendationsResponse, AWSError>
+}
+
+export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
+    client: CodeWhispererClient
+    private readonly codeWhispererRegion = 'us-east-1'
+    private readonly codeWhispererEndpoint = 'https://codewhisperer.us-east-1.amazonaws.com/'
+
+    constructor() {
+        super()
+        const options: CodeWhispererTokenClientConfigurationOptions = {
+            region: this.codeWhispererRegion,
+            endpoint: this.codeWhispererEndpoint,
+            credentials: new Credentials({
+                accessKeyId: 'XX',
+                secretAccessKey: 'XX',
+                sessionToken: 'xx'
+            }),
+        }
+
+        // CONCEPT: This is using the IAM credentials client.
+        this.client = createCodeWhispererClient(options)
+    }
+
+    generateRecommendationsOrCompletions(
+        request: CodeWhispererClient.GenerateRecommendationsRequest
+    ): Request<CodeWhispererClient.GenerateRecommendationsResponse, AWSError> {
+        return this.client.generateRecommendations(request)
+    }
+}
+
+export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
+    client: CodeWhispererTokenClient
+    private readonly codeWhispererRegion = 'us-east-1'
+    private readonly codeWhispererEndpoint = 'https://codewhisperer.us-east-1.amazonaws.com/'
+
+    constructor() {
+        super()
+        const options: CodeWhispererTokenClientConfigurationOptions = {
+            region: this.codeWhispererRegion,
+            endpoint: this.codeWhispererEndpoint,
+            credentials: new Credentials({
+                accessKeyId: 'XX',
+                secretAccessKey: 'XX',
+                sessionToken: 'xx'
+            }),
+        }
+
+        this.client = createCodeWhispererTokenClient(options)
+    }
+
+    generateRecommendationsOrCompletions(
+        request: CodeWhispererTokenClient.GenerateCompletionsRequest
+    ): Request<CodeWhispererClient.GenerateRecommendationsResponse, AWSError> {
+        return this.client.generateCompletions(request)
     }
 }
