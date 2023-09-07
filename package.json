@@ -17,10 +17,11 @@
         "clean": "ts-node ./script/clean.ts",
         "compile": "tsc --build --verbose && npm run postcompile --workspaces --if-present",
         "watch": "tsc --build --watch",
-        "test": "npm run test --workspaces --if-present",
+        "test": "npm run compile && npm run test --workspaces --if-present",
         "package": "npm install && npm run compile && npm run package-x64 --workspaces --if-present"
     },
     "dependencies": {
+        "ts-lsp-client": "^1.0.1",
         "typescript": "^5.0.4"
     },
     "devDependencies": {
