@@ -65,9 +65,9 @@ See the [LICENSE](LICENSE) file for our project's licensing. We will ask you to 
 Run:
 
 ```
-git clone git@github.com:aws/aws-language-server.git
+git clone git@github.com:aws/aws-language-servers.git
 
-cd aws-language-server
+cd aws-language-servers
 
 npm install
 ```
@@ -135,12 +135,12 @@ The VSCode Toolkit Extension can start the AWS Documents Language Server itself.
 This will explain how to setup the extension to run with the language server
 and be able to debug it all.
 
-1. Clone the [`aws-language-server`](https://github.com/aws/aws-language-server) repo:
+1. Clone the [`aws-language-servers`](https://github.com/aws/aws-language-servers) repo:
 
     ```
-    git clone git@github.com:aws/aws-language-server.git
+    git clone git@github.com:aws/aws-language-servers.git
 
-    cd aws-language-server
+    cd aws-language-servers
     ```
 
 2. Run:
