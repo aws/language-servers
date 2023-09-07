@@ -273,3 +273,7 @@ myStubbedFunc.returns()
 -   Change the setting `awsDocuments.trace.server` to `"verbose"`. This shows all communication between the client and server.
 -   In the top left menu bar: `View > Output`
 -   Select `"AWS Documents Language Server"` from the dropdown menu in the topright.
+
+## Developer Notes
+
+- The `bin/aws-placeholder-aws-language-server-runtimes-0.1.0.tgz` file is a temporary solution to use the `aws-language-server-runtimes` package without publishing to NPM before the first release. Tracking ID: `AWS-Cloud9-25329`
