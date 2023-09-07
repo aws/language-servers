@@ -34,6 +34,9 @@
             "path": "./server/aws-lsp-codewhisperer"
         },
         {
+            "path": "./server/hello-world-lsp"
+        },
+        {
             "path": "./server/aws-lsp-s3"
         },
         {
@@ -47,6 +50,9 @@
         },
         {
             "path": "./app/aws-lsp-s3-binary"
-        }
+        },
+        {
+            "path": "./app/hello-world-lsp-binary"
+        },
     ]
 }
