@@ -1,0 +1,13 @@
+{
+    "name": "@lsp-placeholder/hello-world-lsp",
+    "version": "0.0.1",
+    "description": "Hello World Server",
+    "main": "out/index.js",
+    "scripts": {
+        "compile": "tsc --build"
+    },
+    "dependencies": {
+        "@aws-placeholder/aws-language-server-runtimes": "file:../../bin/aws-placeholder-aws-language-server-runtimes-0.1.0.tgz",
+        "vscode-languageserver": "^8.0.1"
+    }
+}
