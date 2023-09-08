@@ -8,8 +8,6 @@ import {
     CompletionParams,
 } from 'vscode-languageserver/node'
 
-const logging: Logging = { log: () => { } }
-
 const onCompletionHandler = async (_params: CompletionParams, _token: CancellationToken): Promise<CompletionList> => {
     // For the example, we will always return these completion items
     const items: CompletionItem[] = [
@@ -38,9 +36,9 @@ export const HelloWorldServer: Server = (features: {
     logging: Logging
     telemetry: Telemetry
 }) => {
-    features.lsp.onCompletion(onCompletionHandler)
-    logging.log = features.logging.log
+    const { lsp, logging } = features;
 
+    lsp.onCompletion(onCompletionHandler)
     logging.log('The Hello World Capability has been initialised')
 
     // disposable
