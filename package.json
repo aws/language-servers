@@ -18,6 +18,8 @@
         "compile": "tsc --build --verbose && npm run postcompile --workspaces --if-present",
         "watch": "tsc --build --watch",
         "test": "npm run compile && npm run test --workspaces --if-present",
+        "test-integ": "npm run compile && npm run test-integ --workspaces --if-present",
+        "test-unit": "npm run compile && npm run test-unit --workspaces --if-present",
         "package": "npm install && npm run compile && npm run package-x64 --workspaces --if-present"
     },
     "dependencies": {
@@ -32,7 +34,6 @@
         "husky": "^8.0.3",
         "prettier": "^2.8.8",
         "pretty-quick": "^3.1.3",
-        "ts-lsp-client": "^1.0.1",
         "ts-node": "^10.9.1"
     },
     "prettier": {
