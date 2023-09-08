@@ -21,7 +21,6 @@
         "package": "npm install && npm run compile && npm run package-x64 --workspaces --if-present"
     },
     "dependencies": {
-        "ts-lsp-client": "^1.0.1",
         "typescript": "^5.0.4"
     },
     "devDependencies": {
@@ -33,6 +32,7 @@
         "husky": "^8.0.3",
         "prettier": "^2.8.8",
         "pretty-quick": "^3.1.3",
+        "ts-lsp-client": "^1.0.1",
         "ts-node": "^10.9.1"
     },
     "prettier": {
