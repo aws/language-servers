@@ -5,7 +5,8 @@
     "main": "out/index.js",
     "scripts": {
         "compile": "tsc --build",
-        "test": "mocha './out/**/*.test.js'"
+        "test": "npm run test-unit",
+        "test-unit": "mocha './out/**/*.test.js'"
     },
     "dependencies": {
         "jose": "^4.14.4",

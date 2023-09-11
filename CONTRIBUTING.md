@@ -65,9 +65,9 @@ See the [LICENSE](LICENSE) file for our project's licensing. We will ask you to 
 Run:
 
 ```
-git clone git@github.com:aws/aws-toolkit-common.git
+git clone git@github.com:aws/aws-language-servers.git
 
-cd aws-toolkit-common
+cd aws-language-servers
 
 npm install
 ```
@@ -135,46 +135,23 @@ The VSCode Toolkit Extension can start the AWS Documents Language Server itself.
 This will explain how to setup the extension to run with the language server
 and be able to debug it all.
 
-> **NOTE**: The cloned git repos must be adjacent to each other in the filesystem since commands are currently using relative paths.
-
-1. Clone the [`aws-toolkit-vscode`](https://github.com/aws/aws-toolkit-vscode) repo:
+1. Clone the [`aws-language-servers`](https://github.com/aws/aws-language-servers) repo:
 
     ```
-    git clone git@github.com:aws/aws-toolkit-vscode.git
+    git clone git@github.com:aws/aws-language-servers.git
 
-    cd aws-toolkit-vscode && \
-
-    git fetch origin jpinkney-aws/lsp && git checkout jpinkney-aws/lsp && \
-
-    cd ..
+    cd aws-language-servers
     ```
 
-2. Clone the [`aws-toolkit-common`](https://github.com/aws/aws-toolkit-common) repo:
+2. Run:
 
     ```console
-    git clone git@github.com:aws/aws-toolkit-common.git && \
-
-    cd aws-toolkit-common && \
-
-    git fetch origin test-typescript-lsp && git checkout test-typescript-lsp && \
-
-    cd ..
-    ```
-
-3. Open each project in their own VSCode window.
-
-4. In `aws-toolkit-common` run:
-
-    ```console
+    npm install
     npm run watch
     ```
 
-5. In `aws-toolkit-vscode` start the extesion in `Run & Debug` using the `"Extension"` launch config.
+3. Start the extension in `Run & Debug` using the `"Hello World"` launch config.
    A new window will open.
-
-6. In the new window enable the language server in the VSCode settings under `aws.experiments` and check `lsp`. This will start the language server using the output you generated in step `4`.
-
-7. In the `aws-toolkit-common` VSCode window connect the debugger in `Run & Debug` using the `"Attach to AWS Documents Language Server"` launch config. Set breakpoints where needed.
 
 ## Testing
 
@@ -296,3 +273,7 @@ myStubbedFunc.returns()
 -   Change the setting `awsDocuments.trace.server` to `"verbose"`. This shows all communication between the client and server.
 -   In the top left menu bar: `View > Output`
 -   Select `"AWS Documents Language Server"` from the dropdown menu in the topright.
+
+## Developer Notes
+
+- The `bin/aws-placeholder-aws-language-server-runtimes-0.1.0.tgz` file is a temporary solution to use the `aws-language-server-runtimes` package without publishing to NPM before the first release. Tracking ID: `AWS-Cloud9-25329`
