@@ -6,8 +6,8 @@ import {
 } from '@aws-placeholder/aws-language-server-runtimes/out/features/lsp/inline-completions/futureTypes'
 import { AwsLanguageService } from '@lsp-placeholder/aws-lsp-core'
 import { AWSError, Credentials, Request } from 'aws-sdk'
-import { CancellationToken, CompletionItem, CompletionItemKind } from 'vscode-languageserver'
-import { Position, Range, TextDocument, TextEdit } from 'vscode-languageserver-textdocument'
+import { CancellationToken, Range } from 'vscode-languageserver'
+import { Position, TextDocument, TextEdit } from 'vscode-languageserver-textdocument'
 import { CompletionList, Diagnostic, FormattingOptions, Hover } from 'vscode-languageserver-types'
 import { createCodeWhispererClient } from '../client/codewhisperer'
 import {
@@ -18,17 +18,41 @@ import {
 import CodeWhispererClient = require('../client/codewhispererclient')
 import CodeWhispererTokenClient = require('../client/token/codewhispererclient')
 
-export interface CompletionParams {
-    textDocument: TextDocument
-    position: Position
-    token: CancellationToken
+// Utility functions, to be moved out
+/**
+ * Returns the longest overlap between the Suffix of firstString and Prefix of second string
+ * getPrefixSuffixOverlap("adwg31", "31ggrs") = "31"
+ */
+function getPrefixSuffixOverlap(firstString: string, secondString: string) {
+    let i = Math.min(firstString.length, secondString.length)
+    while (i > 0) {
+        if (secondString.slice(0, i) === firstString.slice(-i)) {
+            break
+        }
+        i--
+    }
+    return secondString.slice(0, i)
+}
+
+function truncateOverlapWithRightContext(document: TextDocument, suggestion: string, pos: Position): string {
+    const trimmedSuggestion = suggestion.trim()
+    // limit of 5000 for right context matching
+    const rightContext = document.getText({ start: pos, end: document.positionAt(document.offsetAt(pos) + 5000) })
+    const overlap = getPrefixSuffixOverlap(trimmedSuggestion, rightContext.trim())
+    const overlapIndex = suggestion.lastIndexOf(overlap)
+    if (overlapIndex >= 0) {
+        const truncated = suggestion.slice(0, overlapIndex)
+        return truncated.trim().length ? truncated : ''
+    } else {
+        return suggestion
+    }
 }
 
 interface DoInlineCompletionParams {
     textDocument: TextDocument
     position: Position
     context: InlineCompletionContext
-    token: CancellationToken
+    token?: CancellationToken
 }
 
 interface GetRecommendationsParams {
@@ -44,43 +68,13 @@ export abstract class CodeWhispererServiceBase implements AwsLanguageService {
     // TODO : Design notes : We may want to change the AwsLanguageService signatures
     // to provide more details coming in through the LSP event.
     // In this case, we also want access to the cancellation token.
+    // For CWSPR LSP server, we might not need regular completion
     async doComplete(
         textDocument: TextDocument,
         position: Position,
         token: CancellationToken = CancellationToken.None
     ): Promise<CompletionList | null> {
-        const recommendations = await this.getRecommendations({
-            textDocument: textDocument,
-            position: position,
-            maxResults: 5,
-            token: token,
-        })
-
-        let count = 1
-        let items: CompletionItem[] = recommendations.map<CompletionItem>(r => {
-            const itemId = count++
-
-            return {
-                // This puts the complete recommendation into the completion list,
-                // The UX isn't great
-                label: r.content,
-                insertText: r.content,
-                labelDetails: {
-                    description: 'CodeWhisperer',
-                    detail: ` (${itemId})`,
-                },
-                documentation: r.content,
-                kind: CompletionItemKind.Snippet,
-                // filterText: 'aaa CodeWhisperer',
-            }
-        })
-
-        const completions: CompletionList = {
-            isIncomplete: false,
-            items,
-        }
-
-        return completions
+        return null
     }
 
     // TODO : Design notes : What would the AwsLanguageService signature look like?
@@ -89,12 +83,12 @@ export abstract class CodeWhispererServiceBase implements AwsLanguageService {
             textDocument: params.textDocument,
             position: params.position,
             maxResults: params.context.triggerKind == InlineCompletionTriggerKind.Automatic ? 1 : 5,
-            token: params.token,
+            token: params.token || CancellationToken.None,
         })
 
         let items: InlineCompletionItem[] = recommendations.map<InlineCompletionItem>(r => {
             return {
-                insertText: r.content,
+                insertText: truncateOverlapWithRightContext(params.textDocument, r.content, params.position),
                 range: params.context.selectedCompletionInfo?.range,
             }
         })
@@ -143,8 +137,6 @@ export abstract class CodeWhispererServiceBase implements AwsLanguageService {
             if (params.token.isCancellationRequested) {
                 return []
             }
-
-            // const response = await this.client.generateRecommendations(request).promise()
             const response = await this.generateRecommendationsOrCompletions(request).promise()
 
             request.nextToken = response.nextToken
@@ -193,11 +185,9 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
             credentials: new Credentials({
                 accessKeyId: 'XX',
                 secretAccessKey: 'XX',
-                sessionToken: 'xx'
+                sessionToken: 'xx',
             }),
         }
-
-        // CONCEPT: This is using the IAM credentials client.
         this.client = createCodeWhispererClient(options)
     }
 
@@ -221,10 +211,9 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
             credentials: new Credentials({
                 accessKeyId: 'XX',
                 secretAccessKey: 'XX',
-                sessionToken: 'xx'
+                sessionToken: 'xx',
             }),
         }
-
         this.client = createCodeWhispererTokenClient(options)
     }
 

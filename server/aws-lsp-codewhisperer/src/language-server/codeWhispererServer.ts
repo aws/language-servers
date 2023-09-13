@@ -1,75 +1,51 @@
 import { Auth, Logging, Lsp, Telemetry, Workspace } from '@aws-placeholder/aws-language-server-runtimes/out/features'
+import { CredentialsType } from '@aws-placeholder/aws-language-server-runtimes/out/features/auth'
+import { InlineCompletionParams } from '@aws-placeholder/aws-language-server-runtimes/out/features/lsp/inline-completions/futureProtocol'
+import { InlineCompletionList } from '@aws-placeholder/aws-language-server-runtimes/out/features/lsp/inline-completions/futureTypes'
 import { Server } from '@aws-placeholder/aws-language-server-runtimes/out/runtimes'
-import { CancellationToken, CompletionList, CompletionParams } from 'vscode-languageserver'
-import { CodeWhispererServiceBase, CodeWhispererServiceIAM, CodeWhispererServiceToken } from './codeWhispererService'
+import { CancellationToken } from 'vscode-languageserver'
+import { CodeWhispererServiceIAM, CodeWhispererServiceToken } from './codeWhispererService'
 
-const completionHandler = async (
-    params: CompletionParams,
-    _token: CancellationToken,
-    workspace: Workspace,
-    logging: Logging,
-    codeWhispererService: CodeWhispererServiceBase
-): Promise<CompletionList> => {
-    const completions: CompletionList = {
-        items: [],
-        isIncomplete: false,
-    }
+const CodewhispererServerFactory = (credentialsType: CredentialsType): Server => {
+    const codeWhispererService =
+        credentialsType === 'iam' ? new CodeWhispererServiceIAM() : new CodeWhispererServiceToken()
 
-    const textDocument = await workspace.getTextDocument(params.textDocument.uri)
-    // todo determine file type and check if supported
-    if (textDocument) {
-        try {
-            const recommendations = await codeWhispererService.doComplete(textDocument, params.position)
-            if (recommendations) {
-                return recommendations
+    return (features: { auth: Auth; lsp: Lsp; workspace: Workspace; logging: Logging; telemetry: Telemetry }) => {
+        const { auth, lsp, workspace, logging, telemetry } = features
+
+        const onInlineCompletionHandler = async (
+            params: InlineCompletionParams,
+            _token: CancellationToken
+        ): Promise<InlineCompletionList> => {
+            const completions: InlineCompletionList = {
+                items: [],
             }
-        } catch (err) {
-            logging.log(`Recommendation failure: ${err}`)
+
+            const textDocument = await workspace.getTextDocument(params.textDocument.uri)
+            // todo determine file type and check if supported
+            if (textDocument) {
+                try {
+                    const recommendations = await codeWhispererService.doInlineCompletion({
+                        textDocument,
+                        position: params.position,
+                        context: { triggerKind: 0 },
+                    })
+                    if (recommendations) {
+                        return recommendations
+                    }
+                } catch (err) {
+                    logging.log(`Recommendation failure: ${err}`)
+                }
+            }
+            return completions
         }
+
+        lsp.onInlineCompletion(onInlineCompletionHandler)
+        logging.log('Codewhisperer server has been initialised')
+
+        return () => {}
     }
-    return completions
 }
 
-export const CodeWhispererServerToken: Server = (features: {
-    auth: Auth
-    lsp: Lsp
-    workspace: Workspace
-    logging: Logging
-    telemetry: Telemetry
-}) => {
-    const { auth, lsp, workspace, logging, telemetry } = features
-    const codeWhispererService = new CodeWhispererServiceToken()
-
-    const onCompletionHandler = async (
-        params: CompletionParams,
-        _token: CancellationToken
-    ): Promise<CompletionList> => {
-        return await completionHandler(params, _token, workspace, logging, codeWhispererService)
-    }
-    lsp.onCompletion(onCompletionHandler)
-    logging.log('Codewhisperer server has been initialised')
-
-    return () => {}
-}
-
-export const CodeWhispererServerIAM: Server = (features: {
-    auth: Auth
-    lsp: Lsp
-    workspace: Workspace
-    logging: Logging
-    telemetry: Telemetry
-}) => {
-    const { auth, lsp, workspace, logging, telemetry } = features
-    const codeWhispererService = new CodeWhispererServiceIAM()
-
-    const onCompletionHandler = async (
-        params: CompletionParams,
-        _token: CancellationToken
-    ): Promise<CompletionList> => {
-        return await completionHandler(params, _token, workspace, logging, codeWhispererService)
-    }
-    lsp.onCompletion(onCompletionHandler)
-    logging.log('Codewhisperer server has been initialised')
-
-    return () => {}
-}
+export const CodeWhispererServerIAM = CodewhispererServerFactory('iam')
+export const CodeWhispererServerToken = CodewhispererServerFactory('bearer')
