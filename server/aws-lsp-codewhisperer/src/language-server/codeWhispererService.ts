@@ -1,3 +1,4 @@
+import { Auth } from '@aws-placeholder/aws-language-server-runtimes/out/features'
 import {
     InlineCompletionContext,
     InlineCompletionItem,
@@ -177,16 +178,23 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
     private readonly codeWhispererRegion = 'us-east-1'
     private readonly codeWhispererEndpoint = 'https://codewhisperer.us-east-1.amazonaws.com/'
 
-    constructor() {
+    constructor(auth: Auth) {
         super()
+        // if (!auth.hasCredentials('iam')) {
+        //     throw new Error('IAM Credentials not provided')
+        // }
+
+        const hardcodeCredentials = new Credentials({
+            accessKeyId: 'XX',
+            secretAccessKey: 'XX',
+            sessionToken: 'XX',
+        })
+
         const options: CodeWhispererTokenClientConfigurationOptions = {
             region: this.codeWhispererRegion,
             endpoint: this.codeWhispererEndpoint,
-            credentials: new Credentials({
-                accessKeyId: 'XX',
-                secretAccessKey: 'XX',
-                sessionToken: 'xx',
-            }),
+            // credentials: auth.getCredentials('iam') as IamCredentials,
+            credentials: hardcodeCredentials,
         }
         this.client = createCodeWhispererClient(options)
     }
@@ -203,16 +211,19 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     private readonly codeWhispererRegion = 'us-east-1'
     private readonly codeWhispererEndpoint = 'https://codewhisperer.us-east-1.amazonaws.com/'
 
-    constructor() {
+    constructor(auth: Auth) {
         super()
+
         const options: CodeWhispererTokenClientConfigurationOptions = {
             region: this.codeWhispererRegion,
             endpoint: this.codeWhispererEndpoint,
-            credentials: new Credentials({
-                accessKeyId: 'XX',
-                secretAccessKey: 'XX',
-                sessionToken: 'xx',
-            }),
+            onRequestSetup: [
+                req => {
+                    req.on('build', ({ httpRequest }) => {
+                        httpRequest.headers['Authorization'] = `Bearer ${auth.getCredentials('bearer')}`
+                    })
+                },
+            ],
         }
         this.client = createCodeWhispererTokenClient(options)
     }

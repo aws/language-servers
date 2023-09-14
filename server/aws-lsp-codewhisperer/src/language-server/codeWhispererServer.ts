@@ -7,11 +7,11 @@ import { CancellationToken } from 'vscode-languageserver'
 import { CodeWhispererServiceIAM, CodeWhispererServiceToken } from './codeWhispererService'
 
 const CodewhispererServerFactory = (credentialsType: CredentialsType): Server => {
-    const codeWhispererService =
-        credentialsType === 'iam' ? new CodeWhispererServiceIAM() : new CodeWhispererServiceToken()
-
     return (features: { auth: Auth; lsp: Lsp; workspace: Workspace; logging: Logging; telemetry: Telemetry }) => {
         const { auth, lsp, workspace, logging, telemetry } = features
+
+        const codeWhispererService =
+            credentialsType === 'iam' ? new CodeWhispererServiceIAM(auth) : new CodeWhispererServiceToken(auth)
 
         const onInlineCompletionHandler = async (
             params: InlineCompletionParams,
