@@ -87,7 +87,7 @@ export abstract class CodeWhispererServiceBase implements AwsLanguageService {
             token: params.token || CancellationToken.None,
         })
 
-        let items: InlineCompletionItem[] = recommendations.map<InlineCompletionItem>(r => {
+        const items: InlineCompletionItem[] = recommendations.map<InlineCompletionItem>(r => {
             return {
                 insertText: truncateOverlapWithRightContext(params.textDocument, r.content, params.position),
                 range: params.context.selectedCompletionInfo?.range,

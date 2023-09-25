@@ -1,17 +1,13 @@
-import { Auth, Logging, Lsp, Telemetry, Workspace } from '@aws-placeholder/aws-language-server-runtimes/out/features'
-import { CredentialsType } from '@aws-placeholder/aws-language-server-runtimes/out/features/auth'
+import { Auth } from '@aws-placeholder/aws-language-server-runtimes/out/features'
 import { InlineCompletionParams } from '@aws-placeholder/aws-language-server-runtimes/out/features/lsp/inline-completions/futureProtocol'
 import { InlineCompletionList } from '@aws-placeholder/aws-language-server-runtimes/out/features/lsp/inline-completions/futureTypes'
 import { Server } from '@aws-placeholder/aws-language-server-runtimes/out/runtimes'
 import { CancellationToken } from 'vscode-languageserver'
-import { CodeWhispererServiceIAM, CodeWhispererServiceToken } from './codeWhispererService'
+import { CodeWhispererServiceBase, CodeWhispererServiceIAM, CodeWhispererServiceToken } from './codeWhispererService'
 
-const CodewhispererServerFactory = (credentialsType: CredentialsType): Server => {
-    return (features: { auth: Auth; lsp: Lsp; workspace: Workspace; logging: Logging; telemetry: Telemetry }) => {
-        const { auth, lsp, workspace, logging, telemetry } = features
-
-        const codeWhispererService =
-            credentialsType === 'iam' ? new CodeWhispererServiceIAM(auth) : new CodeWhispererServiceToken(auth)
+export const CodewhispererServerFactory = (service: (auth: Auth) => CodeWhispererServiceBase): Server =>
+    ({ auth, lsp, workspace, logging }) => {
+        const codeWhispererService = service(auth)
 
         const onInlineCompletionHandler = async (
             params: InlineCompletionParams,
@@ -28,7 +24,7 @@ const CodewhispererServerFactory = (credentialsType: CredentialsType): Server =>
                     const recommendations = await codeWhispererService.doInlineCompletion({
                         textDocument,
                         position: params.position,
-                        context: { triggerKind: 0 },
+                        context: { triggerKind: params.context.triggerKind },
                     })
                     if (recommendations) {
                         return recommendations
@@ -43,9 +39,8 @@ const CodewhispererServerFactory = (credentialsType: CredentialsType): Server =>
         lsp.onInlineCompletion(onInlineCompletionHandler)
         logging.log('Codewhisperer server has been initialised')
 
-        return () => {}
+        return () => { /* do nothing */ }
     }
-}
 
-export const CodeWhispererServerIAM = CodewhispererServerFactory('iam')
-export const CodeWhispererServerToken = CodewhispererServerFactory('bearer')
+export const CodeWhispererServerIAM = CodewhispererServerFactory(auth => new CodeWhispererServiceIAM(auth))
+export const CodeWhispererServerToken = CodewhispererServerFactory(auth => new CodeWhispererServiceToken(auth))
