@@ -6,15 +6,20 @@
     "scripts": {
         "compile": "tsc --build",
         "postcompile": "npm run copyServiceClient",
-        "copyServiceClient": "copyfiles -u 1 --error ./src/client/*.json out && copyfiles -u 1 --error ./src/client/token/*.json out"
+        "copyServiceClient": "copyfiles -u 1 --error ./src/client/*.json out && copyfiles -u 1 --error ./src/client/token/*.json out",
+        "test": "ts-mocha -b src/**/*.test.ts"
     },
     "dependencies": {
+        "@aws-placeholder/aws-language-server-runtimes": "file:../../bin/aws-placeholder-aws-language-server-runtimes-0.1.0.tgz",
         "@lsp-placeholder/aws-lsp-core": "^0.0.1",
         "aws-sdk": "^2.1403.0",
         "vscode-languageserver": "^8.0.1",
         "vscode-languageserver-textdocument": "^1.0.8"
     },
     "devDependencies": {
-        "copyfiles": "^2.4.1"
+        "copyfiles": "^2.4.1",
+        "assert": "^2.1.0",
+        "ts-mocha": "^10.0.0",
+        "ts-sinon": "^2.0.2"
     }
 }
