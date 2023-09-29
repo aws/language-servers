@@ -4,6 +4,7 @@ import { InlineCompletionList } from '@aws-placeholder/aws-language-server-runti
 import { Server } from '@aws-placeholder/aws-language-server-runtimes/out/runtimes'
 import { CancellationToken } from 'vscode-languageserver'
 import { CodeWhispererServiceBase, CodeWhispererServiceIAM, CodeWhispererServiceToken } from './codeWhispererService'
+import { getSupportedLanguageId } from './languageDetection'
 
 export const CodewhispererServerFactory = (service: (auth: Auth) => CodeWhispererServiceBase): Server =>
     ({ auth, lsp, workspace, logging }) => {
@@ -18,13 +19,14 @@ export const CodewhispererServerFactory = (service: (auth: Auth) => CodeWhispere
             }
 
             const textDocument = await workspace.getTextDocument(params.textDocument.uri)
-            // todo determine file type and check if supported
-            if (textDocument) {
+            const languageId = getSupportedLanguageId(textDocument)
+            if (textDocument && languageId) {
                 try {
                     const recommendations = await codeWhispererService.doInlineCompletion({
                         textDocument,
                         position: params.position,
                         context: { triggerKind: params.context.triggerKind },
+                        inferredLanguageId: languageId
                     })
                     if (recommendations) {
                         return recommendations

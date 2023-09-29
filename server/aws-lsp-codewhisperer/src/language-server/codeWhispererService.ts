@@ -54,6 +54,7 @@ interface DoInlineCompletionParams {
     position: Position
     context: InlineCompletionContext
     token?: CancellationToken
+    inferredLanguageId: string
 }
 
 interface GetRecommendationsParams {
@@ -61,6 +62,7 @@ interface GetRecommendationsParams {
     position: Position
     maxResults: number
     token: CancellationToken
+    inferredLanguageId: string
 }
 
 export abstract class CodeWhispererServiceBase implements AwsLanguageService {
@@ -85,6 +87,7 @@ export abstract class CodeWhispererServiceBase implements AwsLanguageService {
             position: params.position,
             maxResults: params.context.triggerKind == InlineCompletionTriggerKind.Automatic ? 1 : 5,
             token: params.token || CancellationToken.None,
+            inferredLanguageId: params.inferredLanguageId
         })
 
         const items: InlineCompletionItem[] = recommendations.map<InlineCompletionItem>(r => {
@@ -121,7 +124,7 @@ export abstract class CodeWhispererServiceBase implements AwsLanguageService {
             fileContext: {
                 filename: params.textDocument.uri,
                 programmingLanguage: {
-                    languageName: 'typescript',
+                    languageName: params.inferredLanguageId,
                 },
                 leftFileContent: left,
                 rightFileContent: right,

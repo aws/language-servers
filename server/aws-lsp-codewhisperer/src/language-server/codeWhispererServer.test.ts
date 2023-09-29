@@ -10,14 +10,20 @@ import assert = require('assert')
 
 describe("CodeWhisperer Server", () => {
     describe("Recommendations", () => {
-        const SOME_CODE = `
-def hello_world():
-    print("hello world")
+        const HELLO_WORLD_IN_CSHARP = `
+class HelloWorld
+{
+    static void Main()
+    {
+        Console.WriteLine("Hello World!");
+    }
+}
+`
+        const SOME_FILE = TextDocument.create('file:///test.cs', 'csharp', 1, HELLO_WORLD_IN_CSHARP)
+        const SOME_CLOSED_FILE = TextDocument.create('file:///closed.cs', 'csharp', 1, HELLO_WORLD_IN_CSHARP)
+        const SOME_UNSUPPORTED_FILE = TextDocument.create('file:///hopper.fm', 'flow-matic', 1, "INPUT HELLO ; OUTPUT WORLD")
+        const SOME_FILE_WITH_EXTENSION = TextDocument.create('file:///missing.cs', '', 1, HELLO_WORLD_IN_CSHARP)
 
-hello_world()`
-
-        const SOME_FILE = TextDocument.create('file:///test.py', 'python', 1, SOME_CODE)
-        const SOME_CLOSED_FILE = TextDocument.create('file:///closed.py', 'python', 1, SOME_CODE)
         const EXPECTED_RESULT = { items: [{ insertText: "recommendation" }] }
         const EMPTY_RESULT = { items: [] }
 
@@ -38,6 +44,8 @@ hello_world()`
             features = new TestFeatures()
                 .start(server)
                 .openDocument(SOME_FILE)
+                .openDocument(SOME_UNSUPPORTED_FILE)
+                .openDocument(SOME_FILE_WITH_EXTENSION)
         })
 
         it("should return recommendations", async () => {
@@ -54,7 +62,7 @@ hello_world()`
             // Check the service was called with the right parameters
             sinon.assert.calledOnceWithExactly(service.doInlineCompletion,
                 sinon.match.has('textDocument', sinon.match.has('uri', SOME_FILE.uri))
-                    .and(sinon.match.has('textDocument', sinon.match.has('languageId', 'python')))
+                    .and(sinon.match.has('textDocument', sinon.match.has('languageId', 'csharp')))
                     .and(sinon.match.has('context', sinon.match.has('triggerKind', InlineCompletionTriggerKind.Automatic))))
         })
 
@@ -71,6 +79,39 @@ hello_world()`
 
             // Check the service was not called
             sinon.assert.notCalled(service.doInlineCompletion)
+        })
+
+        it("should not return recommendations for an unsupported file type", async () => {
+            const result = await features
+                .doInlineCompletion({
+                    textDocument: { uri: SOME_UNSUPPORTED_FILE.uri },
+                    position: { line: 0, character: 0 },
+                    context: { triggerKind: InlineCompletionTriggerKind.Automatic }
+                }, CancellationToken.None)
+
+            // Check the completion result
+            assert.deepEqual(result, EMPTY_RESULT)
+
+            // Check the service was not called
+            sinon.assert.notCalled(service.doInlineCompletion)
+        })
+
+        it("should return recommendations based on known extension", async () => {
+            const result = await features
+                .doInlineCompletion({
+                    textDocument: { uri: SOME_FILE_WITH_EXTENSION.uri },
+                    position: { line: 0, character: 0 },
+                    context: { triggerKind: InlineCompletionTriggerKind.Automatic }
+                }, CancellationToken.None)
+
+            // Check the completion result
+            assert.deepEqual(result, EXPECTED_RESULT)
+
+            // Check the service was called with the right parameters
+            sinon.assert.calledOnceWithExactly(service.doInlineCompletion,
+                sinon.match.has('textDocument', sinon.match.has('uri', SOME_FILE_WITH_EXTENSION.uri))
+                    .and(sinon.match.has('context', sinon.match.has('triggerKind', InlineCompletionTriggerKind.Automatic)))
+                    .and(sinon.match.has('inferredLanguageId', 'csharp')))
         })
     })
 })
