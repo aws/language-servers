@@ -5,7 +5,7 @@ import { CancellationToken } from 'vscode-languageserver'
 import { TextDocument } from 'vscode-languageserver-textdocument'
 import { TestFeatures } from './TestFeatures'
 import { CodewhispererServerFactory } from './codeWhispererServer'
-import { CodeWhispererServiceBase } from './codeWhispererService'
+import { CodeWhispererServiceBase, Suggestion } from './codeWhispererService'
 import assert = require('assert')
 
 describe("CodeWhisperer Server", () => {
@@ -24,7 +24,7 @@ class HelloWorld
         const SOME_UNSUPPORTED_FILE = TextDocument.create('file:///hopper.fm', 'flow-matic', 1, "INPUT HELLO ; OUTPUT WORLD")
         const SOME_FILE_WITH_EXTENSION = TextDocument.create('file:///missing.cs', '', 1, HELLO_WORLD_IN_CSHARP)
 
-        const EXPECTED_RESULT = { items: [{ insertText: "recommendation" }] }
+        const EXPECTED_RESULT: Suggestion[] = [{ content: "recommendation" }]
         const EMPTY_RESULT = { items: [] }
 
         let features: TestFeatures
@@ -37,7 +37,8 @@ class HelloWorld
         beforeEach(() => {
             // Set up the server with a mock service, returning predefined recommendations
             service = stubInterface<CodeWhispererServiceBase>()
-            service.doInlineCompletion.returns(Promise.resolve(EXPECTED_RESULT))
+            service.generateSuggestions.returns(Promise.resolve(EXPECTED_RESULT))
+
             server = CodewhispererServerFactory(_auth => service)
 
             // Start the server and open a document
@@ -57,10 +58,11 @@ class HelloWorld
                 }, CancellationToken.None)
 
             // Check the completion result
-            assert.deepEqual(result, EXPECTED_RESULT)
+            assert.equal(result?.items.length, 1)
+            assert.deepEqual(result?.items[0].insertText, EXPECTED_RESULT[0].content)
 
             // Check the service was called with the right parameters
-            sinon.assert.calledOnceWithExactly(service.doInlineCompletion,
+            sinon.assert.calledOnceWithExactly(service.generateSuggestions,
                 sinon.match.has('textDocument', sinon.match.has('uri', SOME_FILE.uri))
                     .and(sinon.match.has('textDocument', sinon.match.has('languageId', 'csharp')))
                     .and(sinon.match.has('context', sinon.match.has('triggerKind', InlineCompletionTriggerKind.Automatic))))
@@ -78,7 +80,7 @@ class HelloWorld
             assert.deepEqual(result, EMPTY_RESULT)
 
             // Check the service was not called
-            sinon.assert.notCalled(service.doInlineCompletion)
+            sinon.assert.notCalled(service.generateSuggestions)
         })
 
         it("should not return recommendations for an unsupported file type", async () => {
@@ -93,7 +95,7 @@ class HelloWorld
             assert.deepEqual(result, EMPTY_RESULT)
 
             // Check the service was not called
-            sinon.assert.notCalled(service.doInlineCompletion)
+            sinon.assert.notCalled(service.generateSuggestions)
         })
 
         it("should return recommendations based on known extension", async () => {
@@ -108,7 +110,7 @@ class HelloWorld
             assert.deepEqual(result, EXPECTED_RESULT)
 
             // Check the service was called with the right parameters
-            sinon.assert.calledOnceWithExactly(service.doInlineCompletion,
+            sinon.assert.calledOnceWithExactly(service.generateSuggestions,
                 sinon.match.has('textDocument', sinon.match.has('uri', SOME_FILE_WITH_EXTENSION.uri))
                     .and(sinon.match.has('context', sinon.match.has('triggerKind', InlineCompletionTriggerKind.Automatic)))
                     .and(sinon.match.has('inferredLanguageId', 'csharp')))
