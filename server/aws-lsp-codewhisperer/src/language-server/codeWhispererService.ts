@@ -1,4 +1,5 @@
 import { Auth } from '@aws-placeholder/aws-language-server-runtimes/out/features'
+import { IamCredentials } from '@aws-placeholder/aws-language-server-runtimes/out/features/auth'
 import {
     InlineCompletionContext,
     InlineCompletionItem,
@@ -6,7 +7,7 @@ import {
     InlineCompletionTriggerKind,
 } from '@aws-placeholder/aws-language-server-runtimes/out/features/lsp/inline-completions/futureTypes'
 import { AwsLanguageService } from '@lsp-placeholder/aws-lsp-core'
-import { AWSError, Credentials, Request } from 'aws-sdk'
+import { AWSError, Request } from 'aws-sdk'
 import { CancellationToken, Range } from 'vscode-languageserver'
 import { Position, TextDocument, TextEdit } from 'vscode-languageserver-textdocument'
 import { CompletionList, Diagnostic, FormattingOptions, Hover } from 'vscode-languageserver-types'
@@ -183,21 +184,14 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
 
     constructor(auth: Auth) {
         super()
-        // if (!auth.hasCredentials('iam')) {
-        //     throw new Error('IAM Credentials not provided')
-        // }
-
-        const hardcodeCredentials = new Credentials({
-            accessKeyId: 'XX',
-            secretAccessKey: 'XX',
-            sessionToken: 'XX',
-        })
+        if (!auth.hasCredentials('iam')) {
+            throw new Error('IAM Credentials not provided')
+        }
 
         const options: CodeWhispererTokenClientConfigurationOptions = {
             region: this.codeWhispererRegion,
             endpoint: this.codeWhispererEndpoint,
-            // credentials: auth.getCredentials('iam') as IamCredentials,
-            credentials: hardcodeCredentials,
+            credentials: auth.getCredentials('iam') as IamCredentials,
         }
         this.client = createCodeWhispererClient(options)
     }
