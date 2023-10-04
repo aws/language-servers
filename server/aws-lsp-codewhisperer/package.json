@@ -6,7 +6,7 @@
     "scripts": {
         "compile": "tsc --build",
         "postcompile": "npm run copyServiceClient",
-        "copyServiceClient": "copyfiles -u 1 --error ./src/client/*.json out && copyfiles -u 1 --error ./src/client/token/*.json out",
+        "copyServiceClient": "copyfiles -u 1 --error ./src/client/sigv4/*.json out && copyfiles -u 1 --error ./src/client/token/*.json out",
         "test": "ts-mocha -b src/**/*.test.ts"
     },
     "dependencies": {
