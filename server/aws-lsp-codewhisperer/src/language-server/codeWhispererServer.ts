@@ -1,4 +1,4 @@
-import { Auth } from '@aws-placeholder/aws-language-server-runtimes/out/features'
+import { CredentialsProvider } from '@aws-placeholder/aws-language-server-runtimes/out/features'
 import { InlineCompletionParams } from '@aws-placeholder/aws-language-server-runtimes/out/features/lsp/inline-completions/futureProtocol'
 import { InlineCompletionContext, InlineCompletionItem, InlineCompletionList, InlineCompletionTriggerKind } from '@aws-placeholder/aws-language-server-runtimes/out/features/lsp/inline-completions/futureTypes'
 import { Server } from '@aws-placeholder/aws-language-server-runtimes/out/runtimes'
@@ -25,9 +25,9 @@ interface GetSuggestionsParams {
 }
 
 
-export const CodewhispererServerFactory = (service: (auth: Auth) => CodeWhispererServiceBase): Server =>
-    ({ auth, lsp, workspace, logging }) => {
-        const codeWhispererService = service(auth)
+export const CodewhispererServerFactory = (service: (credentials: CredentialsProvider) => CodeWhispererServiceBase): Server =>
+    ({ credentialsProvider, lsp, workspace, logging }) => {
+        const codeWhispererService = service(credentialsProvider)
 
         // const setCustomisation= async (a: any) : any => {
         //     // call the underlying codewhisperer service, or set a flag to 
@@ -55,7 +55,7 @@ export const CodewhispererServerFactory = (service: (auth: Auth) => CodeWhispere
                 maxResults: params.maxResults,
             }
 
-            return codeWhispererService.generateSuggestions(request);
+            return codeWhispererService.generateSuggestions(request)
         }
 
         const doInlineCompletion = async (params: DoInlineCompletionParams): Promise<InlineCompletionList | null> => {

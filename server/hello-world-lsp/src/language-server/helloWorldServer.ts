@@ -1,4 +1,4 @@
-import { Auth, Logging, Lsp, Telemetry, Workspace } from '@aws-placeholder/aws-language-server-runtimes/out/features'
+import { CredentialsProvider, Logging, Lsp, Telemetry, Workspace } from '@aws-placeholder/aws-language-server-runtimes/out/features'
 import { Server } from '@aws-placeholder/aws-language-server-runtimes/out/runtimes'
 import {
     CancellationToken,
@@ -30,17 +30,19 @@ const onCompletionHandler = async (_params: CompletionParams, _token: Cancellati
 }
 
 export const HelloWorldServer: Server = (features: {
-    auth: Auth
+    credentialsProvider: CredentialsProvider
     lsp: Lsp
     workspace: Workspace
     logging: Logging
     telemetry: Telemetry
 }) => {
-    const { lsp, logging } = features;
+    const { lsp, logging } = features
 
     lsp.onCompletion(onCompletionHandler)
     logging.log('The Hello World Capability has been initialised')
 
     // disposable
-    return () => { }
+    return () => {
+        // Do nothing
+    }
 }

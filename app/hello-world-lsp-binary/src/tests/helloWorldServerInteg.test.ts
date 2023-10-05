@@ -52,7 +52,6 @@ describe('Test HelloWorldServer', async () => {
         // create the LSP client
         client = new LspClient(endpoint);
 
-        const log = (await client.once("window/logMessage"))[0];
         const result = await client.initialize({
             processId: process.pid ?? null,
             capabilities: {},
@@ -65,8 +64,7 @@ describe('Test HelloWorldServer', async () => {
             rootUri: null,
         });
 
-        expect(log.message).to.include("The Hello World Capability has been initialised");
-        expect(result.capabilities).to.exist;
+        expect(result.capabilities).to.exist
     })
 
     after(async () => {

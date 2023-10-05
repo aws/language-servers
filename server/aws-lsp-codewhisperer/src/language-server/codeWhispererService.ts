@@ -1,5 +1,5 @@
-import { Auth } from '@aws-placeholder/aws-language-server-runtimes/out/features'
-import { IamCredentials } from '@aws-placeholder/aws-language-server-runtimes/out/features/auth'
+import { CredentialsProvider } from '@aws-placeholder/aws-language-server-runtimes/out/features'
+import { IamCredentials } from '@aws-placeholder/aws-language-server-runtimes/out/features/auth/auth'
 import { createCodeWhispererSigv4Client } from '../client/sigv4/codewhisperer'
 import {
     CodeWhispererTokenClientConfigurationOptions,
@@ -29,12 +29,12 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
     private readonly codeWhispererRegion = 'us-east-1'
     private readonly codeWhispererEndpoint = 'https://codewhisperer.us-east-1.amazonaws.com/'
 
-    constructor(auth: Auth) {
+    constructor(credentialsProvider: CredentialsProvider) {
         super()
         const options: CodeWhispererTokenClientConfigurationOptions = {
             region: this.codeWhispererRegion,
             endpoint: this.codeWhispererEndpoint,
-            credentials: auth.getCredentials('iam') as IamCredentials,
+            credentials: credentialsProvider.getCredentials('iam') as IamCredentials,
         }
         this.client = createCodeWhispererSigv4Client(options)
     }
@@ -57,7 +57,7 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
             }
         } while (request.nextToken !== undefined && request.nextToken !== '' && results.length < request.maxResults)
 
-        return results;
+        return results
     }
 }
 
@@ -66,7 +66,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     private readonly codeWhispererRegion = 'us-east-1'
     private readonly codeWhispererEndpoint = 'https://codewhisperer.us-east-1.amazonaws.com/'
 
-    constructor(auth: Auth) {
+    constructor(credentialsProvider: CredentialsProvider) {
         super()
 
         const options: CodeWhispererTokenClientConfigurationOptions = {
@@ -75,7 +75,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
             onRequestSetup: [
                 req => {
                     req.on('build', ({ httpRequest }) => {
-                        httpRequest.headers['Authorization'] = `Bearer ${auth.getCredentials('bearer')}`
+                        httpRequest.headers['Authorization'] = `Bearer ${credentialsProvider.getCredentials('bearer')}`
                     })
                 },
             ],
@@ -101,6 +101,6 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
             }
         } while (request.nextToken !== undefined && request.nextToken !== '' && results.length < request.maxResults)
 
-        return results;
+        return results
     }
 }
