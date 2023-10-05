@@ -1,5 +1,5 @@
 import { CredentialsProvider } from '@aws-placeholder/aws-language-server-runtimes/out/features'
-import { IamCredentials } from '@aws-placeholder/aws-language-server-runtimes/out/features/auth/auth'
+import { CredentialProviderChain, Credentials } from 'aws-sdk'
 import { createCodeWhispererSigv4Client } from '../client/sigv4/codewhisperer'
 import {
     CodeWhispererTokenClientConfigurationOptions,
@@ -34,7 +34,7 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
         const options: CodeWhispererTokenClientConfigurationOptions = {
             region: this.codeWhispererRegion,
             endpoint: this.codeWhispererEndpoint,
-            credentials: credentialsProvider.getCredentials('iam') as IamCredentials,
+            credentialProvider: new CredentialProviderChain([() => credentialsProvider.getCredentials("iam") as Credentials])
         }
         this.client = createCodeWhispererSigv4Client(options)
     }
