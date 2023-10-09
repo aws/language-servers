@@ -46,7 +46,6 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
 
     async generateSuggestions(request: GenerateSuggestionsRequest): Promise<Suggestion[]> {
         const results: Suggestion[] = []
-
         do {
             // add cancellation check
             // add error check
