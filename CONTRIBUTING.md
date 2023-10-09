@@ -277,3 +277,46 @@ myStubbedFunc.returns()
 ## Developer Notes
 
 - The `bin/aws-placeholder-aws-language-server-runtimes-0.1.0.tgz` file is a temporary solution to use the `aws-language-server-runtimes` package without publishing to NPM before the first release. Tracking ID: `AWS-Cloud9-25329`
+
+### Develop and test Language servers with AWS Language Server Runtimes locally
+
+Language servers developed in this package can be built for different runtimes developed in [AWS Language Server Runtimes](https://github.com/aws/aws-language-server-runtimes) project.
+
+`AWS Language Server Runtimes` provides a set of interfaces and constructs that can be used to inject cross-platform implementations of features, reused across language servers. Using runtime constructs, Language Servers could be built and packages into artifact of different formats: binary formats as explained earlier in this document, or packages as Javascript Webworker bundle.
+
+To build and test Language Servers with AWS Runtime, follow these steps:
+
+1. Clone the [`aws-language-servers`](https://github.com/aws/aws-language-servers) and the [`aws-language-server-runtimes`](https://github.com/aws/aws-language-server-runtimes) repos:
+
+    ```
+    git clone git@github.com:aws/aws-language-servers.git
+    git clone git@github.com:aws/aws-language-server-runtimes.git
+    ```
+
+2. Install dependencies in `aws-language-server-runtimes` folder. Create `npm link` for it, if you plan to modify it for development and testing purposes:
+
+    ```
+    cd aws-language-server-runtimes && npm install && npm run compile && npm link
+    ```
+
+3. Install dependencies in `aws-language-servers` folder:
+
+    **Note:** We are temporarily commiting a snapshot of `aws-language-server-runtimes` package as zip archive and use it as npm dependency for some servers. To develop and build language servers with local checkout of `aws-language-server-runtimes`, for servers develped in ./server directory change `"@aws-placeholder/aws-language-server-runtimes"` dependency to point to `"*"` instead of file path before running `npm install`.
+
+    ```
+    cd ../aws-language-servers && npm install
+    ```
+
+4. (Optional) Use npm link to `aws-language-server-runtimes`, if you're developing locally and want to use local copy to produce build artifacts:
+
+    ```
+    npm link @aws-placeholder/aws-language-server-runtimes
+    ```
+
+5. Build server binaries:
+
+    ```
+    npm run package
+    ```
+
+Using local checkout of `aws-language-server-runtimes` you can iterate or experiment with both projects and produce working language server builds locally. Built servers can be found in ./app/*/bin folder.
