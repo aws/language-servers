@@ -36,7 +36,7 @@ class HelloWorld
         )
         const SOME_FILE_WITH_EXTENSION = TextDocument.create('file:///missing.cs', '', 1, HELLO_WORLD_IN_CSHARP)
 
-        const EXPECTED_SUGGESTION: Suggestion[] = [{ content: "recommendation" }]
+        const EXPECTED_SUGGESTION: Suggestion[] = [{ content: 'recommendation' }]
         const EXPECTED_RESULT = { items: [{ insertText: EXPECTED_SUGGESTION[0].content, range: undefined }] }
         const EMPTY_RESULT = { items: [] }
 
@@ -81,9 +81,9 @@ class HelloWorld
                     filename: SOME_FILE.uri,
                     programmingLanguage: { languageName: 'csharp' },
                     leftFileContent: '',
-                    rightFileContent: HELLO_WORLD_IN_CSHARP
+                    rightFileContent: HELLO_WORLD_IN_CSHARP,
                 },
-                maxResults: 1
+                maxResults: 1,
             }
             sinon.assert.calledOnceWithExactly(service.generateSuggestions, expectedGenerateSuggestionsRequest)
         })
@@ -106,9 +106,9 @@ class HelloWorld
                     filename: SOME_FILE_WITH_ALT_CASED_LANGUAGE_ID.uri,
                     programmingLanguage: { languageName: 'csharp' },
                     leftFileContent: '',
-                    rightFileContent: HELLO_WORLD_IN_CSHARP
+                    rightFileContent: HELLO_WORLD_IN_CSHARP,
                 },
-                maxResults: 1
+                maxResults: 1,
             }
             sinon.assert.calledOnceWithExactly(service.generateSuggestions, expectedGenerateSuggestionsRequest)
         })
@@ -165,9 +165,9 @@ class HelloWorld
                     filename: SOME_FILE_WITH_EXTENSION.uri,
                     programmingLanguage: { languageName: 'csharp' },
                     leftFileContent: '',
-                    rightFileContent: HELLO_WORLD_IN_CSHARP
+                    rightFileContent: HELLO_WORLD_IN_CSHARP,
                 },
-                maxResults: 1
+                maxResults: 1,
             }
 
             // Check the service was called with the right parameters

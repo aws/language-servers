@@ -1,5 +1,5 @@
-import { Auth } from '@aws-placeholder/aws-language-server-runtimes/out/features'
-import { IamCredentials } from '@aws-placeholder/aws-language-server-runtimes/out/features/auth'
+import { CredentialsProvider } from '@aws-placeholder/aws-language-server-runtimes/out/features'
+import { CredentialProviderChain, Credentials } from 'aws-sdk'
 import { createCodeWhispererSigv4Client } from '../client/sigv4/codewhisperer'
 import {
     CodeWhispererTokenClientConfigurationOptions,
@@ -7,9 +7,11 @@ import {
 } from '../client/token/codewhisperer'
 
 // Define our own Suggestion interface to wrap the differences between Token and IAM Client
-export interface Suggestion extends CodeWhispererTokenClient.Completion, CodeWhispererSigv4Client.Recommendation { }
+export interface Suggestion extends CodeWhispererTokenClient.Completion, CodeWhispererSigv4Client.Recommendation {}
 
-export interface GenerateSuggestionsRequest extends CodeWhispererTokenClient.GenerateCompletionsRequest, CodeWhispererSigv4Client.GenerateRecommendationsRequest {
+export interface GenerateSuggestionsRequest
+    extends CodeWhispererTokenClient.GenerateCompletionsRequest,
+        CodeWhispererSigv4Client.GenerateRecommendationsRequest {
     maxResults: number
 }
 
@@ -29,19 +31,19 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
     private readonly codeWhispererRegion = 'us-east-1'
     private readonly codeWhispererEndpoint = 'https://codewhisperer.us-east-1.amazonaws.com/'
 
-    constructor(auth: Auth) {
+    constructor(credentialsProvider: CredentialsProvider) {
         super()
         const options: CodeWhispererTokenClientConfigurationOptions = {
             region: this.codeWhispererRegion,
             endpoint: this.codeWhispererEndpoint,
-            credentials: auth.getCredentials('iam') as IamCredentials,
+            credentialProvider: new CredentialProviderChain([
+                () => credentialsProvider.getCredentials('iam') as Credentials,
+            ]),
         }
         this.client = createCodeWhispererSigv4Client(options)
     }
 
-    async generateSuggestions(
-        request: GenerateSuggestionsRequest
-    ): Promise<Suggestion[]> {
+    async generateSuggestions(request: GenerateSuggestionsRequest): Promise<Suggestion[]> {
         const results: Suggestion[] = []
 
         do {
@@ -57,7 +59,7 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
             }
         } while (request.nextToken !== undefined && request.nextToken !== '' && results.length < request.maxResults)
 
-        return results;
+        return results
     }
 }
 
@@ -66,7 +68,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     private readonly codeWhispererRegion = 'us-east-1'
     private readonly codeWhispererEndpoint = 'https://codewhisperer.us-east-1.amazonaws.com/'
 
-    constructor(auth: Auth) {
+    constructor(credentialsProvider: CredentialsProvider) {
         super()
 
         const options: CodeWhispererTokenClientConfigurationOptions = {
@@ -75,7 +77,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
             onRequestSetup: [
                 req => {
                     req.on('build', ({ httpRequest }) => {
-                        httpRequest.headers['Authorization'] = `Bearer ${auth.getCredentials('bearer')}`
+                        httpRequest.headers['Authorization'] = `Bearer ${credentialsProvider.getCredentials('bearer')}`
                     })
                 },
             ],
@@ -83,9 +85,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         this.client = createCodeWhispererTokenClient(options)
     }
 
-    async generateSuggestions(
-        request: GenerateSuggestionsRequest
-    ): Promise<Suggestion[]> {
+    async generateSuggestions(request: GenerateSuggestionsRequest): Promise<Suggestion[]> {
         const results: Suggestion[] = []
 
         do {
@@ -101,6 +101,6 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
             }
         } while (request.nextToken !== undefined && request.nextToken !== '' && results.length < request.maxResults)
 
-        return results;
+        return results
     }
 }
