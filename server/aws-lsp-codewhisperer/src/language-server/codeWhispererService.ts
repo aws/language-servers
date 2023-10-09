@@ -7,9 +7,11 @@ import {
 } from '../client/token/codewhisperer'
 
 // Define our own Suggestion interface to wrap the differences between Token and IAM Client
-export interface Suggestion extends CodeWhispererTokenClient.Completion, CodeWhispererSigv4Client.Recommendation { }
+export interface Suggestion extends CodeWhispererTokenClient.Completion, CodeWhispererSigv4Client.Recommendation {}
 
-export interface GenerateSuggestionsRequest extends CodeWhispererTokenClient.GenerateCompletionsRequest, CodeWhispererSigv4Client.GenerateRecommendationsRequest {
+export interface GenerateSuggestionsRequest
+    extends CodeWhispererTokenClient.GenerateCompletionsRequest,
+        CodeWhispererSigv4Client.GenerateRecommendationsRequest {
     maxResults: number
 }
 
@@ -34,14 +36,14 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
         const options: CodeWhispererTokenClientConfigurationOptions = {
             region: this.codeWhispererRegion,
             endpoint: this.codeWhispererEndpoint,
-            credentialProvider: new CredentialProviderChain([() => credentialsProvider.getCredentials("iam") as Credentials])
+            credentialProvider: new CredentialProviderChain([
+                () => credentialsProvider.getCredentials('iam') as Credentials,
+            ]),
         }
         this.client = createCodeWhispererSigv4Client(options)
     }
 
-    async generateSuggestions(
-        request: GenerateSuggestionsRequest
-    ): Promise<Suggestion[]> {
+    async generateSuggestions(request: GenerateSuggestionsRequest): Promise<Suggestion[]> {
         const results: Suggestion[] = []
 
         do {
@@ -83,9 +85,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         this.client = createCodeWhispererTokenClient(options)
     }
 
-    async generateSuggestions(
-        request: GenerateSuggestionsRequest
-    ): Promise<Suggestion[]> {
+    async generateSuggestions(request: GenerateSuggestionsRequest): Promise<Suggestion[]> {
         const results: Suggestion[] = []
 
         do {

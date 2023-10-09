@@ -1,6 +1,12 @@
-import { CredentialsProvider, Logging, Lsp, Telemetry, Workspace } from '@aws-placeholder/aws-language-server-runtimes/out/features'
+import {
+    CredentialsProvider,
+    Logging,
+    Lsp,
+    Telemetry,
+    Workspace,
+} from '@aws-placeholder/aws-language-server-runtimes/out/features'
 import { Server } from '@aws-placeholder/aws-language-server-runtimes/out/runtimes'
-import { StubbedInstance, stubInterface } from "ts-sinon"
+import { StubbedInstance, stubInterface } from 'ts-sinon'
 import { CancellationToken, CompletionParams, InlineCompletionParams } from 'vscode-languageserver-protocol'
 import { TextDocument } from 'vscode-languageserver-textdocument'
 
@@ -12,7 +18,7 @@ export class TestFeatures {
     logging: StubbedInstance<Logging>
     telemetry: StubbedInstance<Telemetry>
     documents: {
-        [uri: string]: TextDocument;
+        [uri: string]: TextDocument
     }
 
     constructor() {
@@ -23,7 +29,7 @@ export class TestFeatures {
         this.telemetry = stubInterface<Telemetry>()
         this.documents = {}
 
-        this.workspace.getTextDocument.callsFake(async (uri) => this.documents[uri])
+        this.workspace.getTextDocument.callsFake(async uri => this.documents[uri])
     }
 
     start(server: Server) {

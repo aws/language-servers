@@ -1,10 +1,21 @@
 import { CredentialsProvider } from '@aws-placeholder/aws-language-server-runtimes/out/features'
-import { InlineCompletionParams } from '@aws-placeholder/aws-language-server-runtimes/out/features/lsp/inline-completions/futureProtocol'
-import { InlineCompletionContext, InlineCompletionItem, InlineCompletionList, InlineCompletionTriggerKind } from '@aws-placeholder/aws-language-server-runtimes/out/features/lsp/inline-completions/futureTypes'
+import {
+    InlineCompletionContext,
+    InlineCompletionItem,
+    InlineCompletionList,
+    InlineCompletionTriggerKind,
+} from '@aws-placeholder/aws-language-server-runtimes/out/features/lsp/inline-completions/futureTypes'
 import { Server } from '@aws-placeholder/aws-language-server-runtimes/out/runtimes'
 import { CancellationToken } from 'vscode-languageserver'
+import { InlineCompletionParams } from 'vscode-languageserver-protocol'
 import { Position, TextDocument } from 'vscode-languageserver-textdocument'
-import { CodeWhispererServiceBase, CodeWhispererServiceIAM, CodeWhispererServiceToken, GenerateSuggestionsRequest, Suggestion } from './codeWhispererService'
+import {
+    CodeWhispererServiceBase,
+    CodeWhispererServiceIAM,
+    CodeWhispererServiceToken,
+    GenerateSuggestionsRequest,
+    Suggestion,
+} from './codeWhispererService'
 import { getSupportedLanguageId } from './languageDetection'
 import { truncateOverlapWithRightContext } from './mergeRightUtils'
 
@@ -24,13 +35,13 @@ interface GetSuggestionsParams {
     inferredLanguageId: string
 }
 
-
-export const CodewhispererServerFactory = (service: (credentials: CredentialsProvider) => CodeWhispererServiceBase): Server =>
+export const CodewhispererServerFactory =
+    (service: (credentials: CredentialsProvider) => CodeWhispererServiceBase): Server =>
     ({ credentialsProvider, lsp, workspace, logging }) => {
         const codeWhispererService = service(credentialsProvider)
 
         // const setCustomisation= async (a: any) : any => {
-        //     // call the underlying codewhisperer service, or set a flag to 
+        //     // call the underlying codewhisperer service, or set a flag to
         // }
 
         const getSuggestions = async (params: GetSuggestionsParams): Promise<Suggestion[]> => {
@@ -64,7 +75,7 @@ export const CodewhispererServerFactory = (service: (credentials: CredentialsPro
                 position: params.position,
                 maxResults: params.context.triggerKind == InlineCompletionTriggerKind.Automatic ? 1 : 5,
                 token: params.token || CancellationToken.None,
-                inferredLanguageId: params.inferredLanguageId
+                inferredLanguageId: params.inferredLanguageId,
             })
 
             const items: InlineCompletionItem[] = recommendations.map<InlineCompletionItem>(r => {
@@ -97,7 +108,7 @@ export const CodewhispererServerFactory = (service: (credentials: CredentialsPro
                         textDocument,
                         position: params.position,
                         context: { triggerKind: params.context.triggerKind },
-                        inferredLanguageId: languageId
+                        inferredLanguageId: languageId,
                     })
                     if (recommendations) {
                         return recommendations
@@ -112,7 +123,9 @@ export const CodewhispererServerFactory = (service: (credentials: CredentialsPro
         lsp.onInlineCompletion(onInlineCompletionHandler)
         logging.log('Codewhisperer server has been initialised')
 
-        return () => { /* do nothing */ }
+        return () => {
+            /* do nothing */
+        }
     }
 
 export const CodeWhispererServerIAM = CodewhispererServerFactory(auth => new CodeWhispererServiceIAM(auth))

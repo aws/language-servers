@@ -1,36 +1,36 @@
-import * as chai from 'chai';
-import { expect } from 'chai';
-import * as chaiAsPromised from 'chai-as-promised';
-import { ChildProcessWithoutNullStreams, spawn } from "child_process";
-import { describe } from 'node:test';
-import { platform } from 'os';
-import * as path from 'path';
-import { JSONRPCEndpoint, LspClient } from 'ts-lsp-client';
-import { pathToFileURL } from "url";
+import * as chai from 'chai'
+import { expect } from 'chai'
+import * as chaiAsPromised from 'chai-as-promised'
+import { ChildProcessWithoutNullStreams, spawn } from "child_process"
+import { describe } from 'node:test'
+import { platform } from 'os'
+import * as path from 'path'
+import { JSONRPCEndpoint, LspClient } from 'ts-lsp-client'
+import { pathToFileURL } from "url"
 
 chai.use(chaiAsPromised)
 
 describe('Test HelloWorldServer', async () => {
 
-    const rootPath = path.resolve(path.join(__dirname, 'testFixture'));
-    let process: ChildProcessWithoutNullStreams;
-    let endpoint: JSONRPCEndpoint;
-    let client: LspClient;
-    let binaryFile = 'hello-world-lsp-binary';
+    const rootPath = path.resolve(path.join(__dirname, 'testFixture'))
+    let process: ChildProcessWithoutNullStreams
+    let endpoint: JSONRPCEndpoint
+    let client: LspClient
+    let binaryFile = 'hello-world-lsp-binary'
 
     before(async () => {
         switch (platform()) {
             case 'darwin':
-                binaryFile = binaryFile.concat('-', 'macos');
-                break;
+                binaryFile = binaryFile.concat('-', 'macos')
+                break
             case 'linux':
-                binaryFile = binaryFile.concat('-', 'linux');
-                break;
+                binaryFile = binaryFile.concat('-', 'linux')
+                break
             case 'win32':
-                binaryFile = binaryFile.concat('-', 'win.exe');
-                break;
+                binaryFile = binaryFile.concat('-', 'win.exe')
+                break
             default:
-                throw new Error("Platform is not supported. Exiting...");
+                throw new Error("Platform is not supported. Exiting...")
         }
 
         // start the LSP server
@@ -47,10 +47,10 @@ describe('Test HelloWorldServer', async () => {
         endpoint = new JSONRPCEndpoint(
             process.stdin,
             process.stdout
-        );
+        )
 
         // create the LSP client
-        client = new LspClient(endpoint);
+        client = new LspClient(endpoint)
 
         const result = await client.initialize({
             processId: process.pid ?? null,
@@ -62,17 +62,17 @@ describe('Test HelloWorldServer', async () => {
                 }
             ],
             rootUri: null,
-        });
+        })
 
         expect(result.capabilities).to.exist
     })
 
     after(async () => {
-        client.exit();
+        client.exit()
     })
 
     it('should return completion items', async () => {
-        const docUri = pathToFileURL(path.join(rootPath, 'completion.ts')).href;
+        const docUri = pathToFileURL(path.join(rootPath, 'completion.ts')).href
         await client.didOpen({
             textDocument: {
                 uri: docUri,
@@ -80,7 +80,7 @@ describe('Test HelloWorldServer', async () => {
                 version: 1,
                 languageId: 'typescript'
             }
-        });
+        })
         const result = await endpoint.send("textDocument/completion", {
             textDocument: {
                 uri: docUri
@@ -92,7 +92,7 @@ describe('Test HelloWorldServer', async () => {
             context: {
                 triggerKind: 1
             }
-        });
+        })
 
         const expectedResult = {
             isIncomplete: false,
@@ -107,6 +107,6 @@ describe('Test HelloWorldServer', async () => {
                 }
             ]
         }
-        expect(result).to.deep.equal(expectedResult);
+        expect(result).to.deep.equal(expectedResult)
     })
-});
+})
