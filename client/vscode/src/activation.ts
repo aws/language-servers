@@ -11,6 +11,7 @@ import { ExtensionContext, workspace } from 'vscode'
 import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind } from 'vscode-languageclient/node'
 import {
     configureCredentialsCapabilities,
+    registerBearerTokenProviderSupport,
     registerIamCredentialsProviderSupport,
     writeEncryptionInit,
 } from './credentialsActivation'
@@ -49,7 +50,6 @@ export async function activateDocumentsLanguageServer(extensionContext: Extensio
      * set envvar ENABLE_TOKEN_PROVIDER to "true" if this extension is expected to provide bearer tokens
      */
     const enableIamProvider = process.env.ENABLE_IAM_PROVIDER === 'true'
-    // enableBearerTokenProvider is not used yet
     const enableBearerTokenProvider = process.env.ENABLE_TOKEN_PROVIDER === 'true'
     const enableEncryptionInit = enableIamProvider || enableBearerTokenProvider
 
@@ -92,15 +92,17 @@ export async function activateDocumentsLanguageServer(extensionContext: Extensio
         },
     }
 
-    if (enableIamProvider) {
-        configureCredentialsCapabilities(clientOptions)
-    }
+    configureCredentialsCapabilities(clientOptions, enableIamProvider, enableBearerTokenProvider)
 
     // Create the language client and start the client.
     const client = new LanguageClient('awsDocuments', 'AWS Documents Language Server', serverOptions, clientOptions)
 
     if (enableIamProvider) {
         await registerIamCredentialsProviderSupport(client, extensionContext)
+    }
+
+    if (enableBearerTokenProvider) {
+        await registerBearerTokenProviderSupport(client, extensionContext)
     }
 
     if (enableInlineCompletion) {

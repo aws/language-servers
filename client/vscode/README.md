@@ -4,11 +4,12 @@ This is an example Visual Studio extension that wraps an experimental LSP servic
 
 # Working Credentials example
 
-This extension contains functioning code that shows an example of how extensions can resolve AWS credentials, then pass them to the server using encryption. To enable this feature in the extension, launch the extension with ENABLE_IAM_PROVIDER set to `true`.
+This extension contains functioning code that shows an example of how extensions can resolve AWS credentials, then pass them to the server using encryption. To enable this feature in the extension, launch the extension with ENABLE_IAM_PROVIDER set to `true` for sigv4 credentials and with ENABLE_TOKEN_PROVIDER set to `true` for bearer token support.
 
 The intent behind this concept code is to show how an extension could "push" credentials to the server whenever they are resolved (eg: when a user configures credentials for use with the server, or when the credentials have been refreshed). To simulate these events, the following commands can be run from the extension:
 
--   awslsp.selectProfile - used to simulate when credentials are pushed to the server. When you run this command, you will be prompted to enter a profile name. This profile's credentials will be resolved from your shared credentials file, then pushed to the server. (Only basic access key - secret key credentials type is supported in this example).
--   awslsp.clearProfile - used to simulate when credentials are removed from the server
+-   awslsp.selectProfile (sigv4) - used to simulate when credentials are pushed to the server. When you run this command, you will be prompted to enter a profile name. This profile's credentials will be resolved from your shared credentials file, then pushed to the server. (Only basic access key - secret key credentials type is supported in this example).
+-   awslsp.clearProfile (sigv4), awslsp.clearBearerToken (token) - used to simulate when credentials are removed from the server
+-   awslsp.resolveBearerToken (token) - used to simulate when bearer tokens are pushed to the server. When you run this command, you will be taken through an SSO login flow, similar to what the AWS Toolkit for VS Code does. Once logged in, the bearer token will be pushed to the server.
 
-The S3 bucket listing server has been set up as a working example.
+The S3 bucket listing server has been set up as a working example (sigv4).

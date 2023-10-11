@@ -23,11 +23,19 @@
         "commands": [
             {
                 "command": "awslsp.selectProfile",
-                "title": "AWS LSP - Choose credentials profile"
+                "title": "AWS LSP - Choose credentials profile, resolve, and send to LSP Server"
             },
             {
                 "command": "awslsp.clearProfile",
-                "title": "AWS LSP - Don't use any credentials"
+                "title": "AWS LSP - Clear credentials from LSP Server"
+            },
+            {
+                "command": "awslsp.resolveBearerToken",
+                "title": "AWS LSP - Obtain bearer token and send to LSP Server"
+            },
+            {
+                "command": "awslsp.clearBearerToken",
+                "title": "AWS LSP - Clear bearer token from LSP Server"
             }
         ],
         "configuration": {

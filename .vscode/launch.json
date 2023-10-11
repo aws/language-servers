@@ -46,7 +46,8 @@
             "outFiles": ["${workspaceFolder}/client/vscode/out/**/*.js"],
             "env": {
                 "LSP_SERVER": "${workspaceFolder}/app/aws-lsp-codewhisperer-binary/out/index.js",
-                "ENABLE_INLINE_COMPLETION": "true"
+                "ENABLE_INLINE_COMPLETION": "true",
+                "ENABLE_TOKEN_PROVIDER": "true"
             },
             "preLaunchTask": "npm: compile"
         },
