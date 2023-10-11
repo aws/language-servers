@@ -17,6 +17,11 @@ export interface UpdateCredentialsRequest {
      * The token's contents differ whether IAM or Bearer token is sent
      */
     data: string
+    /**
+     * Used by the runtime based language servers.
+     * Signals that this client will encrypt its credentials payloads.
+     */
+    encrypted: boolean
 }
 
 export interface UpdateIamCredentialsRequestData {
@@ -159,6 +164,7 @@ async function createUpdateCredentialsRequest(data: any): Promise<UpdateCredenti
 
     return {
         data: jwt,
+        encrypted: true,
     }
 }
 

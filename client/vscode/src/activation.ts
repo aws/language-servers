@@ -66,7 +66,11 @@ export async function activateDocumentsLanguageServer(extensionContext: Extensio
         // If the host is going to encrypt credentials,
         // receive the encryption key over stdin before starting the language server.
         debugOptions.execArgv.push('--stdio')
+        // Used by the proof of concept language servers (we can remove this one in the future,
+        // after all language servers are based on the language-server-runtime).
         debugOptions.execArgv.push('--pre-init-encryption')
+        // Used by the aws-language-server-runtime based servers
+        debugOptions.execArgv.push('--set-credentials-encryption-key')
         const child = cp.spawn('node', [serverModule, ...debugOptions.execArgv])
         writeEncryptionInit(child.stdin)
 
