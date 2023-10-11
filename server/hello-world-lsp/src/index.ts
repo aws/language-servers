@@ -1,2 +1,1 @@
-export * from './language-server/helloWorldServer';
-
+export * from './language-server/helloWorldServer'

@@ -1,17 +1,16 @@
 import * as chai from 'chai'
 import { expect } from 'chai'
 import * as chaiAsPromised from 'chai-as-promised'
-import { ChildProcessWithoutNullStreams, spawn } from "child_process"
+import { ChildProcessWithoutNullStreams, spawn } from 'child_process'
 import { describe } from 'node:test'
 import { platform } from 'os'
 import * as path from 'path'
 import { JSONRPCEndpoint, LspClient } from 'ts-lsp-client'
-import { pathToFileURL } from "url"
+import { pathToFileURL } from 'url'
 
 chai.use(chaiAsPromised)
 
 describe('Test HelloWorldServer', async () => {
-
     const rootPath = path.resolve(path.join(__dirname, 'testFixture'))
     let process: ChildProcessWithoutNullStreams
     let endpoint: JSONRPCEndpoint
@@ -30,24 +29,17 @@ describe('Test HelloWorldServer', async () => {
                 binaryFile = binaryFile.concat('-', 'win.exe')
                 break
             default:
-                throw new Error("Platform is not supported. Exiting...")
+                throw new Error('Platform is not supported. Exiting...')
         }
 
         // start the LSP server
-        process = spawn(
-            path.join(__dirname, '../../', 'bin', binaryFile),
-            ['--stdio'],
-            {
-                shell: true,
-                stdio: 'pipe'
-            }
-        )
+        process = spawn(path.join(__dirname, '../../', 'bin', binaryFile), ['--stdio'], {
+            shell: true,
+            stdio: 'pipe',
+        })
 
         // create an RPC endpoint for the process
-        endpoint = new JSONRPCEndpoint(
-            process.stdin,
-            process.stdout
-        )
+        endpoint = new JSONRPCEndpoint(process.stdin, process.stdout)
 
         // create the LSP client
         client = new LspClient(endpoint)
@@ -58,8 +50,8 @@ describe('Test HelloWorldServer', async () => {
             workspaceFolders: [
                 {
                     name: 'workspace',
-                    uri: pathToFileURL(rootPath).href
-                }
+                    uri: pathToFileURL(rootPath).href,
+                },
             ],
             rootUri: null,
         })
@@ -78,34 +70,34 @@ describe('Test HelloWorldServer', async () => {
                 uri: docUri,
                 text: '',
                 version: 1,
-                languageId: 'typescript'
-            }
+                languageId: 'typescript',
+            },
         })
-        const result = await endpoint.send("textDocument/completion", {
+        const result = await endpoint.send('textDocument/completion', {
             textDocument: {
-                uri: docUri
+                uri: docUri,
             },
             position: {
                 line: 0,
-                character: 1
+                character: 1,
             },
             context: {
-                triggerKind: 1
-            }
+                triggerKind: 1,
+            },
         })
 
         const expectedResult = {
             isIncomplete: false,
             items: [
                 {
-                    label: "Hello World!!!",
-                    kind: 1
+                    label: 'Hello World!!!',
+                    kind: 1,
                 },
                 {
-                    label: "Hello Developers!!!",
-                    kind: 1
-                }
-            ]
+                    label: 'Hello Developers!!!',
+                    kind: 1,
+                },
+            ],
         }
         expect(result).to.deep.equal(expectedResult)
     })
