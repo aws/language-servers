@@ -10,8 +10,8 @@
         "server/*"
     ],
     "scripts": {
-        "prepare": "cd .. && husky install lsp/.husky",
-        "lint": "eslint src --ext .ts,.tsx && prettier --check .",
+        "prepare": "husky install .husky",
+        "lint": "eslint app/ client/ core/ script/ server/ --ext .ts,.tsx && prettier --check .",
         "format": "prettier --write .",
         "format-staged": "npx pretty-quick --staged",
         "clean": "ts-node ./script/clean.ts",
