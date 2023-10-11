@@ -5,9 +5,10 @@ import {
     Telemetry,
     Workspace,
 } from '@aws-placeholder/aws-language-server-runtimes/out/features'
+import { InlineCompletionParams } from '@aws-placeholder/aws-language-server-runtimes/out/features/lsp/inline-completions/futureProtocol'
 import { Server } from '@aws-placeholder/aws-language-server-runtimes/out/runtimes'
 import { StubbedInstance, stubInterface } from 'ts-sinon'
-import { CancellationToken, CompletionParams, InlineCompletionParams } from 'vscode-languageserver-protocol'
+import { CancellationToken, CompletionParams } from 'vscode-languageserver-protocol'
 import { TextDocument } from 'vscode-languageserver-textdocument'
 
 // TODO move this to runtimes package once the test helpers stabilize
