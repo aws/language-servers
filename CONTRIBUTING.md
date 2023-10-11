@@ -319,4 +319,4 @@ To build and test Language Servers with AWS Runtime, follow these steps:
     npm run package
     ```
 
-Using local checkout of `aws-language-server-runtimes` you can iterate or experiment with both projects and produce working language server builds locally. Built servers can be found in ./app/\*/bin folder.
+Using local checkout of `aws-language-server-runtimes` you can iterate or experiment with both projects and produce working language server builds locally. Built servers can be found in `./app/*/bin` folder.
