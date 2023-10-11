@@ -53,6 +53,6 @@
         },
         {
             "path": "./app/hello-world-lsp-binary"
-        },
+        }
     ]
 }
