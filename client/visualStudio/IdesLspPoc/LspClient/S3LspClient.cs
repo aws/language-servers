@@ -70,7 +70,7 @@ namespace IdesLspPoc.LspClient
         protected override string GetServerWorkingDir()
         {
             // to try using this extension, update dir to wherever your lsp service executable is
-            return @"C:\code\aws-toolkit-common\lsp\app\aws-lsp-s3-binary\bin";
+            return @"C:\code\aws-language-servers\app\aws-lsp-s3-binary\bin";
         }
 
         protected override string GetServerPath()

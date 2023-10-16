@@ -50,7 +50,7 @@ export class IdeCredentialsProvider implements CredentialsProvider {
         this.connection.console.info('Server: Registering IAM credentials push handlers')
 
         // Handle when host sends us credentials to use
-        this.connection.onNotification(
+        this.connection.onRequest(
             credentialsProtocolMethodNames.iamCredentialsUpdate,
             async (request: UpdateCredentialsRequest) => {
                 try {
@@ -94,7 +94,7 @@ export class IdeCredentialsProvider implements CredentialsProvider {
         this.connection.console.info('Server: Registering bearer token push handlers')
 
         // Handle when host sends us credentials to use
-        this.connection.onNotification(
+        this.connection.onRequest(
             credentialsProtocolMethodNames.iamBearerTokenUpdate,
             async (request: UpdateCredentialsRequest) => {
                 try {

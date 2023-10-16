@@ -28,7 +28,7 @@ namespace IdesLspPoc.LspClient
         protected override string GetServerWorkingDir()
         {
             // to try using this extension, update dir to wherever your lsp service executable is
-            return @"C:\code\aws-toolkit-common\lsp\app\aws-lsp-cloudformation-binary\bin";
+            return @"C:\code\aws-language-servers\lsp\app\aws-lsp-cloudformation-binary\bin";
         }
 
         protected override string GetServerPath()

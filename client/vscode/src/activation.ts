@@ -11,6 +11,7 @@ import { ExtensionContext, workspace } from 'vscode'
 import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind } from 'vscode-languageclient/node'
 import {
     configureCredentialsCapabilities,
+    registerBearerTokenProviderSupport,
     registerIamCredentialsProviderSupport,
     writeEncryptionInit,
 } from './credentialsActivation'
@@ -49,7 +50,6 @@ export async function activateDocumentsLanguageServer(extensionContext: Extensio
      * set envvar ENABLE_TOKEN_PROVIDER to "true" if this extension is expected to provide bearer tokens
      */
     const enableIamProvider = process.env.ENABLE_IAM_PROVIDER === 'true'
-    // enableBearerTokenProvider is not used yet
     const enableBearerTokenProvider = process.env.ENABLE_TOKEN_PROVIDER === 'true'
     const enableEncryptionInit = enableIamProvider || enableBearerTokenProvider
 
@@ -66,7 +66,11 @@ export async function activateDocumentsLanguageServer(extensionContext: Extensio
         // If the host is going to encrypt credentials,
         // receive the encryption key over stdin before starting the language server.
         debugOptions.execArgv.push('--stdio')
+        // Used by the proof of concept language servers (we can remove this one in the future,
+        // after all language servers are based on the language-server-runtime).
         debugOptions.execArgv.push('--pre-init-encryption')
+        // Used by the aws-language-server-runtime based servers
+        debugOptions.execArgv.push('--set-credentials-encryption-key')
         const child = cp.spawn('node', [serverModule, ...debugOptions.execArgv])
         writeEncryptionInit(child.stdin)
 
@@ -92,15 +96,17 @@ export async function activateDocumentsLanguageServer(extensionContext: Extensio
         },
     }
 
-    if (enableIamProvider) {
-        configureCredentialsCapabilities(clientOptions)
-    }
+    configureCredentialsCapabilities(clientOptions, enableIamProvider, enableBearerTokenProvider)
 
     // Create the language client and start the client.
     const client = new LanguageClient('awsDocuments', 'AWS Documents Language Server', serverOptions, clientOptions)
 
     if (enableIamProvider) {
         await registerIamCredentialsProviderSupport(client, extensionContext)
+    }
+
+    if (enableBearerTokenProvider) {
+        await registerBearerTokenProviderSupport(client, extensionContext)
     }
 
     if (enableInlineCompletion) {
