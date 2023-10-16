@@ -1,4 +1,5 @@
 import { CredentialsProvider } from '@aws-placeholder/aws-language-server-runtimes/out/features'
+import { BearerCredentials } from '@aws-placeholder/aws-language-server-runtimes/out/features/auth/auth'
 import { CredentialProviderChain, Credentials } from 'aws-sdk'
 import { createCodeWhispererSigv4Client } from '../client/sigv4/codewhisperer'
 import {
@@ -77,7 +78,8 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
             onRequestSetup: [
                 req => {
                     req.on('build', ({ httpRequest }) => {
-                        httpRequest.headers['Authorization'] = `Bearer ${credentialsProvider.getCredentials('bearer')}`
+                        const creds = credentialsProvider.getCredentials('bearer') as BearerCredentials
+                        httpRequest.headers['Authorization'] = `Bearer ${creds.token}`
                     })
                 },
             ],
