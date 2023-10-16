@@ -4,7 +4,13 @@ import * as crypto from 'crypto'
 import * as jose from 'jose'
 import { Writable } from 'stream'
 import { ExtensionContext, commands, window } from 'vscode'
-import { LanguageClient, LanguageClientOptions, NotificationType } from 'vscode-languageclient/node'
+import {
+    LanguageClient,
+    LanguageClientOptions,
+    NotificationType,
+    RequestType,
+    ResponseMessage,
+} from 'vscode-languageclient/node'
 import { BuilderIdConnectionBuilder } from './sso/builderId'
 
 /**
@@ -42,9 +48,13 @@ const lspMethodNames = {
 }
 
 const notificationTypes = {
-    updateIamCredentials: new NotificationType<UpdateCredentialsRequest>(lspMethodNames.iamCredentialsUpdate),
+    updateIamCredentials: new RequestType<UpdateCredentialsRequest, ResponseMessage, Error>(
+        lspMethodNames.iamCredentialsUpdate
+    ),
     deleteIamCredentials: new NotificationType(lspMethodNames.iamCredentialsDelete),
-    updateBearerToken: new NotificationType<UpdateCredentialsRequest>(lspMethodNames.iamBearerTokenUpdate),
+    updateBearerToken: new RequestType<UpdateCredentialsRequest, ResponseMessage, Error>(
+        lspMethodNames.iamBearerTokenUpdate
+    ),
     deleteBearerToken: new NotificationType(lspMethodNames.iamBearerTokenDelete),
 }
 
@@ -168,12 +178,15 @@ async function createUpdateCredentialsRequest(data: any): Promise<UpdateCredenti
     }
 }
 
-function sendIamCredentialsUpdate(request: UpdateCredentialsRequest, languageClient: LanguageClient): Promise<void> {
-    return languageClient.sendNotification(notificationTypes.updateIamCredentials, request)
+async function sendIamCredentialsUpdate(
+    request: UpdateCredentialsRequest,
+    languageClient: LanguageClient
+): Promise<void> {
+    await languageClient.sendRequest(notificationTypes.updateIamCredentials, request)
 }
 
-function sendBearerTokenUpdate(request: UpdateCredentialsRequest, languageClient: LanguageClient): Promise<void> {
-    return languageClient.sendNotification(notificationTypes.updateBearerToken, request)
+async function sendBearerTokenUpdate(request: UpdateCredentialsRequest, languageClient: LanguageClient): Promise<void> {
+    await languageClient.sendRequest(notificationTypes.updateBearerToken, request)
 }
 
 /**
