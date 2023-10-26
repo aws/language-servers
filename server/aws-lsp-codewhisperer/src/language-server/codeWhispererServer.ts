@@ -18,8 +18,7 @@ import { FileContext, truncateOverlapWithRightContext } from './mergeRightUtils'
 
 const EMPTY_RESULT = { items: [] }
 
-// Both clients (token, sigv4) define their own types, this return value needs to
-// match both of them.
+// Both clients (token, sigv4) define their own types, this return value needs to match both of them.
 const getFileContext = (params: { textDocument: TextDocument; position: Position; inferredLanguageId: string }) => {
     const left = params.textDocument.getText({
         start: { line: 0, character: 0 },
@@ -58,6 +57,17 @@ const mergeSuggestionsWithContext =
             })),
         }))
 
+const filterReferences = (
+    suggestions: InlineCompletionItemWithReferences[],
+    includeSuggestionsWithCodeReferences: boolean
+): InlineCompletionItemWithReferences[] => {
+    if (includeSuggestionsWithCodeReferences) {
+        return suggestions
+    } else {
+        return suggestions.filter(suggestion => suggestion.references == null || suggestion.references.length === 0)
+    }
+}
+
 export const CodewhispererServerFactory =
     (service: (credentials: CredentialsProvider) => CodeWhispererServiceBase): Server =>
     ({ credentialsProvider, lsp, workspace, logging }) => {
@@ -94,11 +104,7 @@ export const CodewhispererServerFactory =
                 return codeWhispererService
                     .generateSuggestions({ fileContext, maxResults })
                     .then(mergeSuggestionsWithContext({ fileContext, range: selectionRange }))
-                    .then(r =>
-                        includeSuggestionsWithCodeReferences
-                            ? r
-                            : r.filter(i => i.references == null || i.references.length === 0)
-                    )
+                    .then(suggestions => filterReferences(suggestions, includeSuggestionsWithCodeReferences))
                     .then(items => ({ items }))
                     .catch(err => {
                         logging.log(`onInlineCompletion failure: ${err}`)

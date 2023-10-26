@@ -35,6 +35,16 @@ class HelloWorld
         )
         const SOME_FILE_WITH_EXTENSION = TextDocument.create('file:///missing.cs', '', 1, HELLO_WORLD_IN_CSHARP)
 
+        const HELLO_WORLD_LINE = `Console.WriteLine("Hello World!");`
+        // Single line file will not have the full line contents
+        const SINGLE_LINE_FILE_CUTOFF_INDEX = 2
+        const SOME_SINGLE_LINE_FILE = TextDocument.create(
+            'file:///single.cs',
+            'csharp',
+            1,
+            HELLO_WORLD_LINE.substring(SINGLE_LINE_FILE_CUTOFF_INDEX)
+        )
+
         const EXPECTED_SUGGESTION: Suggestion[] = [{ content: 'recommendation' }]
         const EXPECTED_RESULT = {
             items: [{ insertText: EXPECTED_SUGGESTION[0].content, range: undefined, references: undefined }],
@@ -70,6 +80,7 @@ class HelloWorld
                 .openDocument(SOME_FILE_WITH_ALT_CASED_LANGUAGE_ID)
                 .openDocument(SOME_UNSUPPORTED_FILE)
                 .openDocument(SOME_FILE_WITH_EXTENSION)
+                .openDocument(SOME_SINGLE_LINE_FILE) //todo maybe not needed?
         })
 
         it('should return recommendations', async () => {
@@ -91,6 +102,36 @@ class HelloWorld
                     programmingLanguage: { languageName: 'csharp' },
                     leftFileContent: '',
                     rightFileContent: HELLO_WORLD_IN_CSHARP,
+                },
+                maxResults: 1,
+            }
+            sinon.assert.calledOnceWithExactly(service.generateSuggestions, expectedGenerateSuggestionsRequest)
+        })
+
+        it('should correctly get left and right context', async () => {
+            const cutOffLine = 2
+            const lines = HELLO_WORLD_IN_CSHARP.split('\n')
+            const firstTwoLines = lines.slice(0, cutOffLine).join('\n') + '\n'
+            const remainingLines = lines.slice(cutOffLine).join('\n')
+
+            const result = await features.doInlineCompletionWithReferences(
+                {
+                    textDocument: { uri: SOME_FILE.uri },
+                    position: { line: cutOffLine, character: 0 },
+                    context: { triggerKind: InlineCompletionTriggerKind.Automatic },
+                },
+                CancellationToken.None
+            )
+
+            // Check the completion result
+            assert.deepEqual(result, EXPECTED_RESULT)
+
+            const expectedGenerateSuggestionsRequest = {
+                fileContext: {
+                    filename: SOME_FILE.uri,
+                    programmingLanguage: { languageName: 'csharp' },
+                    leftFileContent: firstTwoLines,
+                    rightFileContent: remainingLines,
                 },
                 maxResults: 1,
             }
@@ -182,8 +223,111 @@ class HelloWorld
             // Check the service was called with the right parameters
             sinon.assert.calledOnceWithExactly(service.generateSuggestions, expectedGenerateSuggestionsRequest)
         })
-    })
 
+        // Merge right tests
+        it('should not show recommendation when the recommendation is equal to right context ', async () => {
+            // The suggestion returned by generateSuggestions will be equal to the contents of the file
+            const EXPECTED_SUGGESTION: Suggestion[] = [{ content: HELLO_WORLD_IN_CSHARP }]
+            service.generateSuggestions.returns(Promise.resolve(EXPECTED_SUGGESTION))
+            const EXPECTED_RESULT = { items: [{ insertText: '', range: undefined, references: undefined }] }
+
+            const result = await features.doInlineCompletionWithReferences(
+                {
+                    textDocument: { uri: SOME_FILE.uri },
+                    position: { line: 0, character: 0 },
+                    context: { triggerKind: InlineCompletionTriggerKind.Automatic },
+                },
+                CancellationToken.None
+            )
+            assert.deepEqual(result, EXPECTED_RESULT)
+        })
+
+        it('should only show the part of the recommendation that does not overlap with the right context in multiline', async () => {
+            const cutOffLine = 3
+            const lines = HELLO_WORLD_IN_CSHARP.split('\n')
+            // The recommendation will be the contents of hello world starting from line 3 (static void Main)
+            const recommendation = lines.slice(cutOffLine).join('\n')
+            // We delete the static void Main line from Hello World but keep the rest in the file
+            const deletedLine = lines.splice(cutOffLine, 1)[0]
+
+            const finalFileContent = lines.join('\n')
+            const MY_FILE = TextDocument.create('file:///rightContext.cs', 'csharp', 1, finalFileContent)
+            features.openDocument(MY_FILE)
+
+            const EXPECTED_SUGGESTION: Suggestion[] = [{ content: recommendation }]
+            service.generateSuggestions.returns(Promise.resolve(EXPECTED_SUGGESTION))
+            // Expected result is the deleted line + new line + 4 spaces
+            // Newline and the 4 spaces get lost when we do the `split` so we add them back to expected result
+            const EXPECTED_RESULT = {
+                items: [{ insertText: deletedLine.concat('\n    '), range: undefined, references: undefined }],
+            }
+
+            const result = await features.doInlineCompletionWithReferences(
+                {
+                    textDocument: { uri: MY_FILE.uri },
+                    position: { line: cutOffLine, character: 0 },
+                    context: { triggerKind: InlineCompletionTriggerKind.Automatic },
+                },
+                CancellationToken.None
+            )
+            assert.deepEqual(result, EXPECTED_RESULT)
+
+            const leftContext = lines.slice(0, cutOffLine).join('\n') + '\n'
+            const rightContext = lines.slice(cutOffLine).join('\n')
+            const expectedGenerateSuggestionsRequest = {
+                fileContext: {
+                    filename: MY_FILE.uri,
+                    programmingLanguage: { languageName: 'csharp' },
+                    leftFileContent: leftContext,
+                    rightFileContent: rightContext,
+                },
+                maxResults: 1,
+            }
+            sinon.assert.calledOnceWithExactly(service.generateSuggestions, expectedGenerateSuggestionsRequest)
+        })
+
+        it('should only show the part of the recommendation that does not overlap with the right context', async () => {
+            const EXPECTED_SUGGESTION: Suggestion[] = [{ content: HELLO_WORLD_LINE }]
+            service.generateSuggestions.returns(Promise.resolve(EXPECTED_SUGGESTION))
+            const EXPECTED_RESULT = {
+                items: [
+                    {
+                        insertText: HELLO_WORLD_LINE.substring(0, SINGLE_LINE_FILE_CUTOFF_INDEX),
+                        range: undefined,
+                        references: undefined,
+                    },
+                ],
+            }
+
+            const result = await features.doInlineCompletionWithReferences(
+                {
+                    textDocument: { uri: SOME_SINGLE_LINE_FILE.uri },
+                    position: { line: 0, character: 0 },
+                    context: { triggerKind: InlineCompletionTriggerKind.Automatic },
+                },
+                CancellationToken.None
+            )
+            assert.deepEqual(result, EXPECTED_RESULT)
+        })
+
+        it('should show full recommendation when the right context does not match recommendation ', async () => {
+            const EXPECTED_SUGGESTION: Suggestion[] = [{ content: 'Something something' }]
+            service.generateSuggestions.returns(Promise.resolve(EXPECTED_SUGGESTION))
+            const EXPECTED_RESULT = {
+                items: [{ insertText: EXPECTED_SUGGESTION[0].content, range: undefined, references: undefined }],
+            }
+
+            const result = await features.doInlineCompletionWithReferences(
+                {
+                    textDocument: { uri: SOME_FILE.uri },
+                    position: { line: 0, character: 0 },
+                    context: { triggerKind: InlineCompletionTriggerKind.Automatic },
+                },
+                CancellationToken.None
+            )
+            assert.deepEqual(result, EXPECTED_RESULT)
+        })
+    })
     describe('Recommendations With References', () => {
         const HELLO_WORLD_IN_CSHARP = `
 class HelloWorld
@@ -238,8 +382,6 @@ class HelloWorld
                 },
             ],
         }
-
-        const EMPTY_RESULT = { items: [] }
 
         let features: TestFeatures
         let server: Server
@@ -371,6 +513,79 @@ class HelloWorld
 
             // Check the completion result
             assert.deepEqual(result, EXPECTED_RESULT_WITH_REFERENCES)
+        })
+
+        it('should not show references when the right context is equal to suggestion', async () => {
+            features.lsp.workspace.getConfiguration.returns(Promise.resolve({}))
+            await features.start(server)
+
+            const EXPECTED_SUGGESTION: Suggestion[] = [{ content: HELLO_WORLD_IN_CSHARP }]
+            const EXPECTED_RESULT_WITH_REMOVED_REFERENCES = {
+                items: [{ insertText: '', range: undefined, references: undefined }],
+            }
+            service.generateSuggestions.returns(Promise.resolve(EXPECTED_SUGGESTION))
+
+            const result = await features.openDocument(SOME_FILE).doInlineCompletionWithReferences(
+                {
+                    textDocument: { uri: SOME_FILE.uri },
+                    position: { line: 0, character: 0 },
+                    context: { triggerKind: InlineCompletionTriggerKind.Automatic },
+                },
+                CancellationToken.None
+            )
+
+            assert.deepEqual(result, EXPECTED_RESULT_WITH_REMOVED_REFERENCES)
+        })
+
+        it('should show references and update range when there is partial overlap on right context', async () => {
+            // TODO, this test should fail once we implement logic for updating the reference range
+            features.lsp.workspace.getConfiguration.returns(Promise.resolve({}))
+            await features.start(server)
+
+            const cutOffLine = 3
+            const lines = HELLO_WORLD_IN_CSHARP.split('\n')
+            // The recommendation will be the contents of hello world starting from line 3 (static void Main)
+            const recommendation = lines.slice(cutOffLine).join('\n')
+            // We delete the static void Main line from Hello World but keep the rest in the file
+            const deletedLine = lines.splice(cutOffLine, 1)[0]
+
+            const finalFileContent = lines.join('\n')
+            const MY_FILE = TextDocument.create('file:///rightContext.cs', 'csharp', 1, finalFileContent)
+            features.openDocument(MY_FILE)
+
+            const EXPECTED_SUGGESTION: Suggestion[] = [{ content: recommendation, references: [EXPECTED_REFERENCE] }]
+            const EXPECTED_RESULT = {
+                items: [
+                    {
+                        insertText: deletedLine.concat('\n    '),
+                        range: undefined,
+                        references: [
+                            {
+                                licenseName: EXPECTED_REFERENCE.licenseName,
+                                referenceName: EXPECTED_REFERENCE.repository,
+                                referenceUrl: EXPECTED_REFERENCE.url,
+                                position: {
+                                    //The position indices will change after we implement logic for partial overlap in references
+                                    startCharacter: EXPECTED_REFERENCE.recommendationContentSpan?.start,
+                                    endCharacter: EXPECTED_REFERENCE.recommendationContentSpan?.end,
+                                },
+                            },
+                        ],
+                    },
+                ],
+            }
+            service.generateSuggestions.returns(Promise.resolve(EXPECTED_SUGGESTION))
+
+            const result = await features.openDocument(MY_FILE).doInlineCompletionWithReferences(
+                {
+                    textDocument: { uri: MY_FILE.uri },
+                    position: { line: cutOffLine, character: 0 },
+                    context: { triggerKind: InlineCompletionTriggerKind.Automatic },
+                },
+                CancellationToken.None
+            )
+
+            assert.deepEqual(result, EXPECTED_RESULT)
         })
     })
 })
