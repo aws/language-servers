@@ -9,7 +9,7 @@ import {
     languages,
 } from 'vscode'
 import { LanguageClient } from 'vscode-languageclient/node'
-import { InlineCompletionParams, inlineCompletionRequestType } from './futureTypes'
+import { InlineCompletionParams, inlineCompletionWithReferencesRequestType } from './futureTypes'
 
 export function registerInlineCompletion(languageClient: LanguageClient) {
     const inlineCompletionProvider = new CodeWhispererInlineCompletionItemProvider(languageClient)
@@ -33,7 +33,11 @@ class CodeWhispererInlineCompletionItemProvider implements InlineCompletionItemP
             context,
         }
 
-        const response = await this.languageClient.sendRequest(inlineCompletionRequestType, request, token)
+        const response = await this.languageClient.sendRequest(
+            inlineCompletionWithReferencesRequestType,
+            request,
+            token
+        )
 
         const list: InlineCompletionList = response as InlineCompletionList
         this.languageClient.info(`Client: Received ${list.items.length} suggestions`)
