@@ -5,32 +5,67 @@ import {
     InlineCompletionListWithReferences,
     InlineCompletionWithReferencesParams,
 } from '@aws-placeholder/aws-language-server-runtimes/out/features/lsp/inline-completions/protocolExtensions'
-import { CancellationToken, InlineCompletionContext, InlineCompletionTriggerKind } from 'vscode-languageserver'
+import { CancellationToken, InlineCompletionTriggerKind, Range } from 'vscode-languageserver'
 import { Position, TextDocument } from 'vscode-languageserver-textdocument'
 import {
     CodeWhispererServiceBase,
     CodeWhispererServiceIAM,
     CodeWhispererServiceToken,
-    GenerateSuggestionsRequest,
     Suggestion,
 } from './codeWhispererService'
 import { getSupportedLanguageId } from './languageDetection'
-import { truncateOverlapWithRightContext } from './mergeRightUtils'
+import { FileContext, truncateOverlapWithRightContext } from './mergeRightUtils'
 
-interface DoInlineCompletionParams {
-    textDocument: TextDocument
-    position: Position
-    context: InlineCompletionContext
-    token?: CancellationToken
-    inferredLanguageId: string
+const EMPTY_RESULT = { items: [] }
+
+// Both clients (token, sigv4) define their own types, this return value needs to match both of them.
+const getFileContext = (params: { textDocument: TextDocument; position: Position; inferredLanguageId: string }) => {
+    const left = params.textDocument.getText({
+        start: { line: 0, character: 0 },
+        end: params.position,
+    })
+    const right = params.textDocument.getText({
+        start: params.position,
+        end: params.textDocument.positionAt(params.textDocument.getText().length),
+    })
+
+    return {
+        filename: params.textDocument.uri,
+        programmingLanguage: {
+            languageName: params.inferredLanguageId,
+        },
+        leftFileContent: left,
+        rightFileContent: right,
+    }
 }
 
-interface GetSuggestionsParams {
-    textDocument: TextDocument
-    position: Position
-    maxResults: number
-    token: CancellationToken
-    inferredLanguageId: string
+// Merge right context. Provided as partially applied function for easy map/flatmap-ing.
+const mergeSuggestionsWithContext =
+    ({ fileContext, range }: { fileContext: FileContext; range?: Range }) =>
+    (suggestions: Suggestion[]): InlineCompletionItemWithReferences[] =>
+        suggestions.map(suggestion => ({
+            insertText: truncateOverlapWithRightContext(fileContext, suggestion.content),
+            range,
+            references: suggestion.references?.map(r => ({
+                licenseName: r.licenseName,
+                referenceUrl: r.url,
+                referenceName: r.repository,
+                position: r.recommendationContentSpan && {
+                    startCharacter: r.recommendationContentSpan.start,
+                    endCharacter: r.recommendationContentSpan.end,
+                },
+            })),
+        }))
+
+const filterReferences = (
+    suggestions: InlineCompletionItemWithReferences[],
+    includeSuggestionsWithCodeReferences: boolean
+): InlineCompletionItemWithReferences[] => {
+    if (includeSuggestionsWithCodeReferences) {
+        return suggestions
+    } else {
+        return suggestions.filter(suggestion => suggestion.references == null || suggestion.references.length === 0)
+    }
 }
 
 export const CodewhispererServerFactory =
@@ -38,108 +73,45 @@ export const CodewhispererServerFactory =
     ({ credentialsProvider, lsp, workspace, logging }) => {
         const codeWhispererService = service(credentialsProvider)
 
+        // Mutable state to track whether code with references should be included in
+        // the response. No locking or concurrency controls, filtering is done
+        // right before returning and is only guaranteed to be consistent within
+        // the context of a single response.
         let includeSuggestionsWithCodeReferences = true
-
-        const getSuggestions = async (params: GetSuggestionsParams): Promise<Suggestion[]> => {
-            const left = params.textDocument.getText({
-                start: { line: 0, character: 0 },
-                end: params.position,
-            })
-            const right = params.textDocument.getText({
-                start: params.position,
-                end: params.textDocument.positionAt(params.textDocument.getText().length),
-            })
-
-            const request: GenerateSuggestionsRequest = {
-                fileContext: {
-                    filename: params.textDocument.uri,
-                    programmingLanguage: {
-                        languageName: params.inferredLanguageId,
-                    },
-                    leftFileContent: left,
-                    rightFileContent: right,
-                },
-
-                maxResults: params.maxResults,
-            }
-
-            return codeWhispererService.generateSuggestions(request)
-        }
-
-        const doInlineCompletion = async (
-            params: DoInlineCompletionParams
-        ): Promise<InlineCompletionListWithReferences | null> => {
-            const recommendations = await getSuggestions({
-                textDocument: params.textDocument,
-                position: params.position,
-                maxResults: params.context.triggerKind == InlineCompletionTriggerKind.Automatic ? 1 : 5,
-                token: params.token || CancellationToken.None,
-                inferredLanguageId: params.inferredLanguageId,
-            })
-
-            const items: InlineCompletionItemWithReferences[] = recommendations.map<InlineCompletionItemWithReferences>(
-                r => {
-                    return {
-                        insertText: truncateOverlapWithRightContext(params.textDocument, r.content, params.position),
-                        range: params.context.selectedCompletionInfo?.range,
-                        references: r.references?.map(r => ({
-                            licenseName: r.licenseName,
-                            referenceUrl: r.url,
-                            referenceName: r.repository,
-                            position: r.recommendationContentSpan && {
-                                startCharacter: r.recommendationContentSpan.start,
-                                endCharacter: r.recommendationContentSpan.end,
-                            },
-                        })),
-                    }
-                }
-            )
-
-            const completions: InlineCompletionListWithReferences = {
-                items,
-            }
-
-            return completions
-        }
 
         const onInlineCompletionHandler = async (
             params: InlineCompletionWithReferencesParams,
             _token: CancellationToken
         ): Promise<InlineCompletionListWithReferences> => {
-            const completions: InlineCompletionListWithReferences = {
-                items: [],
-            }
-
-            const textDocument = await workspace.getTextDocument(params.textDocument.uri)
-            const languageId = getSupportedLanguageId(textDocument)
-            if (textDocument && languageId) {
-                try {
-                    const recommendations = await doInlineCompletion({
-                        textDocument,
-                        position: params.position,
-                        context: { triggerKind: params.context.triggerKind },
-                        inferredLanguageId: languageId,
-                    })
-                    if (recommendations) {
-                        if (includeSuggestionsWithCodeReferences) {
-                            return recommendations
-                        } else {
-                            return {
-                                items: recommendations.items.filter(
-                                    i => i.references == null || i.references.length === 0
-                                ),
-                            }
-                        }
-                    }
-                } catch (err) {
-                    logging.log(`Recommendation failure: ${err}`)
+            return workspace.getTextDocument(params.textDocument.uri).then(textDocument => {
+                if (!textDocument) {
+                    logging.log(`textDocument [${params.textDocument.uri}] not found`)
+                    return EMPTY_RESULT
                 }
-            }
 
-            return completions
+                const inferredLanguageId = getSupportedLanguageId(textDocument)
+                if (!inferredLanguageId) {
+                    logging.log(
+                        `textDocument [${params.textDocument.uri}] with languageId [${textDocument.languageId}] not supported`
+                    )
+                    return EMPTY_RESULT
+                }
+
+                const maxResults = params.context.triggerKind == InlineCompletionTriggerKind.Automatic ? 1 : 5
+                const selectionRange = params.context.selectedCompletionInfo?.range
+                const fileContext = getFileContext({ textDocument, inferredLanguageId, position: params.position })
+
+                return codeWhispererService
+                    .generateSuggestions({ fileContext, maxResults })
+                    .then(mergeSuggestionsWithContext({ fileContext, range: selectionRange }))
+                    .then(suggestions => filterReferences(suggestions, includeSuggestionsWithCodeReferences))
+                    .then(items => ({ items }))
+                    .catch(err => {
+                        logging.log(`onInlineCompletion failure: ${err}`)
+                        return EMPTY_RESULT
+                    })
+            })
         }
-
-        lsp.extensions.onInlineCompletionWithReferences(onInlineCompletionHandler)
 
         const updateConfiguration = async () =>
             lsp.workspace
@@ -155,6 +127,7 @@ export const CodewhispererServerFactory =
                 })
                 .catch(reason => logging.log(`Error in GetConfiguration: ${reason}`))
 
+        lsp.extensions.onInlineCompletionWithReferences(onInlineCompletionHandler)
         lsp.onInitialized(updateConfiguration)
         lsp.didChangeConfiguration(updateConfiguration)
 
