@@ -7,6 +7,7 @@ import {
 } from '@aws-placeholder/aws-language-server-runtimes/out/features/lsp/inline-completions/protocolExtensions'
 import { CancellationToken, InlineCompletionTriggerKind, Range } from 'vscode-languageserver'
 import { Position, TextDocument } from 'vscode-languageserver-textdocument'
+import { autoTrigger, triggerType } from './autoTrigger'
 import {
     CodeWhispererServiceBase,
     CodeWhispererServiceIAM,
@@ -100,6 +101,25 @@ export const CodewhispererServerFactory =
                 const maxResults = params.context.triggerKind == InlineCompletionTriggerKind.Automatic ? 1 : 5
                 const selectionRange = params.context.selectedCompletionInfo?.range
                 const fileContext = getFileContext({ textDocument, inferredLanguageId, position: params.position })
+
+                // TODO: Can we get this derived from a keyboard event in the future?
+                // This picks the last non-whitespace character, if any, before the cursor
+                const char = fileContext.leftFileContent.trim().at(-1) ?? ''
+
+                if (
+                    params.context.triggerKind === InlineCompletionTriggerKind.Automatic &&
+                    !autoTrigger({
+                        fileContext, // The left/right file context and programming language
+                        lineNum: params.position.line, // the line number of the invocation, this is the line of the cursor
+                        char, // Add the character just inserted, if any, before the invication position
+                        ide: '', // TODO: Fetch the IDE in a platform-agnostic way (from the initialize request?)
+                        os: '', // TODO: We should get this in a platform-agnostic way (i.e., compatible with the browser)
+                        previousDecision: '', // TODO: Once we implement telemetry integration
+                        triggerType: triggerType(fileContext), // The 2 trigger types influencing the Auto-Trigger are SpecialCharacter and Enter
+                    })
+                ) {
+                    return EMPTY_RESULT
+                }
 
                 return codeWhispererService
                     .generateSuggestions({ fileContext, maxResults })
