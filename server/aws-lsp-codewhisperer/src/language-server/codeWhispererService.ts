@@ -22,6 +22,7 @@ import CodeWhispererTokenClient = require('../client/token/codewhispererclient')
 // Right now the only difference between the token client and the IAM client for codewhsiperer is the difference in function name
 // This abstract class can grow in the future to account for any additional changes across the clients
 export abstract class CodeWhispererServiceBase {
+    public shareCodeWhispererContentWithAWS: boolean = true
     abstract client: CodeWhispererSigv4Client | CodeWhispererTokenClient
 
     abstract generateSuggestions(request: GenerateSuggestionsRequest): Promise<Suggestion[]>
@@ -40,6 +41,15 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
             credentialProvider: new CredentialProviderChain([
                 () => credentialsProvider.getCredentials('iam') as Credentials,
             ]),
+            onRequestSetup: [
+                req => {
+                    req.on('build', ({ httpRequest }) => {
+                        if (!this.shareCodeWhispererContentWithAWS) {
+                            httpRequest.headers['x-amzn-codewhisperer-optout'] = ''
+                        }
+                    })
+                },
+            ],
         }
         this.client = createCodeWhispererSigv4Client(options)
     }
@@ -79,6 +89,9 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
                     req.on('build', ({ httpRequest }) => {
                         const creds = credentialsProvider.getCredentials('bearer') as BearerCredentials
                         httpRequest.headers['Authorization'] = `Bearer ${creds.token}`
+                        if (!this.shareCodeWhispererContentWithAWS) {
+                            httpRequest.headers['x-amzn-codewhisperer-optout'] = ''
+                        }
                     })
                 },
             ],
