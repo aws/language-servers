@@ -88,7 +88,7 @@ class HelloWorld
                 {
                     textDocument: { uri: SOME_FILE.uri },
                     position: { line: 0, character: 0 },
-                    context: { triggerKind: InlineCompletionTriggerKind.Automatic },
+                    context: { triggerKind: InlineCompletionTriggerKind.Invoked },
                 },
                 CancellationToken.None
             )
@@ -103,7 +103,7 @@ class HelloWorld
                     leftFileContent: '',
                     rightFileContent: HELLO_WORLD_IN_CSHARP,
                 },
-                maxResults: 1,
+                maxResults: 5,
             }
             sinon.assert.calledOnceWithExactly(service.generateSuggestions, expectedGenerateSuggestionsRequest)
         })
@@ -118,7 +118,7 @@ class HelloWorld
                 {
                     textDocument: { uri: SOME_FILE.uri },
                     position: { line: cutOffLine, character: 0 },
-                    context: { triggerKind: InlineCompletionTriggerKind.Automatic },
+                    context: { triggerKind: InlineCompletionTriggerKind.Invoked },
                 },
                 CancellationToken.None
             )
@@ -133,7 +133,7 @@ class HelloWorld
                     leftFileContent: firstTwoLines,
                     rightFileContent: remainingLines,
                 },
-                maxResults: 1,
+                maxResults: 5,
             }
             sinon.assert.calledOnceWithExactly(service.generateSuggestions, expectedGenerateSuggestionsRequest)
         })
@@ -143,7 +143,7 @@ class HelloWorld
                 {
                     textDocument: { uri: SOME_FILE_WITH_ALT_CASED_LANGUAGE_ID.uri },
                     position: { line: 0, character: 0 },
-                    context: { triggerKind: InlineCompletionTriggerKind.Automatic },
+                    context: { triggerKind: InlineCompletionTriggerKind.Invoked },
                 },
                 CancellationToken.None
             )
@@ -158,7 +158,7 @@ class HelloWorld
                     leftFileContent: '',
                     rightFileContent: HELLO_WORLD_IN_CSHARP,
                 },
-                maxResults: 1,
+                maxResults: 5,
             }
             sinon.assert.calledOnceWithExactly(service.generateSuggestions, expectedGenerateSuggestionsRequest)
         })
@@ -168,7 +168,7 @@ class HelloWorld
                 {
                     textDocument: { uri: SOME_CLOSED_FILE.uri },
                     position: { line: 0, character: 0 },
-                    context: { triggerKind: InlineCompletionTriggerKind.Automatic },
+                    context: { triggerKind: InlineCompletionTriggerKind.Invoked },
                 },
                 CancellationToken.None
             )
@@ -185,7 +185,7 @@ class HelloWorld
                 {
                     textDocument: { uri: SOME_UNSUPPORTED_FILE.uri },
                     position: { line: 0, character: 0 },
-                    context: { triggerKind: InlineCompletionTriggerKind.Automatic },
+                    context: { triggerKind: InlineCompletionTriggerKind.Invoked },
                 },
                 CancellationToken.None
             )
@@ -202,7 +202,7 @@ class HelloWorld
                 {
                     textDocument: { uri: SOME_FILE_WITH_EXTENSION.uri },
                     position: { line: 0, character: 0 },
-                    context: { triggerKind: InlineCompletionTriggerKind.Automatic },
+                    context: { triggerKind: InlineCompletionTriggerKind.Invoked },
                 },
                 CancellationToken.None
             )
@@ -217,7 +217,7 @@ class HelloWorld
                     leftFileContent: '',
                     rightFileContent: HELLO_WORLD_IN_CSHARP,
                 },
-                maxResults: 1,
+                maxResults: 5,
             }
 
             // Check the service was called with the right parameters
@@ -235,7 +235,7 @@ class HelloWorld
                 {
                     textDocument: { uri: SOME_FILE.uri },
                     position: { line: 0, character: 0 },
-                    context: { triggerKind: InlineCompletionTriggerKind.Automatic },
+                    context: { triggerKind: InlineCompletionTriggerKind.Invoked },
                 },
                 CancellationToken.None
             )
@@ -266,7 +266,7 @@ class HelloWorld
                 {
                     textDocument: { uri: MY_FILE.uri },
                     position: { line: cutOffLine, character: 0 },
-                    context: { triggerKind: InlineCompletionTriggerKind.Automatic },
+                    context: { triggerKind: InlineCompletionTriggerKind.Invoked },
                 },
                 CancellationToken.None
             )
@@ -281,7 +281,7 @@ class HelloWorld
                     leftFileContent: leftContext,
                     rightFileContent: rightContext,
                 },
-                maxResults: 1,
+                maxResults: 5,
             }
             sinon.assert.calledOnceWithExactly(service.generateSuggestions, expectedGenerateSuggestionsRequest)
         })
@@ -303,7 +303,7 @@ class HelloWorld
                 {
                     textDocument: { uri: SOME_SINGLE_LINE_FILE.uri },
                     position: { line: 0, character: 0 },
-                    context: { triggerKind: InlineCompletionTriggerKind.Automatic },
+                    context: { triggerKind: InlineCompletionTriggerKind.Invoked },
                 },
                 CancellationToken.None
             )
@@ -321,7 +321,7 @@ class HelloWorld
                 {
                     textDocument: { uri: SOME_FILE.uri },
                     position: { line: 0, character: 0 },
-                    context: { triggerKind: InlineCompletionTriggerKind.Automatic },
+                    context: { triggerKind: InlineCompletionTriggerKind.Invoked },
                 },
                 CancellationToken.None
             )
@@ -435,7 +435,7 @@ class HelloWorld
                 {
                     textDocument: { uri: SOME_FILE.uri },
                     position: { line: 0, character: 0 },
-                    context: { triggerKind: InlineCompletionTriggerKind.Automatic },
+                    context: { triggerKind: InlineCompletionTriggerKind.Invoked },
                 },
                 CancellationToken.None
             )
@@ -451,7 +451,7 @@ class HelloWorld
                 {
                     textDocument: { uri: SOME_FILE.uri },
                     position: { line: 0, character: 0 },
-                    context: { triggerKind: InlineCompletionTriggerKind.Automatic },
+                    context: { triggerKind: InlineCompletionTriggerKind.Invoked },
                 },
                 CancellationToken.None
             )
@@ -469,7 +469,7 @@ class HelloWorld
                 {
                     textDocument: { uri: SOME_FILE.uri },
                     position: { line: 0, character: 0 },
-                    context: { triggerKind: InlineCompletionTriggerKind.Automatic },
+                    context: { triggerKind: InlineCompletionTriggerKind.Invoked },
                 },
                 CancellationToken.None
             )
@@ -487,7 +487,7 @@ class HelloWorld
                 {
                     textDocument: { uri: SOME_FILE.uri },
                     position: { line: 0, character: 0 },
-                    context: { triggerKind: InlineCompletionTriggerKind.Automatic },
+                    context: { triggerKind: InlineCompletionTriggerKind.Invoked },
                 },
                 CancellationToken.None
             )
@@ -511,7 +511,7 @@ class HelloWorld
                 {
                     textDocument: { uri: SOME_FILE.uri },
                     position: { line: 0, character: 0 },
-                    context: { triggerKind: InlineCompletionTriggerKind.Automatic },
+                    context: { triggerKind: InlineCompletionTriggerKind.Invoked },
                 },
                 CancellationToken.None
             )
@@ -534,7 +534,7 @@ class HelloWorld
                 {
                     textDocument: { uri: SOME_FILE.uri },
                     position: { line: 0, character: 0 },
-                    context: { triggerKind: InlineCompletionTriggerKind.Automatic },
+                    context: { triggerKind: InlineCompletionTriggerKind.Invoked },
                 },
                 CancellationToken.None
             )
@@ -557,7 +557,7 @@ class HelloWorld
                 {
                     textDocument: { uri: SOME_FILE.uri },
                     position: { line: 0, character: 0 },
-                    context: { triggerKind: InlineCompletionTriggerKind.Automatic },
+                    context: { triggerKind: InlineCompletionTriggerKind.Invoked },
                 },
                 CancellationToken.None
             )
@@ -608,12 +608,99 @@ class HelloWorld
                 {
                     textDocument: { uri: MY_FILE.uri },
                     position: { line: cutOffLine, character: 0 },
-                    context: { triggerKind: InlineCompletionTriggerKind.Automatic },
+                    context: { triggerKind: InlineCompletionTriggerKind.Invoked },
                 },
                 CancellationToken.None
             )
 
             assert.deepEqual(result, EXPECTED_RESULT)
+        })
+    })
+
+    describe('With auto-triggers', async () => {
+        const HELLO_WORLD_IN_CSHARP = `class HelloWorld
+{
+    static void Main()
+    {
+        Console.WriteLine("Hello World!");
+    }
+}
+`
+        const AUTO_TRIGGER_POSITION = { line: 2, character: 21 }
+        const LEFT_FILE_CONTEXT = HELLO_WORLD_IN_CSHARP.substring(0, 40)
+        const RIGHT_FILE_CONTEXT = HELLO_WORLD_IN_CSHARP.substring(40)
+
+        const SOME_FILE = TextDocument.create('file:///test.cs', 'csharp', 1, HELLO_WORLD_IN_CSHARP)
+        const EXPECTED_SUGGESTION: Suggestion[] = [{ content: 'recommendation' }]
+        const EXPECTED_RESULT = {
+            items: [{ insertText: EXPECTED_SUGGESTION[0].content, range: undefined, references: undefined }],
+        }
+
+        const EMPTY_RESULT = { items: [] }
+
+        let features: TestFeatures
+        let server: Server
+        // TODO move more of the service code out of the stub and into the testable realm
+        // See: https://aws.amazon.com/blogs/developer/mocking-modular-aws-sdk-for-javascript-v3-in-unit-tests/
+        // for examples on how to mock just the SDK client
+        let service: StubbedInstance<CodeWhispererServiceBase>
+
+        beforeEach(async () => {
+            // Set up the server with a mock service, returning predefined recommendations
+            service = stubInterface<CodeWhispererServiceBase>()
+            service.generateSuggestions.returns(Promise.resolve(EXPECTED_SUGGESTION))
+
+            server = CodewhispererServerFactory(_auth => service)
+
+            // Initialize the features, but don't start server yet
+            features = new TestFeatures()
+
+            // Return no specific configuration for CodeWhisperer
+            features.lsp.workspace.getConfiguration.returns(Promise.resolve({}))
+
+            // Start the server and open a document
+            await features.start(server)
+
+            features.openDocument(SOME_FILE)
+        })
+
+        it('shoud return recommendations on an above-threshold auto-trigger position', async () => {
+            const result = await features.doInlineCompletionWithReferences(
+                {
+                    textDocument: { uri: SOME_FILE.uri },
+                    position: AUTO_TRIGGER_POSITION,
+                    context: { triggerKind: InlineCompletionTriggerKind.Automatic },
+                },
+                CancellationToken.None
+            )
+
+            // Check the completion result
+            assert.deepEqual(result, EXPECTED_RESULT)
+
+            const expectedGenerateSuggestionsRequest = {
+                fileContext: {
+                    filename: SOME_FILE.uri,
+                    programmingLanguage: { languageName: 'csharp' },
+                    leftFileContent: LEFT_FILE_CONTEXT,
+                    rightFileContent: RIGHT_FILE_CONTEXT,
+                },
+                maxResults: 1,
+            }
+            sinon.assert.calledOnceWithExactly(service.generateSuggestions, expectedGenerateSuggestionsRequest)
+        })
+
+        it('shoud not return recommendations on a below-threshold auto-trigger position', async () => {
+            const result = await features.doInlineCompletionWithReferences(
+                {
+                    textDocument: { uri: SOME_FILE.uri },
+                    position: { line: 0, character: 0 },
+                    context: { triggerKind: InlineCompletionTriggerKind.Automatic },
+                },
+                CancellationToken.None
+            )
+
+            // Check the completion result
+            assert.deepEqual(result, EMPTY_RESULT)
         })
     })
 })
