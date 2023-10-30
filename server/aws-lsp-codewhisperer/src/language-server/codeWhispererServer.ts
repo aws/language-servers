@@ -124,6 +124,13 @@ export const CodewhispererServerFactory =
                         includeSuggestionsWithCodeReferences = true
                         logging.log('Configuration updated to include suggestions with code references')
                     }
+                    if (config && config['shareCodeWhispererContentWithAWS'] === false) {
+                        codeWhispererService.shareCodeWhispererContentWithAWS = false
+                        logging.log('Configuration updated to not share code whisperer content with AWS')
+                    } else {
+                        codeWhispererService.shareCodeWhispererContentWithAWS = true
+                        logging.log('Configuration updated to share code whisperer content with AWS')
+                    }
                 })
                 .catch(reason => logging.log(`Error in GetConfiguration: ${reason}`))
 

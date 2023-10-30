@@ -327,6 +327,34 @@ class HelloWorld
             )
             assert.deepEqual(result, EXPECTED_RESULT)
         })
+
+        // TODO: mock http request and verify the headers are passed
+        // or spawn an http server and pass it as an endpoint to the sdk client,
+        // mock responses and verify that correct headers are receieved on the server side.
+        // Currently the suite just checks whether the boolean is passed to codeWhispererService
+        describe('Opting out of sending data to CodeWhisperer', () => {
+            it('should send opt-out header when the setting is disabled', async () => {
+                features.lsp.workspace.getConfiguration.returns(
+                    Promise.resolve({ shareCodeWhispererContentWithAWS: false })
+                )
+                await features.start(server)
+
+                assert(service.shareCodeWhispererContentWithAWS === false)
+            })
+
+            it('should not send opt-out header when the setting is enabled after startup', async () => {
+                features.lsp.workspace.getConfiguration.returns(
+                    Promise.resolve({ shareCodeWhispererContentWithAWS: false })
+                )
+                await features.start(server)
+                features.lsp.workspace.getConfiguration.returns(
+                    Promise.resolve({ shareCodeWhispererContentWithAWS: true })
+                )
+                await features.openDocument(SOME_FILE).doChangeConfiguration()
+
+                assert(service.shareCodeWhispererContentWithAWS === true)
+            })
+        })
     })
     describe('Recommendations With References', () => {
         const HELLO_WORLD_IN_CSHARP = `
