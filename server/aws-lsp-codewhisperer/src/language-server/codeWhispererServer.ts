@@ -7,7 +7,7 @@ import {
 } from '@aws-placeholder/aws-language-server-runtimes/out/features/lsp/inline-completions/protocolExtensions'
 import { CancellationToken, InlineCompletionTriggerKind, Range } from 'vscode-languageserver'
 import { Position, TextDocument } from 'vscode-languageserver-textdocument'
-import { autoTrigger, triggerType } from './autoTrigger'
+import { autoTrigger, triggerType } from './auto-trigger/autoTrigger'
 import {
     CodeWhispererServiceBase,
     CodeWhispererServiceIAM,
@@ -115,7 +115,7 @@ export const CodewhispererServerFactory =
                         ide: '', // TODO: Fetch the IDE in a platform-agnostic way (from the initialize request?)
                         os: '', // TODO: We should get this in a platform-agnostic way (i.e., compatible with the browser)
                         previousDecision: '', // TODO: Once we implement telemetry integration
-                        triggerType: triggerType(fileContext), // The 2 trigger types influencing the Auto-Trigger are SpecialCharacter and Enter
+                        triggerType: triggerType(fileContext), // The 2 trigger types currently influencing the Auto-Trigger are SpecialCharacter and Enter
                     })
                 ) {
                     return EMPTY_RESULT
