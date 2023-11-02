@@ -26,6 +26,7 @@ export class CodeWhispererSession {
     autoTriggerType?: CodewhispererAutomatedTriggerType
     language: string
     requestContext: GenerateSuggestionsRequest
+    lastInvocationTime?: number
 
     constructor(data: SessionData) {
         this.id = uuidv4()

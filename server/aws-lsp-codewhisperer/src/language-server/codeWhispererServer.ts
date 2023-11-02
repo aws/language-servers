@@ -47,8 +47,7 @@ const getFileContext = (params: { textDocument: TextDocument; position: Position
 const processServiceInvocationResponse = (
     session: CodeWhispererSession,
     telemetry: Telemetry,
-    response: GenerateSuggestionsResponse,
-    startTime: number
+    response: GenerateSuggestionsResponse
 ): Suggestion[] => {
     // 1. Update Session information with correct response
     // 2. Emit service invocation Telemetry event
@@ -59,7 +58,7 @@ const processServiceInvocationResponse = (
     session.suggestions.push(...suggestions)
 
     // Build response context and emit Service Invocation telemetry event
-    const duration = new Date().getTime() - startTime
+    const duration = session.lastInvocationTime ? new Date().getTime() - session.lastInvocationTime : 0
     const data: CodeWhispererServiceInvocationEvent = {
         codewhispererRequestId: responseContext.requestId,
         codewhispererSessionId: responseContext.codewhispererSessionId,
@@ -83,15 +82,10 @@ const processServiceInvocationResponse = (
     return suggestions
 }
 
-const emitServiceInvocationFailure = (
-    error: Error,
-    session: CodeWhispererSession,
-    telemetry: Telemetry,
-    startTime: number
-) => {
+const emitServiceInvocationFailure = (error: Error, session: CodeWhispererSession, telemetry: Telemetry) => {
     const errorMessage = error ? String(error) : 'unknown'
     const reason = `CodeWhisperer Invocation Exception: ${errorMessage}`
-    const duration = new Date().getTime() - startTime
+    const duration = session.lastInvocationTime ? new Date().getTime() - session.lastInvocationTime : 0
 
     // Build response context and emit Service Invocation telemetry event
     const data: CodeWhispererServiceInvocationEvent = {
@@ -224,13 +218,13 @@ export const CodewhispererServerFactory =
                 })
 
                 // Add timers to the call
-                let startTime = new Date().getTime()
+                session.lastInvocationTime = new Date().getTime()
 
                 console.log('Call generateSuggestions', requestContext)
                 return codeWhispererService
                     .generateSuggestions(requestContext)
-                    .catch(error => emitServiceInvocationFailure(error, session, telemetry, startTime))
-                    .then(response => processServiceInvocationResponse(session, telemetry, response, startTime))
+                    .catch(error => emitServiceInvocationFailure(error, session, telemetry))
+                    .then(response => processServiceInvocationResponse(session, telemetry, response))
                     .then(mergeSuggestionsWithContext({ fileContext, range: selectionRange }))
                     .then(suggestions => filterReferences(suggestions, includeSuggestionsWithCodeReferences))
                     .then(items => ({ items }))
