@@ -5,7 +5,7 @@ import { CancellationToken, InlineCompletionTriggerKind } from 'vscode-languages
 import { TextDocument } from 'vscode-languageserver-textdocument'
 import { TestFeatures } from './TestFeatures'
 import { CodewhispererServerFactory } from './codeWhispererServer'
-import { CodeWhispererServiceBase, Suggestion } from './codeWhispererService'
+import { CodeWhispererServiceBase, ResponseContext, Suggestion } from './codeWhispererService'
 
 describe('CodeWhisperer Server', () => {
     describe('Recommendations', () => {
@@ -46,6 +46,10 @@ class HelloWorld
         )
 
         const EXPECTED_SUGGESTION: Suggestion[] = [{ content: 'recommendation' }]
+        const EXPECTED_RESPONSE_CONTEXT: ResponseContext = {
+            requestId: 'cwspr-request-id',
+            codewhispererSessionId: 'cwspr-session-id',
+        }
         const EXPECTED_RESULT = {
             items: [{ insertText: EXPECTED_SUGGESTION[0].content, range: undefined, references: undefined }],
         }
@@ -62,7 +66,12 @@ class HelloWorld
         beforeEach(async () => {
             // Set up the server with a mock service, returning predefined recommendations
             service = stubInterface<CodeWhispererServiceBase>()
-            service.generateSuggestions.returns(Promise.resolve(EXPECTED_SUGGESTION))
+            service.generateSuggestions.returns(
+                Promise.resolve({
+                    suggestions: EXPECTED_SUGGESTION,
+                    responseContext: EXPECTED_RESPONSE_CONTEXT,
+                })
+            )
 
             server = CodewhispererServerFactory(_auth => service)
 
@@ -104,6 +113,7 @@ class HelloWorld
                     rightFileContent: HELLO_WORLD_IN_CSHARP,
                 },
                 maxResults: 5,
+                nextToken: undefined,
             }
             sinon.assert.calledOnceWithExactly(service.generateSuggestions, expectedGenerateSuggestionsRequest)
         })
@@ -134,6 +144,7 @@ class HelloWorld
                     rightFileContent: remainingLines,
                 },
                 maxResults: 5,
+                nextToken: undefined,
             }
             sinon.assert.calledOnceWithExactly(service.generateSuggestions, expectedGenerateSuggestionsRequest)
         })
@@ -159,6 +170,7 @@ class HelloWorld
                     rightFileContent: HELLO_WORLD_IN_CSHARP,
                 },
                 maxResults: 5,
+                nextToken: undefined,
             }
             sinon.assert.calledOnceWithExactly(service.generateSuggestions, expectedGenerateSuggestionsRequest)
         })
@@ -218,6 +230,7 @@ class HelloWorld
                     rightFileContent: HELLO_WORLD_IN_CSHARP,
                 },
                 maxResults: 5,
+                nextToken: undefined,
             }
 
             // Check the service was called with the right parameters
@@ -228,7 +241,12 @@ class HelloWorld
         it('should not show recommendation when the recommendation is equal to right context ', async () => {
             // The suggestion returned by generateSuggestions will be equal to the contents of the file
             const EXPECTED_SUGGESTION: Suggestion[] = [{ content: HELLO_WORLD_IN_CSHARP }]
-            service.generateSuggestions.returns(Promise.resolve(EXPECTED_SUGGESTION))
+            service.generateSuggestions.returns(
+                Promise.resolve({
+                    suggestions: EXPECTED_SUGGESTION,
+                    responseContext: EXPECTED_RESPONSE_CONTEXT,
+                })
+            )
             const EXPECTED_RESULT = { items: [{ insertText: '', range: undefined, references: undefined }] }
 
             const result = await features.doInlineCompletionWithReferences(
@@ -255,7 +273,12 @@ class HelloWorld
             features.openDocument(MY_FILE)
 
             const EXPECTED_SUGGESTION: Suggestion[] = [{ content: recommendation }]
-            service.generateSuggestions.returns(Promise.resolve(EXPECTED_SUGGESTION))
+            service.generateSuggestions.returns(
+                Promise.resolve({
+                    suggestions: EXPECTED_SUGGESTION,
+                    responseContext: EXPECTED_RESPONSE_CONTEXT,
+                })
+            )
             // Expected result is the deleted line + new line + 4 spaces
             // Newline and the 4 spaces get lost when we do the `split` so we add them back to expected result
             const EXPECTED_RESULT = {
@@ -282,13 +305,19 @@ class HelloWorld
                     rightFileContent: rightContext,
                 },
                 maxResults: 5,
+                nextToken: undefined,
             }
             sinon.assert.calledOnceWithExactly(service.generateSuggestions, expectedGenerateSuggestionsRequest)
         })
 
         it('should only show the part of the recommendation that does not overlap with the right context', async () => {
             const EXPECTED_SUGGESTION: Suggestion[] = [{ content: HELLO_WORLD_LINE }]
-            service.generateSuggestions.returns(Promise.resolve(EXPECTED_SUGGESTION))
+            service.generateSuggestions.returns(
+                Promise.resolve({
+                    suggestions: EXPECTED_SUGGESTION,
+                    responseContext: EXPECTED_RESPONSE_CONTEXT,
+                })
+            )
             const EXPECTED_RESULT = {
                 items: [
                     {
@@ -312,7 +341,12 @@ class HelloWorld
 
         it('should show full recommendation when the right context does not match recommendation ', async () => {
             const EXPECTED_SUGGESTION: Suggestion[] = [{ content: 'Something something' }]
-            service.generateSuggestions.returns(Promise.resolve(EXPECTED_SUGGESTION))
+            service.generateSuggestions.returns(
+                Promise.resolve({
+                    suggestions: EXPECTED_SUGGESTION,
+                    responseContext: EXPECTED_RESPONSE_CONTEXT,
+                })
+            )
             const EXPECTED_RESULT = {
                 items: [{ insertText: EXPECTED_SUGGESTION[0].content, range: undefined, references: undefined }],
             }
@@ -377,6 +411,10 @@ class HelloWorld
             { content: 'recommendation without reference' },
             { content: 'recommendation with reference', references: [EXPECTED_REFERENCE] },
         ]
+        const EXPECTED_RESPONSE_CONTEXT: ResponseContext = {
+            requestId: 'cwspr-request-id',
+            codewhispererSessionId: 'cwspr-session-id',
+        }
         const EXPECTED_RESULT_WITH_REFERENCES = {
             items: [
                 {
@@ -421,7 +459,12 @@ class HelloWorld
         beforeEach(() => {
             // Set up the server with a mock service, returning predefined recommendations
             service = stubInterface<CodeWhispererServiceBase>()
-            service.generateSuggestions.returns(Promise.resolve(EXPECTED_SUGGESTION))
+            service.generateSuggestions.returns(
+                Promise.resolve({
+                    suggestions: EXPECTED_SUGGESTION,
+                    responseContext: EXPECTED_RESPONSE_CONTEXT,
+                })
+            )
             server = CodewhispererServerFactory(_auth => service)
 
             // Initialize the features, but don't start server yet
@@ -551,7 +594,12 @@ class HelloWorld
             const EXPECTED_RESULT_WITH_REMOVED_REFERENCES = {
                 items: [{ insertText: '', range: undefined, references: undefined }],
             }
-            service.generateSuggestions.returns(Promise.resolve(EXPECTED_SUGGESTION))
+            service.generateSuggestions.returns(
+                Promise.resolve({
+                    suggestions: EXPECTED_SUGGESTION,
+                    responseContext: EXPECTED_RESPONSE_CONTEXT,
+                })
+            )
 
             const result = await features.openDocument(SOME_FILE).doInlineCompletionWithReferences(
                 {
@@ -602,7 +650,12 @@ class HelloWorld
                     },
                 ],
             }
-            service.generateSuggestions.returns(Promise.resolve(EXPECTED_SUGGESTION))
+            service.generateSuggestions.returns(
+                Promise.resolve({
+                    suggestions: EXPECTED_SUGGESTION,
+                    responseContext: EXPECTED_RESPONSE_CONTEXT,
+                })
+            )
 
             const result = await features.openDocument(MY_FILE).doInlineCompletionWithReferences(
                 {
@@ -632,6 +685,10 @@ class HelloWorld
 
         const SOME_FILE = TextDocument.create('file:///test.cs', 'csharp', 1, HELLO_WORLD_IN_CSHARP)
         const EXPECTED_SUGGESTION: Suggestion[] = [{ content: 'recommendation' }]
+        const EXPECTED_RESPONSE_CONTEXT: ResponseContext = {
+            requestId: 'cwspr-request-id',
+            codewhispererSessionId: 'cwspr-session-id',
+        }
         const EXPECTED_RESULT = {
             items: [{ insertText: EXPECTED_SUGGESTION[0].content, range: undefined, references: undefined }],
         }
@@ -648,7 +705,10 @@ class HelloWorld
         beforeEach(async () => {
             // Set up the server with a mock service, returning predefined recommendations
             service = stubInterface<CodeWhispererServiceBase>()
-            service.generateSuggestions.returns(Promise.resolve(EXPECTED_SUGGESTION))
+            Promise.resolve({
+                suggestions: EXPECTED_SUGGESTION,
+                responseContext: EXPECTED_RESPONSE_CONTEXT,
+            })
 
             server = CodewhispererServerFactory(_auth => service)
 

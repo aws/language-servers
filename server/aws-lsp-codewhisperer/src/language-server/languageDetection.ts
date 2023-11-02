@@ -15,9 +15,9 @@ export const getSupportedLanguageId = (textDocument: TextDocument | undefined): 
         return
     }
 
-    const langaugeId = getCodeWhispererLanguageIdByTextDocumentLanguageId(textDocument.languageId)
-    if (langaugeId !== undefined) {
-        return langaugeId
+    const languageId = getCodeWhispererLanguageIdByTextDocumentLanguageId(textDocument.languageId)
+    if (languageId !== undefined) {
+        return languageId
     }
 
     for (const extension in supportedExtensions) {

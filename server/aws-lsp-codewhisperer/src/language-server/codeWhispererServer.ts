@@ -1,5 +1,5 @@
 import { Server } from '@aws-placeholder/aws-language-server-runtimes'
-import { CredentialsProvider } from '@aws-placeholder/aws-language-server-runtimes/out/features'
+import { CredentialsProvider, Telemetry } from '@aws-placeholder/aws-language-server-runtimes/out/features'
 import {
     InlineCompletionItemWithReferences,
     InlineCompletionListWithReferences,
@@ -12,10 +12,13 @@ import {
     CodeWhispererServiceBase,
     CodeWhispererServiceIAM,
     CodeWhispererServiceToken,
+    GenerateSuggestionsResponse,
     Suggestion,
 } from './codeWhispererService'
 import { getSupportedLanguageId } from './languageDetection'
 import { FileContext, truncateOverlapWithRightContext } from './mergeRightUtils'
+import { CodeWhispererSession, SessionManager } from './session/sessionManager'
+import { CodeWhispererServiceInvocationEvent } from './telemetry/types'
 
 const EMPTY_RESULT = { items: [] }
 
@@ -38,6 +41,82 @@ const getFileContext = (params: { textDocument: TextDocument; position: Position
         leftFileContent: left,
         rightFileContent: right,
     }
+}
+
+// Update session and send successful Service Invocation Telemetry
+const processServiceInvocationResponse = (
+    session: CodeWhispererSession,
+    telemetry: Telemetry,
+    response: GenerateSuggestionsResponse,
+    startTime: number
+): Suggestion[] => {
+    // 1. Update Session information with correct response
+    // 2. Emit service invocation Telemetry event
+    // 3. Pass suggestions further
+    const { suggestions, responseContext } = response
+
+    session.requestContext.nextToken = responseContext.nextToken
+    session.suggestions.push(...suggestions)
+
+    // Build response context and emit Service Invocation telemetry event
+    const duration = new Date().getTime() - startTime
+    const data: CodeWhispererServiceInvocationEvent = {
+        codewhispererRequestId: responseContext.requestId,
+        codewhispererSessionId: responseContext.codewhispererSessionId,
+        codewhispererLastSuggestionIndex: session.lastRecommendationIndex,
+        codewhispererTriggerType: session.triggerType,
+        codewhispererAutomatedTriggerType: session.autoTriggerType,
+        result: 'Succeeded',
+        duration: duration,
+        codewhispererLineNumber: session.startPosition.line,
+        codewhispererCursorOffset: session.startPosition.character,
+        codewhispererLanguage: session.language,
+        // TODO: Check if CodewhispererGettingStartedTask is necessary for LSP?
+        codewhispererGettingStartedTask: undefined,
+        credentialStartUrl: 'TODO: get the value from client',
+    }
+    telemetry.emit({
+        name: 'ServiceInvocation',
+        data,
+    })
+
+    return suggestions
+}
+
+const emitServiceInvocationFailure = (
+    error: Error,
+    session: CodeWhispererSession,
+    telemetry: Telemetry,
+    startTime: number
+) => {
+    const errorMessage = error ? String(error) : 'unknown'
+    const reason = `CodeWhisperer Invocation Exception: ${errorMessage}`
+    const duration = new Date().getTime() - startTime
+
+    // Build response context and emit Service Invocation telemetry event
+    const data: CodeWhispererServiceInvocationEvent = {
+        codewhispererRequestId: undefined,
+        codewhispererSessionId: session.codewhispererSessionId || undefined,
+        codewhispererLastSuggestionIndex: session.lastRecommendationIndex,
+        codewhispererTriggerType: session.triggerType,
+        codewhispererAutomatedTriggerType: session.autoTriggerType,
+        result: 'Failed',
+        reason,
+        duration: duration,
+        codewhispererLineNumber: session.startPosition.line,
+        codewhispererCursorOffset: session.startPosition.character,
+        codewhispererLanguage: session.language,
+        // TODO: Check if CodewhispererGettingStartedTask is necessary for LSP?
+        codewhispererGettingStartedTask: undefined,
+        credentialStartUrl: 'TODO: get the value from client',
+    }
+    telemetry.emit({
+        name: 'ServiceInvocation',
+        data,
+    })
+
+    // Re-throw an error to handle in the default catch all handled below.
+    throw error
 }
 
 // Merge right context. Provided as partially applied function for easy map/flatmap-ing.
@@ -71,7 +150,8 @@ const filterReferences = (
 
 export const CodewhispererServerFactory =
     (service: (credentials: CredentialsProvider) => CodeWhispererServiceBase): Server =>
-    ({ credentialsProvider, lsp, workspace, logging }) => {
+    ({ credentialsProvider, lsp, workspace, telemetry, logging }) => {
+        const sessionManager = new SessionManager()
         const codeWhispererService = service(credentialsProvider)
 
         // Mutable state to track whether code with references should be included in
@@ -98,7 +178,10 @@ export const CodewhispererServerFactory =
                     return EMPTY_RESULT
                 }
 
+                // Build request context
                 const maxResults = params.context.triggerKind == InlineCompletionTriggerKind.Automatic ? 1 : 5
+                const codewhispererTriggerType =
+                    params.context.triggerKind == InlineCompletionTriggerKind.Automatic ? 'AutoTrigger' : 'OnDemand'
                 const selectionRange = params.context.selectedCompletionInfo?.range
                 const fileContext = getFileContext({ textDocument, inferredLanguageId, position: params.position })
 
@@ -121,13 +204,39 @@ export const CodewhispererServerFactory =
                     return EMPTY_RESULT
                 }
 
+                const requestContext = {
+                    fileContext,
+                    maxResults,
+                    // TODO: Get nextToken from session if exists
+                    nextToken: undefined,
+                }
+
+                // PoC: create new session on every incoming request,
+                // and store recommendation session context
+                const session = sessionManager.createSession({
+                    startPosition: params.position,
+                    triggerType: codewhispererTriggerType,
+                    language: fileContext.programmingLanguage.languageName,
+                    requestContext: requestContext,
+                    // TODO: set correct autoTriggerType when AutoTrigger feature implementation is completed
+                    // https://github.com/aws/aws-language-servers/pull/52
+                    autoTriggerType: codewhispererTriggerType === 'AutoTrigger' ? 'Unknown' : undefined,
+                })
+
+                // Add timers to the call
+                let startTime = new Date().getTime()
+
+                console.log('Call generateSuggestions', requestContext)
                 return codeWhispererService
-                    .generateSuggestions({ fileContext, maxResults })
+                    .generateSuggestions(requestContext)
+                    .catch(error => emitServiceInvocationFailure(error, session, telemetry, startTime))
+                    .then(response => processServiceInvocationResponse(session, telemetry, response, startTime))
                     .then(mergeSuggestionsWithContext({ fileContext, range: selectionRange }))
                     .then(suggestions => filterReferences(suggestions, includeSuggestionsWithCodeReferences))
                     .then(items => ({ items }))
                     .catch(err => {
                         logging.log(`onInlineCompletion failure: ${err}`)
+                        // Send failed service invocation event
                         return EMPTY_RESULT
                     })
             })
