@@ -2,7 +2,8 @@
     "extends": "../../tsconfig.packages.json",
     "compilerOptions": {
         "rootDir": "./src",
-        "outDir": "./out"
+        "outDir": "./out",
+        "resolveJsonModule": true
     },
-    "include": ["src"]
+    "include": ["src", "src/language-server/auto-trigger/coefficients.json"]
 }

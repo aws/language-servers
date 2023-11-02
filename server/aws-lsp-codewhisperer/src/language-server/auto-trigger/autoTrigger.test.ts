@@ -1,6 +1,6 @@
 import assert = require('assert')
+import { FileContext } from '../mergeRightUtils'
 import { triggerType } from './autoTrigger'
-import { FileContext } from './mergeRightUtils'
 
 describe('Auto Trigger', async () => {
     describe('Get Trigger Type', async () => {
