@@ -27,7 +27,7 @@ const isSpecialCharacter = (char: string) => ['(', '()', '[', '[]', '{', '{}', '
 
 // Two triggers are explicitly handled, SpecialCharacters and Enter. Everything else is expected to be a trigger
 // based on regular typing, and is considered a 'Classifier' trigger.
-type TriggerType = 'SpecialCharacters' | 'Enter' | 'Classifier'
+export type TriggerType = 'SpecialCharacters' | 'Enter' | 'Classifier'
 
 /**
  * Determine the trigger type based on the file context. Currently supports special cases for Special Characters and Enter keys,
@@ -39,7 +39,7 @@ type TriggerType = 'SpecialCharacters' | 'Enter' | 'Classifier'
  * @param fileContext The file with left and right context based on the invocation position
  * @returns The TriggerType
  */
-export const triggerType = (fileContext: FileContext): TriggerType => {
+export const getTriggerType = (fileContext: FileContext): TriggerType => {
     const trimmedLeftContext = fileContext.leftFileContent.trimEnd()
     if (isSpecialCharacter(trimmedLeftContext.at(-1) || '')) {
         return 'SpecialCharacters'

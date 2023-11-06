@@ -98,7 +98,7 @@
     "compounds": [
         {
             "name": "Launch as VSCode Extension + Debugging",
-            "configurations": ["BuildSpec Server", "Attach to AWS Documents Language Server"]
+            "configurations": ["CodeWhisperer Server", "Attach to AWS Documents Language Server"]
         }
     ]
 }
