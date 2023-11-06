@@ -19,7 +19,7 @@ import {
 import { CodewhispererLanguage, getSupportedLanguageId } from './languageDetection'
 import { FileContext, truncateOverlapWithRightContext } from './mergeRightUtils'
 import { CodeWhispererServiceInvocationEvent } from './telemetry/types'
-import { isAwsError } from './utils'
+import { getCompletionType, isAwsError } from './utils'
 
 interface InvocationContext {
     startTime: number
@@ -74,6 +74,7 @@ const emitServiceInvocationTelemetry =
             codewhispererRequestId: responseContext.requestId,
             codewhispererSessionId: responseContext.codewhispererSessionId,
             codewhispererLastSuggestionIndex: suggestions.length - 1,
+            codewhispererCompletionType: suggestions.length > 0 ? getCompletionType(suggestions[0]) : undefined,
             codewhispererTriggerType: invocationContext.triggerType,
             codewhispererAutomatedTriggerType: invocationContext.autoTriggerType,
             result: 'Succeeded',

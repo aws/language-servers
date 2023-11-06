@@ -855,6 +855,51 @@ class HelloWorld
                     codewhispererRequestId: 'cwspr-request-id',
                     codewhispererSessionId: 'cwspr-session-id',
                     codewhispererLastSuggestionIndex: 0,
+                    codewhispererCompletionType: 'Line',
+                    codewhispererTriggerType: 'OnDemand',
+                    codewhispererAutomatedTriggerType: undefined,
+                    result: 'Succeeded',
+                    duration: 0,
+                    codewhispererLineNumber: 0,
+                    codewhispererCursorOffset: 0,
+                    codewhispererLanguage: 'csharp',
+                    credentialStartUrl: '',
+                },
+            }
+            sinon.assert.calledOnceWithExactly(features.telemetry.emitMetric, expectedServiceInvocationMetric)
+        })
+
+        it('should emit Success ServiceInvocation telemetry on successful response with completionType block when first suggestion has new lines', async () => {
+            // The recommendation will be the contents of hello world starting from line 3 (static void Main)
+            const recommendation = ['multi', 'line', ' suggestion'].join('\n')
+            const EXPECTED_SUGGESTIONS = [
+                { content: recommendation },
+                { content: recommendation },
+                { content: recommendation },
+            ]
+            service.generateSuggestions.returns(
+                Promise.resolve({
+                    suggestions: EXPECTED_SUGGESTIONS,
+                    responseContext: EXPECTED_RESPONSE_CONTEXT,
+                })
+            )
+
+            await features.doInlineCompletionWithReferences(
+                {
+                    textDocument: { uri: SOME_FILE.uri },
+                    position: { line: 0, character: 0 },
+                    context: { triggerKind: InlineCompletionTriggerKind.Invoked },
+                },
+                CancellationToken.None
+            )
+
+            const expectedServiceInvocationMetric = {
+                name: 'ServiceInvocation',
+                data: {
+                    codewhispererRequestId: 'cwspr-request-id',
+                    codewhispererSessionId: 'cwspr-session-id',
+                    codewhispererLastSuggestionIndex: 2,
+                    codewhispererCompletionType: 'Block',
                     codewhispererTriggerType: 'OnDemand',
                     codewhispererAutomatedTriggerType: undefined,
                     result: 'Succeeded',

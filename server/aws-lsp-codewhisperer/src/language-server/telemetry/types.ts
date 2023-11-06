@@ -1,9 +1,12 @@
 import { CodewhispererLanguage } from '../languageDetection'
 
+export type CodewhispererCompletionType = 'Block' | 'Line'
+
 export interface CodeWhispererServiceInvocationEvent {
     codewhispererRequestId?: string
     codewhispererSessionId?: string
-    codewhispererLastSuggestionIndex: number
+    codewhispererLastSuggestionIndex?: number
+    codewhispererCompletionType?: CodewhispererCompletionType
     codewhispererTriggerType: string
     codewhispererAutomatedTriggerType?: string
     result: 'Succeeded' | 'Failed'
