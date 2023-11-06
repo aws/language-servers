@@ -870,7 +870,6 @@ class HelloWorld
         })
 
         it('should emit Success ServiceInvocation telemetry on successful response with completionType block when first suggestion has new lines', async () => {
-            // The recommendation will be the contents of hello world starting from line 3 (static void Main)
             const recommendation = ['multi', 'line', ' suggestion'].join('\n')
             const EXPECTED_SUGGESTIONS = [
                 { content: recommendation },

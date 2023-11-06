@@ -69,8 +69,6 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
         // add cancellation check
         // add error check
 
-        let results: Suggestion[] = []
-
         const response = await this.client.generateRecommendations(request).promise()
         const responseContext = {
             requestId: response?.$response?.requestId,
@@ -78,12 +76,8 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
             nextToken: response.nextToken,
         }
 
-        if (response.recommendations) {
-            results = response.recommendations
-        }
-
         return {
-            suggestions: results,
+            suggestions: response.recommendations as Suggestion[],
             responseContext,
         }
     }
@@ -119,8 +113,6 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         // add cancellation check
         // add error check
 
-        let results: Suggestion[] = []
-
         const response = await this.client.generateCompletions(request).promise()
         const responseContext = {
             requestId: response?.$response?.requestId,
@@ -128,12 +120,8 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
             nextToken: response.nextToken,
         }
 
-        if (response.completions) {
-            results = response.completions
-        }
-
         return {
-            suggestions: results,
+            suggestions: response.completions as Suggestion[],
             responseContext,
         }
     }

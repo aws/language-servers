@@ -68,7 +68,6 @@ const emitServiceInvocationTelemetry =
     (response: GenerateSuggestionsResponse): Suggestion[] => {
         const { suggestions, responseContext } = response
 
-        // Build response context and emit Service Invocation telemetry event
         const duration = invocationContext.startTime ? new Date().getTime() - invocationContext.startTime : 0
         const data: CodeWhispererServiceInvocationEvent = {
             codewhispererRequestId: responseContext.requestId,
@@ -100,7 +99,6 @@ const emitServiceInvocationFailure =
         const duration = invocationContext.startTime ? new Date().getTime() - invocationContext.startTime : 0
         const codewhispererRequestId = isAwsError(error) ? error.requestId : undefined
 
-        // Build response context and emit Service Invocation telemetry event
         const data: CodeWhispererServiceInvocationEvent = {
             codewhispererRequestId: codewhispererRequestId,
             codewhispererSessionId: undefined,
@@ -121,7 +119,7 @@ const emitServiceInvocationFailure =
             data,
         })
 
-        // Re-throw an error to handle in the default catch all handled below.
+        // Re-throw an error to handle in the default catch all handler.
         throw error
     }
 
@@ -231,7 +229,6 @@ export const CodewhispererServerFactory =
                     .then(items => ({ items }))
                     .catch(err => {
                         logging.log(`onInlineCompletion failure: ${err}`)
-                        // Send failed service invocation event
                         return EMPTY_RESULT
                     })
             })
