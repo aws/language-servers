@@ -1,6 +1,6 @@
 import assert = require('assert')
 import { FileContext } from '../mergeRightUtils'
-import { getTriggerType } from './autoTrigger'
+import { triggerType } from './autoTrigger'
 
 describe('Auto Trigger', async () => {
     describe('Get Trigger Type', async () => {
@@ -24,7 +24,7 @@ describe('Auto Trigger', async () => {
                     languageName: 'csharp',
                 },
             }
-            const trigger = getTriggerType(fileContext)
+            const trigger = triggerType(fileContext)
             assert.equal(trigger, 'SpecialCharacters')
         })
 
@@ -38,7 +38,7 @@ describe('Auto Trigger', async () => {
                     languageName: 'csharp',
                 },
             }
-            const trigger = getTriggerType(fileContext)
+            const trigger = triggerType(fileContext)
             assert.equal(trigger, 'SpecialCharacters')
         })
 
@@ -52,7 +52,7 @@ describe('Auto Trigger', async () => {
                     languageName: 'csharp',
                 },
             }
-            const trigger = getTriggerType(fileContext)
+            const trigger = triggerType(fileContext)
             assert.equal(trigger, 'Classifier')
         })
 
@@ -66,7 +66,7 @@ describe('Auto Trigger', async () => {
                     languageName: 'csharp',
                 },
             }
-            const trigger = getTriggerType(fileContext)
+            const trigger = triggerType(fileContext)
             assert.equal(trigger, 'Enter')
         })
 
@@ -79,7 +79,7 @@ describe('Auto Trigger', async () => {
                     languageName: 'csharp',
                 },
             }
-            const trigger = getTriggerType(fileContext)
+            const trigger = triggerType(fileContext)
             assert.equal(trigger, 'Classifier')
         })
     })

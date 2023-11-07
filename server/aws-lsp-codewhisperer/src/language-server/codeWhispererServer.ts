@@ -8,7 +8,12 @@ import {
 import { AWSError } from 'aws-sdk'
 import { CancellationToken, InlineCompletionTriggerKind, Range } from 'vscode-languageserver'
 import { Position, TextDocument } from 'vscode-languageserver-textdocument'
-import { TriggerType, autoTrigger, getTriggerType } from './auto-trigger/autoTrigger'
+import {
+    CodewhispererAutomatedTriggerType,
+    CodewhispererTriggerType,
+    autoTrigger,
+    triggerType,
+} from './auto-trigger/autoTrigger'
 import {
     CodeWhispererServiceBase,
     CodeWhispererServiceIAM,
@@ -24,8 +29,8 @@ import { getCompletionType, isAwsError } from './utils'
 interface InvocationContext {
     startTime: number
     startPosition: Position
-    triggerType: string
-    autoTriggerType?: TriggerType
+    triggerType: CodewhispererTriggerType
+    autoTriggerType?: CodewhispererAutomatedTriggerType
     language: CodewhispererLanguage
 }
 
@@ -182,18 +187,18 @@ export const CodewhispererServerFactory =
                 }
 
                 // Build request context
-                const isAutoTrigger = params.context.triggerKind == InlineCompletionTriggerKind.Automatic
-                const maxResults = params.context.triggerKind == InlineCompletionTriggerKind.Automatic ? 1 : 5
+                const isAutomaticLspTriggerKind = params.context.triggerKind == InlineCompletionTriggerKind.Automatic
+                const maxResults = isAutomaticLspTriggerKind ? 1 : 5
                 const selectionRange = params.context.selectedCompletionInfo?.range
                 const fileContext = getFileContext({ textDocument, inferredLanguageId, position: params.position })
 
                 // TODO: Can we get this derived from a keyboard event in the future?
                 // This picks the last non-whitespace character, if any, before the cursor
                 const char = fileContext.leftFileContent.trim().at(-1) ?? ''
-                const triggerType = getTriggerType(fileContext)
+                const codewhispererAutoTriggerType = triggerType(fileContext)
 
                 if (
-                    isAutoTrigger &&
+                    isAutomaticLspTriggerKind &&
                     !autoTrigger({
                         fileContext, // The left/right file context and programming language
                         lineNum: params.position.line, // the line number of the invocation, this is the line of the cursor
@@ -201,7 +206,7 @@ export const CodewhispererServerFactory =
                         ide: '', // TODO: Fetch the IDE in a platform-agnostic way (from the initialize request?)
                         os: '', // TODO: We should get this in a platform-agnostic way (i.e., compatible with the browser)
                         previousDecision: '', // TODO: Once we implement telemetry integration
-                        triggerType, // The 2 trigger types currently influencing the Auto-Trigger are SpecialCharacter and Enter
+                        triggerType: codewhispererAutoTriggerType, // The 2 trigger types currently influencing the Auto-Trigger are SpecialCharacter and Enter
                     })
                 ) {
                     return EMPTY_RESULT
@@ -214,10 +219,10 @@ export const CodewhispererServerFactory =
                 const invocationContext = {
                     startTime: new Date().getTime(),
                     startPosition: params.position,
-                    triggerType: isAutoTrigger ? 'AutoTrigger' : 'OnDemand',
+                    triggerType: (isAutomaticLspTriggerKind ? 'AutoTrigger' : 'OnDemand') as CodewhispererTriggerType,
                     language: fileContext.programmingLanguage.languageName,
                     requestContext: requestContext,
-                    autoTriggerType: isAutoTrigger ? triggerType : undefined,
+                    autoTriggerType: isAutomaticLspTriggerKind ? codewhispererAutoTriggerType : undefined,
                 }
 
                 return codeWhispererService
