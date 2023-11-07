@@ -18,11 +18,13 @@ import {
     CodeWhispererServiceBase,
     CodeWhispererServiceIAM,
     CodeWhispererServiceToken,
-    GenerateSuggestionsResponse,
+    GenerateSuggestionsRequest,
+    ResponseContext,
     Suggestion,
 } from './codeWhispererService'
 import { CodewhispererLanguage, getSupportedLanguageId } from './languageDetection'
 import { FileContext, truncateOverlapWithRightContext } from './mergeRightUtils'
+import { CodeWhispererSession, SessionManager } from './session/sessionManager'
 import { CodeWhispererServiceInvocationEvent } from './telemetry/types'
 import { getCompletionType, isAwsError } from './utils'
 
@@ -70,9 +72,7 @@ const getFileContext = (params: {
 
 const emitServiceInvocationTelemetry =
     ({ telemetry, invocationContext }: { telemetry: Telemetry; invocationContext: InvocationContext }) =>
-    (response: GenerateSuggestionsResponse): Suggestion[] => {
-        const { suggestions, responseContext } = response
-
+    (suggestions: Suggestion[], responseContext: ResponseContext): Suggestion[] => {
         const duration = invocationContext.startTime ? new Date().getTime() - invocationContext.startTime : 0
         const data: CodeWhispererServiceInvocationEvent = {
             codewhispererRequestId: responseContext.requestId,
@@ -123,9 +123,6 @@ const emitServiceInvocationFailure =
             name: 'ServiceInvocation',
             data,
         })
-
-        // Re-throw an error to handle in the default catch all handler.
-        throw error
     }
 
 // Merge right context. Provided as partially applied function for easy map/flatmap-ing.
@@ -157,9 +154,63 @@ const filterReferences = (
     }
 }
 
+const getOrCreateActiveSession = (
+    codeWhispererService: CodeWhispererServiceBase,
+    sessionManager: SessionManager,
+    requestContext: GenerateSuggestionsRequest,
+    startPosition: Position,
+    codewhispererTriggerType: CodewhispererTriggerType,
+    autoTriggerType?: CodewhispererAutomatedTriggerType
+): CodeWhispererSession => {
+    let activeSession = sessionManager.getActiveSession()
+
+    if (!activeSession || !hasLeftContextMatch(activeSession.suggestions, requestContext.fileContext.leftFileContent)) {
+        activeSession = sessionManager.createSession({
+            codeWhispererService: codeWhispererService,
+            startPosition: startPosition,
+            triggerType: codewhispererTriggerType,
+            language: requestContext.fileContext.programmingLanguage.languageName,
+            requestContext: requestContext,
+            autoTriggerType: autoTriggerType,
+        })
+    }
+
+    return activeSession
+}
+// Checks if any suggestion in list of suggestions matches with left context
+const hasLeftContextMatch = (suggestions: Suggestion[], leftFileContent: string): boolean => {
+    for (const suggestion of suggestions) {
+        if (suggestion.content.startsWith(leftFileContent)) {
+            return true
+        }
+    }
+    return false
+}
+
+function waitForSessionActivation(activeSession: CodeWhispererSession, timeoutMs = 15000) {
+    return Promise.race([
+        new Promise(resolve => {
+            activeSession.on('ACTIVE', () => {
+                resolve('Success') // Resolve the Promise when the 'ACTIVE' event occurs
+            })
+        }),
+        new Promise((_resolve, reject) => {
+            activeSession.on('ERROR', err => {
+                reject(err) // Reject the Promise on ERROR
+            })
+        }),
+        new Promise((_resolve, reject) => {
+            setTimeout(() => {
+                reject(Error('Timeout')) // Reject the Promise if a timeout occurs
+            }, timeoutMs)
+        }),
+    ])
+}
+
 export const CodewhispererServerFactory =
     (service: (credentials: CredentialsProvider) => CodeWhispererServiceBase): Server =>
     ({ credentialsProvider, lsp, workspace, telemetry, logging }) => {
+        const sessionManager = new SessionManager()
         const codeWhispererService = service(credentialsProvider)
 
         // Mutable state to track whether code with references should be included in
@@ -225,15 +276,46 @@ export const CodewhispererServerFactory =
                     autoTriggerType: isAutomaticLspTriggerKind ? codewhispererAutoTriggerType : undefined,
                 }
 
-                return codeWhispererService
-                    .generateSuggestions(requestContext)
-                    .catch(emitServiceInvocationFailure({ telemetry, invocationContext }))
-                    .then(emitServiceInvocationTelemetry({ telemetry, invocationContext }))
-                    .then(mergeSuggestionsWithContext({ fileContext, range: selectionRange }))
-                    .then(suggestions => filterReferences(suggestions, includeSuggestionsWithCodeReferences))
-                    .then(items => ({ items }))
+                const activeSession = getOrCreateActiveSession(
+                    codeWhispererService,
+                    sessionManager,
+                    requestContext,
+                    params.position,
+                    invocationContext.triggerType,
+                    invocationContext.autoTriggerType
+                )
+                // Add timers to the call
+                activeSession.lastInvocationTime = new Date().getTime()
+
+                // Wait for session to turn active (receive first suggestion)
+                return waitForSessionActivation(activeSession)
+                    .then(() => {
+                        const emitFunction = emitServiceInvocationTelemetry({ telemetry, invocationContext })
+                        if (activeSession.responseContext) {
+                            emitFunction(activeSession.suggestions, activeSession.responseContext)
+                        } else {
+                            logging.log('WARNING: Active session does not have response context for telemetry')
+                        }
+
+                        const mergeSuggestionsWithContextFunction = mergeSuggestionsWithContext({
+                            fileContext,
+                            range: selectionRange,
+                        })
+
+                        const rightContextMergedSuggestions = mergeSuggestionsWithContextFunction(
+                            activeSession.suggestions
+                        )
+                        const filteredSuggestions = filterReferences(
+                            rightContextMergedSuggestions,
+                            includeSuggestionsWithCodeReferences
+                        )
+
+                        return { items: filteredSuggestions }
+                    })
                     .catch(err => {
-                        logging.log(`onInlineCompletion failure: ${err}`)
+                        // TODO, handle errors properly
+                        const emitFunction = emitServiceInvocationFailure({ telemetry, invocationContext })
+                        emitFunction(err)
                         return EMPTY_RESULT
                     })
             })

@@ -7,7 +7,7 @@
         "compile": "tsc --build",
         "postcompile": "npm run copyServiceClient",
         "copyServiceClient": "copyfiles -u 1 --error ./src/client/sigv4/*.json out && copyfiles -u 1 --error ./src/client/token/*.json out",
-        "test:unit": "ts-mocha -b src/**/*.test.ts",
+        "test:unit": "ts-mocha -b 'src/**/*.test.ts'",
         "test:prettier": "prettier . --check",
         "test": "npm run test:prettier && npm run test:unit",
         "fix:prettier": "prettier . --write"
@@ -16,10 +16,13 @@
         "@aws-placeholder/aws-language-server-runtimes": "file:../../bin/aws-placeholder-aws-language-server-runtimes-0.1.0.tgz",
         "@lsp-placeholder/aws-lsp-core": "^0.0.1",
         "aws-sdk": "^2.1403.0",
+        "uuid": "^9.0.1",
         "vscode-languageserver": "^9.0.1",
-        "vscode-languageserver-textdocument": "^1.0.8"
+        "vscode-languageserver-textdocument": "^1.0.8",
+        "eventemitter3": "^5.0.1"
     },
     "devDependencies": {
+        "@types/uuid": "^9.0.6",
         "assert": "^2.1.0",
         "copyfiles": "^2.4.1",
         "ts-mocha": "^10.0.0",

@@ -114,6 +114,7 @@ class HelloWorld
                     rightFileContent: HELLO_WORLD_IN_CSHARP,
                 },
                 maxResults: 5,
+                nextToken: undefined,
             }
             sinon.assert.calledOnceWithExactly(service.generateSuggestions, expectedGenerateSuggestionsRequest)
         })
@@ -144,6 +145,7 @@ class HelloWorld
                     rightFileContent: remainingLines,
                 },
                 maxResults: 5,
+                nextToken: undefined,
             }
             sinon.assert.calledOnceWithExactly(service.generateSuggestions, expectedGenerateSuggestionsRequest)
         })
@@ -169,6 +171,7 @@ class HelloWorld
                     rightFileContent: HELLO_WORLD_IN_CSHARP,
                 },
                 maxResults: 5,
+                nextToken: undefined,
             }
             sinon.assert.calledOnceWithExactly(service.generateSuggestions, expectedGenerateSuggestionsRequest)
         })
@@ -228,6 +231,7 @@ class HelloWorld
                     rightFileContent: HELLO_WORLD_IN_CSHARP,
                 },
                 maxResults: 5,
+                nextToken: undefined,
             }
 
             // Check the service was called with the right parameters
@@ -302,6 +306,7 @@ class HelloWorld
                     rightFileContent: rightContext,
                 },
                 maxResults: 5,
+                nextToken: undefined,
             }
             sinon.assert.calledOnceWithExactly(service.generateSuggestions, expectedGenerateSuggestionsRequest)
         })
@@ -763,6 +768,7 @@ class HelloWorld
                     rightFileContent: RIGHT_FILE_CONTEXT,
                 },
                 maxResults: 1,
+                nextToken: undefined,
             }
             sinon.assert.calledOnceWithExactly(service.generateSuggestions, expectedGenerateSuggestionsRequest)
         })
