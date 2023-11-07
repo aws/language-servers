@@ -1,26 +1,54 @@
 import { Server } from '@aws-placeholder/aws-language-server-runtimes'
-import { CredentialsProvider } from '@aws-placeholder/aws-language-server-runtimes/out/features'
+import { CredentialsProvider, Telemetry } from '@aws-placeholder/aws-language-server-runtimes/out/features'
 import {
     InlineCompletionItemWithReferences,
     InlineCompletionListWithReferences,
     InlineCompletionWithReferencesParams,
 } from '@aws-placeholder/aws-language-server-runtimes/out/features/lsp/inline-completions/protocolExtensions'
+import { AWSError } from 'aws-sdk'
 import { CancellationToken, InlineCompletionTriggerKind, Range } from 'vscode-languageserver'
 import { Position, TextDocument } from 'vscode-languageserver-textdocument'
-import { autoTrigger, triggerType } from './auto-trigger/autoTrigger'
+import {
+    CodewhispererAutomatedTriggerType,
+    CodewhispererTriggerType,
+    autoTrigger,
+    triggerType,
+} from './auto-trigger/autoTrigger'
 import {
     CodeWhispererServiceBase,
     CodeWhispererServiceIAM,
     CodeWhispererServiceToken,
+    GenerateSuggestionsResponse,
     Suggestion,
 } from './codeWhispererService'
-import { getSupportedLanguageId } from './languageDetection'
+import { CodewhispererLanguage, getSupportedLanguageId } from './languageDetection'
 import { FileContext, truncateOverlapWithRightContext } from './mergeRightUtils'
+import { CodeWhispererServiceInvocationEvent } from './telemetry/types'
+import { getCompletionType, isAwsError } from './utils'
+
+interface InvocationContext {
+    startTime: number
+    startPosition: Position
+    triggerType: CodewhispererTriggerType
+    autoTriggerType?: CodewhispererAutomatedTriggerType
+    language: CodewhispererLanguage
+}
 
 const EMPTY_RESULT = { items: [] }
 
 // Both clients (token, sigv4) define their own types, this return value needs to match both of them.
-const getFileContext = (params: { textDocument: TextDocument; position: Position; inferredLanguageId: string }) => {
+const getFileContext = (params: {
+    textDocument: TextDocument
+    position: Position
+    inferredLanguageId: CodewhispererLanguage
+}): {
+    filename: string
+    programmingLanguage: {
+        languageName: CodewhispererLanguage
+    }
+    leftFileContent: string
+    rightFileContent: string
+} => {
     const left = params.textDocument.getText({
         start: { line: 0, character: 0 },
         end: params.position,
@@ -39,6 +67,66 @@ const getFileContext = (params: { textDocument: TextDocument; position: Position
         rightFileContent: right,
     }
 }
+
+const emitServiceInvocationTelemetry =
+    ({ telemetry, invocationContext }: { telemetry: Telemetry; invocationContext: InvocationContext }) =>
+    (response: GenerateSuggestionsResponse): Suggestion[] => {
+        const { suggestions, responseContext } = response
+
+        const duration = invocationContext.startTime ? new Date().getTime() - invocationContext.startTime : 0
+        const data: CodeWhispererServiceInvocationEvent = {
+            codewhispererRequestId: responseContext.requestId,
+            codewhispererSessionId: responseContext.codewhispererSessionId,
+            codewhispererLastSuggestionIndex: suggestions.length - 1,
+            codewhispererCompletionType: suggestions.length > 0 ? getCompletionType(suggestions[0]) : undefined,
+            codewhispererTriggerType: invocationContext.triggerType,
+            codewhispererAutomatedTriggerType: invocationContext.autoTriggerType,
+            result: 'Succeeded',
+            duration,
+            codewhispererLineNumber: invocationContext.startPosition.line,
+            codewhispererCursorOffset: invocationContext.startPosition.character,
+            codewhispererLanguage: invocationContext.language,
+            credentialStartUrl: '',
+        }
+        telemetry.emitMetric({
+            name: 'ServiceInvocation',
+            data,
+        })
+
+        return suggestions
+    }
+
+const emitServiceInvocationFailure =
+    ({ telemetry, invocationContext }: { telemetry: Telemetry; invocationContext: InvocationContext }) =>
+    (error: Error | AWSError) => {
+        const errorMessage = error ? String(error) : 'unknown'
+        const reason = `CodeWhisperer Invocation Exception: ${errorMessage}`
+        const duration = invocationContext.startTime ? new Date().getTime() - invocationContext.startTime : 0
+        const codewhispererRequestId = isAwsError(error) ? error.requestId : undefined
+
+        const data: CodeWhispererServiceInvocationEvent = {
+            codewhispererRequestId: codewhispererRequestId,
+            codewhispererSessionId: undefined,
+            codewhispererLastSuggestionIndex: -1,
+            codewhispererTriggerType: invocationContext.triggerType,
+            codewhispererAutomatedTriggerType: invocationContext.autoTriggerType,
+            result: 'Failed',
+            reason,
+            duration,
+            codewhispererLineNumber: invocationContext.startPosition.line,
+            codewhispererCursorOffset: invocationContext.startPosition.character,
+            codewhispererLanguage: invocationContext.language,
+            credentialStartUrl: '',
+        }
+
+        telemetry.emitMetric({
+            name: 'ServiceInvocation',
+            data,
+        })
+
+        // Re-throw an error to handle in the default catch all handler.
+        throw error
+    }
 
 // Merge right context. Provided as partially applied function for easy map/flatmap-ing.
 const mergeSuggestionsWithContext =
@@ -71,7 +159,7 @@ const filterReferences = (
 
 export const CodewhispererServerFactory =
     (service: (credentials: CredentialsProvider) => CodeWhispererServiceBase): Server =>
-    ({ credentialsProvider, lsp, workspace, logging }) => {
+    ({ credentialsProvider, lsp, workspace, telemetry, logging }) => {
         const codeWhispererService = service(credentialsProvider)
 
         // Mutable state to track whether code with references should be included in
@@ -98,16 +186,19 @@ export const CodewhispererServerFactory =
                     return EMPTY_RESULT
                 }
 
-                const maxResults = params.context.triggerKind == InlineCompletionTriggerKind.Automatic ? 1 : 5
+                // Build request context
+                const isAutomaticLspTriggerKind = params.context.triggerKind == InlineCompletionTriggerKind.Automatic
+                const maxResults = isAutomaticLspTriggerKind ? 1 : 5
                 const selectionRange = params.context.selectedCompletionInfo?.range
                 const fileContext = getFileContext({ textDocument, inferredLanguageId, position: params.position })
 
                 // TODO: Can we get this derived from a keyboard event in the future?
                 // This picks the last non-whitespace character, if any, before the cursor
                 const char = fileContext.leftFileContent.trim().at(-1) ?? ''
+                const codewhispererAutoTriggerType = triggerType(fileContext)
 
                 if (
-                    params.context.triggerKind === InlineCompletionTriggerKind.Automatic &&
+                    isAutomaticLspTriggerKind &&
                     !autoTrigger({
                         fileContext, // The left/right file context and programming language
                         lineNum: params.position.line, // the line number of the invocation, this is the line of the cursor
@@ -115,14 +206,29 @@ export const CodewhispererServerFactory =
                         ide: '', // TODO: Fetch the IDE in a platform-agnostic way (from the initialize request?)
                         os: '', // TODO: We should get this in a platform-agnostic way (i.e., compatible with the browser)
                         previousDecision: '', // TODO: Once we implement telemetry integration
-                        triggerType: triggerType(fileContext), // The 2 trigger types currently influencing the Auto-Trigger are SpecialCharacter and Enter
+                        triggerType: codewhispererAutoTriggerType, // The 2 trigger types currently influencing the Auto-Trigger are SpecialCharacter and Enter
                     })
                 ) {
                     return EMPTY_RESULT
                 }
 
+                const requestContext = {
+                    fileContext,
+                    maxResults,
+                }
+                const invocationContext = {
+                    startTime: new Date().getTime(),
+                    startPosition: params.position,
+                    triggerType: (isAutomaticLspTriggerKind ? 'AutoTrigger' : 'OnDemand') as CodewhispererTriggerType,
+                    language: fileContext.programmingLanguage.languageName,
+                    requestContext: requestContext,
+                    autoTriggerType: isAutomaticLspTriggerKind ? codewhispererAutoTriggerType : undefined,
+                }
+
                 return codeWhispererService
-                    .generateSuggestions({ fileContext, maxResults })
+                    .generateSuggestions(requestContext)
+                    .catch(emitServiceInvocationFailure({ telemetry, invocationContext }))
+                    .then(emitServiceInvocationTelemetry({ telemetry, invocationContext }))
                     .then(mergeSuggestionsWithContext({ fileContext, range: selectionRange }))
                     .then(suggestions => filterReferences(suggestions, includeSuggestionsWithCodeReferences))
                     .then(items => ({ items }))

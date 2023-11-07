@@ -1,23 +1,45 @@
 import { TextDocument } from 'vscode-languageserver-textdocument'
 
+export type CodewhispererLanguage =
+    | 'java'
+    | 'python'
+    | 'jsx'
+    | 'javascript'
+    | 'typescript'
+    | 'tsx'
+    | 'csharp'
+    | 'c'
+    | 'cpp'
+    | 'cpp'
+    | 'go'
+    | 'kotlin'
+    | 'php'
+    | 'ruby'
+    | 'rust'
+    | 'scala'
+    | 'shell'
+    | 'shell'
+    | 'sql'
+    | 'plaintext'
+
 // This will be extended as more language features
 // are integrated into the language server and clients.
-const supportedFileTypes = ['csharp', 'javascript', 'python', 'typescript']
-const supportedExtensions: { [key: string]: string } = {
+const supportedFileTypes: CodewhispererLanguage[] = ['csharp', 'javascript', 'python', 'typescript']
+const supportedExtensions: { [key: string]: CodewhispererLanguage } = {
     '.cs': 'csharp',
     '.js': 'javascript',
     '.py': 'python',
     '.ts': 'typescript',
 }
 
-export const getSupportedLanguageId = (textDocument: TextDocument | undefined): string | undefined => {
+export const getSupportedLanguageId = (textDocument: TextDocument | undefined): CodewhispererLanguage | undefined => {
     if (!textDocument) {
         return
     }
 
-    const langaugeId = getCodeWhispererLanguageIdByTextDocumentLanguageId(textDocument.languageId)
-    if (langaugeId !== undefined) {
-        return langaugeId
+    const languageId = getCodeWhispererLanguageIdByTextDocumentLanguageId(textDocument.languageId)
+    if (languageId !== undefined) {
+        return languageId
     }
 
     for (const extension in supportedExtensions) {
@@ -33,13 +55,15 @@ export const getSupportedLanguageId = (textDocument: TextDocument | undefined): 
  * @param textDocumentLanguageId Value of the TextDocument's language id, provided by the IDE
  * @returns Corresponding CodeWhisperer language id
  */
-function getCodeWhispererLanguageIdByTextDocumentLanguageId(textDocumentLanguageId: string): string | undefined {
+function getCodeWhispererLanguageIdByTextDocumentLanguageId(
+    textDocumentLanguageId: CodewhispererLanguage | string
+): CodewhispererLanguage | undefined {
     if (textDocumentLanguageId === undefined) {
         return undefined
     }
 
-    if (supportedFileTypes.includes(textDocumentLanguageId)) {
-        return textDocumentLanguageId
+    if (supportedFileTypes.includes(textDocumentLanguageId as CodewhispererLanguage)) {
+        return textDocumentLanguageId as CodewhispererLanguage
     }
 
     // IDEs can identify a file's languageId using non-standardized values
@@ -47,7 +71,7 @@ function getCodeWhispererLanguageIdByTextDocumentLanguageId(textDocumentLanguage
     // Try to map case-insensitive matches to increase the likelihood of supporting the file in an IDE.
     for (const supportedFileType of supportedFileTypes) {
         if (textDocumentLanguageId.toLowerCase() === supportedFileType.toLowerCase()) {
-            return supportedFileType
+            return supportedFileType as CodewhispererLanguage
         }
     }
 

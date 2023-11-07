@@ -16,6 +16,17 @@ export interface GenerateSuggestionsRequest
     maxResults: number
 }
 
+export interface ResponseContext {
+    requestId: string
+    codewhispererSessionId: string
+    nextToken?: string
+}
+
+export interface GenerateSuggestionsResponse {
+    suggestions: Suggestion[]
+    responseContext: ResponseContext
+}
+
 import CodeWhispererSigv4Client = require('../client/sigv4/codewhispererclient')
 import CodeWhispererTokenClient = require('../client/token/codewhispererclient')
 
@@ -25,7 +36,7 @@ export abstract class CodeWhispererServiceBase {
     public shareCodeWhispererContentWithAWS: boolean = true
     abstract client: CodeWhispererSigv4Client | CodeWhispererTokenClient
 
-    abstract generateSuggestions(request: GenerateSuggestionsRequest): Promise<Suggestion[]>
+    abstract generateSuggestions(request: GenerateSuggestionsRequest): Promise<GenerateSuggestionsResponse>
 }
 
 export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
@@ -54,22 +65,21 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
         this.client = createCodeWhispererSigv4Client(options)
     }
 
-    async generateSuggestions(request: GenerateSuggestionsRequest): Promise<Suggestion[]> {
-        const results: Suggestion[] = []
-        do {
-            // add cancellation check
-            // add error check
+    async generateSuggestions(request: GenerateSuggestionsRequest): Promise<GenerateSuggestionsResponse> {
+        // add cancellation check
+        // add error check
 
-            const response = await this.client.generateRecommendations(request).promise()
+        const response = await this.client.generateRecommendations(request).promise()
+        const responseContext = {
+            requestId: response?.$response?.requestId,
+            codewhispererSessionId: response?.$response?.httpResponse?.headers['x-amzn-sessionid'],
+            nextToken: response.nextToken,
+        }
 
-            request.nextToken = response.nextToken
-
-            if (response.recommendations) {
-                results.push(...response.recommendations)
-            }
-        } while (request.nextToken !== undefined && request.nextToken !== '' && results.length < request.maxResults)
-
-        return results
+        return {
+            suggestions: response.recommendations as Suggestion[],
+            responseContext,
+        }
     }
 }
 
@@ -99,22 +109,20 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         this.client = createCodeWhispererTokenClient(options)
     }
 
-    async generateSuggestions(request: GenerateSuggestionsRequest): Promise<Suggestion[]> {
-        const results: Suggestion[] = []
+    async generateSuggestions(request: GenerateSuggestionsRequest): Promise<GenerateSuggestionsResponse> {
+        // add cancellation check
+        // add error check
 
-        do {
-            // add cancellation check
-            // add error check
+        const response = await this.client.generateCompletions(request).promise()
+        const responseContext = {
+            requestId: response?.$response?.requestId,
+            codewhispererSessionId: response?.$response?.httpResponse?.headers['x-amzn-sessionid'],
+            nextToken: response.nextToken,
+        }
 
-            const response = await this.client.generateCompletions(request).promise()
-
-            request.nextToken = response.nextToken
-
-            if (response.completions) {
-                results.push(...response.completions)
-            }
-        } while (request.nextToken !== undefined && request.nextToken !== '' && results.length < request.maxResults)
-
-        return results
+        return {
+            suggestions: response.completions as Suggestion[],
+            responseContext,
+        }
     }
 }
