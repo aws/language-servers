@@ -18,12 +18,13 @@ import {
     CodeWhispererServiceBase,
     CodeWhispererServiceIAM,
     CodeWhispererServiceToken,
+    FileContext,
     GenerateSuggestionsRequest,
     ResponseContext,
     Suggestion,
 } from './codeWhispererService'
 import { CodewhispererLanguage, getSupportedLanguageId } from './languageDetection'
-import { FileContext, truncateOverlapWithRightContext } from './mergeRightUtils'
+import { truncateOverlapWithRightContext } from './mergeRightUtils'
 import { CodeWhispererSession, SessionManager } from './session/sessionManager'
 import { CodeWhispererServiceInvocationEvent } from './telemetry/types'
 import { getCompletionType, isAwsError } from './utils'

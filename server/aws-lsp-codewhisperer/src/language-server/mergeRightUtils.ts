@@ -1,4 +1,4 @@
-import { GenerateSuggestionsRequest } from './codeWhispererService'
+import { FileContext } from './codeWhispererService'
 
 /**
  * Returns the longest overlap between the Suffix of firstString and Prefix of second string
@@ -14,7 +14,6 @@ export function getPrefixSuffixOverlap(firstString: string, secondString: string
     }
     return secondString.slice(0, i)
 }
-export type FileContext = GenerateSuggestionsRequest['fileContext']
 
 export function truncateOverlapWithRightContext(context: FileContext, suggestion: string): string {
     const trimmedSuggestion = suggestion.trim()

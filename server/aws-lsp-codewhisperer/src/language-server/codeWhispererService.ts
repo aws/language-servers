@@ -16,6 +16,8 @@ export interface GenerateSuggestionsRequest
     maxResults: number
 }
 
+export type FileContext = GenerateSuggestionsRequest['fileContext']
+
 export interface ResponseContext {
     requestId: string
     codewhispererSessionId: string

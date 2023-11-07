@@ -1,5 +1,5 @@
 import assert = require('assert')
-import { FileContext } from '../mergeRightUtils'
+import { FileContext } from '../codeWhispererService'
 import { triggerType } from './autoTrigger'
 
 describe('Auto Trigger', async () => {
