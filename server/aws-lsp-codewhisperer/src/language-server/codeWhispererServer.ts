@@ -29,14 +29,6 @@ import { CodeWhispererSession, SessionManager } from './session/sessionManager'
 import { CodeWhispererServiceInvocationEvent } from './telemetry/types'
 import { getCompletionType, isAwsError } from './utils'
 
-interface InvocationContext {
-    startTime: number
-    startPosition: Position
-    triggerType: CodewhispererTriggerType
-    autoTriggerType?: CodewhispererAutomatedTriggerType
-    language: CodewhispererLanguage
-}
-
 const EMPTY_RESULT = { items: [] }
 
 // Both clients (token, sigv4) define their own types, this return value needs to match both of them.
@@ -72,21 +64,21 @@ const getFileContext = (params: {
 }
 
 const emitServiceInvocationTelemetry =
-    ({ telemetry, invocationContext }: { telemetry: Telemetry; invocationContext: InvocationContext }) =>
+    ({ telemetry, session }: { telemetry: Telemetry; session: CodeWhispererSession }) =>
     (suggestions: Suggestion[], responseContext: ResponseContext): Suggestion[] => {
-        const duration = invocationContext.startTime ? new Date().getTime() - invocationContext.startTime : 0
+        const duration = session.lastInvocationTime ? new Date().getTime() - session.lastInvocationTime : 0
         const data: CodeWhispererServiceInvocationEvent = {
             codewhispererRequestId: responseContext.requestId,
             codewhispererSessionId: responseContext.codewhispererSessionId,
             codewhispererLastSuggestionIndex: suggestions.length - 1,
             codewhispererCompletionType: suggestions.length > 0 ? getCompletionType(suggestions[0]) : undefined,
-            codewhispererTriggerType: invocationContext.triggerType,
-            codewhispererAutomatedTriggerType: invocationContext.autoTriggerType,
+            codewhispererTriggerType: session.triggerType,
+            codewhispererAutomatedTriggerType: session.autoTriggerType,
             result: 'Succeeded',
             duration,
-            codewhispererLineNumber: invocationContext.startPosition.line,
-            codewhispererCursorOffset: invocationContext.startPosition.character,
-            codewhispererLanguage: invocationContext.language,
+            codewhispererLineNumber: session.startPosition.line,
+            codewhispererCursorOffset: session.startPosition.character,
+            codewhispererLanguage: session.language,
             credentialStartUrl: '',
         }
         telemetry.emitMetric({
@@ -98,25 +90,25 @@ const emitServiceInvocationTelemetry =
     }
 
 const emitServiceInvocationFailure =
-    ({ telemetry, invocationContext }: { telemetry: Telemetry; invocationContext: InvocationContext }) =>
+    ({ telemetry, session }: { telemetry: Telemetry; session: CodeWhispererSession }) =>
     (error: Error | AWSError) => {
         const errorMessage = error ? String(error) : 'unknown'
         const reason = `CodeWhisperer Invocation Exception: ${errorMessage}`
-        const duration = invocationContext.startTime ? new Date().getTime() - invocationContext.startTime : 0
+        const duration = session.lastInvocationTime ? new Date().getTime() - session.lastInvocationTime : 0
         const codewhispererRequestId = isAwsError(error) ? error.requestId : undefined
 
         const data: CodeWhispererServiceInvocationEvent = {
             codewhispererRequestId: codewhispererRequestId,
             codewhispererSessionId: undefined,
             codewhispererLastSuggestionIndex: -1,
-            codewhispererTriggerType: invocationContext.triggerType,
-            codewhispererAutomatedTriggerType: invocationContext.autoTriggerType,
+            codewhispererTriggerType: session.triggerType,
+            codewhispererAutomatedTriggerType: session.autoTriggerType,
             result: 'Failed',
             reason,
             duration,
-            codewhispererLineNumber: invocationContext.startPosition.line,
-            codewhispererCursorOffset: invocationContext.startPosition.character,
-            codewhispererLanguage: invocationContext.language,
+            codewhispererLineNumber: session.startPosition.line,
+            codewhispererCursorOffset: session.startPosition.character,
+            codewhispererLanguage: session.language,
             credentialStartUrl: '',
         }
 
@@ -155,7 +147,7 @@ const filterReferences = (
     }
 }
 
-const getOrCreateActiveSession = (
+const getActiveSessionOrCreateNew = (
     codeWhispererService: CodeWhispererServiceBase,
     sessionManager: SessionManager,
     requestContext: GenerateSuggestionsRequest,
@@ -165,12 +157,20 @@ const getOrCreateActiveSession = (
 ): CodeWhispererSession => {
     let activeSession = sessionManager.getActiveSession()
 
-    if (!activeSession || !hasLeftContextMatch(activeSession.suggestions, requestContext.fileContext.leftFileContent)) {
+    // Conditions that the server checks before creating new session:
+    // There is no active session
+    // There is an active session but the filename in the session and the current filename don't match
+    // There is an active session with filename match but none of the suggestions in the session have a left context match with the left file contents in current invocation
+    if (
+        !activeSession ||
+        activeSession.requestContext.fileContext.filename !== requestContext.fileContext.filename ||
+        !hasLeftContextMatch(activeSession.suggestions, requestContext.fileContext.leftFileContent)
+    ) {
         activeSession = sessionManager.createSession({
             codeWhispererService: codeWhispererService,
             startPosition: startPosition,
             triggerType: codewhispererTriggerType,
-            language: requestContext.fileContext.programmingLanguage.languageName,
+            language: requestContext.fileContext.programmingLanguage.languageName as CodewhispererLanguage,
             requestContext: requestContext,
             autoTriggerType: autoTriggerType,
         })
@@ -189,6 +189,9 @@ const hasLeftContextMatch = (suggestions: Suggestion[], leftFileContent: string)
 }
 
 function waitForSessionActivation(activeSession: CodeWhispererSession, timeoutMs = 15000) {
+    if (activeSession.sessionState == 'ACTIVE') {
+        return Promise.resolve('Success')
+    }
     return Promise.race([
         new Promise(resolve => {
             activeSession.on('ACTIVE', () => {
@@ -268,32 +271,26 @@ export const CodewhispererServerFactory =
                     fileContext,
                     maxResults,
                 }
-                const invocationContext = {
-                    startTime: new Date().getTime(),
-                    startPosition: params.position,
-                    triggerType: (isAutomaticLspTriggerKind ? 'AutoTrigger' : 'OnDemand') as CodewhispererTriggerType,
-                    language: fileContext.programmingLanguage.languageName,
-                    requestContext: requestContext,
-                    autoTriggerType: isAutomaticLspTriggerKind ? codewhispererAutoTriggerType : undefined,
-                }
+                const codewhispererTriggerType = (
+                    isAutomaticLspTriggerKind ? 'AutoTrigger' : 'OnDemand'
+                ) as CodewhispererTriggerType
+                const autoTriggerType = isAutomaticLspTriggerKind ? codewhispererAutoTriggerType : undefined
 
-                const activeSession = getOrCreateActiveSession(
+                const currentSession = getActiveSessionOrCreateNew(
                     codeWhispererService,
                     sessionManager,
                     requestContext,
                     params.position,
-                    invocationContext.triggerType,
-                    invocationContext.autoTriggerType
+                    codewhispererTriggerType,
+                    autoTriggerType
                 )
-                // Add timers to the call
-                activeSession.lastInvocationTime = new Date().getTime()
 
                 // Wait for session to turn active (receive first suggestion)
-                return waitForSessionActivation(activeSession)
+                return waitForSessionActivation(currentSession)
                     .then(() => {
-                        const emitFunction = emitServiceInvocationTelemetry({ telemetry, invocationContext })
-                        if (activeSession.responseContext) {
-                            emitFunction(activeSession.suggestions, activeSession.responseContext)
+                        const emitFunction = emitServiceInvocationTelemetry({ telemetry, session: currentSession })
+                        if (currentSession.responseContext) {
+                            emitFunction(currentSession.suggestions, currentSession.responseContext)
                         } else {
                             logging.log('WARNING: Active session does not have response context for telemetry')
                         }
@@ -304,7 +301,7 @@ export const CodewhispererServerFactory =
                         })
 
                         const rightContextMergedSuggestions = mergeSuggestionsWithContextFunction(
-                            activeSession.suggestions
+                            currentSession.suggestions
                         )
                         const filteredSuggestions = filterReferences(
                             rightContextMergedSuggestions,
@@ -315,7 +312,7 @@ export const CodewhispererServerFactory =
                     })
                     .catch(err => {
                         // TODO, handle errors properly
-                        const emitFunction = emitServiceInvocationFailure({ telemetry, invocationContext })
+                        const emitFunction = emitServiceInvocationFailure({ telemetry, session: currentSession })
                         emitFunction(err)
                         return EMPTY_RESULT
                     })

@@ -54,7 +54,7 @@ describe('CodeWhispererSession', () => {
                 codeWhispererService,
                 startPosition: { line: 0, character: 0 },
                 triggerType: 'OnDemand',
-                language: 'JavaScript',
+                language: 'javascript',
                 requestContext: requestContext,
             })
 
@@ -137,14 +137,11 @@ describe('SessionManager', () => {
             const session1 = sessionManager.createSession(data)
             await session1.initializeSession()
 
-            const session2 = sessionManager.createSession(data)
-            await session2.initializeSession()
-
-            const session3 = sessionManager.createSession(data)
-            await session3.initializeSession()
-
-            const session4 = sessionManager.createSession(data)
-            await session4.initializeSession()
+            // Create sessions 2, 3 and 4
+            for (let i = 0; i < 3; i++) {
+                const session = sessionManager.createSession(data)
+                await session.initializeSession()
+            }
 
             const session5 = sessionManager.createSession(data)
             await session5.initializeSession()
