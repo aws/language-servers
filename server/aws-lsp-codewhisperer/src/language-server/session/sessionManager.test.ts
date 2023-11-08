@@ -107,13 +107,13 @@ describe('SessionManager', () => {
             const sessionManager = new SessionManager()
 
             const initialSession = sessionManager.createSession(data)
-            await initialSession.initializeSession()
 
             let isActiveEventEmitted = false
             initialSession.on('ACTIVE', () => {
                 isActiveEventEmitted = true
             })
 
+            assert.strictEqual(initialSession.sessionState, 'REQUESTING')
             await initialSession.initializeSession()
 
             assert.strictEqual(initialSession.sessionState, 'ACTIVE')
