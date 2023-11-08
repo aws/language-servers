@@ -89,7 +89,7 @@ const emitServiceInvocationTelemetry =
             credentialStartUrl: '',
         }
         telemetry.emitMetric({
-            name: 'ServiceInvocation',
+            name: 'codewhisperer_serviceInvocation',
             data,
         })
 
@@ -120,7 +120,7 @@ const emitServiceInvocationFailure =
         }
 
         telemetry.emitMetric({
-            name: 'ServiceInvocation',
+            name: 'codewhisperer_serviceInvocation',
             data,
         })
 

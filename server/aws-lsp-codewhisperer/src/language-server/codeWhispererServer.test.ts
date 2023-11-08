@@ -850,7 +850,7 @@ class HelloWorld
             )
 
             const expectedServiceInvocationMetric = {
-                name: 'ServiceInvocation',
+                name: 'codewhisperer_serviceInvocation',
                 data: {
                     codewhispererRequestId: 'cwspr-request-id',
                     codewhispererSessionId: 'cwspr-session-id',
@@ -893,7 +893,7 @@ class HelloWorld
             )
 
             const expectedServiceInvocationMetric = {
-                name: 'ServiceInvocation',
+                name: 'codewhisperer_serviceInvocation',
                 data: {
                     codewhispererRequestId: 'cwspr-request-id',
                     codewhispererSessionId: 'cwspr-session-id',
@@ -925,7 +925,7 @@ class HelloWorld
             )
 
             const expectedServiceInvocationMetric = {
-                name: 'ServiceInvocation',
+                name: 'codewhisperer_serviceInvocation',
                 data: {
                     codewhispererRequestId: undefined,
                     codewhispererSessionId: undefined,
@@ -969,7 +969,7 @@ class HelloWorld
             await getCompletionsPromise
 
             const expectedServiceInvocationMetric = {
-                name: 'ServiceInvocation',
+                name: 'codewhisperer_serviceInvocation',
                 data: {
                     codewhispererRequestId: 'failed-request-id',
                     codewhispererSessionId: undefined,
