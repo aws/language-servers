@@ -63,8 +63,8 @@ const getFileContext = (params: {
         programmingLanguage: {
             languageName: params.inferredLanguageId,
         },
-        leftFileContent: left,
-        rightFileContent: right,
+        leftFileContent: left.replaceAll('\r\n', '\n'),
+        rightFileContent: right.replaceAll('\r\n', '\n'),
     }
 }
 
