@@ -230,10 +230,8 @@ export const CodewhispererServerFactory =
                         ...requestContext,
                         fileContext: {
                             ...requestContext.fileContext,
-                            ...{
-                                leftFileContent: requestContext.fileContext.leftFileContent.replaceAll('\r\n', '\n'),
-                                rightFileContent: requestContext.fileContext.leftFileContent.replaceAll('\r\n', '\n'),
-                            },
+                            leftFileContent: requestContext.fileContext.leftFileContent.replaceAll('\r\n', '\n'),
+                            rightFileContent: requestContext.fileContext.rightFileContent.replaceAll('\r\n', '\n'),
                         },
                     })
                     .catch(emitServiceInvocationFailure({ telemetry, invocationContext }))
