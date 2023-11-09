@@ -63,8 +63,8 @@ const getFileContext = (params: {
         programmingLanguage: {
             languageName: params.inferredLanguageId,
         },
-        leftFileContent: left.replaceAll('\r\n', '\n'),
-        rightFileContent: right.replaceAll('\r\n', '\n'),
+        leftFileContent: left,
+        rightFileContent: right,
     }
 }
 
@@ -226,7 +226,16 @@ export const CodewhispererServerFactory =
                 }
 
                 return codeWhispererService
-                    .generateSuggestions(requestContext)
+                    .generateSuggestions({
+                        ...requestContext,
+                        fileContext: {
+                            ...requestContext.fileContext,
+                            ...{
+                                leftFileContent: requestContext.fileContext.leftFileContent.replaceAll('\r\n', '\n'),
+                                rightFileContent: requestContext.fileContext.leftFileContent.replaceAll('\r\n', '\n'),
+                            },
+                        },
+                    })
                     .catch(emitServiceInvocationFailure({ telemetry, invocationContext }))
                     .then(emitServiceInvocationTelemetry({ telemetry, invocationContext }))
                     .then(mergeSuggestionsWithContext({ fileContext, range: selectionRange }))
