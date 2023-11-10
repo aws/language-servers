@@ -85,7 +85,7 @@ namespace IdesLspPoc.LspClient.S3
         public async Task SendIamCredentialsAsync(UpdateCredentialsRequest request)
         {
             _outputWindow.WriteLine("Client: Sending (simulated) refreshed Credentials to the server");
-            await this._rpc.InvokeAsync("$/aws/credentials/iam/update", request);
+            await this._rpc.InvokeAsync("aws/credentials/iam/update", request);
         }
 
         private static UpdateCredentialsRequest CreateUpdateCredentialsRequest(ImmutableCredentials credentials, byte[] aesKey)

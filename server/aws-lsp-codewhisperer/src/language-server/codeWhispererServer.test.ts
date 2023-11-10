@@ -1,14 +1,20 @@
 import { Server } from '@aws-placeholder/aws-language-server-runtimes'
+import { MetricEvent } from '@aws-placeholder/aws-language-server-runtimes/out/features/telemetry/telemetry'
 import * as assert from 'assert'
 import { AWSError } from 'aws-sdk'
 import sinon, { StubbedInstance, stubInterface } from 'ts-sinon'
 import { CancellationToken, InlineCompletionTriggerKind } from 'vscode-languageserver'
 import { TextDocument } from 'vscode-languageserver-textdocument'
 import { TestFeatures } from './TestFeatures'
+import * as codeWhispererServer from './codeWhispererServer'
 import { CodewhispererServerFactory } from './codeWhispererServer'
 import { CodeWhispererServiceBase, ResponseContext, Suggestion } from './codeWhispererService'
 
 describe('CodeWhisperer Server', () => {
+    // TODO: remove after actual implementation of session id using session manager is done
+    // https://github.com/aws/aws-language-servers/pull/58/files
+    const createSessionIdStub = sinon.spy(codeWhispererServer, 'createSessionId')
+
     describe('Recommendations', () => {
         const HELLO_WORLD_IN_CSHARP = `
 class HelloWorld
@@ -46,16 +52,26 @@ class HelloWorld
             HELLO_WORLD_LINE.substring(SINGLE_LINE_FILE_CUTOFF_INDEX)
         )
 
-        const EXPECTED_SUGGESTION: Suggestion[] = [{ content: 'recommendation' }]
+        const EXPECTED_SUGGESTION: Suggestion[] = [{ itemId: 'cwspr-item-id', content: 'recommendation' }]
         const EXPECTED_RESPONSE_CONTEXT: ResponseContext = {
             requestId: 'cwspr-request-id',
             codewhispererSessionId: 'cwspr-session-id',
         }
+        const EXPECTED_SESSION_ID = 'some-random-session-uuid-string'
+
         const EXPECTED_RESULT = {
-            items: [{ insertText: EXPECTED_SUGGESTION[0].content, range: undefined, references: undefined }],
+            sessionId: EXPECTED_SESSION_ID,
+            items: [
+                {
+                    itemId: EXPECTED_SUGGESTION[0].itemId,
+                    insertText: EXPECTED_SUGGESTION[0].content,
+                    range: undefined,
+                    references: undefined,
+                },
+            ],
         }
 
-        const EMPTY_RESULT = { items: [] }
+        const EMPTY_RESULT = { items: [], sessionId: EXPECTED_SESSION_ID }
 
         let features: TestFeatures
         let server: Server
@@ -93,6 +109,10 @@ class HelloWorld
                 .openDocument(SOME_SINGLE_LINE_FILE)
         })
 
+        afterEach(() => {
+            createSessionIdStub.resetHistory()
+        })
+
         it('should return recommendations', async () => {
             const result = await features.doInlineCompletionWithReferences(
                 {
@@ -102,6 +122,8 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
+            const sessionId = createSessionIdStub.returnValues[0]
+            Object.assign(EXPECTED_RESULT, { sessionId })
 
             // Check the completion result
             assert.deepEqual(result, EXPECTED_RESULT)
@@ -132,6 +154,8 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
+            const sessionId = createSessionIdStub.returnValues[0]
+            Object.assign(EXPECTED_RESULT, { sessionId })
 
             // Check the completion result
             assert.deepEqual(result, EXPECTED_RESULT)
@@ -157,6 +181,8 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
+            const sessionId = createSessionIdStub.returnValues[0]
+            Object.assign(EXPECTED_RESULT, { sessionId })
 
             // Check the completion result
             assert.deepEqual(result, EXPECTED_RESULT)
@@ -182,6 +208,8 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
+            const sessionId = createSessionIdStub.returnValues[0]
+            Object.assign(EMPTY_RESULT, { sessionId })
 
             // Check the completion result
             assert.deepEqual(result, EMPTY_RESULT)
@@ -199,6 +227,8 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
+            const sessionId = createSessionIdStub.returnValues[0]
+            Object.assign(EMPTY_RESULT, { sessionId })
 
             // Check the completion result
             assert.deepEqual(result, EMPTY_RESULT)
@@ -216,6 +246,8 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
+            const sessionId = createSessionIdStub.returnValues[0]
+            Object.assign(EXPECTED_RESULT, { sessionId })
 
             // Check the completion result
             assert.deepEqual(result, EXPECTED_RESULT)
@@ -235,16 +267,22 @@ class HelloWorld
         })
 
         // Merge right tests
-        it('should not show recommendation when the recommendation is equal to right context ', async () => {
+        it('should not show recommendation when the recommendation is equal to right context', async () => {
             // The suggestion returned by generateSuggestions will be equal to the contents of the file
-            const EXPECTED_SUGGESTION: Suggestion[] = [{ content: HELLO_WORLD_IN_CSHARP }]
+            const EXPECTED_SUGGESTION: Suggestion[] = [{ itemId: 'cwspr-item-id', content: HELLO_WORLD_IN_CSHARP }]
             service.generateSuggestions.returns(
                 Promise.resolve({
                     suggestions: EXPECTED_SUGGESTION,
                     responseContext: EXPECTED_RESPONSE_CONTEXT,
                 })
             )
-            const EXPECTED_RESULT = { items: [{ insertText: '', range: undefined, references: undefined }] }
+
+            const EXPECTED_RESULT = {
+                sessionId: EXPECTED_SESSION_ID,
+                items: [
+                    { itemId: EXPECTED_SUGGESTION[0].itemId, insertText: '', range: undefined, references: undefined },
+                ],
+            }
 
             const result = await features.doInlineCompletionWithReferences(
                 {
@@ -254,6 +292,9 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
+            const sessionId = createSessionIdStub.returnValues[0]
+            Object.assign(EXPECTED_RESULT, { sessionId })
+
             assert.deepEqual(result, EXPECTED_RESULT)
         })
 
@@ -269,7 +310,7 @@ class HelloWorld
             const MY_FILE = TextDocument.create('file:///rightContext.cs', 'csharp', 1, finalFileContent)
             features.openDocument(MY_FILE)
 
-            const EXPECTED_SUGGESTION: Suggestion[] = [{ content: recommendation }]
+            const EXPECTED_SUGGESTION: Suggestion[] = [{ itemId: 'cwspr-item-id', content: recommendation }]
             service.generateSuggestions.returns(
                 Promise.resolve({
                     suggestions: EXPECTED_SUGGESTION,
@@ -279,7 +320,15 @@ class HelloWorld
             // Expected result is the deleted line + new line + 4 spaces
             // Newline and the 4 spaces get lost when we do the `split` so we add them back to expected result
             const EXPECTED_RESULT = {
-                items: [{ insertText: deletedLine.concat('\n    '), range: undefined, references: undefined }],
+                sessionId: EXPECTED_SESSION_ID,
+                items: [
+                    {
+                        itemId: EXPECTED_SUGGESTION[0].itemId,
+                        insertText: deletedLine.concat('\n    '),
+                        range: undefined,
+                        references: undefined,
+                    },
+                ],
             }
 
             const result = await features.doInlineCompletionWithReferences(
@@ -290,6 +339,9 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
+            const sessionId = createSessionIdStub.returnValues[0]
+            Object.assign(EXPECTED_RESULT, { sessionId })
+
             assert.deepEqual(result, EXPECTED_RESULT)
 
             const leftContext = lines.slice(0, cutOffLine).join('\n') + '\n'
@@ -307,7 +359,7 @@ class HelloWorld
         })
 
         it('should only show the part of the recommendation that does not overlap with the right context', async () => {
-            const EXPECTED_SUGGESTION: Suggestion[] = [{ content: HELLO_WORLD_LINE }]
+            const EXPECTED_SUGGESTION: Suggestion[] = [{ itemId: 'cwspr-item-id', content: HELLO_WORLD_LINE }]
             service.generateSuggestions.returns(
                 Promise.resolve({
                     suggestions: EXPECTED_SUGGESTION,
@@ -315,8 +367,10 @@ class HelloWorld
                 })
             )
             const EXPECTED_RESULT = {
+                sessionId: EXPECTED_SESSION_ID,
                 items: [
                     {
+                        itemId: EXPECTED_SUGGESTION[0].itemId,
                         insertText: HELLO_WORLD_LINE.substring(0, SINGLE_LINE_FILE_CUTOFF_INDEX),
                         range: undefined,
                         references: undefined,
@@ -332,11 +386,14 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
+            const sessionId = createSessionIdStub.returnValues[0]
+            Object.assign(EXPECTED_RESULT, { sessionId })
+
             assert.deepEqual(result, EXPECTED_RESULT)
         })
 
         it('should show full recommendation when the right context does not match recommendation ', async () => {
-            const EXPECTED_SUGGESTION: Suggestion[] = [{ content: 'Something something' }]
+            const EXPECTED_SUGGESTION: Suggestion[] = [{ itemId: 'cwspr-item-id', content: 'Something something' }]
             service.generateSuggestions.returns(
                 Promise.resolve({
                     suggestions: EXPECTED_SUGGESTION,
@@ -344,7 +401,15 @@ class HelloWorld
                 })
             )
             const EXPECTED_RESULT = {
-                items: [{ insertText: EXPECTED_SUGGESTION[0].content, range: undefined, references: undefined }],
+                sessionId: EXPECTED_SESSION_ID,
+                items: [
+                    {
+                        itemId: EXPECTED_SUGGESTION[0].itemId,
+                        insertText: EXPECTED_SUGGESTION[0].content,
+                        range: undefined,
+                        references: undefined,
+                    },
+                ],
             }
 
             const result = await features.doInlineCompletionWithReferences(
@@ -355,6 +420,9 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
+            const sessionId = createSessionIdStub.returnValues[0]
+            Object.assign(EXPECTED_RESULT, { sessionId })
+
             assert.deepEqual(result, EXPECTED_RESULT)
         })
 
@@ -370,11 +438,10 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
-
+            const sessionId = createSessionIdStub.returnValues[0]
+            Object.assign(EMPTY_RESULT, { sessionId })
             // Check the completion result
-            assert.deepEqual(result, {
-                items: [],
-            })
+            assert.deepEqual(result, EMPTY_RESULT)
         })
 
         // TODO: mock http request and verify the headers are passed
@@ -417,6 +484,7 @@ class HelloWorld
 }
 `
         const SOME_FILE = TextDocument.create('file:///test.cs', 'csharp', 1, HELLO_WORLD_IN_CSHARP)
+        const EXPECTED_SESSION_ID = 'some-random-session-uuid-string'
         const EXPECTED_REFERENCE = {
             licenseName: 'test license',
             repository: 'test repository',
@@ -424,21 +492,24 @@ class HelloWorld
             recommendationContentSpan: { start: 0, end: 1 },
         }
         const EXPECTED_SUGGESTION: Suggestion[] = [
-            { content: 'recommendation without reference' },
-            { content: 'recommendation with reference', references: [EXPECTED_REFERENCE] },
+            { itemId: 'cwspr-item-id-1', content: 'recommendation without reference' },
+            { itemId: 'cwspr-item-id-2', content: 'recommendation with reference', references: [EXPECTED_REFERENCE] },
         ]
         const EXPECTED_RESPONSE_CONTEXT: ResponseContext = {
             requestId: 'cwspr-request-id',
             codewhispererSessionId: 'cwspr-session-id',
         }
         const EXPECTED_RESULT_WITH_REFERENCES = {
+            sessionId: EXPECTED_SESSION_ID,
             items: [
                 {
+                    itemId: EXPECTED_SUGGESTION[0].itemId,
                     insertText: EXPECTED_SUGGESTION[0].content,
                     range: undefined,
                     references: undefined,
                 },
                 {
+                    itemId: EXPECTED_SUGGESTION[1].itemId,
                     insertText: EXPECTED_SUGGESTION[1].content,
                     range: undefined,
                     references: [
@@ -456,8 +527,10 @@ class HelloWorld
             ],
         }
         const EXPECTED_RESULT_WITHOUT_REFERENCES = {
+            sessionId: EXPECTED_SESSION_ID,
             items: [
                 {
+                    itemId: EXPECTED_SUGGESTION[0].itemId,
                     insertText: EXPECTED_SUGGESTION[0].content,
                     range: undefined,
                     references: undefined,
@@ -487,6 +560,10 @@ class HelloWorld
             features = new TestFeatures()
         })
 
+        afterEach(() => {
+            createSessionIdStub.resetHistory()
+        })
+
         it('should return all recommendations if no settings are specificed', async () => {
             features.lsp.workspace.getConfiguration.returns(Promise.resolve({}))
             await features.start(server)
@@ -498,6 +575,8 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
+            const sessionId = createSessionIdStub.returnValues[0]
+            Object.assign(EXPECTED_RESULT_WITH_REFERENCES, { sessionId })
 
             // Check the completion result
             assert.deepEqual(result, EXPECTED_RESULT_WITH_REFERENCES)
@@ -514,6 +593,8 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
+            const sessionId = createSessionIdStub.returnValues[0]
+            Object.assign(EXPECTED_RESULT_WITH_REFERENCES, { sessionId })
 
             // Check the completion result
             assert.deepEqual(result, EXPECTED_RESULT_WITH_REFERENCES)
@@ -532,6 +613,8 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
+            const sessionId = createSessionIdStub.returnValues[0]
+            Object.assign(EXPECTED_RESULT_WITH_REFERENCES, { sessionId })
 
             // Check the completion result
             assert.deepEqual(result, EXPECTED_RESULT_WITH_REFERENCES)
@@ -550,6 +633,8 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
+            const sessionId = createSessionIdStub.returnValues[0]
+            Object.assign(EXPECTED_RESULT_WITHOUT_REFERENCES, { sessionId })
 
             // Check the completion result
             assert.deepEqual(result, EXPECTED_RESULT_WITHOUT_REFERENCES)
@@ -574,6 +659,8 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
+            const sessionId = createSessionIdStub.returnValues[0]
+            Object.assign(EXPECTED_RESULT_WITHOUT_REFERENCES, { sessionId })
 
             // Check the completion result
             assert.deepEqual(result, EXPECTED_RESULT_WITHOUT_REFERENCES)
@@ -597,6 +684,8 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
+            const sessionId = createSessionIdStub.returnValues[0]
+            Object.assign(EXPECTED_RESULT_WITH_REFERENCES, { sessionId })
 
             // Check the completion result
             assert.deepEqual(result, EXPECTED_RESULT_WITH_REFERENCES)
@@ -606,9 +695,12 @@ class HelloWorld
             features.lsp.workspace.getConfiguration.returns(Promise.resolve({}))
             await features.start(server)
 
-            const EXPECTED_SUGGESTION: Suggestion[] = [{ content: HELLO_WORLD_IN_CSHARP }]
+            const EXPECTED_SUGGESTION: Suggestion[] = [{ itemId: 'cwspr-item-id', content: HELLO_WORLD_IN_CSHARP }]
             const EXPECTED_RESULT_WITH_REMOVED_REFERENCES = {
-                items: [{ insertText: '', range: undefined, references: undefined }],
+                sessionId: EXPECTED_SESSION_ID,
+                items: [
+                    { itemId: EXPECTED_SUGGESTION[0].itemId, insertText: '', range: undefined, references: undefined },
+                ],
             }
             service.generateSuggestions.returns(
                 Promise.resolve({
@@ -625,6 +717,8 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
+            const sessionId = createSessionIdStub.returnValues[0]
+            Object.assign(EXPECTED_RESULT_WITH_REMOVED_REFERENCES, { sessionId })
 
             assert.deepEqual(result, EXPECTED_RESULT_WITH_REMOVED_REFERENCES)
         })
@@ -645,10 +739,14 @@ class HelloWorld
             const MY_FILE = TextDocument.create('file:///rightContext.cs', 'csharp', 1, finalFileContent)
             features.openDocument(MY_FILE)
 
-            const EXPECTED_SUGGESTION: Suggestion[] = [{ content: recommendation, references: [EXPECTED_REFERENCE] }]
+            const EXPECTED_SUGGESTION: Suggestion[] = [
+                { itemId: 'cwspr-item-id', content: recommendation, references: [EXPECTED_REFERENCE] },
+            ]
             const EXPECTED_RESULT = {
+                sessionId: EXPECTED_SESSION_ID,
                 items: [
                     {
+                        itemId: EXPECTED_SUGGESTION[0].itemId,
                         insertText: deletedLine.concat('\n    '),
                         range: undefined,
                         references: [
@@ -681,6 +779,8 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
+            const sessionId = createSessionIdStub.returnValues[0]
+            Object.assign(EXPECTED_RESULT, { sessionId })
 
             assert.deepEqual(result, EXPECTED_RESULT)
         })
@@ -700,13 +800,22 @@ class HelloWorld
         const RIGHT_FILE_CONTEXT = HELLO_WORLD_IN_CSHARP.substring(40)
 
         const SOME_FILE = TextDocument.create('file:///test.cs', 'csharp', 1, HELLO_WORLD_IN_CSHARP)
-        const EXPECTED_SUGGESTION: Suggestion[] = [{ content: 'recommendation' }]
+        const EXPECTED_SUGGESTION: Suggestion[] = [{ itemId: 'cwspr-item-id', content: 'recommendation' }]
         const EXPECTED_RESPONSE_CONTEXT: ResponseContext = {
             requestId: 'cwspr-request-id',
             codewhispererSessionId: 'cwspr-session-id',
         }
+        const EXPECTED_SESSION_ID = 'some-random-session-uuid-string'
         const EXPECTED_RESULT = {
-            items: [{ insertText: EXPECTED_SUGGESTION[0].content, range: undefined, references: undefined }],
+            sessionId: EXPECTED_SESSION_ID,
+            items: [
+                {
+                    itemId: EXPECTED_SUGGESTION[0].itemId,
+                    insertText: EXPECTED_SUGGESTION[0].content,
+                    range: undefined,
+                    references: undefined,
+                },
+            ],
         }
 
         const EMPTY_RESULT = { items: [] }
@@ -742,6 +851,10 @@ class HelloWorld
             features.openDocument(SOME_FILE)
         })
 
+        afterEach(() => {
+            createSessionIdStub.resetHistory()
+        })
+
         it('should return recommendations on an above-threshold auto-trigger position', async () => {
             const result = await features.doInlineCompletionWithReferences(
                 {
@@ -751,6 +864,8 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
+            const sessionId = createSessionIdStub.returnValues[0]
+            Object.assign(EXPECTED_RESULT, { sessionId })
 
             // Check the completion result
             assert.deepEqual(result, EXPECTED_RESULT)
@@ -776,6 +891,8 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
+            const sessionId = createSessionIdStub.returnValues[0]
+            Object.assign(EMPTY_RESULT, { sessionId })
 
             // Check the completion result
             assert.deepEqual(result, EMPTY_RESULT)
@@ -793,7 +910,7 @@ class HelloWorld
 }
 `
         const SOME_FILE = TextDocument.create('file:///test.cs', 'csharp', 1, HELLO_WORLD_IN_CSHARP)
-        const EXPECTED_SUGGESTION: Suggestion[] = [{ content: 'recommendation' }]
+        const EXPECTED_SUGGESTION: Suggestion[] = [{ itemId: 'cwspr-item-id', content: 'recommendation' }]
         const EXPECTED_RESPONSE_CONTEXT: ResponseContext = {
             requestId: 'cwspr-request-id',
             codewhispererSessionId: 'cwspr-session-id',
@@ -849,8 +966,9 @@ class HelloWorld
                 CancellationToken.None
             )
 
-            const expectedServiceInvocationMetric = {
-                name: 'ServiceInvocation',
+            const expectedServiceInvocationMetric: MetricEvent = {
+                name: 'codewhisperer_serviceInvocation',
+                result: 'Succeeded',
                 data: {
                     codewhispererRequestId: 'cwspr-request-id',
                     codewhispererSessionId: 'cwspr-session-id',
@@ -858,12 +976,11 @@ class HelloWorld
                     codewhispererCompletionType: 'Line',
                     codewhispererTriggerType: 'OnDemand',
                     codewhispererAutomatedTriggerType: undefined,
-                    result: 'Succeeded',
                     duration: 0,
                     codewhispererLineNumber: 0,
                     codewhispererCursorOffset: 0,
                     codewhispererLanguage: 'csharp',
-                    credentialStartUrl: '',
+                    credentialStartUrl: undefined,
                 },
             }
             sinon.assert.calledOnceWithExactly(features.telemetry.emitMetric, expectedServiceInvocationMetric)
@@ -872,9 +989,9 @@ class HelloWorld
         it('should emit Success ServiceInvocation telemetry on successful response with completionType block when first suggestion has new lines', async () => {
             const recommendation = ['multi', 'line', ' suggestion'].join('\n')
             const EXPECTED_SUGGESTIONS = [
-                { content: recommendation },
-                { content: recommendation },
-                { content: recommendation },
+                { itemId: 'cwspr-item-id-1', content: recommendation },
+                { itemId: 'cwspr-item-id-2', content: recommendation },
+                { itemId: 'cwspr-item-id-3', content: recommendation },
             ]
             service.generateSuggestions.returns(
                 Promise.resolve({
@@ -892,8 +1009,9 @@ class HelloWorld
                 CancellationToken.None
             )
 
-            const expectedServiceInvocationMetric = {
-                name: 'ServiceInvocation',
+            const expectedServiceInvocationMetric: MetricEvent = {
+                name: 'codewhisperer_serviceInvocation',
+                result: 'Succeeded',
                 data: {
                     codewhispererRequestId: 'cwspr-request-id',
                     codewhispererSessionId: 'cwspr-session-id',
@@ -901,18 +1019,56 @@ class HelloWorld
                     codewhispererCompletionType: 'Block',
                     codewhispererTriggerType: 'OnDemand',
                     codewhispererAutomatedTriggerType: undefined,
-                    result: 'Succeeded',
                     duration: 0,
                     codewhispererLineNumber: 0,
                     codewhispererCursorOffset: 0,
                     codewhispererLanguage: 'csharp',
-                    credentialStartUrl: '',
+                    credentialStartUrl: undefined,
                 },
             }
             sinon.assert.calledOnceWithExactly(features.telemetry.emitMetric, expectedServiceInvocationMetric)
         })
 
         it('should emit Failure ServiceInvocation telemetry on failed response', async () => {
+            const error = new Error('UNEXPECTED EXCEPTION')
+            error.name = 'TestError'
+            service.generateSuggestions.returns(Promise.reject(error))
+
+            await features.doInlineCompletionWithReferences(
+                {
+                    textDocument: { uri: SOME_FILE.uri },
+                    position: { line: 0, character: 0 },
+                    context: { triggerKind: InlineCompletionTriggerKind.Invoked },
+                },
+                CancellationToken.None
+            )
+
+            const expectedServiceInvocationMetric: MetricEvent = {
+                name: 'codewhisperer_serviceInvocation',
+                result: 'Failed',
+                data: {
+                    codewhispererRequestId: undefined,
+                    codewhispererSessionId: undefined,
+                    codewhispererLastSuggestionIndex: -1,
+                    codewhispererTriggerType: 'OnDemand',
+                    codewhispererAutomatedTriggerType: undefined,
+                    reason: 'CodeWhisperer Invocation Exception: TestError',
+                    duration: 0,
+                    codewhispererLineNumber: 0,
+                    codewhispererCursorOffset: 0,
+                    codewhispererLanguage: 'csharp',
+                    credentialStartUrl: undefined,
+                },
+                errorData: {
+                    reason: 'TestError',
+                    errorCode: undefined,
+                    httpStatusCode: undefined,
+                },
+            }
+            sinon.assert.calledOnceWithExactly(features.telemetry.emitMetric, expectedServiceInvocationMetric)
+        })
+
+        it('should emit error with UnknownError reason if error name is not present', async () => {
             service.generateSuggestions.returns(Promise.reject('UNEXPECTED EXCEPTION'))
 
             await features.doInlineCompletionWithReferences(
@@ -924,21 +1080,26 @@ class HelloWorld
                 CancellationToken.None
             )
 
-            const expectedServiceInvocationMetric = {
-                name: 'ServiceInvocation',
+            const expectedServiceInvocationMetric: MetricEvent = {
+                name: 'codewhisperer_serviceInvocation',
+                result: 'Failed',
                 data: {
                     codewhispererRequestId: undefined,
                     codewhispererSessionId: undefined,
                     codewhispererLastSuggestionIndex: -1,
                     codewhispererTriggerType: 'OnDemand',
                     codewhispererAutomatedTriggerType: undefined,
-                    result: 'Failed',
-                    reason: 'CodeWhisperer Invocation Exception: UNEXPECTED EXCEPTION',
+                    reason: 'CodeWhisperer Invocation Exception: UnknownError',
                     duration: 0,
                     codewhispererLineNumber: 0,
                     codewhispererCursorOffset: 0,
                     codewhispererLanguage: 'csharp',
-                    credentialStartUrl: '',
+                    credentialStartUrl: undefined,
+                },
+                errorData: {
+                    reason: 'UnknownError',
+                    errorCode: undefined,
+                    httpStatusCode: undefined,
                 },
             }
             sinon.assert.calledOnceWithExactly(features.telemetry.emitMetric, expectedServiceInvocationMetric)
@@ -947,8 +1108,9 @@ class HelloWorld
         it('should emit Failure ServiceInvocation telemetry with request metadata on failed response with AWSError error type', async () => {
             // @ts-ignore
             const error: AWSError = new Error('Fake Error')
-            error.name = 'AWSError'
-            error.code = '500'
+            error.name = 'TestAWSError'
+            error.code = 'TestErrorStatusCode'
+            error.statusCode = 500
             error.time = new Date()
             error.requestId = 'failed-request-id'
 
@@ -968,24 +1130,68 @@ class HelloWorld
             )
             await getCompletionsPromise
 
-            const expectedServiceInvocationMetric = {
-                name: 'ServiceInvocation',
+            const expectedServiceInvocationMetric: MetricEvent = {
+                name: 'codewhisperer_serviceInvocation',
+                result: 'Failed',
                 data: {
                     codewhispererRequestId: 'failed-request-id',
                     codewhispererSessionId: undefined,
                     codewhispererLastSuggestionIndex: -1,
                     codewhispererTriggerType: 'OnDemand',
                     codewhispererAutomatedTriggerType: undefined,
-                    result: 'Failed',
-                    reason: 'CodeWhisperer Invocation Exception: AWSError: Fake Error',
+                    reason: 'CodeWhisperer Invocation Exception: TestAWSError',
                     duration: 1000,
                     codewhispererLineNumber: 0,
                     codewhispererCursorOffset: 0,
                     codewhispererLanguage: 'csharp',
-                    credentialStartUrl: '',
+                    credentialStartUrl: undefined,
+                },
+                errorData: {
+                    reason: 'TestAWSError',
+                    errorCode: 'TestErrorStatusCode',
+                    httpStatusCode: 500,
                 },
             }
             sinon.assert.calledOnceWithExactly(features.telemetry.emitMetric, expectedServiceInvocationMetric)
+        })
+
+        describe('Connection metadata credentialStartUrl field', () => {
+            it('should attach credentialStartUrl field if available in credentialsProvider', async () => {
+                features.credentialsProvider.getConnectionMetadata.returns({
+                    sso: {
+                        startUrl: 'http://teststarturl',
+                    },
+                })
+
+                await features.doInlineCompletionWithReferences(
+                    {
+                        textDocument: { uri: SOME_FILE.uri },
+                        position: { line: 0, character: 0 },
+                        context: { triggerKind: InlineCompletionTriggerKind.Invoked },
+                    },
+                    CancellationToken.None
+                )
+
+                assert.equal(
+                    features.telemetry.emitMetric.getCall(0).args[0].data.credentialStartUrl,
+                    'http://teststarturl'
+                )
+            })
+
+            it('should send empty credentialStartUrl field if not available in credentialsProvider', async () => {
+                features.credentialsProvider.getConnectionMetadata.returns(undefined)
+
+                await features.doInlineCompletionWithReferences(
+                    {
+                        textDocument: { uri: SOME_FILE.uri },
+                        position: { line: 0, character: 0 },
+                        context: { triggerKind: InlineCompletionTriggerKind.Invoked },
+                    },
+                    CancellationToken.None
+                )
+
+                assert.equal(features.telemetry.emitMetric.getCall(0).args[0].data.credentialStartUrl, undefined)
+            })
         })
     })
 })

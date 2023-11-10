@@ -11,7 +11,7 @@ import {
     RequestType,
     ResponseMessage,
 } from 'vscode-languageclient/node'
-import { BuilderIdConnectionBuilder } from './sso/builderId'
+import { BuilderIdConnectionBuilder, SsoConnection } from './sso/builderId'
 
 /**
  * Request for custom notifications that Update Credentials and tokens.
@@ -36,15 +36,27 @@ export interface UpdateIamCredentialsRequestData {
     sessionToken?: string
 }
 
+export interface ConnectionMetadata {
+    sso?: {
+        startUrl?: string
+    }
+}
+
 const encryptionKey = crypto.randomBytes(32)
+
+/**
+ * Cached builderId connection to setup getConnectionMetadata request handled in the client
+ */
+let activeBuilderIdConnection: SsoConnection | undefined
 
 // See core\aws-lsp-core\src\credentials\credentialsProvider.ts for the server's
 // custom method names and intents.
 const lspMethodNames = {
-    iamCredentialsUpdate: '$/aws/credentials/iam/update',
-    iamCredentialsDelete: '$/aws/credentials/iam/delete',
-    iamBearerTokenUpdate: '$/aws/credentials/token/update',
-    iamBearerTokenDelete: '$/aws/credentials/token/delete',
+    iamCredentialsUpdate: 'aws/credentials/iam/update',
+    iamCredentialsDelete: 'aws/credentials/iam/delete',
+    iamBearerTokenUpdate: 'aws/credentials/token/update',
+    iamBearerTokenDelete: 'aws/credentials/token/delete',
+    getConnectionMetadata: 'aws/credentials/getConnectionMetadata',
 }
 
 const notificationTypes = {
@@ -56,6 +68,7 @@ const notificationTypes = {
         lspMethodNames.iamBearerTokenUpdate
     ),
     deleteBearerToken: new NotificationType(lspMethodNames.iamBearerTokenDelete),
+    getConnectionMetadata: new RequestType<undefined, ConnectionMetadata, Error>(lspMethodNames.getConnectionMetadata),
 }
 
 /**
@@ -111,6 +124,8 @@ export async function registerBearerTokenProviderSupport(
     languageClient: LanguageClient,
     extensionContext: ExtensionContext
 ): Promise<void> {
+    createGetConnectionMetadataRequestHandler(languageClient)
+
     extensionContext.subscriptions.push(
         ...[
             commands.registerCommand('awslsp.resolveBearerToken', createResolveBearerTokenCommand(languageClient)),
@@ -190,6 +205,23 @@ async function sendBearerTokenUpdate(request: UpdateCredentialsRequest, language
 }
 
 /**
+ * Set getConnectionMetadata request handler.
+ *
+ * This request is send from server to client to request current auth connection metadata.
+ */
+function createGetConnectionMetadataRequestHandler(languageClient: LanguageClient) {
+    languageClient.onRequest<ConnectionMetadata, Error>(lspMethodNames.getConnectionMetadata, () => {
+        languageClient.info(`Client: The language server requested SSO connection metadata`)
+
+        return {
+            sso: {
+                startUrl: activeBuilderIdConnection?.startUrl ?? undefined,
+            },
+        }
+    })
+}
+
+/**
  * This command simulates an extension's credentials state changing, and pushing updated
  * credentials to the server.
  *
@@ -198,9 +230,9 @@ async function sendBearerTokenUpdate(request: UpdateCredentialsRequest, language
  */
 function createResolveBearerTokenCommand(languageClient: LanguageClient) {
     return async () => {
-        const builderIdConnection = await BuilderIdConnectionBuilder.build()
+        activeBuilderIdConnection = await BuilderIdConnectionBuilder.build()
 
-        const token = await builderIdConnection.getToken()
+        const token = await activeBuilderIdConnection.getToken()
 
         const request = await createUpdateCredentialsRequest({
             token: token.accessToken,
@@ -214,10 +246,12 @@ function createResolveBearerTokenCommand(languageClient: LanguageClient) {
 /**
  * This command simulates an extension's credentials expiring (or the user configuring "no credentials").
  *
- * The server's credentials are cleared.
+ * The server's credentials are cleared and cached buildedId connection is cleared.
  */
 function createClearTokenCommand(languageClient: LanguageClient) {
     return async () => {
+        activeBuilderIdConnection = undefined
+
         await languageClient.sendNotification(notificationTypes.deleteBearerToken)
     }
 }

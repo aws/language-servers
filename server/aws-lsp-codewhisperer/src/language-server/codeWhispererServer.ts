@@ -4,8 +4,10 @@ import {
     InlineCompletionItemWithReferences,
     InlineCompletionListWithReferences,
     InlineCompletionWithReferencesParams,
+    LogInlineCompelitionSessionResultsParams,
 } from '@aws-placeholder/aws-language-server-runtimes/out/features/lsp/inline-completions/protocolExtensions'
 import { AWSError } from 'aws-sdk'
+import { v4 as uuidv4 } from 'uuid'
 import { CancellationToken, InlineCompletionTriggerKind, Range } from 'vscode-languageserver'
 import { Position, TextDocument } from 'vscode-languageserver-textdocument'
 import { CodewhispererTriggerType, autoTrigger, triggerType } from './auto-trigger/autoTrigger'
@@ -21,7 +23,7 @@ import { CodeWhispererSession, SessionManager } from './session/sessionManager'
 import { CodeWhispererServiceInvocationEvent } from './telemetry/types'
 import { getCompletionType, isAwsError } from './utils'
 
-const EMPTY_RESULT = { items: [] }
+const EMPTY_RESULT = { sessionId: '', items: [] }
 
 // Both clients (token, sigv4) define their own types, this return value needs to match both of them.
 const getFileContext = (params: {
@@ -65,15 +67,15 @@ const emitServiceInvocationTelemetry = (telemetry: Telemetry, session: CodeWhisp
             session.suggestions.length > 0 ? getCompletionType(session.suggestions[0]) : undefined,
         codewhispererTriggerType: session.triggerType,
         codewhispererAutomatedTriggerType: session.autoTriggerType,
-        result: 'Succeeded',
         duration,
         codewhispererLineNumber: session.startPosition.line,
         codewhispererCursorOffset: session.startPosition.character,
         codewhispererLanguage: session.language,
-        credentialStartUrl: '',
+        credentialStartUrl: session.credentialStartUrl,
     }
     telemetry.emitMetric({
-        name: 'ServiceInvocation',
+        name: 'codewhisperer_serviceInvocation',
+        result: 'Succeeded',
         data,
     })
 }
@@ -90,18 +92,23 @@ const emitServiceInvocationFailure = (telemetry: Telemetry, session: CodeWhisper
         codewhispererLastSuggestionIndex: -1,
         codewhispererTriggerType: session.triggerType,
         codewhispererAutomatedTriggerType: session.autoTriggerType,
-        result: 'Failed',
         reason,
         duration,
         codewhispererLineNumber: session.startPosition.line,
         codewhispererCursorOffset: session.startPosition.character,
         codewhispererLanguage: session.language,
-        credentialStartUrl: '',
+        credentialStartUrl: session.credentialStartUrl,
     }
 
     telemetry.emitMetric({
-        name: 'ServiceInvocation',
+        name: 'codewhisperer_serviceInvocation',
+        result: 'Failed',
         data,
+        errorData: {
+            reason: error.name || 'UnknownError',
+            errorCode: isAwsError(error) ? error.code : undefined,
+            httpStatusCode: isAwsError(error) ? error.statusCode : undefined,
+        },
     })
 }
 
@@ -144,8 +151,7 @@ const getLeftContextMatchingSuggestions = (suggestions: Suggestion[], leftFileCo
         const overlapIndex = suggestion.content.indexOf(overlap)
 
         if (overlapIndex > 0 && overlap != suggestion.content) {
-            console.log({ overlap })
-            // delete the part of suggestion that overlaps, but don't change the contents inside the session
+            // Delete the part of suggestion that overlaps, but don't change the contents inside the session
             const modifiedSuggestion = { ...suggestion }
             modifiedSuggestion.content.replace(overlap, '')
             matchingSuggestions.push(modifiedSuggestion)
@@ -154,6 +160,8 @@ const getLeftContextMatchingSuggestions = (suggestions: Suggestion[], leftFileCo
 
     return matchingSuggestions
 }
+
+export const createSessionId = () => uuidv4()
 
 export const CodewhispererServerFactory =
     (service: (credentials: CredentialsProvider) => CodeWhispererServiceBase): Server =>
@@ -265,6 +273,7 @@ export const CodewhispererServerFactory =
                     language: fileContext.programmingLanguage.languageName as CodewhispererLanguage,
                     requestContext: requestContext,
                     autoTriggerType: autoTriggerType,
+                    credentialStartUrl: credentialsProvider.getConnectionMetadata()?.sso?.startUrl ?? undefined,
                 })
 
                 return codeWhispererService
@@ -293,7 +302,7 @@ export const CodewhispererServerFactory =
                             selectionRange
                         )
 
-                        return { items: rightContextMergedSuggestions }
+                        return { items: rightContextMergedSuggestions, sessionId: newSession.id }
                     })
                     .catch(err => {
                         // TODO, handle errors properly
@@ -303,7 +312,11 @@ export const CodewhispererServerFactory =
                     })
             })
         }
-
+        const onLogInlineCompelitionSessionResultsHandler = async (
+            params: LogInlineCompelitionSessionResultsParams
+        ) => {
+            // TODO: end current active session from session manager
+        }
         const updateConfiguration = async () =>
             lsp.workspace
                 .getConfiguration('aws.codeWhisperer')
@@ -326,6 +339,7 @@ export const CodewhispererServerFactory =
                 .catch(reason => logging.log(`Error in GetConfiguration: ${reason}`))
 
         lsp.extensions.onInlineCompletionWithReferences(onInlineCompletionHandler)
+        lsp.extensions.onLogInlineCompelitionSessionResults(onLogInlineCompelitionSessionResultsHandler)
         lsp.onInitialized(updateConfiguration)
         lsp.didChangeConfiguration(updateConfiguration)
 

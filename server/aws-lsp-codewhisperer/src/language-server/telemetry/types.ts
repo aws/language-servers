@@ -9,7 +9,6 @@ export interface CodeWhispererServiceInvocationEvent {
     codewhispererCompletionType?: CodewhispererCompletionType
     codewhispererTriggerType: string
     codewhispererAutomatedTriggerType?: string
-    result: 'Succeeded' | 'Failed'
     duration?: number
     codewhispererLineNumber?: number
     codewhispererCursorOffset?: number
