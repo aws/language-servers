@@ -36,7 +36,7 @@ interface InvocationContext {
     language: CodewhispererLanguage
 }
 
-const EMPTY_RESULT = { items: [] }
+const EMPTY_RESULT = { sessionId: '', items: [] }
 
 // Both clients (token, sigv4) define their own types, this return value needs to match both of them.
 const getFileContext = (params: {
@@ -135,7 +135,7 @@ const mergeSuggestionsWithContext =
     ({ fileContext, range }: { fileContext: FileContext; range?: Range }) =>
     (suggestions: Suggestion[]): InlineCompletionItemWithReferences[] =>
         suggestions.map(suggestion => ({
-            itemId: suggestion.id,
+            itemId: suggestion.itemId,
             insertText: truncateOverlapWithRightContext(fileContext, suggestion.content),
             range,
             references: suggestion.references?.map(r => ({
@@ -178,15 +178,12 @@ export const CodewhispererServerFactory =
             _token: CancellationToken
         ): Promise<InlineCompletionListWithReferences> => {
             const sessionId = createSessionId()
-            const EMPTY_RESULT_WITH_SESSION_ID = {
-                ...EMPTY_RESULT,
-                sessionId,
-            }
+            Object.assign(EMPTY_RESULT, { sessionId })
 
             return workspace.getTextDocument(params.textDocument.uri).then(textDocument => {
                 if (!textDocument) {
                     logging.log(`textDocument [${params.textDocument.uri}] not found`)
-                    return EMPTY_RESULT_WITH_SESSION_ID
+                    return EMPTY_RESULT
                 }
 
                 const inferredLanguageId = getSupportedLanguageId(textDocument)
@@ -194,7 +191,7 @@ export const CodewhispererServerFactory =
                     logging.log(
                         `textDocument [${params.textDocument.uri}] with languageId [${textDocument.languageId}] not supported`
                     )
-                    return EMPTY_RESULT_WITH_SESSION_ID
+                    return EMPTY_RESULT
                 }
 
                 // Build request context
@@ -220,7 +217,7 @@ export const CodewhispererServerFactory =
                         triggerType: codewhispererAutoTriggerType, // The 2 trigger types currently influencing the Auto-Trigger are SpecialCharacter and Enter
                     })
                 ) {
-                    return EMPTY_RESULT_WITH_SESSION_ID
+                    return EMPTY_RESULT
                 }
 
                 const requestContext = {
@@ -245,7 +242,7 @@ export const CodewhispererServerFactory =
                     .then(items => ({ items, sessionId }))
                     .catch(err => {
                         logging.log(`onInlineCompletion failure: ${err}`)
-                        return EMPTY_RESULT_WITH_SESSION_ID
+                        return EMPTY_RESULT
                     })
             })
         }

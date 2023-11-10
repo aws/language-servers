@@ -51,7 +51,7 @@ class HelloWorld
             HELLO_WORLD_LINE.substring(SINGLE_LINE_FILE_CUTOFF_INDEX)
         )
 
-        const EXPECTED_SUGGESTION: Suggestion[] = [{ id: 'cwspr-item-id', content: 'recommendation' }]
+        const EXPECTED_SUGGESTION: Suggestion[] = [{ itemId: 'cwspr-item-id', content: 'recommendation' }]
         const EXPECTED_RESPONSE_CONTEXT: ResponseContext = {
             requestId: 'cwspr-request-id',
             codewhispererSessionId: 'cwspr-session-id',
@@ -62,7 +62,7 @@ class HelloWorld
             sessionId: EXPECTED_SESSION_ID,
             items: [
                 {
-                    itemId: EXPECTED_SUGGESTION[0].id,
+                    itemId: EXPECTED_SUGGESTION[0].itemId,
                     insertText: EXPECTED_SUGGESTION[0].content,
                     range: undefined,
                     references: undefined,
@@ -268,7 +268,7 @@ class HelloWorld
         // Merge right tests
         it('should not show recommendation when the recommendation is equal to right context', async () => {
             // The suggestion returned by generateSuggestions will be equal to the contents of the file
-            const EXPECTED_SUGGESTION: Suggestion[] = [{ id: 'cwspr-item-id', content: HELLO_WORLD_IN_CSHARP }]
+            const EXPECTED_SUGGESTION: Suggestion[] = [{ itemId: 'cwspr-item-id', content: HELLO_WORLD_IN_CSHARP }]
             service.generateSuggestions.returns(
                 Promise.resolve({
                     suggestions: EXPECTED_SUGGESTION,
@@ -278,7 +278,9 @@ class HelloWorld
 
             const EXPECTED_RESULT = {
                 sessionId: EXPECTED_SESSION_ID,
-                items: [{ itemId: EXPECTED_SUGGESTION[0].id, insertText: '', range: undefined, references: undefined }],
+                items: [
+                    { itemId: EXPECTED_SUGGESTION[0].itemId, insertText: '', range: undefined, references: undefined },
+                ],
             }
 
             const result = await features.doInlineCompletionWithReferences(
@@ -307,7 +309,7 @@ class HelloWorld
             const MY_FILE = TextDocument.create('file:///rightContext.cs', 'csharp', 1, finalFileContent)
             features.openDocument(MY_FILE)
 
-            const EXPECTED_SUGGESTION: Suggestion[] = [{ id: 'cwspr-item-id', content: recommendation }]
+            const EXPECTED_SUGGESTION: Suggestion[] = [{ itemId: 'cwspr-item-id', content: recommendation }]
             service.generateSuggestions.returns(
                 Promise.resolve({
                     suggestions: EXPECTED_SUGGESTION,
@@ -320,7 +322,7 @@ class HelloWorld
                 sessionId: EXPECTED_SESSION_ID,
                 items: [
                     {
-                        itemId: EXPECTED_SUGGESTION[0].id,
+                        itemId: EXPECTED_SUGGESTION[0].itemId,
                         insertText: deletedLine.concat('\n    '),
                         range: undefined,
                         references: undefined,
@@ -356,7 +358,7 @@ class HelloWorld
         })
 
         it('should only show the part of the recommendation that does not overlap with the right context', async () => {
-            const EXPECTED_SUGGESTION: Suggestion[] = [{ id: 'cwspr-item-id', content: HELLO_WORLD_LINE }]
+            const EXPECTED_SUGGESTION: Suggestion[] = [{ itemId: 'cwspr-item-id', content: HELLO_WORLD_LINE }]
             service.generateSuggestions.returns(
                 Promise.resolve({
                     suggestions: EXPECTED_SUGGESTION,
@@ -367,7 +369,7 @@ class HelloWorld
                 sessionId: EXPECTED_SESSION_ID,
                 items: [
                     {
-                        itemId: EXPECTED_SUGGESTION[0].id,
+                        itemId: EXPECTED_SUGGESTION[0].itemId,
                         insertText: HELLO_WORLD_LINE.substring(0, SINGLE_LINE_FILE_CUTOFF_INDEX),
                         range: undefined,
                         references: undefined,
@@ -390,7 +392,7 @@ class HelloWorld
         })
 
         it('should show full recommendation when the right context does not match recommendation ', async () => {
-            const EXPECTED_SUGGESTION: Suggestion[] = [{ id: 'cwspr-item-id', content: 'Something something' }]
+            const EXPECTED_SUGGESTION: Suggestion[] = [{ itemId: 'cwspr-item-id', content: 'Something something' }]
             service.generateSuggestions.returns(
                 Promise.resolve({
                     suggestions: EXPECTED_SUGGESTION,
@@ -401,7 +403,7 @@ class HelloWorld
                 sessionId: EXPECTED_SESSION_ID,
                 items: [
                     {
-                        itemId: EXPECTED_SUGGESTION[0].id,
+                        itemId: EXPECTED_SUGGESTION[0].itemId,
                         insertText: EXPECTED_SUGGESTION[0].content,
                         range: undefined,
                         references: undefined,
@@ -489,8 +491,8 @@ class HelloWorld
             recommendationContentSpan: { start: 0, end: 1 },
         }
         const EXPECTED_SUGGESTION: Suggestion[] = [
-            { id: 'cwspr-item-id-1', content: 'recommendation without reference' },
-            { id: 'cwspr-item-id-2', content: 'recommendation with reference', references: [EXPECTED_REFERENCE] },
+            { itemId: 'cwspr-item-id-1', content: 'recommendation without reference' },
+            { itemId: 'cwspr-item-id-2', content: 'recommendation with reference', references: [EXPECTED_REFERENCE] },
         ]
         const EXPECTED_RESPONSE_CONTEXT: ResponseContext = {
             requestId: 'cwspr-request-id',
@@ -500,13 +502,13 @@ class HelloWorld
             sessionId: EXPECTED_SESSION_ID,
             items: [
                 {
-                    itemId: EXPECTED_SUGGESTION[0].id,
+                    itemId: EXPECTED_SUGGESTION[0].itemId,
                     insertText: EXPECTED_SUGGESTION[0].content,
                     range: undefined,
                     references: undefined,
                 },
                 {
-                    itemId: EXPECTED_SUGGESTION[1].id,
+                    itemId: EXPECTED_SUGGESTION[1].itemId,
                     insertText: EXPECTED_SUGGESTION[1].content,
                     range: undefined,
                     references: [
@@ -527,7 +529,7 @@ class HelloWorld
             sessionId: EXPECTED_SESSION_ID,
             items: [
                 {
-                    itemId: EXPECTED_SUGGESTION[0].id,
+                    itemId: EXPECTED_SUGGESTION[0].itemId,
                     insertText: EXPECTED_SUGGESTION[0].content,
                     range: undefined,
                     references: undefined,
@@ -692,10 +694,12 @@ class HelloWorld
             features.lsp.workspace.getConfiguration.returns(Promise.resolve({}))
             await features.start(server)
 
-            const EXPECTED_SUGGESTION: Suggestion[] = [{ id: 'cwspr-item-id', content: HELLO_WORLD_IN_CSHARP }]
+            const EXPECTED_SUGGESTION: Suggestion[] = [{ itemId: 'cwspr-item-id', content: HELLO_WORLD_IN_CSHARP }]
             const EXPECTED_RESULT_WITH_REMOVED_REFERENCES = {
                 sessionId: EXPECTED_SESSION_ID,
-                items: [{ itemId: EXPECTED_SUGGESTION[0].id, insertText: '', range: undefined, references: undefined }],
+                items: [
+                    { itemId: EXPECTED_SUGGESTION[0].itemId, insertText: '', range: undefined, references: undefined },
+                ],
             }
             service.generateSuggestions.returns(
                 Promise.resolve({
@@ -735,13 +739,13 @@ class HelloWorld
             features.openDocument(MY_FILE)
 
             const EXPECTED_SUGGESTION: Suggestion[] = [
-                { id: 'cwspr-item-id', content: recommendation, references: [EXPECTED_REFERENCE] },
+                { itemId: 'cwspr-item-id', content: recommendation, references: [EXPECTED_REFERENCE] },
             ]
             const EXPECTED_RESULT = {
                 sessionId: EXPECTED_SESSION_ID,
                 items: [
                     {
-                        itemId: EXPECTED_SUGGESTION[0].id,
+                        itemId: EXPECTED_SUGGESTION[0].itemId,
                         insertText: deletedLine.concat('\n    '),
                         range: undefined,
                         references: [
@@ -795,7 +799,7 @@ class HelloWorld
         const RIGHT_FILE_CONTEXT = HELLO_WORLD_IN_CSHARP.substring(40)
 
         const SOME_FILE = TextDocument.create('file:///test.cs', 'csharp', 1, HELLO_WORLD_IN_CSHARP)
-        const EXPECTED_SUGGESTION: Suggestion[] = [{ id: 'cwspr-item-id', content: 'recommendation' }]
+        const EXPECTED_SUGGESTION: Suggestion[] = [{ itemId: 'cwspr-item-id', content: 'recommendation' }]
         const EXPECTED_RESPONSE_CONTEXT: ResponseContext = {
             requestId: 'cwspr-request-id',
             codewhispererSessionId: 'cwspr-session-id',
@@ -805,7 +809,7 @@ class HelloWorld
             sessionId: EXPECTED_SESSION_ID,
             items: [
                 {
-                    itemId: EXPECTED_SUGGESTION[0].id,
+                    itemId: EXPECTED_SUGGESTION[0].itemId,
                     insertText: EXPECTED_SUGGESTION[0].content,
                     range: undefined,
                     references: undefined,
@@ -905,7 +909,7 @@ class HelloWorld
 }
 `
         const SOME_FILE = TextDocument.create('file:///test.cs', 'csharp', 1, HELLO_WORLD_IN_CSHARP)
-        const EXPECTED_SUGGESTION: Suggestion[] = [{ id: 'cwspr-item-id', content: 'recommendation' }]
+        const EXPECTED_SUGGESTION: Suggestion[] = [{ itemId: 'cwspr-item-id', content: 'recommendation' }]
         const EXPECTED_RESPONSE_CONTEXT: ResponseContext = {
             requestId: 'cwspr-request-id',
             codewhispererSessionId: 'cwspr-session-id',
@@ -984,9 +988,9 @@ class HelloWorld
         it('should emit Success ServiceInvocation telemetry on successful response with completionType block when first suggestion has new lines', async () => {
             const recommendation = ['multi', 'line', ' suggestion'].join('\n')
             const EXPECTED_SUGGESTIONS = [
-                { id: 'cwspr-item-id-1', content: recommendation },
-                { id: 'cwspr-item-id-2', content: recommendation },
-                { id: 'cwspr-item-id-3', content: recommendation },
+                { itemId: 'cwspr-item-id-1', content: recommendation },
+                { itemId: 'cwspr-item-id-2', content: recommendation },
+                { itemId: 'cwspr-item-id-3', content: recommendation },
             ]
             service.generateSuggestions.returns(
                 Promise.resolve({

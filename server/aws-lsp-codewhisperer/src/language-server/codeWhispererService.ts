@@ -10,7 +10,7 @@ import {
 
 // Define our own Suggestion interface to wrap the differences between Token and IAM Client
 export interface Suggestion extends CodeWhispererTokenClient.Completion, CodeWhispererSigv4Client.Recommendation {
-    id: string
+    itemId: string
 }
 
 export interface GenerateSuggestionsRequest
@@ -80,7 +80,7 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
         }
 
         for (const recommendation of response?.recommendations ?? []) {
-            Object.assign(recommendation, { id: this.generateItemId() })
+            Object.assign(recommendation, { itemId: this.generateItemId() })
         }
 
         return {
@@ -133,7 +133,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         }
 
         for (const recommendation of response?.completions ?? []) {
-            Object.assign(recommendation, { id: this.generateItemId() })
+            Object.assign(recommendation, { itemId: this.generateItemId() })
         }
 
         return {
