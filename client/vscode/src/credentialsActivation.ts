@@ -41,10 +41,10 @@ const encryptionKey = crypto.randomBytes(32)
 // See core\aws-lsp-core\src\credentials\credentialsProvider.ts for the server's
 // custom method names and intents.
 const lspMethodNames = {
-    iamCredentialsUpdate: '$/aws/credentials/iam/update',
-    iamCredentialsDelete: '$/aws/credentials/iam/delete',
-    iamBearerTokenUpdate: '$/aws/credentials/token/update',
-    iamBearerTokenDelete: '$/aws/credentials/token/delete',
+    iamCredentialsUpdate: 'aws/credentials/iam/update',
+    iamCredentialsDelete: 'aws/credentials/iam/delete',
+    iamBearerTokenUpdate: 'aws/credentials/token/update',
+    iamBearerTokenDelete: 'aws/credentials/token/delete',
 }
 
 const notificationTypes = {
