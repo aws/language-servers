@@ -81,7 +81,6 @@ const emitServiceInvocationTelemetry =
             codewhispererCompletionType: suggestions.length > 0 ? getCompletionType(suggestions[0]) : undefined,
             codewhispererTriggerType: invocationContext.triggerType,
             codewhispererAutomatedTriggerType: invocationContext.autoTriggerType,
-            result: 'Succeeded',
             duration,
             codewhispererLineNumber: invocationContext.startPosition.line,
             codewhispererCursorOffset: invocationContext.startPosition.character,
@@ -90,6 +89,7 @@ const emitServiceInvocationTelemetry =
         }
         telemetry.emitMetric({
             name: 'codewhisperer_serviceInvocation',
+            result: 'Succeeded',
             data,
         })
 
@@ -99,8 +99,6 @@ const emitServiceInvocationTelemetry =
 const emitServiceInvocationFailure =
     ({ telemetry, invocationContext }: { telemetry: Telemetry; invocationContext: InvocationContext }) =>
     (error: Error | AWSError) => {
-        const errorMessage = error ? String(error) : 'unknown'
-        const reason = `CodeWhisperer Invocation Exception: ${errorMessage}`
         const duration = invocationContext.startTime ? new Date().getTime() - invocationContext.startTime : 0
         const codewhispererRequestId = isAwsError(error) ? error.requestId : undefined
 
@@ -110,8 +108,7 @@ const emitServiceInvocationFailure =
             codewhispererLastSuggestionIndex: -1,
             codewhispererTriggerType: invocationContext.triggerType,
             codewhispererAutomatedTriggerType: invocationContext.autoTriggerType,
-            result: 'Failed',
-            reason,
+            reason: `CodeWhisperer Invocation Exception: ${error.name || 'UnknownError'}`,
             duration,
             codewhispererLineNumber: invocationContext.startPosition.line,
             codewhispererCursorOffset: invocationContext.startPosition.character,
@@ -121,7 +118,13 @@ const emitServiceInvocationFailure =
 
         telemetry.emitMetric({
             name: 'codewhisperer_serviceInvocation',
+            result: 'Failed',
             data,
+            errorData: {
+                reason: error.name || 'UnknownError',
+                errorCode: isAwsError(error) ? error.code : undefined,
+                httpStatusCode: isAwsError(error) ? error.statusCode : undefined,
+            },
         })
 
         // Re-throw an error to handle in the default catch all handler.

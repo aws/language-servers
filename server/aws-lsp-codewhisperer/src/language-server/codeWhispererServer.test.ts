@@ -1,4 +1,5 @@
 import { Server } from '@aws-placeholder/aws-language-server-runtimes'
+import { MetricEvent } from '@aws-placeholder/aws-language-server-runtimes/out/features/telemetry/telemetry'
 import * as assert from 'assert'
 import { AWSError } from 'aws-sdk'
 import sinon, { StubbedInstance, stubInterface } from 'ts-sinon'
@@ -849,8 +850,9 @@ class HelloWorld
                 CancellationToken.None
             )
 
-            const expectedServiceInvocationMetric = {
+            const expectedServiceInvocationMetric: MetricEvent = {
                 name: 'codewhisperer_serviceInvocation',
+                result: 'Succeeded',
                 data: {
                     codewhispererRequestId: 'cwspr-request-id',
                     codewhispererSessionId: 'cwspr-session-id',
@@ -858,7 +860,6 @@ class HelloWorld
                     codewhispererCompletionType: 'Line',
                     codewhispererTriggerType: 'OnDemand',
                     codewhispererAutomatedTriggerType: undefined,
-                    result: 'Succeeded',
                     duration: 0,
                     codewhispererLineNumber: 0,
                     codewhispererCursorOffset: 0,
@@ -892,8 +893,9 @@ class HelloWorld
                 CancellationToken.None
             )
 
-            const expectedServiceInvocationMetric = {
+            const expectedServiceInvocationMetric: MetricEvent = {
                 name: 'codewhisperer_serviceInvocation',
+                result: 'Succeeded',
                 data: {
                     codewhispererRequestId: 'cwspr-request-id',
                     codewhispererSessionId: 'cwspr-session-id',
@@ -901,7 +903,6 @@ class HelloWorld
                     codewhispererCompletionType: 'Block',
                     codewhispererTriggerType: 'OnDemand',
                     codewhispererAutomatedTriggerType: undefined,
-                    result: 'Succeeded',
                     duration: 0,
                     codewhispererLineNumber: 0,
                     codewhispererCursorOffset: 0,
@@ -913,6 +914,45 @@ class HelloWorld
         })
 
         it('should emit Failure ServiceInvocation telemetry on failed response', async () => {
+            const error = new Error('UNEXPECTED EXCEPTION')
+            error.name = 'TestError'
+            service.generateSuggestions.returns(Promise.reject(error))
+
+            await features.doInlineCompletionWithReferences(
+                {
+                    textDocument: { uri: SOME_FILE.uri },
+                    position: { line: 0, character: 0 },
+                    context: { triggerKind: InlineCompletionTriggerKind.Invoked },
+                },
+                CancellationToken.None
+            )
+
+            const expectedServiceInvocationMetric: MetricEvent = {
+                name: 'codewhisperer_serviceInvocation',
+                result: 'Failed',
+                data: {
+                    codewhispererRequestId: undefined,
+                    codewhispererSessionId: undefined,
+                    codewhispererLastSuggestionIndex: -1,
+                    codewhispererTriggerType: 'OnDemand',
+                    codewhispererAutomatedTriggerType: undefined,
+                    reason: 'CodeWhisperer Invocation Exception: TestError',
+                    duration: 0,
+                    codewhispererLineNumber: 0,
+                    codewhispererCursorOffset: 0,
+                    codewhispererLanguage: 'csharp',
+                    credentialStartUrl: '',
+                },
+                errorData: {
+                    reason: 'TestError',
+                    errorCode: undefined,
+                    httpStatusCode: undefined,
+                },
+            }
+            sinon.assert.calledOnceWithExactly(features.telemetry.emitMetric, expectedServiceInvocationMetric)
+        })
+
+        it('should emit error with UnknownError reason if error name is not present', async () => {
             service.generateSuggestions.returns(Promise.reject('UNEXPECTED EXCEPTION'))
 
             await features.doInlineCompletionWithReferences(
@@ -924,21 +964,26 @@ class HelloWorld
                 CancellationToken.None
             )
 
-            const expectedServiceInvocationMetric = {
+            const expectedServiceInvocationMetric: MetricEvent = {
                 name: 'codewhisperer_serviceInvocation',
+                result: 'Failed',
                 data: {
                     codewhispererRequestId: undefined,
                     codewhispererSessionId: undefined,
                     codewhispererLastSuggestionIndex: -1,
                     codewhispererTriggerType: 'OnDemand',
                     codewhispererAutomatedTriggerType: undefined,
-                    result: 'Failed',
-                    reason: 'CodeWhisperer Invocation Exception: UNEXPECTED EXCEPTION',
+                    reason: 'CodeWhisperer Invocation Exception: UnknownError',
                     duration: 0,
                     codewhispererLineNumber: 0,
                     codewhispererCursorOffset: 0,
                     codewhispererLanguage: 'csharp',
                     credentialStartUrl: '',
+                },
+                errorData: {
+                    reason: 'UnknownError',
+                    errorCode: undefined,
+                    httpStatusCode: undefined,
                 },
             }
             sinon.assert.calledOnceWithExactly(features.telemetry.emitMetric, expectedServiceInvocationMetric)
@@ -947,8 +992,9 @@ class HelloWorld
         it('should emit Failure ServiceInvocation telemetry with request metadata on failed response with AWSError error type', async () => {
             // @ts-ignore
             const error: AWSError = new Error('Fake Error')
-            error.name = 'AWSError'
-            error.code = '500'
+            error.name = 'TestAWSError'
+            error.code = 'TestErrorStatusCode'
+            error.statusCode = 500
             error.time = new Date()
             error.requestId = 'failed-request-id'
 
@@ -968,21 +1014,26 @@ class HelloWorld
             )
             await getCompletionsPromise
 
-            const expectedServiceInvocationMetric = {
+            const expectedServiceInvocationMetric: MetricEvent = {
                 name: 'codewhisperer_serviceInvocation',
+                result: 'Failed',
                 data: {
                     codewhispererRequestId: 'failed-request-id',
                     codewhispererSessionId: undefined,
                     codewhispererLastSuggestionIndex: -1,
                     codewhispererTriggerType: 'OnDemand',
                     codewhispererAutomatedTriggerType: undefined,
-                    result: 'Failed',
-                    reason: 'CodeWhisperer Invocation Exception: AWSError: Fake Error',
+                    reason: 'CodeWhisperer Invocation Exception: TestAWSError',
                     duration: 1000,
                     codewhispererLineNumber: 0,
                     codewhispererCursorOffset: 0,
                     codewhispererLanguage: 'csharp',
                     credentialStartUrl: '',
+                },
+                errorData: {
+                    reason: 'TestAWSError',
+                    errorCode: 'TestErrorStatusCode',
+                    httpStatusCode: 500,
                 },
             }
             sinon.assert.calledOnceWithExactly(features.telemetry.emitMetric, expectedServiceInvocationMetric)
