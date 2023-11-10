@@ -98,6 +98,9 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
                 req => {
                     req.on('build', ({ httpRequest }) => {
                         const creds = credentialsProvider.getCredentials('bearer') as BearerCredentials
+                        if (!creds?.token) {
+                            throw new Error('Authorization failed, bearer token is not set')
+                        }
                         httpRequest.headers['Authorization'] = `Bearer ${creds.token}`
                         if (!this.shareCodeWhispererContentWithAWS) {
                             httpRequest.headers['x-amzn-codewhisperer-optout'] = ''
