@@ -1,6 +1,7 @@
 import { CredentialsProvider } from '@aws-placeholder/aws-language-server-runtimes/out/features'
 import { BearerCredentials } from '@aws-placeholder/aws-language-server-runtimes/out/features/auth/auth'
 import { CredentialProviderChain, Credentials } from 'aws-sdk'
+import { randomUUID } from 'crypto'
 import { createCodeWhispererSigv4Client } from '../client/sigv4/codewhisperer'
 import {
     CodeWhispererTokenClientConfigurationOptions,
@@ -8,7 +9,9 @@ import {
 } from '../client/token/codewhisperer'
 
 // Define our own Suggestion interface to wrap the differences between Token and IAM Client
-export interface Suggestion extends CodeWhispererTokenClient.Completion, CodeWhispererSigv4Client.Recommendation {}
+export interface Suggestion extends CodeWhispererTokenClient.Completion, CodeWhispererSigv4Client.Recommendation {
+    id: string
+}
 
 export interface GenerateSuggestionsRequest
     extends CodeWhispererTokenClient.GenerateCompletionsRequest,
@@ -76,11 +79,17 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
             nextToken: response.nextToken,
         }
 
+        for (const recommendation of response?.recommendations ?? []) {
+            Object.assign(recommendation, { id: this.generateItemId() })
+        }
+
         return {
             suggestions: response.recommendations as Suggestion[],
             responseContext,
         }
     }
+
+    generateItemId = () => randomUUID()
 }
 
 export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
@@ -98,6 +107,9 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
                 req => {
                     req.on('build', ({ httpRequest }) => {
                         const creds = credentialsProvider.getCredentials('bearer') as BearerCredentials
+                        if (!creds?.token) {
+                            throw new Error('Authorization failed, bearer token is not set')
+                        }
                         httpRequest.headers['Authorization'] = `Bearer ${creds.token}`
                         if (!this.shareCodeWhispererContentWithAWS) {
                             httpRequest.headers['x-amzn-codewhisperer-optout'] = ''
@@ -120,9 +132,15 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
             nextToken: response.nextToken,
         }
 
+        for (const recommendation of response?.completions ?? []) {
+            Object.assign(recommendation, { id: this.generateItemId() })
+        }
+
         return {
             suggestions: response.completions as Suggestion[],
             responseContext,
         }
     }
+
+    generateItemId = () => randomUUID()
 }

@@ -4,8 +4,10 @@ import {
     InlineCompletionItemWithReferences,
     InlineCompletionListWithReferences,
     InlineCompletionWithReferencesParams,
+    LogInlineCompelitionSessionResultsParams,
 } from '@aws-placeholder/aws-language-server-runtimes/out/features/lsp/inline-completions/protocolExtensions'
 import { AWSError } from 'aws-sdk'
+import { randomUUID } from 'crypto'
 import { CancellationToken, InlineCompletionTriggerKind, Range } from 'vscode-languageserver'
 import { Position, TextDocument } from 'vscode-languageserver-textdocument'
 import {
@@ -133,6 +135,7 @@ const mergeSuggestionsWithContext =
     ({ fileContext, range }: { fileContext: FileContext; range?: Range }) =>
     (suggestions: Suggestion[]): InlineCompletionItemWithReferences[] =>
         suggestions.map(suggestion => ({
+            itemId: suggestion.id,
             insertText: truncateOverlapWithRightContext(fileContext, suggestion.content),
             range,
             references: suggestion.references?.map(r => ({
@@ -157,6 +160,8 @@ const filterReferences = (
     }
 }
 
+export const createSessionId = () => randomUUID()
+
 export const CodewhispererServerFactory =
     (service: (credentials: CredentialsProvider) => CodeWhispererServiceBase): Server =>
     ({ credentialsProvider, lsp, workspace, telemetry, logging }) => {
@@ -172,10 +177,16 @@ export const CodewhispererServerFactory =
             params: InlineCompletionWithReferencesParams,
             _token: CancellationToken
         ): Promise<InlineCompletionListWithReferences> => {
+            const sessionId = createSessionId()
+            const EMPTY_RESULT_WITH_SESSION_ID = {
+                ...EMPTY_RESULT,
+                sessionId,
+            }
+
             return workspace.getTextDocument(params.textDocument.uri).then(textDocument => {
                 if (!textDocument) {
                     logging.log(`textDocument [${params.textDocument.uri}] not found`)
-                    return EMPTY_RESULT
+                    return EMPTY_RESULT_WITH_SESSION_ID
                 }
 
                 const inferredLanguageId = getSupportedLanguageId(textDocument)
@@ -183,7 +194,7 @@ export const CodewhispererServerFactory =
                     logging.log(
                         `textDocument [${params.textDocument.uri}] with languageId [${textDocument.languageId}] not supported`
                     )
-                    return EMPTY_RESULT
+                    return EMPTY_RESULT_WITH_SESSION_ID
                 }
 
                 // Build request context
@@ -209,7 +220,7 @@ export const CodewhispererServerFactory =
                         triggerType: codewhispererAutoTriggerType, // The 2 trigger types currently influencing the Auto-Trigger are SpecialCharacter and Enter
                     })
                 ) {
-                    return EMPTY_RESULT
+                    return EMPTY_RESULT_WITH_SESSION_ID
                 }
 
                 const requestContext = {
@@ -231,12 +242,18 @@ export const CodewhispererServerFactory =
                     .then(emitServiceInvocationTelemetry({ telemetry, invocationContext }))
                     .then(mergeSuggestionsWithContext({ fileContext, range: selectionRange }))
                     .then(suggestions => filterReferences(suggestions, includeSuggestionsWithCodeReferences))
-                    .then(items => ({ items }))
+                    .then(items => ({ items, sessionId }))
                     .catch(err => {
                         logging.log(`onInlineCompletion failure: ${err}`)
-                        return EMPTY_RESULT
+                        return EMPTY_RESULT_WITH_SESSION_ID
                     })
             })
+        }
+
+        const onLogInlineCompelitionSessionResultsHandler = async (
+            params: LogInlineCompelitionSessionResultsParams
+        ) => {
+            // TODO: end current active session from session manager
         }
 
         const updateConfiguration = async () =>
@@ -261,6 +278,7 @@ export const CodewhispererServerFactory =
                 .catch(reason => logging.log(`Error in GetConfiguration: ${reason}`))
 
         lsp.extensions.onInlineCompletionWithReferences(onInlineCompletionHandler)
+        lsp.extensions.onLogInlineCompelitionSessionResults(onLogInlineCompelitionSessionResultsHandler)
         lsp.onInitialized(updateConfiguration)
         lsp.didChangeConfiguration(updateConfiguration)
 
