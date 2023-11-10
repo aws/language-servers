@@ -69,14 +69,16 @@ describe('CodeWhispererSession', function () {
     describe('getfilteredSuggestions()', function () {
         it('should return all suggestions if includeSuggestionsWithCodeReferences is true', function () {
             const session = new CodeWhispererSession(data)
-            session.suggestions = EXPECTED_SUGGESTION // Mock suggestions
+            session.activate()
+            session.suggestions = EXPECTED_SUGGESTION
             const result = session.getfilteredSuggestions(true)
             assert.strictEqual(result.length, 2)
         })
 
         it('should return suggestions without code references if includeSuggestionsWithCodeReferences is false', function () {
             const session = new CodeWhispererSession(data)
-            session.suggestions = EXPECTED_SUGGESTION // Mock suggestions
+            session.activate()
+            session.suggestions = EXPECTED_SUGGESTION
             const result = session.getfilteredSuggestions(false)
             assert.strictEqual(result.length, 1)
         })

@@ -44,6 +44,10 @@ export class CodeWhispererSession {
     }
 
     getfilteredSuggestions(includeSuggestionsWithCodeReferences: boolean = true): Suggestion[] {
+        if (this.sessionState !== 'ACTIVE') {
+            return []
+        }
+
         if (includeSuggestionsWithCodeReferences) {
             return this.suggestions
         } else {
@@ -93,6 +97,12 @@ export class SessionManager {
         this.currentSession?.deactivate()
     }
 
+    discardSession(session: CodeWhispererSession | undefined) {
+        if (session == this.currentSession) {
+            this.discardCurrentSession()
+        }
+    }
+
     getCurrentSession(): CodeWhispererSession | undefined {
         return this.currentSession
     }
@@ -107,5 +117,12 @@ export class SessionManager {
 
     getSessionsLog(): CodeWhispererSession[] {
         return this.sessionsLog
+    }
+
+    // If the session to be activated is the current session, activate it
+    activateSession(session: CodeWhispererSession) {
+        if (this.currentSession === session) {
+            this.currentSession.activate()
+        }
     }
 }
