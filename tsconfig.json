@@ -8,7 +8,10 @@
         "declaration": true,
         "skipLibCheck": true,
         "forceConsistentCasingInFileNames": true,
-        "strict": true
+        "strict": true,
+        "paths": {
+            "crypto": ["./node_modules/crypto-browserify"]
+        }
     },
     "files": [],
     "references": [
