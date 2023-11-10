@@ -1,166 +1,166 @@
 import * as assert from 'assert'
-import { stubInterface } from 'ts-sinon'
-import { CodeWhispererServiceBase, ResponseContext, Suggestion } from '../codeWhispererService'
+import { Suggestion } from '../codeWhispererService'
 import { CodeWhispererSession, SessionData, SessionManager } from './sessionManager'
 
-describe('CodeWhispererSession', () => {
-    describe('initializeSession', () => {
-        const codeWhispererService = stubInterface<CodeWhispererServiceBase>()
-        const requestContext = {
-            maxResults: 5,
-            fileContext: {
-                filename: 'SomeFile',
-                programmingLanguage: { languageName: 'csharp' },
-                leftFileContent: 'LeftFileContent',
-                rightFileContent: 'RightFileContent',
-            },
-        }
-        const EXPECTED_SUGGESTION: Suggestion[] = [{ content: 'recommendation' }]
-        const EXPECTED_RESPONSE_CONTEXT: ResponseContext = {
-            requestId: 'cwspr-request-id',
-            codewhispererSessionId: 'cwspr-session-id',
-        }
+describe('CodeWhispererSession', function () {
+    const requestContext = {
+        maxResults: 5,
+        fileContext: {
+            filename: 'SomeFile',
+            programmingLanguage: { languageName: 'csharp' },
+            leftFileContent: 'LeftFileContent',
+            rightFileContent: 'RightFileContent',
+        },
+    }
+    const EXPECTED_REFERENCE = {
+        licenseName: 'test license',
+        repository: 'test repository',
+        url: 'test url',
+        recommendationContentSpan: { start: 0, end: 1 },
+    }
+    const EXPECTED_SUGGESTION: Suggestion[] = [
+        { content: 'recommendation without reference' },
+        { content: 'recommendation with reference', references: [EXPECTED_REFERENCE] },
+    ]
 
-        it('should set session state to ACTIVE and emit ACTIVE event', async () => {
-            codeWhispererService.generateSuggestions.returns(
-                Promise.resolve({
-                    suggestions: EXPECTED_SUGGESTION,
-                    responseContext: EXPECTED_RESPONSE_CONTEXT,
-                })
-            )
-            const session = new CodeWhispererSession({
-                codeWhispererService,
-                startPosition: { line: 0, character: 0 },
-                triggerType: 'OnDemand',
-                language: 'csharp',
-                requestContext: requestContext,
-            })
+    const data: SessionData = {
+        startPosition: { line: 0, character: 0 },
+        triggerType: 'OnDemand',
+        language: 'csharp',
+        requestContext: requestContext,
+        autoTriggerType: 'Enter',
+    }
+    describe('constructor()', function () {
+        it('should create a new session with the correct initial values', function () {
+            const session = new CodeWhispererSession(data)
+
+            assert.strictEqual(session.startPosition.line, 0)
+            assert.strictEqual(session.startPosition.character, 0)
+            assert.strictEqual(session.triggerType, 'OnDemand')
+            assert.strictEqual(session.language, 'csharp')
+            assert.deepStrictEqual(session.requestContext, data.requestContext)
             assert.strictEqual(session.sessionState, 'REQUESTING')
+        })
+    })
 
-            let isActiveEventEmitted = false
-            session.on('ACTIVE', () => {
-                isActiveEventEmitted = true
-            })
-
-            await session.initializeSession()
-
+    describe('activate()', function () {
+        it('should set session state to ACTIVE if not already CLOSED', function () {
+            const session = new CodeWhispererSession(data)
+            session.activate()
             assert.strictEqual(session.sessionState, 'ACTIVE')
-            assert.strictEqual(isActiveEventEmitted, true)
         })
 
-        it('should handle errors and set session state to ERROR', async () => {
-            codeWhispererService.generateSuggestions.throws(Error('Test error'))
-            const session = new CodeWhispererSession({
-                codeWhispererService,
-                startPosition: { line: 0, character: 0 },
-                triggerType: 'OnDemand',
-                language: 'javascript',
-                requestContext: requestContext,
-            })
+        it('should not change session state if already CLOSED', function () {
+            const session = new CodeWhispererSession(data)
+            session.deactivate() // Set session state to CLOSED
+            session.activate()
+            assert.strictEqual(session.sessionState, 'CLOSED')
+        })
+    })
 
-            let isErrorEventEmitted = false
-            session.on('ERROR', err => {
-                isErrorEventEmitted = true
-                assert.strictEqual(err.message, 'Test error')
-            })
+    describe('deactivate()', function () {
+        it('should set session state to CLOSED', function () {
+            const session = new CodeWhispererSession(data)
+            session.deactivate()
+            assert.strictEqual(session.sessionState, 'CLOSED')
+        })
+    })
 
-            await session.initializeSession()
+    describe('getfilteredSuggestions()', function () {
+        it('should return all suggestions if includeSuggestionsWithCodeReferences is true', function () {
+            const session = new CodeWhispererSession(data)
+            session.suggestions = EXPECTED_SUGGESTION // Mock suggestions
+            const result = session.getfilteredSuggestions(true)
+            assert.strictEqual(result.length, 2)
+        })
 
-            assert.strictEqual(session.sessionState, 'ERROR')
-            assert.strictEqual(isErrorEventEmitted, true)
+        it('should return suggestions without code references if includeSuggestionsWithCodeReferences is false', function () {
+            const session = new CodeWhispererSession(data)
+            session.suggestions = EXPECTED_SUGGESTION // Mock suggestions
+            const result = session.getfilteredSuggestions(false)
+            assert.strictEqual(result.length, 1)
         })
     })
 })
 
-describe('SessionManager', () => {
-    describe('createSession', () => {
-        const codeWhispererService = stubInterface<CodeWhispererServiceBase>()
-        const EXPECTED_SUGGESTION: Suggestion[] = [{ content: 'recommendation' }]
-        const EXPECTED_RESPONSE_CONTEXT: ResponseContext = {
-            requestId: 'cwspr-request-id',
-            codewhispererSessionId: 'cwspr-session-id',
-        }
-        codeWhispererService.generateSuggestions.returns(
-            Promise.resolve({
-                suggestions: EXPECTED_SUGGESTION,
-                responseContext: EXPECTED_RESPONSE_CONTEXT,
-            })
-        )
-        const requestContext = {
-            maxResults: 5,
-            fileContext: {
-                filename: 'SomeFile',
-                programmingLanguage: { languageName: 'csharp' },
-                leftFileContent: 'LeftFileContent',
-                rightFileContent: 'RightFileContent',
-            },
-        }
-        const data: SessionData = {
-            codeWhispererService: codeWhispererService,
-            startPosition: { line: 0, character: 0 },
-            triggerType: 'OnDemand',
-            language: 'csharp',
-            requestContext: requestContext,
-            autoTriggerType: 'Enter',
-        }
-        it('should create a new session and deactivate the current session if it is active', async () => {
-            const sessionManager = new SessionManager()
-
-            const initialSession = sessionManager.createSession(data)
-
-            let isActiveEventEmitted = false
-            initialSession.on('ACTIVE', () => {
-                isActiveEventEmitted = true
-            })
-
-            assert.strictEqual(initialSession.sessionState, 'REQUESTING')
-            await initialSession.initializeSession()
-
-            assert.strictEqual(initialSession.sessionState, 'ACTIVE')
-            assert.strictEqual(isActiveEventEmitted, true)
-            assert.strictEqual(sessionManager.getActiveSession(), initialSession)
-
-            // Create a new session, which should deactivate the initial session
-            const newSession = sessionManager.createSession(data)
-            await newSession.initializeSession()
-
-            assert.strictEqual(initialSession.sessionState, 'CLOSED')
-            assert.strictEqual(newSession.sessionState, 'ACTIVE')
-            assert.strictEqual(sessionManager.getActiveSession(), newSession)
-            assert.strictEqual(sessionManager.getPreviousSession(), initialSession)
+describe('SessionManager', function () {
+    const requestContext = {
+        maxResults: 5,
+        fileContext: {
+            filename: 'SomeFile',
+            programmingLanguage: { languageName: 'csharp' },
+            leftFileContent: 'LeftFileContent',
+            rightFileContent: 'RightFileContent',
+        },
+    }
+    const data: SessionData = {
+        startPosition: { line: 0, character: 0 },
+        triggerType: 'OnDemand',
+        language: 'csharp',
+        requestContext: requestContext,
+        autoTriggerType: 'Enter',
+    }
+    describe('createSession()', function () {
+        it('should create a new session and set it as the current session', function () {
+            const manager = new SessionManager()
+            const session = manager.createSession(data)
+            assert.strictEqual(manager.getCurrentSession(), session)
+            assert.strictEqual(manager.getCurrentSession()?.sessionState, 'REQUESTING')
         })
 
-        it('should limit the number of sessions in the sessionsLog', async () => {
-            const sessionManager = new SessionManager()
+        it('should deactivate previous session when creating a new session', function () {
+            const manager = new SessionManager()
+            const session = manager.createSession(data)
+            session.activate()
+            manager.createSession(data)
+            assert.strictEqual(session.sessionState, 'CLOSED')
+        })
+    })
 
-            // Create six sessions, which should result in removing the oldest session from the log
-            const session1 = sessionManager.createSession(data)
-            await session1.initializeSession()
+    describe('discardCurrentSession()', function () {
+        it('should add the current session to the sessions log if it is active', function () {
+            const manager = new SessionManager()
+            const session = manager.createSession(data)
+            assert.strictEqual(session.sessionState, 'REQUESTING')
+            session.activate()
+            assert.strictEqual(session.sessionState, 'ACTIVE')
+            manager.discardCurrentSession()
+            assert.strictEqual(manager.getSessionsLog().length, 1)
+            assert.strictEqual(manager.getSessionsLog()[0], session)
+            assert.strictEqual(session.sessionState, 'CLOSED')
+        })
+    })
 
-            // Create sessions 2, 3 and 4
-            for (let i = 0; i < 3; i++) {
-                const session = sessionManager.createSession(data)
-                await session.initializeSession()
-            }
+    describe('getPreviousSession()', function () {
+        it('should return the last session in the sessions log', function () {
+            const manager = new SessionManager()
+            const session1 = manager.createSession(data)
+            session1.activate()
+            const session2 = manager.createSession(data)
+            session2.activate()
+            const session3 = manager.createSession(data)
+            session3.activate()
+            manager.discardCurrentSession()
+            const result = manager.getPreviousSession()
+            assert.strictEqual(result, session3)
+            assert.strictEqual(manager.getSessionsLog().length, 3)
+        })
 
-            const session5 = sessionManager.createSession(data)
-            await session5.initializeSession()
+        it('should return the last session in the sessions log', function () {
+            const manager = new SessionManager()
+            manager.createSession(data)
+            manager.createSession(data)
+            manager.createSession(data)
+            manager.discardCurrentSession()
+            const result = manager.getPreviousSession()
+            assert.strictEqual(result, undefined)
+            assert.strictEqual(manager.getSessionsLog().length, 0)
+        })
 
-            const session6 = sessionManager.createSession(data)
-            await session6.initializeSession()
-
-            assert.strictEqual(sessionManager.getActiveSession(), session6)
-            assert.strictEqual(sessionManager.getPreviousSession(), session5)
-            assert.strictEqual(sessionManager.getSessionsLog().length, 5)
-            assert.strictEqual(sessionManager.getSessionsLog().includes(session1), true)
-
-            const session7 = sessionManager.createSession(data)
-            await session7.initializeSession()
-
-            assert.strictEqual(sessionManager.getActiveSession(), session7)
-            assert.strictEqual(sessionManager.getPreviousSession(), session6)
-            assert.strictEqual(sessionManager.getSessionsLog().length, 5)
-            assert.strictEqual(sessionManager.getSessionsLog().includes(session1), false)
+        it('should return undefined if the sessions log is empty', function () {
+            const manager = new SessionManager()
+            const result = manager.getPreviousSession()
+            assert.strictEqual(result, undefined)
         })
     })
 })

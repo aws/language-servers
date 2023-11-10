@@ -18,8 +18,7 @@
         "aws-sdk": "^2.1403.0",
         "uuid": "^9.0.1",
         "vscode-languageserver": "^9.0.1",
-        "vscode-languageserver-textdocument": "^1.0.8",
-        "eventemitter3": "^5.0.1"
+        "vscode-languageserver-textdocument": "^1.0.8"
     },
     "devDependencies": {
         "@types/uuid": "^9.0.6",

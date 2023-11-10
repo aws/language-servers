@@ -8,19 +8,11 @@ import {
 import { AWSError } from 'aws-sdk'
 import { CancellationToken, InlineCompletionTriggerKind, Range } from 'vscode-languageserver'
 import { Position, TextDocument } from 'vscode-languageserver-textdocument'
-import {
-    CodewhispererAutomatedTriggerType,
-    CodewhispererTriggerType,
-    autoTrigger,
-    triggerType,
-} from './auto-trigger/autoTrigger'
+import { CodewhispererTriggerType, autoTrigger, triggerType } from './auto-trigger/autoTrigger'
 import {
     CodeWhispererServiceBase,
     CodeWhispererServiceIAM,
     CodeWhispererServiceToken,
-    FileContext,
-    GenerateSuggestionsRequest,
-    ResponseContext,
     Suggestion,
 } from './codeWhispererService'
 import { CodewhispererLanguage, getSupportedLanguageId } from './languageDetection'
@@ -63,122 +55,78 @@ const getFileContext = (params: {
     }
 }
 
-const emitServiceInvocationTelemetry =
-    ({ telemetry, session }: { telemetry: Telemetry; session: CodeWhispererSession }) =>
-    (suggestions: Suggestion[], responseContext: ResponseContext): Suggestion[] => {
-        const duration = session.lastInvocationTime ? new Date().getTime() - session.lastInvocationTime : 0
-        const data: CodeWhispererServiceInvocationEvent = {
-            codewhispererRequestId: responseContext.requestId,
-            codewhispererSessionId: responseContext.codewhispererSessionId,
-            codewhispererLastSuggestionIndex: suggestions.length - 1,
-            codewhispererCompletionType: suggestions.length > 0 ? getCompletionType(suggestions[0]) : undefined,
-            codewhispererTriggerType: session.triggerType,
-            codewhispererAutomatedTriggerType: session.autoTriggerType,
-            result: 'Succeeded',
-            duration,
-            codewhispererLineNumber: session.startPosition.line,
-            codewhispererCursorOffset: session.startPosition.character,
-            codewhispererLanguage: session.language,
-            credentialStartUrl: '',
-        }
-        telemetry.emitMetric({
-            name: 'ServiceInvocation',
-            data,
-        })
+const emitServiceInvocationTelemetry = (telemetry: Telemetry, session: CodeWhispererSession) => {
+    const duration = session.lastInvocationTime ? new Date().getTime() - session.lastInvocationTime : 0
+    const data: CodeWhispererServiceInvocationEvent = {
+        codewhispererRequestId: session.responseContext?.requestId,
+        codewhispererSessionId: session.responseContext?.codewhispererSessionId,
+        codewhispererLastSuggestionIndex: session.suggestions.length - 1,
+        codewhispererCompletionType:
+            session.suggestions.length > 0 ? getCompletionType(session.suggestions[0]) : undefined,
+        codewhispererTriggerType: session.triggerType,
+        codewhispererAutomatedTriggerType: session.autoTriggerType,
+        result: 'Succeeded',
+        duration,
+        codewhispererLineNumber: session.startPosition.line,
+        codewhispererCursorOffset: session.startPosition.character,
+        codewhispererLanguage: session.language,
+        credentialStartUrl: '',
+    }
+    telemetry.emitMetric({
+        name: 'ServiceInvocation',
+        data,
+    })
+}
 
-        return suggestions
+const emitServiceInvocationFailure = (telemetry: Telemetry, session: CodeWhispererSession, error: Error | AWSError) => {
+    const errorMessage = error ? String(error) : 'unknown'
+    const reason = `CodeWhisperer Invocation Exception: ${errorMessage}`
+    const duration = session.lastInvocationTime ? new Date().getTime() - session.lastInvocationTime : 0
+    const codewhispererRequestId = isAwsError(error) ? error.requestId : undefined
+
+    const data: CodeWhispererServiceInvocationEvent = {
+        codewhispererRequestId: codewhispererRequestId,
+        codewhispererSessionId: undefined,
+        codewhispererLastSuggestionIndex: -1,
+        codewhispererTriggerType: session.triggerType,
+        codewhispererAutomatedTriggerType: session.autoTriggerType,
+        result: 'Failed',
+        reason,
+        duration,
+        codewhispererLineNumber: session.startPosition.line,
+        codewhispererCursorOffset: session.startPosition.character,
+        codewhispererLanguage: session.language,
+        credentialStartUrl: '',
     }
 
-const emitServiceInvocationFailure =
-    ({ telemetry, session }: { telemetry: Telemetry; session: CodeWhispererSession }) =>
-    (error: Error | AWSError) => {
-        const errorMessage = error ? String(error) : 'unknown'
-        const reason = `CodeWhisperer Invocation Exception: ${errorMessage}`
-        const duration = session.lastInvocationTime ? new Date().getTime() - session.lastInvocationTime : 0
-        const codewhispererRequestId = isAwsError(error) ? error.requestId : undefined
+    telemetry.emitMetric({
+        name: 'ServiceInvocation',
+        data,
+    })
+}
 
-        const data: CodeWhispererServiceInvocationEvent = {
-            codewhispererRequestId: codewhispererRequestId,
-            codewhispererSessionId: undefined,
-            codewhispererLastSuggestionIndex: -1,
-            codewhispererTriggerType: session.triggerType,
-            codewhispererAutomatedTriggerType: session.autoTriggerType,
-            result: 'Failed',
-            reason,
-            duration,
-            codewhispererLineNumber: session.startPosition.line,
-            codewhispererCursorOffset: session.startPosition.character,
-            codewhispererLanguage: session.language,
-            credentialStartUrl: '',
-        }
-
-        telemetry.emitMetric({
-            name: 'ServiceInvocation',
-            data,
-        })
-    }
-
-// Merge right context. Provided as partially applied function for easy map/flatmap-ing.
-const mergeSuggestionsWithContext =
-    ({ fileContext, range }: { fileContext: FileContext; range?: Range }) =>
-    (suggestions: Suggestion[]): InlineCompletionItemWithReferences[] =>
-        suggestions.map(suggestion => ({
-            insertText: truncateOverlapWithRightContext(fileContext, suggestion.content),
-            range,
-            references: suggestion.references?.map(r => ({
-                licenseName: r.licenseName,
-                referenceUrl: r.url,
-                referenceName: r.repository,
-                position: r.recommendationContentSpan && {
-                    startCharacter: r.recommendationContentSpan.start,
-                    endCharacter: r.recommendationContentSpan.end,
-                },
-            })),
-        }))
-
-const filterReferences = (
-    suggestions: InlineCompletionItemWithReferences[],
-    includeSuggestionsWithCodeReferences: boolean
+const mergeSuggestionsWithRightContext = (
+    rightFileContext: string,
+    suggestions: Suggestion[],
+    range?: Range
 ): InlineCompletionItemWithReferences[] => {
-    if (includeSuggestionsWithCodeReferences) {
-        return suggestions
-    } else {
-        return suggestions.filter(suggestion => suggestion.references == null || suggestion.references.length === 0)
-    }
+    return suggestions.map(suggestion => ({
+        insertText: truncateOverlapWithRightContext(rightFileContext, suggestion.content),
+        range,
+        references: suggestion.references?.map(r => ({
+            licenseName: r.licenseName,
+            referenceUrl: r.url,
+            referenceName: r.repository,
+            position: r.recommendationContentSpan && {
+                startCharacter: r.recommendationContentSpan.start,
+                endCharacter: r.recommendationContentSpan.end,
+            },
+        })),
+    }))
 }
 
-const getActiveSessionOrCreateNew = (
-    codeWhispererService: CodeWhispererServiceBase,
-    sessionManager: SessionManager,
-    requestContext: GenerateSuggestionsRequest,
-    startPosition: Position,
-    codewhispererTriggerType: CodewhispererTriggerType,
-    autoTriggerType?: CodewhispererAutomatedTriggerType
-): CodeWhispererSession => {
-    let activeSession = sessionManager.getActiveSession()
-
-    // Conditions that the server checks before creating new session:
-    // There is no active session
-    // There is an active session but the filename in the session and the current filename don't match
-    // There is an active session with filename match but none of the suggestions in the session have a left context match with the left file contents in current invocation
-    if (
-        !activeSession ||
-        activeSession.requestContext.fileContext.filename !== requestContext.fileContext.filename ||
-        !hasLeftContextMatch(activeSession.suggestions, requestContext.fileContext.leftFileContent)
-    ) {
-        activeSession = sessionManager.createSession({
-            codeWhispererService: codeWhispererService,
-            startPosition: startPosition,
-            triggerType: codewhispererTriggerType,
-            language: requestContext.fileContext.programmingLanguage.languageName as CodewhispererLanguage,
-            requestContext: requestContext,
-            autoTriggerType: autoTriggerType,
-        })
-    }
-
-    return activeSession
-}
 // Checks if any suggestion in list of suggestions matches with left context
+// TODO, this is very rough left context match needs to be implemented properly
 const hasLeftContextMatch = (suggestions: Suggestion[], leftFileContent: string): boolean => {
     for (const suggestion of suggestions) {
         if (suggestion.content.startsWith(leftFileContent)) {
@@ -186,29 +134,6 @@ const hasLeftContextMatch = (suggestions: Suggestion[], leftFileContent: string)
         }
     }
     return false
-}
-
-function waitForSessionActivation(activeSession: CodeWhispererSession, timeoutMs = 15000) {
-    if (activeSession.sessionState == 'ACTIVE') {
-        return Promise.resolve('Success')
-    }
-    return Promise.race([
-        new Promise(resolve => {
-            activeSession.on('ACTIVE', () => {
-                resolve('Success') // Resolve the Promise when the 'ACTIVE' event occurs
-            })
-        }),
-        new Promise((_resolve, reject) => {
-            activeSession.on('ERROR', err => {
-                reject(err) // Reject the Promise on ERROR
-            })
-        }),
-        new Promise((_resolve, reject) => {
-            setTimeout(() => {
-                reject(Error('Timeout')) // Reject the Promise if a timeout occurs
-            }, timeoutMs)
-        }),
-    ])
 }
 
 export const CodewhispererServerFactory =
@@ -227,10 +152,43 @@ export const CodewhispererServerFactory =
             params: InlineCompletionWithReferencesParams,
             _token: CancellationToken
         ): Promise<InlineCompletionListWithReferences> => {
+            // On every new completion request discard any non-active session
+            const currentSession = sessionManager.getCurrentSession()
+            if (currentSession?.sessionState == 'REQUESTING') {
+                sessionManager.discardCurrentSession()
+            }
+
             return workspace.getTextDocument(params.textDocument.uri).then(textDocument => {
                 if (!textDocument) {
                     logging.log(`textDocument [${params.textDocument.uri}] not found`)
                     return EMPTY_RESULT
+                }
+
+                // If we already have an active session, we first try to use it (without consulting auto-trigger)
+                // Meaning, if we already have applicable suggestion we use it
+                if (currentSession?.sessionState === 'ACTIVE') {
+                    const leftFileContent = textDocument.getText({
+                        start: { line: 0, character: 0 },
+                        end: params.position,
+                    })
+                    if (
+                        currentSession.getfilteredSuggestions(includeSuggestionsWithCodeReferences).length > 0 &&
+                        currentSession.requestContext.fileContext.filename == params.textDocument.uri &&
+                        hasLeftContextMatch(currentSession.suggestions, leftFileContent)
+                    ) {
+                        const items = mergeSuggestionsWithRightContext(
+                            textDocument.getText({
+                                start: params.position,
+                                end: textDocument.positionAt(textDocument.getText().length),
+                            }),
+                            currentSession.getfilteredSuggestions(includeSuggestionsWithCodeReferences),
+                            params.context.selectedCompletionInfo?.range
+                        )
+
+                        return { items }
+                    } else {
+                        sessionManager.discardCurrentSession()
+                    }
                 }
 
                 const inferredLanguageId = getSupportedLanguageId(textDocument)
@@ -276,44 +234,46 @@ export const CodewhispererServerFactory =
                 ) as CodewhispererTriggerType
                 const autoTriggerType = isAutomaticLspTriggerKind ? codewhispererAutoTriggerType : undefined
 
-                const currentSession = getActiveSessionOrCreateNew(
-                    codeWhispererService,
-                    sessionManager,
-                    requestContext,
-                    params.position,
-                    codewhispererTriggerType,
-                    autoTriggerType
-                )
+                const newSession = sessionManager.createSession({
+                    startPosition: params.position,
+                    triggerType: codewhispererTriggerType,
+                    language: fileContext.programmingLanguage.languageName as CodewhispererLanguage,
+                    requestContext: requestContext,
+                    autoTriggerType: autoTriggerType,
+                })
 
-                // Wait for session to turn active (receive first suggestion)
-                return waitForSessionActivation(currentSession)
-                    .then(() => {
-                        const emitFunction = emitServiceInvocationTelemetry({ telemetry, session: currentSession })
-                        if (currentSession.responseContext) {
-                            emitFunction(currentSession.suggestions, currentSession.responseContext)
+                return codeWhispererService
+                    .generateSuggestions(requestContext)
+                    .then(suggestionResponse => {
+                        // Populate the session with information from codewhisperer response and set it to active
+                        newSession.suggestions.push(...suggestionResponse.suggestions)
+                        newSession.responseContext = suggestionResponse.responseContext
+                        newSession.activate()
+
+                        if (newSession.responseContext) {
+                            emitServiceInvocationTelemetry(telemetry, newSession)
                         } else {
                             logging.log('WARNING: Active session does not have response context for telemetry')
                         }
 
-                        const mergeSuggestionsWithContextFunction = mergeSuggestionsWithContext({
-                            fileContext,
-                            range: selectionRange,
-                        })
+                        // If session has no suggestions after filtering, it is discarded and empty result is returned
+                        if (newSession.getfilteredSuggestions(includeSuggestionsWithCodeReferences).length == 0) {
+                            sessionManager.discardCurrentSession()
+                            return EMPTY_RESULT
+                        }
 
-                        const rightContextMergedSuggestions = mergeSuggestionsWithContextFunction(
-                            currentSession.suggestions
-                        )
-                        const filteredSuggestions = filterReferences(
-                            rightContextMergedSuggestions,
-                            includeSuggestionsWithCodeReferences
+                        const rightContextMergedSuggestions = mergeSuggestionsWithRightContext(
+                            fileContext.rightFileContent,
+                            newSession.getfilteredSuggestions(includeSuggestionsWithCodeReferences),
+                            selectionRange
                         )
 
-                        return { items: filteredSuggestions }
+                        return { items: rightContextMergedSuggestions }
                     })
                     .catch(err => {
                         // TODO, handle errors properly
-                        const emitFunction = emitServiceInvocationFailure({ telemetry, session: currentSession })
-                        emitFunction(err)
+                        logging.log('Recommendation failure: ' + err)
+                        emitServiceInvocationFailure(telemetry, newSession, err)
                         return EMPTY_RESULT
                     })
             })

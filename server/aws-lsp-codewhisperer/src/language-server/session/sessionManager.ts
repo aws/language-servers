@@ -1,20 +1,13 @@
-import { EventEmitter } from 'eventemitter3'
 import { v4 as uuidv4 } from 'uuid'
 import { Position } from 'vscode-languageserver'
 import { CodewhispererAutomatedTriggerType, CodewhispererTriggerType } from '../auto-trigger/autoTrigger'
-import {
-    CodeWhispererServiceBase,
-    GenerateSuggestionsRequest,
-    ResponseContext,
-    Suggestion,
-} from '../codeWhispererService'
+import { GenerateSuggestionsRequest, ResponseContext, Suggestion } from '../codeWhispererService'
 import { CodewhispererLanguage } from '../languageDetection'
 
 // TODO, state tranisitions based on user action, also store user decision ('ACCEPTED' | 'DISCARDED' | 'REJECTED' | 'EMPTY' ) in session
 type SessionState = 'REQUESTING' | 'ACTIVE' | 'CLOSED' | 'ERROR'
 
 export interface SessionData {
-    codeWhispererService: CodeWhispererServiceBase
     startPosition: Position
     triggerType: CodewhispererTriggerType
     autoTriggerType?: CodewhispererAutomatedTriggerType
@@ -22,10 +15,9 @@ export interface SessionData {
     requestContext: GenerateSuggestionsRequest
 }
 
-export class CodeWhispererSession extends EventEmitter {
+export class CodeWhispererSession {
     id: string
     codewhispererSessionId?: string
-    codeWhispererService: CodeWhispererServiceBase
     startPosition: Position = {
         line: 0,
         character: 0,
@@ -41,59 +33,32 @@ export class CodeWhispererSession extends EventEmitter {
     // TODO: userDecision field
 
     constructor(data: SessionData) {
-        super()
         this.id = uuidv4()
         this.startPosition = data.startPosition
         this.triggerType = data.triggerType
         this.language = data.language
         this.requestContext = data.requestContext
         this.autoTriggerType = data.autoTriggerType || undefined
-        this.codeWhispererService = data.codeWhispererService
         this.sessionState = 'REQUESTING'
         this.lastInvocationTime = new Date().getTime()
-        this.initializeSession()
     }
 
-    async initializeSession() {
-        try {
-            // Get first list of suggestions and set the session to active
-            const { suggestions, responseContext } = await this.codeWhispererService.generateSuggestions(
-                this.requestContext
+    getfilteredSuggestions(includeSuggestionsWithCodeReferences: boolean = true): Suggestion[] {
+        if (includeSuggestionsWithCodeReferences) {
+            return this.suggestions
+        } else {
+            // TODO, set the status of filtered references
+            return this.suggestions.filter(
+                suggestion => suggestion.references == null || suggestion.references.length === 0
             )
-            if (this.sessionState !== 'CLOSED') {
-                this.suggestions = suggestions
-                this.responseContext = responseContext
-                this.requestContext.nextToken = responseContext?.nextToken
-                this.codewhispererSessionId = responseContext?.codewhispererSessionId
-
-                this.sessionState = 'ACTIVE'
-                this.emit('ACTIVE')
-            }
-
-            // Once session becomes active, it continues polling for further responses
-            // TODO, this is crude pagination implementation, needs to be verified
-            while (
-                this.sessionState === 'ACTIVE' &&
-                this.requestContext.nextToken !== undefined &&
-                this.requestContext.nextToken !== '' &&
-                this.suggestions.length < this.requestContext.maxResults
-            ) {
-                const response = await this.codeWhispererService.generateSuggestions(this.requestContext)
-
-                this.requestContext.nextToken = response?.responseContext?.nextToken
-
-                if (response.suggestions) {
-                    this.suggestions.push(...response.suggestions)
-                }
-            }
-        } catch (err) {
-            this.sessionState = 'ERROR'
-            this.emit('ERROR', err)
         }
     }
 
-    get lastRecommendationIndex(): number {
+    get lastSuggestionIndex(): number {
         return this.suggestions.length - 1
+    }
+    activate() {
+        if (this.sessionState !== 'CLOSED') this.sessionState = 'ACTIVE'
     }
 
     deactivate() {
@@ -108,13 +73,7 @@ export class SessionManager {
     // TODO, for user decision telemetry: accepted suggestions (not necessarily the full corresponding session) should be stored for 5 minutes
 
     createSession(data: SessionData): CodeWhispererSession {
-        // If current session is active (has received a response from CWSPR) add it to history
-        if (this.currentSession?.sessionState === 'ACTIVE') {
-            this.sessionsLog.push(this.currentSession)
-        }
-        // Deactivate the current session regardles of the state
-        this.currentSession?.deactivate()
-
+        this.discardCurrentSession()
         // Remove oldest session from log
         if (this.sessionsLog.length > this.maxHistorySize) {
             this.sessionsLog.shift()
@@ -123,6 +82,19 @@ export class SessionManager {
         const session = new CodeWhispererSession(data)
         this.currentSession = session
         return session
+    }
+
+    discardCurrentSession() {
+        // If current session is active (has received a response from CWSPR) add it to history
+        if (this.currentSession?.sessionState === 'ACTIVE') {
+            this.sessionsLog.push(this.currentSession)
+        }
+        // Deactivate the current session regardles of the state
+        this.currentSession?.deactivate()
+    }
+
+    getCurrentSession(): CodeWhispererSession | undefined {
+        return this.currentSession
     }
 
     getActiveSession(): CodeWhispererSession | undefined {
