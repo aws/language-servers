@@ -7,7 +7,7 @@ import {
     LogInlineCompelitionSessionResultsParams,
 } from '@aws-placeholder/aws-language-server-runtimes/out/features/lsp/inline-completions/protocolExtensions'
 import { AWSError } from 'aws-sdk'
-import { randomUUID } from 'crypto'
+import { v4 as uuidv4 } from 'uuid'
 import { CancellationToken, InlineCompletionTriggerKind, Range } from 'vscode-languageserver'
 import { Position, TextDocument } from 'vscode-languageserver-textdocument'
 import {
@@ -166,7 +166,7 @@ const filterReferences = (
     }
 }
 
-export const createSessionId = () => randomUUID()
+export const createSessionId = () => uuidv4()
 
 export const CodewhispererServerFactory =
     (service: (credentials: CredentialsProvider) => CodeWhispererServiceBase): Server =>

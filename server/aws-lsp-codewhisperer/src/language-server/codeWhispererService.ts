@@ -1,7 +1,7 @@
 import { CredentialsProvider } from '@aws-placeholder/aws-language-server-runtimes/out/features'
 import { BearerCredentials } from '@aws-placeholder/aws-language-server-runtimes/out/features/auth/auth'
 import { CredentialProviderChain, Credentials } from 'aws-sdk'
-import { randomUUID } from 'crypto'
+import { v4 as uuidv4 } from 'uuid'
 import { createCodeWhispererSigv4Client } from '../client/sigv4/codewhisperer'
 import {
     CodeWhispererTokenClientConfigurationOptions,
@@ -89,7 +89,7 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
         }
     }
 
-    generateItemId = () => randomUUID()
+    generateItemId = () => uuidv4()
 }
 
 export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
@@ -142,5 +142,5 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         }
     }
 
-    generateItemId = () => randomUUID()
+    generateItemId = () => uuidv4()
 }
