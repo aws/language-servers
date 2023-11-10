@@ -226,7 +226,14 @@ export const CodewhispererServerFactory =
                 }
 
                 return codeWhispererService
-                    .generateSuggestions(requestContext)
+                    .generateSuggestions({
+                        ...requestContext,
+                        fileContext: {
+                            ...requestContext.fileContext,
+                            leftFileContent: requestContext.fileContext.leftFileContent.replaceAll('\r\n', '\n'),
+                            rightFileContent: requestContext.fileContext.rightFileContent.replaceAll('\r\n', '\n'),
+                        },
+                    })
                     .catch(emitServiceInvocationFailure({ telemetry, invocationContext }))
                     .then(emitServiceInvocationTelemetry({ telemetry, invocationContext }))
                     .then(mergeSuggestionsWithContext({ fileContext, range: selectionRange }))
