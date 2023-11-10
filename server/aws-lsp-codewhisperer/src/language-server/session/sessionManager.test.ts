@@ -19,8 +19,8 @@ describe('CodeWhispererSession', function () {
         recommendationContentSpan: { start: 0, end: 1 },
     }
     const EXPECTED_SUGGESTION: Suggestion[] = [
-        { content: 'recommendation without reference' },
-        { content: 'recommendation with reference', references: [EXPECTED_REFERENCE] },
+        { content: 'recommendation without reference', itemId: 'id1' },
+        { content: 'recommendation with reference', references: [EXPECTED_REFERENCE], itemId: 'id2' },
     ]
 
     const data: SessionData = {

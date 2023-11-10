@@ -6,15 +6,11 @@ import sinon, { StubbedInstance, stubInterface } from 'ts-sinon'
 import { CancellationToken, InlineCompletionTriggerKind } from 'vscode-languageserver'
 import { TextDocument } from 'vscode-languageserver-textdocument'
 import { TestFeatures } from './TestFeatures'
-import * as codeWhispererServer from './codeWhispererServer'
 import { CodewhispererServerFactory } from './codeWhispererServer'
 import { CodeWhispererServiceBase, ResponseContext, Suggestion } from './codeWhispererService'
+import { CodeWhispererSession } from './session/sessionManager'
 
 describe('CodeWhisperer Server', () => {
-    // TODO: remove after actual implementation of session id using session manager is done
-    // https://github.com/aws/aws-language-servers/pull/58/files
-    const createSessionIdStub = sinon.spy(codeWhispererServer, 'createSessionId')
-
     describe('Recommendations', () => {
         const HELLO_WORLD_IN_CSHARP = `
 class HelloWorld
@@ -58,6 +54,7 @@ class HelloWorld
             codewhispererSessionId: 'cwspr-session-id',
         }
         const EXPECTED_SESSION_ID = 'some-random-session-uuid-string'
+        sinon.stub(CodeWhispererSession.prototype, 'generateSessionId').returns(EXPECTED_SESSION_ID)
 
         const EXPECTED_RESULT = {
             sessionId: EXPECTED_SESSION_ID,
@@ -71,7 +68,7 @@ class HelloWorld
             ],
         }
 
-        const EMPTY_RESULT = { items: [], sessionId: EXPECTED_SESSION_ID }
+        const EMPTY_RESULT = { items: [], sessionId: '' }
 
         let features: TestFeatures
         let server: Server
@@ -109,10 +106,6 @@ class HelloWorld
                 .openDocument(SOME_SINGLE_LINE_FILE)
         })
 
-        afterEach(() => {
-            createSessionIdStub.resetHistory()
-        })
-
         it('should return recommendations', async () => {
             const result = await features.doInlineCompletionWithReferences(
                 {
@@ -122,8 +115,6 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
-            const sessionId = createSessionIdStub.returnValues[0]
-            Object.assign(EXPECTED_RESULT, { sessionId })
 
             // Check the completion result
             assert.deepEqual(result, EXPECTED_RESULT)
@@ -154,8 +145,6 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
-            const sessionId = createSessionIdStub.returnValues[0]
-            Object.assign(EXPECTED_RESULT, { sessionId })
 
             // Check the completion result
             assert.deepEqual(result, EXPECTED_RESULT)
@@ -181,8 +170,6 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
-            const sessionId = createSessionIdStub.returnValues[0]
-            Object.assign(EXPECTED_RESULT, { sessionId })
 
             // Check the completion result
             assert.deepEqual(result, EXPECTED_RESULT)
@@ -208,8 +195,7 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
-            const sessionId = createSessionIdStub.returnValues[0]
-            Object.assign(EMPTY_RESULT, { sessionId })
+            // Object.assign(EMPTY_RESULT, { sessionId })
 
             // Check the completion result
             assert.deepEqual(result, EMPTY_RESULT)
@@ -227,8 +213,7 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
-            const sessionId = createSessionIdStub.returnValues[0]
-            Object.assign(EMPTY_RESULT, { sessionId })
+            // Object.assign(EMPTY_RESULT, { sessionId })
 
             // Check the completion result
             assert.deepEqual(result, EMPTY_RESULT)
@@ -246,8 +231,6 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
-            const sessionId = createSessionIdStub.returnValues[0]
-            Object.assign(EXPECTED_RESULT, { sessionId })
 
             // Check the completion result
             assert.deepEqual(result, EXPECTED_RESULT)
@@ -292,8 +275,6 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
-            const sessionId = createSessionIdStub.returnValues[0]
-            Object.assign(EXPECTED_RESULT, { sessionId })
 
             assert.deepEqual(result, EXPECTED_RESULT)
         })
@@ -339,8 +320,6 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
-            const sessionId = createSessionIdStub.returnValues[0]
-            Object.assign(EXPECTED_RESULT, { sessionId })
 
             assert.deepEqual(result, EXPECTED_RESULT)
 
@@ -386,8 +365,6 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
-            const sessionId = createSessionIdStub.returnValues[0]
-            Object.assign(EXPECTED_RESULT, { sessionId })
 
             assert.deepEqual(result, EXPECTED_RESULT)
         })
@@ -420,8 +397,6 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
-            const sessionId = createSessionIdStub.returnValues[0]
-            Object.assign(EXPECTED_RESULT, { sessionId })
 
             assert.deepEqual(result, EXPECTED_RESULT)
         })
@@ -438,8 +413,7 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
-            const sessionId = createSessionIdStub.returnValues[0]
-            Object.assign(EMPTY_RESULT, { sessionId })
+            // Object.assign(EMPTY_RESULT, { sessionId })
             // Check the completion result
             assert.deepEqual(result, EMPTY_RESULT)
         })
@@ -560,10 +534,6 @@ class HelloWorld
             features = new TestFeatures()
         })
 
-        afterEach(() => {
-            createSessionIdStub.resetHistory()
-        })
-
         it('should return all recommendations if no settings are specificed', async () => {
             features.lsp.workspace.getConfiguration.returns(Promise.resolve({}))
             await features.start(server)
@@ -575,8 +545,6 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
-            const sessionId = createSessionIdStub.returnValues[0]
-            Object.assign(EXPECTED_RESULT_WITH_REFERENCES, { sessionId })
 
             // Check the completion result
             assert.deepEqual(result, EXPECTED_RESULT_WITH_REFERENCES)
@@ -593,8 +561,6 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
-            const sessionId = createSessionIdStub.returnValues[0]
-            Object.assign(EXPECTED_RESULT_WITH_REFERENCES, { sessionId })
 
             // Check the completion result
             assert.deepEqual(result, EXPECTED_RESULT_WITH_REFERENCES)
@@ -613,8 +579,6 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
-            const sessionId = createSessionIdStub.returnValues[0]
-            Object.assign(EXPECTED_RESULT_WITH_REFERENCES, { sessionId })
 
             // Check the completion result
             assert.deepEqual(result, EXPECTED_RESULT_WITH_REFERENCES)
@@ -633,8 +597,6 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
-            const sessionId = createSessionIdStub.returnValues[0]
-            Object.assign(EXPECTED_RESULT_WITHOUT_REFERENCES, { sessionId })
 
             // Check the completion result
             assert.deepEqual(result, EXPECTED_RESULT_WITHOUT_REFERENCES)
@@ -659,8 +621,6 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
-            const sessionId = createSessionIdStub.returnValues[0]
-            Object.assign(EXPECTED_RESULT_WITHOUT_REFERENCES, { sessionId })
 
             // Check the completion result
             assert.deepEqual(result, EXPECTED_RESULT_WITHOUT_REFERENCES)
@@ -684,8 +644,6 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
-            const sessionId = createSessionIdStub.returnValues[0]
-            Object.assign(EXPECTED_RESULT_WITH_REFERENCES, { sessionId })
 
             // Check the completion result
             assert.deepEqual(result, EXPECTED_RESULT_WITH_REFERENCES)
@@ -717,8 +675,6 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
-            const sessionId = createSessionIdStub.returnValues[0]
-            Object.assign(EXPECTED_RESULT_WITH_REMOVED_REFERENCES, { sessionId })
 
             assert.deepEqual(result, EXPECTED_RESULT_WITH_REMOVED_REFERENCES)
         })
@@ -779,8 +735,6 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
-            const sessionId = createSessionIdStub.returnValues[0]
-            Object.assign(EXPECTED_RESULT, { sessionId })
 
             assert.deepEqual(result, EXPECTED_RESULT)
         })
@@ -818,7 +772,7 @@ class HelloWorld
             ],
         }
 
-        const EMPTY_RESULT = { items: [] }
+        const EMPTY_RESULT = { items: [], sessionId: '' }
 
         let features: TestFeatures
         let server: Server
@@ -851,10 +805,6 @@ class HelloWorld
             features.openDocument(SOME_FILE)
         })
 
-        afterEach(() => {
-            createSessionIdStub.resetHistory()
-        })
-
         it('should return recommendations on an above-threshold auto-trigger position', async () => {
             const result = await features.doInlineCompletionWithReferences(
                 {
@@ -864,8 +814,6 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
-            const sessionId = createSessionIdStub.returnValues[0]
-            Object.assign(EXPECTED_RESULT, { sessionId })
 
             // Check the completion result
             assert.deepEqual(result, EXPECTED_RESULT)
@@ -891,8 +839,6 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
-            const sessionId = createSessionIdStub.returnValues[0]
-            Object.assign(EMPTY_RESULT, { sessionId })
 
             // Check the completion result
             assert.deepEqual(result, EMPTY_RESULT)

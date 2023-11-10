@@ -13,6 +13,7 @@ export interface SessionData {
     autoTriggerType?: CodewhispererAutomatedTriggerType
     language: CodewhispererLanguage
     requestContext: GenerateSuggestionsRequest
+    credentialStartUrl?: string
 }
 
 export class CodeWhispererSession {
@@ -30,10 +31,12 @@ export class CodeWhispererSession {
     requestContext: GenerateSuggestionsRequest
     lastInvocationTime?: number
     sessionState: SessionState
+    credentialStartUrl?: string
     // TODO: userDecision field
 
     constructor(data: SessionData) {
-        this.id = uuidv4()
+        this.id = this.generateSessionId()
+        this.credentialStartUrl = data.credentialStartUrl
         this.startPosition = data.startPosition
         this.triggerType = data.triggerType
         this.language = data.language
@@ -41,6 +44,11 @@ export class CodeWhispererSession {
         this.autoTriggerType = data.autoTriggerType || undefined
         this.sessionState = 'REQUESTING'
         this.lastInvocationTime = new Date().getTime()
+    }
+
+    // This function makes it possible to stub uuidv4 calls in tests
+    generateSessionId(): string {
+        return uuidv4()
     }
 
     getfilteredSuggestions(includeSuggestionsWithCodeReferences: boolean = true): Suggestion[] {

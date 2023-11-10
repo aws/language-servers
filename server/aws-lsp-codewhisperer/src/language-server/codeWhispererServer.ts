@@ -7,7 +7,6 @@ import {
     LogInlineCompelitionSessionResultsParams,
 } from '@aws-placeholder/aws-language-server-runtimes/out/features/lsp/inline-completions/protocolExtensions'
 import { AWSError } from 'aws-sdk'
-import { v4 as uuidv4 } from 'uuid'
 import { CancellationToken, InlineCompletionTriggerKind, Range } from 'vscode-languageserver'
 import { Position, TextDocument } from 'vscode-languageserver-textdocument'
 import { CodewhispererTriggerType, autoTrigger, triggerType } from './auto-trigger/autoTrigger'
@@ -92,7 +91,7 @@ const emitServiceInvocationFailure = (telemetry: Telemetry, session: CodeWhisper
         codewhispererLastSuggestionIndex: -1,
         codewhispererTriggerType: session.triggerType,
         codewhispererAutomatedTriggerType: session.autoTriggerType,
-        reason,
+        reason: `CodeWhisperer Invocation Exception: ${error.name || 'UnknownError'}`,
         duration,
         codewhispererLineNumber: session.startPosition.line,
         codewhispererCursorOffset: session.startPosition.character,
@@ -118,6 +117,7 @@ const mergeSuggestionsWithRightContext = (
     range?: Range
 ): InlineCompletionItemWithReferences[] => {
     return suggestions.map(suggestion => ({
+        itemId: suggestion.itemId,
         insertText: truncateOverlapWithRightContext(rightFileContext, suggestion.content),
         range,
         references: suggestion.references?.map(r => ({
@@ -143,25 +143,6 @@ const hasLeftContextMatch = (suggestions: Suggestion[], leftFileContent: string)
     }
     return false
 }
-
-const getLeftContextMatchingSuggestions = (suggestions: Suggestion[], leftFileContent: string): Suggestion[] => {
-    const matchingSuggestions: Suggestion[] = []
-    for (const suggestion of suggestions) {
-        const overlap = getPrefixSuffixOverlap(leftFileContent, suggestion.content)
-        const overlapIndex = suggestion.content.indexOf(overlap)
-
-        if (overlapIndex > 0 && overlap != suggestion.content) {
-            // Delete the part of suggestion that overlaps, but don't change the contents inside the session
-            const modifiedSuggestion = { ...suggestion }
-            modifiedSuggestion.content.replace(overlap, '')
-            matchingSuggestions.push(modifiedSuggestion)
-        }
-    }
-
-    return matchingSuggestions
-}
-
-export const createSessionId = () => uuidv4()
 
 export const CodewhispererServerFactory =
     (service: (credentials: CredentialsProvider) => CodeWhispererServiceBase): Server =>
@@ -204,23 +185,18 @@ export const CodewhispererServerFactory =
                     currentSession.requestContext.fileContext.filename == params.textDocument.uri &&
                     hasLeftContextMatch(currentSession.suggestions, leftFileContent)
                 ) {
-                    const leftContextMatchingSuggestions = getLeftContextMatchingSuggestions(
-                        currentSession.getfilteredSuggestions(includeSuggestionsWithCodeReferences),
-                        leftFileContent
-                    )
-
                     const items = mergeSuggestionsWithRightContext(
                         textDocument.getText({
                             start: params.position,
                             end: textDocument.positionAt(textDocument.getText().length),
                         }),
-                        leftContextMatchingSuggestions,
-                        // currentSession.getfilteredSuggestions(includeSuggestionsWithCodeReferences),
+                        currentSession.getfilteredSuggestions(includeSuggestionsWithCodeReferences),
                         params.context.selectedCompletionInfo?.range
                     )
 
                     // If items array is not empty and there is at least one suggestion whose content is not empty
-                    if (items.length > 0 && items.some(suggestion => suggestion.insertText !== '')) return { items }
+                    if (items.length > 0 && items.some(suggestion => suggestion.insertText !== ''))
+                        return { items, sessionId: currentSession.id }
                 }
                 sessionManager.discardSession(currentSession)
 
