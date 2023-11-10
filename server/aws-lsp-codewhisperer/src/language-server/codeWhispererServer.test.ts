@@ -6,10 +6,15 @@ import sinon, { StubbedInstance, stubInterface } from 'ts-sinon'
 import { CancellationToken, InlineCompletionTriggerKind } from 'vscode-languageserver'
 import { TextDocument } from 'vscode-languageserver-textdocument'
 import { TestFeatures } from './TestFeatures'
+import * as codeWhispererServer from './codeWhispererServer'
 import { CodewhispererServerFactory } from './codeWhispererServer'
 import { CodeWhispererServiceBase, ResponseContext, Suggestion } from './codeWhispererService'
 
 describe('CodeWhisperer Server', () => {
+    // TODO: remove after actual implementation of session id using session manager is done
+    // https://github.com/aws/aws-language-servers/pull/58/files
+    const createSessionIdStub = sinon.spy(codeWhispererServer, 'createSessionId')
+
     describe('Recommendations', () => {
         const HELLO_WORLD_IN_CSHARP = `
 class HelloWorld
@@ -47,16 +52,26 @@ class HelloWorld
             HELLO_WORLD_LINE.substring(SINGLE_LINE_FILE_CUTOFF_INDEX)
         )
 
-        const EXPECTED_SUGGESTION: Suggestion[] = [{ content: 'recommendation' }]
+        const EXPECTED_SUGGESTION: Suggestion[] = [{ itemId: 'cwspr-item-id', content: 'recommendation' }]
         const EXPECTED_RESPONSE_CONTEXT: ResponseContext = {
             requestId: 'cwspr-request-id',
             codewhispererSessionId: 'cwspr-session-id',
         }
+        const EXPECTED_SESSION_ID = 'some-random-session-uuid-string'
+
         const EXPECTED_RESULT = {
-            items: [{ insertText: EXPECTED_SUGGESTION[0].content, range: undefined, references: undefined }],
+            sessionId: EXPECTED_SESSION_ID,
+            items: [
+                {
+                    itemId: EXPECTED_SUGGESTION[0].itemId,
+                    insertText: EXPECTED_SUGGESTION[0].content,
+                    range: undefined,
+                    references: undefined,
+                },
+            ],
         }
 
-        const EMPTY_RESULT = { items: [] }
+        const EMPTY_RESULT = { items: [], sessionId: EXPECTED_SESSION_ID }
 
         let features: TestFeatures
         let server: Server
@@ -94,6 +109,10 @@ class HelloWorld
                 .openDocument(SOME_SINGLE_LINE_FILE)
         })
 
+        afterEach(() => {
+            createSessionIdStub.resetHistory()
+        })
+
         it('should return recommendations', async () => {
             const result = await features.doInlineCompletionWithReferences(
                 {
@@ -103,6 +122,8 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
+            const sessionId = createSessionIdStub.returnValues[0]
+            Object.assign(EXPECTED_RESULT, { sessionId })
 
             // Check the completion result
             assert.deepEqual(result, EXPECTED_RESULT)
@@ -133,6 +154,8 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
+            const sessionId = createSessionIdStub.returnValues[0]
+            Object.assign(EXPECTED_RESULT, { sessionId })
 
             // Check the completion result
             assert.deepEqual(result, EXPECTED_RESULT)
@@ -158,6 +181,8 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
+            const sessionId = createSessionIdStub.returnValues[0]
+            Object.assign(EXPECTED_RESULT, { sessionId })
 
             // Check the completion result
             assert.deepEqual(result, EXPECTED_RESULT)
@@ -183,6 +208,8 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
+            const sessionId = createSessionIdStub.returnValues[0]
+            Object.assign(EMPTY_RESULT, { sessionId })
 
             // Check the completion result
             assert.deepEqual(result, EMPTY_RESULT)
@@ -200,6 +227,8 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
+            const sessionId = createSessionIdStub.returnValues[0]
+            Object.assign(EMPTY_RESULT, { sessionId })
 
             // Check the completion result
             assert.deepEqual(result, EMPTY_RESULT)
@@ -217,6 +246,8 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
+            const sessionId = createSessionIdStub.returnValues[0]
+            Object.assign(EXPECTED_RESULT, { sessionId })
 
             // Check the completion result
             assert.deepEqual(result, EXPECTED_RESULT)
@@ -236,16 +267,22 @@ class HelloWorld
         })
 
         // Merge right tests
-        it('should not show recommendation when the recommendation is equal to right context ', async () => {
+        it('should not show recommendation when the recommendation is equal to right context', async () => {
             // The suggestion returned by generateSuggestions will be equal to the contents of the file
-            const EXPECTED_SUGGESTION: Suggestion[] = [{ content: HELLO_WORLD_IN_CSHARP }]
+            const EXPECTED_SUGGESTION: Suggestion[] = [{ itemId: 'cwspr-item-id', content: HELLO_WORLD_IN_CSHARP }]
             service.generateSuggestions.returns(
                 Promise.resolve({
                     suggestions: EXPECTED_SUGGESTION,
                     responseContext: EXPECTED_RESPONSE_CONTEXT,
                 })
             )
-            const EXPECTED_RESULT = { items: [{ insertText: '', range: undefined, references: undefined }] }
+
+            const EXPECTED_RESULT = {
+                sessionId: EXPECTED_SESSION_ID,
+                items: [
+                    { itemId: EXPECTED_SUGGESTION[0].itemId, insertText: '', range: undefined, references: undefined },
+                ],
+            }
 
             const result = await features.doInlineCompletionWithReferences(
                 {
@@ -255,6 +292,9 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
+            const sessionId = createSessionIdStub.returnValues[0]
+            Object.assign(EXPECTED_RESULT, { sessionId })
+
             assert.deepEqual(result, EXPECTED_RESULT)
         })
 
@@ -270,7 +310,7 @@ class HelloWorld
             const MY_FILE = TextDocument.create('file:///rightContext.cs', 'csharp', 1, finalFileContent)
             features.openDocument(MY_FILE)
 
-            const EXPECTED_SUGGESTION: Suggestion[] = [{ content: recommendation }]
+            const EXPECTED_SUGGESTION: Suggestion[] = [{ itemId: 'cwspr-item-id', content: recommendation }]
             service.generateSuggestions.returns(
                 Promise.resolve({
                     suggestions: EXPECTED_SUGGESTION,
@@ -280,7 +320,15 @@ class HelloWorld
             // Expected result is the deleted line + new line + 4 spaces
             // Newline and the 4 spaces get lost when we do the `split` so we add them back to expected result
             const EXPECTED_RESULT = {
-                items: [{ insertText: deletedLine.concat('\n    '), range: undefined, references: undefined }],
+                sessionId: EXPECTED_SESSION_ID,
+                items: [
+                    {
+                        itemId: EXPECTED_SUGGESTION[0].itemId,
+                        insertText: deletedLine.concat('\n    '),
+                        range: undefined,
+                        references: undefined,
+                    },
+                ],
             }
 
             const result = await features.doInlineCompletionWithReferences(
@@ -291,6 +339,9 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
+            const sessionId = createSessionIdStub.returnValues[0]
+            Object.assign(EXPECTED_RESULT, { sessionId })
+
             assert.deepEqual(result, EXPECTED_RESULT)
 
             const leftContext = lines.slice(0, cutOffLine).join('\n') + '\n'
@@ -308,7 +359,7 @@ class HelloWorld
         })
 
         it('should only show the part of the recommendation that does not overlap with the right context', async () => {
-            const EXPECTED_SUGGESTION: Suggestion[] = [{ content: HELLO_WORLD_LINE }]
+            const EXPECTED_SUGGESTION: Suggestion[] = [{ itemId: 'cwspr-item-id', content: HELLO_WORLD_LINE }]
             service.generateSuggestions.returns(
                 Promise.resolve({
                     suggestions: EXPECTED_SUGGESTION,
@@ -316,8 +367,10 @@ class HelloWorld
                 })
             )
             const EXPECTED_RESULT = {
+                sessionId: EXPECTED_SESSION_ID,
                 items: [
                     {
+                        itemId: EXPECTED_SUGGESTION[0].itemId,
                         insertText: HELLO_WORLD_LINE.substring(0, SINGLE_LINE_FILE_CUTOFF_INDEX),
                         range: undefined,
                         references: undefined,
@@ -333,11 +386,14 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
+            const sessionId = createSessionIdStub.returnValues[0]
+            Object.assign(EXPECTED_RESULT, { sessionId })
+
             assert.deepEqual(result, EXPECTED_RESULT)
         })
 
         it('should show full recommendation when the right context does not match recommendation ', async () => {
-            const EXPECTED_SUGGESTION: Suggestion[] = [{ content: 'Something something' }]
+            const EXPECTED_SUGGESTION: Suggestion[] = [{ itemId: 'cwspr-item-id', content: 'Something something' }]
             service.generateSuggestions.returns(
                 Promise.resolve({
                     suggestions: EXPECTED_SUGGESTION,
@@ -345,7 +401,15 @@ class HelloWorld
                 })
             )
             const EXPECTED_RESULT = {
-                items: [{ insertText: EXPECTED_SUGGESTION[0].content, range: undefined, references: undefined }],
+                sessionId: EXPECTED_SESSION_ID,
+                items: [
+                    {
+                        itemId: EXPECTED_SUGGESTION[0].itemId,
+                        insertText: EXPECTED_SUGGESTION[0].content,
+                        range: undefined,
+                        references: undefined,
+                    },
+                ],
             }
 
             const result = await features.doInlineCompletionWithReferences(
@@ -356,6 +420,9 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
+            const sessionId = createSessionIdStub.returnValues[0]
+            Object.assign(EXPECTED_RESULT, { sessionId })
+
             assert.deepEqual(result, EXPECTED_RESULT)
         })
 
@@ -371,11 +438,10 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
-
+            const sessionId = createSessionIdStub.returnValues[0]
+            Object.assign(EMPTY_RESULT, { sessionId })
             // Check the completion result
-            assert.deepEqual(result, {
-                items: [],
-            })
+            assert.deepEqual(result, EMPTY_RESULT)
         })
 
         // TODO: mock http request and verify the headers are passed
@@ -418,6 +484,7 @@ class HelloWorld
 }
 `
         const SOME_FILE = TextDocument.create('file:///test.cs', 'csharp', 1, HELLO_WORLD_IN_CSHARP)
+        const EXPECTED_SESSION_ID = 'some-random-session-uuid-string'
         const EXPECTED_REFERENCE = {
             licenseName: 'test license',
             repository: 'test repository',
@@ -425,21 +492,24 @@ class HelloWorld
             recommendationContentSpan: { start: 0, end: 1 },
         }
         const EXPECTED_SUGGESTION: Suggestion[] = [
-            { content: 'recommendation without reference' },
-            { content: 'recommendation with reference', references: [EXPECTED_REFERENCE] },
+            { itemId: 'cwspr-item-id-1', content: 'recommendation without reference' },
+            { itemId: 'cwspr-item-id-2', content: 'recommendation with reference', references: [EXPECTED_REFERENCE] },
         ]
         const EXPECTED_RESPONSE_CONTEXT: ResponseContext = {
             requestId: 'cwspr-request-id',
             codewhispererSessionId: 'cwspr-session-id',
         }
         const EXPECTED_RESULT_WITH_REFERENCES = {
+            sessionId: EXPECTED_SESSION_ID,
             items: [
                 {
+                    itemId: EXPECTED_SUGGESTION[0].itemId,
                     insertText: EXPECTED_SUGGESTION[0].content,
                     range: undefined,
                     references: undefined,
                 },
                 {
+                    itemId: EXPECTED_SUGGESTION[1].itemId,
                     insertText: EXPECTED_SUGGESTION[1].content,
                     range: undefined,
                     references: [
@@ -457,8 +527,10 @@ class HelloWorld
             ],
         }
         const EXPECTED_RESULT_WITHOUT_REFERENCES = {
+            sessionId: EXPECTED_SESSION_ID,
             items: [
                 {
+                    itemId: EXPECTED_SUGGESTION[0].itemId,
                     insertText: EXPECTED_SUGGESTION[0].content,
                     range: undefined,
                     references: undefined,
@@ -488,6 +560,10 @@ class HelloWorld
             features = new TestFeatures()
         })
 
+        afterEach(() => {
+            createSessionIdStub.resetHistory()
+        })
+
         it('should return all recommendations if no settings are specificed', async () => {
             features.lsp.workspace.getConfiguration.returns(Promise.resolve({}))
             await features.start(server)
@@ -499,6 +575,8 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
+            const sessionId = createSessionIdStub.returnValues[0]
+            Object.assign(EXPECTED_RESULT_WITH_REFERENCES, { sessionId })
 
             // Check the completion result
             assert.deepEqual(result, EXPECTED_RESULT_WITH_REFERENCES)
@@ -515,6 +593,8 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
+            const sessionId = createSessionIdStub.returnValues[0]
+            Object.assign(EXPECTED_RESULT_WITH_REFERENCES, { sessionId })
 
             // Check the completion result
             assert.deepEqual(result, EXPECTED_RESULT_WITH_REFERENCES)
@@ -533,6 +613,8 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
+            const sessionId = createSessionIdStub.returnValues[0]
+            Object.assign(EXPECTED_RESULT_WITH_REFERENCES, { sessionId })
 
             // Check the completion result
             assert.deepEqual(result, EXPECTED_RESULT_WITH_REFERENCES)
@@ -551,6 +633,8 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
+            const sessionId = createSessionIdStub.returnValues[0]
+            Object.assign(EXPECTED_RESULT_WITHOUT_REFERENCES, { sessionId })
 
             // Check the completion result
             assert.deepEqual(result, EXPECTED_RESULT_WITHOUT_REFERENCES)
@@ -575,6 +659,8 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
+            const sessionId = createSessionIdStub.returnValues[0]
+            Object.assign(EXPECTED_RESULT_WITHOUT_REFERENCES, { sessionId })
 
             // Check the completion result
             assert.deepEqual(result, EXPECTED_RESULT_WITHOUT_REFERENCES)
@@ -598,6 +684,8 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
+            const sessionId = createSessionIdStub.returnValues[0]
+            Object.assign(EXPECTED_RESULT_WITH_REFERENCES, { sessionId })
 
             // Check the completion result
             assert.deepEqual(result, EXPECTED_RESULT_WITH_REFERENCES)
@@ -607,9 +695,12 @@ class HelloWorld
             features.lsp.workspace.getConfiguration.returns(Promise.resolve({}))
             await features.start(server)
 
-            const EXPECTED_SUGGESTION: Suggestion[] = [{ content: HELLO_WORLD_IN_CSHARP }]
+            const EXPECTED_SUGGESTION: Suggestion[] = [{ itemId: 'cwspr-item-id', content: HELLO_WORLD_IN_CSHARP }]
             const EXPECTED_RESULT_WITH_REMOVED_REFERENCES = {
-                items: [{ insertText: '', range: undefined, references: undefined }],
+                sessionId: EXPECTED_SESSION_ID,
+                items: [
+                    { itemId: EXPECTED_SUGGESTION[0].itemId, insertText: '', range: undefined, references: undefined },
+                ],
             }
             service.generateSuggestions.returns(
                 Promise.resolve({
@@ -626,6 +717,8 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
+            const sessionId = createSessionIdStub.returnValues[0]
+            Object.assign(EXPECTED_RESULT_WITH_REMOVED_REFERENCES, { sessionId })
 
             assert.deepEqual(result, EXPECTED_RESULT_WITH_REMOVED_REFERENCES)
         })
@@ -646,10 +739,14 @@ class HelloWorld
             const MY_FILE = TextDocument.create('file:///rightContext.cs', 'csharp', 1, finalFileContent)
             features.openDocument(MY_FILE)
 
-            const EXPECTED_SUGGESTION: Suggestion[] = [{ content: recommendation, references: [EXPECTED_REFERENCE] }]
+            const EXPECTED_SUGGESTION: Suggestion[] = [
+                { itemId: 'cwspr-item-id', content: recommendation, references: [EXPECTED_REFERENCE] },
+            ]
             const EXPECTED_RESULT = {
+                sessionId: EXPECTED_SESSION_ID,
                 items: [
                     {
+                        itemId: EXPECTED_SUGGESTION[0].itemId,
                         insertText: deletedLine.concat('\n    '),
                         range: undefined,
                         references: [
@@ -682,6 +779,8 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
+            const sessionId = createSessionIdStub.returnValues[0]
+            Object.assign(EXPECTED_RESULT, { sessionId })
 
             assert.deepEqual(result, EXPECTED_RESULT)
         })
@@ -701,13 +800,22 @@ class HelloWorld
         const RIGHT_FILE_CONTEXT = HELLO_WORLD_IN_CSHARP.substring(40)
 
         const SOME_FILE = TextDocument.create('file:///test.cs', 'csharp', 1, HELLO_WORLD_IN_CSHARP)
-        const EXPECTED_SUGGESTION: Suggestion[] = [{ content: 'recommendation' }]
+        const EXPECTED_SUGGESTION: Suggestion[] = [{ itemId: 'cwspr-item-id', content: 'recommendation' }]
         const EXPECTED_RESPONSE_CONTEXT: ResponseContext = {
             requestId: 'cwspr-request-id',
             codewhispererSessionId: 'cwspr-session-id',
         }
+        const EXPECTED_SESSION_ID = 'some-random-session-uuid-string'
         const EXPECTED_RESULT = {
-            items: [{ insertText: EXPECTED_SUGGESTION[0].content, range: undefined, references: undefined }],
+            sessionId: EXPECTED_SESSION_ID,
+            items: [
+                {
+                    itemId: EXPECTED_SUGGESTION[0].itemId,
+                    insertText: EXPECTED_SUGGESTION[0].content,
+                    range: undefined,
+                    references: undefined,
+                },
+            ],
         }
 
         const EMPTY_RESULT = { items: [] }
@@ -743,6 +851,10 @@ class HelloWorld
             features.openDocument(SOME_FILE)
         })
 
+        afterEach(() => {
+            createSessionIdStub.resetHistory()
+        })
+
         it('should return recommendations on an above-threshold auto-trigger position', async () => {
             const result = await features.doInlineCompletionWithReferences(
                 {
@@ -752,6 +864,8 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
+            const sessionId = createSessionIdStub.returnValues[0]
+            Object.assign(EXPECTED_RESULT, { sessionId })
 
             // Check the completion result
             assert.deepEqual(result, EXPECTED_RESULT)
@@ -777,6 +891,8 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
+            const sessionId = createSessionIdStub.returnValues[0]
+            Object.assign(EMPTY_RESULT, { sessionId })
 
             // Check the completion result
             assert.deepEqual(result, EMPTY_RESULT)
@@ -794,7 +910,7 @@ class HelloWorld
 }
 `
         const SOME_FILE = TextDocument.create('file:///test.cs', 'csharp', 1, HELLO_WORLD_IN_CSHARP)
-        const EXPECTED_SUGGESTION: Suggestion[] = [{ content: 'recommendation' }]
+        const EXPECTED_SUGGESTION: Suggestion[] = [{ itemId: 'cwspr-item-id', content: 'recommendation' }]
         const EXPECTED_RESPONSE_CONTEXT: ResponseContext = {
             requestId: 'cwspr-request-id',
             codewhispererSessionId: 'cwspr-session-id',
@@ -873,9 +989,9 @@ class HelloWorld
         it('should emit Success ServiceInvocation telemetry on successful response with completionType block when first suggestion has new lines', async () => {
             const recommendation = ['multi', 'line', ' suggestion'].join('\n')
             const EXPECTED_SUGGESTIONS = [
-                { content: recommendation },
-                { content: recommendation },
-                { content: recommendation },
+                { itemId: 'cwspr-item-id-1', content: recommendation },
+                { itemId: 'cwspr-item-id-2', content: recommendation },
+                { itemId: 'cwspr-item-id-3', content: recommendation },
             ]
             service.generateSuggestions.returns(
                 Promise.resolve({
