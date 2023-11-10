@@ -980,7 +980,7 @@ class HelloWorld
                     codewhispererLineNumber: 0,
                     codewhispererCursorOffset: 0,
                     codewhispererLanguage: 'csharp',
-                    credentialStartUrl: '',
+                    credentialStartUrl: undefined,
                 },
             }
             sinon.assert.calledOnceWithExactly(features.telemetry.emitMetric, expectedServiceInvocationMetric)
@@ -1023,7 +1023,7 @@ class HelloWorld
                     codewhispererLineNumber: 0,
                     codewhispererCursorOffset: 0,
                     codewhispererLanguage: 'csharp',
-                    credentialStartUrl: '',
+                    credentialStartUrl: undefined,
                 },
             }
             sinon.assert.calledOnceWithExactly(features.telemetry.emitMetric, expectedServiceInvocationMetric)
@@ -1057,7 +1057,7 @@ class HelloWorld
                     codewhispererLineNumber: 0,
                     codewhispererCursorOffset: 0,
                     codewhispererLanguage: 'csharp',
-                    credentialStartUrl: '',
+                    credentialStartUrl: undefined,
                 },
                 errorData: {
                     reason: 'TestError',
@@ -1094,7 +1094,7 @@ class HelloWorld
                     codewhispererLineNumber: 0,
                     codewhispererCursorOffset: 0,
                     codewhispererLanguage: 'csharp',
-                    credentialStartUrl: '',
+                    credentialStartUrl: undefined,
                 },
                 errorData: {
                     reason: 'UnknownError',
@@ -1144,7 +1144,7 @@ class HelloWorld
                     codewhispererLineNumber: 0,
                     codewhispererCursorOffset: 0,
                     codewhispererLanguage: 'csharp',
-                    credentialStartUrl: '',
+                    credentialStartUrl: undefined,
                 },
                 errorData: {
                     reason: 'TestAWSError',
@@ -1153,6 +1153,45 @@ class HelloWorld
                 },
             }
             sinon.assert.calledOnceWithExactly(features.telemetry.emitMetric, expectedServiceInvocationMetric)
+        })
+
+        describe('Connection metadata credentialStartUrl field', () => {
+            it('should attach credentialStartUrl field if available in credentialsProvider', async () => {
+                features.credentialsProvider.getConnectionMetadata.returns({
+                    sso: {
+                        startUrl: 'http://teststarturl',
+                    },
+                })
+
+                await features.doInlineCompletionWithReferences(
+                    {
+                        textDocument: { uri: SOME_FILE.uri },
+                        position: { line: 0, character: 0 },
+                        context: { triggerKind: InlineCompletionTriggerKind.Invoked },
+                    },
+                    CancellationToken.None
+                )
+
+                assert.equal(
+                    features.telemetry.emitMetric.getCall(0).args[0].data.credentialStartUrl,
+                    'http://teststarturl'
+                )
+            })
+
+            it('should send empty credentialStartUrl field if not available in credentialsProvider', async () => {
+                features.credentialsProvider.getConnectionMetadata.returns(undefined)
+
+                await features.doInlineCompletionWithReferences(
+                    {
+                        textDocument: { uri: SOME_FILE.uri },
+                        position: { line: 0, character: 0 },
+                        context: { triggerKind: InlineCompletionTriggerKind.Invoked },
+                    },
+                    CancellationToken.None
+                )
+
+                assert.equal(features.telemetry.emitMetric.getCall(0).args[0].data.credentialStartUrl, undefined)
+            })
         })
     })
 })

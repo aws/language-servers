@@ -20,6 +20,7 @@ import {
     CodeWhispererServiceBase,
     CodeWhispererServiceIAM,
     CodeWhispererServiceToken,
+    GenerateSuggestionsRequest,
     GenerateSuggestionsResponse,
     Suggestion,
 } from './codeWhispererService'
@@ -34,6 +35,8 @@ interface InvocationContext {
     triggerType: CodewhispererTriggerType
     autoTriggerType?: CodewhispererAutomatedTriggerType
     language: CodewhispererLanguage
+    requestContext: GenerateSuggestionsRequest
+    credentialStartUrl?: string
 }
 
 const EMPTY_RESULT = { sessionId: '', items: [] }
@@ -87,7 +90,7 @@ const emitServiceInvocationTelemetry =
             codewhispererLineNumber: invocationContext.startPosition.line,
             codewhispererCursorOffset: invocationContext.startPosition.character,
             codewhispererLanguage: invocationContext.language,
-            credentialStartUrl: '',
+            credentialStartUrl: invocationContext.credentialStartUrl,
         }
         telemetry.emitMetric({
             name: 'codewhisperer_serviceInvocation',
@@ -115,7 +118,7 @@ const emitServiceInvocationFailure =
             codewhispererLineNumber: invocationContext.startPosition.line,
             codewhispererCursorOffset: invocationContext.startPosition.character,
             codewhispererLanguage: invocationContext.language,
-            credentialStartUrl: '',
+            credentialStartUrl: invocationContext.credentialStartUrl,
         }
 
         telemetry.emitMetric({
@@ -227,13 +230,14 @@ export const CodewhispererServerFactory =
                     fileContext,
                     maxResults,
                 }
-                const invocationContext = {
+                const invocationContext: InvocationContext = {
                     startTime: new Date().getTime(),
                     startPosition: params.position,
                     triggerType: (isAutomaticLspTriggerKind ? 'AutoTrigger' : 'OnDemand') as CodewhispererTriggerType,
                     language: fileContext.programmingLanguage.languageName,
                     requestContext: requestContext,
                     autoTriggerType: isAutomaticLspTriggerKind ? codewhispererAutoTriggerType : undefined,
+                    credentialStartUrl: credentialsProvider.getConnectionMetadata()?.sso?.startUrl ?? undefined,
                 }
 
                 return codeWhispererService
