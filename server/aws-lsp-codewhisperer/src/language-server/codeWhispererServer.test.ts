@@ -1646,10 +1646,6 @@ class HelloWorld
             sinon.assert.calledOnceWithMatch(sessionManagerSpy.closeSession, currentSession)
         })
 
-        it('should not use cached ACTIVE session on new request when suggestions do not left context match requested line', async () => {
-            // TODO
-        })
-
         it('should discard ACTIVE session on second request when suggestings are filtered after right context merge', async () => {
             // The suggestion returned by generateSuggestions will be equal to the contents of the file
             const EXPECTED_SUGGESTION: Suggestion[] = [{ itemId: 'cwspr-item-id', content: HELLO_WORLD_IN_CSHARP }]
@@ -1694,5 +1690,13 @@ class HelloWorld
             // @ts-ignore
             sinon.assert.calledOnceWithMatch(sessionManagerSpy.closeSession, firstSession)
         })
+    })
+
+    it('should not use cached ACTIVE session on new request when suggestions do not left context match requested line', async () => {
+        // TODO
+    })
+
+    it('should discard inflight session if merge right recommendations resulted in list of empty strings', async () => {
+        // TODO
     })
 })

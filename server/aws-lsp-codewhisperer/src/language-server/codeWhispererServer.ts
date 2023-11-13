@@ -256,14 +256,20 @@ export const CodewhispererServerFactory =
                             return EMPTY_RESULT
                         }
 
-                        const rightContextMergedSuggestions = mergeSuggestionsWithRightContext(
+                        const items = mergeSuggestionsWithRightContext(
                             fileContext.rightFileContent,
                             newSession.getFilteredSuggestions(includeSuggestionsWithCodeReferences),
                             selectionRange
                         )
 
-                        // TODO: filter out items that have empty string insertText after context merge
-                        return { items: rightContextMergedSuggestions, sessionId: newSession.id }
+                        if (items.length === 0 && items.every(suggestion => suggestion.insertText === '')) {
+                            sessionManager.closeSession(newSession)
+
+                            // TODO: report User Decision
+                            return EMPTY_RESULT
+                        }
+
+                        return { items, sessionId: newSession.id }
                     })
                     .catch(err => {
                         // TODO, handle errors properly
