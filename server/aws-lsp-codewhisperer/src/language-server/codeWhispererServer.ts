@@ -235,7 +235,7 @@ export const CodewhispererServerFactory =
                             return EMPTY_RESULT
                         }
 
-                        // Populate the session with information from codewhisperer response and set it to active
+                        // Populate the session with information from codewhisperer response
                         newSession.suggestions = suggestionResponse.suggestions
                         newSession.responseContext = suggestionResponse.responseContext
                         emitServiceInvocationTelemetry(telemetry, newSession)
