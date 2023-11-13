@@ -90,7 +90,7 @@ export class SessionManager {
     private maxHistorySize = 5
     // TODO, for user decision telemetry: accepted suggestions (not necessarily the full corresponding session) should be stored for 5 minutes
 
-    private constructor() { }
+    private constructor() {}
 
     /**
      * Singleton SessionManager class
