@@ -18,19 +18,20 @@ export interface SessionData {
 
 export class CodeWhispererSession {
     id: string
+    state: SessionState
     codewhispererSessionId?: string
     startPosition: Position = {
         line: 0,
         character: 0,
     }
     suggestions: Suggestion[] = []
+    suggestionsState = new Map<string, string>()
     responseContext?: ResponseContext
     triggerType: CodewhispererTriggerType
     autoTriggerType?: CodewhispererAutomatedTriggerType
     language: CodewhispererLanguage
     requestContext: GenerateSuggestionsRequest
     lastInvocationTime: number
-    sessionState: SessionState
     credentialStartUrl?: string
     // TODO: userDecision field
 
@@ -42,7 +43,7 @@ export class CodeWhispererSession {
         this.language = data.language
         this.requestContext = data.requestContext
         this.autoTriggerType = data.autoTriggerType || undefined
-        this.sessionState = 'REQUESTING'
+        this.state = 'REQUESTING'
         this.lastInvocationTime = new Date().getTime()
     }
 
@@ -51,8 +52,8 @@ export class CodeWhispererSession {
         return uuidv4()
     }
 
-    getfilteredSuggestions(includeSuggestionsWithCodeReferences: boolean = true): Suggestion[] {
-        if (this.sessionState !== 'ACTIVE') {
+    getFilteredSuggestions(includeSuggestionsWithCodeReferences: boolean = true): Suggestion[] {
+        if (this.state !== 'ACTIVE') {
             return []
         }
 
@@ -69,23 +70,49 @@ export class CodeWhispererSession {
     get lastSuggestionIndex(): number {
         return this.suggestions.length - 1
     }
+
     activate() {
-        if (this.sessionState !== 'CLOSED') this.sessionState = 'ACTIVE'
+        if (this.state !== 'CLOSED') {
+            this.state = 'ACTIVE'
+        }
     }
 
-    deactivate() {
-        this.sessionState = 'CLOSED'
+    close() {
+        // TODO: report User Decision and User Trigger Decision
+        this.state = 'CLOSED'
     }
 }
 
 export class SessionManager {
+    private static _instance?: SessionManager
     private currentSession?: CodeWhispererSession
     private sessionsLog: CodeWhispererSession[] = []
     private maxHistorySize = 5
     // TODO, for user decision telemetry: accepted suggestions (not necessarily the full corresponding session) should be stored for 5 minutes
 
-    createSession(data: SessionData): CodeWhispererSession {
+    private constructor() { }
+
+    /**
+     * Singleton SessionManager class
+     */
+    public static getInstance(): SessionManager {
+        if (!SessionManager._instance) {
+            SessionManager._instance = new SessionManager()
+        }
+
+        return SessionManager._instance
+    }
+
+    // For unit tests
+    public static reset() {
+        SessionManager._instance = undefined
+    }
+
+    public createSession(data: SessionData): CodeWhispererSession {
+        console.log('SESSION MANAGER: createSession', data)
+
         this.discardCurrentSession()
+
         // Remove oldest session from log
         if (this.sessionsLog.length > this.maxHistorySize) {
             this.sessionsLog.shift()
@@ -97,17 +124,25 @@ export class SessionManager {
     }
 
     discardCurrentSession() {
+        console.log('SESSION MANAGER: discardCurrentSession', this.currentSession)
+
         // If current session is active (has received a response from CWSPR) add it to history
-        if (this.currentSession?.sessionState === 'ACTIVE') {
+        if (this.currentSession?.state === 'ACTIVE') {
+            console.log('SESSION MANAGER: Adding session to history', this.currentSession)
+
             this.sessionsLog.push(this.currentSession)
         }
         // Deactivate the current session regardles of the state
-        this.currentSession?.deactivate()
+        this.currentSession?.close()
     }
 
-    discardSession(session: CodeWhispererSession | undefined) {
-        if (session == this.currentSession) {
+    closeSession(session: CodeWhispererSession) {
+        console.log('SESSION: discardSession', session.id)
+
+        if (this.currentSession == session) {
             this.discardCurrentSession()
+        } else {
+            session.close()
         }
     }
 
@@ -116,7 +151,7 @@ export class SessionManager {
     }
 
     getActiveSession(): CodeWhispererSession | undefined {
-        if (this.currentSession && this.currentSession.sessionState == 'ACTIVE') return this.currentSession
+        if (this.currentSession && this.currentSession.state == 'ACTIVE') return this.currentSession
     }
 
     getPreviousSession(): CodeWhispererSession | undefined {

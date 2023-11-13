@@ -146,157 +146,166 @@ const hasLeftContextMatch = (suggestions: Suggestion[], leftFileContent: string)
 
 export const CodewhispererServerFactory =
     (service: (credentials: CredentialsProvider) => CodeWhispererServiceBase): Server =>
-    ({ credentialsProvider, lsp, workspace, telemetry, logging }) => {
-        const sessionManager = new SessionManager()
-        const codeWhispererService = service(credentialsProvider)
+        ({ credentialsProvider, lsp, workspace, telemetry, logging }) => {
+            const sessionManager = SessionManager.getInstance()
+            const codeWhispererService = service(credentialsProvider)
 
-        // Mutable state to track whether code with references should be included in
-        // the response. No locking or concurrency controls, filtering is done
-        // right before returning and is only guaranteed to be consistent within
-        // the context of a single response.
-        let includeSuggestionsWithCodeReferences = true
+            // Mutable state to track whether code with references should be included in
+            // the response. No locking or concurrency controls, filtering is done
+            // right before returning and is only guaranteed to be consistent within
+            // the context of a single response.
+            let includeSuggestionsWithCodeReferences = true
 
-        const onInlineCompletionHandler = async (
-            params: InlineCompletionWithReferencesParams,
-            _token: CancellationToken
-        ): Promise<InlineCompletionListWithReferences> => {
-            // On every new completion request close last inflight session.
-            // On every manual trigger expilictly close previous session.
-            const currentSession = sessionManager.getCurrentSession()
-            if (
-                currentSession?.sessionState == 'REQUESTING' ||
-                params.context.triggerKind == InlineCompletionTriggerKind.Invoked
-            ) {
-                sessionManager.discardSession(currentSession)
-            }
+            const onInlineCompletionHandler = async (
+                params: InlineCompletionWithReferencesParams,
+                _token: CancellationToken
+            ): Promise<InlineCompletionListWithReferences> => {
+                // On every new completion request close last inflight session.
+                // On every manual trigger expilictly close previous session.
+                const currentSession = sessionManager.getCurrentSession()
 
-            return workspace.getTextDocument(params.textDocument.uri).then(textDocument => {
-                if (!textDocument) {
-                    logging.log(`textDocument [${params.textDocument.uri}] not found`)
-                    return EMPTY_RESULT
+                if (currentSession?.state == 'REQUESTING') {
+                    sessionManager.closeSession(currentSession)
                 }
 
-                const inferredLanguageId = getSupportedLanguageId(textDocument)
-                if (!inferredLanguageId) {
-                    logging.log(
-                        `textDocument [${params.textDocument.uri}] with languageId [${textDocument.languageId}] not supported`
-                    )
-                    return EMPTY_RESULT
-                }
-
-                // Build request context
-                const isAutomaticLspTriggerKind = params.context.triggerKind == InlineCompletionTriggerKind.Automatic
-                const maxResults = isAutomaticLspTriggerKind ? 1 : 5
-                const selectionRange = params.context.selectedCompletionInfo?.range
-                const fileContext = getFileContext({ textDocument, inferredLanguageId, position: params.position })
-
-                // TODO: Can we get this derived from a keyboard event in the future?
-                // This picks the last non-whitespace character, if any, before the cursor
-                const char = fileContext.leftFileContent.trim().at(-1) ?? ''
-                const codewhispererAutoTriggerType = triggerType(fileContext)
-
-                if (
-                    isAutomaticLspTriggerKind &&
-                    !autoTrigger({
-                        fileContext, // The left/right file context and programming language
-                        lineNum: params.position.line, // the line number of the invocation, this is the line of the cursor
-                        char, // Add the character just inserted, if any, before the invication position
-                        ide: '', // TODO: Fetch the IDE in a platform-agnostic way (from the initialize request?)
-                        os: '', // TODO: We should get this in a platform-agnostic way (i.e., compatible with the browser)
-                        previousDecision: '', // TODO: Once we implement telemetry integration
-                        triggerType: codewhispererAutoTriggerType, // The 2 trigger types currently influencing the Auto-Trigger are SpecialCharacter and Enter
-                    })
-                ) {
-                    return EMPTY_RESULT
-                }
-
-                const requestContext = {
-                    fileContext,
-                    maxResults,
-                }
-                const codewhispererTriggerType = (
-                    isAutomaticLspTriggerKind ? 'AutoTrigger' : 'OnDemand'
-                ) as CodewhispererTriggerType
-                const autoTriggerType = isAutomaticLspTriggerKind ? codewhispererAutoTriggerType : undefined
-
-                const newSession = sessionManager.createSession({
-                    startPosition: params.position,
-                    triggerType: codewhispererTriggerType,
-                    language: fileContext.programmingLanguage.languageName,
-                    requestContext: requestContext,
-                    autoTriggerType: autoTriggerType,
-                    credentialStartUrl: credentialsProvider.getConnectionMetadata()?.sso?.startUrl ?? undefined,
-                })
-
-                return codeWhispererService
-                    .generateSuggestions(requestContext)
-                    .then(suggestionResponse => {
-                        // Populate the session with information from codewhisperer response and set it to active
-                        newSession.suggestions.push(...suggestionResponse.suggestions)
-                        newSession.responseContext = suggestionResponse.responseContext
-                        sessionManager.activateSession(newSession)
-                        emitServiceInvocationTelemetry(telemetry, newSession)
-
-                        // If session has no suggestions after filtering, it is discarded and empty result is returned
-                        if (newSession.getfilteredSuggestions(includeSuggestionsWithCodeReferences).length == 0) {
-                            sessionManager.discardSession(newSession)
-                            return EMPTY_RESULT
-                        }
-
-                        const rightContextMergedSuggestions = mergeSuggestionsWithRightContext(
-                            fileContext.rightFileContent,
-                            newSession.getfilteredSuggestions(includeSuggestionsWithCodeReferences),
-                            selectionRange
-                        )
-
-                        // TODO: filter out items that have empty string insertText after context merge
-                        return { items: rightContextMergedSuggestions, sessionId: newSession.id }
-                    })
-                    .catch(err => {
-                        // TODO, handle errors properly
-                        logging.log('Recommendation failure: ' + err)
-                        emitServiceInvocationFailure(telemetry, newSession, err)
+                return workspace.getTextDocument(params.textDocument.uri).then(textDocument => {
+                    if (!textDocument) {
+                        logging.log(`textDocument [${params.textDocument.uri}] not found`)
                         return EMPTY_RESULT
+                    }
+
+                    const inferredLanguageId = getSupportedLanguageId(textDocument)
+                    if (!inferredLanguageId) {
+                        logging.log(
+                            `textDocument [${params.textDocument.uri}] with languageId [${textDocument.languageId}] not supported`
+                        )
+                        return EMPTY_RESULT
+                    }
+
+                    // Build request context
+                    const isAutomaticLspTriggerKind = params.context.triggerKind == InlineCompletionTriggerKind.Automatic
+                    const maxResults = isAutomaticLspTriggerKind ? 1 : 5
+                    const selectionRange = params.context.selectedCompletionInfo?.range
+                    const fileContext = getFileContext({ textDocument, inferredLanguageId, position: params.position })
+
+                    // TODO: Can we get this derived from a keyboard event in the future?
+                    // This picks the last non-whitespace character, if any, before the cursor
+                    const char = fileContext.leftFileContent.trim().at(-1) ?? ''
+                    const codewhispererAutoTriggerType = triggerType(fileContext)
+
+                    if (
+                        isAutomaticLspTriggerKind &&
+                        !autoTrigger({
+                            fileContext, // The left/right file context and programming language
+                            lineNum: params.position.line, // the line number of the invocation, this is the line of the cursor
+                            char, // Add the character just inserted, if any, before the invication position
+                            ide: '', // TODO: Fetch the IDE in a platform-agnostic way (from the initialize request?)
+                            os: '', // TODO: We should get this in a platform-agnostic way (i.e., compatible with the browser)
+                            previousDecision: '', // TODO: Once we implement telemetry integration
+                            triggerType: codewhispererAutoTriggerType, // The 2 trigger types currently influencing the Auto-Trigger are SpecialCharacter and Enter
+                        })
+                    ) {
+                        return EMPTY_RESULT
+                    }
+
+                    const requestContext = {
+                        fileContext,
+                        maxResults,
+                    }
+                    const codewhispererTriggerType = (
+                        isAutomaticLspTriggerKind ? 'AutoTrigger' : 'OnDemand'
+                    ) as CodewhispererTriggerType
+                    const autoTriggerType = isAutomaticLspTriggerKind ? codewhispererAutoTriggerType : undefined
+
+                    const newSession = sessionManager.createSession({
+                        startPosition: params.position,
+                        triggerType: codewhispererTriggerType,
+                        language: fileContext.programmingLanguage.languageName,
+                        requestContext: requestContext,
+                        autoTriggerType: autoTriggerType,
+                        credentialStartUrl: credentialsProvider.getConnectionMetadata()?.sso?.startUrl ?? undefined,
                     })
-            })
-        }
-        const onLogInlineCompelitionSessionResultsHandler = async (
-            params: LogInlineCompelitionSessionResultsParams
-        ) => {
-            // TODO: end current active session from session manager
-        }
-        const updateConfiguration = async () =>
-            lsp.workspace
-                .getConfiguration('aws.codeWhisperer')
-                .then(config => {
-                    if (config && config['includeSuggestionsWithCodeReferences'] === false) {
-                        includeSuggestionsWithCodeReferences = false
-                        logging.log('Configuration updated to exclude suggestions with code references')
-                    } else {
-                        includeSuggestionsWithCodeReferences = true
-                        logging.log('Configuration updated to include suggestions with code references')
-                    }
-                    if (config && config['shareCodeWhispererContentWithAWS'] === false) {
-                        codeWhispererService.shareCodeWhispererContentWithAWS = false
-                        logging.log('Configuration updated to not share code whisperer content with AWS')
-                    } else {
-                        codeWhispererService.shareCodeWhispererContentWithAWS = true
-                        logging.log('Configuration updated to share code whisperer content with AWS')
-                    }
+
+                    return codeWhispererService
+                        .generateSuggestions(requestContext)
+                        .then(suggestionResponse => {
+                            if (newSession.state === 'CLOSED') {
+                                return EMPTY_RESULT
+                            }
+
+                            if (suggestionResponse.suggestions.length === 0) {
+                                sessionManager.closeSession(newSession)
+                                return EMPTY_RESULT
+                            }
+
+                            // Populate the session with information from codewhisperer response and set it to active
+                            newSession.suggestions.push(...suggestionResponse.suggestions)
+                            newSession.responseContext = suggestionResponse.responseContext
+                            sessionManager.activateSession(newSession)
+                            emitServiceInvocationTelemetry(telemetry, newSession)
+
+                            // If session has no suggestions after filtering, it is discarded and empty result is returned
+                            if (newSession.getFilteredSuggestions(includeSuggestionsWithCodeReferences).length == 0) {
+                                sessionManager.closeSession(newSession)
+
+                                // TODO: report User Decision and User Trigger Decision = EMPTY
+                                return EMPTY_RESULT
+                            }
+
+                            const rightContextMergedSuggestions = mergeSuggestionsWithRightContext(
+                                fileContext.rightFileContent,
+                                newSession.getFilteredSuggestions(includeSuggestionsWithCodeReferences),
+                                selectionRange
+                            )
+
+                            // TODO: filter out items that have empty string insertText after context merge
+                            return { items: rightContextMergedSuggestions, sessionId: newSession.id }
+                        })
+                        .catch(err => {
+                            // TODO, handle errors properly
+                            logging.log('Recommendation failure: ' + err)
+                            emitServiceInvocationFailure(telemetry, newSession, err)
+                            return EMPTY_RESULT
+                        })
                 })
-                .catch(reason => logging.log(`Error in GetConfiguration: ${reason}`))
+            }
+            const onLogInlineCompelitionSessionResultsHandler = async (
+                params: LogInlineCompelitionSessionResultsParams
+            ) => {
+                // TODO: end current active session from session manager
+            }
+            const updateConfiguration = async () =>
+                lsp.workspace
+                    .getConfiguration('aws.codeWhisperer')
+                    .then(config => {
+                        if (config && config['includeSuggestionsWithCodeReferences'] === false) {
+                            includeSuggestionsWithCodeReferences = false
+                            logging.log('Configuration updated to exclude suggestions with code references')
+                        } else {
+                            includeSuggestionsWithCodeReferences = true
+                            logging.log('Configuration updated to include suggestions with code references')
+                        }
+                        if (config && config['shareCodeWhispererContentWithAWS'] === false) {
+                            codeWhispererService.shareCodeWhispererContentWithAWS = false
+                            logging.log('Configuration updated to not share code whisperer content with AWS')
+                        } else {
+                            codeWhispererService.shareCodeWhispererContentWithAWS = true
+                            logging.log('Configuration updated to share code whisperer content with AWS')
+                        }
+                    })
+                    .catch(reason => logging.log(`Error in GetConfiguration: ${reason}`))
 
-        lsp.extensions.onInlineCompletionWithReferences(onInlineCompletionHandler)
-        lsp.extensions.onLogInlineCompelitionSessionResults(onLogInlineCompelitionSessionResultsHandler)
-        lsp.onInitialized(updateConfiguration)
-        lsp.didChangeConfiguration(updateConfiguration)
+            lsp.extensions.onInlineCompletionWithReferences(onInlineCompletionHandler)
+            lsp.extensions.onLogInlineCompelitionSessionResults(onLogInlineCompelitionSessionResultsHandler)
+            lsp.onInitialized(updateConfiguration)
+            lsp.didChangeConfiguration(updateConfiguration)
 
-        logging.log('Codewhisperer server has been initialised')
+            logging.log('Codewhisperer server has been initialised')
 
-        return () => {
-            /* do nothing */
+            return () => {
+                /* do nothing */
+            }
         }
-    }
 
 export const CodeWhispererServerIAM = CodewhispererServerFactory(
     credentialsProvider => new CodeWhispererServiceIAM(credentialsProvider)

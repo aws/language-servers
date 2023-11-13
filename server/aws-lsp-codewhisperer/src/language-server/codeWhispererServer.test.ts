@@ -8,10 +8,37 @@ import { TextDocument } from 'vscode-languageserver-textdocument'
 import { TestFeatures } from './TestFeatures'
 import { CodewhispererServerFactory } from './codeWhispererServer'
 import { CodeWhispererServiceBase, ResponseContext, Suggestion } from './codeWhispererService'
-import { CodeWhispererSession } from './session/sessionManager'
+import { CodeWhispererSession, SessionManager } from './session/sessionManager'
 
 describe('CodeWhisperer Server', () => {
+    const sandbox = sinon.createSandbox()
+    let SESSION_IDS_LOG: string[] = []
+    let sessionManager: SessionManager
+    let sessionManagerSpy: sinon.SinonSpiedInstance<SessionManager>
+
+    before(() => {
+        const StubSessionIdGenerator = () => {
+            let id = 'some-random-session-uuid-' + SESSION_IDS_LOG.length
+            SESSION_IDS_LOG.push(id)
+
+            return id
+        }
+        sinon.stub(CodeWhispererSession.prototype, 'generateSessionId').callsFake(StubSessionIdGenerator)
+    })
+
+    beforeEach(() => {
+        SessionManager.reset()
+        sessionManager = SessionManager.getInstance()
+        sessionManagerSpy = sandbox.spy(sessionManager)
+        SESSION_IDS_LOG = []
+    })
+
+    afterEach(() => {
+        sandbox.restore()
+    })
+
     describe('Recommendations', () => {
+        // let sandbox: sinon.SinonSandbox;
         const HELLO_WORLD_IN_CSHARP = `
 class HelloWorld
 {
@@ -53,8 +80,7 @@ class HelloWorld
             requestId: 'cwspr-request-id',
             codewhispererSessionId: 'cwspr-session-id',
         }
-        const EXPECTED_SESSION_ID = 'some-random-session-uuid-string'
-        sinon.stub(CodeWhispererSession.prototype, 'generateSessionId').returns(EXPECTED_SESSION_ID)
+        const EXPECTED_SESSION_ID = 'some-random-session-uuid-0'
 
         const EXPECTED_RESULT = {
             sessionId: EXPECTED_SESSION_ID,
@@ -78,6 +104,8 @@ class HelloWorld
         let service: StubbedInstance<CodeWhispererServiceBase>
 
         beforeEach(async () => {
+            // sandbox.stub(CodeWhispererSession.prototype, 'generateSessionId').returns(EXPECTED_SESSION_ID)
+
             // Set up the server with a mock service, returning predefined recommendations
             service = stubInterface<CodeWhispererServiceBase>()
             service.generateSuggestions.returns(
@@ -195,8 +223,6 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
-            // Object.assign(EMPTY_RESULT, { sessionId })
-
             // Check the completion result
             assert.deepEqual(result, EMPTY_RESULT)
 
@@ -213,8 +239,6 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
-            // Object.assign(EMPTY_RESULT, { sessionId })
-
             // Check the completion result
             assert.deepEqual(result, EMPTY_RESULT)
 
@@ -458,7 +482,7 @@ class HelloWorld
 }
 `
         const SOME_FILE = TextDocument.create('file:///test.cs', 'csharp', 1, HELLO_WORLD_IN_CSHARP)
-        const EXPECTED_SESSION_ID = 'some-random-session-uuid-string'
+        const EXPECTED_SESSION_ID = 'some-random-session-uuid-0'
         const EXPECTED_REFERENCE = {
             licenseName: 'test license',
             repository: 'test repository',
@@ -738,6 +762,198 @@ class HelloWorld
 
             assert.deepEqual(result, EXPECTED_RESULT)
         })
+
+        describe('With session management', () => {
+            const EMPTY_RESULT = { items: [], sessionId: '' }
+
+            it('should use all cached recommentation from ACTIVE session result on new request when includeSuggestionsWithCodeReferences is true', async () => {
+                features.lsp.workspace.getConfiguration.returns(
+                    Promise.resolve({ includeSuggestionsWithCodeReferences: true })
+                )
+                await features.start(server)
+                const result = await features.openDocument(SOME_FILE).doInlineCompletionWithReferences(
+                    {
+                        textDocument: { uri: SOME_FILE.uri },
+                        position: { line: 0, character: 0 },
+                        context: { triggerKind: InlineCompletionTriggerKind.Invoked },
+                    },
+                    CancellationToken.None
+                )
+
+                // Check the completion result
+                assert.deepEqual(result, EXPECTED_RESULT_WITH_REFERENCES)
+
+                const session = sessionManager.getActiveSession()
+
+                // Send second request, expect the same result from cached session
+                const secondResult = await features.openDocument(SOME_FILE).doInlineCompletionWithReferences(
+                    {
+                        textDocument: { uri: SOME_FILE.uri },
+                        position: { line: 0, character: 0 },
+                        context: { triggerKind: InlineCompletionTriggerKind.Invoked },
+                    },
+                    CancellationToken.None
+                )
+                assert.deepEqual(secondResult, EXPECTED_RESULT_WITH_REFERENCES)
+
+                // Only 1 session should exist and it is the same between calls
+                assert.equal(sessionManagerSpy.createSession.callCount, 1)
+                assert.deepEqual(session, sessionManager.getActiveSession())
+            })
+
+            it('should return filtered recommentation from ACTIVE session result on new request when includeSuggestionsWithCodeReferences changed to false', async () => {
+                features.lsp.workspace.getConfiguration.returns(
+                    Promise.resolve({ includeSuggestionsWithCodeReferences: true })
+                )
+                await features.start(server)
+                const result = await features.openDocument(SOME_FILE).doInlineCompletionWithReferences(
+                    {
+                        textDocument: { uri: SOME_FILE.uri },
+                        position: { line: 0, character: 0 },
+                        context: { triggerKind: InlineCompletionTriggerKind.Invoked },
+                    },
+                    CancellationToken.None
+                )
+
+                // Check the completion result
+                assert.deepEqual(result, EXPECTED_RESULT_WITH_REFERENCES)
+
+                const session = sessionManager.getActiveSession()
+
+                // Disable Settings between requests
+                features.lsp.workspace.getConfiguration.returns(
+                    Promise.resolve({ includeSuggestionsWithCodeReferences: false })
+                )
+                const afterConfigChange = await features.openDocument(SOME_FILE).doChangeConfiguration()
+
+                // Send second request, expect the same result from cached session
+                const secondResult = await afterConfigChange.doInlineCompletionWithReferences(
+                    {
+                        textDocument: { uri: SOME_FILE.uri },
+                        position: { line: 0, character: 0 },
+                        context: { triggerKind: InlineCompletionTriggerKind.Invoked },
+                    },
+                    CancellationToken.None
+                )
+                assert.deepEqual(secondResult, EXPECTED_RESULT_WITHOUT_REFERENCES)
+
+                // Only 1 session should exist and it is the same between calls
+                assert.equal(sessionManagerSpy.createSession.callCount, 1)
+                assert.deepEqual(session, sessionManager.getActiveSession())
+            })
+
+            it('should discard ACTIVE session on new request when includeSuggestionsWithCodeReferences changed to false and all recommendations are filtered out', async () => {
+                // Return only recommendations with references
+                const EXPECTED_SUGGESTION_WITH_REFERENCES: Suggestion[] = [
+                    {
+                        itemId: 'cwspr-item-id-1',
+                        content: 'recommendation with reference',
+                        references: [EXPECTED_REFERENCE],
+                    },
+                ]
+                const EXPECTED_RESULT_WITH_REFERENCES = {
+                    sessionId: EXPECTED_SESSION_ID,
+                    items: [
+                        {
+                            itemId: EXPECTED_SUGGESTION_WITH_REFERENCES[0].itemId,
+                            insertText: EXPECTED_SUGGESTION_WITH_REFERENCES[0].content,
+                            range: undefined,
+                            references: [
+                                {
+                                    licenseName: EXPECTED_REFERENCE.licenseName,
+                                    referenceName: EXPECTED_REFERENCE.repository,
+                                    referenceUrl: EXPECTED_REFERENCE.url,
+                                    position: {
+                                        startCharacter: EXPECTED_REFERENCE.recommendationContentSpan?.start,
+                                        endCharacter: EXPECTED_REFERENCE.recommendationContentSpan?.end,
+                                    },
+                                },
+                            ],
+                        },
+                    ],
+                }
+
+                service.generateSuggestions.returns(
+                    Promise.resolve({
+                        suggestions: EXPECTED_SUGGESTION_WITH_REFERENCES,
+                        responseContext: EXPECTED_RESPONSE_CONTEXT,
+                    })
+                )
+
+                features.lsp.workspace.getConfiguration.returns(
+                    Promise.resolve({ includeSuggestionsWithCodeReferences: true })
+                )
+                await features.start(server)
+                const result = await features.openDocument(SOME_FILE).doInlineCompletionWithReferences(
+                    {
+                        textDocument: { uri: SOME_FILE.uri },
+                        position: { line: 0, character: 0 },
+                        context: { triggerKind: InlineCompletionTriggerKind.Invoked },
+                    },
+                    CancellationToken.None
+                )
+
+                // Check the completion result of the first session
+                assert.deepEqual(result, EXPECTED_RESULT_WITH_REFERENCES)
+
+                // Disable Settings between requests
+                features.lsp.workspace.getConfiguration.returns(
+                    Promise.resolve({ includeSuggestionsWithCodeReferences: false })
+                )
+                const afterConfigChange = await features.openDocument(SOME_FILE).doChangeConfiguration()
+
+                // Send second request for the same context, expect session discard and new session call
+                const secondResult = await afterConfigChange.doInlineCompletionWithReferences(
+                    {
+                        textDocument: { uri: SOME_FILE.uri },
+                        position: { line: 0, character: 0 },
+                        context: { triggerKind: InlineCompletionTriggerKind.Invoked },
+                    },
+                    CancellationToken.None
+                )
+                assert.deepEqual(secondResult, EMPTY_RESULT)
+
+                // 2 session should have been created
+                assert.equal(sessionManagerSpy.createSession.callCount, 2)
+            })
+
+            it('should close session if code references are disabled and all suggestions had references', async () => {
+                const EXPECTED_SUGGESTION_WITH_REFERENCES: Suggestion[] = [
+                    {
+                        itemId: 'cwspr-item-id-1',
+                        content: 'recommendation with reference',
+                        references: [EXPECTED_REFERENCE],
+                    },
+                ]
+                service.generateSuggestions.returns(
+                    Promise.resolve({
+                        suggestions: EXPECTED_SUGGESTION_WITH_REFERENCES,
+                        responseContext: EXPECTED_RESPONSE_CONTEXT,
+                    })
+                )
+                features.lsp.workspace.getConfiguration.returns(
+                    Promise.resolve({ includeSuggestionsWithCodeReferences: false })
+                )
+                await features.start(server)
+
+                const result = await features.openDocument(SOME_FILE).doInlineCompletionWithReferences(
+                    {
+                        textDocument: { uri: SOME_FILE.uri },
+                        position: { line: 0, character: 0 },
+                        context: { triggerKind: InlineCompletionTriggerKind.Invoked },
+                    },
+                    CancellationToken.None
+                )
+
+                // Check the completion result
+                assert.deepEqual(result, EMPTY_RESULT)
+
+                // There is no active session
+                assert.equal(sessionManager.getActiveSession(), undefined)
+                assert.equal(sessionManagerSpy.createSession.callCount, 1)
+                assert.equal(sessionManagerSpy.closeSession.callCount, 1)
+            })
+        })
     })
 
     describe('With auto-triggers', async () => {
@@ -759,7 +975,7 @@ class HelloWorld
             requestId: 'cwspr-request-id',
             codewhispererSessionId: 'cwspr-session-id',
         }
-        const EXPECTED_SESSION_ID = 'some-random-session-uuid-string'
+        const EXPECTED_SESSION_ID = 'some-random-session-uuid-0'
         const EXPECTED_RESULT = {
             sessionId: EXPECTED_SESSION_ID,
             items: [
@@ -1138,6 +1354,345 @@ class HelloWorld
 
                 assert.equal(features.telemetry.emitMetric.getCall(0).args[0].data.credentialStartUrl, undefined)
             })
+        })
+    })
+
+    describe('Recommendations session management', () => {
+        const HELLO_WORLD_IN_CSHARP = `class HelloWorld
+{
+    static void Main()
+    {
+        Console.WriteLine("Hello World!");
+    }
+}
+`
+        const AUTO_TRIGGER_POSITION = { line: 2, character: 21 }
+        const LEFT_FILE_CONTEXT = HELLO_WORLD_IN_CSHARP.substring(0, 40)
+        const RIGHT_FILE_CONTEXT = HELLO_WORLD_IN_CSHARP.substring(40)
+
+        const SOME_FILE = TextDocument.create('file:///test.cs', 'csharp', 1, HELLO_WORLD_IN_CSHARP)
+        const SOME_FILE_WITH_ALT_CASED_LANGUAGE_ID = TextDocument.create(
+            // Use unsupported extension, so that we can test that we get a match based on the LanguageId
+            'file:///test.seesharp',
+            'CSharp',
+            1,
+            HELLO_WORLD_IN_CSHARP
+        )
+        const EXPECTED_SUGGESTION: Suggestion[] = [{ itemId: 'cwspr-item-id', content: 'recommendation' }]
+        const EXPECTED_RESPONSE_CONTEXT: ResponseContext = {
+            requestId: 'cwspr-request-id',
+            codewhispererSessionId: 'cwspr-session-id',
+        }
+        const EXPECTED_SESSION_ID = 'some-random-session-uuid-0'
+
+        const EXPECTED_RESULT = {
+            sessionId: EXPECTED_SESSION_ID,
+            items: [
+                {
+                    itemId: EXPECTED_SUGGESTION[0].itemId,
+                    insertText: EXPECTED_SUGGESTION[0].content,
+                    range: undefined,
+                    references: undefined,
+                },
+            ],
+        }
+
+        let features: TestFeatures
+        let server: Server
+        // TODO move more of the service code out of the stub and into the testable realm
+        // See: https://aws.amazon.com/blogs/developer/mocking-modular-aws-sdk-for-javascript-v3-in-unit-tests/
+        // for examples on how to mock just the SDK client
+        let service: StubbedInstance<CodeWhispererServiceBase>
+
+        beforeEach(async () => {
+            // Set up the server with a mock service, returning predefined recommendations
+            service = stubInterface<CodeWhispererServiceBase>()
+            service.generateSuggestions.returns(
+                Promise.resolve({
+                    suggestions: EXPECTED_SUGGESTION,
+                    responseContext: EXPECTED_RESPONSE_CONTEXT,
+                })
+            )
+
+            server = CodewhispererServerFactory(_auth => service)
+
+            // Initialize the features, but don't start server yet
+            features = new TestFeatures()
+
+            // Return no specific configuration for CodeWhisperer
+            features.lsp.workspace.getConfiguration.returns(Promise.resolve({}))
+
+            // Start the server and open a document
+            await features.start(server)
+
+            features.openDocument(SOME_FILE).openDocument(SOME_FILE_WITH_ALT_CASED_LANGUAGE_ID)
+        })
+
+        it('should cache new session on new request when no session exists', async () => {
+            let activeSession = sessionManager.getCurrentSession()
+            assert.equal(activeSession, undefined)
+
+            await features.doInlineCompletionWithReferences(
+                {
+                    textDocument: { uri: SOME_FILE.uri },
+                    position: AUTO_TRIGGER_POSITION,
+                    context: { triggerKind: InlineCompletionTriggerKind.Automatic },
+                },
+                CancellationToken.None
+            )
+
+            // Get session after call is done
+            activeSession = sessionManager.getCurrentSession()
+
+            const expectedSessionData = {
+                id: SESSION_IDS_LOG[0],
+                state: 'ACTIVE',
+                suggestions: [{ itemId: 'cwspr-item-id', content: 'recommendation' }],
+            }
+            assert(activeSession)
+            sinon.assert.match(
+                {
+                    id: activeSession.id,
+                    state: activeSession.state,
+                    suggestions: activeSession.suggestions,
+                },
+                expectedSessionData
+            )
+        })
+
+        it('should discards inflight session on new request when cached session is in REQUESTING state on subsequent requests', async () => {
+            const getCompletionsResponses = await Promise.all([
+                features.doInlineCompletionWithReferences(
+                    {
+                        textDocument: { uri: SOME_FILE.uri },
+                        position: AUTO_TRIGGER_POSITION,
+                        context: { triggerKind: InlineCompletionTriggerKind.Automatic },
+                    },
+                    CancellationToken.None
+                ),
+                features.doInlineCompletionWithReferences(
+                    {
+                        textDocument: { uri: SOME_FILE.uri },
+                        position: AUTO_TRIGGER_POSITION,
+                        context: { triggerKind: InlineCompletionTriggerKind.Automatic },
+                    },
+                    CancellationToken.None
+                ),
+                features.doInlineCompletionWithReferences(
+                    {
+                        textDocument: { uri: SOME_FILE.uri },
+                        position: AUTO_TRIGGER_POSITION,
+                        context: { triggerKind: InlineCompletionTriggerKind.Automatic },
+                    },
+                    CancellationToken.None
+                ),
+            ])
+
+            // 3 requests were processed by server, but only first should return results
+            const EXPECTED_COMPLETION_RESPONSES = [
+                { sessionId: '', items: [] },
+                { sessionId: '', items: [] },
+                { sessionId: SESSION_IDS_LOG[2], items: EXPECTED_RESULT.items }, // Last session wins
+            ]
+            // Only last request must return completion items
+            assert.deepEqual(getCompletionsResponses, EXPECTED_COMPLETION_RESPONSES)
+
+            assert.equal(sessionManagerSpy.createSession.callCount, 3)
+
+            // Get session after call is done
+            const activeSession = sessionManager.getCurrentSession()
+
+            // 3 sessions were created
+            assert.equal(SESSION_IDS_LOG.length, 3)
+
+            // Last session is ACTIVE stored in manager correctly
+            const expectedSessionData = {
+                id: SESSION_IDS_LOG[2],
+                state: 'ACTIVE',
+                suggestions: [{ itemId: 'cwspr-item-id', content: 'recommendation' }],
+            }
+            assert(activeSession)
+            sinon.assert.match(
+                {
+                    id: activeSession.id,
+                    state: activeSession.state,
+                    suggestions: activeSession.suggestions,
+                },
+                expectedSessionData
+            )
+        })
+
+        it('should use cached ACTIVE session on new request when cached session matches second request context', async () => {
+            const firstResponse = await features.doInlineCompletionWithReferences(
+                {
+                    textDocument: { uri: SOME_FILE.uri },
+                    position: AUTO_TRIGGER_POSITION,
+                    context: { triggerKind: InlineCompletionTriggerKind.Automatic },
+                },
+                CancellationToken.None
+            )
+
+            // Only last request must return completion items
+            assert.deepEqual(firstResponse, { sessionId: SESSION_IDS_LOG[0], items: EXPECTED_RESULT.items })
+
+            // Only 1 session was created and is ACTIVE
+            assert.equal(sessionManagerSpy.createSession.callCount, 1)
+            assert.equal(SESSION_IDS_LOG.length, 1)
+
+            const activeSession = sessionManager.getCurrentSession()
+            const expectedSessionData = {
+                id: SESSION_IDS_LOG[0],
+                state: 'ACTIVE',
+                suggestions: [{ itemId: 'cwspr-item-id', content: 'recommendation' }],
+            }
+            assert(activeSession)
+            sinon.assert.match(
+                {
+                    id: activeSession.id,
+                    state: activeSession.state,
+                    suggestions: activeSession.suggestions,
+                },
+                expectedSessionData
+            )
+
+            // Sending second request
+            const secondResponse = await features.doInlineCompletionWithReferences(
+                {
+                    textDocument: { uri: SOME_FILE.uri },
+                    position: AUTO_TRIGGER_POSITION,
+                    context: { triggerKind: InlineCompletionTriggerKind.Automatic },
+                },
+                CancellationToken.None
+            )
+            // Cached ACTIVE session was used to send response
+            assert.deepEqual(secondResponse, { sessionId: SESSION_IDS_LOG[0], items: EXPECTED_RESULT.items })
+
+            // Only 1 session was created and is ACTIVE, no more sessions were added
+            assert.equal(sessionManagerSpy.createSession.callCount, 1)
+            assert.equal(SESSION_IDS_LOG.length, 1)
+        })
+
+        it('should not use cached ACTIVE session on new request when cached session document changed', async () => {
+            const firstResponse = await features.doInlineCompletionWithReferences(
+                {
+                    textDocument: { uri: SOME_FILE.uri },
+                    position: AUTO_TRIGGER_POSITION,
+                    context: { triggerKind: InlineCompletionTriggerKind.Automatic },
+                },
+                CancellationToken.None
+            )
+
+            // Only last request must return completion items
+            assert.deepEqual(firstResponse, { sessionId: SESSION_IDS_LOG[0], items: EXPECTED_RESULT.items })
+            assert.equal(sessionManagerSpy.createSession.callCount, 1)
+            assert.equal(SESSION_IDS_LOG.length, 1)
+
+            const firstSession = sessionManager.getCurrentSession()
+            const expectedSessionData = {
+                id: SESSION_IDS_LOG[0],
+                state: 'ACTIVE',
+                suggestions: [{ itemId: 'cwspr-item-id', content: 'recommendation' }],
+            }
+            assert(firstSession)
+            sinon.assert.match(
+                {
+                    id: firstSession.id,
+                    state: firstSession.state,
+                    suggestions: firstSession.suggestions,
+                },
+                expectedSessionData
+            )
+
+            // Sending second request for different document
+            const secondResponse = await features.doInlineCompletionWithReferences(
+                {
+                    textDocument: { uri: SOME_FILE_WITH_ALT_CASED_LANGUAGE_ID.uri },
+                    position: AUTO_TRIGGER_POSITION,
+                    context: { triggerKind: InlineCompletionTriggerKind.Automatic },
+                },
+                CancellationToken.None
+            )
+
+            // Previous session should be closed
+            sinon.assert.calledOnceWithExactly(sessionManagerSpy.closeSession, firstSession)
+            assert.equal(sessionManagerSpy.createSession.callCount, 2)
+            assert.deepEqual(secondResponse, { sessionId: SESSION_IDS_LOG[1], items: EXPECTED_RESULT.items })
+        })
+
+        it('should close new session on new request when service returns empty list', async () => {
+            service.generateSuggestions.returns(
+                Promise.resolve({
+                    suggestions: [],
+                    responseContext: EXPECTED_RESPONSE_CONTEXT,
+                })
+            )
+
+            let activeSession = sessionManager.getCurrentSession()
+            assert.equal(activeSession, undefined)
+
+            await features.doInlineCompletionWithReferences(
+                {
+                    textDocument: { uri: SOME_FILE.uri },
+                    position: AUTO_TRIGGER_POSITION,
+                    context: { triggerKind: InlineCompletionTriggerKind.Automatic },
+                },
+                CancellationToken.None
+            )
+
+            // Get session after call is done
+            const currentSession = sessionManager.getCurrentSession()
+            assert.equal(currentSession?.state, 'CLOSED')
+            // @ts-ignore
+            sinon.assert.calledOnceWithMatch(sessionManagerSpy.closeSession, currentSession)
+        })
+
+        it('should not use cached ACTIVE session on new request when suggestions do not left context match requested line', async () => {
+            // TODO
+        })
+
+        it('should discard ACTIVE session on second request when suggestings are filtered after right context merge', async () => {
+            // The suggestion returned by generateSuggestions will be equal to the contents of the file
+            const EXPECTED_SUGGESTION: Suggestion[] = [{ itemId: 'cwspr-item-id', content: HELLO_WORLD_IN_CSHARP }]
+            service.generateSuggestions.returns(
+                Promise.resolve({
+                    suggestions: EXPECTED_SUGGESTION,
+                    responseContext: EXPECTED_RESPONSE_CONTEXT,
+                })
+            )
+
+            const EXPECTED_RESULT = {
+                sessionId: EXPECTED_SESSION_ID,
+                items: [
+                    { itemId: EXPECTED_SUGGESTION[0].itemId, insertText: '', range: undefined, references: undefined },
+                ],
+            }
+
+            const result = await features.doInlineCompletionWithReferences(
+                {
+                    textDocument: { uri: SOME_FILE.uri },
+                    position: { line: 0, character: 0 },
+                    context: { triggerKind: InlineCompletionTriggerKind.Invoked },
+                },
+                CancellationToken.None
+            )
+
+            assert.deepEqual(result, EXPECTED_RESULT)
+            const firstSession = sessionManager.getActiveSession()
+
+            // There is ACTIVE session
+            assert.equal(sessionManager.getCurrentSession(), firstSession)
+
+            const secondResult = await features.doInlineCompletionWithReferences(
+                {
+                    textDocument: { uri: SOME_FILE.uri },
+                    position: { line: 0, character: 0 },
+                    context: { triggerKind: InlineCompletionTriggerKind.Invoked },
+                },
+                CancellationToken.None
+            )
+            assert.deepEqual(secondResult, { ...EXPECTED_RESULT, sessionId: SESSION_IDS_LOG[1] })
+            // @ts-ignore
+            sinon.assert.calledOnceWithMatch(sessionManagerSpy.closeSession, firstSession)
         })
     })
 })
