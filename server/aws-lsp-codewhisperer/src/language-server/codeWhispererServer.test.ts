@@ -470,6 +470,13 @@ class HelloWorld
 
                 assert(service.shareCodeWhispererContentWithAWS === true)
             })
+
+            it('should send opt-out header if no settings are specificed', async () => {
+                features.lsp.workspace.getConfiguration.returns(Promise.resolve({}))
+                await features.start(server)
+
+                assert(service.shareCodeWhispererContentWithAWS === false)
+            })
         })
     })
 
@@ -564,7 +571,7 @@ class HelloWorld
             createSessionIdStub.resetHistory()
         })
 
-        it('should return all recommendations if no settings are specificed', async () => {
+        it('should filter recommendations if no settings are specificed', async () => {
             features.lsp.workspace.getConfiguration.returns(Promise.resolve({}))
             await features.start(server)
             const result = await features.openDocument(SOME_FILE).doInlineCompletionWithReferences(
@@ -576,13 +583,13 @@ class HelloWorld
                 CancellationToken.None
             )
             const sessionId = createSessionIdStub.returnValues[0]
-            Object.assign(EXPECTED_RESULT_WITH_REFERENCES, { sessionId })
+            Object.assign(EXPECTED_RESULT_WITHOUT_REFERENCES, { sessionId })
 
             // Check the completion result
-            assert.deepEqual(result, EXPECTED_RESULT_WITH_REFERENCES)
+            assert.deepEqual(result, EXPECTED_RESULT_WITHOUT_REFERENCES)
         })
 
-        it('should return all recommendations if GetConfiguration is not handled by the client', async () => {
+        it('should filter recommendations with references if GetConfiguration is not handled by the client', async () => {
             features.lsp.workspace.getConfiguration.returns(Promise.reject(new Error('GetConfiguration failed')))
             await features.start(server)
             const result = await features.openDocument(SOME_FILE).doInlineCompletionWithReferences(
@@ -594,10 +601,10 @@ class HelloWorld
                 CancellationToken.None
             )
             const sessionId = createSessionIdStub.returnValues[0]
-            Object.assign(EXPECTED_RESULT_WITH_REFERENCES, { sessionId })
+            Object.assign(EXPECTED_RESULT_WITHOUT_REFERENCES, { sessionId })
 
             // Check the completion result
-            assert.deepEqual(result, EXPECTED_RESULT_WITH_REFERENCES)
+            assert.deepEqual(result, EXPECTED_RESULT_WITHOUT_REFERENCES)
         })
 
         it('should return all recommendations if settings are true', async () => {
@@ -692,7 +699,9 @@ class HelloWorld
         })
 
         it('should not show references when the right context is equal to suggestion', async () => {
-            features.lsp.workspace.getConfiguration.returns(Promise.resolve({}))
+            features.lsp.workspace.getConfiguration.returns(
+                Promise.resolve({ includeSuggestionsWithCodeReferences: true })
+            )
             await features.start(server)
 
             const EXPECTED_SUGGESTION: Suggestion[] = [{ itemId: 'cwspr-item-id', content: HELLO_WORLD_IN_CSHARP }]
@@ -725,7 +734,9 @@ class HelloWorld
 
         it('should show references and update range when there is partial overlap on right context', async () => {
             // TODO, this test should fail once we implement logic for updating the reference range
-            features.lsp.workspace.getConfiguration.returns(Promise.resolve({}))
+            features.lsp.workspace.getConfiguration.returns(
+                Promise.resolve({ includeSuggestionsWithCodeReferences: true })
+            )
             await features.start(server)
 
             const cutOffLine = 3
