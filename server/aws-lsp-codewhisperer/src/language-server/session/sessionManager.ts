@@ -109,8 +109,6 @@ export class SessionManager {
     }
 
     public createSession(data: SessionData): CodeWhispererSession {
-        console.log('SESSION MANAGER: createSession', data)
-
         this.discardCurrentSession()
 
         // Remove oldest session from log
@@ -124,12 +122,8 @@ export class SessionManager {
     }
 
     discardCurrentSession() {
-        console.log('SESSION MANAGER: discardCurrentSession', this.currentSession)
-
         // If current session is active (has received a response from CWSPR) add it to history
         if (this.currentSession?.state === 'ACTIVE') {
-            console.log('SESSION MANAGER: Adding session to history', this.currentSession)
-
             this.sessionsLog.push(this.currentSession)
         }
         // Deactivate the current session regardles of the state
@@ -137,8 +131,6 @@ export class SessionManager {
     }
 
     closeSession(session: CodeWhispererSession) {
-        console.log('SESSION: discardSession', session.id)
-
         if (this.currentSession == session) {
             this.discardCurrentSession()
         } else {
