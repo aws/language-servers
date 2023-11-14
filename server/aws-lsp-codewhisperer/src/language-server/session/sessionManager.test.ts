@@ -39,7 +39,7 @@ describe('CodeWhispererSession', function () {
             assert.strictEqual(session.triggerType, 'OnDemand')
             assert.strictEqual(session.language, 'csharp')
             assert.deepStrictEqual(session.requestContext, data.requestContext)
-            assert.strictEqual(session.sessionState, 'REQUESTING')
+            assert.strictEqual(session.state, 'REQUESTING')
         })
     })
 
@@ -47,22 +47,22 @@ describe('CodeWhispererSession', function () {
         it('should set session state to ACTIVE if not already CLOSED', function () {
             const session = new CodeWhispererSession(data)
             session.activate()
-            assert.strictEqual(session.sessionState, 'ACTIVE')
+            assert.strictEqual(session.state, 'ACTIVE')
         })
 
         it('should not change session state if already CLOSED', function () {
             const session = new CodeWhispererSession(data)
-            session.deactivate() // Set session state to CLOSED
+            session.close() // Set session state to CLOSED
             session.activate()
-            assert.strictEqual(session.sessionState, 'CLOSED')
+            assert.strictEqual(session.state, 'CLOSED')
         })
     })
 
     describe('deactivate()', function () {
         it('should set session state to CLOSED', function () {
             const session = new CodeWhispererSession(data)
-            session.deactivate()
-            assert.strictEqual(session.sessionState, 'CLOSED')
+            session.close()
+            assert.strictEqual(session.state, 'CLOSED')
         })
     })
 
@@ -71,7 +71,7 @@ describe('CodeWhispererSession', function () {
             const session = new CodeWhispererSession(data)
             session.activate()
             session.suggestions = EXPECTED_SUGGESTION
-            const result = session.getfilteredSuggestions(true)
+            const result = session.getFilteredSuggestions(true)
             assert.strictEqual(result.length, 2)
         })
 
@@ -79,7 +79,7 @@ describe('CodeWhispererSession', function () {
             const session = new CodeWhispererSession(data)
             session.activate()
             session.suggestions = EXPECTED_SUGGESTION
-            const result = session.getfilteredSuggestions(false)
+            const result = session.getFilteredSuggestions(false)
             assert.strictEqual(result.length, 1)
         })
     })
@@ -102,40 +102,45 @@ describe('SessionManager', function () {
         requestContext: requestContext,
         autoTriggerType: 'Enter',
     }
+
+    beforeEach(() => {
+        SessionManager.reset()
+    })
+
     describe('createSession()', function () {
         it('should create a new session and set it as the current session', function () {
-            const manager = new SessionManager()
+            const manager = SessionManager.getInstance()
             const session = manager.createSession(data)
             assert.strictEqual(manager.getCurrentSession(), session)
-            assert.strictEqual(manager.getCurrentSession()?.sessionState, 'REQUESTING')
+            assert.strictEqual(manager.getCurrentSession()?.state, 'REQUESTING')
         })
 
         it('should deactivate previous session when creating a new session', function () {
-            const manager = new SessionManager()
+            const manager = SessionManager.getInstance()
             const session = manager.createSession(data)
             session.activate()
             manager.createSession(data)
-            assert.strictEqual(session.sessionState, 'CLOSED')
+            assert.strictEqual(session.state, 'CLOSED')
         })
     })
 
     describe('discardCurrentSession()', function () {
         it('should add the current session to the sessions log if it is active', function () {
-            const manager = new SessionManager()
+            const manager = SessionManager.getInstance()
             const session = manager.createSession(data)
-            assert.strictEqual(session.sessionState, 'REQUESTING')
+            assert.strictEqual(session.state, 'REQUESTING')
             session.activate()
-            assert.strictEqual(session.sessionState, 'ACTIVE')
+            assert.strictEqual(session.state, 'ACTIVE')
             manager.discardCurrentSession()
             assert.strictEqual(manager.getSessionsLog().length, 1)
             assert.strictEqual(manager.getSessionsLog()[0], session)
-            assert.strictEqual(session.sessionState, 'CLOSED')
+            assert.strictEqual(session.state, 'CLOSED')
         })
     })
 
     describe('getPreviousSession()', function () {
         it('should return the last session in the sessions log', function () {
-            const manager = new SessionManager()
+            const manager = SessionManager.getInstance()
             const session1 = manager.createSession(data)
             session1.activate()
             const session2 = manager.createSession(data)
@@ -149,7 +154,7 @@ describe('SessionManager', function () {
         })
 
         it('should return the last session in the sessions log', function () {
-            const manager = new SessionManager()
+            const manager = SessionManager.getInstance()
             manager.createSession(data)
             manager.createSession(data)
             manager.createSession(data)
@@ -160,7 +165,7 @@ describe('SessionManager', function () {
         })
 
         it('should return undefined if the sessions log is empty', function () {
-            const manager = new SessionManager()
+            const manager = SessionManager.getInstance()
             const result = manager.getPreviousSession()
             assert.strictEqual(result, undefined)
         })
