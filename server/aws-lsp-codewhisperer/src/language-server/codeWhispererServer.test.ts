@@ -845,6 +845,75 @@ class HelloWorld
         })
     })
 
+    describe('Log Inline Completion Session Results', () => {
+        const HELLO_WORLD_IN_CSHARP = `
+class HelloWorld
+{
+    static void Main()
+    {
+        Console.WriteLine("Hello World!");
+    }
+}
+`
+        const SOME_FILE = TextDocument.create('file:///test.cs', 'csharp', 1, HELLO_WORLD_IN_CSHARP)
+
+        const requestContext = {
+            maxResults: 5,
+            fileContext: {
+                filename: 'SomeFile',
+                programmingLanguage: { languageName: 'csharp' },
+                leftFileContent: 'LeftFileContent',
+                rightFileContent: 'RightFileContent',
+            },
+        }
+
+        let features: TestFeatures
+        let server: Server
+        // TODO move more of the service code out of the stub and into the testable realm
+        // See: https://aws.amazon.com/blogs/developer/mocking-modular-aws-sdk-for-javascript-v3-in-unit-tests/
+        // for examples on how to mock just the SDK client
+        let service: StubbedInstance<CodeWhispererServiceBase>
+
+        beforeEach(async () => {
+            // Set up the server with a mock service, returning predefined recommendations
+            service = stubInterface<CodeWhispererServiceBase>()
+
+            server = CodewhispererServerFactory(_auth => service)
+
+            // Initialize the features, but don't start server yet
+            features = new TestFeatures()
+
+            // Start the server and open a document
+            await features.start(server)
+
+            features.openDocument(SOME_FILE)
+        })
+
+        it('should deactivate current active session', async () => {
+            const session = new CodeWhispererSession({
+                startPosition: { line: 0, character: 0 },
+                triggerType: 'OnDemand',
+                language: 'csharp',
+                requestContext: requestContext,
+            })
+
+            assert(session.sessionState, 'ACTIVE')
+
+            features.doLogInlineCompelitionSessionResults({
+                sessionId: 'cwspr-session-id',
+                completionSessionResult: {
+                    'cwspr-item-id': {
+                        seen: true,
+                        accepted: false,
+                        discarded: true,
+                    },
+                },
+            })
+
+            assert(session.sessionState, 'CLOSED')
+        })
+    })
+
     describe('Telemetry', () => {
         const HELLO_WORLD_IN_CSHARP = `
 class HelloWorld

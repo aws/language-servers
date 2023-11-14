@@ -291,7 +291,10 @@ export const CodewhispererServerFactory =
         const onLogInlineCompelitionSessionResultsHandler = async (
             params: LogInlineCompelitionSessionResultsParams
         ) => {
-            // TODO: end current active session from session manager
+            const session = sessionManager.getActiveSession()
+            if (session?.codewhispererSessionId == params.sessionId) {
+                session.deactivate()
+            }
         }
         const updateConfiguration = async () =>
             lsp.workspace
