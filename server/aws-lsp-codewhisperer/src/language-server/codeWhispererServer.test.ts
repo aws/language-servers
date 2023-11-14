@@ -8,7 +8,7 @@ import { TextDocument } from 'vscode-languageserver-textdocument'
 import { TestFeatures } from './TestFeatures'
 import { CodewhispererServerFactory } from './codeWhispererServer'
 import { CodeWhispererServiceBase, ResponseContext, Suggestion } from './codeWhispererService'
-import { CodeWhispererSession, SessionManager } from './session/sessionManager'
+import { CodeWhispererSession, SessionData, SessionManager } from './session/sessionManager'
 
 describe('CodeWhisperer Server', () => {
     const sandbox = sinon.createSandbox()
@@ -929,6 +929,26 @@ class HelloWorld
             },
         }
 
+        const sessionData: SessionData = {
+            startPosition: { line: 0, character: 0 },
+            triggerType: 'OnDemand',
+            language: 'csharp',
+            requestContext: requestContext,
+        }
+
+        const sessionResultData = {
+            sessionId: 'some-random-session-uuid-0',
+            completionSessionResult: {
+                'cwspr-item-id': {
+                    seen: true,
+                    accepted: false,
+                    discarded: true,
+                },
+            },
+            firstCompletionDisplayLatency: 50,
+            totalSessionDisplayTime: 1000,
+        }
+
         let features: TestFeatures
         let server: Server
         // TODO move more of the service code out of the stub and into the testable realm
@@ -951,18 +971,43 @@ class HelloWorld
             features.openDocument(SOME_FILE)
         })
 
-        it('should deactivate current active session', async () => {
-            const session = new CodeWhispererSession({
-                startPosition: { line: 0, character: 0 },
-                triggerType: 'OnDemand',
-                language: 'csharp',
-                requestContext: requestContext,
-            })
+        it('should deactivate current session if session matches id provided', async () => {
+            const manager = SessionManager.getInstance()
+            const session = manager.createSession(sessionData)
+            manager.activateSession(session)
+            assert.equal(session.state, 'ACTIVE')
 
-            assert(session.sessionState, 'ACTIVE')
+            await features.doLogInlineCompelitionSessionResults(sessionResultData)
+            assert.equal(session.state, 'CLOSED')
+        })
 
-            features.doLogInlineCompelitionSessionResults({
-                sessionId: 'cwspr-session-id',
+        it('should ignore current session if session does not matches id provided', async () => {
+            const manager = SessionManager.getInstance()
+            const session = manager.createSession(sessionData)
+            manager.activateSession(session)
+            const session2 = manager.createSession(sessionData)
+            manager.activateSession(session2)
+            assert.equal(session.state, 'CLOSED')
+            assert.equal(session2.state, 'ACTIVE')
+
+            await features.doLogInlineCompelitionSessionResults(sessionResultData)
+            assert.equal(session2.state, 'ACTIVE')
+        })
+
+        it('should store session result data', async () => {
+            const manager = SessionManager.getInstance()
+            const session = manager.createSession(sessionData)
+            manager.activateSession(session)
+            await features.doLogInlineCompelitionSessionResults(sessionResultData)
+
+            assert.equal(session.completionSessionResult, sessionResultData.completionSessionResult)
+            assert.equal(session.firstCompletionDisplayLatency, sessionResultData.firstCompletionDisplayLatency)
+            assert.equal(session.totalSessionDisplayTime, sessionResultData.totalSessionDisplayTime)
+        })
+
+        it('should store session result data with only completion state provided', async () => {
+            const sessionResultData = {
+                sessionId: 'some-random-session-uuid-0',
                 completionSessionResult: {
                     'cwspr-item-id': {
                         seen: true,
@@ -970,9 +1015,15 @@ class HelloWorld
                         discarded: true,
                     },
                 },
-            })
+            }
+            const manager = SessionManager.getInstance()
+            const session = manager.createSession(sessionData)
+            manager.activateSession(session)
+            await features.doLogInlineCompelitionSessionResults(sessionResultData)
 
-            assert(session.sessionState, 'CLOSED')
+            assert.equal(session.completionSessionResult, sessionResultData.completionSessionResult)
+            assert.equal(session.firstCompletionDisplayLatency, undefined)
+            assert.equal(session.totalSessionDisplayTime, undefined)
         })
     })
 
@@ -980,10 +1031,10 @@ class HelloWorld
         const HELLO_WORLD_IN_CSHARP = `
 class HelloWorld
 {
-    static void Main()
-    {
-        Console.WriteLine("Hello World!");
-    }
+static void Main()
+{
+    Console.WriteLine("Hello World!");
+}
 }
 `
         const SOME_FILE = TextDocument.create('file:///test.cs', 'csharp', 1, HELLO_WORLD_IN_CSHARP)
@@ -1506,7 +1557,12 @@ class HelloWorld
             const EXPECTED_RESULT = {
                 sessionId: EXPECTED_SESSION_ID,
                 items: [
-                    { itemId: EXPECTED_SUGGESTION[0].itemId, insertText: '', range: undefined, references: undefined },
+                    {
+                        itemId: EXPECTED_SUGGESTION[0].itemId,
+                        insertText: '',
+                        range: undefined,
+                        references: undefined,
+                    },
                 ],
             }
 

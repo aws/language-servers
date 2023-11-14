@@ -1,3 +1,4 @@
+import { InlineCompletionStates } from '@aws-placeholder/aws-language-server-runtimes/out/features/lsp/inline-completions/protocolExtensions'
 import { v4 as uuidv4 } from 'uuid'
 import { Position } from 'vscode-languageserver'
 import { CodewhispererAutomatedTriggerType, CodewhispererTriggerType } from '../auto-trigger/autoTrigger'
@@ -33,6 +34,11 @@ export class CodeWhispererSession {
     requestContext: GenerateSuggestionsRequest
     lastInvocationTime: number
     credentialStartUrl?: string
+    completionSessionResult?: {
+        [itemId: string]: InlineCompletionStates
+    }
+    firstCompletionDisplayLatency?: number
+    totalSessionDisplayTime?: number
     // TODO: userDecision field
 
     constructor(data: SessionData) {
@@ -81,6 +87,16 @@ export class CodeWhispererSession {
         // TODO: report User Decision and User Trigger Decision
         this.state = 'CLOSED'
     }
+
+    setClientResultData(
+        completionSessionResult: { [itemId: string]: InlineCompletionStates },
+        firstCompletionDisplayLatency?: number,
+        totalSessionDisplayTime?: number
+    ) {
+        this.completionSessionResult = completionSessionResult
+        this.firstCompletionDisplayLatency = firstCompletionDisplayLatency
+        this.totalSessionDisplayTime = totalSessionDisplayTime
+    }
 }
 
 export class SessionManager {
@@ -115,6 +131,7 @@ export class SessionManager {
         if (this.sessionsLog.length > this.maxHistorySize) {
             this.sessionsLog.shift()
         }
+
         // Create new session
         const session = new CodeWhispererSession(data)
         this.currentSession = session
@@ -152,6 +169,12 @@ export class SessionManager {
 
     getSessionsLog(): CodeWhispererSession[] {
         return this.sessionsLog
+    }
+
+    getSessionById(id: string): CodeWhispererSession | undefined {
+        for (const session of this.sessionsLog) {
+            if (session.id === id) return session
+        }
     }
 
     // If the session to be activated is the current session, activate it

@@ -287,10 +287,24 @@ export const CodewhispererServerFactory =
         const onLogInlineCompelitionSessionResultsHandler = async (
             params: LogInlineCompelitionSessionResultsParams
         ) => {
-            const session = sessionManager.getActiveSession()
-            if (session?.codewhispererSessionId == params.sessionId) {
-                session.deactivate()
+            const { sessionId, completionSessionResult, firstCompletionDisplayLatency, totalSessionDisplayTime } =
+                params
+            let session = sessionManager.getCurrentSession()
+
+            if (session?.id == sessionId) {
+                sessionManager.discardCurrentSession()
+            } else {
+                session = sessionManager.getSessionById(sessionId)
+                if (session) sessionManager.closeSession(session)
             }
+
+            if (!session) {
+                logging.log('ERROR: Session ID was not found in existing session logs')
+                return
+            }
+
+            session.setClientResultData(completionSessionResult, firstCompletionDisplayLatency, totalSessionDisplayTime)
+            logging.log('Session result has been stored')
         }
         const updateConfiguration = async () =>
             lsp.workspace

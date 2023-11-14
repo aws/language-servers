@@ -30,6 +30,24 @@ describe('CodeWhispererSession', function () {
         requestContext: requestContext,
         autoTriggerType: 'Enter',
     }
+
+    const sessionResultData = {
+        completionSessionResult: {
+            item_1: {
+                seen: true,
+                accepted: false,
+                discarded: true,
+            },
+            item_2: {
+                seen: true,
+                accepted: true,
+                discarded: false,
+            },
+        },
+        firstCompletionDisplayLatency: 50,
+        totalSessionDisplayTime: 1000,
+    }
+
     describe('constructor()', function () {
         it('should create a new session with the correct initial values', function () {
             const session = new CodeWhispererSession(data)
@@ -81,6 +99,27 @@ describe('CodeWhispererSession', function () {
             session.suggestions = EXPECTED_SUGGESTION
             const result = session.getFilteredSuggestions(false)
             assert.strictEqual(result.length, 1)
+        })
+    })
+
+    describe('setClientResultData()', function () {
+        it('should set results of session from client with all relevant data available', function () {
+            const { completionSessionResult, firstCompletionDisplayLatency, totalSessionDisplayTime } =
+                sessionResultData
+            const session = new CodeWhispererSession(data)
+            session.activate()
+            session.setClientResultData(completionSessionResult, firstCompletionDisplayLatency, totalSessionDisplayTime)
+            assert.strictEqual(session.completionSessionResult, completionSessionResult)
+            assert.strictEqual(session.firstCompletionDisplayLatency, firstCompletionDisplayLatency)
+            assert.strictEqual(session.totalSessionDisplayTime, totalSessionDisplayTime)
+        })
+
+        it('should set results of session from client with only completion states available', function () {
+            const { completionSessionResult } = sessionResultData
+            const session = new CodeWhispererSession(data)
+            session.activate()
+            session.setClientResultData(completionSessionResult)
+            assert.strictEqual(session.completionSessionResult, completionSessionResult)
         })
     })
 })
@@ -168,6 +207,34 @@ describe('SessionManager', function () {
             const manager = SessionManager.getInstance()
             const result = manager.getPreviousSession()
             assert.strictEqual(result, undefined)
+        })
+    })
+
+    describe('getSessionById()', function () {
+        it('should return the session with the associated ID', function () {
+            const manager = SessionManager.getInstance()
+            const session = manager.createSession(data)
+            session.activate()
+            const session2 = manager.createSession({ ...data, triggerType: 'AutoTrigger' })
+            session2.activate()
+            manager.discardCurrentSession()
+            assert.strictEqual(manager.getSessionsLog().length, 2)
+
+            const sessionId = session.id
+            const resultSession = manager.getSessionById(sessionId)
+            assert.strictEqual(resultSession, session)
+        })
+
+        it('should return undefined if no session has the associated ID', function () {
+            const manager = SessionManager.getInstance()
+            const session = manager.createSession(data)
+            session.activate()
+            manager.discardCurrentSession()
+            assert.strictEqual(manager.getSessionsLog().length, 1)
+
+            const sessionId = session.id + '1'
+            const resultSession = manager.getSessionById(sessionId)
+            assert.strictEqual(resultSession, undefined)
         })
     })
 })
