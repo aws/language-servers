@@ -29,7 +29,7 @@ export class CodeWhispererSession {
     autoTriggerType?: CodewhispererAutomatedTriggerType
     language: CodewhispererLanguage
     requestContext: GenerateSuggestionsRequest
-    lastInvocationTime?: number
+    lastInvocationTime: number
     sessionState: SessionState
     credentialStartUrl?: string
     // TODO: userDecision field

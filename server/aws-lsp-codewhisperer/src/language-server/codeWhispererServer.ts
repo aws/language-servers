@@ -57,7 +57,7 @@ const getFileContext = (params: {
 }
 
 const emitServiceInvocationTelemetry = (telemetry: Telemetry, session: CodeWhispererSession) => {
-    const duration = session.lastInvocationTime ? new Date().getTime() - session.lastInvocationTime : 0
+    const duration = new Date().getTime() - session.lastInvocationTime
     const data: CodeWhispererServiceInvocationEvent = {
         codewhispererRequestId: session.responseContext?.requestId,
         codewhispererSessionId: session.responseContext?.codewhispererSessionId,
@@ -82,7 +82,7 @@ const emitServiceInvocationTelemetry = (telemetry: Telemetry, session: CodeWhisp
 const emitServiceInvocationFailure = (telemetry: Telemetry, session: CodeWhispererSession, error: Error | AWSError) => {
     const errorMessage = error ? String(error) : 'unknown'
     const reason = `CodeWhisperer Invocation Exception: ${errorMessage}`
-    const duration = session.lastInvocationTime ? new Date().getTime() - session.lastInvocationTime : 0
+    const duration = new Date().getTime() - session.lastInvocationTime
     const codewhispererRequestId = isAwsError(error) ? error.requestId : undefined
 
     const data: CodeWhispererServiceInvocationEvent = {
@@ -162,7 +162,10 @@ export const CodewhispererServerFactory =
         ): Promise<InlineCompletionListWithReferences> => {
             // On every new completion request discard any non-active session
             const currentSession = sessionManager.getCurrentSession()
-            if (currentSession?.sessionState == 'REQUESTING') {
+            if (
+                currentSession?.sessionState == 'REQUESTING' ||
+                params.context.triggerKind == InlineCompletionTriggerKind.Invoked
+            ) {
                 sessionManager.discardSession(currentSession)
             }
 
@@ -246,7 +249,7 @@ export const CodewhispererServerFactory =
                 const newSession = sessionManager.createSession({
                     startPosition: params.position,
                     triggerType: codewhispererTriggerType,
-                    language: fileContext.programmingLanguage.languageName as CodewhispererLanguage,
+                    language: fileContext.programmingLanguage.languageName,
                     requestContext: requestContext,
                     autoTriggerType: autoTriggerType,
                     credentialStartUrl: credentialsProvider.getConnectionMetadata()?.sso?.startUrl ?? undefined,
