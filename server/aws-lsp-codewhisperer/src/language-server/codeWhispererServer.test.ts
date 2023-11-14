@@ -38,7 +38,6 @@ describe('CodeWhisperer Server', () => {
     })
 
     describe('Recommendations', () => {
-        // let sandbox: sinon.SinonSandbox;
         const HELLO_WORLD_IN_CSHARP = `
 class HelloWorld
 {
@@ -104,8 +103,6 @@ class HelloWorld
         let service: StubbedInstance<CodeWhispererServiceBase>
 
         beforeEach(async () => {
-            // sandbox.stub(CodeWhispererSession.prototype, 'generateSessionId').returns(EXPECTED_SESSION_ID)
-
             // Set up the server with a mock service, returning predefined recommendations
             service = stubInterface<CodeWhispererServiceBase>()
             service.generateSuggestions.returns(
@@ -1460,7 +1457,7 @@ class HelloWorld
             )
         })
 
-        it('should discards inflight session on new request when cached session is in REQUESTING state on subsequent requests', async () => {
+        it('should discard inflight session on new request when cached session is in REQUESTING state on subsequent requests', async () => {
             const getCompletionsResponses = await Promise.all([
                 features.doInlineCompletionWithReferences(
                     {
@@ -1641,9 +1638,9 @@ class HelloWorld
 
             // Get session after call is done
             const currentSession = sessionManager.getCurrentSession()
+            assert(currentSession)
             assert.equal(currentSession?.state, 'CLOSED')
-            // @ts-ignore
-            sinon.assert.calledOnceWithMatch(sessionManagerSpy.closeSession, currentSession)
+            sinon.assert.calledOnceWithExactly(sessionManagerSpy.closeSession, currentSession)
         })
 
         it('should discard ACTIVE session on second request when suggestings are filtered after right context merge', async () => {
