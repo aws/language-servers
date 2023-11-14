@@ -164,8 +164,11 @@ export const CodewhispererServerFactory =
             // On every manual trigger expilictly close previous session.
             const currentSession = sessionManager.getCurrentSession()
 
-            if (currentSession?.state == 'REQUESTING') {
-                sessionManager.closeSession(currentSession)
+            if (
+                currentSession?.state == 'REQUESTING' ||
+                params.context.triggerKind == InlineCompletionTriggerKind.Invoked
+            ) {
+                sessionManager.discardCurrentSession()
             }
 
             return workspace.getTextDocument(params.textDocument.uri).then(textDocument => {
@@ -264,11 +267,11 @@ export const CodewhispererServerFactory =
                             selectionRange
                         )
 
-                        if (items.length === 0 && items.every(suggestion => suggestion.insertText === '')) {
+                        if (items.every(suggestion => suggestion.insertText === '')) {
                             sessionManager.closeSession(newSession)
 
-                            // TODO: report User Decision
-                            return EMPTY_RESULT
+                            // TODO: report User Decision Discard for each of them
+                            // Check if we need to return empty list in this case
                         }
 
                         return { items, sessionId: newSession.id }

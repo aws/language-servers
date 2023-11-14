@@ -763,157 +763,6 @@ class HelloWorld
         describe('With session management', () => {
             const EMPTY_RESULT = { items: [], sessionId: '' }
 
-            it('should use all cached recommentation from ACTIVE session result on new request when includeSuggestionsWithCodeReferences is true', async () => {
-                features.lsp.workspace.getConfiguration.returns(
-                    Promise.resolve({ includeSuggestionsWithCodeReferences: true })
-                )
-                await features.start(server)
-                const result = await features.openDocument(SOME_FILE).doInlineCompletionWithReferences(
-                    {
-                        textDocument: { uri: SOME_FILE.uri },
-                        position: { line: 0, character: 0 },
-                        context: { triggerKind: InlineCompletionTriggerKind.Invoked },
-                    },
-                    CancellationToken.None
-                )
-
-                // Check the completion result
-                assert.deepEqual(result, EXPECTED_RESULT_WITH_REFERENCES)
-
-                const session = sessionManager.getActiveSession()
-
-                // Send second request, expect the same result from cached session
-                const secondResult = await features.openDocument(SOME_FILE).doInlineCompletionWithReferences(
-                    {
-                        textDocument: { uri: SOME_FILE.uri },
-                        position: { line: 0, character: 0 },
-                        context: { triggerKind: InlineCompletionTriggerKind.Invoked },
-                    },
-                    CancellationToken.None
-                )
-                assert.deepEqual(secondResult, EXPECTED_RESULT_WITH_REFERENCES)
-
-                // Only 1 session should exist and it is the same between calls
-                assert.equal(sessionManagerSpy.createSession.callCount, 1)
-                assert.deepEqual(session, sessionManager.getActiveSession())
-            })
-
-            it('should return filtered recommentation from ACTIVE session result on new request when includeSuggestionsWithCodeReferences changed to false', async () => {
-                features.lsp.workspace.getConfiguration.returns(
-                    Promise.resolve({ includeSuggestionsWithCodeReferences: true })
-                )
-                await features.start(server)
-                const result = await features.openDocument(SOME_FILE).doInlineCompletionWithReferences(
-                    {
-                        textDocument: { uri: SOME_FILE.uri },
-                        position: { line: 0, character: 0 },
-                        context: { triggerKind: InlineCompletionTriggerKind.Invoked },
-                    },
-                    CancellationToken.None
-                )
-
-                // Check the completion result
-                assert.deepEqual(result, EXPECTED_RESULT_WITH_REFERENCES)
-
-                const session = sessionManager.getActiveSession()
-
-                // Disable Settings between requests
-                features.lsp.workspace.getConfiguration.returns(
-                    Promise.resolve({ includeSuggestionsWithCodeReferences: false })
-                )
-                const afterConfigChange = await features.openDocument(SOME_FILE).doChangeConfiguration()
-
-                // Send second request, expect the same result from cached session
-                const secondResult = await afterConfigChange.doInlineCompletionWithReferences(
-                    {
-                        textDocument: { uri: SOME_FILE.uri },
-                        position: { line: 0, character: 0 },
-                        context: { triggerKind: InlineCompletionTriggerKind.Invoked },
-                    },
-                    CancellationToken.None
-                )
-                assert.deepEqual(secondResult, EXPECTED_RESULT_WITHOUT_REFERENCES)
-
-                // Only 1 session should exist and it is the same between calls
-                assert.equal(sessionManagerSpy.createSession.callCount, 1)
-                assert.deepEqual(session, sessionManager.getActiveSession())
-            })
-
-            it('should discard ACTIVE session on new request when includeSuggestionsWithCodeReferences changed to false and all recommendations are filtered out', async () => {
-                // Return only recommendations with references
-                const EXPECTED_SUGGESTION_WITH_REFERENCES: Suggestion[] = [
-                    {
-                        itemId: 'cwspr-item-id-1',
-                        content: 'recommendation with reference',
-                        references: [EXPECTED_REFERENCE],
-                    },
-                ]
-                const EXPECTED_RESULT_WITH_REFERENCES = {
-                    sessionId: EXPECTED_SESSION_ID,
-                    items: [
-                        {
-                            itemId: EXPECTED_SUGGESTION_WITH_REFERENCES[0].itemId,
-                            insertText: EXPECTED_SUGGESTION_WITH_REFERENCES[0].content,
-                            range: undefined,
-                            references: [
-                                {
-                                    licenseName: EXPECTED_REFERENCE.licenseName,
-                                    referenceName: EXPECTED_REFERENCE.repository,
-                                    referenceUrl: EXPECTED_REFERENCE.url,
-                                    position: {
-                                        startCharacter: EXPECTED_REFERENCE.recommendationContentSpan?.start,
-                                        endCharacter: EXPECTED_REFERENCE.recommendationContentSpan?.end,
-                                    },
-                                },
-                            ],
-                        },
-                    ],
-                }
-
-                service.generateSuggestions.returns(
-                    Promise.resolve({
-                        suggestions: EXPECTED_SUGGESTION_WITH_REFERENCES,
-                        responseContext: EXPECTED_RESPONSE_CONTEXT,
-                    })
-                )
-
-                features.lsp.workspace.getConfiguration.returns(
-                    Promise.resolve({ includeSuggestionsWithCodeReferences: true })
-                )
-                await features.start(server)
-                const result = await features.openDocument(SOME_FILE).doInlineCompletionWithReferences(
-                    {
-                        textDocument: { uri: SOME_FILE.uri },
-                        position: { line: 0, character: 0 },
-                        context: { triggerKind: InlineCompletionTriggerKind.Invoked },
-                    },
-                    CancellationToken.None
-                )
-
-                // Check the completion result of the first session
-                assert.deepEqual(result, EXPECTED_RESULT_WITH_REFERENCES)
-
-                // Disable Settings between requests
-                features.lsp.workspace.getConfiguration.returns(
-                    Promise.resolve({ includeSuggestionsWithCodeReferences: false })
-                )
-                const afterConfigChange = await features.openDocument(SOME_FILE).doChangeConfiguration()
-
-                // Send second request for the same context, expect session discard and new session call
-                const secondResult = await afterConfigChange.doInlineCompletionWithReferences(
-                    {
-                        textDocument: { uri: SOME_FILE.uri },
-                        position: { line: 0, character: 0 },
-                        context: { triggerKind: InlineCompletionTriggerKind.Invoked },
-                    },
-                    CancellationToken.None
-                )
-                assert.deepEqual(secondResult, EMPTY_RESULT)
-
-                // 2 session should have been created
-                assert.equal(sessionManagerSpy.createSession.callCount, 2)
-            })
-
             it('should close session if code references are disabled and all suggestions had references', async () => {
                 const EXPECTED_SUGGESTION_WITH_REFERENCES: Suggestion[] = [
                     {
@@ -1364,9 +1213,6 @@ class HelloWorld
 }
 `
         const AUTO_TRIGGER_POSITION = { line: 2, character: 21 }
-        const LEFT_FILE_CONTEXT = HELLO_WORLD_IN_CSHARP.substring(0, 40)
-        const RIGHT_FILE_CONTEXT = HELLO_WORLD_IN_CSHARP.substring(40)
-
         const SOME_FILE = TextDocument.create('file:///test.cs', 'csharp', 1, HELLO_WORLD_IN_CSHARP)
         const SOME_FILE_WITH_ALT_CASED_LANGUAGE_ID = TextDocument.create(
             // Use unsupported extension, so that we can test that we get a match based on the LanguageId
@@ -1519,103 +1365,6 @@ class HelloWorld
             )
         })
 
-        it('should use cached ACTIVE session on new request when cached session matches second request context', async () => {
-            const firstResponse = await features.doInlineCompletionWithReferences(
-                {
-                    textDocument: { uri: SOME_FILE.uri },
-                    position: AUTO_TRIGGER_POSITION,
-                    context: { triggerKind: InlineCompletionTriggerKind.Automatic },
-                },
-                CancellationToken.None
-            )
-
-            // Only last request must return completion items
-            assert.deepEqual(firstResponse, { sessionId: SESSION_IDS_LOG[0], items: EXPECTED_RESULT.items })
-
-            // Only 1 session was created and is ACTIVE
-            assert.equal(sessionManagerSpy.createSession.callCount, 1)
-            assert.equal(SESSION_IDS_LOG.length, 1)
-
-            const activeSession = sessionManager.getCurrentSession()
-            const expectedSessionData = {
-                id: SESSION_IDS_LOG[0],
-                state: 'ACTIVE',
-                suggestions: [{ itemId: 'cwspr-item-id', content: 'recommendation' }],
-            }
-            assert(activeSession)
-            sinon.assert.match(
-                {
-                    id: activeSession.id,
-                    state: activeSession.state,
-                    suggestions: activeSession.suggestions,
-                },
-                expectedSessionData
-            )
-
-            // Sending second request
-            const secondResponse = await features.doInlineCompletionWithReferences(
-                {
-                    textDocument: { uri: SOME_FILE.uri },
-                    position: AUTO_TRIGGER_POSITION,
-                    context: { triggerKind: InlineCompletionTriggerKind.Automatic },
-                },
-                CancellationToken.None
-            )
-            // Cached ACTIVE session was used to send response
-            assert.deepEqual(secondResponse, { sessionId: SESSION_IDS_LOG[0], items: EXPECTED_RESULT.items })
-
-            // Only 1 session was created and is ACTIVE, no more sessions were added
-            assert.equal(sessionManagerSpy.createSession.callCount, 1)
-            assert.equal(SESSION_IDS_LOG.length, 1)
-        })
-
-        it('should not use cached ACTIVE session on new request when cached session document changed', async () => {
-            const firstResponse = await features.doInlineCompletionWithReferences(
-                {
-                    textDocument: { uri: SOME_FILE.uri },
-                    position: AUTO_TRIGGER_POSITION,
-                    context: { triggerKind: InlineCompletionTriggerKind.Automatic },
-                },
-                CancellationToken.None
-            )
-
-            // Only last request must return completion items
-            assert.deepEqual(firstResponse, { sessionId: SESSION_IDS_LOG[0], items: EXPECTED_RESULT.items })
-            assert.equal(sessionManagerSpy.createSession.callCount, 1)
-            assert.equal(SESSION_IDS_LOG.length, 1)
-
-            const firstSession = sessionManager.getCurrentSession()
-            const expectedSessionData = {
-                id: SESSION_IDS_LOG[0],
-                state: 'ACTIVE',
-                suggestions: [{ itemId: 'cwspr-item-id', content: 'recommendation' }],
-            }
-            assert(firstSession)
-            sinon.assert.match(
-                {
-                    id: firstSession.id,
-                    state: firstSession.state,
-                    suggestions: firstSession.suggestions,
-                },
-                expectedSessionData
-            )
-
-            // Sending second request for different document
-            const secondResponse = await features.doInlineCompletionWithReferences(
-                {
-                    textDocument: { uri: SOME_FILE_WITH_ALT_CASED_LANGUAGE_ID.uri },
-                    position: AUTO_TRIGGER_POSITION,
-                    context: { triggerKind: InlineCompletionTriggerKind.Automatic },
-                },
-                CancellationToken.None
-            )
-
-            // Previous session should be closed
-            sinon.assert.calledOnceWithExactly(sessionManagerSpy.closeSession, firstSession)
-            assert.equal(sessionManagerSpy.createSession.callCount, 2)
-            assert.deepEqual(secondResponse, { sessionId: SESSION_IDS_LOG[1], items: EXPECTED_RESULT.items })
-        })
-
         it('should close new session on new request when service returns empty list', async () => {
             service.generateSuggestions.returns(
                 Promise.resolve({
@@ -1643,7 +1392,40 @@ class HelloWorld
             sinon.assert.calledOnceWithExactly(sessionManagerSpy.closeSession, currentSession)
         })
 
-        it('should discard ACTIVE session on second request when suggestings are filtered after right context merge', async () => {
+        it('Manual completion invocation should close previous session', async () => {
+            const TRIGGER_KIND = InlineCompletionTriggerKind.Invoked
+
+            const result = await features.doInlineCompletionWithReferences(
+                {
+                    textDocument: { uri: SOME_FILE.uri },
+                    position: { line: 0, character: 0 },
+                    // Manual trigger kind
+                    context: { triggerKind: TRIGGER_KIND },
+                },
+                CancellationToken.None
+            )
+
+            assert.deepEqual(result, EXPECTED_RESULT)
+            const firstSession = sessionManager.getActiveSession()
+
+            // There is ACTIVE session
+            assert(firstSession)
+            assert.equal(sessionManager.getCurrentSession(), firstSession)
+            assert.equal(firstSession.state, 'ACTIVE')
+
+            const secondResult = await features.doInlineCompletionWithReferences(
+                {
+                    textDocument: { uri: SOME_FILE.uri },
+                    position: { line: 0, character: 0 },
+                    context: { triggerKind: TRIGGER_KIND },
+                },
+                CancellationToken.None
+            )
+            assert.deepEqual(secondResult, { ...EXPECTED_RESULT, sessionId: SESSION_IDS_LOG[1] })
+            sinon.assert.called(sessionManagerSpy.discardCurrentSession)
+        })
+
+        it('should discard inflight session if merge right recommendations resulted in list of empty strings', async () => {
             // The suggestion returned by generateSuggestions will be equal to the contents of the file
             const EXPECTED_SUGGESTION: Suggestion[] = [{ itemId: 'cwspr-item-id', content: HELLO_WORLD_IN_CSHARP }]
             service.generateSuggestions.returns(
@@ -1652,7 +1434,6 @@ class HelloWorld
                     responseContext: EXPECTED_RESPONSE_CONTEXT,
                 })
             )
-
             const EXPECTED_RESULT = {
                 sessionId: EXPECTED_SESSION_ID,
                 items: [
@@ -1668,32 +1449,13 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
-
             assert.deepEqual(result, EXPECTED_RESULT)
-            const firstSession = sessionManager.getActiveSession()
 
-            // There is ACTIVE session
-            assert.equal(sessionManager.getCurrentSession(), firstSession)
+            const session = sessionManager.getCurrentSession()
 
-            const secondResult = await features.doInlineCompletionWithReferences(
-                {
-                    textDocument: { uri: SOME_FILE.uri },
-                    position: { line: 0, character: 0 },
-                    context: { triggerKind: InlineCompletionTriggerKind.Invoked },
-                },
-                CancellationToken.None
-            )
-            assert.deepEqual(secondResult, { ...EXPECTED_RESULT, sessionId: SESSION_IDS_LOG[1] })
-            // @ts-ignore
-            sinon.assert.calledOnceWithMatch(sessionManagerSpy.closeSession, firstSession)
+            assert(session)
+            assert(session.state, 'CLOSED')
+            sinon.assert.calledOnce(sessionManagerSpy.closeSession)
         })
-    })
-
-    it('should not use cached ACTIVE session on new request when suggestions do not left context match requested line', async () => {
-        // TODO
-    })
-
-    it('should discard inflight session if merge right recommendations resulted in list of empty strings', async () => {
-        // TODO
     })
 })
