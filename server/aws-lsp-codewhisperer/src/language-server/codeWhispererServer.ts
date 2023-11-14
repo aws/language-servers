@@ -229,16 +229,18 @@ export const CodewhispererServerFactory =
                 return codeWhispererService
                     .generateSuggestions(requestContext)
                     .then(suggestionResponse => {
+                        // Populate the session with information from codewhisperer response
+                        newSession.suggestions = suggestionResponse.suggestions
+                        newSession.responseContext = suggestionResponse.responseContext
+
+                        // Emit service invocation telemetry for every request sent to backend
+                        emitServiceInvocationTelemetry(telemetry, newSession)
+
                         // Exit early and discard API response
                         // session was closed by consequent completion request before API response was received
                         if (newSession.state === 'CLOSED') {
                             return EMPTY_RESULT
                         }
-
-                        // Populate the session with information from codewhisperer response
-                        newSession.suggestions = suggestionResponse.suggestions
-                        newSession.responseContext = suggestionResponse.responseContext
-                        emitServiceInvocationTelemetry(telemetry, newSession)
 
                         // Do not activate inflight session when it received empty list
                         if (suggestionResponse.suggestions.length === 0) {
