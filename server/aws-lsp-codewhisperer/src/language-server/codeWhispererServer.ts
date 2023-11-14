@@ -147,7 +147,7 @@ const hasLeftContextMatch = (suggestions: Suggestion[], leftFileContent: string)
 export const CodewhispererServerFactory =
     (service: (credentials: CredentialsProvider) => CodeWhispererServiceBase): Server =>
     ({ credentialsProvider, lsp, workspace, telemetry, logging }) => {
-        const sessionManager = new SessionManager()
+        const sessionManager = SessionManager.getInstance()
         const codeWhispererService = service(credentialsProvider)
 
         // Mutable state to track whether code with references should be included in
@@ -163,11 +163,12 @@ export const CodewhispererServerFactory =
             // On every new completion request close last inflight session.
             // On every manual trigger expilictly close previous session.
             const currentSession = sessionManager.getCurrentSession()
+
             if (
-                currentSession?.sessionState == 'REQUESTING' ||
+                currentSession?.state == 'REQUESTING' ||
                 params.context.triggerKind == InlineCompletionTriggerKind.Invoked
             ) {
-                sessionManager.discardSession(currentSession)
+                sessionManager.discardCurrentSession()
             }
 
             return workspace.getTextDocument(params.textDocument.uri).then(textDocument => {
@@ -231,26 +232,49 @@ export const CodewhispererServerFactory =
                 return codeWhispererService
                     .generateSuggestions(requestContext)
                     .then(suggestionResponse => {
-                        // Populate the session with information from codewhisperer response and set it to active
-                        newSession.suggestions.push(...suggestionResponse.suggestions)
+                        // Populate the session with information from codewhisperer response
+                        newSession.suggestions = suggestionResponse.suggestions
                         newSession.responseContext = suggestionResponse.responseContext
-                        sessionManager.activateSession(newSession)
+
+                        // Emit service invocation telemetry for every request sent to backend
                         emitServiceInvocationTelemetry(telemetry, newSession)
 
-                        // If session has no suggestions after filtering, it is discarded and empty result is returned
-                        if (newSession.getfilteredSuggestions(includeSuggestionsWithCodeReferences).length == 0) {
-                            sessionManager.discardSession(newSession)
+                        // Exit early and discard API response
+                        // session was closed by consequent completion request before API response was received
+                        if (newSession.state === 'CLOSED') {
                             return EMPTY_RESULT
                         }
 
-                        const rightContextMergedSuggestions = mergeSuggestionsWithRightContext(
+                        // Do not activate inflight session when it received empty list
+                        if (suggestionResponse.suggestions.length === 0) {
+                            sessionManager.closeSession(newSession)
+                            return EMPTY_RESULT
+                        }
+
+                        sessionManager.activateSession(newSession)
+
+                        // If session has no suggestions after filtering, it is discarded and empty result is returned
+                        if (newSession.getFilteredSuggestions(includeSuggestionsWithCodeReferences).length == 0) {
+                            sessionManager.closeSession(newSession)
+
+                            // TODO: report User Decision and User Trigger Decision = EMPTY
+                            return EMPTY_RESULT
+                        }
+
+                        const items = mergeSuggestionsWithRightContext(
                             fileContext.rightFileContent,
-                            newSession.getfilteredSuggestions(includeSuggestionsWithCodeReferences),
+                            newSession.getFilteredSuggestions(includeSuggestionsWithCodeReferences),
                             selectionRange
                         )
 
-                        // TODO: filter out items that have empty string insertText after context merge
-                        return { items: rightContextMergedSuggestions, sessionId: newSession.id }
+                        if (items.every(suggestion => suggestion.insertText === '')) {
+                            sessionManager.closeSession(newSession)
+
+                            // TODO: report User Decision Discard for each of them
+                            // Check if we need to return empty list in this case
+                        }
+
+                        return { items, sessionId: newSession.id }
                     })
                     .catch(err => {
                         // TODO, handle errors properly
