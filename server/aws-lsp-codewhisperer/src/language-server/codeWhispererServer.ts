@@ -160,7 +160,8 @@ export const CodewhispererServerFactory =
             params: InlineCompletionWithReferencesParams,
             _token: CancellationToken
         ): Promise<InlineCompletionListWithReferences> => {
-            // On every new completion request discard any non-active session
+            // On every new completion request close last inflight session.
+            // On every manual trigger expilictly close previous session.
             const currentSession = sessionManager.getCurrentSession()
             if (
                 currentSession?.sessionState == 'REQUESTING' ||
@@ -174,34 +175,6 @@ export const CodewhispererServerFactory =
                     logging.log(`textDocument [${params.textDocument.uri}] not found`)
                     return EMPTY_RESULT
                 }
-
-                const leftFileContent = textDocument.getText({
-                    start: { line: 0, character: 0 },
-                    end: params.position,
-                })
-
-                // If we already have an active session, we first try to use it (without consulting auto-trigger)
-                // Meaning, if we already have applicable suggestion we use it
-                if (
-                    currentSession?.sessionState === 'ACTIVE' &&
-                    currentSession.getfilteredSuggestions(includeSuggestionsWithCodeReferences).length > 0 &&
-                    currentSession.requestContext.fileContext.filename == params.textDocument.uri &&
-                    hasLeftContextMatch(currentSession.suggestions, leftFileContent)
-                ) {
-                    const items = mergeSuggestionsWithRightContext(
-                        textDocument.getText({
-                            start: params.position,
-                            end: textDocument.positionAt(textDocument.getText().length),
-                        }),
-                        currentSession.getfilteredSuggestions(includeSuggestionsWithCodeReferences),
-                        params.context.selectedCompletionInfo?.range
-                    )
-
-                    // If items array is not empty and there is at least one suggestion whose content is not empty
-                    if (items.length > 0 && items.some(suggestion => suggestion.insertText !== ''))
-                        return { items, sessionId: currentSession.id }
-                }
-                sessionManager.discardSession(currentSession)
 
                 const inferredLanguageId = getSupportedLanguageId(textDocument)
                 if (!inferredLanguageId) {
@@ -262,12 +235,7 @@ export const CodewhispererServerFactory =
                         newSession.suggestions.push(...suggestionResponse.suggestions)
                         newSession.responseContext = suggestionResponse.responseContext
                         sessionManager.activateSession(newSession)
-
-                        if (newSession.responseContext) {
-                            emitServiceInvocationTelemetry(telemetry, newSession)
-                        } else {
-                            logging.log('WARNING: Active session does not have response context for telemetry')
-                        }
+                        emitServiceInvocationTelemetry(telemetry, newSession)
 
                         // If session has no suggestions after filtering, it is discarded and empty result is returned
                         if (newSession.getfilteredSuggestions(includeSuggestionsWithCodeReferences).length == 0) {
@@ -281,6 +249,7 @@ export const CodewhispererServerFactory =
                             selectionRange
                         )
 
+                        // TODO: filter out items that have empty string insertText after context merge
                         return { items: rightContextMergedSuggestions, sessionId: newSession.id }
                     })
                     .catch(err => {
