@@ -13,7 +13,7 @@
         "fix:prettier": "prettier . --write"
     },
     "dependencies": {
-        "@aws-placeholder/aws-language-server-runtimes": "file:../../bin/aws-placeholder-aws-language-server-runtimes-0.1.0.tgz",
+        "@aws-placeholder/aws-language-server-runtimes": "file:../../bin/aws-placeholder-aws-language-server-runtimes-0.1.1.tgz",
         "@lsp-placeholder/aws-lsp-core": "^0.0.1",
         "aws-sdk": "^2.1403.0",
         "uuid": "^9.0.1",
