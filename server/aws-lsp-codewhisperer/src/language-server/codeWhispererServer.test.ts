@@ -6,7 +6,7 @@ import sinon, { StubbedInstance, stubInterface } from 'ts-sinon'
 import { CancellationToken, InlineCompletionTriggerKind } from 'vscode-languageserver'
 import { TextDocument } from 'vscode-languageserver-textdocument'
 import { TestFeatures } from './TestFeatures'
-import { CodewhispererServerFactory } from './codeWhispererServer'
+import { CONTEXT_CHARACTERS_LIMIT, CodewhispererServerFactory } from './codeWhispererServer'
 import { CodeWhispererServiceBase, ResponseContext, Suggestion } from './codeWhispererService'
 import { CodeWhispererSession, SessionManager } from './session/sessionManager'
 
@@ -184,6 +184,35 @@ class HelloWorld
                 maxResults: 5,
             }
             sinon.assert.calledOnceWithExactly(service.generateSuggestions, expectedGenerateSuggestionsRequest)
+        })
+
+        it('should truncate left and right context', async () => {
+            const BIG_FILE_CONTENT = '123456789\n'.repeat(5000)
+            const BIG_FILE = TextDocument.create('file:///big_file.cs', 'csharp', 1, BIG_FILE_CONTENT)
+            const cutOffLine = 2000
+            features.openDocument(BIG_FILE)
+
+            await features.doInlineCompletionWithReferences(
+                {
+                    textDocument: { uri: BIG_FILE.uri },
+                    position: { line: cutOffLine, character: 1 },
+                    context: { triggerKind: InlineCompletionTriggerKind.Invoked },
+                },
+                CancellationToken.None
+            )
+            const leftContentChecker = (leftContent: string) =>
+                leftContent.length == CONTEXT_CHARACTERS_LIMIT && leftContent.endsWith('\n1')
+            const rightContentChecker = (rightContent: string) =>
+                rightContent.length == CONTEXT_CHARACTERS_LIMIT && rightContent.startsWith('234')
+
+            sinon.assert.calledWith(
+                service.generateSuggestions,
+                sinon.match.hasNested('fileContext.leftFileContent', sinon.match(leftContentChecker))
+            )
+            sinon.assert.calledWith(
+                service.generateSuggestions,
+                sinon.match.hasNested('fileContext.rightFileContent', sinon.match(rightContentChecker))
+            )
         })
 
         it('should return recommendations when using a different languageId casing', async () => {
