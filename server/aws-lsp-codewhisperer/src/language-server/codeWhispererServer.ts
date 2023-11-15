@@ -289,21 +289,28 @@ export const CodewhispererServerFactory =
         ) => {
             const { sessionId, completionSessionResult, firstCompletionDisplayLatency, totalSessionDisplayTime } =
                 params
-            let session = sessionManager.getCurrentSession()
+            const currentSession = sessionManager.getCurrentSession()
+            const session = sessionManager.getSessionById(sessionId)
 
-            if (session?.id == sessionId) {
+            if (currentSession?.id == sessionId) {
                 sessionManager.discardCurrentSession()
+                currentSession.setClientResultData(
+                    completionSessionResult,
+                    firstCompletionDisplayLatency,
+                    totalSessionDisplayTime
+                )
+            } else if (session) {
+                sessionManager.closeSession(session)
+                session.setClientResultData(
+                    completionSessionResult,
+                    firstCompletionDisplayLatency,
+                    totalSessionDisplayTime
+                )
             } else {
-                session = sessionManager.getSessionById(sessionId)
-                if (session) sessionManager.closeSession(session)
-            }
-
-            if (!session) {
-                logging.log(`ERROR: Session ID ${sessionId} was not found in existing session logs`)
+                logging.log(`ERROR: Session ID ${sessionId} was not found`)
                 return
             }
 
-            session.setClientResultData(completionSessionResult, firstCompletionDisplayLatency, totalSessionDisplayTime)
             logging.log(`Session result for ${sessionId} has been stored`)
         }
         const updateConfiguration = async () =>
