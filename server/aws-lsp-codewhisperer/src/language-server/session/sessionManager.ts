@@ -172,6 +172,7 @@ export class SessionManager {
     }
 
     getSessionById(id: string): CodeWhispererSession | undefined {
+        if (this.currentSession?.id === id) return this.currentSession
         for (const session of this.sessionsLog) {
             if (session.id === id) return session
         }
