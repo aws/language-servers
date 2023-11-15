@@ -6,14 +6,36 @@ import sinon, { StubbedInstance, stubInterface } from 'ts-sinon'
 import { CancellationToken, InlineCompletionTriggerKind } from 'vscode-languageserver'
 import { TextDocument } from 'vscode-languageserver-textdocument'
 import { TestFeatures } from './TestFeatures'
-import * as codeWhispererServer from './codeWhispererServer'
 import { CodewhispererServerFactory } from './codeWhispererServer'
 import { CodeWhispererServiceBase, ResponseContext, Suggestion } from './codeWhispererService'
+import { CodeWhispererSession, SessionManager } from './session/sessionManager'
 
 describe('CodeWhisperer Server', () => {
-    // TODO: remove after actual implementation of session id using session manager is done
-    // https://github.com/aws/aws-language-servers/pull/58/files
-    const createSessionIdStub = sinon.spy(codeWhispererServer, 'createSessionId')
+    const sandbox = sinon.createSandbox()
+    let SESSION_IDS_LOG: string[] = []
+    let sessionManager: SessionManager
+    let sessionManagerSpy: sinon.SinonSpiedInstance<SessionManager>
+
+    before(() => {
+        const StubSessionIdGenerator = () => {
+            let id = 'some-random-session-uuid-' + SESSION_IDS_LOG.length
+            SESSION_IDS_LOG.push(id)
+
+            return id
+        }
+        sinon.stub(CodeWhispererSession.prototype, 'generateSessionId').callsFake(StubSessionIdGenerator)
+    })
+
+    beforeEach(() => {
+        SessionManager.reset()
+        sessionManager = SessionManager.getInstance()
+        sessionManagerSpy = sandbox.spy(sessionManager)
+        SESSION_IDS_LOG = []
+    })
+
+    afterEach(() => {
+        sandbox.restore()
+    })
 
     describe('Recommendations', () => {
         const HELLO_WORLD_IN_CSHARP = `
@@ -57,7 +79,7 @@ class HelloWorld
             requestId: 'cwspr-request-id',
             codewhispererSessionId: 'cwspr-session-id',
         }
-        const EXPECTED_SESSION_ID = 'some-random-session-uuid-string'
+        const EXPECTED_SESSION_ID = 'some-random-session-uuid-0'
 
         const EXPECTED_RESULT = {
             sessionId: EXPECTED_SESSION_ID,
@@ -71,7 +93,7 @@ class HelloWorld
             ],
         }
 
-        const EMPTY_RESULT = { items: [], sessionId: EXPECTED_SESSION_ID }
+        const EMPTY_RESULT = { items: [], sessionId: '' }
 
         let features: TestFeatures
         let server: Server
@@ -109,10 +131,6 @@ class HelloWorld
                 .openDocument(SOME_SINGLE_LINE_FILE)
         })
 
-        afterEach(() => {
-            createSessionIdStub.resetHistory()
-        })
-
         it('should return recommendations', async () => {
             const result = await features.doInlineCompletionWithReferences(
                 {
@@ -122,8 +140,6 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
-            const sessionId = createSessionIdStub.returnValues[0]
-            Object.assign(EXPECTED_RESULT, { sessionId })
 
             // Check the completion result
             assert.deepEqual(result, EXPECTED_RESULT)
@@ -154,8 +170,6 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
-            const sessionId = createSessionIdStub.returnValues[0]
-            Object.assign(EXPECTED_RESULT, { sessionId })
 
             // Check the completion result
             assert.deepEqual(result, EXPECTED_RESULT)
@@ -181,8 +195,6 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
-            const sessionId = createSessionIdStub.returnValues[0]
-            Object.assign(EXPECTED_RESULT, { sessionId })
 
             // Check the completion result
             assert.deepEqual(result, EXPECTED_RESULT)
@@ -208,9 +220,6 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
-            const sessionId = createSessionIdStub.returnValues[0]
-            Object.assign(EMPTY_RESULT, { sessionId })
-
             // Check the completion result
             assert.deepEqual(result, EMPTY_RESULT)
 
@@ -227,9 +236,6 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
-            const sessionId = createSessionIdStub.returnValues[0]
-            Object.assign(EMPTY_RESULT, { sessionId })
-
             // Check the completion result
             assert.deepEqual(result, EMPTY_RESULT)
 
@@ -246,8 +252,6 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
-            const sessionId = createSessionIdStub.returnValues[0]
-            Object.assign(EXPECTED_RESULT, { sessionId })
 
             // Check the completion result
             assert.deepEqual(result, EXPECTED_RESULT)
@@ -292,8 +296,6 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
-            const sessionId = createSessionIdStub.returnValues[0]
-            Object.assign(EXPECTED_RESULT, { sessionId })
 
             assert.deepEqual(result, EXPECTED_RESULT)
         })
@@ -339,8 +341,6 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
-            const sessionId = createSessionIdStub.returnValues[0]
-            Object.assign(EXPECTED_RESULT, { sessionId })
 
             assert.deepEqual(result, EXPECTED_RESULT)
 
@@ -386,8 +386,6 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
-            const sessionId = createSessionIdStub.returnValues[0]
-            Object.assign(EXPECTED_RESULT, { sessionId })
 
             assert.deepEqual(result, EXPECTED_RESULT)
         })
@@ -420,8 +418,6 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
-            const sessionId = createSessionIdStub.returnValues[0]
-            Object.assign(EXPECTED_RESULT, { sessionId })
 
             assert.deepEqual(result, EXPECTED_RESULT)
         })
@@ -438,8 +434,7 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
-            const sessionId = createSessionIdStub.returnValues[0]
-            Object.assign(EMPTY_RESULT, { sessionId })
+            // Object.assign(EMPTY_RESULT, { sessionId })
             // Check the completion result
             assert.deepEqual(result, EMPTY_RESULT)
         })
@@ -491,7 +486,7 @@ class HelloWorld
 }
 `
         const SOME_FILE = TextDocument.create('file:///test.cs', 'csharp', 1, HELLO_WORLD_IN_CSHARP)
-        const EXPECTED_SESSION_ID = 'some-random-session-uuid-string'
+        const EXPECTED_SESSION_ID = 'some-random-session-uuid-0'
         const EXPECTED_REFERENCE = {
             licenseName: 'test license',
             repository: 'test repository',
@@ -567,11 +562,7 @@ class HelloWorld
             features = new TestFeatures()
         })
 
-        afterEach(() => {
-            createSessionIdStub.resetHistory()
-        })
-
-        it('should filter recommendations if no settings are specificed', async () => {
+        it('should return all recommendations if no settings are specificed', async () => {
             features.lsp.workspace.getConfiguration.returns(Promise.resolve({}))
             await features.start(server)
             const result = await features.openDocument(SOME_FILE).doInlineCompletionWithReferences(
@@ -582,8 +573,6 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
-            const sessionId = createSessionIdStub.returnValues[0]
-            Object.assign(EXPECTED_RESULT_WITHOUT_REFERENCES, { sessionId })
 
             // Check the completion result
             assert.deepEqual(result, EXPECTED_RESULT_WITHOUT_REFERENCES)
@@ -600,8 +589,6 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
-            const sessionId = createSessionIdStub.returnValues[0]
-            Object.assign(EXPECTED_RESULT_WITHOUT_REFERENCES, { sessionId })
 
             // Check the completion result
             assert.deepEqual(result, EXPECTED_RESULT_WITHOUT_REFERENCES)
@@ -620,8 +607,6 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
-            const sessionId = createSessionIdStub.returnValues[0]
-            Object.assign(EXPECTED_RESULT_WITH_REFERENCES, { sessionId })
 
             // Check the completion result
             assert.deepEqual(result, EXPECTED_RESULT_WITH_REFERENCES)
@@ -640,8 +625,6 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
-            const sessionId = createSessionIdStub.returnValues[0]
-            Object.assign(EXPECTED_RESULT_WITHOUT_REFERENCES, { sessionId })
 
             // Check the completion result
             assert.deepEqual(result, EXPECTED_RESULT_WITHOUT_REFERENCES)
@@ -666,8 +649,6 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
-            const sessionId = createSessionIdStub.returnValues[0]
-            Object.assign(EXPECTED_RESULT_WITHOUT_REFERENCES, { sessionId })
 
             // Check the completion result
             assert.deepEqual(result, EXPECTED_RESULT_WITHOUT_REFERENCES)
@@ -691,8 +672,6 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
-            const sessionId = createSessionIdStub.returnValues[0]
-            Object.assign(EXPECTED_RESULT_WITH_REFERENCES, { sessionId })
 
             // Check the completion result
             assert.deepEqual(result, EXPECTED_RESULT_WITH_REFERENCES)
@@ -726,8 +705,6 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
-            const sessionId = createSessionIdStub.returnValues[0]
-            Object.assign(EXPECTED_RESULT_WITH_REMOVED_REFERENCES, { sessionId })
 
             assert.deepEqual(result, EXPECTED_RESULT_WITH_REMOVED_REFERENCES)
         })
@@ -790,10 +767,49 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
-            const sessionId = createSessionIdStub.returnValues[0]
-            Object.assign(EXPECTED_RESULT, { sessionId })
 
             assert.deepEqual(result, EXPECTED_RESULT)
+        })
+
+        describe('With session management', () => {
+            const EMPTY_RESULT = { items: [], sessionId: '' }
+
+            it('should close session if code references are disabled and all suggestions had references', async () => {
+                const EXPECTED_SUGGESTION_WITH_REFERENCES: Suggestion[] = [
+                    {
+                        itemId: 'cwspr-item-id-1',
+                        content: 'recommendation with reference',
+                        references: [EXPECTED_REFERENCE],
+                    },
+                ]
+                service.generateSuggestions.returns(
+                    Promise.resolve({
+                        suggestions: EXPECTED_SUGGESTION_WITH_REFERENCES,
+                        responseContext: EXPECTED_RESPONSE_CONTEXT,
+                    })
+                )
+                features.lsp.workspace.getConfiguration.returns(
+                    Promise.resolve({ includeSuggestionsWithCodeReferences: false })
+                )
+                await features.start(server)
+
+                const result = await features.openDocument(SOME_FILE).doInlineCompletionWithReferences(
+                    {
+                        textDocument: { uri: SOME_FILE.uri },
+                        position: { line: 0, character: 0 },
+                        context: { triggerKind: InlineCompletionTriggerKind.Invoked },
+                    },
+                    CancellationToken.None
+                )
+
+                // Check the completion result
+                assert.deepEqual(result, EMPTY_RESULT)
+
+                // There is no active session
+                assert.equal(sessionManager.getActiveSession(), undefined)
+                assert.equal(sessionManagerSpy.createSession.callCount, 1)
+                assert.equal(sessionManagerSpy.closeSession.callCount, 1)
+            })
         })
     })
 
@@ -816,7 +832,7 @@ class HelloWorld
             requestId: 'cwspr-request-id',
             codewhispererSessionId: 'cwspr-session-id',
         }
-        const EXPECTED_SESSION_ID = 'some-random-session-uuid-string'
+        const EXPECTED_SESSION_ID = 'some-random-session-uuid-0'
         const EXPECTED_RESULT = {
             sessionId: EXPECTED_SESSION_ID,
             items: [
@@ -829,7 +845,7 @@ class HelloWorld
             ],
         }
 
-        const EMPTY_RESULT = { items: [] }
+        const EMPTY_RESULT = { items: [], sessionId: '' }
 
         let features: TestFeatures
         let server: Server
@@ -862,10 +878,6 @@ class HelloWorld
             features.openDocument(SOME_FILE)
         })
 
-        afterEach(() => {
-            createSessionIdStub.resetHistory()
-        })
-
         it('should return recommendations on an above-threshold auto-trigger position', async () => {
             const result = await features.doInlineCompletionWithReferences(
                 {
@@ -875,8 +887,6 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
-            const sessionId = createSessionIdStub.returnValues[0]
-            Object.assign(EXPECTED_RESULT, { sessionId })
 
             // Check the completion result
             assert.deepEqual(result, EXPECTED_RESULT)
@@ -902,8 +912,6 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
-            const sessionId = createSessionIdStub.returnValues[0]
-            Object.assign(EMPTY_RESULT, { sessionId })
 
             // Check the completion result
             assert.deepEqual(result, EMPTY_RESULT)
@@ -1203,6 +1211,262 @@ class HelloWorld
 
                 assert.equal(features.telemetry.emitMetric.getCall(0).args[0].data.credentialStartUrl, undefined)
             })
+        })
+    })
+
+    describe('Recommendations session management', () => {
+        const HELLO_WORLD_IN_CSHARP = `class HelloWorld
+{
+    static void Main()
+    {
+        Console.WriteLine("Hello World!");
+    }
+}
+`
+        const AUTO_TRIGGER_POSITION = { line: 2, character: 21 }
+        const SOME_FILE = TextDocument.create('file:///test.cs', 'csharp', 1, HELLO_WORLD_IN_CSHARP)
+        const SOME_FILE_WITH_ALT_CASED_LANGUAGE_ID = TextDocument.create(
+            // Use unsupported extension, so that we can test that we get a match based on the LanguageId
+            'file:///test.seesharp',
+            'CSharp',
+            1,
+            HELLO_WORLD_IN_CSHARP
+        )
+        const EXPECTED_SUGGESTION: Suggestion[] = [{ itemId: 'cwspr-item-id', content: 'recommendation' }]
+        const EXPECTED_RESPONSE_CONTEXT: ResponseContext = {
+            requestId: 'cwspr-request-id',
+            codewhispererSessionId: 'cwspr-session-id',
+        }
+        const EXPECTED_SESSION_ID = 'some-random-session-uuid-0'
+
+        const EXPECTED_RESULT = {
+            sessionId: EXPECTED_SESSION_ID,
+            items: [
+                {
+                    itemId: EXPECTED_SUGGESTION[0].itemId,
+                    insertText: EXPECTED_SUGGESTION[0].content,
+                    range: undefined,
+                    references: undefined,
+                },
+            ],
+        }
+
+        let features: TestFeatures
+        let server: Server
+        // TODO move more of the service code out of the stub and into the testable realm
+        // See: https://aws.amazon.com/blogs/developer/mocking-modular-aws-sdk-for-javascript-v3-in-unit-tests/
+        // for examples on how to mock just the SDK client
+        let service: StubbedInstance<CodeWhispererServiceBase>
+
+        beforeEach(async () => {
+            // Set up the server with a mock service, returning predefined recommendations
+            service = stubInterface<CodeWhispererServiceBase>()
+            service.generateSuggestions.returns(
+                Promise.resolve({
+                    suggestions: EXPECTED_SUGGESTION,
+                    responseContext: EXPECTED_RESPONSE_CONTEXT,
+                })
+            )
+
+            server = CodewhispererServerFactory(_auth => service)
+
+            // Initialize the features, but don't start server yet
+            features = new TestFeatures()
+
+            // Return no specific configuration for CodeWhisperer
+            features.lsp.workspace.getConfiguration.returns(Promise.resolve({}))
+
+            // Start the server and open a document
+            await features.start(server)
+
+            features.openDocument(SOME_FILE).openDocument(SOME_FILE_WITH_ALT_CASED_LANGUAGE_ID)
+        })
+
+        it('should cache new session on new request when no session exists', async () => {
+            let activeSession = sessionManager.getCurrentSession()
+            assert.equal(activeSession, undefined)
+
+            await features.doInlineCompletionWithReferences(
+                {
+                    textDocument: { uri: SOME_FILE.uri },
+                    position: AUTO_TRIGGER_POSITION,
+                    context: { triggerKind: InlineCompletionTriggerKind.Automatic },
+                },
+                CancellationToken.None
+            )
+
+            // Get session after call is done
+            activeSession = sessionManager.getCurrentSession()
+
+            const expectedSessionData = {
+                id: SESSION_IDS_LOG[0],
+                state: 'ACTIVE',
+                suggestions: [{ itemId: 'cwspr-item-id', content: 'recommendation' }],
+            }
+            assert(activeSession)
+            sinon.assert.match(
+                {
+                    id: activeSession.id,
+                    state: activeSession.state,
+                    suggestions: activeSession.suggestions,
+                },
+                expectedSessionData
+            )
+        })
+
+        it('should discard inflight session on new request when cached session is in REQUESTING state on subsequent requests', async () => {
+            const getCompletionsResponses = await Promise.all([
+                features.doInlineCompletionWithReferences(
+                    {
+                        textDocument: { uri: SOME_FILE.uri },
+                        position: AUTO_TRIGGER_POSITION,
+                        context: { triggerKind: InlineCompletionTriggerKind.Automatic },
+                    },
+                    CancellationToken.None
+                ),
+                features.doInlineCompletionWithReferences(
+                    {
+                        textDocument: { uri: SOME_FILE.uri },
+                        position: AUTO_TRIGGER_POSITION,
+                        context: { triggerKind: InlineCompletionTriggerKind.Automatic },
+                    },
+                    CancellationToken.None
+                ),
+                features.doInlineCompletionWithReferences(
+                    {
+                        textDocument: { uri: SOME_FILE.uri },
+                        position: AUTO_TRIGGER_POSITION,
+                        context: { triggerKind: InlineCompletionTriggerKind.Automatic },
+                    },
+                    CancellationToken.None
+                ),
+            ])
+
+            // 3 requests were processed by server, but only first should return results
+            const EXPECTED_COMPLETION_RESPONSES = [
+                { sessionId: '', items: [] },
+                { sessionId: '', items: [] },
+                { sessionId: SESSION_IDS_LOG[2], items: EXPECTED_RESULT.items }, // Last session wins
+            ]
+            // Only last request must return completion items
+            assert.deepEqual(getCompletionsResponses, EXPECTED_COMPLETION_RESPONSES)
+
+            assert.equal(sessionManagerSpy.createSession.callCount, 3)
+
+            // Get session after call is done
+            const activeSession = sessionManager.getCurrentSession()
+
+            // 3 sessions were created
+            assert.equal(SESSION_IDS_LOG.length, 3)
+
+            // Last session is ACTIVE stored in manager correctly
+            const expectedSessionData = {
+                id: SESSION_IDS_LOG[2],
+                state: 'ACTIVE',
+                suggestions: [{ itemId: 'cwspr-item-id', content: 'recommendation' }],
+            }
+            assert(activeSession)
+            sinon.assert.match(
+                {
+                    id: activeSession.id,
+                    state: activeSession.state,
+                    suggestions: activeSession.suggestions,
+                },
+                expectedSessionData
+            )
+        })
+
+        it('should close new session on new request when service returns empty list', async () => {
+            service.generateSuggestions.returns(
+                Promise.resolve({
+                    suggestions: [],
+                    responseContext: EXPECTED_RESPONSE_CONTEXT,
+                })
+            )
+
+            let activeSession = sessionManager.getCurrentSession()
+            assert.equal(activeSession, undefined)
+
+            await features.doInlineCompletionWithReferences(
+                {
+                    textDocument: { uri: SOME_FILE.uri },
+                    position: AUTO_TRIGGER_POSITION,
+                    context: { triggerKind: InlineCompletionTriggerKind.Automatic },
+                },
+                CancellationToken.None
+            )
+
+            // Get session after call is done
+            const currentSession = sessionManager.getCurrentSession()
+            assert(currentSession)
+            assert.equal(currentSession?.state, 'CLOSED')
+            sinon.assert.calledOnceWithExactly(sessionManagerSpy.closeSession, currentSession)
+        })
+
+        it('Manual completion invocation should close previous session', async () => {
+            const TRIGGER_KIND = InlineCompletionTriggerKind.Invoked
+
+            const result = await features.doInlineCompletionWithReferences(
+                {
+                    textDocument: { uri: SOME_FILE.uri },
+                    position: { line: 0, character: 0 },
+                    // Manual trigger kind
+                    context: { triggerKind: TRIGGER_KIND },
+                },
+                CancellationToken.None
+            )
+
+            assert.deepEqual(result, EXPECTED_RESULT)
+            const firstSession = sessionManager.getActiveSession()
+
+            // There is ACTIVE session
+            assert(firstSession)
+            assert.equal(sessionManager.getCurrentSession(), firstSession)
+            assert.equal(firstSession.state, 'ACTIVE')
+
+            const secondResult = await features.doInlineCompletionWithReferences(
+                {
+                    textDocument: { uri: SOME_FILE.uri },
+                    position: { line: 0, character: 0 },
+                    context: { triggerKind: TRIGGER_KIND },
+                },
+                CancellationToken.None
+            )
+            assert.deepEqual(secondResult, { ...EXPECTED_RESULT, sessionId: SESSION_IDS_LOG[1] })
+            sinon.assert.called(sessionManagerSpy.discardCurrentSession)
+        })
+
+        it('should discard inflight session if merge right recommendations resulted in list of empty strings', async () => {
+            // The suggestion returned by generateSuggestions will be equal to the contents of the file
+            const EXPECTED_SUGGESTION: Suggestion[] = [{ itemId: 'cwspr-item-id', content: HELLO_WORLD_IN_CSHARP }]
+            service.generateSuggestions.returns(
+                Promise.resolve({
+                    suggestions: EXPECTED_SUGGESTION,
+                    responseContext: EXPECTED_RESPONSE_CONTEXT,
+                })
+            )
+            const EXPECTED_RESULT = {
+                sessionId: EXPECTED_SESSION_ID,
+                items: [
+                    { itemId: EXPECTED_SUGGESTION[0].itemId, insertText: '', range: undefined, references: undefined },
+                ],
+            }
+
+            const result = await features.doInlineCompletionWithReferences(
+                {
+                    textDocument: { uri: SOME_FILE.uri },
+                    position: { line: 0, character: 0 },
+                    context: { triggerKind: InlineCompletionTriggerKind.Invoked },
+                },
+                CancellationToken.None
+            )
+            assert.deepEqual(result, EXPECTED_RESULT)
+
+            const session = sessionManager.getCurrentSession()
+
+            assert(session)
+            assert(session.state, 'CLOSED')
+            sinon.assert.calledOnce(sessionManagerSpy.closeSession)
         })
     })
 })

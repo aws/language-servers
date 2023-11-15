@@ -1,5 +1,3 @@
-import { GenerateSuggestionsRequest } from './codeWhispererService'
-
 /**
  * Returns the longest overlap between the Suffix of firstString and Prefix of second string
  * getPrefixSuffixOverlap("adwg31", "31ggrs") = "31"
@@ -14,12 +12,11 @@ export function getPrefixSuffixOverlap(firstString: string, secondString: string
     }
     return secondString.slice(0, i)
 }
-export type FileContext = GenerateSuggestionsRequest['fileContext']
 
-export function truncateOverlapWithRightContext(context: FileContext, suggestion: string): string {
+export function truncateOverlapWithRightContext(rightFileContent: string, suggestion: string): string {
     const trimmedSuggestion = suggestion.trim()
     // limit of 5000 for right context matching
-    const rightContext = context.rightFileContent.substring(0, 5000)
+    const rightContext = rightFileContent.substring(0, 5000)
     const overlap = getPrefixSuffixOverlap(trimmedSuggestion, rightContext.trim())
     const overlapIndex = suggestion.lastIndexOf(overlap)
     if (overlapIndex >= 0) {

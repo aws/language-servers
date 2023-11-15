@@ -1,4 +1,4 @@
-import { FileContext } from '../mergeRightUtils'
+import { FileContext } from '../codeWhispererService'
 import typedCoefficients = require('./coefficients.json')
 
 type TypedCoefficients = typeof typedCoefficients
