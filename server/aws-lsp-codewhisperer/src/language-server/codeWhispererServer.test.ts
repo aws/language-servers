@@ -40,7 +40,7 @@ class HelloWorld
             1,
             'INPUT HELLO ; OUTPUT WORLD'
         )
-        const SOME_FILE_WITH_EXTENSION = TextDocument.create('file:///missing.cs', '', 1, HELLO_WORLD_IN_CSHARP)
+        const SOME_FILE_WITH_EXTENSION = TextDocument.create('file:///missing.hpp', '', 1, HELLO_WORLD_IN_CSHARP)
 
         const HELLO_WORLD_LINE = `Console.WriteLine("Hello World!");`
         // Single line file will not have the full line contents
@@ -255,7 +255,7 @@ class HelloWorld
             const expectedGenerateSuggestionsRequest = {
                 fileContext: {
                     filename: SOME_FILE_WITH_EXTENSION.uri,
-                    programmingLanguage: { languageName: 'csharp' },
+                    programmingLanguage: { languageName: 'cpp' },
                     leftFileContent: '',
                     rightFileContent: HELLO_WORLD_IN_CSHARP,
                 },
@@ -1117,8 +1117,7 @@ class HelloWorld
         })
 
         it('should emit Failure ServiceInvocation telemetry with request metadata on failed response with AWSError error type', async () => {
-            // @ts-ignore
-            const error: AWSError = new Error('Fake Error')
+            const error: AWSError = new Error('Fake Error') as AWSError
             error.name = 'TestAWSError'
             error.code = 'TestErrorStatusCode'
             error.statusCode = 500
