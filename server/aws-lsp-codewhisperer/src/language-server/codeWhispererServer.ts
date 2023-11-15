@@ -154,7 +154,7 @@ export const CodewhispererServerFactory =
         // the response. No locking or concurrency controls, filtering is done
         // right before returning and is only guaranteed to be consistent within
         // the context of a single response.
-        let includeSuggestionsWithCodeReferences = true
+        let includeSuggestionsWithCodeReferences = false
 
         const onInlineCompletionHandler = async (
             params: InlineCompletionWithReferencesParams,
@@ -293,19 +293,19 @@ export const CodewhispererServerFactory =
             lsp.workspace
                 .getConfiguration('aws.codeWhisperer')
                 .then(config => {
-                    if (config && config['includeSuggestionsWithCodeReferences'] === false) {
-                        includeSuggestionsWithCodeReferences = false
-                        logging.log('Configuration updated to exclude suggestions with code references')
-                    } else {
+                    if (config && config['includeSuggestionsWithCodeReferences'] === true) {
                         includeSuggestionsWithCodeReferences = true
                         logging.log('Configuration updated to include suggestions with code references')
-                    }
-                    if (config && config['shareCodeWhispererContentWithAWS'] === false) {
-                        codeWhispererService.shareCodeWhispererContentWithAWS = false
-                        logging.log('Configuration updated to not share code whisperer content with AWS')
                     } else {
+                        includeSuggestionsWithCodeReferences = false
+                        logging.log('Configuration updated to exclude suggestions with code references')
+                    }
+                    if (config && config['shareCodeWhispererContentWithAWS'] === true) {
                         codeWhispererService.shareCodeWhispererContentWithAWS = true
                         logging.log('Configuration updated to share code whisperer content with AWS')
+                    } else {
+                        codeWhispererService.shareCodeWhispererContentWithAWS = false
+                        logging.log('Configuration updated to not share code whisperer content with AWS')
                     }
                 })
                 .catch(reason => logging.log(`Error in GetConfiguration: ${reason}`))

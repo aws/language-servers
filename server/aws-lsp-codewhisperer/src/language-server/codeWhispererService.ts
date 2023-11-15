@@ -38,7 +38,7 @@ import CodeWhispererTokenClient = require('../client/token/codewhispererclient')
 // Right now the only difference between the token client and the IAM client for codewhsiperer is the difference in function name
 // This abstract class can grow in the future to account for any additional changes across the clients
 export abstract class CodeWhispererServiceBase {
-    public shareCodeWhispererContentWithAWS: boolean = true
+    public shareCodeWhispererContentWithAWS: boolean = false
     abstract client: CodeWhispererSigv4Client | CodeWhispererTokenClient
 
     abstract generateSuggestions(request: GenerateSuggestionsRequest): Promise<GenerateSuggestionsResponse>
