@@ -36,7 +36,7 @@ describe('CodeWhispererSession', function () {
             item_1: {
                 seen: true,
                 accepted: false,
-                discarded: true,
+                discarded: false,
             },
             item_2: {
                 seen: true,

@@ -299,12 +299,12 @@ export const CodewhispererServerFactory =
             }
 
             if (!session) {
-                logging.log('ERROR: Session ID was not found in existing session logs')
+                logging.log(`ERROR: Session ID ${sessionId} was not found in existing session logs`)
                 return
             }
 
             session.setClientResultData(completionSessionResult, firstCompletionDisplayLatency, totalSessionDisplayTime)
-            logging.log('Session result has been stored')
+            logging.log(`Session result for ${sessionId} has been stored`)
         }
         const updateConfiguration = async () =>
             lsp.workspace

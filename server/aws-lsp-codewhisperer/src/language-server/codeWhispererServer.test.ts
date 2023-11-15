@@ -953,7 +953,7 @@ class HelloWorld
                 'cwspr-item-id': {
                     seen: true,
                     accepted: false,
-                    discarded: true,
+                    discarded: false,
                 },
             },
             firstCompletionDisplayLatency: 50,
@@ -982,7 +982,7 @@ class HelloWorld
             features.openDocument(SOME_FILE)
         })
 
-        it('should deactivate current session if session matches id provided', async () => {
+        it('should deactivate current session when session result for current session is sent', async () => {
             const manager = SessionManager.getInstance()
             const session = manager.createSession(sessionData)
             manager.activateSession(session)
@@ -992,7 +992,7 @@ class HelloWorld
             assert.equal(session.state, 'CLOSED')
         })
 
-        it('should ignore current session if session does not matches id provided', async () => {
+        it('should not close current session when session result for different session is sent', async () => {
             const manager = SessionManager.getInstance()
             const session = manager.createSession(sessionData)
             manager.activateSession(session)
@@ -1023,7 +1023,7 @@ class HelloWorld
                     'cwspr-item-id': {
                         seen: true,
                         accepted: false,
-                        discarded: true,
+                        discarded: false,
                     },
                 },
             }
