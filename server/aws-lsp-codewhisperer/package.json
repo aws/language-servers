@@ -1,6 +1,6 @@
 {
     "name": "@lsp-placeholder/aws-lsp-codewhisperer",
-    "version": "0.0.1",
+    "version": "0.0.2",
     "description": "CodeWhisperer Language Server",
     "main": "out/index.js",
     "scripts": {
