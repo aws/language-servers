@@ -1054,6 +1054,18 @@ static void Main()
             requestId: 'cwspr-request-id',
             codewhispererSessionId: 'cwspr-session-id',
         }
+        const sessionResultData = {
+            sessionId: 'some-random-session-uuid-0',
+            completionSessionResult: {
+                'cwspr-item-id': {
+                    seen: true,
+                    accepted: false,
+                    discarded: false,
+                },
+            },
+            firstCompletionDisplayLatency: 50,
+            totalSessionDisplayTime: 1000,
+        }
 
         let features: TestFeatures
         let server: Server
@@ -1292,6 +1304,33 @@ static void Main()
                 },
             }
             sinon.assert.calledOnceWithExactly(features.telemetry.emitMetric, expectedServiceInvocationMetric)
+        })
+
+        it('should emit Perceived Latency metric when session result is received', async () => {
+            await features.doInlineCompletionWithReferences(
+                {
+                    textDocument: { uri: SOME_FILE.uri },
+                    position: { line: 0, character: 0 },
+                    context: { triggerKind: InlineCompletionTriggerKind.Invoked },
+                },
+                CancellationToken.None
+            )
+
+            await features.doLogInlineCompelitionSessionResults(sessionResultData)
+
+            const expectedPerceivedLatencyMetric: MetricEvent = {
+                name: 'codewhisperer_perceivedLatency',
+                data: {
+                    codewhispererRequestId: EXPECTED_RESPONSE_CONTEXT.requestId,
+                    codewhispererSessionId: EXPECTED_RESPONSE_CONTEXT.codewhispererSessionId,
+                    codewhispererCompletionType: 'Line',
+                    codewhispererTriggerType: 'OnDemand',
+                    duration: 50,
+                    codewhispererLanguage: 'csharp',
+                    credentialStartUrl: undefined,
+                },
+            }
+            sinon.assert.calledWithExactly(features.telemetry.emitMetric, expectedPerceivedLatencyMetric)
         })
 
         describe('Connection metadata credentialStartUrl field', () => {

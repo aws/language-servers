@@ -19,3 +19,14 @@ export interface CodeWhispererServiceInvocationEvent {
     // TODO: Clarify if this field is required and how to get it from the client
     credentialStartUrl?: string
 }
+
+export interface CodeWhispererPerceivedLatencyEvent {
+    codewhispererRequestId?: string
+    codewhispererSessionId?: string
+    codewhispererCompletionType?: CodewhispererCompletionType
+    codewhispererTriggerType: string
+    duration?: number
+    codewhispererLanguage: CodewhispererLanguage
+    // TODO: Clarify if this field is required and how to get it from the client
+    credentialStartUrl?: string
+}
