@@ -23,6 +23,7 @@ import { CodeWhispererServiceInvocationEvent } from './telemetry/types'
 import { getCompletionType, isAwsError } from './utils'
 
 const EMPTY_RESULT = { sessionId: '', items: [] }
+export const CONTEXT_CHARACTERS_LIMIT = 10240
 
 // Both clients (token, sigv4) define their own types, this return value needs to match both of them.
 const getFileContext = (params: {
@@ -228,6 +229,14 @@ export const CodewhispererServerFactory =
                     autoTriggerType: autoTriggerType,
                     credentialStartUrl: credentialsProvider.getConnectionMetadata()?.sso?.startUrl ?? undefined,
                 })
+
+                requestContext.fileContext.leftFileContent = requestContext.fileContext.leftFileContent.slice(
+                    -CONTEXT_CHARACTERS_LIMIT
+                )
+                requestContext.fileContext.rightFileContent = requestContext.fileContext.rightFileContent.slice(
+                    0,
+                    CONTEXT_CHARACTERS_LIMIT
+                )
 
                 return codeWhispererService
                     .generateSuggestions(requestContext)
