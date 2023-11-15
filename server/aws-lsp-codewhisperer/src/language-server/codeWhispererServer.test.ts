@@ -8,7 +8,7 @@ import { TextDocument } from 'vscode-languageserver-textdocument'
 import { TestFeatures } from './TestFeatures'
 import { CodewhispererServerFactory } from './codeWhispererServer'
 import { CodeWhispererServiceBase, ResponseContext, Suggestion } from './codeWhispererService'
-import { CodeWhispererSession, SessionManager } from './session/sessionManager'
+import { CodeWhispererSession, SessionData, SessionManager } from './session/sessionManager'
 
 describe('CodeWhisperer Server', () => {
     const sandbox = sinon.createSandbox()
@@ -918,7 +918,7 @@ class HelloWorld
         })
     })
 
-    describe('Telemetry', () => {
+    describe('Log Inline Completion Session Results', () => {
         const HELLO_WORLD_IN_CSHARP = `
 class HelloWorld
 {
@@ -926,6 +926,126 @@ class HelloWorld
     {
         Console.WriteLine("Hello World!");
     }
+}
+`
+        const SOME_FILE = TextDocument.create('file:///test.cs', 'csharp', 1, HELLO_WORLD_IN_CSHARP)
+
+        const requestContext = {
+            maxResults: 5,
+            fileContext: {
+                filename: 'SomeFile',
+                programmingLanguage: { languageName: 'csharp' },
+                leftFileContent: 'LeftFileContent',
+                rightFileContent: 'RightFileContent',
+            },
+        }
+
+        const sessionData: SessionData = {
+            startPosition: { line: 0, character: 0 },
+            triggerType: 'OnDemand',
+            language: 'csharp',
+            requestContext: requestContext,
+        }
+
+        const sessionResultData = {
+            sessionId: 'some-random-session-uuid-0',
+            completionSessionResult: {
+                'cwspr-item-id': {
+                    seen: true,
+                    accepted: false,
+                    discarded: false,
+                },
+            },
+            firstCompletionDisplayLatency: 50,
+            totalSessionDisplayTime: 1000,
+        }
+
+        let features: TestFeatures
+        let server: Server
+        // TODO move more of the service code out of the stub and into the testable realm
+        // See: https://aws.amazon.com/blogs/developer/mocking-modular-aws-sdk-for-javascript-v3-in-unit-tests/
+        // for examples on how to mock just the SDK client
+        let service: StubbedInstance<CodeWhispererServiceBase>
+
+        beforeEach(async () => {
+            // Set up the server with a mock service, returning predefined recommendations
+            service = stubInterface<CodeWhispererServiceBase>()
+
+            server = CodewhispererServerFactory(_auth => service)
+
+            // Initialize the features, but don't start server yet
+            features = new TestFeatures()
+
+            // Start the server and open a document
+            await features.start(server)
+
+            features.openDocument(SOME_FILE)
+        })
+
+        it('should deactivate current session when session result for current session is sent', async () => {
+            const manager = SessionManager.getInstance()
+            const session = manager.createSession(sessionData)
+            manager.activateSession(session)
+            assert.equal(session.state, 'ACTIVE')
+
+            await features.doLogInlineCompelitionSessionResults(sessionResultData)
+            assert.equal(session.state, 'CLOSED')
+        })
+
+        it('should not close current session when session result for different session is sent', async () => {
+            const manager = SessionManager.getInstance()
+            const session = manager.createSession(sessionData)
+            manager.activateSession(session)
+            const session2 = manager.createSession(sessionData)
+            manager.activateSession(session2)
+            assert.equal(session.state, 'CLOSED')
+            assert.equal(session2.state, 'ACTIVE')
+
+            await features.doLogInlineCompelitionSessionResults(sessionResultData)
+            assert.equal(session2.state, 'ACTIVE')
+        })
+
+        it('should store session result data', async () => {
+            const manager = SessionManager.getInstance()
+            const session = manager.createSession(sessionData)
+            manager.activateSession(session)
+            await features.doLogInlineCompelitionSessionResults(sessionResultData)
+
+            assert.equal(session.completionSessionResult, sessionResultData.completionSessionResult)
+            assert.equal(session.firstCompletionDisplayLatency, sessionResultData.firstCompletionDisplayLatency)
+            assert.equal(session.totalSessionDisplayTime, sessionResultData.totalSessionDisplayTime)
+        })
+
+        it('should store session result data with only completion state provided', async () => {
+            const sessionResultData = {
+                sessionId: 'some-random-session-uuid-0',
+                completionSessionResult: {
+                    'cwspr-item-id': {
+                        seen: true,
+                        accepted: false,
+                        discarded: false,
+                    },
+                },
+            }
+            const manager = SessionManager.getInstance()
+            const session = manager.createSession(sessionData)
+            manager.activateSession(session)
+            await features.doLogInlineCompelitionSessionResults(sessionResultData)
+
+            assert.equal(session.completionSessionResult, sessionResultData.completionSessionResult)
+            assert.equal(session.firstCompletionDisplayLatency, undefined)
+            assert.equal(session.totalSessionDisplayTime, undefined)
+        })
+    })
+
+    describe('Telemetry', () => {
+        const HELLO_WORLD_IN_CSHARP = `
+class HelloWorld
+{
+static void Main()
+{
+    Console.WriteLine("Hello World!");
+}
 }
 `
         const SOME_FILE = TextDocument.create('file:///test.cs', 'csharp', 1, HELLO_WORLD_IN_CSHARP)
@@ -1448,7 +1568,12 @@ class HelloWorld
             const EXPECTED_RESULT = {
                 sessionId: EXPECTED_SESSION_ID,
                 items: [
-                    { itemId: EXPECTED_SUGGESTION[0].itemId, insertText: '', range: undefined, references: undefined },
+                    {
+                        itemId: EXPECTED_SUGGESTION[0].itemId,
+                        insertText: '',
+                        range: undefined,
+                        references: undefined,
+                    },
                 ],
             }
 

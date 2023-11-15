@@ -287,7 +287,23 @@ export const CodewhispererServerFactory =
         const onLogInlineCompelitionSessionResultsHandler = async (
             params: LogInlineCompelitionSessionResultsParams
         ) => {
-            // TODO: end current active session from session manager
+            const { sessionId, completionSessionResult, firstCompletionDisplayLatency, totalSessionDisplayTime } =
+                params
+            const currentSession = sessionManager.getCurrentSession()
+            const session = sessionManager.getSessionById(sessionId)
+
+            if (!session) {
+                logging.log(`ERROR: Session ID ${sessionId} was not found`)
+                return
+            }
+
+            session.setClientResultData(completionSessionResult, firstCompletionDisplayLatency, totalSessionDisplayTime)
+
+            if (currentSession?.id == sessionId) {
+                sessionManager.discardCurrentSession()
+            } else if (session) {
+                sessionManager.closeSession(session)
+            }
         }
         const updateConfiguration = async () =>
             lsp.workspace
