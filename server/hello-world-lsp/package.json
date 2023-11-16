@@ -7,7 +7,7 @@
         "compile": "tsc --build"
     },
     "dependencies": {
-        "@aws-placeholder/aws-language-server-runtimes": "file:../../bin/aws-placeholder-aws-language-server-runtimes-0.1.1.tgz",
+        "@aws-placeholder/aws-language-server-runtimes": "file:../../bin/aws-placeholder-aws-language-server-runtimes-0.1.0.tgz",
         "vscode-languageserver": "^8.0.1"
     }
 }

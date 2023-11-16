@@ -13,6 +13,7 @@
         "test-integ": "npm run package-x64 && mocha --timeout 5000 './out/**/*Integ.test.js'"
     },
     "dependencies": {
+        "@aws-placeholder/aws-language-server-runtimes": "file:../../bin/aws-placeholder-aws-language-server-runtimes-0.1.0.tgz",
         "@lsp-placeholder/hello-world-lsp": "^0.0.1"
     },
     "devDependencies": {
