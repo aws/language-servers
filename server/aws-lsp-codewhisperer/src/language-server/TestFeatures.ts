@@ -70,10 +70,10 @@ export class TestFeatures {
         return this.lsp.extensions.onInlineCompletionWithReferences.args[0][0](...args)
     }
 
-    async doLogInlineCompelitionSessionResults(
-        ...args: Parameters<Parameters<Lsp['extensions']['onLogInlineCompelitionSessionResults']>[0]>
+    async doLogInlineCompletionSessionResults(
+        ...args: Parameters<Parameters<Lsp['extensions']['onLogInlineCompletionSessionResults']>[0]>
     ) {
-        return this.lsp.extensions.onLogInlineCompelitionSessionResults.args[0][0](...args)
+        return this.lsp.extensions.onLogInlineCompletionSessionResults.args[0][0](...args)
     }
 
     openDocument(document: TextDocument) {

@@ -1017,7 +1017,7 @@ class HelloWorld
             manager.activateSession(session)
             assert.equal(session.state, 'ACTIVE')
 
-            await features.doLogInlineCompelitionSessionResults(sessionResultData)
+            await features.doLogInlineCompletionSessionResults(sessionResultData)
             assert.equal(session.state, 'CLOSED')
         })
 
@@ -1030,7 +1030,7 @@ class HelloWorld
             assert.equal(session.state, 'CLOSED')
             assert.equal(session2.state, 'ACTIVE')
 
-            await features.doLogInlineCompelitionSessionResults(sessionResultData)
+            await features.doLogInlineCompletionSessionResults(sessionResultData)
             assert.equal(session2.state, 'ACTIVE')
         })
 
@@ -1038,7 +1038,7 @@ class HelloWorld
             const manager = SessionManager.getInstance()
             const session = manager.createSession(sessionData)
             manager.activateSession(session)
-            await features.doLogInlineCompelitionSessionResults(sessionResultData)
+            await features.doLogInlineCompletionSessionResults(sessionResultData)
 
             assert.equal(session.completionSessionResult, sessionResultData.completionSessionResult)
             assert.equal(session.firstCompletionDisplayLatency, sessionResultData.firstCompletionDisplayLatency)
@@ -1059,7 +1059,7 @@ class HelloWorld
             const manager = SessionManager.getInstance()
             const session = manager.createSession(sessionData)
             manager.activateSession(session)
-            await features.doLogInlineCompelitionSessionResults(sessionResultData)
+            await features.doLogInlineCompletionSessionResults(sessionResultData)
 
             assert.equal(session.completionSessionResult, sessionResultData.completionSessionResult)
             assert.equal(session.firstCompletionDisplayLatency, undefined)
@@ -1345,7 +1345,7 @@ static void Main()
                 CancellationToken.None
             )
 
-            await features.doLogInlineCompelitionSessionResults(sessionResultData)
+            await features.doLogInlineCompletionSessionResults(sessionResultData)
 
             const expectedPerceivedLatencyMetric: MetricEvent = {
                 name: 'codewhisperer_perceivedLatency',

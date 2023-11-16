@@ -4,7 +4,7 @@ import {
     InlineCompletionItemWithReferences,
     InlineCompletionListWithReferences,
     InlineCompletionWithReferencesParams,
-    LogInlineCompelitionSessionResultsParams,
+    LogInlineCompletionSessionResultsParams,
 } from '@aws-placeholder/aws-language-server-runtimes/out/features/lsp/inline-completions/protocolExtensions'
 import { AWSError } from 'aws-sdk'
 import { CancellationToken, InlineCompletionTriggerKind, Range } from 'vscode-languageserver'
@@ -311,9 +311,7 @@ export const CodewhispererServerFactory =
                     })
             })
         }
-        const onLogInlineCompelitionSessionResultsHandler = async (
-            params: LogInlineCompelitionSessionResultsParams
-        ) => {
+        const onLogInlineCompletionSessionResultsHandler = async (params: LogInlineCompletionSessionResultsParams) => {
             const { sessionId, completionSessionResult, firstCompletionDisplayLatency, totalSessionDisplayTime } =
                 params
             const currentSession = sessionManager.getCurrentSession()
@@ -356,7 +354,7 @@ export const CodewhispererServerFactory =
                 .catch(reason => logging.log(`Error in GetConfiguration: ${reason}`))
 
         lsp.extensions.onInlineCompletionWithReferences(onInlineCompletionHandler)
-        lsp.extensions.onLogInlineCompelitionSessionResults(onLogInlineCompelitionSessionResultsHandler)
+        lsp.extensions.onLogInlineCompletionSessionResults(onLogInlineCompletionSessionResultsHandler)
         lsp.onInitialized(updateConfiguration)
         lsp.didChangeConfiguration(updateConfiguration)
 
