@@ -248,16 +248,19 @@ export const CodewhispererServerFactory =
                     credentialStartUrl: credentialsProvider.getConnectionMetadata()?.sso?.startUrl ?? undefined,
                 })
 
-                requestContext.fileContext.leftFileContent = requestContext.fileContext.leftFileContent.slice(
-                    -CONTEXT_CHARACTERS_LIMIT
-                )
-                requestContext.fileContext.rightFileContent = requestContext.fileContext.rightFileContent.slice(
-                    0,
-                    CONTEXT_CHARACTERS_LIMIT
-                )
-
                 return codeWhispererService
-                    .generateSuggestions(requestContext)
+                    .generateSuggestions({
+                        ...requestContext,
+                        fileContext: {
+                            ...requestContext.fileContext,
+                            leftFileContent: requestContext.fileContext.leftFileContent
+                                .slice(-CONTEXT_CHARACTERS_LIMIT)
+                                .replaceAll('\r\n', '\n'),
+                            rightFileContent: requestContext.fileContext.rightFileContent
+                                .slice(0, CONTEXT_CHARACTERS_LIMIT)
+                                .replaceAll('\r\n', '\n'),
+                        },
+                    })
                     .then(suggestionResponse => {
                         // Populate the session with information from codewhisperer response
                         newSession.suggestions = suggestionResponse.suggestions
