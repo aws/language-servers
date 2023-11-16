@@ -98,7 +98,21 @@ export class CodeWhispererSession {
     }
 
     close() {
-        // TODO: report User Decision and User Trigger Decision
+        if (this.state === 'CLOSED') {
+            return
+        }
+
+        // If completionSessionResult are not set on close, assume all suggestions were Discarded by default
+        // We can't assume if they were seen or not to use Unseen state until completionSessionResult are provided.
+        // In this implementation session will not wait for result request to close itself and will report Trigger Decision as soon as session is closed.
+        if (!this.completionSessionResult) {
+            for (const suggestion of this.suggestions) {
+                if (!this.suggestionsStates.has(suggestion.itemId)) {
+                    this.suggestionsStates.set(suggestion.itemId, 'Discard')
+                }
+            }
+        }
+
         this.state = 'CLOSED'
     }
 
@@ -153,8 +167,24 @@ export class CodeWhispererSession {
     }
 
     getAggregatedUserTriggerDecision(): UserTriggerDecision {
-        // TODO: compute aggregated user decision based on values
-        return 'Discard'
+        // From https://github.com/aws/aws-toolkit-vscode/blob/master/src/codewhisperer/util/telemetryHelper.ts#L447-L464
+        // if there is any Accept within the session, mark the session as Accept
+        // if there is any Reject within the session, mark the session as Reject
+        // if all recommendations within the session are empty, mark the session as Empty
+        // otherwise mark the session as Discard
+
+        // TODO: fix the logic, it's incorrect if states are not set yet
+        let isEmpty = true
+        for (const state of this.suggestionsStates.values()) {
+            if (state === 'Accept') {
+                return 'Accept'
+            } else if (state === 'Reject') {
+                return 'Reject'
+            } else if (state !== 'Empty') {
+                isEmpty = false
+            }
+        }
+        return isEmpty ? 'Empty' : 'Discard'
     }
 }
 
@@ -194,6 +224,7 @@ export class SessionManager {
         // Create new session
         const session = new CodeWhispererSession(data)
         this.currentSession = session
+
         return session
     }
 
@@ -206,6 +237,21 @@ export class SessionManager {
         this.currentSession?.close()
     }
 
+    // Signal that we can emit telemetry events for this session.
+    // There are 4 posibilities that can result in session becoming CLOSED:
+    // 1. session was CLOSED server-side while in REQUESTING after processing response, it was discarded by server and we can report User Decision right away
+    // 2. session was ACTIVE and LogInlineCompelitionSessionResults request was received: we can report telemetry
+    // 3. session was CLOSED while still in REQUESTING by consequent request: ?? it will receive response later, but we will never send response to client, it is server-side Discard
+    //    Shall we process responses still?
+    // 4. session was ACTIVE and was CLOSED by subsequent completion request before LogInlineCompelitionSessionResults was received from client
+    //    this cound happen if client allows sending completion requests before sending LogInlineCompelitionSessionResults
+    //    or requests came not in order
+    //
+    // Implementation decision:
+    // If 3 or 4 happens, assume default state for recommendations will be Discard.
+    // Accept LogInlineCompelitionSessionResults, but do not resend telemetry if results come async after session was already closed.
+    //
+    // TODO: document this server behaviour and decide how to handle case when LogInlineCompelitionSessionResults comes later.
     closeSession(session: CodeWhispererSession) {
         if (this.currentSession == session) {
             this.closeCurrentSession()

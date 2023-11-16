@@ -33,22 +33,22 @@ export interface CodeWhispererUserTriggerDecisionEvent {
     codewhispererSessionId: string
     codewhispererFirstRequestId: string
     credentialStartUrl?: string
-    codewhispererSuggestionState: string
+    codewhispererSuggestionState: string // TODO
     codewhispererCompletionType: string
     codewhispererLanguage: CodewhispererLanguage
     codewhispererTriggerType: string
     codewhispererAutomatedTriggerType?: string
+    codewhispererTriggerCharacter?: string // TODO
     codewhispererLineNumber: number
     codewhispererCursorOffset: number
     codewhispererSuggestionCount: number
-    codewhispererClassifierResult?: number
-    codewhispererClassifierThreshold?: number
+    codewhispererClassifierResult?: number // TODO
+    codewhispererClassifierThreshold?: number // TODO
     codewhispererTotalShownTime: number
-    codewhispererTriggerCharacter?: string
-    codewhispererTypeaheadLength: number
-    codewhispererTimeSinceLastDocumentChange: number
+    codewhispererTypeaheadLength: number // TODO
+    codewhispererTimeSinceLastDocumentChange: number // TODO
     // Data about previous triggers may be not available if client results were not sent in order
-    codewhispererTimeSinceLastUserDecision: number
+    codewhispererTimeSinceLastUserDecision: number // TODO
     codewhispererTimeToFirstRecommendation: number
-    codewhispererPreviousSuggestionState?: string
+    codewhispererPreviousSuggestionState?: string // TODO
 }
