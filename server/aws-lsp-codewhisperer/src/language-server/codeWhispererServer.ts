@@ -130,6 +130,15 @@ const emitPerceivedLatencyTelemetry = (telemetry: Telemetry, session: CodeWhispe
     })
 }
 
+const emitUserTriggerDecisionTelemetry = (telemetry: Telemetry, session: CodeWhispererSession) => {
+    const data = {}
+
+    telemetry.emitMetric({
+        name: 'codewhisperer_userTriggerDecision',
+        data,
+    })
+}
+
 const mergeSuggestionsWithRightContext = (
     rightFileContext: string,
     suggestions: Suggestion[],
@@ -275,37 +284,35 @@ export const CodewhispererServerFactory =
                             return EMPTY_RESULT
                         }
 
-                        // Close session when it received empty list
-                        if (suggestionResponse.suggestions.length === 0) {
-                            sessionManager.closeSession(newSession)
-                            return EMPTY_RESULT
-                        }
-
-                        // If session has no suggestions after filtering, it is discarded and empty result is returned
-                        if (newSession.getFilteredSuggestions(includeSuggestionsWithCodeReferences).length == 0) {
-                            sessionManager.closeSession(newSession)
-
-                            // TODO: set User Decision Filter and User Trigger Decision = EMPTY
-                            return EMPTY_RESULT
-                        }
-
-                        // When suggestions can't be displayed because context merge results in empty recommendation
-                        const items = mergeSuggestionsWithRightContext(
-                            fileContext.rightFileContent,
-                            newSession.getFilteredSuggestions(includeSuggestionsWithCodeReferences),
-                            selectionRange
+                        const filteredSuggestions = newSession.getFilteredSuggestions(
+                            includeSuggestionsWithCodeReferences
                         )
+                        const suggestionsWithRightContext = mergeSuggestionsWithRightContext(
+                            fileContext.rightFileContent,
+                            filteredSuggestions,
+                            selectionRange
+                        ).filter(suggestion => {
+                            // Discard suggestions that have empty string insertText after right context merge and can't be displayed anymore
+                            if (suggestion.insertText === '') {
+                                newSession.setSuggestionState(suggestion.itemId, 'Discard')
+                                return false
+                            }
 
-                        if (items.every(suggestion => suggestion.insertText === '')) {
+                            return true
+                        })
+
+                        // If after all server-side filtering no suggestions can be displayed, close session and return empty results
+                        if (suggestionsWithRightContext.length === 0) {
                             sessionManager.closeSession(newSession)
 
-                            // TODO: report User Decision Filter each recommendations
+                            // TODO: report User Decision Discard for each recommendations that does not match
+                            return EMPTY_RESULT
                         }
 
                         // All checks passed, activate session
                         sessionManager.activateSession(newSession)
 
-                        return { items, sessionId: newSession.id }
+                        return { items: suggestionsWithRightContext, sessionId: newSession.id }
                     })
                     .catch(err => {
                         // TODO, handle errors properly

@@ -28,3 +28,27 @@ export interface CodeWhispererPerceivedLatencyEvent {
     codewhispererLanguage: CodewhispererLanguage
     credentialStartUrl?: string
 }
+
+export interface CodeWhispererUserTriggerDecisionEvent {
+    codewhispererSessionId: string
+    codewhispererFirstRequestId: string
+    credentialStartUrl?: string
+    codewhispererSuggestionState: string
+    codewhispererCompletionType: string
+    codewhispererLanguage: CodewhispererLanguage
+    codewhispererTriggerType: string
+    codewhispererAutomatedTriggerType?: string
+    codewhispererLineNumber: number
+    codewhispererCursorOffset: number
+    codewhispererSuggestionCount: number
+    codewhispererClassifierResult?: number
+    codewhispererClassifierThreshold?: number
+    codewhispererTotalShownTime: number
+    codewhispererTriggerCharacter?: string
+    codewhispererTypeaheadLength: number
+    codewhispererTimeSinceLastDocumentChange: number
+    // Data about previous triggers may be not available if client results were not sent in order
+    codewhispererTimeSinceLastUserDecision: number
+    codewhispererTimeToFirstRecommendation: number
+    codewhispererPreviousSuggestionState?: string
+}

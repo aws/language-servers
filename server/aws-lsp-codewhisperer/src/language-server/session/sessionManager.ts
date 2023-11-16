@@ -7,6 +7,8 @@ import { CodewhispererLanguage } from '../languageDetection'
 
 // TODO, state tranisitions based on user action, also store user decision ('ACCEPTED' | 'DISCARDED' | 'REJECTED' | 'EMPTY' ) in session
 type SessionState = 'REQUESTING' | 'ACTIVE' | 'CLOSED' | 'ERROR'
+type UserDecision = 'Empty' | 'Filter' | 'Discard' | 'Accept' | 'Ignore' | 'Reject' | 'Unseen'
+type UserTriggerDecision = 'Accept' | 'Reject' | 'Empty' | 'Discard'
 
 export interface SessionData {
     startPosition: Position
@@ -26,7 +28,8 @@ export class CodeWhispererSession {
         character: 0,
     }
     suggestions: Suggestion[] = []
-    suggestionsStates = new Map<string, string>()
+    suggestionsStates = new Map<string, UserDecision>()
+    acceptedSuggestionId?: string = undefined
     responseContext?: ResponseContext
     triggerType: CodewhispererTriggerType
     autoTriggerType?: CodewhispererAutomatedTriggerType
@@ -58,14 +61,30 @@ export class CodeWhispererSession {
     }
 
     getFilteredSuggestions(includeSuggestionsWithCodeReferences: boolean = true): Suggestion[] {
+        // Empty suggestion filter
+        const nonEmptySuggestions = this.suggestions.filter(suggestion => {
+            if (suggestion.content !== '') {
+                return true
+            }
+
+            this.setSuggestionState(suggestion.itemId, 'Empty')
+            return false
+        })
+
+        // References setting filter
         if (includeSuggestionsWithCodeReferences) {
-            return this.suggestions
-        } else {
-            // TODO, set the status of filtered references
-            return this.suggestions.filter(
-                suggestion => suggestion.references == null || suggestion.references.length === 0
-            )
+            return nonEmptySuggestions
         }
+
+        return nonEmptySuggestions.filter(suggestion => {
+            // Discard suggestions that have empty string insertText after right context merge and can't be displayed anymore
+            if (suggestion.references == null || suggestion.references.length === 0) {
+                return true
+            }
+
+            this.setSuggestionState(suggestion.itemId, 'Filter')
+            return false
+        })
     }
 
     get lastSuggestionIndex(): number {
@@ -88,18 +107,54 @@ export class CodeWhispererSession {
         firstCompletionDisplayLatency?: number,
         totalSessionDisplayTime?: number
     ) {
-        // Process results data
         this.completionSessionResult = completionSessionResult
+
+        // TODO: Only 1 suggestion can have `accepted` = true, add a test and decide on the behaviour
+        let hasAcceptedSuggestion = false
+        for (let [itemId, states] of Object.entries(completionSessionResult)) {
+            if (states.accepted) {
+                this.acceptedSuggestionId = itemId
+                hasAcceptedSuggestion = true
+                continue
+            }
+        }
+
+        for (let itemId in completionSessionResult) {
+            // Compute sugestion state based on fields.
+            // State flags represent suggestions state in client UI at the moment when user made a decision about this siggestions
+            const states = completionSessionResult[itemId]
+
+            if (states.discarded) {
+                this.setSuggestionState(itemId, 'Discard')
+            } else if (!states.seen) {
+                this.setSuggestionState(itemId, 'Unseen')
+                // Seen suggestions:
+            } else if (states.accepted) {
+                this.setSuggestionState(itemId, 'Accept')
+            } else if (hasAcceptedSuggestion && this.acceptedSuggestionId !== itemId) {
+                // User accepted different suggestion
+                this.setSuggestionState(itemId, 'Ignore')
+            } else {
+                // No recommendation was accepted, but user have seen this suggestion
+                this.setSuggestionState(itemId, 'Reject')
+            }
+        }
+
         this.firstCompletionDisplayLatency = firstCompletionDisplayLatency
         this.totalSessionDisplayTime = totalSessionDisplayTime
     }
 
-    setSuggestionState(id: string, state: string) {
+    setSuggestionState(id: string, state: UserDecision) {
         this.suggestionsStates.set(id, state)
     }
 
-    getSuggestionState(id: string) {
+    getSuggestionState(id: UserDecision) {
         return this.suggestionsStates.get(id)
+    }
+
+    getAggregatedUserTriggerDecision(): UserTriggerDecision {
+        // TODO: compute aggregated user decision based on values
+        return 'Discard'
     }
 }
 

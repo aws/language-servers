@@ -326,7 +326,7 @@ class HelloWorld
                 CancellationToken.None
             )
 
-            assert.deepEqual(result, EXPECTED_RESULT)
+            assert.deepEqual(result, EMPTY_RESULT)
         })
 
         it('should only show the part of the recommendation that does not overlap with the right context in multiline', async () => {
@@ -463,7 +463,6 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
-            // Object.assign(EMPTY_RESULT, { sessionId })
             // Check the completion result
             assert.deepEqual(result, EMPTY_RESULT)
         })
@@ -568,6 +567,7 @@ class HelloWorld
                 },
             ],
         }
+        const EMPTY_RESULT = { items: [], sessionId: '' }
 
         let features: TestFeatures
         let server: Server
@@ -735,7 +735,7 @@ class HelloWorld
                 CancellationToken.None
             )
 
-            assert.deepEqual(result, EXPECTED_RESULT_WITH_REMOVED_REFERENCES)
+            assert.deepEqual(result, EMPTY_RESULT)
         })
 
         it('should show references and update range when there is partial overlap on right context', async () => {
@@ -1438,6 +1438,7 @@ static void Main()
                 },
             ],
         }
+        const EMPTY_RESULT = { items: [], sessionId: '' }
 
         let features: TestFeatures
         let server: Server
@@ -1633,17 +1634,6 @@ static void Main()
                     responseContext: EXPECTED_RESPONSE_CONTEXT,
                 })
             )
-            const EXPECTED_RESULT = {
-                sessionId: EXPECTED_SESSION_ID,
-                items: [
-                    {
-                        itemId: EXPECTED_SUGGESTION[0].itemId,
-                        insertText: '',
-                        range: undefined,
-                        references: undefined,
-                    },
-                ],
-            }
 
             const result = await features.doInlineCompletionWithReferences(
                 {
@@ -1653,7 +1643,7 @@ static void Main()
                 },
                 CancellationToken.None
             )
-            assert.deepEqual(result, EXPECTED_RESULT)
+            assert.deepEqual(result, EMPTY_RESULT)
 
             const session = sessionManager.getCurrentSession()
 
