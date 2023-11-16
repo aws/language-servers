@@ -26,7 +26,7 @@ export class CodeWhispererSession {
         character: 0,
     }
     suggestions: Suggestion[] = []
-    suggestionsState = new Map<string, string>()
+    suggestionsStates = new Map<string, string>()
     responseContext?: ResponseContext
     triggerType: CodewhispererTriggerType
     autoTriggerType?: CodewhispererAutomatedTriggerType
@@ -39,7 +39,6 @@ export class CodeWhispererSession {
     }
     firstCompletionDisplayLatency?: number
     totalSessionDisplayTime?: number
-    // TODO: userDecision field
 
     constructor(data: SessionData) {
         this.id = this.generateSessionId()
@@ -59,10 +58,6 @@ export class CodeWhispererSession {
     }
 
     getFilteredSuggestions(includeSuggestionsWithCodeReferences: boolean = true): Suggestion[] {
-        if (this.state !== 'ACTIVE') {
-            return []
-        }
-
         if (includeSuggestionsWithCodeReferences) {
             return this.suggestions
         } else {
@@ -93,9 +88,18 @@ export class CodeWhispererSession {
         firstCompletionDisplayLatency?: number,
         totalSessionDisplayTime?: number
     ) {
+        // Process results data
         this.completionSessionResult = completionSessionResult
         this.firstCompletionDisplayLatency = firstCompletionDisplayLatency
         this.totalSessionDisplayTime = totalSessionDisplayTime
+    }
+
+    setSuggestionState(id: string, state: string) {
+        this.suggestionsStates.set(id, state)
+    }
+
+    getSuggestionState(id: string) {
+        return this.suggestionsStates.get(id)
     }
 }
 
@@ -125,7 +129,7 @@ export class SessionManager {
     }
 
     public createSession(data: SessionData): CodeWhispererSession {
-        this.discardCurrentSession()
+        this.closeCurrentSession()
 
         // Remove oldest session from log
         if (this.sessionsLog.length > this.maxHistorySize) {
@@ -138,7 +142,7 @@ export class SessionManager {
         return session
     }
 
-    discardCurrentSession() {
+    closeCurrentSession() {
         // If current session is active (has received a response from CWSPR) add it to history
         if (this.currentSession?.state === 'ACTIVE') {
             this.sessionsLog.push(this.currentSession)
@@ -149,7 +153,7 @@ export class SessionManager {
 
     closeSession(session: CodeWhispererSession) {
         if (this.currentSession == session) {
-            this.discardCurrentSession()
+            this.closeCurrentSession()
         } else {
             session.close()
         }
@@ -183,5 +187,27 @@ export class SessionManager {
         if (this.currentSession === session) {
             this.currentSession.activate()
         }
+    }
+
+    recordSessionResultsById(
+        sessionId: string,
+        sessionResult: {
+            completionSessionResult: { [itemId: string]: InlineCompletionStates }
+            firstCompletionDisplayLatency?: number
+            totalSessionDisplayTime?: number
+        }
+    ) {
+        const { completionSessionResult, firstCompletionDisplayLatency, totalSessionDisplayTime } = sessionResult
+        const session = this.getSessionById(sessionId)
+
+        if (!session) {
+            // logging.log(`ERROR: Session ID ${sessionId} was not found`)
+            return
+        }
+
+        session.setClientResultData(completionSessionResult, firstCompletionDisplayLatency, totalSessionDisplayTime)
+
+        // Always close session when client-side results are received
+        this.closeSession(session)
     }
 }

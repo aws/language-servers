@@ -187,7 +187,7 @@ export const CodewhispererServerFactory =
                 currentSession?.state == 'REQUESTING' ||
                 params.context.triggerKind == InlineCompletionTriggerKind.Invoked
             ) {
-                sessionManager.discardCurrentSession()
+                sessionManager.closeCurrentSession()
             }
 
             return workspace.getTextDocument(params.textDocument.uri).then(textDocument => {
@@ -275,22 +275,21 @@ export const CodewhispererServerFactory =
                             return EMPTY_RESULT
                         }
 
-                        // Do not activate inflight session when it received empty list
+                        // Close session when it received empty list
                         if (suggestionResponse.suggestions.length === 0) {
                             sessionManager.closeSession(newSession)
                             return EMPTY_RESULT
                         }
 
-                        sessionManager.activateSession(newSession)
-
                         // If session has no suggestions after filtering, it is discarded and empty result is returned
                         if (newSession.getFilteredSuggestions(includeSuggestionsWithCodeReferences).length == 0) {
                             sessionManager.closeSession(newSession)
 
-                            // TODO: report User Decision and User Trigger Decision = EMPTY
+                            // TODO: set User Decision Filter and User Trigger Decision = EMPTY
                             return EMPTY_RESULT
                         }
 
+                        // When suggestions can't be displayed because context merge results in empty recommendation
                         const items = mergeSuggestionsWithRightContext(
                             fileContext.rightFileContent,
                             newSession.getFilteredSuggestions(includeSuggestionsWithCodeReferences),
@@ -300,9 +299,11 @@ export const CodewhispererServerFactory =
                         if (items.every(suggestion => suggestion.insertText === '')) {
                             sessionManager.closeSession(newSession)
 
-                            // TODO: report User Decision Discard for each of them
-                            // Check if we need to return empty list in this case
+                            // TODO: report User Decision Filter each recommendations
                         }
+
+                        // All checks passed, activate session
+                        sessionManager.activateSession(newSession)
 
                         return { items, sessionId: newSession.id }
                     })
@@ -317,24 +318,27 @@ export const CodewhispererServerFactory =
         const onLogInlineCompletionSessionResultsHandler = async (params: LogInlineCompletionSessionResultsParams) => {
             const { sessionId, completionSessionResult, firstCompletionDisplayLatency, totalSessionDisplayTime } =
                 params
-            const currentSession = sessionManager.getCurrentSession()
-            const session = sessionManager.getSessionById(sessionId)
 
+            const session = sessionManager.getSessionById(sessionId)
             if (!session) {
                 logging.log(`ERROR: Session ID ${sessionId} was not found`)
                 return
             }
 
-            session.setClientResultData(completionSessionResult, firstCompletionDisplayLatency, totalSessionDisplayTime)
-
-            if (currentSession?.id == sessionId) {
-                sessionManager.discardCurrentSession()
-            } else if (session) {
-                sessionManager.closeSession(session)
-            }
-
+            sessionManager.recordSessionResultsById(sessionId, {
+                completionSessionResult,
+                firstCompletionDisplayLatency,
+                totalSessionDisplayTime,
+            })
             emitPerceivedLatencyTelemetry(telemetry, session)
+
+            // TODO: emit UserTriggerDecision here
+            // There can be a situation where ACTIVE session was CLOSED by new completion request, but client didn't send completion results yet
+            // Define how to handle this situation and the impact of other logic
+            // We can unconditionally try to send Telemetry event on the server-side on close, but we will not know what was client-side decision
+            // Alternatevely, we can put session into PENDING_CLIENT_RESULTS state and do not close session until it results are received or timeout passes.
         }
+
         const updateConfiguration = async () =>
             lsp.workspace
                 .getConfiguration('aws.codeWhisperer')

@@ -1621,7 +1621,7 @@ static void Main()
                 CancellationToken.None
             )
             assert.deepEqual(secondResult, { ...EXPECTED_RESULT, sessionId: SESSION_IDS_LOG[1] })
-            sinon.assert.called(sessionManagerSpy.discardCurrentSession)
+            sinon.assert.called(sessionManagerSpy.closeCurrentSession)
         })
 
         it('should discard inflight session if merge right recommendations resulted in list of empty strings', async () => {
