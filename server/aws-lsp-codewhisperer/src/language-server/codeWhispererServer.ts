@@ -19,7 +19,7 @@ import {
 import { CodewhispererLanguage, getSupportedLanguageId } from './languageDetection'
 import { getPrefixSuffixOverlap, truncateOverlapWithRightContext } from './mergeRightUtils'
 import { CodeWhispererSession, SessionManager } from './session/sessionManager'
-import { CodeWhispererServiceInvocationEvent } from './telemetry/types'
+import { CodeWhispererPerceivedLatencyEvent, CodeWhispererServiceInvocationEvent } from './telemetry/types'
 import { getCompletionType, isAwsError } from './utils'
 
 const EMPTY_RESULT = { sessionId: '', items: [] }
@@ -109,6 +109,24 @@ const emitServiceInvocationFailure = (telemetry: Telemetry, session: CodeWhisper
             errorCode: isAwsError(error) ? error.code : undefined,
             httpStatusCode: isAwsError(error) ? error.statusCode : undefined,
         },
+    })
+}
+
+const emitPerceivedLatencyTelemetry = (telemetry: Telemetry, session: CodeWhispererSession) => {
+    const data: CodeWhispererPerceivedLatencyEvent = {
+        codewhispererRequestId: session.responseContext?.requestId,
+        codewhispererSessionId: session.responseContext?.codewhispererSessionId,
+        codewhispererCompletionType:
+            session.suggestions.length > 0 ? getCompletionType(session.suggestions[0]) : undefined,
+        codewhispererTriggerType: session.triggerType,
+        duration: session.firstCompletionDisplayLatency,
+        codewhispererLanguage: session.language,
+        credentialStartUrl: session.credentialStartUrl,
+    }
+
+    telemetry.emitMetric({
+        name: 'codewhisperer_perceivedLatency',
+        data,
     })
 }
 
@@ -313,6 +331,8 @@ export const CodewhispererServerFactory =
             } else if (session) {
                 sessionManager.closeSession(session)
             }
+
+            emitPerceivedLatencyTelemetry(telemetry, session)
         }
         const updateConfiguration = async () =>
             lsp.workspace
