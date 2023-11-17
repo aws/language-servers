@@ -380,24 +380,23 @@ export const CodewhispererServerFactory =
                 params
 
             const session = sessionManager.getSessionById(sessionId)
+
             if (!session) {
                 logging.log(`ERROR: Session ID ${sessionId} was not found`)
                 return
             }
 
-            // Emit telemetry only if session was active at the moment of recording session results
-            const shouldEmitUserTriggerTelemetry = session.state === 'ACTIVE'
+            if (session.state !== 'ACTIVE') {
+                logging.log(`ERROR: Trying to record tirgger decision for not-active session ${sessionId}`)
+                return
+            }
 
-            sessionManager.recordSessionResultsById(sessionId, {
-                completionSessionResult,
-                firstCompletionDisplayLatency,
-                totalSessionDisplayTime,
-            })
+            session.setClientResultData(completionSessionResult, firstCompletionDisplayLatency, totalSessionDisplayTime)
+
             emitPerceivedLatencyTelemetry(telemetry, session)
 
-            if (shouldEmitUserTriggerTelemetry) {
-                emitUserTriggerDecisionTelemetry(telemetry, session)
-            }
+            sessionManager.closeSession(session)
+            emitUserTriggerDecisionTelemetry(telemetry, session)
         }
 
         const updateConfiguration = async () =>

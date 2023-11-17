@@ -325,25 +325,4 @@ export class SessionManager {
             this.currentSession.activate()
         }
     }
-
-    recordSessionResultsById(
-        sessionId: string,
-        sessionResult: {
-            completionSessionResult: { [itemId: string]: InlineCompletionStates }
-            firstCompletionDisplayLatency?: number
-            totalSessionDisplayTime?: number
-        }
-    ) {
-        const { completionSessionResult, firstCompletionDisplayLatency, totalSessionDisplayTime } = sessionResult
-        const session = this.getSessionById(sessionId)
-
-        if (!session) {
-            return
-        }
-
-        session.setClientResultData(completionSessionResult, firstCompletionDisplayLatency, totalSessionDisplayTime)
-
-        // Always close session when client-side results are received
-        this.closeSession(session)
-    }
 }
