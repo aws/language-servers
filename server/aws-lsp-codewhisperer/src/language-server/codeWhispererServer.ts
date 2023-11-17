@@ -387,7 +387,7 @@ export const CodewhispererServerFactory =
             }
 
             if (session.state !== 'ACTIVE') {
-                logging.log(`ERROR: Trying to record tirgger decision for not-active session ${sessionId}`)
+                logging.log(`ERROR: Trying to record trigger decision for not-active session ${sessionId}`)
                 return
             }
 

@@ -15,6 +15,7 @@ describe('CodeWhisperer Server', () => {
     let SESSION_IDS_LOG: string[] = []
     let sessionManager: SessionManager
     let sessionManagerSpy: sinon.SinonSpiedInstance<SessionManager>
+    let generateSessionIdStub: sinon.SinonStub
 
     before(() => {
         const StubSessionIdGenerator = () => {
@@ -23,7 +24,9 @@ describe('CodeWhisperer Server', () => {
 
             return id
         }
-        sinon.stub(CodeWhispererSession.prototype, 'generateSessionId').callsFake(StubSessionIdGenerator)
+        generateSessionIdStub = sinon
+            .stub(CodeWhispererSession.prototype, 'generateSessionId')
+            .callsFake(StubSessionIdGenerator)
     })
 
     beforeEach(() => {
@@ -35,6 +38,10 @@ describe('CodeWhisperer Server', () => {
 
     afterEach(() => {
         sandbox.restore()
+    })
+
+    after(() => {
+        generateSessionIdStub.restore()
     })
 
     describe('Recommendations', () => {
@@ -1361,6 +1368,8 @@ static void Main()
             }
             sinon.assert.calledWithExactly(features.telemetry.emitMetric, expectedPerceivedLatencyMetric)
         })
+
+        it('should not emit Perceived Latency metric when session result is received for closed session')
 
         describe('Connection metadata credentialStartUrl field', () => {
             it('should attach credentialStartUrl field if available in credentialsProvider', async () => {

@@ -76,15 +76,68 @@ describe('CodeWhispererSession', function () {
         })
     })
 
-    describe('deactivate()', function () {
+    describe('close()', function () {
         it('should set session state to CLOSED', function () {
             const session = new CodeWhispererSession(data)
             session.close()
             assert.strictEqual(session.state, 'CLOSED')
         })
+
+        it('should record closeTime', function () {
+            const session = new CodeWhispererSession(data)
+            session.close()
+            assert.strictEqual(session.state, 'CLOSED')
+        })
+
+        it('should not update closeTime for CLOSED session', function () {
+            const session = new CodeWhispererSession(data)
+            session.close()
+            assert.strictEqual(session.state, 'CLOSED')
+        })
+
+        it('should set suggestions states to Discard for stored suggestions without state', function () {
+            const session = new CodeWhispererSession(data)
+            session.suggestions = EXPECTED_SUGGESTION
+
+            assert.equal(session.suggestionsStates.size, 0)
+
+            session.close()
+
+            assert.equal(session.suggestionsStates.size, 2)
+            assert.equal(session.suggestionsStates.get(EXPECTED_SUGGESTION[0].itemId), 'Discard')
+            assert.equal(session.suggestionsStates.get(EXPECTED_SUGGESTION[1].itemId), 'Discard')
+        })
+
+        it('should not rewrite suggestions states to Discard for stored suggestions states', function () {
+            const session = new CodeWhispererSession(data)
+            session.suggestions = EXPECTED_SUGGESTION
+            session.setClientResultData({
+                [EXPECTED_SUGGESTION[0].itemId]: {
+                    accepted: true,
+                    seen: true,
+                    discarded: false,
+                },
+                [EXPECTED_SUGGESTION[1].itemId]: {
+                    accepted: false,
+                    seen: false,
+                    discarded: false,
+                },
+            })
+
+            assert.equal(session.suggestionsStates.size, 2)
+
+            session.close()
+
+            assert.equal(session.suggestionsStates.size, 2)
+            assert.equal(session.suggestionsStates.get(EXPECTED_SUGGESTION[0].itemId), 'Accept')
+            assert.equal(session.suggestionsStates.get(EXPECTED_SUGGESTION[1].itemId), 'Unseen')
+        })
     })
 
     describe('getfilteredSuggestions()', function () {
+        it('should return suggestions with non empty string content')
+        it('should record Empty suggestions state for suggestions with empty string content')
+
         it('should return all suggestions if includeSuggestionsWithCodeReferences is true', function () {
             const session = new CodeWhispererSession(data)
             session.activate()
@@ -100,6 +153,10 @@ describe('CodeWhispererSession', function () {
             const result = session.getFilteredSuggestions(false)
             assert.strictEqual(result.length, 1)
         })
+
+        it(
+            'should record Filter suggestions state for suggestions with code references if includeSuggestionsWithCodeReferences is false'
+        )
     })
 
     describe('setClientResultData()', function () {
@@ -121,6 +178,179 @@ describe('CodeWhispererSession', function () {
             session.setClientResultData(completionSessionResult)
             assert.strictEqual(session.completionSessionResult, completionSessionResult)
         })
+
+        it('should set correct suggestion states based on client-side results state data with 1 Accepted suggestion', function () {
+            const SUGGESTIONS = [
+                { itemId: 'id-discard', content: 'recommendation 1: Discard' },
+                { itemId: 'id-unseen', content: 'recommendation 2: Unseen' },
+                { itemId: 'id-accept', content: 'recommendation 3: Accept' },
+                { itemId: 'id-ignore', content: 'recommendation 4: Ignore' },
+            ]
+            const SESSION_RESULTS = {
+                'id-discard': {
+                    accepted: false,
+                    seen: false,
+                    discarded: true,
+                },
+                'id-unseen': {
+                    accepted: false,
+                    seen: false,
+                    discarded: false,
+                },
+                'id-accept': {
+                    accepted: true,
+                    seen: true,
+                    discarded: false,
+                },
+                'id-ignore': {
+                    accepted: false,
+                    seen: true,
+                    discarded: false,
+                },
+            }
+            const session = new CodeWhispererSession(data)
+            session.activate()
+
+            assert.equal(session.suggestionsStates.size, 0)
+            assert.equal(session.acceptedSuggestionId, undefined)
+
+            session.suggestions = SUGGESTIONS
+            session.setClientResultData(SESSION_RESULTS)
+
+            assert.equal(session.suggestionsStates.size, 4)
+            assert.equal(session.acceptedSuggestionId, 'id-accept')
+            assert.equal(session.suggestionsStates.get('id-discard'), 'Discard')
+            assert.equal(session.suggestionsStates.get('id-unseen'), 'Unseen')
+            assert.equal(session.suggestionsStates.get('id-accept'), 'Accept')
+            assert.equal(session.suggestionsStates.get('id-ignore'), 'Ignore')
+        })
+
+        it('should set correct suggestion states based on client-side results state data with 0 Accepted suggestions', function () {
+            const SUGGESTIONS = [
+                { itemId: 'id-discard', content: 'recommendation 1: Discard' },
+                { itemId: 'id-unseen', content: 'recommendation 2: Unseen' },
+                { itemId: 'id-reject1', content: 'recommendation 3: Reject' },
+                { itemId: 'id-reject2', content: 'recommendation 4: Reject' },
+            ]
+            const SESSION_RESULTS = {
+                'id-discard': {
+                    accepted: false,
+                    seen: false,
+                    discarded: true,
+                },
+                'id-unseen': {
+                    accepted: false,
+                    seen: false,
+                    discarded: false,
+                },
+                'id-reject1': {
+                    accepted: false,
+                    seen: true,
+                    discarded: false,
+                },
+                'id-reject2': {
+                    accepted: false,
+                    seen: true,
+                    discarded: false,
+                },
+            }
+            const session = new CodeWhispererSession(data)
+            session.activate()
+
+            assert.equal(session.suggestionsStates.size, 0)
+            assert.equal(session.acceptedSuggestionId, undefined)
+
+            session.suggestions = SUGGESTIONS
+            session.setClientResultData(SESSION_RESULTS)
+
+            assert.equal(session.suggestionsStates.size, 4)
+            assert.equal(session.acceptedSuggestionId, undefined)
+            assert.equal(session.suggestionsStates.get('id-discard'), 'Discard')
+            assert.equal(session.suggestionsStates.get('id-unseen'), 'Unseen')
+            assert.equal(session.suggestionsStates.get('id-reject1'), 'Reject')
+            assert.equal(session.suggestionsStates.get('id-reject2'), 'Reject')
+        })
+
+        it('should discard suggestion states for not cached suggestion ids')
+    })
+
+    describe('getAggregatedUserTriggerDecision()', function () {
+        const SUGGESTIONS = [
+            { itemId: 'id1', content: 'recommendation 1' },
+            { itemId: 'id2', content: 'recommendation 2' },
+            { itemId: 'id3', content: 'recommendation 3' },
+            { itemId: 'id4', content: 'recommendation 4' },
+            { itemId: 'id5', content: 'recommendation 5' },
+        ]
+
+        it('should return Accept trigger decision', function () {
+            const session = new CodeWhispererSession(data)
+            session.activate()
+            session.suggestions = SUGGESTIONS
+            session.setSuggestionState('id1', 'Accept')
+            session.setSuggestionState('id2', 'Ignore')
+            session.setSuggestionState('id3', 'Ignore')
+            session.setSuggestionState('id4', 'Unseen')
+            session.setSuggestionState('id5', 'Unseen')
+            session.close()
+
+            assert.equal(session.getAggregatedUserTriggerDecision(), 'Accept')
+        })
+
+        it('should return Reject trigger decision', function () {
+            const session = new CodeWhispererSession(data)
+            session.activate()
+            session.suggestions = SUGGESTIONS
+            session.setSuggestionState('id1', 'Discard')
+            session.setSuggestionState('id2', 'Discard')
+            session.setSuggestionState('id3', 'Reject')
+            session.setSuggestionState('id4', 'Empty')
+            session.setSuggestionState('id5', 'Ignore')
+            session.close()
+
+            assert.equal(session.getAggregatedUserTriggerDecision(), 'Reject')
+        })
+
+        it('should return Discard trigger decision', function () {
+            const session = new CodeWhispererSession(data)
+            session.activate()
+            session.suggestions = SUGGESTIONS
+            session.setSuggestionState('id1', 'Discard')
+            session.setSuggestionState('id2', 'Empty')
+            session.setSuggestionState('id3', 'Discard')
+            session.setSuggestionState('id4', 'Discard')
+            session.setSuggestionState('id5', 'Empty')
+            session.close()
+
+            assert.equal(session.getAggregatedUserTriggerDecision(), 'Discard')
+        })
+
+        it('should return Empty trigger decision', function () {
+            const session = new CodeWhispererSession(data)
+            session.activate()
+            session.suggestions = SUGGESTIONS
+            session.setSuggestionState('id1', 'Empty')
+            session.setSuggestionState('id2', 'Empty')
+            session.setSuggestionState('id3', 'Empty')
+            session.setSuggestionState('id4', 'Empty')
+            session.setSuggestionState('id5', 'Empty')
+            session.close()
+
+            assert.equal(session.getAggregatedUserTriggerDecision(), 'Empty')
+        })
+
+        it('should return Empty trigger decision for empty list of suggestions', function () {
+            const session = new CodeWhispererSession(data)
+            session.activate()
+            session.suggestions = []
+            session.close()
+
+            assert.equal(session.getAggregatedUserTriggerDecision(), 'Empty')
+        })
+
+        it('should not return aggregated decision if session is not CLOSED')
+
+        it('should not return aggregated decision if not all suggestion states are recorded')
     })
 })
 

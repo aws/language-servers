@@ -5,7 +5,6 @@ import { CodewhispererAutomatedTriggerType, CodewhispererTriggerType } from '../
 import { GenerateSuggestionsRequest, ResponseContext, Suggestion } from '../codeWhispererService'
 import { CodewhispererLanguage } from '../languageDetection'
 
-// TODO, state tranisitions based on user action, also store user decision ('ACCEPTED' | 'DISCARDED' | 'REJECTED' | 'EMPTY' ) in session
 type SessionState = 'REQUESTING' | 'ACTIVE' | 'CLOSED' | 'ERROR'
 type UserDecision = 'Empty' | 'Filter' | 'Discard' | 'Accept' | 'Ignore' | 'Reject' | 'Unseen'
 type UserTriggerDecision = 'Accept' | 'Reject' | 'Empty' | 'Discard'
@@ -72,6 +71,13 @@ export class CodeWhispererSession {
     // This function makes it possible to stub uuidv4 calls in tests
     generateSessionId(): string {
         return uuidv4()
+    }
+
+    // TODO: process suggestions state at writing time, not in getFilteredSuggestions at requesting time
+    setSuggestions(suggestions: Suggestion[]) {
+        this.suggestions = suggestions
+
+        // Process suggestions states
     }
 
     getFilteredSuggestions(includeSuggestionsWithCodeReferences: boolean = true): Suggestion[] {
@@ -185,10 +191,14 @@ export class CodeWhispererSession {
         this.suggestionsStates.set(id, state)
     }
 
-    getSuggestionState(id: UserDecision) {
-        return this.suggestionsStates.get(id)
-    }
-
+    /**
+     * Aggregate recommendation level user decision to trigger level user decision based on the following rule
+     * - Accept if there is an Accept
+     * - Reject if there is a Reject
+     * - Empty if all decisions are Empty
+     * - Record the accepted suggestion index
+     * - Discard otherwise
+     */
     getAggregatedUserTriggerDecision(): UserTriggerDecision | undefined {
         // Can't report trigger decision until session is marked as closed
         // or suggestions states are incomplete
@@ -196,13 +206,6 @@ export class CodeWhispererSession {
             return
         }
 
-        // From https://github.com/aws/aws-toolkit-vscode/blob/master/src/codewhisperer/util/telemetryHelper.ts#L447-L464
-        // if there is any Accept within the session, mark the session as Accept
-        // if there is any Reject within the session, mark the session as Reject
-        // if all recommendations within the session are empty, mark the session as Empty
-        // otherwise mark the session as Discard
-
-        // TODO: unit test this logic
         let isEmpty = true
         for (const state of this.suggestionsStates.values()) {
             if (state === 'Accept') {
