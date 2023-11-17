@@ -41,13 +41,18 @@ export class CodeWhispererSession {
     classifierThreshold?: number
     language: CodewhispererLanguage
     requestContext: GenerateSuggestionsRequest
-    lastInvocationTime: number
+    invocationTime: number
+    timeToFirstRecommendation: number = 0
     credentialStartUrl?: string
     completionSessionResult?: {
         [itemId: string]: InlineCompletionStates
     }
     firstCompletionDisplayLatency?: number
     totalSessionDisplayTime?: number
+    // Time when Session was closed and final state of user decisions is recorded in suggestionsStates
+    triggerDecisionTime?: number = 0
+    previousTriggerDecision?: UserTriggerDecision
+    previousTriggerDecisionTime?: number
 
     constructor(data: SessionData) {
         this.id = this.generateSessionId()
@@ -61,7 +66,7 @@ export class CodeWhispererSession {
         this.classifierResult = data.classifierResult
         this.classifierThreshold = data.classifierThreshold
         this.state = 'REQUESTING'
-        this.lastInvocationTime = new Date().getTime()
+        this.invocationTime = new Date().getTime()
     }
 
     // This function makes it possible to stub uuidv4 calls in tests
@@ -70,30 +75,32 @@ export class CodeWhispererSession {
     }
 
     getFilteredSuggestions(includeSuggestionsWithCodeReferences: boolean = true): Suggestion[] {
-        // Empty suggestion filter
-        const nonEmptySuggestions = this.suggestions.filter(suggestion => {
-            if (suggestion.content !== '') {
-                return true
-            }
+        return (
+            this.suggestions
+                // Empty suggestion filter
+                .filter(suggestion => {
+                    if (suggestion.content === '') {
+                        this.setSuggestionState(suggestion.itemId, 'Empty')
+                        return false
+                    }
 
-            this.setSuggestionState(suggestion.itemId, 'Empty')
-            return false
-        })
+                    return true
+                })
+                // References setting filter
+                .filter(suggestion => {
+                    if (includeSuggestionsWithCodeReferences) {
+                        return true
+                    }
 
-        // References setting filter
-        if (includeSuggestionsWithCodeReferences) {
-            return nonEmptySuggestions
-        }
+                    if (suggestion.references == null || suggestion.references.length === 0) {
+                        return true
+                    }
 
-        return nonEmptySuggestions.filter(suggestion => {
-            // Discard suggestions that have empty string insertText after right context merge and can't be displayed anymore
-            if (suggestion.references == null || suggestion.references.length === 0) {
-                return true
-            }
-
-            this.setSuggestionState(suggestion.itemId, 'Filter')
-            return false
-        })
+                    // Filter out suggestions that have references when includeSuggestionsWithCodeReferences setting is true
+                    this.setSuggestionState(suggestion.itemId, 'Filter')
+                    return false
+                })
+        )
     }
 
     get lastSuggestionIndex(): number {
@@ -122,6 +129,8 @@ export class CodeWhispererSession {
             }
         }
 
+        this.triggerDecisionTime = new Date().getTime()
+
         this.state = 'CLOSED'
     }
 
@@ -130,9 +139,13 @@ export class CodeWhispererSession {
         firstCompletionDisplayLatency?: number,
         totalSessionDisplayTime?: number
     ) {
+        // Skip if session results were already recorded for session of session is closed
+        if (this.state === 'CLOSED' || this.completionSessionResult) {
+            return
+        }
+
         this.completionSessionResult = completionSessionResult
 
-        // TODO: Only 1 suggestion can have `accepted` = true, add a test and decide on the behaviour
         let hasAcceptedSuggestion = false
         for (let [itemId, states] of Object.entries(completionSessionResult)) {
             if (states.accepted) {
@@ -175,14 +188,20 @@ export class CodeWhispererSession {
         return this.suggestionsStates.get(id)
     }
 
-    getAggregatedUserTriggerDecision(): UserTriggerDecision {
+    getAggregatedUserTriggerDecision(): UserTriggerDecision | undefined {
+        // Can't report trigger decision until session is marked as closed
+        // or suggestions states are incomplete
+        if (this.state !== 'CLOSED' || this.suggestionsStates.size != this.suggestions.length) {
+            return
+        }
+
         // From https://github.com/aws/aws-toolkit-vscode/blob/master/src/codewhisperer/util/telemetryHelper.ts#L447-L464
         // if there is any Accept within the session, mark the session as Accept
         // if there is any Reject within the session, mark the session as Reject
         // if all recommendations within the session are empty, mark the session as Empty
         // otherwise mark the session as Discard
 
-        // TODO: fix the logic, it's incorrect if states are not set yet
+        // TODO: unit test this logic
         let isEmpty = true
         for (const state of this.suggestionsStates.values()) {
             if (state === 'Accept') {
@@ -232,21 +251,24 @@ export class SessionManager {
 
         // Create new session
         const session = new CodeWhispererSession(data)
-        this.currentSession = session
 
+        const previousSession = this.getPreviousSession()
+        if (previousSession) {
+            session.previousTriggerDecision = previousSession.getAggregatedUserTriggerDecision()
+            session.previousTriggerDecisionTime = previousSession.triggerDecisionTime
+        }
+
+        this.currentSession = session
         return session
     }
 
     closeCurrentSession() {
-        // If current session is active (has received a response from CWSPR) add it to history
-        if (this.currentSession?.state === 'ACTIVE') {
-            this.sessionsLog.push(this.currentSession)
+        if (this.currentSession) {
+            this.closeSession(this.currentSession)
         }
-        // Deactivate the current session regardles of the state
-        this.currentSession?.close()
     }
 
-    // Signal that we can emit telemetry events for this session.
+    // TODO: Signal that we can emit telemetry events for this session.
     // There are 4 posibilities that can result in session becoming CLOSED:
     // 1. session was CLOSED server-side while in REQUESTING after processing response, it was discarded by server and we can report User Decision right away
     // 2. session was ACTIVE and LogInlineCompelitionSessionResults request was received: we can report telemetry
@@ -259,14 +281,19 @@ export class SessionManager {
     // Implementation decision:
     // If 3 or 4 happens, assume default state for recommendations will be Discard.
     // Accept LogInlineCompelitionSessionResults, but do not resend telemetry if results come async after session was already closed.
-    //
-    // TODO: document this server behaviour and decide how to handle case when LogInlineCompelitionSessionResults comes later.
+    // Currently this logic is handled in the server itself, but it can be contained in the SessionManager:
+    // Session manager can emit event when session is closed with Session object, and server can listen and emit event then
     closeSession(session: CodeWhispererSession) {
         if (this.currentSession == session) {
-            this.closeCurrentSession()
-        } else {
-            session.close()
+            // TODO: check if should push only active session to the log.
+            // Session can be closed while REQUESTING, resuting in Discard user decision
+            // If we're closing current session and it's active - record it in sessions log
+            if (session.state === 'ACTIVE') {
+                this.sessionsLog.push(this.currentSession)
+            }
         }
+
+        session.close()
     }
 
     getCurrentSession(): CodeWhispererSession | undefined {

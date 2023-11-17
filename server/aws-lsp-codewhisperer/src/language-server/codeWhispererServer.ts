@@ -58,7 +58,7 @@ const getFileContext = (params: {
 }
 
 const emitServiceInvocationTelemetry = (telemetry: Telemetry, session: CodeWhispererSession) => {
-    const duration = new Date().getTime() - session.lastInvocationTime
+    const duration = new Date().getTime() - session.invocationTime
     const data: CodeWhispererServiceInvocationEvent = {
         codewhispererRequestId: session.responseContext?.requestId,
         codewhispererSessionId: session.responseContext?.codewhispererSessionId,
@@ -83,7 +83,7 @@ const emitServiceInvocationTelemetry = (telemetry: Telemetry, session: CodeWhisp
 const emitServiceInvocationFailure = (telemetry: Telemetry, session: CodeWhispererSession, error: Error | AWSError) => {
     const errorMessage = error ? String(error) : 'unknown'
     const reason = `CodeWhisperer Invocation Exception: ${errorMessage}`
-    const duration = new Date().getTime() - session.lastInvocationTime
+    const duration = new Date().getTime() - session.invocationTime
     const codewhispererRequestId = isAwsError(error) ? error.requestId : undefined
 
     const data: CodeWhispererServiceInvocationEvent = {
@@ -131,10 +131,8 @@ const emitPerceivedLatencyTelemetry = (telemetry: Telemetry, session: CodeWhispe
 }
 
 const emitUserTriggerDecisionTelemetry = (telemetry: Telemetry, session: CodeWhispererSession) => {
-    if (session.state !== 'CLOSED') {
-        // We can't emit User Trigger decision telemetry if session is not marked as closed
-        // TODO: alternatevely, control when trigger decision emitted by session emitting `closed` event
-        // and server listening to it
+    // Can not emit previous trigger decision if it's not available on the session
+    if (!session.getAggregatedUserTriggerDecision()) {
         return
     }
 
@@ -164,10 +162,11 @@ const emitAggregatedUserTriggerDecisionTelemetry = (telemetry: Telemetry, sessio
         codewhispererTotalShownTime: session.totalSessionDisplayTime || 0,
         codewhispererTypeaheadLength: 0, // TODO,
         codewhispererTimeSinceLastDocumentChange: 0, // TODO,
-        // Data about previous triggers may be not available if client results were not sent in order,
-        codewhispererTimeSinceLastUserDecision: 0, // TODO,
-        codewhispererTimeToFirstRecommendation: 0,
-        codewhispererPreviousSuggestionState: undefined, // TODO,
+        codewhispererTimeSinceLastUserDecision: session.previousTriggerDecisionTime
+            ? session.previousTriggerDecisionTime
+            : undefined,
+        codewhispererTimeToFirstRecommendation: session.timeToFirstRecommendation,
+        codewhispererPreviousSuggestionState: session.previousTriggerDecision,
     }
 
     telemetry.emitMetric({
@@ -246,7 +245,7 @@ export const CodewhispererServerFactory =
                     params.context.triggerKind == InlineCompletionTriggerKind.Invoked)
             ) {
                 // If session was active at cancellation time, emit user trigger decision based on server-side information
-                sessionManager.closeCurrentSession()
+                sessionManager.closeSession(currentSession)
                 emitUserTriggerDecisionTelemetry(telemetry, currentSession)
             }
 
@@ -322,15 +321,15 @@ export const CodewhispererServerFactory =
                         newSession.suggestions = suggestionResponse.suggestions
                         newSession.responseContext = suggestionResponse.responseContext
                         newSession.codewhispererSessionId = suggestionResponse.responseContext.codewhispererSessionId
+                        newSession.timeToFirstRecommendation = newSession.invocationTime - new Date().getTime()
 
                         // Emit service invocation telemetry for every request sent to backend
                         emitServiceInvocationTelemetry(telemetry, newSession)
 
                         // Exit early and discard API response
-                        // session was closed by consequent completion request before API response was received
+                        // session was closed by consequent completion request before API response was received,
+                        // do nothing
                         if (newSession.state === 'CLOSED') {
-                            // TODO: Check if we need to emit User Trigger Decision = Discard, since this call was cancelled inflight by consecuent request
-                            // To correctly process server-side EMPTY and FILTER filters we could move this block `sessionManager.activateSession(newSession)` line
                             return EMPTY_RESULT
                         }
 
@@ -356,7 +355,6 @@ export const CodewhispererServerFactory =
                             sessionManager.closeSession(newSession)
                             emitUserTriggerDecisionTelemetry(telemetry, newSession)
 
-                            // TODO: report User Decision Discard for each recommendations that does not match
                             return EMPTY_RESULT
                         }
 
@@ -370,7 +368,7 @@ export const CodewhispererServerFactory =
                         logging.log('Recommendation failure: ' + err)
                         emitServiceInvocationFailure(telemetry, newSession, err)
 
-                        // TODO: check if we can emit UserTriggerDecision
+                        // TODO: check if we can/should emit UserTriggerDecision
                         sessionManager.closeSession(newSession)
 
                         return EMPTY_RESULT
@@ -386,6 +384,8 @@ export const CodewhispererServerFactory =
                 logging.log(`ERROR: Session ID ${sessionId} was not found`)
                 return
             }
+
+            // Emit telemetry only if session was active at the moment of recording session results
             const shouldEmitUserTriggerTelemetry = session.state === 'ACTIVE'
 
             sessionManager.recordSessionResultsById(sessionId, {
