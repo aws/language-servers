@@ -9,7 +9,7 @@ import {
 import { AWSError } from 'aws-sdk'
 import { CancellationToken, InlineCompletionTriggerKind, Range } from 'vscode-languageserver'
 import { Position, TextDocument } from 'vscode-languageserver-textdocument'
-import { CodewhispererTriggerType, autoTrigger, triggerType } from './auto-trigger/autoTrigger'
+import { autoTrigger, triggerType } from './auto-trigger/autoTrigger'
 import {
     CodeWhispererServiceBase,
     CodeWhispererServiceIAM,
@@ -154,19 +154,20 @@ const emitAggregatedUserTriggerDecisionTelemetry = (telemetry: Telemetry, sessio
         codewhispererLanguage: session.language,
         codewhispererTriggerType: session.triggerType,
         codewhispererAutomatedTriggerType: session.autoTriggerType,
-        codewhispererTriggerCharacter: 'string', // TODO,
+        codewhispererTriggerCharacter:
+            session.autoTriggerType === 'SpecialCharacters' ? session.triggerCharacter : undefined,
         codewhispererLineNumber: session.startPosition.line,
         codewhispererCursorOffset: session.startPosition.character,
         codewhispererSuggestionCount: session.suggestions.length,
-        codewhispererClassifierResult: 0, // TODO
-        codewhispererClassifierThreshold: 0, // TODO
+        codewhispererClassifierResult: session.classifierResult,
+        codewhispererClassifierThreshold: session.classifierThreshold,
         codewhispererTotalShownTime: session.totalSessionDisplayTime || 0,
         codewhispererTypeaheadLength: 0, // TODO,
         codewhispererTimeSinceLastDocumentChange: 0, // TODO,
         // Data about previous triggers may be not available if client results were not sent in order,
         codewhispererTimeSinceLastUserDecision: 0, // TODO,
         codewhispererTimeToFirstRecommendation: 0,
-        codewhispererPreviousSuggestionState: '1', // TODO,
+        codewhispererPreviousSuggestionState: undefined, // TODO,
     }
 
     telemetry.emitMetric({
@@ -271,21 +272,19 @@ export const CodewhispererServerFactory =
 
                 // TODO: Can we get this derived from a keyboard event in the future?
                 // This picks the last non-whitespace character, if any, before the cursor
-                const char = fileContext.leftFileContent.trim().at(-1) ?? ''
+                const triggerCharacter = fileContext.leftFileContent.trim().at(-1) ?? ''
                 const codewhispererAutoTriggerType = triggerType(fileContext)
+                let autoTriggerResult = autoTrigger({
+                    fileContext, // The left/right file context and programming language
+                    lineNum: params.position.line, // the line number of the invocation, this is the line of the cursor
+                    char: triggerCharacter, // Add the character just inserted, if any, before the invication position
+                    ide: '', // TODO: Fetch the IDE in a platform-agnostic way (from the initialize request?)
+                    os: '', // TODO: We should get this in a platform-agnostic way (i.e., compatible with the browser)
+                    previousDecision: '', // TODO: Once we implement telemetry integration
+                    triggerType: codewhispererAutoTriggerType, // The 2 trigger types currently influencing the Auto-Trigger are SpecialCharacter and Enter
+                })
 
-                if (
-                    isAutomaticLspTriggerKind &&
-                    !autoTrigger({
-                        fileContext, // The left/right file context and programming language
-                        lineNum: params.position.line, // the line number of the invocation, this is the line of the cursor
-                        char, // Add the character just inserted, if any, before the invication position
-                        ide: '', // TODO: Fetch the IDE in a platform-agnostic way (from the initialize request?)
-                        os: '', // TODO: We should get this in a platform-agnostic way (i.e., compatible with the browser)
-                        previousDecision: '', // TODO: Once we implement telemetry integration
-                        triggerType: codewhispererAutoTriggerType, // The 2 trigger types currently influencing the Auto-Trigger are SpecialCharacter and Enter
-                    })
-                ) {
+                if (isAutomaticLspTriggerKind && !autoTriggerResult.shouldTrigger) {
                     return EMPTY_RESULT
                 }
 
@@ -293,17 +292,15 @@ export const CodewhispererServerFactory =
                     fileContext,
                     maxResults,
                 }
-                const codewhispererTriggerType = (
-                    isAutomaticLspTriggerKind ? 'AutoTrigger' : 'OnDemand'
-                ) as CodewhispererTriggerType
-                const autoTriggerType = isAutomaticLspTriggerKind ? codewhispererAutoTriggerType : undefined
-
                 const newSession = sessionManager.createSession({
                     startPosition: params.position,
-                    triggerType: codewhispererTriggerType,
+                    triggerType: isAutomaticLspTriggerKind ? 'AutoTrigger' : 'OnDemand',
                     language: fileContext.programmingLanguage.languageName,
                     requestContext: requestContext,
-                    autoTriggerType: autoTriggerType,
+                    autoTriggerType: isAutomaticLspTriggerKind ? codewhispererAutoTriggerType : undefined,
+                    triggerCharacter: triggerCharacter,
+                    classifierResult: isAutomaticLspTriggerKind ? autoTriggerResult?.classifierResult : undefined,
+                    classifierThreshold: isAutomaticLspTriggerKind ? autoTriggerResult?.classifierThreshold : undefined,
                     credentialStartUrl: credentialsProvider.getConnectionMetadata()?.sso?.startUrl ?? undefined,
                 })
 

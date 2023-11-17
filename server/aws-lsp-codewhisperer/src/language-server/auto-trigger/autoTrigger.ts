@@ -91,7 +91,11 @@ export const autoTrigger = ({
     previousDecision,
     ide,
     lineNum,
-}: AutoTriggerParams): boolean => {
+}: AutoTriggerParams): {
+    shouldTrigger: boolean
+    classifierResult: number
+    classifierThreshold: number
+} => {
     const leftContextLines = fileContext.leftFileContent.split(/\r?\n/)
     const leftContextAtCurrentLine = leftContextLines[leftContextLines.length - 1]
     const tokens = leftContextAtCurrentLine.trim().split(' ')
@@ -136,7 +140,7 @@ export const autoTrigger = ({
         leftContextLengthCoefficient = coefficients.lengthLeft40To50Coefficient
     }
 
-    const result =
+    const classifierResult =
         coefficients.lengthOfRightCoefficient * normalize(lengthOfRight, 'lenRight') +
         coefficients.lengthOfLeftCurrentCoefficient * normalize(lengthOfLeftCurrent, 'lenLeftCur') +
         coefficients.lengthOfLeftPrevCoefficient * normalize(lengthOfLeftPrev, 'lenLeftPrev') +
@@ -151,5 +155,11 @@ export const autoTrigger = ({
         languageCoefficient +
         leftContextLengthCoefficient
 
-    return sigmoid(result) > TRIGGER_THRESHOLD
+    const shouldTrigger = sigmoid(classifierResult) > TRIGGER_THRESHOLD
+
+    return {
+        shouldTrigger,
+        classifierResult,
+        classifierThreshold: TRIGGER_THRESHOLD,
+    }
 }

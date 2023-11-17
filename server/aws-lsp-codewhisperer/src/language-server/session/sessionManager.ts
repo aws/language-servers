@@ -14,6 +14,9 @@ export interface SessionData {
     startPosition: Position
     triggerType: CodewhispererTriggerType
     autoTriggerType?: CodewhispererAutomatedTriggerType
+    triggerCharacter?: string
+    classifierResult?: number
+    classifierThreshold?: number
     language: CodewhispererLanguage
     requestContext: GenerateSuggestionsRequest
     credentialStartUrl?: string
@@ -33,6 +36,9 @@ export class CodeWhispererSession {
     responseContext?: ResponseContext
     triggerType: CodewhispererTriggerType
     autoTriggerType?: CodewhispererAutomatedTriggerType
+    triggerCharacter?: string
+    classifierResult?: number
+    classifierThreshold?: number
     language: CodewhispererLanguage
     requestContext: GenerateSuggestionsRequest
     lastInvocationTime: number
@@ -51,6 +57,9 @@ export class CodeWhispererSession {
         this.language = data.language
         this.requestContext = data.requestContext
         this.autoTriggerType = data.autoTriggerType || undefined
+        this.triggerCharacter = data.triggerCharacter
+        this.classifierResult = data.classifierResult
+        this.classifierThreshold = data.classifierThreshold
         this.state = 'REQUESTING'
         this.lastInvocationTime = new Date().getTime()
     }
@@ -302,7 +311,6 @@ export class SessionManager {
         const session = this.getSessionById(sessionId)
 
         if (!session) {
-            // logging.log(`ERROR: Session ID ${sessionId} was not found`)
             return
         }
 
