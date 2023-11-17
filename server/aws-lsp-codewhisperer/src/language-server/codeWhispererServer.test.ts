@@ -18,7 +18,7 @@ describe('CodeWhisperer Server', () => {
 
     before(() => {
         const StubSessionIdGenerator = () => {
-            let id = 'some-random-session-uuid-' + SESSION_IDS_LOG.length
+            const id = 'some-random-session-uuid-' + SESSION_IDS_LOG.length
             SESSION_IDS_LOG.push(id)
 
             return id
@@ -129,6 +129,10 @@ class HelloWorld
                 .openDocument(SOME_UNSUPPORTED_FILE)
                 .openDocument(SOME_FILE_WITH_EXTENSION)
                 .openDocument(SOME_SINGLE_LINE_FILE)
+        })
+
+        afterEach(() => {
+            features.dispose()
         })
 
         it('should return recommendations', async () => {
@@ -591,6 +595,10 @@ class HelloWorld
             features = new TestFeatures()
         })
 
+        afterEach(() => {
+            features.dispose()
+        })
+
         it('should return all recommendations if no settings are specificed', async () => {
             features.lsp.workspace.getConfiguration.returns(Promise.resolve({}))
             await features.start(server)
@@ -907,6 +915,10 @@ class HelloWorld
             features.openDocument(SOME_FILE)
         })
 
+        afterEach(() => {
+            features.dispose()
+        })
+
         it('should return recommendations on an above-threshold auto-trigger position', async () => {
             const result = await features.doInlineCompletionWithReferences(
                 {
@@ -1009,6 +1021,10 @@ class HelloWorld
             await features.start(server)
 
             features.openDocument(SOME_FILE)
+        })
+
+        afterEach(() => {
+            features.dispose()
         })
 
         it('should deactivate current session when session result for current session is sent', async () => {
@@ -1134,6 +1150,7 @@ static void Main()
 
         afterEach(async () => {
             clock.restore()
+            features.dispose()
         })
 
         it('should emit Success ServiceInvocation telemetry on successful response', async () => {
@@ -1469,6 +1486,10 @@ static void Main()
             features.openDocument(SOME_FILE).openDocument(SOME_FILE_WITH_ALT_CASED_LANGUAGE_ID)
         })
 
+        afterEach(() => {
+            features.dispose()
+        })
+
         it('should cache new session on new request when no session exists', async () => {
             let activeSession = sessionManager.getCurrentSession()
             assert.equal(activeSession, undefined)
@@ -1571,7 +1592,7 @@ static void Main()
                 })
             )
 
-            let activeSession = sessionManager.getCurrentSession()
+            const activeSession = sessionManager.getCurrentSession()
             assert.equal(activeSession, undefined)
 
             await features.doInlineCompletionWithReferences(

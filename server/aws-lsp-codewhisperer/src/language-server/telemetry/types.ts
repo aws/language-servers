@@ -28,3 +28,11 @@ export interface CodeWhispererPerceivedLatencyEvent {
     codewhispererLanguage: CodewhispererLanguage
     credentialStartUrl?: string
 }
+
+export interface CodeWhispererCodePercentageEvent {
+    codewhispererTotalTokens: number
+    codewhispererLanguage: string
+    codewhispererAcceptedTokens: number
+    codewhispererPercentage: number
+    successCount: number
+}
