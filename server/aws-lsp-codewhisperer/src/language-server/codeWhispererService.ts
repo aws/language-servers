@@ -60,9 +60,7 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
             onRequestSetup: [
                 req => {
                     req.on('build', ({ httpRequest }) => {
-                        if (!this.shareCodeWhispererContentWithAWS) {
-                            httpRequest.headers['x-amzn-codewhisperer-optout'] = ''
-                        }
+                        httpRequest.headers['x-amzn-codewhisperer-optout'] = `${!this.shareCodeWhispererContentWithAWS}`
                     })
                 },
             ],
@@ -113,9 +111,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
                             throw new Error('Authorization failed, bearer token is not set')
                         }
                         httpRequest.headers['Authorization'] = `Bearer ${creds.token}`
-                        if (!this.shareCodeWhispererContentWithAWS) {
-                            httpRequest.headers['x-amzn-codewhisperer-optout'] = ''
-                        }
+                        httpRequest.headers['x-amzn-codewhisperer-optout'] = `${!this.shareCodeWhispererContentWithAWS}`
                     })
                 },
             ],
