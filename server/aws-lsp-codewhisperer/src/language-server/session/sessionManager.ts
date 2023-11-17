@@ -24,6 +24,9 @@ export interface SessionData {
 
 export class CodeWhispererSession {
     id: string
+    startTime: number
+    // Time when Session was closed and final state of user decisions is recorded in suggestionsStates
+    closeTime?: number = 0
     state: SessionState
     codewhispererSessionId?: string
     startPosition: Position = {
@@ -41,7 +44,6 @@ export class CodeWhispererSession {
     classifierThreshold?: number
     language: CodewhispererLanguage
     requestContext: GenerateSuggestionsRequest
-    invocationTime: number
     timeToFirstRecommendation: number = 0
     credentialStartUrl?: string
     completionSessionResult?: {
@@ -49,8 +51,6 @@ export class CodeWhispererSession {
     }
     firstCompletionDisplayLatency?: number
     totalSessionDisplayTime?: number
-    // Time when Session was closed and final state of user decisions is recorded in suggestionsStates
-    triggerDecisionTime?: number = 0
     previousTriggerDecision?: UserTriggerDecision
     previousTriggerDecisionTime?: number
 
@@ -66,7 +66,7 @@ export class CodeWhispererSession {
         this.classifierResult = data.classifierResult
         this.classifierThreshold = data.classifierThreshold
         this.state = 'REQUESTING'
-        this.invocationTime = new Date().getTime()
+        this.startTime = new Date().getTime()
     }
 
     // This function makes it possible to stub uuidv4 calls in tests
@@ -118,9 +118,10 @@ export class CodeWhispererSession {
             return
         }
 
-        // If completionSessionResult are not set on close, assume all suggestions were Discarded by default
+        // If completionSessionResult are not set when session is closing, assume all suggestions were discarder by default.
         // We can't assume if they were seen or not to use Unseen state until completionSessionResult are provided.
-        // In this implementation session will not wait for result request to close itself and will report Trigger Decision as soon as session is closed.
+        // In this implementation session will not wait for result request to close itself
+        // and will record Trigger Decision only based on server known states.
         if (!this.completionSessionResult) {
             for (const suggestion of this.suggestions) {
                 if (!this.suggestionsStates.has(suggestion.itemId)) {
@@ -129,7 +130,7 @@ export class CodeWhispererSession {
             }
         }
 
-        this.triggerDecisionTime = new Date().getTime()
+        this.closeTime = new Date().getTime()
 
         this.state = 'CLOSED'
     }
@@ -255,7 +256,7 @@ export class SessionManager {
         const previousSession = this.getPreviousSession()
         if (previousSession) {
             session.previousTriggerDecision = previousSession.getAggregatedUserTriggerDecision()
-            session.previousTriggerDecisionTime = previousSession.triggerDecisionTime
+            session.previousTriggerDecisionTime = previousSession.closeTime
         }
 
         this.currentSession = session

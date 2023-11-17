@@ -58,7 +58,7 @@ const getFileContext = (params: {
 }
 
 const emitServiceInvocationTelemetry = (telemetry: Telemetry, session: CodeWhispererSession) => {
-    const duration = new Date().getTime() - session.invocationTime
+    const duration = new Date().getTime() - session.startTime
     const data: CodeWhispererServiceInvocationEvent = {
         codewhispererRequestId: session.responseContext?.requestId,
         codewhispererSessionId: session.responseContext?.codewhispererSessionId,
@@ -83,7 +83,7 @@ const emitServiceInvocationTelemetry = (telemetry: Telemetry, session: CodeWhisp
 const emitServiceInvocationFailure = (telemetry: Telemetry, session: CodeWhispererSession, error: Error | AWSError) => {
     const errorMessage = error ? String(error) : 'unknown'
     const reason = `CodeWhisperer Invocation Exception: ${errorMessage}`
-    const duration = new Date().getTime() - session.invocationTime
+    const duration = new Date().getTime() - session.startTime
     const codewhispererRequestId = isAwsError(error) ? error.requestId : undefined
 
     const data: CodeWhispererServiceInvocationEvent = {
@@ -321,7 +321,7 @@ export const CodewhispererServerFactory =
                         newSession.suggestions = suggestionResponse.suggestions
                         newSession.responseContext = suggestionResponse.responseContext
                         newSession.codewhispererSessionId = suggestionResponse.responseContext.codewhispererSessionId
-                        newSession.timeToFirstRecommendation = newSession.invocationTime - new Date().getTime()
+                        newSession.timeToFirstRecommendation = newSession.startTime - new Date().getTime()
 
                         // Emit service invocation telemetry for every request sent to backend
                         emitServiceInvocationTelemetry(telemetry, newSession)
@@ -332,6 +332,9 @@ export const CodewhispererServerFactory =
                         if (newSession.state === 'CLOSED') {
                             return EMPTY_RESULT
                         }
+
+                        // API response was recieved, we can activate session now
+                        sessionManager.activateSession(newSession)
 
                         const filteredSuggestions = newSession.getFilteredSuggestions(
                             includeSuggestionsWithCodeReferences
@@ -357,9 +360,6 @@ export const CodewhispererServerFactory =
 
                             return EMPTY_RESULT
                         }
-
-                        // All checks passed, activate session
-                        sessionManager.activateSession(newSession)
 
                         return { items: suggestionsWithRightContext, sessionId: newSession.id }
                     })
