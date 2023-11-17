@@ -52,6 +52,7 @@ export class CodeWhispererSession {
     totalSessionDisplayTime?: number
     previousTriggerDecision?: UserTriggerDecision
     previousTriggerDecisionTime?: number
+    reportedUserDecision: boolean = false
 
     constructor(data: SessionData) {
         this.id = this.generateSessionId()

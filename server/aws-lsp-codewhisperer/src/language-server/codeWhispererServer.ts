@@ -131,6 +131,11 @@ const emitPerceivedLatencyTelemetry = (telemetry: Telemetry, session: CodeWhispe
 }
 
 const emitUserTriggerDecisionTelemetry = (telemetry: Telemetry, session: CodeWhispererSession) => {
+    // Prevent reporting user decision if it was already sent
+    if (session.reportedUserDecision) {
+        return
+    }
+
     // Can not emit previous trigger decision if it's not available on the session
     if (!session.getAggregatedUserTriggerDecision()) {
         return
@@ -139,6 +144,8 @@ const emitUserTriggerDecisionTelemetry = (telemetry: Telemetry, session: CodeWhi
     emitAggregatedUserTriggerDecisionTelemetry(telemetry, session)
     // TODO: implement User Decision telemetry
     // emitUserDecisionTelemetry(telemetry, session)
+
+    session.reportedUserDecision = true
 }
 
 const emitAggregatedUserTriggerDecisionTelemetry = (telemetry: Telemetry, session: CodeWhispererSession) => {
@@ -235,18 +242,11 @@ export const CodewhispererServerFactory =
             params: InlineCompletionWithReferencesParams,
             _token: CancellationToken
         ): Promise<InlineCompletionListWithReferences> => {
-            // On every new completion request close last inflight session.
-            // On every manual trigger expilictly close previous session.
+            // On every new completion request close current inflight session.
             const currentSession = sessionManager.getCurrentSession()
-
-            if (
-                currentSession &&
-                (currentSession?.state == 'REQUESTING' ||
-                    params.context.triggerKind == InlineCompletionTriggerKind.Invoked)
-            ) {
-                // If session was active at cancellation time, emit user trigger decision based on server-side information
+            if (currentSession && currentSession?.state == 'REQUESTING') {
+                // If session was requesting at cancellation time, close it and do not report user decision
                 sessionManager.closeSession(currentSession)
-                emitUserTriggerDecisionTelemetry(telemetry, currentSession)
             }
 
             return workspace.getTextDocument(params.textDocument.uri).then(textDocument => {
@@ -302,6 +302,12 @@ export const CodewhispererServerFactory =
                     classifierThreshold: isAutomaticLspTriggerKind ? autoTriggerResult?.classifierThreshold : undefined,
                     credentialStartUrl: credentialsProvider.getConnectionMetadata()?.sso?.startUrl ?? undefined,
                 })
+
+                // Emit user trigger decision event for previous session
+                const previousSession = sessionManager.getPreviousSession()
+                if (previousSession) {
+                    emitUserTriggerDecisionTelemetry(telemetry, previousSession)
+                }
 
                 return codeWhispererService
                     .generateSuggestions({

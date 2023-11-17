@@ -391,9 +391,13 @@ describe('SessionManager', function () {
             manager.createSession(data)
             assert.strictEqual(session.state, 'CLOSED')
         })
+
+        it('should set previous active session trigger decision to new session object')
+
+        it('should not set previous active session trigger decision from discarder REQUESTING session')
     })
 
-    describe('discardCurrentSession()', function () {
+    describe('closeCurrentSession()', function () {
         it('should add the current session to the sessions log if it is active', function () {
             const manager = SessionManager.getInstance()
             const session = manager.createSession(data)
