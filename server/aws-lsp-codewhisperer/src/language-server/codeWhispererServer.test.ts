@@ -720,12 +720,6 @@ class HelloWorld
             await features.start(server)
 
             const EXPECTED_SUGGESTION: Suggestion[] = [{ itemId: 'cwspr-item-id', content: HELLO_WORLD_IN_CSHARP }]
-            const EXPECTED_RESULT_WITH_REMOVED_REFERENCES = {
-                sessionId: EXPECTED_SESSION_ID,
-                items: [
-                    { itemId: EXPECTED_SUGGESTION[0].itemId, insertText: '', range: undefined, references: undefined },
-                ],
-            }
             service.generateSuggestions.returns(
                 Promise.resolve({
                     suggestions: EXPECTED_SUGGESTION,
@@ -1369,8 +1363,6 @@ static void Main()
             sinon.assert.calledWithExactly(features.telemetry.emitMetric, expectedPerceivedLatencyMetric)
         })
 
-        it('should not emit Perceived Latency metric when session result is received for closed session')
-
         describe('Connection metadata credentialStartUrl field', () => {
             it('should attach credentialStartUrl field if available in credentialsProvider', async () => {
                 features.credentialsProvider.getConnectionMetadata.returns({
@@ -1500,6 +1492,9 @@ static void Main()
                 id: SESSION_IDS_LOG[0],
                 state: 'ACTIVE',
                 suggestions: [{ itemId: 'cwspr-item-id', content: 'recommendation' }],
+                responseContext: EXPECTED_RESPONSE_CONTEXT,
+                codewhispererSessionId: EXPECTED_RESPONSE_CONTEXT.codewhispererSessionId,
+                timeToFirstRecommendation: 0,
             }
             assert(activeSession)
             sinon.assert.match(
@@ -1507,6 +1502,9 @@ static void Main()
                     id: activeSession.id,
                     state: activeSession.state,
                     suggestions: activeSession.suggestions,
+                    responseContext: activeSession.responseContext,
+                    codewhispererSessionId: activeSession.codewhispererSessionId,
+                    timeToFirstRecommendation: activeSession.timeToFirstRecommendation,
                 },
                 expectedSessionData
             )
@@ -1572,6 +1570,61 @@ static void Main()
                 },
                 expectedSessionData
             )
+        })
+
+        it('should only record sessions that were ACTIVE in session log', async () => {
+            // Start 3 session, 2 will be cancelled inflight
+            await Promise.all([
+                features.doInlineCompletionWithReferences(
+                    {
+                        textDocument: { uri: SOME_FILE.uri },
+                        position: AUTO_TRIGGER_POSITION,
+                        context: { triggerKind: InlineCompletionTriggerKind.Automatic },
+                    },
+                    CancellationToken.None
+                ),
+                features.doInlineCompletionWithReferences(
+                    {
+                        textDocument: { uri: SOME_FILE.uri },
+                        position: AUTO_TRIGGER_POSITION,
+                        context: { triggerKind: InlineCompletionTriggerKind.Automatic },
+                    },
+                    CancellationToken.None
+                ),
+                features.doInlineCompletionWithReferences(
+                    {
+                        textDocument: { uri: SOME_FILE.uri },
+                        position: AUTO_TRIGGER_POSITION,
+                        context: { triggerKind: InlineCompletionTriggerKind.Automatic },
+                    },
+                    CancellationToken.None
+                ),
+            ])
+
+            assert.equal(sessionManagerSpy.createSession.callCount, 3)
+
+            // Get session after call is done
+            const firstActiveSession = sessionManager.getCurrentSession()
+
+            // Do another request, which will close last ACTIVE session
+            await features.doInlineCompletionWithReferences(
+                {
+                    textDocument: { uri: SOME_FILE.uri },
+                    position: AUTO_TRIGGER_POSITION,
+                    context: { triggerKind: InlineCompletionTriggerKind.Automatic },
+                },
+                CancellationToken.None
+            )
+
+            const newActiveSession = sessionManager.getCurrentSession()
+            const previousSession = sessionManager.getPreviousSession()
+
+            assert.equal(previousSession, firstActiveSession)
+            assert.equal(newActiveSession, sessionManager.getActiveSession())
+
+            // Only 1 session that was ACTIVE is stored in sessions log
+            assert.equal(sessionManager.getSessionsLog().length, 1)
+            assert.equal(sessionManager.getSessionsLog()[0], firstActiveSession)
         })
 
         it('should close new session on new request when service returns empty list', async () => {

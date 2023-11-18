@@ -134,31 +134,6 @@ describe('CodeWhispererSession', function () {
         })
     })
 
-    describe('getfilteredSuggestions()', function () {
-        it('should return suggestions with non empty string content')
-        it('should record Empty suggestions state for suggestions with empty string content')
-
-        it('should return all suggestions if includeSuggestionsWithCodeReferences is true', function () {
-            const session = new CodeWhispererSession(data)
-            session.activate()
-            session.suggestions = EXPECTED_SUGGESTION
-            const result = session.getFilteredSuggestions(true)
-            assert.strictEqual(result.length, 2)
-        })
-
-        it('should return suggestions without code references if includeSuggestionsWithCodeReferences is false', function () {
-            const session = new CodeWhispererSession(data)
-            session.activate()
-            session.suggestions = EXPECTED_SUGGESTION
-            const result = session.getFilteredSuggestions(false)
-            assert.strictEqual(result.length, 1)
-        })
-
-        it(
-            'should record Filter suggestions state for suggestions with code references if includeSuggestionsWithCodeReferences is false'
-        )
-    })
-
     describe('setClientResultData()', function () {
         it('should set results of session from client with all relevant data available', function () {
             const { completionSessionResult, firstCompletionDisplayLatency, totalSessionDisplayTime } =
@@ -271,7 +246,33 @@ describe('CodeWhispererSession', function () {
             assert.equal(session.suggestionsStates.get('id-reject2'), 'Reject')
         })
 
-        it('should discard suggestion states for not cached suggestion ids')
+        it('should ignore setting suggestion states for not cached suggestion ids', function () {
+            const SUGGESTIONS = [{ itemId: 'id-exists', content: 'recommendation 1: Discard' }]
+            const SESSION_RESULTS = {
+                'id-exists': {
+                    accepted: false, // 'Discard'
+                    seen: false,
+                    discarded: true,
+                },
+                'id-does-not-exist': {
+                    accepted: true, // 'Accept'
+                    seen: true,
+                    discarded: false,
+                },
+            }
+            const session = new CodeWhispererSession(data)
+            session.activate()
+
+            assert.equal(session.suggestionsStates.size, 0)
+            assert.equal(session.acceptedSuggestionId, undefined)
+
+            session.suggestions = SUGGESTIONS
+            session.setClientResultData(SESSION_RESULTS)
+
+            assert.equal(session.suggestionsStates.size, 1)
+            assert.equal(session.suggestionsStates.get('id-exists'), 'Discard')
+            assert(!session.suggestionsStates.has('id-does-not-exist'))
+        })
     })
 
     describe('getAggregatedUserTriggerDecision()', function () {
@@ -317,7 +318,7 @@ describe('CodeWhispererSession', function () {
             session.suggestions = SUGGESTIONS
             session.setSuggestionState('id1', 'Discard')
             session.setSuggestionState('id2', 'Empty')
-            session.setSuggestionState('id3', 'Discard')
+            session.setSuggestionState('id3', 'Filter')
             session.setSuggestionState('id4', 'Discard')
             session.setSuggestionState('id5', 'Empty')
             session.close()
@@ -348,9 +349,43 @@ describe('CodeWhispererSession', function () {
             assert.equal(session.getAggregatedUserTriggerDecision(), 'Empty')
         })
 
-        it('should not return aggregated decision if session is not CLOSED')
+        it('should return Discard trigger decision when all suggestions state is Filter', function () {
+            const session = new CodeWhispererSession(data)
+            session.activate()
+            session.suggestions = SUGGESTIONS
+            session.setSuggestionState('id1', 'Filter')
+            session.setSuggestionState('id2', 'Filter')
+            session.setSuggestionState('id3', 'Filter')
+            session.setSuggestionState('id4', 'Filter')
+            session.setSuggestionState('id5', 'Filter')
+            session.close()
 
-        it('should not return aggregated decision if not all suggestion states are recorded')
+            assert.equal(session.getAggregatedUserTriggerDecision(), 'Discard')
+        })
+
+        it('should return undefined if session is not CLOSED', function () {
+            const session = new CodeWhispererSession(data)
+            session.activate()
+            session.suggestions = SUGGESTIONS
+            session.setSuggestionState('id1', 'Accept')
+            session.setSuggestionState('id2', 'Ignore')
+            session.setSuggestionState('id3', 'Ignore')
+            session.setSuggestionState('id4', 'Unseen')
+            session.setSuggestionState('id5', 'Unseen')
+
+            assert.equal(session.getAggregatedUserTriggerDecision(), undefined)
+        })
+
+        it('should return Discard after session is closed with not complete session results', function () {
+            const session = new CodeWhispererSession(data)
+            session.suggestions = EXPECTED_SUGGESTION
+
+            assert.equal(session.suggestionsStates.size, 0)
+
+            session.close()
+
+            assert.equal(session.getAggregatedUserTriggerDecision(), 'Discard')
+        })
     })
 })
 
@@ -392,9 +427,28 @@ describe('SessionManager', function () {
             assert.strictEqual(session.state, 'CLOSED')
         })
 
-        it('should set previous active session trigger decision to new session object')
+        it('should not set previous active session trigger decision from discarder REQUESTING session', function () {
+            const manager = SessionManager.getInstance()
+            const session1 = manager.createSession(data)
+            assert.strictEqual(session1?.state, 'REQUESTING')
 
-        it('should not set previous active session trigger decision from discarder REQUESTING session')
+            const session2 = manager.createSession(data)
+            assert.strictEqual(session1?.state, 'CLOSED')
+            assert.strictEqual(session2.previousTriggerDecision, undefined)
+        })
+
+        it('should set previous active session trigger decision to new session object', function () {
+            const manager = SessionManager.getInstance()
+            const session1 = manager.createSession(data)
+            assert.strictEqual(session1?.state, 'REQUESTING')
+
+            session1.activate()
+
+            const session2 = manager.createSession(data)
+
+            assert.strictEqual(session1?.state, 'CLOSED')
+            assert.strictEqual(session2.previousTriggerDecision, 'Empty')
+        })
     })
 
     describe('closeCurrentSession()', function () {

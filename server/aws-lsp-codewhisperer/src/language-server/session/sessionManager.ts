@@ -74,42 +74,6 @@ export class CodeWhispererSession {
         return uuidv4()
     }
 
-    // TODO: process suggestions state at writing time, not in getFilteredSuggestions at requesting time
-    setSuggestions(suggestions: Suggestion[]) {
-        this.suggestions = suggestions
-
-        // Process suggestions states
-    }
-
-    getFilteredSuggestions(includeSuggestionsWithCodeReferences: boolean = true): Suggestion[] {
-        return (
-            this.suggestions
-                // Empty suggestion filter
-                .filter(suggestion => {
-                    if (suggestion.content === '') {
-                        this.setSuggestionState(suggestion.itemId, 'Empty')
-                        return false
-                    }
-
-                    return true
-                })
-                // References setting filter
-                .filter(suggestion => {
-                    if (includeSuggestionsWithCodeReferences) {
-                        return true
-                    }
-
-                    if (suggestion.references == null || suggestion.references.length === 0) {
-                        return true
-                    }
-
-                    // Filter out suggestions that have references when includeSuggestionsWithCodeReferences setting is true
-                    this.setSuggestionState(suggestion.itemId, 'Filter')
-                    return false
-                })
-        )
-    }
-
     get lastSuggestionIndex(): number {
         return this.suggestions.length - 1
     }
@@ -163,7 +127,14 @@ export class CodeWhispererSession {
             }
         }
 
+        const validSuggestionIds = this.suggestions.map(s => s.itemId)
+
         for (let itemId in completionSessionResult) {
+            // Skip suggestion ids that were not recorded for this session
+            if (!validSuggestionIds.includes(itemId)) {
+                continue
+            }
+
             // Compute sugestion state based on fields.
             // State flags represent suggestions state in client UI at the moment when user made a decision about this siggestions
             const states = completionSessionResult[itemId]
@@ -197,13 +168,11 @@ export class CodeWhispererSession {
      * - Accept if there is an Accept
      * - Reject if there is a Reject
      * - Empty if all decisions are Empty
-     * - Record the accepted suggestion index
      * - Discard otherwise
      */
     getAggregatedUserTriggerDecision(): UserTriggerDecision | undefined {
         // Can't report trigger decision until session is marked as closed
-        // or suggestions states are incomplete
-        if (this.state !== 'CLOSED' || this.suggestionsStates.size != this.suggestions.length) {
+        if (this.state !== 'CLOSED') {
             return
         }
 

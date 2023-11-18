@@ -170,7 +170,7 @@ const emitAggregatedUserTriggerDecisionTelemetry = (telemetry: Telemetry, sessio
         codewhispererTypeaheadLength: 0, // TODO,
         codewhispererTimeSinceLastDocumentChange: 0, // TODO,
         codewhispererTimeSinceLastUserDecision: session.previousTriggerDecisionTime
-            ? session.previousTriggerDecisionTime
+            ? session.startTime - session.previousTriggerDecisionTime
             : undefined,
         codewhispererTimeToFirstRecommendation: session.timeToFirstRecommendation,
         codewhispererPreviousSuggestionState: session.previousTriggerDecision,
@@ -291,6 +291,12 @@ export const CodewhispererServerFactory =
                     fileContext,
                     maxResults,
                 }
+
+                if (currentSession && currentSession.state !== 'CLOSED') {
+                    // Emit user trigger decision at session close time for active session
+                    sessionManager.closeSession(currentSession)
+                    emitUserTriggerDecisionTelemetry(telemetry, currentSession)
+                }
                 const newSession = sessionManager.createSession({
                     startPosition: params.position,
                     triggerType: isAutomaticLspTriggerKind ? 'AutoTrigger' : 'OnDemand',
@@ -302,12 +308,6 @@ export const CodewhispererServerFactory =
                     classifierThreshold: isAutomaticLspTriggerKind ? autoTriggerResult?.classifierThreshold : undefined,
                     credentialStartUrl: credentialsProvider.getConnectionMetadata()?.sso?.startUrl ?? undefined,
                 })
-
-                // Emit user trigger decision event for previous session
-                const previousSession = sessionManager.getPreviousSession()
-                if (previousSession) {
-                    emitUserTriggerDecisionTelemetry(telemetry, previousSession)
-                }
 
                 return codeWhispererService
                     .generateSuggestions({
@@ -327,7 +327,7 @@ export const CodewhispererServerFactory =
                         newSession.suggestions = suggestionResponse.suggestions
                         newSession.responseContext = suggestionResponse.responseContext
                         newSession.codewhispererSessionId = suggestionResponse.responseContext.codewhispererSessionId
-                        newSession.timeToFirstRecommendation = newSession.startTime - new Date().getTime()
+                        newSession.timeToFirstRecommendation = new Date().getTime() - newSession.startTime
 
                         // Emit service invocation telemetry for every request sent to backend
                         emitServiceInvocationTelemetry(telemetry, newSession)
@@ -342,9 +342,32 @@ export const CodewhispererServerFactory =
                         // API response was recieved, we can activate session now
                         sessionManager.activateSession(newSession)
 
-                        const filteredSuggestions = newSession.getFilteredSuggestions(
-                            includeSuggestionsWithCodeReferences
-                        )
+                        // Process suggestions to apply Emply or Filter filters
+                        const filteredSuggestions = newSession.suggestions
+                            // Empty suggestion filter
+                            .filter(suggestion => {
+                                if (suggestion.content === '') {
+                                    newSession.setSuggestionState(suggestion.itemId, 'Empty')
+                                    return false
+                                }
+
+                                return true
+                            })
+                            // References setting filter
+                            .filter(suggestion => {
+                                if (includeSuggestionsWithCodeReferences) {
+                                    return true
+                                }
+
+                                if (suggestion.references == null || suggestion.references.length === 0) {
+                                    return true
+                                }
+
+                                // Filter out suggestions that have references when includeSuggestionsWithCodeReferences setting is true
+                                newSession.setSuggestionState(suggestion.itemId, 'Filter')
+                                return false
+                            })
+
                         const suggestionsWithRightContext = mergeSuggestionsWithRightContext(
                             fileContext.rightFileContent,
                             filteredSuggestions,
@@ -401,6 +424,7 @@ export const CodewhispererServerFactory =
 
             emitPerceivedLatencyTelemetry(telemetry, session)
 
+            // Always emit user trigger decision at session close
             sessionManager.closeSession(session)
             emitUserTriggerDecisionTelemetry(telemetry, session)
         }
