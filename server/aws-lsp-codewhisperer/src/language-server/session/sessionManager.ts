@@ -242,21 +242,6 @@ export class SessionManager {
         }
     }
 
-    // TODO: Signal that we can emit telemetry events for this session.
-    // There are 4 posibilities that can result in session becoming CLOSED:
-    // 1. session was CLOSED server-side while in REQUESTING after processing response, it was discarded by server and we can report User Decision right away
-    // 2. session was ACTIVE and LogInlineCompelitionSessionResults request was received: we can report telemetry
-    // 3. session was CLOSED while still in REQUESTING by consequent request: ?? it will receive response later, but we will never send response to client, it is server-side Discard
-    //    Shall we process responses still?
-    // 4. session was ACTIVE and was CLOSED by subsequent completion request before LogInlineCompelitionSessionResults was received from client
-    //    this cound happen if client allows sending completion requests before sending LogInlineCompelitionSessionResults
-    //    or requests came not in order
-    //
-    // Implementation decision:
-    // If 3 or 4 happens, assume default state for recommendations will be Discard.
-    // Accept LogInlineCompelitionSessionResults, but do not resend telemetry if results come async after session was already closed.
-    // Currently this logic is handled in the server itself, but it can be contained in the SessionManager:
-    // Session manager can emit event when session is closed with Session object, and server can listen and emit event then
     closeSession(session: CodeWhispererSession) {
         if (this.currentSession == session) {
             // TODO: check if should push only active session to the log.
