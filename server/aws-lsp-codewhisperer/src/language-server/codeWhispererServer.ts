@@ -439,7 +439,7 @@ export const CodewhispererServerFactory =
 
             session.setClientResultData(completionSessionResult, firstCompletionDisplayLatency, totalSessionDisplayTime)
 
-            emitPerceivedLatencyTelemetry(telemetry, session)
+            if (firstCompletionDisplayLatency) emitPerceivedLatencyTelemetry(telemetry, session)
 
             // Always emit user trigger decision at session close
             sessionManager.closeSession(session)

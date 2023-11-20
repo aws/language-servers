@@ -332,7 +332,7 @@ class HelloWorld
             const result = await features.doInlineCompletionWithReferences(
                 {
                     textDocument: { uri: SOME_FILE.uri },
-                    position: { line: 0, character: 0 },
+                    position: { line: 1, character: 0 },
                     context: { triggerKind: InlineCompletionTriggerKind.Invoked },
                 },
                 CancellationToken.None
@@ -739,7 +739,7 @@ class HelloWorld
             const result = await features.openDocument(SOME_FILE).doInlineCompletionWithReferences(
                 {
                     textDocument: { uri: SOME_FILE.uri },
-                    position: { line: 0, character: 0 },
+                    position: { line: 1, character: 0 },
                     context: { triggerKind: InlineCompletionTriggerKind.Invoked },
                 },
                 CancellationToken.None
@@ -1378,6 +1378,30 @@ static void Main()
                 },
             }
             sinon.assert.calledWithExactly(features.telemetry.emitMetric, expectedPerceivedLatencyMetric)
+        })
+
+        it('should not emit Perceived Latency metric when firstCompletionDisplayLatency is absent', async () => {
+            const sessionResultDataWithoutLatency = {
+                ...sessionResultData,
+                firstCompletionDisplayLatency: undefined,
+            }
+            await features.doInlineCompletionWithReferences(
+                {
+                    textDocument: { uri: SOME_FILE.uri },
+                    position: { line: 0, character: 0 },
+                    context: { triggerKind: InlineCompletionTriggerKind.Invoked },
+                },
+                CancellationToken.None
+            )
+
+            // deletes history of service invocation being emitted
+            features.telemetry.emitMetric.resetHistory()
+
+            await features.doLogInlineCompletionSessionResults(sessionResultDataWithoutLatency)
+
+            sinon.assert.neverCalledWithMatch(features.telemetry.emitMetric, {
+                name: 'codewhisperer_perceivedLatency',
+            })
         })
 
         describe('Connection metadata credentialStartUrl field', () => {
