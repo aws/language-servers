@@ -1388,9 +1388,6 @@ static void Main()
                 CancellationToken.None
             )
 
-            // deletes history of service invocation being emitted
-            features.telemetry.emitMetric.resetHistory()
-
             await features.doLogInlineCompletionSessionResults(sessionResultDataWithoutLatency)
 
             sinon.assert.neverCalledWith(
