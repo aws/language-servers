@@ -15,26 +15,28 @@ describe('CodeWhisperer Server', () => {
     let SESSION_IDS_LOG: string[] = []
     let sessionManager: SessionManager
     let sessionManagerSpy: sinon.SinonSpiedInstance<SessionManager>
+    let generateSessionIdStub: sinon.SinonStub
 
-    before(() => {
+    beforeEach(() => {
         const StubSessionIdGenerator = () => {
             const id = 'some-random-session-uuid-' + SESSION_IDS_LOG.length
             SESSION_IDS_LOG.push(id)
 
             return id
         }
-        sinon.stub(CodeWhispererSession.prototype, 'generateSessionId').callsFake(StubSessionIdGenerator)
-    })
-
-    beforeEach(() => {
-        SessionManager.reset()
+        generateSessionIdStub = sinon
+            .stub(CodeWhispererSession.prototype, 'generateSessionId')
+            .callsFake(StubSessionIdGenerator)
         sessionManager = SessionManager.getInstance()
         sessionManagerSpy = sandbox.spy(sessionManager)
         SESSION_IDS_LOG = []
     })
 
     afterEach(() => {
+        generateSessionIdStub.restore()
+        SessionManager.reset()
         sandbox.restore()
+        SESSION_IDS_LOG = []
     })
 
     describe('Recommendations', () => {
@@ -330,7 +332,7 @@ class HelloWorld
                 CancellationToken.None
             )
 
-            assert.deepEqual(result, EXPECTED_RESULT)
+            assert.deepEqual(result, EMPTY_RESULT)
         })
 
         it('should only show the part of the recommendation that does not overlap with the right context in multiline', async () => {
@@ -467,7 +469,6 @@ class HelloWorld
                 },
                 CancellationToken.None
             )
-            // Object.assign(EMPTY_RESULT, { sessionId })
             // Check the completion result
             assert.deepEqual(result, EMPTY_RESULT)
         })
@@ -572,6 +573,7 @@ class HelloWorld
                 },
             ],
         }
+        const EMPTY_RESULT = { items: [], sessionId: '' }
 
         let features: TestFeatures
         let server: Server
@@ -721,12 +723,6 @@ class HelloWorld
             await features.start(server)
 
             const EXPECTED_SUGGESTION: Suggestion[] = [{ itemId: 'cwspr-item-id', content: HELLO_WORLD_IN_CSHARP }]
-            const EXPECTED_RESULT_WITH_REMOVED_REFERENCES = {
-                sessionId: EXPECTED_SESSION_ID,
-                items: [
-                    { itemId: EXPECTED_SUGGESTION[0].itemId, insertText: '', range: undefined, references: undefined },
-                ],
-            }
             service.generateSuggestions.returns(
                 Promise.resolve({
                     suggestions: EXPECTED_SUGGESTION,
@@ -743,7 +739,7 @@ class HelloWorld
                 CancellationToken.None
             )
 
-            assert.deepEqual(result, EXPECTED_RESULT_WITH_REMOVED_REFERENCES)
+            assert.deepEqual(result, EMPTY_RESULT)
         })
 
         it('should show references and update range when there is partial overlap on right context', async () => {
@@ -1476,6 +1472,7 @@ static void Main()
                 },
             ],
         }
+        const EMPTY_RESULT = { items: [], sessionId: '' }
 
         let features: TestFeatures
         let server: Server
@@ -1532,6 +1529,9 @@ static void Main()
                 id: SESSION_IDS_LOG[0],
                 state: 'ACTIVE',
                 suggestions: [{ itemId: 'cwspr-item-id', content: 'recommendation' }],
+                responseContext: EXPECTED_RESPONSE_CONTEXT,
+                codewhispererSessionId: EXPECTED_RESPONSE_CONTEXT.codewhispererSessionId,
+                timeToFirstRecommendation: 0,
             }
             assert(activeSession)
             sinon.assert.match(
@@ -1539,6 +1539,9 @@ static void Main()
                     id: activeSession.id,
                     state: activeSession.state,
                     suggestions: activeSession.suggestions,
+                    responseContext: activeSession.responseContext,
+                    codewhispererSessionId: activeSession.codewhispererSessionId,
+                    timeToFirstRecommendation: activeSession.timeToFirstRecommendation,
                 },
                 expectedSessionData
             )
@@ -1606,6 +1609,61 @@ static void Main()
             )
         })
 
+        it('should only record sessions that were ACTIVE in session log', async () => {
+            // Start 3 session, 2 will be cancelled inflight
+            await Promise.all([
+                features.doInlineCompletionWithReferences(
+                    {
+                        textDocument: { uri: SOME_FILE.uri },
+                        position: AUTO_TRIGGER_POSITION,
+                        context: { triggerKind: InlineCompletionTriggerKind.Automatic },
+                    },
+                    CancellationToken.None
+                ),
+                features.doInlineCompletionWithReferences(
+                    {
+                        textDocument: { uri: SOME_FILE.uri },
+                        position: AUTO_TRIGGER_POSITION,
+                        context: { triggerKind: InlineCompletionTriggerKind.Automatic },
+                    },
+                    CancellationToken.None
+                ),
+                features.doInlineCompletionWithReferences(
+                    {
+                        textDocument: { uri: SOME_FILE.uri },
+                        position: AUTO_TRIGGER_POSITION,
+                        context: { triggerKind: InlineCompletionTriggerKind.Automatic },
+                    },
+                    CancellationToken.None
+                ),
+            ])
+
+            assert.equal(sessionManagerSpy.createSession.callCount, 3)
+
+            // Get session after call is done
+            const firstActiveSession = sessionManager.getCurrentSession()
+
+            // Do another request, which will close last ACTIVE session
+            await features.doInlineCompletionWithReferences(
+                {
+                    textDocument: { uri: SOME_FILE.uri },
+                    position: AUTO_TRIGGER_POSITION,
+                    context: { triggerKind: InlineCompletionTriggerKind.Automatic },
+                },
+                CancellationToken.None
+            )
+
+            const newActiveSession = sessionManager.getCurrentSession()
+            const previousSession = sessionManager.getPreviousSession()
+
+            assert.equal(previousSession, firstActiveSession)
+            assert.equal(newActiveSession, sessionManager.getActiveSession())
+
+            // Only 1 session that was ACTIVE is stored in sessions log
+            assert.equal(sessionManager.getSessionsLog().length, 1)
+            assert.equal(sessionManager.getSessionsLog()[0], firstActiveSession)
+        })
+
         it('should close new session on new request when service returns empty list', async () => {
             service.generateSuggestions.returns(
                 Promise.resolve({
@@ -1663,7 +1721,7 @@ static void Main()
                 CancellationToken.None
             )
             assert.deepEqual(secondResult, { ...EXPECTED_RESULT, sessionId: SESSION_IDS_LOG[1] })
-            sinon.assert.called(sessionManagerSpy.discardCurrentSession)
+            sinon.assert.called(sessionManagerSpy.closeCurrentSession)
         })
 
         it('should discard inflight session if merge right recommendations resulted in list of empty strings', async () => {
@@ -1675,17 +1733,6 @@ static void Main()
                     responseContext: EXPECTED_RESPONSE_CONTEXT,
                 })
             )
-            const EXPECTED_RESULT = {
-                sessionId: EXPECTED_SESSION_ID,
-                items: [
-                    {
-                        itemId: EXPECTED_SUGGESTION[0].itemId,
-                        insertText: '',
-                        range: undefined,
-                        references: undefined,
-                    },
-                ],
-            }
 
             const result = await features.doInlineCompletionWithReferences(
                 {
@@ -1695,7 +1742,7 @@ static void Main()
                 },
                 CancellationToken.None
             )
-            assert.deepEqual(result, EXPECTED_RESULT)
+            assert.deepEqual(result, EMPTY_RESULT)
 
             const session = sessionManager.getCurrentSession()
 
