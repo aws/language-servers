@@ -20,7 +20,11 @@ import { CodewhispererLanguage, getSupportedLanguageId } from './languageDetecti
 import { getPrefixSuffixOverlap, truncateOverlapWithRightContext } from './mergeRightUtils'
 import { CodeWhispererSession, SessionManager } from './session/sessionManager'
 import { CodePercentageTracker } from './telemetry/codePercentage'
-import { CodeWhispererPerceivedLatencyEvent, CodeWhispererServiceInvocationEvent } from './telemetry/types'
+import {
+    CodeWhispererPerceivedLatencyEvent,
+    CodeWhispererServiceInvocationEvent,
+    CodeWhispererUserTriggerDecisionEvent,
+} from './telemetry/types'
 import { getCompletionType, isAwsError } from './utils'
 
 const EMPTY_RESULT = { sessionId: '', items: [] }
@@ -150,7 +154,7 @@ const emitUserTriggerDecisionTelemetry = (telemetry: Telemetry, session: CodeWhi
 }
 
 const emitAggregatedUserTriggerDecisionTelemetry = (telemetry: Telemetry, session: CodeWhispererSession) => {
-    const data = {
+    const data: CodeWhispererUserTriggerDecisionEvent = {
         codewhispererSessionId: session.codewhispererSessionId || '',
         codewhispererFirstRequestId: session.responseContext?.requestId || '',
         credentialStartUrl: session.credentialStartUrl,
@@ -183,16 +187,16 @@ const emitAggregatedUserTriggerDecisionTelemetry = (telemetry: Telemetry, sessio
     })
 }
 
-const emitUserDecisionTelemetry = (telemetry: Telemetry, session: CodeWhispererSession) => {
-    const data = {
-        // TODO
-    }
+// const emitUserDecisionTelemetry = (telemetry: Telemetry, session: CodeWhispererSession) => {
+//     const data = {
+//         // TODO
+//     }
 
-    telemetry.emitMetric({
-        name: 'codewhisperer_userDecision',
-        data,
-    })
-}
+//     telemetry.emitMetric({
+//         name: 'codewhisperer_userDecision',
+//         data,
+//     })
+// }
 
 const mergeSuggestionsWithRightContext = (
     rightFileContext: string,
@@ -347,7 +351,7 @@ export const CodewhispererServerFactory =
                         // API response was recieved, we can activate session now
                         sessionManager.activateSession(newSession)
 
-                        // Process suggestions to apply Emply or Filter filters
+                        // Process suggestions to apply Empty or Filter filters
                         const filteredSuggestions = newSession.suggestions
                             // Empty suggestion filter
                             .filter(suggestion => {
