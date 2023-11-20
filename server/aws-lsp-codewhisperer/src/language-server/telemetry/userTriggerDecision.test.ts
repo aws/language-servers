@@ -26,7 +26,6 @@ describe('Telemetry', () => {
         generateSessionIdStub = sinon
             .stub(CodeWhispererSession.prototype, 'generateSessionId')
             .callsFake(StubSessionIdGenerator)
-
         SessionManager.reset()
         sessionManager = SessionManager.getInstance()
         sessionManagerSpy = sandbox.spy(sessionManager)
@@ -171,7 +170,7 @@ describe('Telemetry', () => {
                     codewhispererSessionId: 'cwspr-session-id',
                     codewhispererFirstRequestId: 'cwspr-request-id',
                     credentialStartUrl: 'teststarturl',
-                    codewhispererSuggestionState: 'Discard',
+                    codewhispererSuggestionState: 'Reject',
                     codewhispererCompletionType: 'Line',
                     codewhispererLanguage: 'csharp',
                     codewhispererTriggerType: 'AutoTrigger',
@@ -489,6 +488,36 @@ describe('Telemetry', () => {
 
                 const expectedUserTriggerDecisionMetric = aUserTriggerDecision({
                     codewhispererSuggestionState: 'Discard',
+                })
+                sinon.assert.calledWithMatch(features.telemetry.emitMetric, expectedUserTriggerDecisionMetric)
+            })
+
+            it('should set codewhispererTimeSinceLastDocumentChange as difference between 2 any document changes', async () => {
+                const typeSomething = async () =>
+                    await features.doChangeTextDocument({
+                        textDocument: { uri: SOME_FILE.uri, version: 1 },
+                        contentChanges: [
+                            {
+                                range: { start: { line: 0, character: 0 }, end: { line: 0, character: 1 } },
+                                text: 'f',
+                            },
+                        ],
+                    })
+                await autoTriggerInlineCompletionWithReferences()
+
+                await typeSomething()
+
+                clock.tick(1234)
+                await typeSomething()
+
+                clock.tick(5678)
+                await typeSomething()
+
+                await features.doLogInlineCompletionSessionResults(DEFAULT_SESSION_RESULT_DATA)
+
+                const expectedUserTriggerDecisionMetric = aUserTriggerDecision({
+                    codewhispererSuggestionState: 'Reject',
+                    codewhispererTimeSinceLastDocumentChange: 5678,
                 })
                 sinon.assert.calledWithMatch(features.telemetry.emitMetric, expectedUserTriggerDecisionMetric)
             })

@@ -46,7 +46,7 @@ export interface CodeWhispererUserTriggerDecisionEvent {
     codewhispererClassifierThreshold?: number
     codewhispererTotalShownTime: number
     codewhispererTypeaheadLength: number // TODO
-    codewhispererTimeSinceLastDocumentChange: number // TODO
+    codewhispererTimeSinceLastDocumentChange?: number // TODO
     // Data about previous triggers may be not available if client results were not sent in order
     codewhispererTimeSinceLastUserDecision?: number
     codewhispererTimeToFirstRecommendation: number
