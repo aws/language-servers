@@ -20,7 +20,11 @@ import { CodewhispererLanguage, getSupportedLanguageId } from './languageDetecti
 import { getPrefixSuffixOverlap, truncateOverlapWithRightContext } from './mergeRightUtils'
 import { CodeWhispererSession, SessionManager } from './session/sessionManager'
 import { CodePercentageTracker } from './telemetry/codePercentage'
-import { CodeWhispererPerceivedLatencyEvent, CodeWhispererServiceInvocationEvent } from './telemetry/types'
+import {
+    CodeWhispererPerceivedLatencyEvent,
+    CodeWhispererServiceInvocationEvent,
+    CodeWhispererUserTriggerDecisionEvent,
+} from './telemetry/types'
 import { getCompletionType, isAwsError } from './utils'
 
 const EMPTY_RESULT = { sessionId: '', items: [] }
@@ -158,7 +162,7 @@ const emitAggregatedUserTriggerDecisionTelemetry = (
     session: CodeWhispererSession,
     timeSinceLastUserModification?: number
 ) => {
-    const data = {
+    const data: CodeWhispererUserTriggerDecisionEvent = {
         codewhispererSessionId: session.codewhispererSessionId || '',
         codewhispererFirstRequestId: session.responseContext?.requestId || '',
         credentialStartUrl: session.credentialStartUrl,
@@ -192,16 +196,16 @@ const emitAggregatedUserTriggerDecisionTelemetry = (
     })
 }
 
-const emitUserDecisionTelemetry = (telemetry: Telemetry, session: CodeWhispererSession) => {
-    const data = {
-        // TODO
-    }
+// const emitUserDecisionTelemetry = (telemetry: Telemetry, session: CodeWhispererSession) => {
+//     const data = {
+//         // TODO
+//     }
 
-    telemetry.emitMetric({
-        name: 'codewhisperer_userDecision',
-        data,
-    })
-}
+//     telemetry.emitMetric({
+//         name: 'codewhisperer_userDecision',
+//         data,
+//     })
+// }
 
 const mergeSuggestionsWithRightContext = (
     rightFileContext: string,
@@ -319,8 +323,8 @@ export const CodewhispererServerFactory =
                     requestContext: requestContext,
                     autoTriggerType: isAutomaticLspTriggerKind ? codewhispererAutoTriggerType : undefined,
                     triggerCharacter: triggerCharacter,
-                    classifierResult: isAutomaticLspTriggerKind ? autoTriggerResult?.classifierResult : undefined,
-                    classifierThreshold: isAutomaticLspTriggerKind ? autoTriggerResult?.classifierThreshold : undefined,
+                    classifierResult: autoTriggerResult?.classifierResult,
+                    classifierThreshold: autoTriggerResult?.classifierThreshold,
                     credentialStartUrl: credentialsProvider.getConnectionMetadata()?.sso?.startUrl ?? undefined,
                 })
 
@@ -359,7 +363,7 @@ export const CodewhispererServerFactory =
                         // API response was recieved, we can activate session now
                         sessionManager.activateSession(newSession)
 
-                        // Process suggestions to apply Emply or Filter filters
+                        // Process suggestions to apply Empty or Filter filters
                         const filteredSuggestions = newSession.suggestions
                             // Empty suggestion filter
                             .filter(suggestion => {
@@ -452,7 +456,7 @@ export const CodewhispererServerFactory =
 
             session.setClientResultData(completionSessionResult, firstCompletionDisplayLatency, totalSessionDisplayTime)
 
-            emitPerceivedLatencyTelemetry(telemetry, session)
+            if (firstCompletionDisplayLatency) emitPerceivedLatencyTelemetry(telemetry, session)
 
             // Always emit user trigger decision at session close
             sessionManager.closeSession(session)

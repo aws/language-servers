@@ -17,7 +17,7 @@ describe('CodeWhisperer Server', () => {
     let sessionManagerSpy: sinon.SinonSpiedInstance<SessionManager>
     let generateSessionIdStub: sinon.SinonStub
 
-    before(() => {
+    beforeEach(() => {
         const StubSessionIdGenerator = () => {
             const id = 'some-random-session-uuid-' + SESSION_IDS_LOG.length
             SESSION_IDS_LOG.push(id)
@@ -27,17 +27,16 @@ describe('CodeWhisperer Server', () => {
         generateSessionIdStub = sinon
             .stub(CodeWhispererSession.prototype, 'generateSessionId')
             .callsFake(StubSessionIdGenerator)
-    })
-
-    beforeEach(() => {
-        SessionManager.reset()
         sessionManager = SessionManager.getInstance()
         sessionManagerSpy = sandbox.spy(sessionManager)
         SESSION_IDS_LOG = []
     })
 
     afterEach(() => {
+        generateSessionIdStub.restore()
+        SessionManager.reset()
         sandbox.restore()
+        SESSION_IDS_LOG = []
     })
 
     after(() => {
@@ -331,7 +330,7 @@ class HelloWorld
             const result = await features.doInlineCompletionWithReferences(
                 {
                     textDocument: { uri: SOME_FILE.uri },
-                    position: { line: 0, character: 0 },
+                    position: { line: 1, character: 0 },
                     context: { triggerKind: InlineCompletionTriggerKind.Invoked },
                 },
                 CancellationToken.None
@@ -738,7 +737,7 @@ class HelloWorld
             const result = await features.openDocument(SOME_FILE).doInlineCompletionWithReferences(
                 {
                     textDocument: { uri: SOME_FILE.uri },
-                    position: { line: 0, character: 0 },
+                    position: { line: 1, character: 0 },
                     context: { triggerKind: InlineCompletionTriggerKind.Invoked },
                 },
                 CancellationToken.None
@@ -1377,6 +1376,28 @@ static void Main()
                 },
             }
             sinon.assert.calledWithExactly(features.telemetry.emitMetric, expectedPerceivedLatencyMetric)
+        })
+
+        it('should not emit Perceived Latency metric when firstCompletionDisplayLatency is absent', async () => {
+            const sessionResultDataWithoutLatency = {
+                ...sessionResultData,
+                firstCompletionDisplayLatency: undefined,
+            }
+            await features.doInlineCompletionWithReferences(
+                {
+                    textDocument: { uri: SOME_FILE.uri },
+                    position: { line: 0, character: 0 },
+                    context: { triggerKind: InlineCompletionTriggerKind.Invoked },
+                },
+                CancellationToken.None
+            )
+
+            await features.doLogInlineCompletionSessionResults(sessionResultDataWithoutLatency)
+
+            sinon.assert.neverCalledWith(
+                features.telemetry.emitMetric,
+                sinon.match.has('name', 'codewhisperer_perceivedLatency')
+            )
         })
 
         describe('Connection metadata credentialStartUrl field', () => {

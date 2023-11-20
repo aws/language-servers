@@ -1,4 +1,5 @@
 import * as assert from 'assert'
+import sinon from 'ts-sinon'
 import { Suggestion } from '../codeWhispererService'
 import { CodeWhispererSession, SessionData, SessionManager } from './sessionManager'
 
@@ -77,6 +78,18 @@ describe('CodeWhispererSession', function () {
     })
 
     describe('close()', function () {
+        let clock: sinon.SinonFakeTimers
+
+        beforeEach(async () => {
+            clock = sinon.useFakeTimers({
+                now: 1483228800000,
+            })
+        })
+
+        afterEach(async () => {
+            clock.restore()
+        })
+
         it('should set session state to CLOSED', function () {
             const session = new CodeWhispererSession(data)
             session.close()
@@ -85,14 +98,26 @@ describe('CodeWhispererSession', function () {
 
         it('should record closeTime', function () {
             const session = new CodeWhispererSession(data)
+            assert(!session.closeTime)
+
             session.close()
+
+            assert(session.closeTime)
             assert.strictEqual(session.state, 'CLOSED')
         })
 
         it('should not update closeTime for CLOSED session', function () {
             const session = new CodeWhispererSession(data)
             session.close()
+            const closeTime = session.closeTime
+
             assert.strictEqual(session.state, 'CLOSED')
+            assert(closeTime)
+
+            clock.tick(5000)
+            session.close()
+
+            assert.equal(closeTime, session.closeTime)
         })
 
         it('should set suggestions states to Discard for stored suggestions without state', function () {

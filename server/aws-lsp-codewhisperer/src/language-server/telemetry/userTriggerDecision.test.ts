@@ -16,7 +16,7 @@ describe('Telemetry', () => {
     let generateSessionIdStub: sinon.SinonStub
     let clock: sinon.SinonFakeTimers
 
-    before(() => {
+    beforeEach(() => {
         const StubSessionIdGenerator = () => {
             let id = 'some-random-session-uuid-' + SESSION_IDS_LOG.length
             SESSION_IDS_LOG.push(id)
@@ -26,9 +26,6 @@ describe('Telemetry', () => {
         generateSessionIdStub = sinon
             .stub(CodeWhispererSession.prototype, 'generateSessionId')
             .callsFake(StubSessionIdGenerator)
-    })
-
-    beforeEach(() => {
         SessionManager.reset()
         sessionManager = SessionManager.getInstance()
         sessionManagerSpy = sandbox.spy(sessionManager)
@@ -40,12 +37,9 @@ describe('Telemetry', () => {
     })
 
     afterEach(() => {
+        generateSessionIdStub.restore()
         clock.restore()
         sandbox.restore()
-    })
-
-    after(() => {
-        generateSessionIdStub.restore()
     })
 
     describe('User Trigger Decision telemetry', () => {
