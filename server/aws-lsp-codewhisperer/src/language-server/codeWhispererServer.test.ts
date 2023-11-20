@@ -29,7 +29,6 @@ describe('CodeWhisperer Server', () => {
             .callsFake(StubSessionIdGenerator)
         sessionManager = SessionManager.getInstance()
         sessionManagerSpy = sandbox.spy(sessionManager)
-        SESSION_IDS_LOG = []
     })
 
     afterEach(() => {

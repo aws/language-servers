@@ -264,7 +264,8 @@ export const CodewhispererServerFactory =
             // On every new completion request close current inflight session.
             const currentSession = sessionManager.getCurrentSession()
             if (currentSession && currentSession?.state == 'REQUESTING') {
-                // If session was requesting at cancellation time, close it and do not report user decision
+                // If session was requesting at cancellation time, close it
+                // User Trigger Decision will be reported at the time of processing API response in the callback below
                 sessionManager.closeSession(currentSession)
             }
 
@@ -354,9 +355,12 @@ export const CodewhispererServerFactory =
                         emitServiceInvocationTelemetry(telemetry, newSession)
 
                         // Exit early and discard API response
-                        // session was closed by consequent completion request before API response was received,
-                        // do nothing
+                        // session was closed by consequent completion request before API response was received.
+                        // Emit Discard trigger decision
                         if (newSession.state === 'CLOSED') {
+                            // Force Discard user decision on every received suggestion
+                            newSession.suggestions.forEach(s => newSession.setSuggestionState(s.itemId, 'Discard'))
+                            emitUserTriggerDecisionTelemetry(telemetry, newSession)
                             return EMPTY_RESULT
                         }
 
