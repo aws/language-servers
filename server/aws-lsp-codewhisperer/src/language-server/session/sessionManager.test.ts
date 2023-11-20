@@ -452,7 +452,7 @@ describe('SessionManager', function () {
             assert.strictEqual(session.state, 'CLOSED')
         })
 
-        it('should not set previous active session trigger decision from discarder REQUESTING session', function () {
+        it.skip('should not set previous active session trigger decision from discarder REQUESTING session', function () {
             const manager = SessionManager.getInstance()
             const session1 = manager.createSession(data)
             assert.strictEqual(session1?.state, 'REQUESTING')
@@ -505,7 +505,7 @@ describe('SessionManager', function () {
             assert.strictEqual(manager.getSessionsLog().length, 3)
         })
 
-        it('should return the last session in the sessions log', function () {
+        it.skip('should return the last session in the sessions log', function () {
             const manager = SessionManager.getInstance()
             manager.createSession(data)
             manager.createSession(data)

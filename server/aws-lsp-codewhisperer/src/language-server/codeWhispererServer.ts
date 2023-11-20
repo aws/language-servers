@@ -263,10 +263,10 @@ export const CodewhispererServerFactory =
         ): Promise<InlineCompletionListWithReferences> => {
             // On every new completion request close current inflight session.
             const currentSession = sessionManager.getCurrentSession()
-            if (currentSession && currentSession?.state == 'REQUESTING') {
+            if (currentSession && currentSession.state == 'REQUESTING') {
                 // If session was requesting at cancellation time, close it
-                // User Trigger Decision will be reported at the time of processing API response in the callback below
-                sessionManager.closeSession(currentSession)
+                // User Trigger Decision will be reported at the time of processing API response in the callback below.
+                sessionManager.discardSession(currentSession)
             }
 
             return workspace.getTextDocument(params.textDocument.uri).then(textDocument => {
@@ -312,9 +312,10 @@ export const CodewhispererServerFactory =
                     maxResults,
                 }
 
-                if (currentSession && currentSession.state !== 'CLOSED') {
+                // Close ACTIVE session and record Discard trigger decision immediately
+                if (currentSession && currentSession.state === 'ACTIVE') {
                     // Emit user trigger decision at session close time for active session
-                    sessionManager.closeSession(currentSession)
+                    sessionManager.discardSession(currentSession)
                     emitUserTriggerDecisionTelemetry(telemetry, currentSession, timeSinceLastUserModification)
                 }
                 const newSession = sessionManager.createSession({
@@ -355,12 +356,13 @@ export const CodewhispererServerFactory =
                         emitServiceInvocationTelemetry(telemetry, newSession)
 
                         // Exit early and discard API response
-                        // session was closed by consequent completion request before API response was received.
-                        // Emit Discard trigger decision
-                        if (newSession.state === 'CLOSED') {
+                        // session was closed by consequent completion request before API response was received
+                        // and session never become ACTIVE.
+                        // Emit Discard trigger decision here, because we will have session and requist IDs only at this point.
+                        if (newSession.state === 'CLOSED' || newSession.state === 'DISCARD') {
                             // Force Discard user decision on every received suggestion
                             newSession.suggestions.forEach(s => newSession.setSuggestionState(s.itemId, 'Discard'))
-                            emitUserTriggerDecisionTelemetry(telemetry, newSession)
+                            emitUserTriggerDecisionTelemetry(telemetry, newSession, timeSinceLastUserModification)
                             return EMPTY_RESULT
                         }
 

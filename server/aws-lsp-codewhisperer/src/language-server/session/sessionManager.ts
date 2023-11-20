@@ -5,7 +5,7 @@ import { CodewhispererAutomatedTriggerType, CodewhispererTriggerType } from '../
 import { GenerateSuggestionsRequest, ResponseContext, Suggestion } from '../codeWhispererService'
 import { CodewhispererLanguage } from '../languageDetection'
 
-type SessionState = 'REQUESTING' | 'ACTIVE' | 'CLOSED' | 'ERROR'
+type SessionState = 'REQUESTING' | 'ACTIVE' | 'CLOSED' | 'ERROR' | 'DISCARD'
 type UserDecision = 'Empty' | 'Filter' | 'Discard' | 'Accept' | 'Ignore' | 'Reject' | 'Unseen'
 type UserTriggerDecision = 'Accept' | 'Reject' | 'Empty' | 'Discard'
 
@@ -79,13 +79,13 @@ export class CodeWhispererSession {
     }
 
     activate() {
-        if (this.state !== 'CLOSED') {
+        if (this.state !== 'CLOSED' && this.state !== 'DISCARD') {
             this.state = 'ACTIVE'
         }
     }
 
     close() {
-        if (this.state === 'CLOSED') {
+        if (this.state === 'CLOSED' || this.state === 'DISCARD') {
             return
         }
 
@@ -106,13 +106,26 @@ export class CodeWhispererSession {
         this.state = 'CLOSED'
     }
 
+    discard() {
+        // Force Discard trigger decision on every suggestion, if available
+        for (const suggestion of this.suggestions) {
+            if (!this.suggestionsStates.has(suggestion.itemId)) {
+                this.suggestionsStates.set(suggestion.itemId, 'Discard')
+            }
+        }
+
+        this.closeTime = new Date().getTime()
+
+        this.state = 'DISCARD'
+    }
+
     setClientResultData(
         completionSessionResult: { [itemId: string]: InlineCompletionStates },
         firstCompletionDisplayLatency?: number,
         totalSessionDisplayTime?: number
     ) {
         // Skip if session results were already recorded for session of session is closed
-        if (this.state === 'CLOSED' || this.completionSessionResult) {
+        if (this.state === 'CLOSED' || this.state === 'DISCARD' || this.completionSessionResult) {
             return
         }
 
@@ -171,6 +184,11 @@ export class CodeWhispererSession {
      * - Discard otherwise
      */
     getAggregatedUserTriggerDecision(): UserTriggerDecision | undefined {
+        // Force Discard trigger decision when session was explicitly discarded by server
+        if (this.state === 'DISCARD') {
+            return 'Discard'
+        }
+
         // Can't report trigger decision until session is marked as closed
         if (this.state !== 'CLOSED') {
             return
@@ -233,6 +251,8 @@ export class SessionManager {
         }
 
         this.currentSession = session
+        this.sessionsLog.push(session)
+
         return session
     }
 
@@ -243,16 +263,20 @@ export class SessionManager {
     }
 
     closeSession(session: CodeWhispererSession) {
-        if (this.currentSession == session) {
-            // TODO: check if should push only active session to the log.
-            // Session can be closed while REQUESTING, resuting in Discard user decision
-            // If we're closing current session and it's active - record it in sessions log
-            if (session.state === 'ACTIVE') {
-                this.sessionsLog.push(this.currentSession)
-            }
-        }
+        // if (this.currentSession == session) {
+        //     // TODO: check if should push only active session to the log.
+        //     // Session can be closed while REQUESTING, resuting in Discard user decision
+        //     // If we're closing current session and it's active - record it in sessions log
+        //     if (session.state === 'ACTIVE' || session.state === 'REQUESTING') {
+
+        //     }
+        // }
 
         session.close()
+    }
+
+    discardSession(session: CodeWhispererSession) {
+        session.discard()
     }
 
     getCurrentSession(): CodeWhispererSession | undefined {

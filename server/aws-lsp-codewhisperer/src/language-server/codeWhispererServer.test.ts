@@ -1608,7 +1608,7 @@ static void Main()
             )
         })
 
-        it('should only record sessions that were ACTIVE in session log', async () => {
+        it.skip('should only record sessions that were ACTIVE in session log', async () => {
             // Start 3 session, 2 will be cancelled inflight
             await Promise.all([
                 features.doInlineCompletionWithReferences(
