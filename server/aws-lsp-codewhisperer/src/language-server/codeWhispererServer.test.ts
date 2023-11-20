@@ -17,7 +17,7 @@ describe('CodeWhisperer Server', () => {
     let sessionManagerSpy: sinon.SinonSpiedInstance<SessionManager>
     let generateSessionIdStub: sinon.SinonStub
 
-    before(() => {
+    beforeEach(() => {
         const StubSessionIdGenerator = () => {
             const id = 'some-random-session-uuid-' + SESSION_IDS_LOG.length
             SESSION_IDS_LOG.push(id)
@@ -27,22 +27,16 @@ describe('CodeWhisperer Server', () => {
         generateSessionIdStub = sinon
             .stub(CodeWhispererSession.prototype, 'generateSessionId')
             .callsFake(StubSessionIdGenerator)
-    })
-
-    beforeEach(() => {
         sessionManager = SessionManager.getInstance()
         sessionManagerSpy = sandbox.spy(sessionManager)
         SESSION_IDS_LOG = []
     })
 
     afterEach(() => {
+        generateSessionIdStub.restore()
         SessionManager.reset()
         sandbox.restore()
         SESSION_IDS_LOG = []
-    })
-
-    after(() => {
-        generateSessionIdStub.restore()
     })
 
     describe('Recommendations', () => {
