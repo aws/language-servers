@@ -131,7 +131,11 @@ const emitPerceivedLatencyTelemetry = (telemetry: Telemetry, session: CodeWhispe
     })
 }
 
-const emitUserTriggerDecisionTelemetry = (telemetry: Telemetry, session: CodeWhispererSession) => {
+const emitUserTriggerDecisionTelemetry = (
+    telemetry: Telemetry,
+    session: CodeWhispererSession,
+    timeSinceLastUserModification?: number
+) => {
     // Prevent reporting user decision if it was already sent
     if (session.reportedUserDecision) {
         return
@@ -142,14 +146,18 @@ const emitUserTriggerDecisionTelemetry = (telemetry: Telemetry, session: CodeWhi
         return
     }
 
-    emitAggregatedUserTriggerDecisionTelemetry(telemetry, session)
+    emitAggregatedUserTriggerDecisionTelemetry(telemetry, session, timeSinceLastUserModification)
     // TODO: implement User Decision telemetry
     // emitUserDecisionTelemetry(telemetry, session)
 
     session.reportedUserDecision = true
 }
 
-const emitAggregatedUserTriggerDecisionTelemetry = (telemetry: Telemetry, session: CodeWhispererSession) => {
+const emitAggregatedUserTriggerDecisionTelemetry = (
+    telemetry: Telemetry,
+    session: CodeWhispererSession,
+    timeSinceLastUserModification?: number
+) => {
     const data = {
         codewhispererSessionId: session.codewhispererSessionId || '',
         codewhispererFirstRequestId: session.responseContext?.requestId || '',
@@ -169,7 +177,8 @@ const emitAggregatedUserTriggerDecisionTelemetry = (telemetry: Telemetry, sessio
         codewhispererClassifierThreshold: session.classifierThreshold,
         codewhispererTotalShownTime: session.totalSessionDisplayTime || 0,
         codewhispererTypeaheadLength: 0, // TODO,
-        codewhispererTimeSinceLastDocumentChange: 0, // TODO,
+        // Global time between any 2 document changes
+        codewhispererTimeSinceLastDocumentChange: timeSinceLastUserModification,
         codewhispererTimeSinceLastUserDecision: session.previousTriggerDecisionTime
             ? session.startTime - session.previousTriggerDecisionTime
             : undefined,
@@ -230,6 +239,9 @@ const hasLeftContextMatch = (suggestions: Suggestion[], leftFileContent: string)
 export const CodewhispererServerFactory =
     (service: (credentials: CredentialsProvider) => CodeWhispererServiceBase): Server =>
     ({ credentialsProvider, lsp, workspace, telemetry, logging }) => {
+        let lastUserModificationTime: number
+        let timeSinceLastUserModification: number = 0
+
         const sessionManager = SessionManager.getInstance()
         const codeWhispererService = service(credentialsProvider)
 
@@ -298,7 +310,7 @@ export const CodewhispererServerFactory =
                 if (currentSession && currentSession.state !== 'CLOSED') {
                     // Emit user trigger decision at session close time for active session
                     sessionManager.closeSession(currentSession)
-                    emitUserTriggerDecisionTelemetry(telemetry, currentSession)
+                    emitUserTriggerDecisionTelemetry(telemetry, currentSession, timeSinceLastUserModification)
                 }
                 const newSession = sessionManager.createSession({
                     startPosition: params.position,
@@ -390,7 +402,7 @@ export const CodewhispererServerFactory =
                         // If after all server-side filtering no suggestions can be displayed, close session and return empty results
                         if (suggestionsWithRightContext.length === 0) {
                             sessionManager.closeSession(newSession)
-                            emitUserTriggerDecisionTelemetry(telemetry, newSession)
+                            emitUserTriggerDecisionTelemetry(telemetry, newSession, timeSinceLastUserModification)
 
                             return EMPTY_RESULT
                         }
@@ -409,6 +421,7 @@ export const CodewhispererServerFactory =
                     })
             })
         }
+
         const onLogInlineCompletionSessionResultsHandler = async (params: LogInlineCompletionSessionResultsParams) => {
             const { sessionId, completionSessionResult, firstCompletionDisplayLatency, totalSessionDisplayTime } =
                 params
@@ -443,7 +456,7 @@ export const CodewhispererServerFactory =
 
             // Always emit user trigger decision at session close
             sessionManager.closeSession(session)
-            emitUserTriggerDecisionTelemetry(telemetry, session)
+            emitUserTriggerDecisionTelemetry(telemetry, session, timeSinceLastUserModification)
         }
 
         const updateConfiguration = async () =>
@@ -483,6 +496,12 @@ export const CodewhispererServerFactory =
             p.contentChanges.forEach(change => {
                 codePercentageTracker.countTokens(languageId, change.text)
             })
+
+            // Record last user modification time for any document
+            if (lastUserModificationTime) {
+                timeSinceLastUserModification = new Date().getTime() - lastUserModificationTime
+            }
+            lastUserModificationTime = new Date().getTime()
         })
 
         logging.log('Codewhisperer server has been initialised')
