@@ -39,10 +39,6 @@ describe('CodeWhisperer Server', () => {
         SESSION_IDS_LOG = []
     })
 
-    after(() => {
-        generateSessionIdStub.restore()
-    })
-
     describe('Recommendations', () => {
         const HELLO_WORLD_IN_CSHARP = `
 class HelloWorld
