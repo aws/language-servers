@@ -324,7 +324,7 @@ class HelloWorld
             const result = await features.doInlineCompletionWithReferences(
                 {
                     textDocument: { uri: SOME_FILE.uri },
-                    position: { line: 0, character: 0 },
+                    position: { line: 1, character: 0 },
                     context: { triggerKind: InlineCompletionTriggerKind.Invoked },
                 },
                 CancellationToken.None
@@ -737,7 +737,7 @@ class HelloWorld
             const result = await features.openDocument(SOME_FILE).doInlineCompletionWithReferences(
                 {
                     textDocument: { uri: SOME_FILE.uri },
-                    position: { line: 0, character: 0 },
+                    position: { line: 1, character: 0 },
                     context: { triggerKind: InlineCompletionTriggerKind.Invoked },
                 },
                 CancellationToken.None
