@@ -1378,6 +1378,28 @@ static void Main()
             sinon.assert.calledWithExactly(features.telemetry.emitMetric, expectedPerceivedLatencyMetric)
         })
 
+        it('should not emit Perceived Latency metric when firstCompletionDisplayLatency is absent', async () => {
+            const sessionResultDataWithoutLatency = {
+                ...sessionResultData,
+                firstCompletionDisplayLatency: undefined,
+            }
+            await features.doInlineCompletionWithReferences(
+                {
+                    textDocument: { uri: SOME_FILE.uri },
+                    position: { line: 0, character: 0 },
+                    context: { triggerKind: InlineCompletionTriggerKind.Invoked },
+                },
+                CancellationToken.None
+            )
+
+            // deletes history of service invocation being emitted
+            features.telemetry.emitMetric.resetHistory()
+
+            await features.doLogInlineCompletionSessionResults(sessionResultDataWithoutLatency)
+
+            sinon.assert.notCalled(features.telemetry.emitMetric)
+        })
+
         describe('Connection metadata credentialStartUrl field', () => {
             it('should attach credentialStartUrl field if available in credentialsProvider', async () => {
                 features.credentialsProvider.getConnectionMetadata.returns({

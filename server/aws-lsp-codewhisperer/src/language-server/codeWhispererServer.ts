@@ -350,7 +350,7 @@ export const CodewhispererServerFactory =
                 sessionManager.closeSession(session)
             }
 
-            emitPerceivedLatencyTelemetry(telemetry, session)
+            if (firstCompletionDisplayLatency) emitPerceivedLatencyTelemetry(telemetry, session)
         }
         const updateConfiguration = async () =>
             lsp.workspace
