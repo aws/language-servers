@@ -311,8 +311,8 @@ export const CodewhispererServerFactory =
                     requestContext: requestContext,
                     autoTriggerType: isAutomaticLspTriggerKind ? codewhispererAutoTriggerType : undefined,
                     triggerCharacter: triggerCharacter,
-                    classifierResult: isAutomaticLspTriggerKind ? autoTriggerResult?.classifierResult : undefined,
-                    classifierThreshold: isAutomaticLspTriggerKind ? autoTriggerResult?.classifierThreshold : undefined,
+                    classifierResult: autoTriggerResult?.classifierResult,
+                    classifierThreshold: autoTriggerResult?.classifierThreshold,
                     credentialStartUrl: credentialsProvider.getConnectionMetadata()?.sso?.startUrl ?? undefined,
                 })
 
