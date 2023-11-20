@@ -1393,9 +1393,10 @@ static void Main()
 
             await features.doLogInlineCompletionSessionResults(sessionResultDataWithoutLatency)
 
-            sinon.assert.neverCalledWithMatch(features.telemetry.emitMetric, {
-                name: 'codewhisperer_perceivedLatency',
-            })
+            sinon.assert.neverCalledWith(
+                features.telemetry.emitMetric,
+                sinon.match.has('name', 'codewhisperer_perceivedLatency')
+            )
         })
 
         describe('Connection metadata credentialStartUrl field', () => {
