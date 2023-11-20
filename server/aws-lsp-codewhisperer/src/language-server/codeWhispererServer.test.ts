@@ -1392,12 +1392,12 @@ static void Main()
                 CancellationToken.None
             )
 
-            // deletes history of service invocation being emitted
-            features.telemetry.emitMetric.resetHistory()
-
             await features.doLogInlineCompletionSessionResults(sessionResultDataWithoutLatency)
 
-            sinon.assert.notCalled(features.telemetry.emitMetric)
+            sinon.assert.neverCalledWith(
+                features.telemetry.emitMetric,
+                sinon.match.has('name', 'codewhisperer_perceivedLatency')
+            )
         })
 
         describe('Connection metadata credentialStartUrl field', () => {
