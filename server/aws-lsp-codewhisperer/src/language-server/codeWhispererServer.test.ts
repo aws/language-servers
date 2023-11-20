@@ -30,14 +30,15 @@ describe('CodeWhisperer Server', () => {
     })
 
     beforeEach(() => {
-        SessionManager.reset()
         sessionManager = SessionManager.getInstance()
         sessionManagerSpy = sandbox.spy(sessionManager)
         SESSION_IDS_LOG = []
     })
 
     afterEach(() => {
+        SessionManager.reset()
         sandbox.restore()
+        SESSION_IDS_LOG = []
     })
 
     after(() => {
