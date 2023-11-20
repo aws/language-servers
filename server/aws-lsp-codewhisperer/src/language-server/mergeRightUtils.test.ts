@@ -22,4 +22,22 @@ describe('Merge Right Utils', () => {
 
         assert.deepEqual(result, HELLO_WORLD.substring(0, 2))
     })
+
+    it('should trim right-context tabs and whitespaces until first newline', () => {
+        const suggestion = '{\n            return a + b;\n        }'
+        const rightContent = '       \n        }\n\n    }\n}'
+        const expected_result = '{\n            return a + b;'
+        const result = truncateOverlapWithRightContext(rightContent, suggestion)
+
+        assert.deepEqual(result, expected_result)
+    })
+
+    it('should handle different line endings', () => {
+        const suggestion = '{\n            return a + b;\n        }'
+        const rightContent = '\r\n        }\r\n}\r\n}'
+        const expected_result = '{\n            return a + b;'
+        const result = truncateOverlapWithRightContext(rightContent, suggestion)
+
+        assert.deepEqual(result, expected_result)
+    })
 })

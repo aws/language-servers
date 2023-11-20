@@ -16,8 +16,11 @@ export function getPrefixSuffixOverlap(firstString: string, secondString: string
 export function truncateOverlapWithRightContext(rightFileContent: string, suggestion: string): string {
     const trimmedSuggestion = suggestion.trim()
     // limit of 5000 for right context matching
-    const rightContext = rightFileContent.substring(0, 5000)
-    const overlap = getPrefixSuffixOverlap(trimmedSuggestion, rightContext.trim())
+    const rightContext = rightFileContent
+        .substring(0, 5000)
+        .replaceAll('\r\n', '\n')
+        .replace(/^[^\S\n]+/, '') // remove leading tabs and whitespaces
+    const overlap = getPrefixSuffixOverlap(trimmedSuggestion, rightContext)
     const overlapIndex = suggestion.lastIndexOf(overlap)
     if (overlapIndex >= 0) {
         const truncated = suggestion.slice(0, overlapIndex)
