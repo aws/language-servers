@@ -19,7 +19,7 @@ describe('CodeWhisperer Server', () => {
 
     before(() => {
         const StubSessionIdGenerator = () => {
-            let id = 'some-random-session-uuid-' + SESSION_IDS_LOG.length
+            const id = 'some-random-session-uuid-' + SESSION_IDS_LOG.length
             SESSION_IDS_LOG.push(id)
 
             return id
@@ -69,7 +69,7 @@ class HelloWorld
             1,
             'INPUT HELLO ; OUTPUT WORLD'
         )
-        const SOME_FILE_WITH_EXTENSION = TextDocument.create('file:///missing.cs', '', 1, HELLO_WORLD_IN_CSHARP)
+        const SOME_FILE_WITH_EXTENSION = TextDocument.create('file:///missing.hpp', '', 1, HELLO_WORLD_IN_CSHARP)
 
         const HELLO_WORLD_LINE = `Console.WriteLine("Hello World!");`
         // Single line file will not have the full line contents
@@ -136,6 +136,10 @@ class HelloWorld
                 .openDocument(SOME_UNSUPPORTED_FILE)
                 .openDocument(SOME_FILE_WITH_EXTENSION)
                 .openDocument(SOME_SINGLE_LINE_FILE)
+        })
+
+        afterEach(() => {
+            features.dispose()
         })
 
         it('should return recommendations', async () => {
@@ -295,7 +299,7 @@ class HelloWorld
             const expectedGenerateSuggestionsRequest = {
                 fileContext: {
                     filename: SOME_FILE_WITH_EXTENSION.uri,
-                    programmingLanguage: { languageName: 'csharp' },
+                    programmingLanguage: { languageName: 'cpp' },
                     leftFileContent: '',
                     rightFileContent: HELLO_WORLD_IN_CSHARP,
                 },
@@ -596,6 +600,10 @@ class HelloWorld
 
             // Initialize the features, but don't start server yet
             features = new TestFeatures()
+        })
+
+        afterEach(() => {
+            features.dispose()
         })
 
         it('should return all recommendations if no settings are specificed', async () => {
@@ -908,6 +916,10 @@ class HelloWorld
             features.openDocument(SOME_FILE)
         })
 
+        afterEach(() => {
+            features.dispose()
+        })
+
         it('should return recommendations on an above-threshold auto-trigger position', async () => {
             const result = await features.doInlineCompletionWithReferences(
                 {
@@ -1010,6 +1022,10 @@ class HelloWorld
             await features.start(server)
 
             features.openDocument(SOME_FILE)
+        })
+
+        afterEach(() => {
+            features.dispose()
         })
 
         it('should deactivate current session when session result for current session is sent', async () => {
@@ -1135,6 +1151,7 @@ static void Main()
 
         afterEach(async () => {
             clock.restore()
+            features.dispose()
         })
 
         it('should emit Success ServiceInvocation telemetry on successful response', async () => {
@@ -1287,8 +1304,7 @@ static void Main()
         })
 
         it('should emit Failure ServiceInvocation telemetry with request metadata on failed response with AWSError error type', async () => {
-            // @ts-ignore
-            const error: AWSError = new Error('Fake Error')
+            const error: AWSError = new Error('Fake Error') as AWSError
             error.name = 'TestAWSError'
             error.code = 'TestErrorStatusCode'
             error.statusCode = 500
@@ -1472,6 +1488,10 @@ static void Main()
             features.openDocument(SOME_FILE).openDocument(SOME_FILE_WITH_ALT_CASED_LANGUAGE_ID)
         })
 
+        afterEach(() => {
+            features.dispose()
+        })
+
         it('should cache new session on new request when no session exists', async () => {
             let activeSession = sessionManager.getCurrentSession()
             assert.equal(activeSession, undefined)
@@ -1635,7 +1655,7 @@ static void Main()
                 })
             )
 
-            let activeSession = sessionManager.getCurrentSession()
+            const activeSession = sessionManager.getCurrentSession()
             assert.equal(activeSession, undefined)
 
             await features.doInlineCompletionWithReferences(

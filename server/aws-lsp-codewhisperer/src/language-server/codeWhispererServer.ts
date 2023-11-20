@@ -19,6 +19,7 @@ import {
 import { CodewhispererLanguage, getSupportedLanguageId } from './languageDetection'
 import { getPrefixSuffixOverlap, truncateOverlapWithRightContext } from './mergeRightUtils'
 import { CodeWhispererSession, SessionManager } from './session/sessionManager'
+import { CodePercentageTracker } from './telemetry/codePercentage'
 import { CodeWhispererPerceivedLatencyEvent, CodeWhispererServiceInvocationEvent } from './telemetry/types'
 import { getCompletionType, isAwsError } from './utils'
 
@@ -238,6 +239,8 @@ export const CodewhispererServerFactory =
         // the context of a single response.
         let includeSuggestionsWithCodeReferences = false
 
+        const codePercentageTracker = new CodePercentageTracker(telemetry)
+
         const onInlineCompletionHandler = async (
             params: InlineCompletionWithReferencesParams,
             _token: CancellationToken
@@ -308,6 +311,8 @@ export const CodewhispererServerFactory =
                     classifierThreshold: isAutomaticLspTriggerKind ? autoTriggerResult?.classifierThreshold : undefined,
                     credentialStartUrl: credentialsProvider.getConnectionMetadata()?.sso?.startUrl ?? undefined,
                 })
+
+                codePercentageTracker.countInvocation(inferredLanguageId)
 
                 return codeWhispererService
                     .generateSuggestions({
@@ -420,6 +425,18 @@ export const CodewhispererServerFactory =
                 return
             }
 
+            const acceptedItemId = Object.keys(params.completionSessionResult).find(
+                k => params.completionSessionResult[k].accepted
+            )
+            const acceptedSuggestion = session.suggestions.find(s => s.itemId === acceptedItemId)
+
+            if (acceptedSuggestion !== undefined) {
+                if (acceptedSuggestion) {
+                    codePercentageTracker.countSuccess(session.language)
+                    codePercentageTracker.countAcceptedTokens(session.language, acceptedSuggestion.content)
+                }
+            }
+
             session.setClientResultData(completionSessionResult, firstCompletionDisplayLatency, totalSessionDisplayTime)
 
             emitPerceivedLatencyTelemetry(telemetry, session)
@@ -455,10 +472,23 @@ export const CodewhispererServerFactory =
         lsp.onInitialized(updateConfiguration)
         lsp.didChangeConfiguration(updateConfiguration)
 
+        lsp.onDidChangeTextDocument(async p => {
+            const textDocument = await workspace.getTextDocument(p.textDocument.uri)
+            const languageId = getSupportedLanguageId(textDocument)
+
+            if (!textDocument || !languageId) {
+                return
+            }
+
+            p.contentChanges.forEach(change => {
+                codePercentageTracker.countTokens(languageId, change.text)
+            })
+        })
+
         logging.log('Codewhisperer server has been initialised')
 
         return () => {
-            /* do nothing */
+            codePercentageTracker.dispose()
         }
     }
 

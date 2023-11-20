@@ -33,22 +33,30 @@ export interface CodeWhispererUserTriggerDecisionEvent {
     codewhispererSessionId: string
     codewhispererFirstRequestId: string
     credentialStartUrl?: string
-    codewhispererSuggestionState: string // TODO
+    codewhispererSuggestionState: string
     codewhispererCompletionType: string
     codewhispererLanguage: CodewhispererLanguage
     codewhispererTriggerType: string
     codewhispererAutomatedTriggerType?: string
-    codewhispererTriggerCharacter?: string // TODO
+    codewhispererTriggerCharacter?: string
     codewhispererLineNumber: number
     codewhispererCursorOffset: number
     codewhispererSuggestionCount: number
-    codewhispererClassifierResult?: number // TODO
-    codewhispererClassifierThreshold?: number // TODO
+    codewhispererClassifierResult?: number
+    codewhispererClassifierThreshold?: number
     codewhispererTotalShownTime: number
     codewhispererTypeaheadLength: number // TODO
     codewhispererTimeSinceLastDocumentChange: number // TODO
     // Data about previous triggers may be not available if client results were not sent in order
-    codewhispererTimeSinceLastUserDecision: number // TODO
+    codewhispererTimeSinceLastUserDecision: number
     codewhispererTimeToFirstRecommendation: number
-    codewhispererPreviousSuggestionState?: string // TODO
+    codewhispererPreviousSuggestionState?: string
+}
+
+export interface CodeWhispererCodePercentageEvent {
+    codewhispererTotalTokens: number
+    codewhispererLanguage: string
+    codewhispererAcceptedTokens: number
+    codewhispererPercentage: number
+    successCount: number
 }

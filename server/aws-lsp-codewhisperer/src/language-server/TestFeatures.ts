@@ -7,7 +7,12 @@ import {
 } from '@aws-placeholder/aws-language-server-runtimes/out/features'
 import { Server } from '@aws-placeholder/aws-language-server-runtimes/out/runtimes'
 import { StubbedInstance, stubInterface } from 'ts-sinon'
-import { CancellationToken, CompletionParams, InlineCompletionParams } from 'vscode-languageserver'
+import {
+    CancellationToken,
+    CompletionParams,
+    DidChangeTextDocumentParams,
+    InlineCompletionParams,
+} from 'vscode-languageserver'
 import { TextDocument } from 'vscode-languageserver-textdocument'
 
 // TODO move this to runtimes package once the test helpers stabilize
@@ -33,6 +38,8 @@ export class TestFeatures {
         [uri: string]: TextDocument
     }
 
+    private disposables: (() => void)[] = []
+
     constructor() {
         this.credentialsProvider = stubInterface<CredentialsProvider>()
         this.lsp = stubInterface<
@@ -49,7 +56,7 @@ export class TestFeatures {
     }
 
     async start(server: Server) {
-        server(this)
+        this.disposables.push(server(this))
         return Promise.resolve(this).then(f => {
             this.lsp.onInitialized.args[0][0]({})
             return f
@@ -81,10 +88,61 @@ export class TestFeatures {
         return this
     }
 
-    doChangeConfiguration() {
-        return Promise.resolve(this).then(f => {
-            this.lsp.didChangeConfiguration.args[0][0]({ settings: undefined })
-            return f
-        })
+    async doChangeConfiguration() {
+        // Force the call to handle after the current task completes
+        await undefined
+        this.lsp.didChangeConfiguration.args[0][0]({ settings: undefined })
+        return this
+    }
+
+    async doChangeTextDocument(params: DidChangeTextDocumentParams) {
+        // Force the call to handle after the current task completes
+        await undefined
+        this.lsp.onDidChangeTextDocument.args[0][0](params)
+        return this
+    }
+
+    async simulateTyping(uri: string, text: string) {
+        let remainder = text
+
+        while (remainder.length > 0) {
+            const document = this.documents[uri]!
+            const contentChange = remainder.substring(0, 1)
+            remainder = remainder.substring(1)
+            const newDocument = TextDocument.create(
+                document.uri,
+                document.languageId,
+                document.version + 1,
+                document.getText() + contentChange
+            )
+            this.documents[uri] = newDocument
+
+            const endPosition = document.positionAt(document.getText().length)
+            const range = {
+                start: endPosition,
+                end: endPosition,
+            }
+
+            // Force the call to handle after the current task completes
+            await undefined
+            this.lsp.onDidChangeTextDocument.args[0][0]({
+                textDocument: {
+                    uri,
+                    version: document.version,
+                },
+                contentChanges: [
+                    {
+                        range,
+                        text: contentChange,
+                    },
+                ],
+            })
+        }
+
+        return this
+    }
+
+    dispose() {
+        this.disposables.forEach(d => d())
     }
 }
