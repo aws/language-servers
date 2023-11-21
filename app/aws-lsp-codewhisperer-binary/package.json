@@ -11,7 +11,7 @@
         "package-x64": "pkg --targets node18-linux-x64,node18-win-x64,node18-macos-x64 --out-path bin --compress GZip ."
     },
     "dependencies": {
-        "@aws-placeholder/aws-language-server-runtimes": "file:../../bin/aws-placeholder-aws-language-server-runtimes-0.1.0.tgz",
+        "@aws-placeholder/aws-language-server-runtimes": "file:../../bin/aws-placeholder-aws-language-server-runtimes-0.1.1.tgz",
         "@lsp-placeholder/aws-lsp-codewhisperer": "*"
     },
     "devDependencies": {
