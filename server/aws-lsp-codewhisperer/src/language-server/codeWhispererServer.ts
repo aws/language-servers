@@ -23,6 +23,7 @@ import { CodePercentageTracker } from './telemetry/codePercentage'
 import {
     CodeWhispererPerceivedLatencyEvent,
     CodeWhispererServiceInvocationEvent,
+    CodeWhispererUserDecisionEvent,
     CodeWhispererUserTriggerDecisionEvent,
 } from './telemetry/types'
 import { getCompletionType, isAwsError } from './utils'
@@ -151,8 +152,7 @@ const emitUserTriggerDecisionTelemetry = (
     }
 
     emitAggregatedUserTriggerDecisionTelemetry(telemetry, session, timeSinceLastUserModification)
-    // TODO: implement User Decision telemetry
-    // emitUserDecisionTelemetry(telemetry, session)
+    emitUserDecisionTelemetry(telemetry, session)
 
     session.reportedUserDecision = true
 }
@@ -196,16 +196,29 @@ const emitAggregatedUserTriggerDecisionTelemetry = (
     })
 }
 
-// const emitUserDecisionTelemetry = (telemetry: Telemetry, session: CodeWhispererSession) => {
-//     const data = {
-//         // TODO
-//     }
+const emitUserDecisionTelemetry = (telemetry: Telemetry, session: CodeWhispererSession) => {
+    session.suggestions.forEach((suggestion, i) => {
+        const licenses = suggestion.references?.map(r => r.licenseName).filter((l): l is string => !!l)
 
-//     telemetry.emitMetric({
-//         name: 'codewhisperer_userDecision',
-//         data,
-//     })
-// }
+        const data: CodeWhispererUserDecisionEvent = {
+            codewhispererRequestId: session.responseContext?.requestId,
+            codewhispererSessionId: session.responseContext?.codewhispererSessionId,
+            codewhispererCompletionType: getCompletionType(suggestion),
+            codewhispererTriggerType: session.triggerType,
+            codewhispererLanguage: session.language,
+            credentialStartUrl: session.credentialStartUrl,
+            codewhispererSuggestionIndex: i,
+            codewhispererSuggestionState: session.getSuggestionState(suggestion.itemId),
+            codewhispererSuggestionReferences: [...new Set(licenses)],
+            codewhispererSuggestionReferenceCount: suggestion.references?.length || 0,
+        }
+
+        telemetry.emitMetric({
+            name: 'codewhisperer_userDecision',
+            data,
+        })
+    })
+}
 
 const mergeSuggestionsWithRightContext = (
     rightFileContext: string,

@@ -1,4 +1,5 @@
 import { CodewhispererLanguage } from '../languageDetection'
+import { UserDecision } from '../session/sessionManager'
 
 export type CodewhispererCompletionType = 'Block' | 'Line'
 
@@ -59,4 +60,19 @@ export interface CodeWhispererCodePercentageEvent {
     codewhispererAcceptedTokens: number
     codewhispererPercentage: number
     successCount: number
+}
+
+export interface CodeWhispererUserDecisionEvent {
+    codewhispererRequestId?: string
+    codewhispererSessionId?: string
+    codewhispererCompletionType?: CodewhispererCompletionType
+    codewhispererTriggerType: string
+    codewhispererLanguage: CodewhispererLanguage
+    credentialStartUrl?: string
+    codewhispererSuggestionIndex: number
+    codewhispererSuggestionState?: UserDecision
+    codewhispererSuggestionReferences?: string[]
+    codewhispererSuggestionReferenceCount: number
+    // TODO: After Pagination is implemented
+    codewhispererPaginationProgress?: number
 }
