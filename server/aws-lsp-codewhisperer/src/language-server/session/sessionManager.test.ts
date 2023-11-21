@@ -75,6 +75,13 @@ describe('CodeWhispererSession', function () {
             session.activate()
             assert.strictEqual(session.state, 'CLOSED')
         })
+
+        it('should not change session state if session in DISCARD state', function () {
+            const session = new CodeWhispererSession(data)
+            session.discard() // Set session state to DISCARD
+            session.activate()
+            assert.strictEqual(session.state, 'DISCARD')
+        })
     })
 
     describe('close()', function () {
@@ -156,6 +163,63 @@ describe('CodeWhispererSession', function () {
             assert.equal(session.suggestionsStates.size, 2)
             assert.equal(session.suggestionsStates.get(EXPECTED_SUGGESTION[0].itemId), 'Accept')
             assert.equal(session.suggestionsStates.get(EXPECTED_SUGGESTION[1].itemId), 'Unseen')
+        })
+    })
+
+    describe('discard()', function () {
+        let clock: sinon.SinonFakeTimers
+
+        beforeEach(async () => {
+            clock = sinon.useFakeTimers({
+                now: 1483228800000,
+            })
+        })
+
+        afterEach(async () => {
+            clock.restore()
+        })
+
+        it('should set session state to DISCARD', function () {
+            const session = new CodeWhispererSession(data)
+            session.discard()
+            assert.strictEqual(session.state, 'DISCARD')
+        })
+
+        it('should record closeTime', function () {
+            const session = new CodeWhispererSession(data)
+            assert(!session.closeTime)
+
+            session.discard()
+
+            assert(session.closeTime)
+            assert.strictEqual(session.state, 'DISCARD')
+        })
+
+        it('should not update closeTime for DISCARD session', function () {
+            const session = new CodeWhispererSession(data)
+            session.discard()
+            const closeTime = session.closeTime
+
+            assert.strictEqual(session.state, 'DISCARD')
+            assert(closeTime)
+
+            clock.tick(5000)
+            session.discard()
+
+            assert.equal(closeTime, session.closeTime)
+        })
+
+        it('should override suggestions states to Discard for stored suggestions', function () {
+            const session = new CodeWhispererSession(data)
+            session.suggestions = EXPECTED_SUGGESTION
+            session.suggestionsStates.set(EXPECTED_SUGGESTION[0].itemId, 'Empty')
+            session.suggestionsStates.set(EXPECTED_SUGGESTION[1].itemId, 'Filter')
+
+            session.discard()
+
+            assert.equal(session.suggestionsStates.size, 2)
+            assert.equal(session.suggestionsStates.get(EXPECTED_SUGGESTION[0].itemId), 'Discard')
+            assert.equal(session.suggestionsStates.get(EXPECTED_SUGGESTION[1].itemId), 'Discard')
         })
     })
 
@@ -411,6 +475,17 @@ describe('CodeWhispererSession', function () {
 
             assert.equal(session.getAggregatedUserTriggerDecision(), 'Discard')
         })
+
+        it('should return Discard when session is in DISCARD state', function () {
+            const session = new CodeWhispererSession(data)
+            session.suggestions = EXPECTED_SUGGESTION
+
+            assert.equal(session.suggestionsStates.size, 0)
+
+            session.discard()
+
+            assert.equal(session.getAggregatedUserTriggerDecision(), 'Discard')
+        })
     })
 })
 
@@ -452,14 +527,15 @@ describe('SessionManager', function () {
             assert.strictEqual(session.state, 'CLOSED')
         })
 
-        it('should not set previous active session trigger decision from discarder REQUESTING session', function () {
+        it('should set previous active session trigger decision from discarded REQUESTING session', function () {
             const manager = SessionManager.getInstance()
             const session1 = manager.createSession(data)
             assert.strictEqual(session1?.state, 'REQUESTING')
+            manager.discardSession(session1)
 
             const session2 = manager.createSession(data)
-            assert.strictEqual(session1?.state, 'CLOSED')
-            assert.strictEqual(session2.previousTriggerDecision, undefined)
+            assert.strictEqual(session1?.state, 'DISCARD')
+            assert.strictEqual(session2.previousTriggerDecision, 'Discard')
         })
 
         it('should set previous active session trigger decision to new session object', function () {
@@ -490,6 +566,20 @@ describe('SessionManager', function () {
         })
     })
 
+    describe('discard()', function () {
+        it('should set session to DISCARD state', function () {
+            const manager = SessionManager.getInstance()
+            const session = manager.createSession(data)
+            assert.strictEqual(session.state, 'REQUESTING')
+            session.activate()
+            assert.strictEqual(session.state, 'ACTIVE')
+            manager.discardSession(session)
+            assert.strictEqual(manager.getSessionsLog().length, 1)
+            assert.strictEqual(manager.getSessionsLog()[0], session)
+            assert.strictEqual(session.state, 'DISCARD')
+        })
+    })
+
     describe('getPreviousSession()', function () {
         it('should return the last session in the sessions log', function () {
             const manager = SessionManager.getInstance()
@@ -505,15 +595,17 @@ describe('SessionManager', function () {
             assert.strictEqual(manager.getSessionsLog().length, 3)
         })
 
-        it('should return the last session in the sessions log', function () {
+        it('should record not-closed and not-active sessions in the sessions log', function () {
             const manager = SessionManager.getInstance()
-            manager.createSession(data)
-            manager.createSession(data)
-            manager.createSession(data)
+            const session1 = manager.createSession(data)
+            session1.activate()
+            const session2 = manager.createSession(data)
+            const session3 = manager.createSession(data)
+            session3.activate()
             manager.closeCurrentSession()
             const result = manager.getPreviousSession()
-            assert.strictEqual(result, undefined)
-            assert.strictEqual(manager.getSessionsLog().length, 0)
+            assert.strictEqual(result, session3)
+            assert.strictEqual(manager.getSessionsLog().length, 3)
         })
 
         it('should return undefined if the sessions log is empty', function () {

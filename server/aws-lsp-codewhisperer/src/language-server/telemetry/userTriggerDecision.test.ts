@@ -1,4 +1,5 @@
 import { Server } from '@aws-placeholder/aws-language-server-runtimes'
+import { InlineCompletionListWithReferences } from '@aws-placeholder/aws-language-server-runtimes/out/features/lsp/inline-completions/protocolExtensions'
 import * as assert from 'assert'
 import sinon, { StubbedInstance, stubInterface } from 'ts-sinon'
 import { CancellationToken, InlineCompletionTriggerKind } from 'vscode-languageserver'
@@ -71,6 +72,29 @@ describe('Telemetry', () => {
             { itemId: 'cwspr-item-id-2', content: 'recommendation' },
             { itemId: 'cwspr-item-id-3', content: 'recommendation' },
         ]
+        const EXPECTED_RESULT = {
+            sessionId: 'some-random-session-uuid-0',
+            items: [
+                {
+                    itemId: DEFAULT_SUGGESTIONS[0].itemId,
+                    insertText: DEFAULT_SUGGESTIONS[0].content,
+                    range: undefined,
+                    references: undefined,
+                },
+                {
+                    itemId: DEFAULT_SUGGESTIONS[1].itemId,
+                    insertText: DEFAULT_SUGGESTIONS[1].content,
+                    range: undefined,
+                    references: undefined,
+                },
+                {
+                    itemId: DEFAULT_SUGGESTIONS[2].itemId,
+                    insertText: DEFAULT_SUGGESTIONS[2].content,
+                    range: undefined,
+                    references: undefined,
+                },
+            ],
+        }
         const EXPECTED_RESPONSE_CONTEXT: ResponseContext = {
             requestId: 'cwspr-request-id',
             codewhispererSessionId: 'cwspr-session-id',
@@ -95,6 +119,7 @@ describe('Telemetry', () => {
                 },
             },
         }
+        const EMPTY_RESULT = { items: [], sessionId: '' }
 
         let features: TestFeatures
         let server: Server
@@ -179,14 +204,9 @@ describe('Telemetry', () => {
                     codewhispererLineNumber: 2,
                     codewhispererCursorOffset: 21,
                     codewhispererSuggestionCount: 3,
-                    // codewhispererClassifierResult: undefined,
-                    // codewhispererClassifierThreshold: undefined,
                     codewhispererTotalShownTime: 0,
                     codewhispererTypeaheadLength: 0,
                     codewhispererTimeSinceLastDocumentChange: 0,
-                    codewhispererTimeSinceLastUserDecision: undefined,
-                    codewhispererTimeToFirstRecommendation: 2000,
-                    codewhispererPreviousSuggestionState: undefined,
                     ...override,
                 },
             }
@@ -341,7 +361,7 @@ describe('Telemetry', () => {
                 })
                 await autoTriggerInlineCompletionWithReferences()
 
-                assert.equal(firstSession.state, 'CLOSED')
+                assert.equal(firstSession.state, 'DISCARD')
                 assert.notEqual(firstSession, sessionManager.getCurrentSession())
                 sinon.assert.calledWithExactly(sessionManagerSpy.closeSession, firstSession)
                 // Test that session reports it's status when second request is received
@@ -666,56 +686,86 @@ describe('Telemetry', () => {
         })
 
         describe('Case 4. Inflight session is closed by subsequent completion request', function () {
-            it('should not emit user trigger decision event when REQUESTING session is closed before becoming ACTIVE', async () => {
-                await Promise.all([
-                    autoTriggerInlineCompletionWithReferences(),
-                    autoTriggerInlineCompletionWithReferences(),
-                    autoTriggerInlineCompletionWithReferences(),
+            it('should emit Discard user trigger decision event when REQUESTING session is closed before becoming ACTIVE', async () => {
+                // Chain requests in a callbacks
+                let concurrentCount = 0
+                let requests: Promise<InlineCompletionListWithReferences>[] = []
+
+                service.generateSuggestions.callsFake(_request => {
+                    clock.tick(1000)
+                    let i = concurrentCount
+
+                    if (concurrentCount < 2) {
+                        // Trigger second request before first one was resolved
+                        concurrentCount++
+                        const req =
+                            autoTriggerInlineCompletionWithReferences() as Promise<InlineCompletionListWithReferences>
+                        requests.push(req)
+                        clock.tick(10)
+                    }
+
+                    clock.tick(250)
+
+                    return Promise.resolve({
+                        suggestions: DEFAULT_SUGGESTIONS,
+                        responseContext: {
+                            ...EXPECTED_RESPONSE_CONTEXT,
+                            codewhispererSessionId: `cwspr-session-id-${i}`,
+                        },
+                    })
+                })
+
+                const result = [await autoTriggerInlineCompletionWithReferences(), ...(await Promise.all(requests))]
+
+                assert.deepEqual(result, [
+                    EMPTY_RESULT,
+                    EMPTY_RESULT,
+                    { ...EXPECTED_RESULT, sessionId: 'some-random-session-uuid-2' },
                 ])
 
                 // 3 sessions were created, each one closes previous one in REQUESTING state
                 assert.equal(SESSION_IDS_LOG.length, 3)
 
-                sinon.assert.neverCalledWithMatch(features.telemetry.emitMetric, {
-                    name: 'codewhisperer_userTriggerDecision',
-                })
+                sinon.assert.calledWithMatch(
+                    features.telemetry.emitMetric,
+                    aUserTriggerDecision({
+                        codewhispererSessionId: 'cwspr-session-id-0',
+                        codewhispererSuggestionState: 'Discard',
+                        codewhispererTimeToFirstRecommendation: 2520,
+                    })
+                )
+                sinon.assert.calledWithMatch(
+                    features.telemetry.emitMetric,
+                    aUserTriggerDecision({
+                        codewhispererSessionId: 'cwspr-session-id-1',
+                        codewhispererSuggestionState: 'Discard',
+                        codewhispererTimeToFirstRecommendation: 2510,
+                        codewhispererPreviousSuggestionState: 'Discard',
+                    })
+                )
+                sinon.assert.neverCalledWithMatch(
+                    features.telemetry.emitMetric,
+                    aUserTriggerDecision({
+                        codewhispererSessionId: 'cwspr-session-id-2',
+                        codewhispererSuggestionState: 'Empty',
+                    })
+                )
 
                 const activeSession = sessionManager.getActiveSession()
                 assert.equal(activeSession?.id, SESSION_IDS_LOG[2])
-            })
 
-            it('should not attach discarded REQUESTING session data in previous user trigger decision values', async () => {
-                await Promise.all([
-                    autoTriggerInlineCompletionWithReferences(),
-                    autoTriggerInlineCompletionWithReferences(),
-                    autoTriggerInlineCompletionWithReferences(),
-                ])
-
-                // 3 sessions were created
-                assert.equal(SESSION_IDS_LOG.length, 3)
-
-                sinon.assert.neverCalledWithMatch(features.telemetry.emitMetric, {
-                    name: 'codewhisperer_userTriggerDecision',
-                })
-
-                const activeSession = sessionManager.getActiveSession()
-                assert.equal(activeSession?.id, SESSION_IDS_LOG[2])
-
-                // Report session results to close last session
                 await features.doLogInlineCompletionSessionResults({
                     ...DEFAULT_SESSION_RESULT_DATA,
                     sessionId: SESSION_IDS_LOG[2],
                 })
-
-                assert.equal(activeSession?.previousTriggerDecision, undefined)
-                assert.equal(activeSession?.previousTriggerDecisionTime, undefined)
-
                 sinon.assert.calledWithMatch(
                     features.telemetry.emitMetric,
                     aUserTriggerDecision({
+                        codewhispererSessionId: 'cwspr-session-id-2',
                         codewhispererSuggestionState: 'Reject',
-                        codewhispererTimeSinceLastUserDecision: undefined,
-                        codewhispererPreviousSuggestionState: undefined,
+                        codewhispererTimeSinceLastUserDecision: 260,
+                        codewhispererPreviousSuggestionState: 'Discard',
+                        codewhispererTimeToFirstRecommendation: 1250,
                     })
                 )
             })
@@ -757,7 +807,6 @@ describe('Telemetry', () => {
             // Or attempt to record data
             await features.doLogInlineCompletionSessionResults(DEFAULT_SESSION_RESULT_DATA)
 
-            assert.equal(sessionManager.getPreviousSession(), firstSession)
             sinon.assert.neverCalledWithMatch(features.telemetry.emitMetric, {
                 name: 'codewhisperer_userTriggerDecision',
                 data: {
