@@ -318,6 +318,32 @@ describe('Telemetry', () => {
                 })
             })
 
+            it('should emit User Decision event with correct typeaheadLength value when session results are received', async () => {
+                setServiceResponse(DEFAULT_SUGGESTIONS, EXPECTED_RESPONSE_CONTEXT)
+
+                await autoTriggerInlineCompletionWithReferences()
+
+                const currentSession = sessionManager.getCurrentSession()
+                assert(currentSession)
+                assert.equal(currentSession?.state, 'ACTIVE')
+                sinon.assert.notCalled(sessionManagerSpy.closeSession)
+                sinon.assert.neverCalledWithMatch(features.telemetry.emitMetric, {
+                    name: 'codewhisperer_userTriggerDecision',
+                })
+
+                await features.doLogInlineCompletionSessionResults({
+                    ...DEFAULT_SESSION_RESULT_DATA,
+                    typeaheadLength: 20,
+                })
+
+                sinon.assert.calledWithMatch(features.telemetry.emitMetric, {
+                    name: 'codewhisperer_userTriggerDecision',
+                    data: {
+                        codewhispererTypeaheadLength: 20,
+                    },
+                })
+            })
+
             it('should not emit User Decision event when session results are received after session was closed', async () => {
                 setServiceResponse(DEFAULT_SUGGESTIONS, {
                     ...EXPECTED_RESPONSE_CONTEXT,

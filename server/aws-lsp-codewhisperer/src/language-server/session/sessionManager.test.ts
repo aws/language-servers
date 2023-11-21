@@ -47,6 +47,7 @@ describe('CodeWhispererSession', function () {
         },
         firstCompletionDisplayLatency: 50,
         totalSessionDisplayTime: 1000,
+        typeaheadLength: 20,
     }
 
     describe('constructor()', function () {
@@ -161,11 +162,16 @@ describe('CodeWhispererSession', function () {
 
     describe('setClientResultData()', function () {
         it('should set results of session from client with all relevant data available', function () {
-            const { completionSessionResult, firstCompletionDisplayLatency, totalSessionDisplayTime } =
+            const { completionSessionResult, firstCompletionDisplayLatency, totalSessionDisplayTime, typeaheadLength } =
                 sessionResultData
             const session = new CodeWhispererSession(data)
             session.activate()
-            session.setClientResultData(completionSessionResult, firstCompletionDisplayLatency, totalSessionDisplayTime)
+            session.setClientResultData(
+                completionSessionResult,
+                firstCompletionDisplayLatency,
+                totalSessionDisplayTime,
+                typeaheadLength
+            )
             assert.strictEqual(session.completionSessionResult, completionSessionResult)
             assert.strictEqual(session.firstCompletionDisplayLatency, firstCompletionDisplayLatency)
             assert.strictEqual(session.totalSessionDisplayTime, totalSessionDisplayTime)
