@@ -107,11 +107,13 @@ export class CodeWhispererSession {
     }
 
     discard() {
+        if (this.state === 'DISCARD') {
+            return
+        }
+
         // Force Discard trigger decision on every suggestion, if available
         for (const suggestion of this.suggestions) {
-            if (!this.suggestionsStates.has(suggestion.itemId)) {
-                this.suggestionsStates.set(suggestion.itemId, 'Discard')
-            }
+            this.suggestionsStates.set(suggestion.itemId, 'Discard')
         }
 
         this.closeTime = new Date().getTime()
@@ -263,15 +265,6 @@ export class SessionManager {
     }
 
     closeSession(session: CodeWhispererSession) {
-        // if (this.currentSession == session) {
-        //     // TODO: check if should push only active session to the log.
-        //     // Session can be closed while REQUESTING, resuting in Discard user decision
-        //     // If we're closing current session and it's active - record it in sessions log
-        //     if (session.state === 'ACTIVE' || session.state === 'REQUESTING') {
-
-        //     }
-        // }
-
         session.close()
     }
 

@@ -812,7 +812,6 @@ describe('Telemetry', () => {
             // Or attempt to record data
             await features.doLogInlineCompletionSessionResults(DEFAULT_SESSION_RESULT_DATA)
 
-            // assert.equal(sessionManager.getPreviousSession(), firstSession)
             sinon.assert.neverCalledWithMatch(features.telemetry.emitMetric, {
                 name: 'codewhisperer_userTriggerDecision',
                 data: {
