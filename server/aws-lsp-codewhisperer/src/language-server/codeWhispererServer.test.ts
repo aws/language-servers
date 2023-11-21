@@ -29,7 +29,6 @@ describe('CodeWhisperer Server', () => {
             .callsFake(StubSessionIdGenerator)
         sessionManager = SessionManager.getInstance()
         sessionManagerSpy = sandbox.spy(sessionManager)
-        SESSION_IDS_LOG = []
     })
 
     afterEach(() => {
@@ -1609,7 +1608,7 @@ static void Main()
             )
         })
 
-        it('should only record sessions that were ACTIVE in session log', async () => {
+        it('should record all sessions that were created in session log', async () => {
             // Start 3 session, 2 will be cancelled inflight
             await Promise.all([
                 features.doInlineCompletionWithReferences(
@@ -1638,8 +1637,6 @@ static void Main()
                 ),
             ])
 
-            assert.equal(sessionManagerSpy.createSession.callCount, 3)
-
             // Get session after call is done
             const firstActiveSession = sessionManager.getCurrentSession()
 
@@ -1653,15 +1650,16 @@ static void Main()
                 CancellationToken.None
             )
 
-            const newActiveSession = sessionManager.getCurrentSession()
-            const previousSession = sessionManager.getPreviousSession()
+            assert.equal(sessionManagerSpy.createSession.callCount, 4)
+            assert.equal(sessionManager.getSessionsLog().length, 4)
 
-            assert.equal(previousSession, firstActiveSession)
-            assert.equal(newActiveSession, sessionManager.getActiveSession())
+            const latestSession = sessionManager.getCurrentSession()
 
-            // Only 1 session that was ACTIVE is stored in sessions log
-            assert.equal(sessionManager.getSessionsLog().length, 1)
-            assert.equal(sessionManager.getSessionsLog()[0], firstActiveSession)
+            assert.equal(latestSession, sessionManager.getActiveSession())
+            assert.equal(latestSession, sessionManager.getCurrentSession())
+
+            // All sessions
+            assert.equal(firstActiveSession?.id, 'some-random-session-uuid-2')
         })
 
         it('should close new session on new request when service returns empty list', async () => {
