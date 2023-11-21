@@ -50,6 +50,7 @@ export class CodeWhispererSession {
     }
     firstCompletionDisplayLatency?: number
     totalSessionDisplayTime?: number
+    typeaheadLength?: number
     previousTriggerDecision?: UserTriggerDecision
     previousTriggerDecisionTime?: number
     reportedUserDecision: boolean = false
@@ -124,7 +125,8 @@ export class CodeWhispererSession {
     setClientResultData(
         completionSessionResult: { [itemId: string]: InlineCompletionStates },
         firstCompletionDisplayLatency?: number,
-        totalSessionDisplayTime?: number
+        totalSessionDisplayTime?: number,
+        typeaheadLength?: number
     ) {
         // Skip if session results were already recorded for session of session is closed
         if (this.state === 'CLOSED' || this.state === 'DISCARD' || this.completionSessionResult) {
@@ -172,6 +174,7 @@ export class CodeWhispererSession {
 
         this.firstCompletionDisplayLatency = firstCompletionDisplayLatency
         this.totalSessionDisplayTime = totalSessionDisplayTime
+        this.typeaheadLength = typeaheadLength
     }
 
     setSuggestionState(id: string, state: UserDecision) {

@@ -180,7 +180,7 @@ const emitAggregatedUserTriggerDecisionTelemetry = (
         codewhispererClassifierResult: session.classifierResult,
         codewhispererClassifierThreshold: session.classifierThreshold,
         codewhispererTotalShownTime: session.totalSessionDisplayTime || 0,
-        codewhispererTypeaheadLength: 0, // TODO,
+        codewhispererTypeaheadLength: session.typeaheadLength || 0,
         // Global time between any 2 document changes
         codewhispererTimeSinceLastDocumentChange: timeSinceLastUserModification,
         codewhispererTimeSinceLastUserDecision: session.previousTriggerDecisionTime
@@ -433,8 +433,13 @@ export const CodewhispererServerFactory =
         }
 
         const onLogInlineCompletionSessionResultsHandler = async (params: LogInlineCompletionSessionResultsParams) => {
-            const { sessionId, completionSessionResult, firstCompletionDisplayLatency, totalSessionDisplayTime } =
-                params
+            const {
+                sessionId,
+                completionSessionResult,
+                firstCompletionDisplayLatency,
+                totalSessionDisplayTime,
+                typeaheadLength,
+            } = params
 
             const session = sessionManager.getSessionById(sessionId)
 
@@ -460,7 +465,12 @@ export const CodewhispererServerFactory =
                 }
             }
 
-            session.setClientResultData(completionSessionResult, firstCompletionDisplayLatency, totalSessionDisplayTime)
+            session.setClientResultData(
+                completionSessionResult,
+                firstCompletionDisplayLatency,
+                totalSessionDisplayTime,
+                typeaheadLength
+            )
 
             if (firstCompletionDisplayLatency) emitPerceivedLatencyTelemetry(telemetry, session)
 
