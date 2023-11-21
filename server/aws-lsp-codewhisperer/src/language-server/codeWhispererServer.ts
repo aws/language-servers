@@ -293,13 +293,14 @@ export const CodewhispererServerFactory =
                 // This picks the last non-whitespace character, if any, before the cursor
                 const triggerCharacter = fileContext.leftFileContent.trim().at(-1) ?? ''
                 const codewhispererAutoTriggerType = triggerType(fileContext)
-                let autoTriggerResult = autoTrigger({
+                const previousDecision = sessionManager.getPreviousSession()?.getAggregatedUserTriggerDecision() ?? ''
+                const autoTriggerResult = autoTrigger({
                     fileContext, // The left/right file context and programming language
                     lineNum: params.position.line, // the line number of the invocation, this is the line of the cursor
                     char: triggerCharacter, // Add the character just inserted, if any, before the invication position
                     ide: '', // TODO: Fetch the IDE in a platform-agnostic way (from the initialize request?)
                     os: '', // TODO: We should get this in a platform-agnostic way (i.e., compatible with the browser)
-                    previousDecision: '', // TODO: Once we implement telemetry integration
+                    previousDecision, // The last decision by the user on the previous invocation
                     triggerType: codewhispererAutoTriggerType, // The 2 trigger types currently influencing the Auto-Trigger are SpecialCharacter and Enter
                 })
 
