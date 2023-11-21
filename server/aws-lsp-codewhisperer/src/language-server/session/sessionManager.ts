@@ -6,7 +6,7 @@ import { GenerateSuggestionsRequest, ResponseContext, Suggestion } from '../code
 import { CodewhispererLanguage } from '../languageDetection'
 
 type SessionState = 'REQUESTING' | 'ACTIVE' | 'CLOSED' | 'ERROR' | 'DISCARD'
-type UserDecision = 'Empty' | 'Filter' | 'Discard' | 'Accept' | 'Ignore' | 'Reject' | 'Unseen'
+export type UserDecision = 'Empty' | 'Filter' | 'Discard' | 'Accept' | 'Ignore' | 'Reject' | 'Unseen'
 type UserTriggerDecision = 'Accept' | 'Reject' | 'Empty' | 'Discard'
 
 export interface SessionData {
@@ -35,6 +35,7 @@ export class CodeWhispererSession {
     suggestions: Suggestion[] = []
     suggestionsStates = new Map<string, UserDecision>()
     acceptedSuggestionId?: string = undefined
+    acceptedSuggestionIndex?: number
     responseContext?: ResponseContext
     triggerType: CodewhispererTriggerType
     autoTriggerType?: CodewhispererAutomatedTriggerType
@@ -136,9 +137,11 @@ export class CodeWhispererSession {
         this.completionSessionResult = completionSessionResult
 
         let hasAcceptedSuggestion = false
-        for (let [itemId, states] of Object.entries(completionSessionResult)) {
+        const sessionResults = Object.entries(completionSessionResult)
+        for (let [itemId, states] of sessionResults) {
             if (states.accepted) {
                 this.acceptedSuggestionId = itemId
+                this.acceptedSuggestionIndex = sessionResults.indexOf([itemId, states])
                 hasAcceptedSuggestion = true
                 continue
             }
@@ -179,6 +182,10 @@ export class CodeWhispererSession {
 
     setSuggestionState(id: string, state: UserDecision) {
         this.suggestionsStates.set(id, state)
+    }
+
+    getSuggestionState(id: string): UserDecision | undefined {
+        return this.suggestionsStates.get(id)
     }
 
     /**
