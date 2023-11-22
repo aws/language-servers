@@ -781,7 +781,7 @@ class HelloWorld
                                 referenceUrl: EXPECTED_REFERENCE_WITH_LONG_RANGE.url,
                                 position: {
                                     startCharacter: EXPECTED_REFERENCE_WITH_LONG_RANGE.recommendationContentSpan?.start,
-                                    endCharacter: insertText.length,
+                                    endCharacter: insertText.length - 1,
                                 },
                             },
                         ],
