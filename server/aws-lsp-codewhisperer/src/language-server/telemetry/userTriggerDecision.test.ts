@@ -841,4 +841,304 @@ describe('Telemetry', () => {
             })
         })
     })
+
+    describe('User Decision Telemetry', () => {
+        const HELLO_WORLD_IN_CSHARP = `class HelloWorld
+{
+    static void Main()
+    {
+        Console.WriteLine("Hello World!");
+    }
+}
+`
+        const AUTO_TRIGGER_POSITION = { line: 2, character: 21 }
+        const SOME_FILE = TextDocument.create('file:///test.cs', 'csharp', 1, HELLO_WORLD_IN_CSHARP)
+        const SOME_FILE_WITH_ALT_CASED_LANGUAGE_ID = TextDocument.create(
+            // Use unsupported extension, so that we can test that we get a match based on the LanguageId
+            'file:///test.seesharp',
+            'CSharp',
+            1,
+            HELLO_WORLD_IN_CSHARP
+        )
+        const REFERENCE = [
+            {
+                licenseName: 'test license 1',
+                repository: 'test repository 1',
+                url: 'test url 1',
+                recommendationContentSpan: { start: 0, end: 1 },
+            },
+            {
+                licenseName: 'test license 2',
+                repository: 'test repository 2',
+                url: 'test url 2',
+                recommendationContentSpan: { start: 0, end: 1 },
+            },
+            {
+                licenseName: 'test license 1',
+                repository: 'test repository 3',
+                url: 'test url 3',
+                recommendationContentSpan: { start: 0, end: 1 },
+            },
+        ]
+        const DEFAULT_SUGGESTIONS: Suggestion[] = [
+            { itemId: 'cwspr-item-id-1', content: 'recommendation' },
+            { itemId: 'cwspr-item-id-2', content: 'recommendation' },
+            { itemId: 'cwspr-item-id-3', content: 'recommendation' },
+        ]
+
+        const EXPECTED_RESPONSE_CONTEXT: ResponseContext = {
+            requestId: 'cwspr-request-id',
+            codewhispererSessionId: 'cwspr-session-id',
+        }
+
+        let features: TestFeatures
+        let server: Server
+        // TODO move more of the service code out of the stub and into the testable realm
+        // See: https://aws.amazon.com/blogs/developer/mocking-modular-aws-sdk-for-javascript-v3-in-unit-tests/
+        // for examples on how to mock just the SDK client
+        let service: StubbedInstance<CodeWhispererServiceBase>
+        const setServiceResponse = (
+            suggestions: Suggestion[],
+            responseContext: ResponseContext,
+            time: number = 2000
+        ) => {
+            service.generateSuggestions.callsFake(_request => {
+                clock.tick(time)
+
+                return Promise.resolve({
+                    suggestions,
+                    responseContext,
+                })
+            })
+        }
+
+        const autoTriggerInlineCompletionWithReferences = async () =>
+            await features.doInlineCompletionWithReferences(
+                {
+                    textDocument: { uri: SOME_FILE.uri },
+                    position: AUTO_TRIGGER_POSITION,
+                    context: { triggerKind: InlineCompletionTriggerKind.Automatic },
+                },
+                CancellationToken.None
+            )
+
+        beforeEach(async () => {
+            // Set up the server with a mock service, returning predefined recommendations
+            service = stubInterface<CodeWhispererServiceBase>()
+            setServiceResponse(DEFAULT_SUGGESTIONS, EXPECTED_RESPONSE_CONTEXT)
+
+            server = CodewhispererServerFactory(_auth => service)
+
+            // Initialize the features, but don't start server yet
+            features = new TestFeatures()
+
+            features.lsp.workspace.getConfiguration.returns(
+                Promise.resolve({ includeSuggestionsWithCodeReferences: true })
+            )
+
+            // Return credentialsStartUrl value
+            features.credentialsProvider.getConnectionMetadata.returns({
+                sso: {
+                    startUrl: 'teststarturl',
+                },
+            })
+
+            // Start the server and open a document
+            await features.start(server)
+
+            features.openDocument(SOME_FILE).openDocument(SOME_FILE_WITH_ALT_CASED_LANGUAGE_ID)
+        })
+
+        const aUserDecision = (override: object = {}) => {
+            return {
+                name: 'codewhisperer_userDecision',
+                data: {
+                    codewhispererRequestId: 'cwspr-request-id',
+                    codewhispererSessionId: 'cwspr-session-id',
+                    credentialStartUrl: 'teststarturl',
+                    codewhispererCompletionType: 'Line',
+                    codewhispererLanguage: 'csharp',
+                    codewhispererTriggerType: 'AutoTrigger',
+                    codewhispererSuggestionIndex: 0,
+                    codewhispererSuggestionState: 'Discard',
+                    codewhispererSuggestionReferences: ['MIT'],
+                    codewhispererSuggestionReferenceCount: 1,
+                    ...override,
+                },
+            }
+        }
+
+        it('should send correct empty reference when suggestion does not have any', async () => {
+            const SESSION_RESULT_DATA = {
+                sessionId: 'some-random-session-uuid-0',
+                completionSessionResult: {
+                    'cwspr-item-id-1': {
+                        accepted: true, // 'Accept'
+                        seen: true,
+                        discarded: false,
+                    },
+                },
+            }
+            const SUGGESTIONS: Suggestion[] = [
+                {
+                    itemId: 'cwspr-item-id-1',
+                    content: 'recommendation with reference',
+                    references: undefined,
+                },
+            ]
+            setServiceResponse(SUGGESTIONS, EXPECTED_RESPONSE_CONTEXT)
+
+            await autoTriggerInlineCompletionWithReferences()
+            sinon.assert.neverCalledWithMatch(features.telemetry.emitMetric, {
+                name: 'codewhisperer_userDecision',
+            })
+
+            await features.doLogInlineCompletionSessionResults(SESSION_RESULT_DATA)
+
+            const expectedUserDecisionMetric = aUserDecision({
+                codewhispererSuggestionIndex: 0,
+                codewhispererSuggestionState: 'Accept',
+                codewhispererSuggestionReferences: [],
+                codewhispererSuggestionReferenceCount: 0,
+            })
+            sinon.assert.calledWithMatch(features.telemetry.emitMetric, expectedUserDecisionMetric)
+        })
+
+        it('should send correct reference when suggestion has any', async () => {
+            const SESSION_RESULT_DATA = {
+                sessionId: 'some-random-session-uuid-0',
+                completionSessionResult: {
+                    'cwspr-item-id-1-y': {
+                        accepted: true, // 'Accept'
+                        seen: true,
+                        discarded: false,
+                    },
+                },
+            }
+            const SUGGESTIONS: Suggestion[] = [
+                {
+                    itemId: 'cwspr-item-id-1-y',
+                    content: 'recommendation with reference',
+                    references: [REFERENCE[0]],
+                },
+            ]
+            setServiceResponse(SUGGESTIONS, EXPECTED_RESPONSE_CONTEXT)
+
+            await autoTriggerInlineCompletionWithReferences()
+            sinon.assert.neverCalledWithMatch(features.telemetry.emitMetric, {
+                name: 'codewhisperer_userDecision',
+            })
+
+            await features.doLogInlineCompletionSessionResults(SESSION_RESULT_DATA)
+
+            const expectedUserDecisionMetric = aUserDecision({
+                codewhispererSuggestionIndex: 0,
+                codewhispererSuggestionState: 'Accept',
+                codewhispererSuggestionReferences: ['test license 1'],
+                codewhispererSuggestionReferenceCount: 1,
+            })
+            sinon.assert.calledWithMatch(features.telemetry.emitMetric, expectedUserDecisionMetric)
+        })
+
+        it('should send unique licenses when suggestion has any that overlaps', async () => {
+            const SESSION_RESULT_DATA = {
+                sessionId: 'some-random-session-uuid-0',
+                completionSessionResult: {
+                    'cwspr-item-id-1': {
+                        accepted: true, // 'Accept'
+                        seen: true,
+                        discarded: false,
+                    },
+                },
+            }
+            const SUGGESTIONS: Suggestion[] = [
+                {
+                    itemId: 'cwspr-item-id-1',
+                    content: 'recommendation with reference',
+                    references: REFERENCE,
+                },
+            ]
+            setServiceResponse(SUGGESTIONS, EXPECTED_RESPONSE_CONTEXT)
+
+            await autoTriggerInlineCompletionWithReferences()
+            sinon.assert.neverCalledWithMatch(features.telemetry.emitMetric, {
+                name: 'codewhisperer_userDecision',
+            })
+
+            await features.doLogInlineCompletionSessionResults(SESSION_RESULT_DATA)
+
+            const expectedUserDecisionMetric = aUserDecision({
+                codewhispererSuggestionIndex: 0,
+                codewhispererSuggestionState: 'Accept',
+                codewhispererSuggestionReferences: ['test license 1', 'test license 2'],
+                codewhispererSuggestionReferenceCount: 3,
+            })
+            sinon.assert.calledWithMatch(features.telemetry.emitMetric, expectedUserDecisionMetric)
+        })
+
+        it('should send multiple metrics on all suggestions returned', async () => {
+            const SESSION_RESULT_DATA = {
+                sessionId: 'some-random-session-uuid-0',
+                completionSessionResult: {
+                    'cwspr-item-id-1': {
+                        accepted: true, // 'Accept'
+                        seen: true,
+                        discarded: false,
+                    },
+                    'cwspr-item-id-2': {
+                        accepted: false, // Discard
+                        seen: false,
+                        discarded: true,
+                    },
+                    'cwspr-item-id-3': {
+                        accepted: false, // 'Unseen'
+                        seen: false,
+                        discarded: false,
+                    },
+                },
+            }
+            const SUGGESTIONS: Suggestion[] = [
+                {
+                    itemId: 'cwspr-item-id-1',
+                    content: 'recommendation with reference',
+                    references: REFERENCE,
+                },
+                {
+                    itemId: 'cwspr-item-id-2',
+                    content: 'recommendation with reference',
+                    references: REFERENCE,
+                },
+                {
+                    itemId: 'cwspr-item-id-3',
+                    content: 'recommendation with reference',
+                    references: REFERENCE,
+                },
+            ]
+            setServiceResponse(SUGGESTIONS, EXPECTED_RESPONSE_CONTEXT)
+
+            await autoTriggerInlineCompletionWithReferences()
+            sinon.assert.neverCalledWithMatch(features.telemetry.emitMetric, {
+                name: 'codewhisperer_userDecision',
+            })
+
+            await features.doLogInlineCompletionSessionResults(SESSION_RESULT_DATA)
+
+            const expectedStates = ['Accept', 'Discard', 'Unseen']
+            const expectedUserDecisionMetrics = new Array()
+            SUGGESTIONS.forEach((_, i) => {
+                expectedUserDecisionMetrics.push(
+                    aUserDecision({
+                        codewhispererSuggestionIndex: i,
+                        codewhispererSuggestionState: expectedStates[i],
+                        codewhispererSuggestionReferences: ['test license 1', 'test license 2'],
+                        codewhispererSuggestionReferenceCount: 3,
+                    })
+                )
+            })
+
+            expectedUserDecisionMetrics.forEach(metric => {
+                sinon.assert.calledWithMatch(features.telemetry.emitMetric, metric)
+            })
+        })
+    })
 })
