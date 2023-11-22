@@ -230,7 +230,9 @@ const mergeSuggestionsWithRightContext = (
         let references = suggestion.references
             ?.filter(
                 ref =>
-                    !(ref.recommendationContentSpan?.start && insertText.length <= ref.recommendationContentSpan.start)
+                    !(
+                        ref.recommendationContentSpan?.start && insertText.length <= ref.recommendationContentSpan.start
+                    ) && insertText.length
             )
             .map(r => {
                 return {
@@ -240,7 +242,7 @@ const mergeSuggestionsWithRightContext = (
                     position: r.recommendationContentSpan && {
                         startCharacter: r.recommendationContentSpan.start,
                         endCharacter: r.recommendationContentSpan.end
-                            ? Math.min(r.recommendationContentSpan.end, insertText.length)
+                            ? Math.min(r.recommendationContentSpan.end, insertText.length - 1)
                             : r.recommendationContentSpan.end,
                     },
                 }
