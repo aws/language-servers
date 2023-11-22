@@ -225,20 +225,34 @@ const mergeSuggestionsWithRightContext = (
     suggestions: Suggestion[],
     range?: Range
 ): InlineCompletionItemWithReferences[] => {
-    return suggestions.map(suggestion => ({
-        itemId: suggestion.itemId,
-        insertText: truncateOverlapWithRightContext(rightFileContext, suggestion.content),
-        range,
-        references: suggestion.references?.map(r => ({
-            licenseName: r.licenseName,
-            referenceUrl: r.url,
-            referenceName: r.repository,
-            position: r.recommendationContentSpan && {
-                startCharacter: r.recommendationContentSpan.start,
-                endCharacter: r.recommendationContentSpan.end,
-            },
-        })),
-    }))
+    return suggestions.map(suggestion => {
+        const insertText = truncateOverlapWithRightContext(rightFileContext, suggestion.content)
+        let references = suggestion.references
+            ?.filter(
+                ref =>
+                    !(ref.recommendationContentSpan?.start && insertText.length <= ref.recommendationContentSpan.start)
+            )
+            .map(r => {
+                return {
+                    licenseName: r.licenseName,
+                    referenceUrl: r.url,
+                    referenceName: r.repository,
+                    position: r.recommendationContentSpan && {
+                        startCharacter: r.recommendationContentSpan.start,
+                        endCharacter: r.recommendationContentSpan.end
+                            ? Math.min(r.recommendationContentSpan.end, insertText.length)
+                            : r.recommendationContentSpan.end,
+                    },
+                }
+            })
+
+        return {
+            itemId: suggestion.itemId,
+            insertText: insertText,
+            range,
+            references: references?.length ? references : undefined,
+        }
+    })
 }
 
 // Checks if any suggestion in list of suggestions matches with left context of the file

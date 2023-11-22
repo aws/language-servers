@@ -742,7 +742,6 @@ class HelloWorld
         })
 
         it('should show references and update range when there is partial overlap on right context', async () => {
-            // TODO, this test should fail once we implement logic for updating the reference range
             features.lsp.workspace.getConfiguration.returns(
                 Promise.resolve({ includeSuggestionsWithCodeReferences: true })
             )
@@ -759,28 +758,92 @@ class HelloWorld
             const MY_FILE = TextDocument.create('file:///rightContext.cs', 'csharp', 1, finalFileContent)
             features.openDocument(MY_FILE)
 
+            const EXPECTED_REFERENCE_WITH_LONG_RANGE = {
+                ...EXPECTED_REFERENCE,
+                recommendationContentSpan: { start: 0, end: HELLO_WORLD_IN_CSHARP.length },
+            }
+
             const EXPECTED_SUGGESTION: Suggestion[] = [
-                { itemId: 'cwspr-item-id', content: recommendation, references: [EXPECTED_REFERENCE] },
+                { itemId: 'cwspr-item-id', content: recommendation, references: [EXPECTED_REFERENCE_WITH_LONG_RANGE] },
             ]
+            const insertText = deletedLine.concat('\n    ')
             const EXPECTED_RESULT = {
                 sessionId: EXPECTED_SESSION_ID,
                 items: [
                     {
                         itemId: EXPECTED_SUGGESTION[0].itemId,
-                        insertText: deletedLine.concat('\n    '),
+                        insertText: insertText,
                         range: undefined,
                         references: [
                             {
-                                licenseName: EXPECTED_REFERENCE.licenseName,
-                                referenceName: EXPECTED_REFERENCE.repository,
-                                referenceUrl: EXPECTED_REFERENCE.url,
+                                licenseName: EXPECTED_REFERENCE_WITH_LONG_RANGE.licenseName,
+                                referenceName: EXPECTED_REFERENCE_WITH_LONG_RANGE.repository,
+                                referenceUrl: EXPECTED_REFERENCE_WITH_LONG_RANGE.url,
                                 position: {
-                                    //The position indices will change after we implement logic for partial overlap in references
-                                    startCharacter: EXPECTED_REFERENCE.recommendationContentSpan?.start,
-                                    endCharacter: EXPECTED_REFERENCE.recommendationContentSpan?.end,
+                                    startCharacter: EXPECTED_REFERENCE_WITH_LONG_RANGE.recommendationContentSpan?.start,
+                                    endCharacter: insertText.length,
                                 },
                             },
                         ],
+                    },
+                ],
+            }
+            service.generateSuggestions.returns(
+                Promise.resolve({
+                    suggestions: EXPECTED_SUGGESTION,
+                    responseContext: EXPECTED_RESPONSE_CONTEXT,
+                })
+            )
+
+            const result = await features.openDocument(MY_FILE).doInlineCompletionWithReferences(
+                {
+                    textDocument: { uri: MY_FILE.uri },
+                    position: { line: cutOffLine, character: 0 },
+                    context: { triggerKind: InlineCompletionTriggerKind.Invoked },
+                },
+                CancellationToken.None
+            )
+
+            assert.deepEqual(result, EXPECTED_RESULT)
+        })
+
+        it('should discard reference if it references trimmed content after right-context merge', async () => {
+            features.lsp.workspace.getConfiguration.returns(
+                Promise.resolve({ includeSuggestionsWithCodeReferences: true })
+            )
+            await features.start(server)
+
+            const cutOffLine = 3
+            const lines = HELLO_WORLD_IN_CSHARP.split('\n')
+            // The recommendation will be the contents of hello world starting from line 3 (static void Main)
+            const recommendation = lines.slice(cutOffLine).join('\n')
+            // We delete the static void Main line from Hello World but keep the rest in the file
+            const deletedLine = lines.splice(cutOffLine, 1)[0]
+
+            const finalFileContent = lines.join('\n')
+            const MY_FILE = TextDocument.create('file:///rightContext.cs', 'csharp', 1, finalFileContent)
+            features.openDocument(MY_FILE)
+
+            const insertText = deletedLine.concat('\n    ')
+
+            // reference range covers portion of string that will be removed
+            const EXPECTED_REFERENCE_WITH_OUTER_RANGE = {
+                ...EXPECTED_REFERENCE,
+                recommendationContentSpan: { start: insertText.length, end: recommendation.length },
+            }
+
+            const EXPECTED_SUGGESTION: Suggestion[] = [
+                { itemId: 'cwspr-item-id', content: recommendation, references: [EXPECTED_REFERENCE_WITH_OUTER_RANGE] },
+            ]
+
+            const EXPECTED_RESULT = {
+                sessionId: EXPECTED_SESSION_ID,
+                items: [
+                    {
+                        itemId: EXPECTED_SUGGESTION[0].itemId,
+                        insertText: insertText,
+                        range: undefined,
+                        references: undefined,
                     },
                 ],
             }
