@@ -1542,8 +1542,12 @@ static void Main()
         // See: https://aws.amazon.com/blogs/developer/mocking-modular-aws-sdk-for-javascript-v3-in-unit-tests/
         // for examples on how to mock just the SDK client
         let service: StubbedInstance<CodeWhispererServiceBase>
+        let clock: sinon.SinonFakeTimers
 
         beforeEach(async () => {
+            clock = sinon.useFakeTimers({
+                now: 1483228800000,
+            })
             // Set up the server with a mock service, returning predefined recommendations
             service = stubInterface<CodeWhispererServiceBase>()
             service.generateSuggestions.returns(
@@ -1568,6 +1572,7 @@ static void Main()
         })
 
         afterEach(() => {
+            clock.restore()
             features.dispose()
         })
 
