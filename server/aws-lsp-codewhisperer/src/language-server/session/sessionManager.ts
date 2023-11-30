@@ -35,7 +35,6 @@ export class CodeWhispererSession {
     suggestions: Suggestion[] = []
     suggestionsStates = new Map<string, UserDecision>()
     acceptedSuggestionId?: string = undefined
-    acceptedSuggestionIndex?: number
     responseContext?: ResponseContext
     triggerType: CodewhispererTriggerType
     autoTriggerType?: CodewhispererAutomatedTriggerType
@@ -141,7 +140,6 @@ export class CodeWhispererSession {
         for (let [itemId, states] of sessionResults) {
             if (states.accepted) {
                 this.acceptedSuggestionId = itemId
-                this.acceptedSuggestionIndex = sessionResults.indexOf([itemId, states])
                 hasAcceptedSuggestion = true
                 continue
             }

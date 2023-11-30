@@ -648,4 +648,43 @@ describe('SessionManager', function () {
             assert.strictEqual(resultSession, undefined)
         })
     })
+
+    describe('getSuggestionState()', function () {
+        const SUGGESTIONS = [
+            { itemId: 'id1', content: 'recommendation 1' },
+            { itemId: 'id2', content: 'recommendation 2' },
+            { itemId: 'id3', content: 'recommendation 3' },
+            { itemId: 'id4', content: 'recommendation 4' },
+        ]
+
+        it('should return the state of suggestion with the associated ID', function () {
+            const session = new CodeWhispererSession(data)
+            session.activate()
+            session.suggestions = SUGGESTIONS
+            session.setSuggestionState('id1', 'Discard')
+            session.setSuggestionState('id2', 'Empty')
+            session.setSuggestionState('id3', 'Filter')
+            session.setSuggestionState('id4', 'Discard')
+
+            assert.equal(session.getSuggestionState('id1'), 'Discard')
+            assert.equal(session.getSuggestionState('id2'), 'Empty')
+            assert.equal(session.getSuggestionState('id3'), 'Filter')
+            assert.equal(session.getSuggestionState('id4'), 'Discard')
+        })
+
+        it('should return the undefined if no suggestion has the associated ID', function () {
+            const session = new CodeWhispererSession(data)
+            session.activate()
+            session.suggestions = SUGGESTIONS
+            session.setSuggestionState('id1', 'Discard')
+            session.setSuggestionState('id2', 'Empty')
+            session.setSuggestionState('id3', 'Filter')
+            session.setSuggestionState('id4', 'Discard')
+
+            assert.equal(session.getSuggestionState('id1'), 'Discard')
+            assert.equal(session.getSuggestionState('id2'), 'Empty')
+            assert.equal(session.getSuggestionState('id3'), 'Filter')
+            assert.equal(session.getSuggestionState('id4'), 'Discard')
+        })
+    })
 })

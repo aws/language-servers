@@ -73,6 +73,4 @@ export interface CodeWhispererUserDecisionEvent {
     codewhispererSuggestionState?: UserDecision
     codewhispererSuggestionReferences?: string[]
     codewhispererSuggestionReferenceCount: number
-    // TODO: After Pagination is implemented
-    codewhispererPaginationProgress?: number
 }
