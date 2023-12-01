@@ -11,6 +11,9 @@ class HelloWorld
 }
 `
 
+export const HELLO_WORLD_WITH_WINDOWS_ENDING = `class HelloWorld\r\n{\r\nstatic void Main()\r\n{\r\nConsole.WriteLine("Hello World!");\r\n}\r\n}\r\n`
+export const SOME_WINDOWS_FILE = TextDocument.create('file:///test.cs', 'csharp', 1, HELLO_WORLD_WITH_WINDOWS_ENDING)
+
 export const SOME_FILE = TextDocument.create('file:///test.cs', 'csharp', 1, HELLO_WORLD_IN_CSHARP)
 export const SOME_FILE_WITH_ALT_CASED_LANGUAGE_ID = TextDocument.create(
     // Use unsupported extension, so that we can test that we get a match based on the LanguageId
