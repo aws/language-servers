@@ -22,7 +22,7 @@ describe('Merge Right Utils', () => {
     })
 
     it('should not handle the case where right context fully matches suggestion but starts with a newline ', () => {
-        const result = truncateOverlapWithRightContext(HELLO_WORLD_IN_CSHARP, HELLO_WORLD_IN_CSHARP)
+        const result = truncateOverlapWithRightContext('\n' + HELLO_WORLD_IN_CSHARP, HELLO_WORLD_IN_CSHARP)
         // Even though right context and suggestion are equal, the newline of right context doesn't get trimmed while the newline of suggestion gets trimmed
         // As a result, we end up with no overlap
         assert.deepEqual(result, HELLO_WORLD_IN_CSHARP)

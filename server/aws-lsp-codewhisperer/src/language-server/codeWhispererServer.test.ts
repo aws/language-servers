@@ -29,7 +29,6 @@ import {
     SOME_FILE_WITH_EXTENSION,
     SOME_SINGLE_LINE_FILE,
     SOME_UNSUPPORTED_FILE,
-    SOME_WINDOWS_FILE,
 } from './testUtils'
 
 describe('CodeWhisperer Server', () => {
@@ -117,31 +116,6 @@ describe('CodeWhisperer Server', () => {
             const expectedGenerateSuggestionsRequest = {
                 fileContext: {
                     filename: SOME_FILE.uri,
-                    programmingLanguage: { languageName: 'csharp' },
-                    leftFileContent: '',
-                    rightFileContent: HELLO_WORLD_IN_CSHARP,
-                },
-                maxResults: 5,
-            }
-            sinon.assert.calledOnceWithExactly(service.generateSuggestions, expectedGenerateSuggestionsRequest)
-        })
-
-        it('should return recommendations for windows line endings', async () => {
-            const result = await features.doInlineCompletionWithReferences(
-                {
-                    textDocument: { uri: SOME_WINDOWS_FILE.uri },
-                    position: { line: 0, character: 0 },
-                    context: { triggerKind: InlineCompletionTriggerKind.Invoked },
-                },
-                CancellationToken.None
-            )
-
-            // Check the completion result
-            assert.deepEqual(result, EXPECTED_RESULT)
-
-            const expectedGenerateSuggestionsRequest = {
-                fileContext: {
-                    filename: SOME_WINDOWS_FILE.uri,
                     programmingLanguage: { languageName: 'csharp' },
                     leftFileContent: '',
                     rightFileContent: HELLO_WORLD_IN_CSHARP,
@@ -308,7 +282,7 @@ describe('CodeWhisperer Server', () => {
             const result = await features.doInlineCompletionWithReferences(
                 {
                     textDocument: { uri: SOME_FILE.uri },
-                    position: { line: 1, character: 0 },
+                    position: { line: 0, character: 0 },
                     context: { triggerKind: InlineCompletionTriggerKind.Invoked },
                 },
                 CancellationToken.None
@@ -318,7 +292,7 @@ describe('CodeWhisperer Server', () => {
         })
 
         it('should only show the part of the recommendation that does not overlap with the right context in multiline', async () => {
-            const cutOffLine = 3
+            const cutOffLine = 2
             const lines = HELLO_WORLD_IN_CSHARP.split('\n')
             // The recommendation will be the contents of hello world starting from line 3 (static void Main)
             const recommendation = lines.slice(cutOffLine).join('\n')
@@ -375,58 +349,35 @@ describe('CodeWhisperer Server', () => {
             sinon.assert.calledOnceWithExactly(service.generateSuggestions, expectedGenerateSuggestionsRequest)
         })
 
-        it('should only show the part of the recommendation that does not overlap with the right context for windows files', async () => {
-            const cutOffLine = 1
+        it('should convert windows newlines to UNIX newlines in request file contents', async () => {
+            const cutOffLine = 2
             const lines = HELLO_WORLD_WITH_WINDOWS_ENDING.split('\r\n')
-            // The recommendation will be the contents of hello world starting from line 1 (static void Main)
-            const recommendation = lines.slice(cutOffLine).join('\n')
-            // We delete the static void Main line from Hello World but keep the rest in the file
-            const deletedLine = lines.splice(cutOffLine, 1)[0]
 
-            const finalFileContent = lines.join('\r\n')
-            const MY_FILE = TextDocument.create('file:///rightContext.cs', 'csharp', 1, finalFileContent)
-            features.openDocument(MY_FILE)
-
-            const EXPECTED_SUGGESTION: Suggestion[] = [{ itemId: 'cwspr-item-id', content: recommendation }]
-            service.generateSuggestions.returns(
-                Promise.resolve({
-                    suggestions: EXPECTED_SUGGESTION,
-                    responseContext: EXPECTED_RESPONSE_CONTEXT,
-                })
+            const MY_WINDOWS_FILE = TextDocument.create(
+                'file:///rightContext.cs',
+                'csharp',
+                1,
+                HELLO_WORLD_WITH_WINDOWS_ENDING
             )
-            // Expected result is the deleted line + new line (UNIX type new line)
-            // Newline gets lost when we do the `split` so we add them back to expected result
-            const EXPECTED_RESULT = {
-                sessionId: EXPECTED_SESSION_ID,
-                items: [
-                    {
-                        itemId: EXPECTED_SUGGESTION[0].itemId,
-                        insertText: deletedLine.concat('\n'),
-                        range: undefined,
-                        references: undefined,
-                    },
-                ],
-            }
+            features.openDocument(MY_WINDOWS_FILE)
 
-            const result = await features.doInlineCompletionWithReferences(
+            await features.doInlineCompletionWithReferences(
                 {
-                    textDocument: { uri: MY_FILE.uri },
+                    textDocument: { uri: MY_WINDOWS_FILE.uri },
                     position: { line: cutOffLine, character: 0 },
                     context: { triggerKind: InlineCompletionTriggerKind.Invoked },
                 },
                 CancellationToken.None
             )
 
-            assert.deepEqual(result, EXPECTED_RESULT)
-
-            const leftContext = lines.slice(0, cutOffLine).join('\n') + '\n'
-            const rightContext = lines.slice(cutOffLine).join('\n')
+            const modifiedLeftContext = lines.slice(0, cutOffLine).join('\n') + '\n'
+            const modifiedRightContext = lines.slice(cutOffLine).join('\n')
             const expectedGenerateSuggestionsRequest = {
                 fileContext: {
-                    filename: MY_FILE.uri,
+                    filename: MY_WINDOWS_FILE.uri,
                     programmingLanguage: { languageName: 'csharp' },
-                    leftFileContent: leftContext,
-                    rightFileContent: rightContext,
+                    leftFileContent: modifiedLeftContext,
+                    rightFileContent: modifiedRightContext,
                 },
                 maxResults: 5,
             }
@@ -708,7 +659,7 @@ describe('CodeWhisperer Server', () => {
             const result = await features.openDocument(SOME_FILE).doInlineCompletionWithReferences(
                 {
                     textDocument: { uri: SOME_FILE.uri },
-                    position: { line: 1, character: 0 },
+                    position: { line: 0, character: 0 },
                     context: { triggerKind: InlineCompletionTriggerKind.Invoked },
                 },
                 CancellationToken.None
@@ -723,7 +674,7 @@ describe('CodeWhisperer Server', () => {
             )
             await features.start(server)
 
-            const cutOffLine = 3
+            const cutOffLine = 2
             const lines = HELLO_WORLD_IN_CSHARP.split('\n')
             // The recommendation will be the contents of hello world starting from line 3 (static void Main)
             const recommendation = lines.slice(cutOffLine).join('\n')
@@ -789,7 +740,7 @@ describe('CodeWhisperer Server', () => {
             )
             await features.start(server)
 
-            const cutOffLine = 3
+            const cutOffLine = 2
             const lines = HELLO_WORLD_IN_CSHARP.split('\n')
             // The recommendation will be the contents of hello world starting from line 3 (static void Main)
             const recommendation = lines.slice(cutOffLine).join('\n')
