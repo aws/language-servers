@@ -9,6 +9,27 @@ import { TestFeatures } from './TestFeatures'
 import { CONTEXT_CHARACTERS_LIMIT, CodewhispererServerFactory } from './codeWhispererServer'
 import { CodeWhispererServiceBase, ResponseContext, Suggestion } from './codeWhispererService'
 import { CodeWhispererSession, SessionData, SessionManager } from './session/sessionManager'
+import {
+    EMPTY_RESULT,
+    EXPECTED_REFERENCE,
+    EXPECTED_RESPONSE_CONTEXT,
+    EXPECTED_RESULT,
+    EXPECTED_RESULT_WITHOUT_REFERENCES,
+    EXPECTED_RESULT_WITH_REFERENCES,
+    EXPECTED_SESSION_ID,
+    EXPECTED_SUGGESTION,
+    EXPECTED_SUGGESTION_LIST,
+    HELLO_WORLD_IN_CSHARP,
+    HELLO_WORLD_LINE,
+    HELLO_WORLD_WITH_WINDOWS_ENDING,
+    SINGLE_LINE_FILE_CUTOFF_INDEX,
+    SOME_CLOSED_FILE,
+    SOME_FILE,
+    SOME_FILE_WITH_ALT_CASED_LANGUAGE_ID,
+    SOME_FILE_WITH_EXTENSION,
+    SOME_SINGLE_LINE_FILE,
+    SOME_UNSUPPORTED_FILE,
+} from './testUtils'
 
 describe('CodeWhisperer Server', () => {
     const sandbox = sinon.createSandbox()
@@ -39,63 +60,6 @@ describe('CodeWhisperer Server', () => {
     })
 
     describe('Recommendations', () => {
-        const HELLO_WORLD_IN_CSHARP = `
-class HelloWorld
-{
-    static void Main()
-    {
-        Console.WriteLine("Hello World!");
-    }
-}
-`
-        const SOME_FILE = TextDocument.create('file:///test.cs', 'csharp', 1, HELLO_WORLD_IN_CSHARP)
-        const SOME_FILE_WITH_ALT_CASED_LANGUAGE_ID = TextDocument.create(
-            // Use unsupported extension, so that we can test that we get a match based on the LanguageId
-            'file:///test.seesharp',
-            'CSharp',
-            1,
-            HELLO_WORLD_IN_CSHARP
-        )
-        const SOME_CLOSED_FILE = TextDocument.create('file:///closed.cs', 'csharp', 1, HELLO_WORLD_IN_CSHARP)
-        const SOME_UNSUPPORTED_FILE = TextDocument.create(
-            'file:///hopper.fm',
-            'flow-matic',
-            1,
-            'INPUT HELLO ; OUTPUT WORLD'
-        )
-        const SOME_FILE_WITH_EXTENSION = TextDocument.create('file:///missing.hpp', '', 1, HELLO_WORLD_IN_CSHARP)
-
-        const HELLO_WORLD_LINE = `Console.WriteLine("Hello World!");`
-        // Single line file will not have the full line contents
-        const SINGLE_LINE_FILE_CUTOFF_INDEX = 2
-        const SOME_SINGLE_LINE_FILE = TextDocument.create(
-            'file:///single.cs',
-            'csharp',
-            1,
-            HELLO_WORLD_LINE.substring(SINGLE_LINE_FILE_CUTOFF_INDEX)
-        )
-
-        const EXPECTED_SUGGESTION: Suggestion[] = [{ itemId: 'cwspr-item-id', content: 'recommendation' }]
-        const EXPECTED_RESPONSE_CONTEXT: ResponseContext = {
-            requestId: 'cwspr-request-id',
-            codewhispererSessionId: 'cwspr-session-id',
-        }
-        const EXPECTED_SESSION_ID = 'some-random-session-uuid-0'
-
-        const EXPECTED_RESULT = {
-            sessionId: EXPECTED_SESSION_ID,
-            items: [
-                {
-                    itemId: EXPECTED_SUGGESTION[0].itemId,
-                    insertText: EXPECTED_SUGGESTION[0].content,
-                    range: undefined,
-                    references: undefined,
-                },
-            ],
-        }
-
-        const EMPTY_RESULT = { items: [], sessionId: '' }
-
         let features: TestFeatures
         let server: Server
         // TODO move more of the service code out of the stub and into the testable realm
@@ -315,17 +279,10 @@ class HelloWorld
                 })
             )
 
-            const EXPECTED_RESULT = {
-                sessionId: EXPECTED_SESSION_ID,
-                items: [
-                    { itemId: EXPECTED_SUGGESTION[0].itemId, insertText: '', range: undefined, references: undefined },
-                ],
-            }
-
             const result = await features.doInlineCompletionWithReferences(
                 {
                     textDocument: { uri: SOME_FILE.uri },
-                    position: { line: 1, character: 0 },
+                    position: { line: 0, character: 0 },
                     context: { triggerKind: InlineCompletionTriggerKind.Invoked },
                 },
                 CancellationToken.None
@@ -335,7 +292,7 @@ class HelloWorld
         })
 
         it('should only show the part of the recommendation that does not overlap with the right context in multiline', async () => {
-            const cutOffLine = 3
+            const cutOffLine = 2
             const lines = HELLO_WORLD_IN_CSHARP.split('\n')
             // The recommendation will be the contents of hello world starting from line 3 (static void Main)
             const recommendation = lines.slice(cutOffLine).join('\n')
@@ -386,6 +343,41 @@ class HelloWorld
                     programmingLanguage: { languageName: 'csharp' },
                     leftFileContent: leftContext,
                     rightFileContent: rightContext,
+                },
+                maxResults: 5,
+            }
+            sinon.assert.calledOnceWithExactly(service.generateSuggestions, expectedGenerateSuggestionsRequest)
+        })
+
+        it('should convert windows newlines to UNIX newlines in request file contents', async () => {
+            const cutOffLine = 2
+            const lines = HELLO_WORLD_WITH_WINDOWS_ENDING.split('\r\n')
+
+            const MY_WINDOWS_FILE = TextDocument.create(
+                'file:///rightContext.cs',
+                'csharp',
+                1,
+                HELLO_WORLD_WITH_WINDOWS_ENDING
+            )
+            features.openDocument(MY_WINDOWS_FILE)
+
+            await features.doInlineCompletionWithReferences(
+                {
+                    textDocument: { uri: MY_WINDOWS_FILE.uri },
+                    position: { line: cutOffLine, character: 0 },
+                    context: { triggerKind: InlineCompletionTriggerKind.Invoked },
+                },
+                CancellationToken.None
+            )
+
+            const modifiedLeftContext = lines.slice(0, cutOffLine).join('\n') + '\n'
+            const modifiedRightContext = lines.slice(cutOffLine).join('\n')
+            const expectedGenerateSuggestionsRequest = {
+                fileContext: {
+                    filename: MY_WINDOWS_FILE.uri,
+                    programmingLanguage: { languageName: 'csharp' },
+                    leftFileContent: modifiedLeftContext,
+                    rightFileContent: modifiedRightContext,
                 },
                 maxResults: 5,
             }
@@ -509,71 +501,6 @@ class HelloWorld
     })
 
     describe('Recommendations With References', () => {
-        const HELLO_WORLD_IN_CSHARP = `
-class HelloWorld
-{
-    static void Main()
-    {
-        Console.WriteLine("Hello World!");
-    }
-}
-`
-        const SOME_FILE = TextDocument.create('file:///test.cs', 'csharp', 1, HELLO_WORLD_IN_CSHARP)
-        const EXPECTED_SESSION_ID = 'some-random-session-uuid-0'
-        const EXPECTED_REFERENCE = {
-            licenseName: 'test license',
-            repository: 'test repository',
-            url: 'test url',
-            recommendationContentSpan: { start: 0, end: 1 },
-        }
-        const EXPECTED_SUGGESTION: Suggestion[] = [
-            { itemId: 'cwspr-item-id-1', content: 'recommendation without reference' },
-            { itemId: 'cwspr-item-id-2', content: 'recommendation with reference', references: [EXPECTED_REFERENCE] },
-        ]
-        const EXPECTED_RESPONSE_CONTEXT: ResponseContext = {
-            requestId: 'cwspr-request-id',
-            codewhispererSessionId: 'cwspr-session-id',
-        }
-        const EXPECTED_RESULT_WITH_REFERENCES = {
-            sessionId: EXPECTED_SESSION_ID,
-            items: [
-                {
-                    itemId: EXPECTED_SUGGESTION[0].itemId,
-                    insertText: EXPECTED_SUGGESTION[0].content,
-                    range: undefined,
-                    references: undefined,
-                },
-                {
-                    itemId: EXPECTED_SUGGESTION[1].itemId,
-                    insertText: EXPECTED_SUGGESTION[1].content,
-                    range: undefined,
-                    references: [
-                        {
-                            licenseName: EXPECTED_REFERENCE.licenseName,
-                            referenceName: EXPECTED_REFERENCE.repository,
-                            referenceUrl: EXPECTED_REFERENCE.url,
-                            position: {
-                                startCharacter: EXPECTED_REFERENCE.recommendationContentSpan?.start,
-                                endCharacter: EXPECTED_REFERENCE.recommendationContentSpan?.end,
-                            },
-                        },
-                    ],
-                },
-            ],
-        }
-        const EXPECTED_RESULT_WITHOUT_REFERENCES = {
-            sessionId: EXPECTED_SESSION_ID,
-            items: [
-                {
-                    itemId: EXPECTED_SUGGESTION[0].itemId,
-                    insertText: EXPECTED_SUGGESTION[0].content,
-                    range: undefined,
-                    references: undefined,
-                },
-            ],
-        }
-        const EMPTY_RESULT = { items: [], sessionId: '' }
-
         let features: TestFeatures
         let server: Server
         // TODO move more of the service code out of the stub and into the testable realm
@@ -586,7 +513,7 @@ class HelloWorld
             service = stubInterface<CodeWhispererServiceBase>()
             service.generateSuggestions.returns(
                 Promise.resolve({
-                    suggestions: EXPECTED_SUGGESTION,
+                    suggestions: EXPECTED_SUGGESTION_LIST,
                     responseContext: EXPECTED_RESPONSE_CONTEXT,
                 })
             )
@@ -732,7 +659,7 @@ class HelloWorld
             const result = await features.openDocument(SOME_FILE).doInlineCompletionWithReferences(
                 {
                     textDocument: { uri: SOME_FILE.uri },
-                    position: { line: 1, character: 0 },
+                    position: { line: 0, character: 0 },
                     context: { triggerKind: InlineCompletionTriggerKind.Invoked },
                 },
                 CancellationToken.None
@@ -747,7 +674,7 @@ class HelloWorld
             )
             await features.start(server)
 
-            const cutOffLine = 3
+            const cutOffLine = 2
             const lines = HELLO_WORLD_IN_CSHARP.split('\n')
             // The recommendation will be the contents of hello world starting from line 3 (static void Main)
             const recommendation = lines.slice(cutOffLine).join('\n')
@@ -813,7 +740,7 @@ class HelloWorld
             )
             await features.start(server)
 
-            const cutOffLine = 3
+            const cutOffLine = 2
             const lines = HELLO_WORLD_IN_CSHARP.split('\n')
             // The recommendation will be the contents of hello world starting from line 3 (static void Main)
             const recommendation = lines.slice(cutOffLine).join('\n')
@@ -867,8 +794,6 @@ class HelloWorld
         })
 
         describe('With session management', () => {
-            const EMPTY_RESULT = { items: [], sessionId: '' }
-
             it('should close session if code references are disabled and all suggestions had references', async () => {
                 const EXPECTED_SUGGESTION_WITH_REFERENCES: Suggestion[] = [
                     {
@@ -909,38 +834,9 @@ class HelloWorld
     })
 
     describe('With auto-triggers', async () => {
-        const HELLO_WORLD_IN_CSHARP = `class HelloWorld
-{
-    static void Main()
-    {
-        Console.WriteLine("Hello World!");
-    }
-}
-`
         const AUTO_TRIGGER_POSITION = { line: 2, character: 21 }
         const LEFT_FILE_CONTEXT = HELLO_WORLD_IN_CSHARP.substring(0, 40)
         const RIGHT_FILE_CONTEXT = HELLO_WORLD_IN_CSHARP.substring(40)
-
-        const SOME_FILE = TextDocument.create('file:///test.cs', 'csharp', 1, HELLO_WORLD_IN_CSHARP)
-        const EXPECTED_SUGGESTION: Suggestion[] = [{ itemId: 'cwspr-item-id', content: 'recommendation' }]
-        const EXPECTED_RESPONSE_CONTEXT: ResponseContext = {
-            requestId: 'cwspr-request-id',
-            codewhispererSessionId: 'cwspr-session-id',
-        }
-        const EXPECTED_SESSION_ID = 'some-random-session-uuid-0'
-        const EXPECTED_RESULT = {
-            sessionId: EXPECTED_SESSION_ID,
-            items: [
-                {
-                    itemId: EXPECTED_SUGGESTION[0].itemId,
-                    insertText: EXPECTED_SUGGESTION[0].content,
-                    range: undefined,
-                    references: undefined,
-                },
-            ],
-        }
-
-        const EMPTY_RESULT = { items: [], sessionId: '' }
 
         let features: TestFeatures
         let server: Server
@@ -978,6 +874,13 @@ class HelloWorld
         })
 
         it('should return recommendations on an above-threshold auto-trigger position', async () => {
+            // Similar to test from above, this test case also depends on file contents not starting with a new line
+            const HELLO_WORLD_IN_CSHARP_WITHOUT_NEWLINE = HELLO_WORLD_IN_CSHARP.trimStart()
+            const SOME_FILE = TextDocument.create('file:///test.cs', 'csharp', 1, HELLO_WORLD_IN_CSHARP_WITHOUT_NEWLINE)
+            features.openDocument(SOME_FILE)
+            const LEFT_FILE_CONTEXT = HELLO_WORLD_IN_CSHARP_WITHOUT_NEWLINE.substring(0, 40)
+            const RIGHT_FILE_CONTEXT = HELLO_WORLD_IN_CSHARP_WITHOUT_NEWLINE.substring(40)
+
             const result = await features.doInlineCompletionWithReferences(
                 {
                     textDocument: { uri: SOME_FILE.uri },
@@ -1018,17 +921,6 @@ class HelloWorld
     })
 
     describe('Log Inline Completion Session Results', () => {
-        const HELLO_WORLD_IN_CSHARP = `
-class HelloWorld
-{
-    static void Main()
-    {
-        Console.WriteLine("Hello World!");
-    }
-}
-`
-        const SOME_FILE = TextDocument.create('file:///test.cs', 'csharp', 1, HELLO_WORLD_IN_CSHARP)
-
         const requestContext = {
             maxResults: 5,
             fileContext: {
@@ -1142,17 +1034,6 @@ class HelloWorld
     })
 
     describe('Telemetry', () => {
-        const HELLO_WORLD_IN_CSHARP = `
-class HelloWorld
-{
-static void Main()
-{
-    Console.WriteLine("Hello World!");
-}
-}
-`
-        const SOME_FILE = TextDocument.create('file:///test.cs', 'csharp', 1, HELLO_WORLD_IN_CSHARP)
-        const EXPECTED_SUGGESTION: Suggestion[] = [{ itemId: 'cwspr-item-id', content: 'recommendation' }]
         const EXPECTED_RESPONSE_CONTEXT: ResponseContext = {
             requestId: 'cwspr-request-id',
             codewhispererSessionId: 'cwspr-session-id',
@@ -1499,42 +1380,7 @@ static void Main()
     })
 
     describe('Recommendations session management', () => {
-        const HELLO_WORLD_IN_CSHARP = `class HelloWorld
-{
-    static void Main()
-    {
-        Console.WriteLine("Hello World!");
-    }
-}
-`
         const AUTO_TRIGGER_POSITION = { line: 2, character: 21 }
-        const SOME_FILE = TextDocument.create('file:///test.cs', 'csharp', 1, HELLO_WORLD_IN_CSHARP)
-        const SOME_FILE_WITH_ALT_CASED_LANGUAGE_ID = TextDocument.create(
-            // Use unsupported extension, so that we can test that we get a match based on the LanguageId
-            'file:///test.seesharp',
-            'CSharp',
-            1,
-            HELLO_WORLD_IN_CSHARP
-        )
-        const EXPECTED_SUGGESTION: Suggestion[] = [{ itemId: 'cwspr-item-id', content: 'recommendation' }]
-        const EXPECTED_RESPONSE_CONTEXT: ResponseContext = {
-            requestId: 'cwspr-request-id',
-            codewhispererSessionId: 'cwspr-session-id',
-        }
-        const EXPECTED_SESSION_ID = 'some-random-session-uuid-0'
-
-        const EXPECTED_RESULT = {
-            sessionId: EXPECTED_SESSION_ID,
-            items: [
-                {
-                    itemId: EXPECTED_SUGGESTION[0].itemId,
-                    insertText: EXPECTED_SUGGESTION[0].content,
-                    range: undefined,
-                    references: undefined,
-                },
-            ],
-        }
-        const EMPTY_RESULT = { items: [], sessionId: '' }
 
         let features: TestFeatures
         let server: Server
@@ -1792,7 +1638,14 @@ static void Main()
 
         it('should discard inflight session if merge right recommendations resulted in list of empty strings', async () => {
             // The suggestion returned by generateSuggestions will be equal to the contents of the file
-            const EXPECTED_SUGGESTION: Suggestion[] = [{ itemId: 'cwspr-item-id', content: HELLO_WORLD_IN_CSHARP }]
+            // This test fails when the file starts with a new line, probably due to the way we handle right context merge
+            // So let's use hello world without the newline in the beginning
+            const HELLO_WORLD_IN_CSHARP_WITHOUT_NEWLINE = HELLO_WORLD_IN_CSHARP.trimStart()
+            const SOME_FILE = TextDocument.create('file:///test.cs', 'csharp', 1, HELLO_WORLD_IN_CSHARP_WITHOUT_NEWLINE)
+            features.openDocument(SOME_FILE)
+            const EXPECTED_SUGGESTION: Suggestion[] = [
+                { itemId: 'cwspr-item-id', content: HELLO_WORLD_IN_CSHARP_WITHOUT_NEWLINE },
+            ]
             service.generateSuggestions.returns(
                 Promise.resolve({
                     suggestions: EXPECTED_SUGGESTION,

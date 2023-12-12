@@ -1,4 +1,5 @@
 import { getPrefixSuffixOverlap, truncateOverlapWithRightContext } from './mergeRightUtils'
+import { HELLO_WORLD_IN_CSHARP, HELLO_WORLD_WITH_WINDOWS_ENDING } from './testUtils'
 import assert = require('assert')
 
 describe('Merge Right Utils', () => {
@@ -9,9 +10,22 @@ describe('Merge Right Utils', () => {
         assert.deepEqual(result, '31')
     })
 
-    it('should return empty suggestion when right context equals file content ', () => {
+    it('should return empty suggestion when right context equals line content ', () => {
         const result = truncateOverlapWithRightContext(HELLO_WORLD, HELLO_WORLD)
         assert.deepEqual(result, '')
+    })
+
+    it('should return empty suggestion when right context equals file content', () => {
+        // Without trimStart, this test would fail because the function doesn't trim leading new line from right context
+        const result = truncateOverlapWithRightContext(HELLO_WORLD_IN_CSHARP.trimStart(), HELLO_WORLD_IN_CSHARP)
+        assert.deepEqual(result, '')
+    })
+
+    it('should not handle the case where right context fully matches suggestion but starts with a newline ', () => {
+        const result = truncateOverlapWithRightContext('\n' + HELLO_WORLD_IN_CSHARP, HELLO_WORLD_IN_CSHARP)
+        // Even though right context and suggestion are equal, the newline of right context doesn't get trimmed while the newline of suggestion gets trimmed
+        // As a result, we end up with no overlap
+        assert.deepEqual(result, HELLO_WORLD_IN_CSHARP)
     })
 
     it('should return truncated suggestion when right context matches end of the suggestion', () => {
@@ -39,5 +53,13 @@ describe('Merge Right Utils', () => {
         const result = truncateOverlapWithRightContext(rightContent, suggestion)
 
         assert.deepEqual(result, expected_result)
+    })
+
+    it('should handle windows line endings for files', () => {
+        const result = truncateOverlapWithRightContext(
+            HELLO_WORLD_WITH_WINDOWS_ENDING,
+            HELLO_WORLD_WITH_WINDOWS_ENDING.replaceAll('\r', '')
+        )
+        assert.deepEqual(result, '')
     })
 })

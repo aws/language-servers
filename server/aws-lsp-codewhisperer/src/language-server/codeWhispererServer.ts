@@ -87,8 +87,6 @@ const emitServiceInvocationTelemetry = (telemetry: Telemetry, session: CodeWhisp
 }
 
 const emitServiceInvocationFailure = (telemetry: Telemetry, session: CodeWhispererSession, error: Error | AWSError) => {
-    const errorMessage = error ? String(error) : 'unknown'
-    const reason = `CodeWhisperer Invocation Exception: ${errorMessage}`
     const duration = new Date().getTime() - session.startTime
     const codewhispererRequestId = isAwsError(error) ? error.requestId : undefined
 
