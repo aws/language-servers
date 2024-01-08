@@ -6,3 +6,4 @@ out/
 **/obj/
 src/client/codewhispererclient.d.ts
 src/client/token/codewhispererclient.d.ts
+**/*.md
