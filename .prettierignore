@@ -6,3 +6,4 @@ out/
 **/obj/
 server/aws-lsp-codewhisperer/src/client/sigv4/codewhispererclient.d.ts
 server/aws-lsp-codewhisperer/src/client/token/codewhispererclient.d.ts
+**/*.md
