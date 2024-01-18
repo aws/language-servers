@@ -13,6 +13,68 @@
         "uid": "codewhisperer-2022-06-15"
     },
     "operations": {
+        "CreateCodeScan": {
+            "name": "CreateCodeScan",
+            "http": {
+                "method": "POST",
+                "requestUri": "/"
+            },
+            "input": {
+                "shape": "CreateCodeScanRequest"
+            },
+            "output": {
+                "shape": "CreateCodeScanResponse"
+            },
+            "errors": [
+                {
+                    "shape": "ThrottlingException"
+                },
+                {
+                    "shape": "ConflictException"
+                },
+                {
+                    "shape": "ResourceNotFoundException"
+                },
+                {
+                    "shape": "InternalServerException"
+                },
+                {
+                    "shape": "ValidationException"
+                },
+                {
+                    "shape": "AccessDeniedException"
+                }
+            ],
+            "idempotent": true
+        },
+        "CreateCodeScanUploadUrl": {
+            "name": "CreateCodeScanUploadUrl",
+            "http": {
+                "method": "POST",
+                "requestUri": "/"
+            },
+            "input": {
+                "shape": "CreateUploadUrlRequest"
+            },
+            "output": {
+                "shape": "CreateUploadUrlResponse"
+            },
+            "errors": [
+                {
+                    "shape": "ThrottlingException"
+                },
+                {
+                    "shape": "InternalServerException"
+                },
+                {
+                    "shape": "ValidationException"
+                },
+                {
+                    "shape": "AccessDeniedException"
+                }
+            ],
+            "idempotent": true
+        },
         "GenerateRecommendations": {
             "name": "GenerateRecommendations",
             "http": {
@@ -39,6 +101,66 @@
                     "shape": "AccessDeniedException"
                 }
             ]
+        },
+        "GetCodeScan": {
+            "name": "GetCodeScan",
+            "http": {
+                "method": "POST",
+                "requestUri": "/"
+            },
+            "input": {
+                "shape": "GetCodeScanRequest"
+            },
+            "output": {
+                "shape": "GetCodeScanResponse"
+            },
+            "errors": [
+                {
+                    "shape": "ThrottlingException"
+                },
+                {
+                    "shape": "ResourceNotFoundException"
+                },
+                {
+                    "shape": "InternalServerException"
+                },
+                {
+                    "shape": "ValidationException"
+                },
+                {
+                    "shape": "AccessDeniedException"
+                }
+            ]
+        },
+        "ListCodeScanFindings": {
+            "name": "ListCodeScanFindings",
+            "http": {
+                "method": "POST",
+                "requestUri": "/"
+            },
+            "input": {
+                "shape": "ListCodeScanFindingsRequest"
+            },
+            "output": {
+                "shape": "ListCodeScanFindingsResponse"
+            },
+            "errors": [
+                {
+                    "shape": "ThrottlingException"
+                },
+                {
+                    "shape": "ResourceNotFoundException"
+                },
+                {
+                    "shape": "InternalServerException"
+                },
+                {
+                    "shape": "ValidationException"
+                },
+                {
+                    "shape": "AccessDeniedException"
+                }
+            ]
         }
     },
     "shapes": {
@@ -52,6 +174,10 @@
             },
             "exception": true
         },
+        "CodeScanStatus": {
+            "type": "string",
+            "enum": ["Completed", "Pending", "Failed"]
+        },
         "ConflictException": {
             "type": "structure",
             "required": ["message"],
@@ -61,6 +187,78 @@
                 }
             },
             "exception": true
+        },
+        "CreateCodeScanRequest": {
+            "type": "structure",
+            "required": ["artifacts", "programmingLanguage"],
+            "members": {
+                "artifacts": {
+                    "shape": "ArtifactMap"
+                },
+                "programmingLanguage": {
+                    "shape": "ProgrammingLanguage"
+                },
+                "clientToken": {
+                    "shape": "CreateCodeScanRequestClientTokenString",
+                    "idempotencyToken": true
+                }
+            }
+        },
+        "CreateCodeScanRequestClientTokenString": {
+            "type": "string",
+            "max": 256,
+            "min": 1
+        },
+        "CreateCodeScanResponse": {
+            "type": "structure",
+            "required": ["jobId", "status"],
+            "members": {
+                "jobId": {
+                    "shape": "CreateCodeScanResponseJobIdString"
+                },
+                "status": {
+                    "shape": "CodeScanStatus"
+                },
+                "errorMessage": {
+                    "shape": "String"
+                }
+            }
+        },
+        "CreateCodeScanResponseJobIdString": {
+            "type": "string",
+            "max": 256,
+            "min": 1
+        },
+        "CreateUploadUrlRequest": {
+            "type": "structure",
+            "members": {
+                "contentMd5": {
+                    "shape": "CreateUploadUrlRequestContentMd5String"
+                },
+                "artifactType": {
+                    "shape": "ArtifactType"
+                }
+            }
+        },
+        "CreateUploadUrlRequestContentMd5String": {
+            "type": "string",
+            "max": 128,
+            "min": 1
+        },
+        "CreateUploadUrlResponse": {
+            "type": "structure",
+            "required": ["uploadId", "uploadUrl"],
+            "members": {
+                "uploadId": {
+                    "shape": "UploadId"
+                },
+                "uploadUrl": {
+                    "shape": "PreSignedUrl"
+                },
+                "kmsKeyArn": {
+                    "shape": "ResourceArn"
+                }
+            }
         },
         "FileContext": {
             "type": "structure",
@@ -138,6 +336,32 @@
                 }
             }
         },
+        "GetCodeScanRequest": {
+            "type": "structure",
+            "required": ["jobId"],
+            "members": {
+                "jobId": {
+                    "shape": "GetCodeScanRequestJobIdString"
+                }
+            }
+        },
+        "GetCodeScanRequestJobIdString": {
+            "type": "string",
+            "max": 256,
+            "min": 1
+        },
+        "GetCodeScanResponse": {
+            "type": "structure",
+            "required": ["status"],
+            "members": {
+                "status": {
+                    "shape": "CodeScanStatus"
+                },
+                "errorMessage": {
+                    "shape": "String"
+                }
+            }
+        },
         "IdempotencyToken": {
             "type": "string",
             "max": 256,
@@ -177,6 +401,38 @@
             "fault": true,
             "retryable": {
                 "throttling": false
+            }
+        },
+        "ListCodeScanFindingsRequest": {
+            "type": "structure",
+            "required": ["jobId", "codeScanFindingsSchema"],
+            "members": {
+                "jobId": {
+                    "shape": "ListCodeScanFindingsRequestJobIdString"
+                },
+                "nextToken": {
+                    "shape": "PaginationToken"
+                },
+                "codeScanFindingsSchema": {
+                    "shape": "CodeScanFindingsSchema"
+                }
+            }
+        },
+        "ListCodeScanFindingsRequestJobIdString": {
+            "type": "string",
+            "max": 256,
+            "min": 1
+        },
+        "ListCodeScanFindingsResponse": {
+            "type": "structure",
+            "required": ["codeScanFindings"],
+            "members": {
+                "nextToken": {
+                    "shape": "PaginationToken"
+                },
+                "codeScanFindings": {
+                    "shape": "String"
+                }
             }
         },
         "ProgrammingLanguage": {
