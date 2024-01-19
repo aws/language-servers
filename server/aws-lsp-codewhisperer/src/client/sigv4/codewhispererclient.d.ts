@@ -17,19 +17,29 @@ declare class CodeWhispererClient extends Service {
     /**
      * 
      */
-    createCodeScan(params: CodeWhispererClient.Types.CreateCodeScanRequest, callback?: (err: AWSError, data: CodeWhispererClient.Types.CreateCodeScanResponse) => void): Request<CodeWhispererClient.Types.CreateCodeScanResponse, AWSError>;
+    createCodeScan(
+        params: CodeWhispererClient.Types.CreateCodeScanRequest,
+        callback?: (err: AWSError, data: CodeWhispererClient.Types.CreateCodeScanResponse) => void
+    ): Request<CodeWhispererClient.Types.CreateCodeScanResponse, AWSError>;
     /**
      * 
      */
-    createCodeScan(callback?: (err: AWSError, data: CodeWhispererClient.Types.CreateCodeScanResponse) => void): Request<CodeWhispererClient.Types.CreateCodeScanResponse, AWSError>;
+    createCodeScan(
+        callback?: (err: AWSError, data: CodeWhispererClient.Types.CreateCodeScanResponse) => void
+    ): Request<CodeWhispererClient.Types.CreateCodeScanResponse, AWSError>;
     /**
      * 
      */
-    createCodeScanUploadUrl(params: CodeWhispererClient.Types.CreateUploadUrlRequest, callback?: (err: AWSError, data: CodeWhispererClient.Types.CreateUploadUrlResponse) => void): Request<CodeWhispererClient.Types.CreateUploadUrlResponse, AWSError>;
+    createCodeScanUploadUrl(
+        params: CodeWhispererClient.Types.CreateUploadUrlRequest,
+        callback?: (err: AWSError, data: CodeWhispererClient.Types.CreateUploadUrlResponse) => void
+    ): Request<CodeWhispererClient.Types.CreateUploadUrlResponse, AWSError>;
     /**
      * 
      */
-    createCodeScanUploadUrl(callback?: (err: AWSError, data: CodeWhispererClient.Types.CreateUploadUrlResponse) => void): Request<CodeWhispererClient.Types.CreateUploadUrlResponse, AWSError>;
+    createCodeScanUploadUrl(
+        callback?: (err: AWSError, data: CodeWhispererClient.Types.CreateUploadUrlResponse) => void
+    ): Request<CodeWhispererClient.Types.CreateUploadUrlResponse, AWSError>;
     /**
      *
      */
@@ -46,47 +56,54 @@ declare class CodeWhispererClient extends Service {
     /**
      * 
      */
-    getCodeScan(params: CodeWhispererClient.Types.GetCodeScanRequest, callback?: (err: AWSError, data: CodeWhispererClient.Types.GetCodeScanResponse) => void): Request<CodeWhispererClient.Types.GetCodeScanResponse, AWSError>;
+    getCodeScan(
+        params: CodeWhispererClient.Types.GetCodeScanRequest,
+        callback?: (err: AWSError, data: CodeWhispererClient.Types.GetCodeScanResponse) => void
+    ): Request<CodeWhispererClient.Types.GetCodeScanResponse, AWSError>;
     /**
      * 
      */
-    getCodeScan(callback?: (err: AWSError, data: CodeWhispererClient.Types.GetCodeScanResponse) => void): Request<CodeWhispererClient.Types.GetCodeScanResponse, AWSError>;
-      /**
-     * 
-     */
-    listCodeScanFindings(params: CodeWhispererClient.Types.ListCodeScanFindingsRequest, callback?: (err: AWSError, data: CodeWhispererClient.Types.ListCodeScanFindingsResponse) => void): Request<CodeWhispererClient.Types.ListCodeScanFindingsResponse, AWSError>;
+    getCodeScan(
+        callback?: (err: AWSError, data: CodeWhispererClient.Types.GetCodeScanResponse) => void
+    ): Request<CodeWhispererClient.Types.GetCodeScanResponse, AWSError>;
     /**
      * 
      */
-    listCodeScanFindings(callback?: (err: AWSError, data: CodeWhispererClient.Types.ListCodeScanFindingsResponse) => void): Request<CodeWhispererClient.Types.ListCodeScanFindingsResponse, AWSError>;
-
-
+    listCodeScanFindings(
+        params: CodeWhispererClient.Types.ListCodeScanFindingsRequest,
+        callback?: (err: AWSError, data: CodeWhispererClient.Types.ListCodeScanFindingsResponse) => void
+    ): Request<CodeWhispererClient.Types.ListCodeScanFindingsResponse, AWSError>;
+    /**
+     * 
+     */
+    listCodeScanFindings(
+        callback?: (err: AWSError, data: CodeWhispererClient.Types.ListCodeScanFindingsResponse) => void
+    ): Request<CodeWhispererClient.Types.ListCodeScanFindingsResponse, AWSError>;
 }
 declare namespace CodeWhispererClient {
     export type ArtifactType = "SourceCode"|"BuiltJars"|string;
     export type CodeScanStatus = "Completed"|"Pending"|"Failed"|string;
     export interface CreateCodeScanRequest {
-      artifacts: ArtifactMap;
-      programmingLanguage: ProgrammingLanguage;
-      clientToken?: CreateCodeScanRequestClientTokenString;
+        artifacts: ArtifactMap;
+        programmingLanguage: ProgrammingLanguage;
+        clientToken?: CreateCodeScanRequestClientTokenString;
     }
     export type CreateCodeScanRequestClientTokenString = string;
     export interface CreateCodeScanResponse {
-      jobId: CreateCodeScanResponseJobIdString;
-      status: CodeScanStatus;
-      errorMessage?: string;
+        jobId: CreateCodeScanResponseJobIdString;
+        status: CodeScanStatus;
+        errorMessage?: string;
     }
     export type CreateCodeScanResponseJobIdString = string;
-  
     export interface CreateUploadUrlRequest {
-      contentMd5?: CreateUploadUrlRequestContentMd5String;
-      artifactType?: ArtifactType;
+        contentMd5?: CreateUploadUrlRequestContentMd5String;
+        artifactType?: ArtifactType;
     }
     export type CreateUploadUrlRequestContentMd5String = string;
     export interface CreateUploadUrlResponse {
-      uploadId: UploadId;
-      uploadUrl: PreSignedUrl;
-      kmsKeyArn?: ResourceArn;
+        uploadId: UploadId;
+        uploadUrl: PreSignedUrl;
+        kmsKeyArn?: ResourceArn;
     }
 
     export interface FileContext {
@@ -111,12 +128,12 @@ declare namespace CodeWhispererClient {
         nextToken?: string
     }
     export interface GetCodeScanRequest {
-      jobId: GetCodeScanRequestJobIdString;
+        jobId: GetCodeScanRequestJobIdString;
     }
     export type GetCodeScanRequestJobIdString = string;
     export interface GetCodeScanResponse {
-      status: CodeScanStatus;
-      errorMessage?: string;
+        status: CodeScanStatus;
+        errorMessage?: string;
     }
     export interface Import {
         statement?: ImportStatementString
@@ -124,14 +141,14 @@ declare namespace CodeWhispererClient {
     export type ImportStatementString = string
     export type Imports = Import[]
     export interface ListCodeScanFindingsRequest {
-      jobId: ListCodeScanFindingsRequestJobIdString;
-      nextToken?: PaginationToken;
-      codeScanFindingsSchema: CodeScanFindingsSchema;
+        jobId: ListCodeScanFindingsRequestJobIdString;
+        nextToken?: PaginationToken;
+        codeScanFindingsSchema: CodeScanFindingsSchema;
     }
     export type ListCodeScanFindingsRequestJobIdString = string;
     export interface ListCodeScanFindingsResponse {
-      nextToken?: PaginationToken;
-      codeScanFindings: string;
+        nextToken?: PaginationToken;
+        codeScanFindings: string;
     }
     export interface ProgrammingLanguage {
         languageName: ProgrammingLanguageLanguageNameString
