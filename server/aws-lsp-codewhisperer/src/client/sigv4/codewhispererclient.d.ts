@@ -63,6 +63,7 @@ declare class CodeWhispererClient extends Service {
 
 }
 declare namespace CodeWhispererClient {
+    export type ArtifactType = "SourceCode"|"BuiltJars"|string;
     export type CodeScanStatus = "Completed"|"Pending"|"Failed"|string;
     export interface CreateCodeScanRequest {
       artifacts: ArtifactMap;
