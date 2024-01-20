@@ -20,13 +20,13 @@ declare class CodeWhispererClient extends Service {
     createUploadUrl(
         params: CodeWhispererClient.Types.CreateUploadUrlRequest,
         callback?: (err: AWSError, data: CodeWhispererClient.Types.CreateUploadUrlResponse) => void
-    ): Request<CodeWhispererClient.Types.CreateUploadUrlResponse, AWSError>;
+    ): Request<CodeWhispererClient.Types.CreateUploadUrlResponse, AWSError>
     /**
      *
      */
     createUploadUrl(
         callback?: (err: AWSError, data: CodeWhispererClient.Types.CreateUploadUrlResponse) => void
-    ): Request<CodeWhispererClient.Types.CreateUploadUrlResponse, AWSError>;
+    ): Request<CodeWhispererClient.Types.CreateUploadUrlResponse, AWSError>
     /**
      *
      */
@@ -41,50 +41,50 @@ declare class CodeWhispererClient extends Service {
         callback?: (err: AWSError, data: CodeWhispererClient.Types.GenerateCompletionsResponse) => void
     ): Request<CodeWhispererClient.Types.GenerateCompletionsResponse, AWSError>
     /**
-     * 
+     *
      */
     getCodeAnalysis(
         params: CodeWhispererClient.Types.GetCodeAnalysisRequest,
         callback?: (err: AWSError, data: CodeWhispererClient.Types.GetCodeAnalysisResponse) => void
-    ): Request<CodeWhispererClient.Types.GetCodeAnalysisResponse, AWSError>;
+    ): Request<CodeWhispererClient.Types.GetCodeAnalysisResponse, AWSError>
     /**
-     * 
+     *
      */
     getCodeAnalysis(
         callback?: (err: AWSError, data: CodeWhispererClient.Types.GetCodeAnalysisResponse) => void
-    ): Request<CodeWhispererClient.Types.GetCodeAnalysisResponse, AWSError>;
+    ): Request<CodeWhispererClient.Types.GetCodeAnalysisResponse, AWSError>
     /**
-     * 
+     *
      */
     listCodeAnalysisFindings(
         params: CodeWhispererClient.Types.ListCodeAnalysisFindingsRequest,
         callback?: (err: AWSError, data: CodeWhispererClient.Types.ListCodeAnalysisFindingsResponse) => void
-    ): Request<CodeWhispererClient.Types.ListCodeAnalysisFindingsResponse, AWSError>;
+    ): Request<CodeWhispererClient.Types.ListCodeAnalysisFindingsResponse, AWSError>
     /**
-     * 
+     *
      */
     listCodeAnalysisFindings(
         callback?: (err: AWSError, data: CodeWhispererClient.Types.ListCodeAnalysisFindingsResponse) => void
-    ): Request<CodeWhispererClient.Types.ListCodeAnalysisFindingsResponse, AWSError>;
+    ): Request<CodeWhispererClient.Types.ListCodeAnalysisFindingsResponse, AWSError>
     /**
-     * 
+     *
      */
     startCodeAnalysis(
         params: CodeWhispererClient.Types.StartCodeAnalysisRequest,
         callback?: (err: AWSError, data: CodeWhispererClient.Types.StartCodeAnalysisResponse) => void
-    ): Request<CodeWhispererClient.Types.StartCodeAnalysisResponse, AWSError>;
+    ): Request<CodeWhispererClient.Types.StartCodeAnalysisResponse, AWSError>
     /**
-     * 
+     *
      */
     startCodeAnalysis(
         callback?: (err: AWSError, data: CodeWhispererClient.Types.StartCodeAnalysisResponse) => void
-    ): Request<CodeWhispererClient.Types.StartCodeAnalysisResponse, AWSError>;
+    ): Request<CodeWhispererClient.Types.StartCodeAnalysisResponse, AWSError>
 }
 declare namespace CodeWhispererClient {
-    export type ArtifactMap = {[key: string]: UploadId};
-    export type ArtifactType = "SourceCode" | "BuiltJars" | string;
-    export type CodeAnalysisFindingsSchema = "codeanalysis/findings/1.0"|string;
-    export type CodeAnalysisStatus = "Completed"|"Pending"|"Failed"|string;
+    export type ArtifactMap = { [key: string]: UploadId }
+    export type ArtifactType = 'SourceCode' | 'BuiltJars' | string
+    export type CodeAnalysisFindingsSchema = 'codeanalysis/findings/1.0' | string
+    export type CodeAnalysisStatus = 'Completed' | 'Pending' | 'Failed' | string
     export interface Completion {
         content: CompletionContentString
         references?: References
@@ -92,23 +92,23 @@ declare namespace CodeWhispererClient {
     }
     export type CompletionContentString = string
     export type Completions = Completion[]
-    export type ContentChecksumType = "SHA_256"|string;
+    export type ContentChecksumType = 'SHA_256' | string
     export interface CreateUploadUrlRequest {
-        contentMd5?: CreateUploadUrlRequestContentMd5String;
-        contentChecksum?: CreateUploadUrlRequestContentChecksumString;
-        contentChecksumType?: ContentChecksumType;
-        contentLength?: CreateUploadUrlRequestContentLengthLong;
-        artifactType?: ArtifactType;
-        uploadIntent?: UploadIntent;
-        uploadContext?: UploadContext;
+        contentMd5?: CreateUploadUrlRequestContentMd5String
+        contentChecksum?: CreateUploadUrlRequestContentChecksumString
+        contentChecksumType?: ContentChecksumType
+        contentLength?: CreateUploadUrlRequestContentLengthLong
+        artifactType?: ArtifactType
+        uploadIntent?: UploadIntent
+        uploadContext?: UploadContext
     }
-    export type CreateUploadUrlRequestContentChecksumString = string;
-    export type CreateUploadUrlRequestContentLengthLong = number;
-    export type CreateUploadUrlRequestContentMd5String = string;
+    export type CreateUploadUrlRequestContentChecksumString = string
+    export type CreateUploadUrlRequestContentLengthLong = number
+    export type CreateUploadUrlRequestContentMd5String = string
     export interface CreateUploadUrlResponse {
-        uploadId: UploadId;
-        uploadUrl: PreSignedUrl;
-        kmsKeyArn?: ResourceArn;
+        uploadId: UploadId
+        uploadUrl: PreSignedUrl
+        kmsKeyArn?: ResourceArn
     }
 
     export interface FileContext {
@@ -133,12 +133,12 @@ declare namespace CodeWhispererClient {
         nextToken?: String
     }
     export interface GetCodeAnalysisRequest {
-        jobId: GetCodeAnalysisRequestJobIdString;
+        jobId: GetCodeAnalysisRequestJobIdString
     }
-    export type GetCodeAnalysisRequestJobIdString = string;
+    export type GetCodeAnalysisRequestJobIdString = string
     export interface GetCodeAnalysisResponse {
-        status: CodeAnalysisStatus;
-        errorMessage?: SensitiveString;
+        status: CodeAnalysisStatus
+        errorMessage?: SensitiveString
     }
     export interface Import {
         statement?: ImportStatementString
@@ -146,17 +146,17 @@ declare namespace CodeWhispererClient {
     export type ImportStatementString = string
     export type Imports = Import[]
     export interface ListCodeAnalysisFindingsRequest {
-        jobId: ListCodeAnalysisFindingsRequestJobIdString;
-        nextToken?: PaginationToken;
-        codeAnalysisFindingsSchema: CodeAnalysisFindingsSchema;
+        jobId: ListCodeAnalysisFindingsRequestJobIdString
+        nextToken?: PaginationToken
+        codeAnalysisFindingsSchema: CodeAnalysisFindingsSchema
     }
-    export type ListCodeAnalysisFindingsRequestJobIdString = string;
+    export type ListCodeAnalysisFindingsRequestJobIdString = string
     export interface ListCodeAnalysisFindingsResponse {
-        nextToken?: PaginationToken;
-        codeAnalysisFindings: SensitiveString;
+        nextToken?: PaginationToken
+        codeAnalysisFindings: SensitiveString
     }
-    export type PaginationToken = string;
-    export type PreSignedUrl = string;
+    export type PaginationToken = string
+    export type PreSignedUrl = string
     export interface ProgrammingLanguage {
         languageName: ProgrammingLanguageLanguageNameString
     }
@@ -175,8 +175,8 @@ declare namespace CodeWhispererClient {
     }
     export type ReferenceUrlString = string
     export type References = Reference[]
-    export type ResourceArn = string;
-    export type SensitiveString = string;
+    export type ResourceArn = string
+    export type SensitiveString = string
     export interface Span {
         start?: SpanStartInteger
         end?: SpanEndInteger
@@ -184,24 +184,24 @@ declare namespace CodeWhispererClient {
     export type SpanEndInteger = number
     export type SpanStartInteger = number
     export interface StartCodeAnalysisRequest {
-        artifacts: ArtifactMap;
-        programmingLanguage: ProgrammingLanguage;
-        clientToken?: StartCodeAnalysisRequestClientTokenString;
+        artifacts: ArtifactMap
+        programmingLanguage: ProgrammingLanguage
+        clientToken?: StartCodeAnalysisRequestClientTokenString
     }
-    export type StartCodeAnalysisRequestClientTokenString = string;
+    export type StartCodeAnalysisRequestClientTokenString = string
     export interface StartCodeAnalysisResponse {
-        jobId: StartCodeAnalysisResponseJobIdString;
-        status: CodeAnalysisStatus;
-        errorMessage?: SensitiveString;
+        jobId: StartCodeAnalysisResponseJobIdString
+        status: CodeAnalysisStatus
+        errorMessage?: SensitiveString
     }
-    export type StartCodeAnalysisResponseJobIdString = string;
+    export type StartCodeAnalysisResponseJobIdString = string
 
     export type String = string
     export interface UploadContext {
-        taskAssistPlanningUploadContext?: TaskAssistPlanningUploadContext;
+        taskAssistPlanningUploadContext?: TaskAssistPlanningUploadContext
     }
-    export type UploadId = string;
-    export type UploadIntent = "TRANSFORMATION"|"TASK_ASSIST_PLANNING"|string;
+    export type UploadId = string
+    export type UploadIntent = 'TRANSFORMATION' | 'TASK_ASSIST_PLANNING' | string
     /**
      * A string in YYYY-MM-DD format that represents the latest possible API version that can be used in this service. Specify 'latest' to use the latest possible version.
      */
