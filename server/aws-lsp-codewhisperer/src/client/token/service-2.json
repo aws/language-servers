@@ -12,6 +12,40 @@
         "uid": "codewhispererruntime-2022-11-11"
     },
     "operations": {
+        "CreateUploadUrl": {
+            "name": "CreateUploadUrl",
+            "http": {
+                "method": "POST",
+                "requestUri": "/"
+            },
+            "input": {
+                "shape": "CreateUploadUrlRequest"
+            },
+            "output": {
+                "shape": "CreateUploadUrlResponse"
+            },
+            "errors": [
+                {
+                    "shape": "ThrottlingException"
+                },
+                {
+                    "shape": "ConflictException"
+                },
+                {
+                    "shape": "ResourceNotFoundException"
+                },
+                {
+                    "shape": "InternalServerException"
+                },
+                {
+                    "shape": "ValidationException"
+                },
+                {
+                    "shape": "AccessDeniedException"
+                }
+            ],
+            "idempotent": true
+        },
         "GenerateCompletions": {
             "name": "GenerateCompletions",
             "http": {
@@ -40,6 +74,100 @@
             ]
         }
     },
+    "GetCodeAnalysis": {
+        "name": "GetCodeAnalysis",
+        "http": {
+            "method": "POST",
+            "requestUri": "/"
+        },
+        "input": {
+            "shape": "GetCodeAnalysisRequest"
+        },
+        "output": {
+            "shape": "GetCodeAnalysisResponse"
+        },
+        "errors": [
+            {
+                "shape": "ThrottlingException"
+            },
+            {
+                "shape": "ResourceNotFoundException"
+            },
+            {
+                "shape": "InternalServerException"
+            },
+            {
+                "shape": "ValidationException"
+            },
+            {
+                "shape": "AccessDeniedException"
+            }
+        ]
+    },
+    "ListCodeAnalysisFindings": {
+        "name": "ListCodeAnalysisFindings",
+        "http": {
+            "method": "POST",
+            "requestUri": "/"
+        },
+        "input": {
+            "shape": "ListCodeAnalysisFindingsRequest"
+        },
+        "output": {
+            "shape": "ListCodeAnalysisFindingsResponse"
+        },
+        "errors": [
+            {
+                "shape": "ThrottlingException"
+            },
+            {
+                "shape": "ResourceNotFoundException"
+            },
+            {
+                "shape": "InternalServerException"
+            },
+            {
+                "shape": "ValidationException"
+            },
+            {
+                "shape": "AccessDeniedException"
+            }
+        ]
+    },
+    "StartCodeAnalysis": {
+        "name": "StartCodeAnalysis",
+        "http": {
+            "method": "POST",
+            "requestUri": "/"
+        },
+        "idempotent": true,
+        "input": {
+            "shape": "StartCodeAnalysisRequest"
+        },
+        "output": {
+            "shape": "StartCodeAnalysisResponse"
+        },
+        "errors": [
+            {
+                "shape": "ThrottlingException"
+            },
+            {
+                "shape": "ConflictException"
+            },
+            {
+                "shape": "ResourceNotFoundException"
+            },
+            {
+                "shape": "InternalServerException"
+            },
+            {
+                "shape": "ValidationException"
+            },
+            {
+                "shape": "AccessDeniedException"
+            }
+        ]
+    },
     "shapes": {
         "AccessDeniedException": {
             "type": "structure",
@@ -50,6 +178,25 @@
                 }
             },
             "exception": true
+        },
+        "ArtifactMap": {
+            "type": "map",
+            "key": { "shape": "ArtifactType" },
+            "value": { "shape": "UploadId" },
+            "max": 64,
+            "min": 1
+        },
+        "ArtifactType": {
+            "type": "string",
+            "enum": ["SourceCode", "BuiltJars"]
+        },
+        "CodeAnalysisFindingsSchema": {
+            "type": "string",
+            "enum": ["codeanalysis/findings/1.0"]
+        },
+        "CodeAnalysisStatus": {
+            "type": "string",
+            "enum": ["Completed", "Pending", "Failed"]
         },
         "Completion": {
             "type": "structure",
@@ -89,6 +236,59 @@
                 }
             },
             "exception": true
+        },
+        "ContentChecksumType": {
+            "type": "string",
+            "enum": ["SHA_256"]
+        },
+        "ConversationId": {
+            "type": "string",
+            "max": 128,
+            "min": 1
+        },
+        "CreateUploadUrlRequest": {
+            "type": "structure",
+            "members": {
+                "contentMd5": { "shape": "CreateUploadUrlRequestContentMd5String" },
+                "contentChecksum": { "shape": "CreateUploadUrlRequestContentChecksumString" },
+                "contentChecksumType": { "shape": "ContentChecksumType" },
+                "contentLength": { "shape": "CreateUploadUrlRequestContentLengthLong" },
+                "artifactType": { "shape": "ArtifactType" },
+                "uploadIntent": { "shape": "UploadIntent" },
+                "uploadContext": { "shape": "UploadContext" }
+            }
+        },
+        "CreateUploadUrlRequestContentChecksumString": {
+            "type": "string",
+            "max": 512,
+            "min": 1,
+            "sensitive": true
+        },
+        "CreateUploadUrlRequestContentLengthLong": {
+            "type": "long",
+            "box": true,
+            "min": 1
+        },
+        "CreateUploadUrlRequestContentMd5String": {
+            "type": "string",
+            "max": 128,
+            "min": 1,
+            "sensitive": true
+        },
+        "CreateUploadUrlResponse": {
+            "members": {
+                "kmsKeyArn": {
+                    "shape": "ResourceArn"
+                },
+                "uploadId": {
+                    "shape": "UploadId"
+                },
+                "uploadUrl": {
+                    "shape": "PreSignedUrl"
+                }
+            },
+            "required": ["uploadId", "uploadUrl"],
+            "type": "structure"
         },
         "FileContext": {
             "type": "structure",
@@ -166,6 +366,32 @@
                 }
             }
         },
+        "GetCodeAnalysisRequest": {
+            "type": "structure",
+            "required": ["jobId"],
+            "members": {
+                "jobId": { "shape": "GetCodeAnalysisRequestJobIdString" }
+            }
+        },
+        "GetCodeAnalysisRequestJobIdString": {
+            "type": "string",
+            "max": 256,
+            "min": 1
+        },
+        "GetCodeAnalysisResponse": {
+            "type": "structure",
+            "required": ["status"],
+            "members": {
+                "status": { "shape": "CodeAnalysisStatus" },
+                "errorMessage": { "shape": "SensitiveString" }
+            }
+        },
+        "IdeCategory": {
+            "enum": ["VS"],
+            "max": 64,
+            "min": 1,
+            "type": "string"
+        },
         "Import": {
             "type": "structure",
             "members": {
@@ -201,6 +427,50 @@
             "retryable": {
                 "throttling": false
             }
+        },
+        "ListCodeAnalysisFindingsRequest": {
+            "members": {
+                "codeAnalysisFindingsSchema": {
+                    "shape": "CodeAnalysisFindingsSchema"
+                },
+                "jobId": {
+                    "shape": "ListCodeAnalysisFindingsRequestJobIdString"
+                },
+                "nextToken": {
+                    "shape": "PaginationToken"
+                }
+            },
+            "required": ["jobId", "codeAnalysisFindingsSchema"],
+            "type": "structure"
+        },
+        "ListCodeAnalysisFindingsRequestJobIdString": {
+            "max": 256,
+            "min": 1,
+            "type": "string"
+        },
+        "ListCodeAnalysisFindingsResponse": {
+            "members": {
+                "codeAnalysisFindings": {
+                    "shape": "SensitiveString"
+                },
+                "nextToken": {
+                    "shape": "PaginationToken"
+                }
+            },
+            "required": ["codeAnalysisFindings"],
+            "type": "structure"
+        },
+        "PaginationToken": {
+            "max": 2048,
+            "min": 1,
+            "pattern": "\\S+",
+            "type": "string"
+        },
+        "PreSignedUrl": {
+            "max": 2048,
+            "min": 1,
+            "sensitive": true,
+            "type": "string"
         },
         "ProgrammingLanguage": {
             "type": "structure",
@@ -270,6 +540,12 @@
             "max": 10,
             "min": 0
         },
+        "ResourceArn": {
+            "type": "string",
+            "max": 1224,
+            "min": 0,
+            "pattern": "arn:([-.a-z0-9]{1,63}:){2}([-.a-z0-9]{0,63}:){2}([a-zA-Z0-9-_:/]){1,1023}"
+        },
         "ResourceNotFoundException": {
             "type": "structure",
             "required": ["message"],
@@ -301,8 +577,46 @@
             "box": true,
             "min": 0
         },
+        "StartCodeAnalysisRequest": {
+            "type": "structure",
+            "required": ["artifacts", "programmingLanguage"],
+            "members": {
+                "artifacts": { "shape": "ArtifactMap" },
+                "programmingLanguage": { "shape": "ProgrammingLanguage" },
+                "clientToken": {
+                    "shape": "StartCodeAnalysisRequestClientTokenString",
+                    "idempotencyToken": true
+                }
+            }
+        },
+        "StartCodeAnalysisRequestClientTokenString": {
+            "type": "string",
+            "max": 256,
+            "min": 1
+        },
+        "StartCodeAnalysisResponse": {
+            "type": "structure",
+            "required": ["jobId", "status"],
+            "members": {
+                "jobId": { "shape": "StartCodeAnalysisResponseJobIdString" },
+                "status": { "shape": "CodeAnalysisStatus" },
+                "errorMessage": { "shape": "SensitiveString" }
+            }
+        },
+        "StartCodeAnalysisResponseJobIdString": {
+            "type": "string",
+            "max": 256,
+            "min": 1
+        },
         "String": {
             "type": "string"
+        },
+        "TaskAssistPlanningUploadContext": {
+            "type": "structure",
+            "required": ["conversationId"],
+            "members": {
+                "conversationId": { "shape": "ConversationId" }
+            }
         },
         "ThrottlingException": {
             "type": "structure",
@@ -315,6 +629,33 @@
             "exception": true,
             "retryable": {
                 "throttling": false
+            }
+        },
+        "UploadContext": {
+            "type": "structure",
+            "members": {
+                "taskAssistPlanningUploadContext": { "shape": "TaskAssistPlanningUploadContext" }
+            },
+            "union": true
+        },
+        "UploadId": {
+            "type": "string",
+            "max": 128,
+            "min": 1
+        },
+        "UploadIntent": {
+            "type": "string",
+            "enum": ["TRANSFORMATION", "TASK_ASSIST_PLANNING"]
+        },
+        "UserContext": {
+            "type": "structure",
+            "required": ["ideCategory", "operatingSystem", "product"],
+            "members": {
+                "ideCategory": { "shape": "IdeCategory" },
+                "operatingSystem": { "shape": "OperatingSystem" },
+                "product": { "shape": "UserContextProductString" },
+                "clientId": { "shape": "UUID" },
+                "ideVersion": { "shape": "String" }
             }
         },
         "ValidationException": {
