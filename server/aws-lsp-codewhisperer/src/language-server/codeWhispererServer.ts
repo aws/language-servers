@@ -563,5 +563,5 @@ export const CodeWhispererServerIAM = CodewhispererServerFactory(
     credentialsProvider => new CodeWhispererServiceIAM(credentialsProvider)
 )
 export const CodeWhispererServerToken = CodewhispererServerFactory(
-    credentialsProvider => new CodeWhispererServiceToken(credentialsProvider)
+    credentialsProvider => new CodeWhispererServiceToken(credentialsProvider, {})
 )

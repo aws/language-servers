@@ -34,6 +34,7 @@ export interface GenerateSuggestionsResponse {
 
 import CodeWhispererSigv4Client = require('../client/sigv4/codewhispererclient')
 import CodeWhispererTokenClient = require('../client/token/codewhispererclient')
+import AWS = require('aws-sdk')
 
 // Right now the only difference between the token client and the IAM client for codewhsiperer is the difference in function name
 // This abstract class can grow in the future to account for any additional changes across the clients
@@ -51,6 +52,7 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
 
     constructor(credentialsProvider: CredentialsProvider) {
         super()
+
         const options: CodeWhispererTokenClientConfigurationOptions = {
             region: this.codeWhispererRegion,
             endpoint: this.codeWhispererEndpoint,
@@ -97,8 +99,9 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     private readonly codeWhispererRegion = 'us-east-1'
     private readonly codeWhispererEndpoint = 'https://codewhisperer.us-east-1.amazonaws.com/'
 
-    constructor(credentialsProvider: CredentialsProvider) {
+    constructor(credentialsProvider: CredentialsProvider, additionalAwsConfig: any) {
         super()
+        this.updateAwsConfiguration(additionalAwsConfig)
 
         const options: CodeWhispererTokenClientConfigurationOptions = {
             region: this.codeWhispererRegion,
@@ -137,6 +140,14 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         return {
             suggestions: response.completions as Suggestion[],
             responseContext,
+        }
+    }
+
+    updateAwsConfiguration = (awsConfig: any) => {
+        if (awsConfig.proxy) {
+            AWS.config.update({
+                httpOptions: { agent: awsConfig.proxy },
+            })
         }
     }
 
