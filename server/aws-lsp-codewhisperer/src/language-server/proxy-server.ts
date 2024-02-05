@@ -1,4 +1,3 @@
-import { HttpsProxyAgent } from 'https-proxy-agent'
 import { CodewhispererServerFactory } from './codeWhispererServer'
 import { CodeWhispererServiceToken } from './codeWhispererService'
 
@@ -7,7 +6,10 @@ export const CodeWhispererServerTokenProxy = CodewhispererServerFactory(credenti
     const proxyUrl = process.env.HTTPS_PROXY ?? process.env.https_proxy
 
     if (proxyUrl) {
-        const proxyAgent = new HttpsProxyAgent(proxyUrl)
+        const { getProxyHttpAgent } = require('proxy-http-agent')
+        const proxyAgent = getProxyHttpAgent({
+            proxy: proxyUrl,
+        })
         additionalAwsConfig = {
             proxy: proxyAgent,
         }
