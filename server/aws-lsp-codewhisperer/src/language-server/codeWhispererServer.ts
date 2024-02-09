@@ -1,5 +1,5 @@
 import { Server } from '@aws-placeholder/aws-language-server-runtimes'
-import { CredentialsProvider, Telemetry } from '@aws-placeholder/aws-language-server-runtimes/out/features'
+import { CredentialsProvider, Telemetry, Workspace } from '@aws-placeholder/aws-language-server-runtimes/out/features'
 import {
     InlineCompletionItemWithReferences,
     InlineCompletionListWithReferences,
@@ -7,7 +7,8 @@ import {
     LogInlineCompletionSessionResultsParams,
 } from '@aws-placeholder/aws-language-server-runtimes/out/features/lsp/inline-completions/protocolExtensions'
 import { AWSError } from 'aws-sdk'
-import { CancellationToken, InlineCompletionTriggerKind, Range } from 'vscode-languageserver'
+import path from 'path'
+import { CancellationToken, InlineCompletionTriggerKind, Range, WorkspaceFolder } from 'vscode-languageserver'
 import { Position, TextDocument } from 'vscode-languageserver-textdocument'
 import { autoTrigger, triggerType } from './auto-trigger/autoTrigger'
 import {
@@ -16,8 +17,10 @@ import {
     CodeWhispererServiceToken,
     Suggestion,
 } from './codeWhispererService'
+import { contextTruncationTimeoutSeconds } from './dependencyGraph/constants'
+import { DependencyGraphFactory } from './dependencyGraph/dependencyGraphFactory'
 import { CodewhispererLanguage, getSupportedLanguageId } from './languageDetection'
-import { getPrefixSuffixOverlap, truncateOverlapWithRightContext } from './mergeRightUtils'
+import { truncateOverlapWithRightContext } from './mergeRightUtils'
 import { CodeWhispererSession, SessionManager } from './session/sessionManager'
 import { CodePercentageTracker } from './telemetry/codePercentage'
 import {
@@ -255,18 +258,6 @@ const mergeSuggestionsWithRightContext = (
     })
 }
 
-// Checks if any suggestion in list of suggestions matches with left context of the file
-const hasLeftContextMatch = (suggestions: Suggestion[], leftFileContent: string): boolean => {
-    for (const suggestion of suggestions) {
-        const overlap = getPrefixSuffixOverlap(leftFileContent, suggestion.content)
-
-        if (overlap.length > 0 && overlap != suggestion.content) {
-            return true
-        }
-    }
-    return false
-}
-
 export const CodewhispererServerFactory =
     (service: (credentials: CredentialsProvider) => CodeWhispererServiceBase): Server =>
     ({ credentialsProvider, lsp, workspace, telemetry, logging }) => {
@@ -294,6 +285,52 @@ export const CodewhispererServerFactory =
                 // If session was requesting at cancellation time, close it
                 // User Trigger Decision will be reported at the time of processing API response in the callback below.
                 sessionManager.discardSession(currentSession)
+            }
+
+            // This triggers a dependency graph generation on any completion request, used here as convenience and demonstration purposes
+            // Dependency graph logic doesn't belong here, this is just for testing dependencyGraph creation works
+            const document = (await workspace.getTextDocument(params.textDocument.uri)) as TextDocument
+            const dependencyGraph = DependencyGraphFactory.getDependencyGraph(
+                document,
+                workspace as Required<Workspace>
+            )
+            if (dependencyGraph === undefined) {
+                console.log('dep graph is undefined :(')
+            }
+            const uri = dependencyGraph.getRootFile(document)
+            const parsedUrl = new URL(uri)
+
+            // Get the file path from the parsed URL
+            const filePath = decodeURIComponent(parsedUrl.pathname)
+
+            // Use path.join to normalize the file path
+            const finalUri = path.join(filePath)
+
+            const projectPath = dependencyGraph.getProjectPath(uri)
+            const projectName = dependencyGraph.getProjectName(uri)
+            console.log(`projectPath: ${projectPath} projectName: ${projectName}`)
+
+            const workspaceFolder = workspace.getWorkspaceFolder(uri) as WorkspaceFolder
+            const cloneFolder = {
+                index: 0,
+                name: workspaceFolder.name,
+                uri: workspaceFolder.uri,
+            }
+
+            try {
+                const truncation = await dependencyGraph.generateTruncationWithTimeout(
+                    finalUri,
+                    cloneFolder,
+                    contextTruncationTimeoutSeconds
+                )
+                console.log(
+                    `truncation created, details, zipfile size: ${truncation.zipFileSizeInBytes}, srcpayload size ${truncation.srcPayloadSizeInBytes} `
+                )
+                for (let item of truncation.scannedFiles) {
+                    console.log('Scanned file: ' + item)
+                }
+            } catch (e) {
+                console.log('create truncation error ', e)
             }
 
             return workspace.getTextDocument(params.textDocument.uri).then(textDocument => {

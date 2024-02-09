@@ -1,6 +1,7 @@
 {
     "extends": "../../tsconfig.packages.json",
     "compilerOptions": {
+        "esModuleInterop": true,
         "rootDir": "./src",
         "outDir": "./out",
         "resolveJsonModule": true

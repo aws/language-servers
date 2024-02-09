@@ -15,13 +15,16 @@
     "dependencies": {
         "@aws-placeholder/aws-language-server-runtimes": "file:../../bin/aws-placeholder-aws-language-server-runtimes-0.1.1.tgz",
         "@lsp-placeholder/aws-lsp-core": "^0.0.1",
+        "adm-zip": "*",
         "aws-sdk": "^2.1403.0",
         "https-proxy-agent": "^7.0.2",
         "uuid": "^9.0.1",
+        "vscode-uri": "*",
         "vscode-languageserver": "^9.0.1",
         "vscode-languageserver-textdocument": "^1.0.8"
     },
     "devDependencies": {
+        "@types/adm-zip": "^0.4.34",
         "@types/uuid": "^9.0.6",
         "assert": "^2.1.0",
         "copyfiles": "^2.4.1",
