@@ -1,6 +1,6 @@
 import { AWSError, Request, Service } from 'aws-sdk'
 import { ServiceConfigurationOptions } from 'aws-sdk/lib/service'
-const apiConfig = require('./service-2.json')
+const apiConfig = require('./bearer-token-service.json')
 import CodeWhispererClient = require('./codewhispererclient')
 
 // PROOF OF CONCEPT
