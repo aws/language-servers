@@ -153,6 +153,14 @@ and be able to debug it all.
 3. Start the extension in `Run & Debug` using the `"Hello World"` launch config.
    A new window will open.
 
+### With CodeWhisperer Server in VSCode
+
+1. In the `Run & Debug` menu, run `"CodeWhisperer Server"`
+2. Set breakpoints in `src` where needed
+3. Check the logs in `"AWS Documents Language Server"` output window.
+
+> **NOTE**: If you see "Recommendation failure: Error: Authorization failed, bearer token is not set" errors, make sure to authenticate using `"AWS LSP - Obtain bearer token and send to LSP server"` command.
+
 ## Testing
 
 ### Running Tests
