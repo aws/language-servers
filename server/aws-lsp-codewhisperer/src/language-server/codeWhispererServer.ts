@@ -1,5 +1,11 @@
 import { Server } from '@aws-placeholder/aws-language-server-runtimes'
-import { CredentialsProvider, Telemetry } from '@aws-placeholder/aws-language-server-runtimes/out/features'
+import {
+    CredentialsProvider,
+    Logging,
+    Lsp,
+    Telemetry,
+    Workspace,
+} from '@aws-placeholder/aws-language-server-runtimes/out/features'
 import {
     InlineCompletionItemWithReferences,
     InlineCompletionListWithReferences,
@@ -267,9 +273,24 @@ const hasLeftContextMatch = (suggestions: Suggestion[], leftFileContent: string)
     return false
 }
 
-export const CodewhispererServerFactory =
-    (service: (credentials: CredentialsProvider) => CodeWhispererServiceBase): Server =>
-    ({ credentialsProvider, lsp, workspace, telemetry, logging }) => {
+export const CodewhispererServerFactory = (
+    service: (credentials: CredentialsProvider) => CodeWhispererServiceBase,
+    serverName: string,
+    customCapabilities: object
+): Server => {
+    const serverFunc = ({
+        credentialsProvider,
+        lsp,
+        workspace,
+        telemetry,
+        logging,
+    }: {
+        credentialsProvider: CredentialsProvider
+        lsp: Lsp
+        workspace: Workspace
+        telemetry: Telemetry
+        logging: Logging
+    }) => {
         let lastUserModificationTime: number
         let timeSinceLastUserModification: number = 0
 
@@ -558,10 +579,16 @@ export const CodewhispererServerFactory =
             codePercentageTracker.dispose()
         }
     }
+    return Object.assign(serverFunc, { serverName, customCapabilities })
+}
 
 export const CodeWhispererServerIAM = CodewhispererServerFactory(
-    credentialsProvider => new CodeWhispererServiceIAM(credentialsProvider)
+    credentialsProvider => new CodeWhispererServiceIAM(credentialsProvider),
+    'AWS CodeWhisperer IAM',
+    { inlineCompletionWithReferences: true }
 )
 export const CodeWhispererServerToken = CodewhispererServerFactory(
-    credentialsProvider => new CodeWhispererServiceToken(credentialsProvider, {})
+    credentialsProvider => new CodeWhispererServiceToken(credentialsProvider, {}),
+    'AWS CodeWhisperer Token',
+    { inlineCompletionWithReferences: true }
 )

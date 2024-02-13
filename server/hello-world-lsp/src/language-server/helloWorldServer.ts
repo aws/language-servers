@@ -30,7 +30,7 @@ const onCompletionHandler = async (_params: CompletionParams, _token: Cancellati
     return completions
 }
 
-export const HelloWorldServer: Server = (features: {
+export const serverFunc = (features: {
     credentialsProvider: CredentialsProvider
     lsp: Lsp
     workspace: Workspace
@@ -47,3 +47,5 @@ export const HelloWorldServer: Server = (features: {
         // Do nothing
     }
 }
+
+export const HelloWorldServer: Server = Object.assign(serverFunc, { serverName: 'Hello World', customCapabilities: {} })

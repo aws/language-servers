@@ -24,6 +24,7 @@ class HelloWorld
         requestId: 'cwspr-request-id',
         codewhispererSessionId: 'cwspr-session-id',
     }
+    const SERVER_NAME = 'AWS CodeWhisperer'
 
     describe('Telemetry', () => {
         let features: TestFeatures
@@ -46,7 +47,7 @@ class HelloWorld
                 })
             )
 
-            server = CodewhispererServerFactory(_auth => service)
+            server = CodewhispererServerFactory(_auth => service, SERVER_NAME, {})
 
             // Initialize the features, but don't start server yet
             features = new TestFeatures()

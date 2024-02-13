@@ -38,6 +38,8 @@ describe('CodeWhisperer Server', () => {
     let sessionManagerSpy: sinon.SinonSpiedInstance<SessionManager>
     let generateSessionIdStub: sinon.SinonStub
 
+    const serverName = 'AWS CodeWhisperer'
+
     beforeEach(() => {
         const StubSessionIdGenerator = () => {
             const id = 'some-random-session-uuid-' + SESSION_IDS_LOG.length
@@ -59,6 +61,21 @@ describe('CodeWhisperer Server', () => {
         SESSION_IDS_LOG = []
     })
 
+    it('should have serverName and customCapabilities defined', async () => {
+        const service = stubInterface<CodeWhispererServiceBase>()
+        service.generateSuggestions.returns(
+            Promise.resolve({
+                suggestions: EXPECTED_SUGGESTION,
+                responseContext: EXPECTED_RESPONSE_CONTEXT,
+            })
+        )
+        const customCapabilities = { inlineCompletionWithReferences: true }
+        const server = CodewhispererServerFactory(_auth => service, serverName, customCapabilities)
+
+        assert.equal(server.serverName, serverName)
+        assert.deepEqual(server.customCapabilities, customCapabilities)
+    })
+
     describe('Recommendations', () => {
         let features: TestFeatures
         let server: Server
@@ -77,7 +94,7 @@ describe('CodeWhisperer Server', () => {
                 })
             )
 
-            server = CodewhispererServerFactory(_auth => service)
+            server = CodewhispererServerFactory(_auth => service, serverName, {})
 
             // Initialize the features, but don't start server yet
             features = new TestFeatures()
@@ -517,7 +534,7 @@ describe('CodeWhisperer Server', () => {
                     responseContext: EXPECTED_RESPONSE_CONTEXT,
                 })
             )
-            server = CodewhispererServerFactory(_auth => service)
+            server = CodewhispererServerFactory(_auth => service, serverName, {})
 
             // Initialize the features, but don't start server yet
             features = new TestFeatures()
@@ -855,7 +872,7 @@ describe('CodeWhisperer Server', () => {
                 })
             )
 
-            server = CodewhispererServerFactory(_auth => service)
+            server = CodewhispererServerFactory(_auth => service, serverName, {})
 
             // Initialize the features, but don't start server yet
             features = new TestFeatures()
@@ -962,7 +979,7 @@ describe('CodeWhisperer Server', () => {
             // Set up the server with a mock service, returning predefined recommendations
             service = stubInterface<CodeWhispererServiceBase>()
 
-            server = CodewhispererServerFactory(_auth => service)
+            server = CodewhispererServerFactory(_auth => service, serverName, {})
 
             // Initialize the features, but don't start server yet
             features = new TestFeatures()
@@ -1073,7 +1090,7 @@ describe('CodeWhisperer Server', () => {
                 })
             )
 
-            server = CodewhispererServerFactory(_auth => service)
+            server = CodewhispererServerFactory(_auth => service, serverName, {})
 
             // Initialize the features, but don't start server yet
             features = new TestFeatures()
@@ -1403,7 +1420,7 @@ describe('CodeWhisperer Server', () => {
                 })
             )
 
-            server = CodewhispererServerFactory(_auth => service)
+            server = CodewhispererServerFactory(_auth => service, serverName, {})
 
             // Initialize the features, but don't start server yet
             features = new TestFeatures()

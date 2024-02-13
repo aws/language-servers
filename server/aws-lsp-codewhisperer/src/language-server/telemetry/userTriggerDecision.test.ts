@@ -17,6 +17,8 @@ describe('Telemetry', () => {
     let generateSessionIdStub: sinon.SinonStub
     let clock: sinon.SinonFakeTimers
 
+    const SERVER_NAME = 'AWS CodeWhisperer'
+
     beforeEach(() => {
         const StubSessionIdGenerator = () => {
             let id = 'some-random-session-uuid-' + SESSION_IDS_LOG.length
@@ -167,7 +169,7 @@ describe('Telemetry', () => {
             service = stubInterface<CodeWhispererServiceBase>()
             setServiceResponse(DEFAULT_SUGGESTIONS, EXPECTED_RESPONSE_CONTEXT)
 
-            server = CodewhispererServerFactory(_auth => service)
+            server = CodewhispererServerFactory(_auth => service, SERVER_NAME, {})
 
             // Initialize the features, but don't start server yet
             features = new TestFeatures()
@@ -927,7 +929,7 @@ describe('Telemetry', () => {
             service = stubInterface<CodeWhispererServiceBase>()
             setServiceResponse(DEFAULT_SUGGESTIONS, EXPECTED_RESPONSE_CONTEXT)
 
-            server = CodewhispererServerFactory(_auth => service)
+            server = CodewhispererServerFactory(_auth => service, SERVER_NAME, {})
 
             // Initialize the features, but don't start server yet
             features = new TestFeatures()
