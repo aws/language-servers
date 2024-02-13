@@ -10,5 +10,6 @@ const VERSION = `${MAJOR}.${MINOR}.${PATCH}`
 const props: RuntimeProps = {
     version: VERSION,
     servers: [CodeWhispererServerTokenProxy],
+    name: 'AWS CodeWhisperer',
 }
 standalone(props)
