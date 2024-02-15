@@ -36,6 +36,10 @@
             {
                 "command": "awslsp.clearBearerToken",
                 "title": "AWS LSP - Clear bearer token from LSP Server"
+            },
+            {
+                "command": "helloWorld.log",
+                "title": "Hello World LSP - Log Command"
             }
         ],
         "configuration": {
