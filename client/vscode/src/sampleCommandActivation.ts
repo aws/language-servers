@@ -8,7 +8,7 @@ export function registerLogCommand(languageClient: LanguageClient, extensionCont
 export function logCommand(languageClient: LanguageClient) {
     return async () => {
         const request: ExecuteCommandParams = {
-            command: 'helloWorld.log',
+            command: '/helloWorld/log',
         }
         await languageClient.sendRequest(ExecuteCommandRequest.method, request)
         languageClient.info(`Client: The log command has been executed`)

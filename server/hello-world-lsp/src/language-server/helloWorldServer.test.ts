@@ -36,7 +36,7 @@ describe('Hello World Server', () => {
 
         it('should get executed when registered', async () => {
             const params: ExecuteCommandParams = {
-                command: 'helloWorld.log',
+                command: '/helloWorld/log',
             }
             await features.doExecuteCommand(params, CancellationToken.None)
 
@@ -45,7 +45,7 @@ describe('Hello World Server', () => {
 
         it('should get not be executed when not registered', async () => {
             const params: ExecuteCommandParams = {
-                command: 'helloWorld.notRegistered',
+                command: '/helloWorld/notRegistered',
             }
             await features.doExecuteCommand(params, CancellationToken.None)
 

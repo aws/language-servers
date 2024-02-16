@@ -51,7 +51,7 @@ export const HelloWorldServerFactory =
             _token: CancellationToken
         ): Promise<any> => {
             switch (params.command) {
-                case 'helloWorld.log':
+                case '/helloWorld/log':
                     service.logCommand()
                     break
             }
