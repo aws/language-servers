@@ -1,11 +1,14 @@
 import { CredentialsProvider } from '@aws-placeholder/aws-language-server-runtimes/out/features'
 import { BearerCredentials } from '@aws-placeholder/aws-language-server-runtimes/out/features/auth/auth'
-import { CredentialProviderChain, Credentials } from 'aws-sdk'
+import { AWSError, CredentialProviderChain, Credentials } from 'aws-sdk'
 import { v4 as uuidv4 } from 'uuid'
+import { PromiseResult } from 'aws-sdk/lib/request'
+
 import { createCodeWhispererSigv4Client } from '../client/sigv4/codewhisperer'
 import {
     CodeWhispererTokenClientConfigurationOptions,
     createCodeWhispererTokenClient,
+    createCodeWhispererTokenUserClient,
 } from '../client/token/codewhisperer'
 
 // Define our own Suggestion interface to wrap the differences between Token and IAM Client
@@ -33,6 +36,8 @@ export interface GenerateSuggestionsResponse {
 }
 
 import CodeWhispererSigv4Client = require('../client/sigv4/codewhispererclient')
+import CodeWhispererSigv4UserClient = require('../client/token/codewhispereruserclient')
+import CodeWhispererTokenUserClient = require('../client/token/codewhispereruserclient')
 import CodeWhispererTokenClient = require('../client/token/codewhispererclient')
 
 // Right now the only difference between the token client and the IAM client for codewhsiperer is the difference in function name
@@ -52,6 +57,20 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
     constructor(credentialsProvider: CredentialsProvider) {
         super()
         const options: CodeWhispererTokenClientConfigurationOptions = {
+            region: this.codeWhispererRegion,
+            endpoint: this.codeWhispererEndpoint,
+            credentialProvider: new CredentialProviderChain([
+                () => credentialsProvider.getCredentials('iam') as Credentials,
+            ]),
+            onRequestSetup: [
+                req => {
+                    req.on('build', ({ httpRequest }) => {
+                        httpRequest.headers['x-amzn-codewhisperer-optout'] = `${!this.shareCodeWhispererContentWithAWS}`
+                    })
+                },
+            ],
+        }
+        const userOptions: CodeWhispererTokenClientConfigurationOptions = {
             region: this.codeWhispererRegion,
             endpoint: this.codeWhispererEndpoint,
             credentialProvider: new CredentialProviderChain([
@@ -88,12 +107,18 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
             responseContext,
         }
     }
+    // public async codeModernizerStartCodeTransformation(
+    //     request: CodeWhispererSigv4UserClient.StartTransformationRequest
+    // ): Promise<PromiseResult<CodeWhispererSigv4UserClient.StartTransformationResponse, AWSError>> {
+    //     return await this.userClient.startTransformation(request).promise()
+    // }
 
     generateItemId = () => uuidv4()
 }
 
 export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     client: CodeWhispererTokenClient
+    userClient: CodeWhispererTokenUserClient
     private readonly codeWhispererRegion = 'us-east-1'
     private readonly codeWhispererEndpoint = 'https://codewhisperer.us-east-1.amazonaws.com/'
 
@@ -116,7 +141,24 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
                 },
             ],
         }
+        const userOptions: CodeWhispererTokenClientConfigurationOptions = {
+            region: this.codeWhispererRegion,
+            endpoint: this.codeWhispererEndpoint,
+            onRequestSetup: [
+                req => {
+                    req.on('build', ({ httpRequest }) => {
+                        const creds = credentialsProvider.getCredentials('bearer') as BearerCredentials
+                        if (!creds?.token) {
+                            throw new Error('Authorization failed, bearer token is not set')
+                        }
+                        httpRequest.headers['Authorization'] = `Bearer ${creds.token}`
+                        httpRequest.headers['x-amzn-codewhisperer-optout'] = `${!this.shareCodeWhispererContentWithAWS}`
+                    })
+                },
+            ],
+        }
         this.client = createCodeWhispererTokenClient(options)
+        this.userClient = createCodeWhispererTokenUserClient(userOptions)
     }
 
     async generateSuggestions(request: GenerateSuggestionsRequest): Promise<GenerateSuggestionsResponse> {
@@ -138,6 +180,12 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
             suggestions: response.completions as Suggestion[],
             responseContext,
         }
+    }
+
+    public async codeModernizerStartCodeTransformation(
+        request: CodeWhispererTokenUserClient.StartTransformationRequest
+    ): Promise<PromiseResult<CodeWhispererTokenUserClient.StartTransformationResponse, AWSError>> {
+        return (await this.userClient).startTransformation(request).promise()
     }
 
     generateItemId = () => uuidv4()

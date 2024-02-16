@@ -24,10 +24,15 @@
         "package": "npm install && npm run compile && npm run package-x64 --workspaces --if-present"
     },
     "dependencies": {
+        "fetch": "^1.1.0",
+        "node-fetch": "^3.3.2",
+        "request": "^2.88.2",
         "typescript": "^5.0.4"
     },
     "devDependencies": {
         "@types/node": "^20.2.5",
+        "@types/node-fetch": "^2.6.11",
+        "@types/request": "^2.48.12",
         "@typescript-eslint/eslint-plugin": "^5.59.9",
         "@typescript-eslint/parser": "^5.59.9",
         "eslint": "^8.42.0",
