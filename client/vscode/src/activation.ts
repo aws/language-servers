@@ -16,6 +16,7 @@ import {
     writeEncryptionInit,
 } from './credentialsActivation'
 import { registerInlineCompletion } from './inlineCompletionActivation'
+import { registerLogCommand } from './sampleCommandActivation'
 
 export async function activateDocumentsLanguageServer(extensionContext: ExtensionContext) {
     /**
@@ -111,6 +112,11 @@ export async function activateDocumentsLanguageServer(extensionContext: Extensio
 
     if (enableInlineCompletion) {
         registerInlineCompletion(client)
+    }
+
+    const enableCustomCommands = process.env.ENABLE_CUSTOM_COMMANDS === 'true'
+    if (enableCustomCommands) {
+        await registerLogCommand(client, extensionContext)
     }
 
     client.start()
