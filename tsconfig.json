@@ -25,6 +25,15 @@
             "path": "./core/aws-lsp-yaml-common"
         },
         {
+            "path": "./lsp-common/aws-lsp-common"
+        },
+        {
+            "path": "./lsp-common/aws-lsp-yaml"
+        },
+        {
+            "path": "./lsp-common/aws-lsp-json"
+        },
+        {
             "path": "./server/aws-lsp-buildspec"
         },
         {

@@ -7,11 +7,12 @@
         "app/*",
         "client/**",
         "core/*",
-        "server/*"
+        "server/*",
+        "lsp-common/*"
     ],
     "scripts": {
         "prepare": "husky install .husky",
-        "lint": "eslint app/ client/ core/ script/ server/ --ext .ts,.tsx && prettier --check .",
+        "lint": "eslint app/ client/ core/ script/ server/ lsp-common/ --ext .ts,.tsx && prettier --check .",
         "format": "prettier --write .",
         "format-staged": "npx pretty-quick --staged",
         "clean": "ts-node ./script/clean.ts",
