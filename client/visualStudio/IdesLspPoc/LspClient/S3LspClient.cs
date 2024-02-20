@@ -36,7 +36,7 @@ namespace IdesLspPoc.LspClient
         {
             get
             {
-                // This is how we configure the behavior of AWS Language Servers.
+                // This is how we configure the behavior of Language Servers for AWS.
                 // The structure needs to be formalized across all AWS hosts/extensions.
                 //
                 // This structure is exploration/conceptual/speculative at this time.

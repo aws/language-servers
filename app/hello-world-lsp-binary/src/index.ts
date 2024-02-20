@@ -1,6 +1,6 @@
-import { standalone } from '@aws-placeholder/aws-language-server-runtimes/out/runtimes'
-import { RuntimeProps } from '@aws-placeholder/aws-language-server-runtimes/out/runtimes/runtime'
-import { HelloWorldServer } from '@lsp-placeholder/hello-world-lsp'
+import { standalone } from '@aws/language-server-runtimes/out/runtimes'
+import { RuntimeProps } from '@aws/language-server-runtimes/out/runtimes/runtime'
+import { HelloWorldServer } from '@aws/hello-world-lsp'
 
 const MAJOR = 0
 const MINOR = 1

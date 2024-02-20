@@ -1,5 +1,5 @@
 {
-    "name": "@lsp-placeholder/aws-lsp-s3",
+    "name": "@aws/lsp-s3",
     "version": "0.0.1",
     "description": "S3 Language Server (buckets)",
     "main": "out/index.js",
@@ -9,7 +9,7 @@
     "dependencies": {
         "@aws-sdk/client-s3": "^3.377.0",
         "@aws-sdk/types": "^3.357.0",
-        "@lsp-placeholder/aws-lsp-core": "^0.0.1",
+        "@aws/lsp-core": "^0.0.1",
         "vscode-languageserver": "^8.0.1",
         "vscode-languageserver-textdocument": "^1.0.8"
     }

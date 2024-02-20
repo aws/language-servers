@@ -1,5 +1,5 @@
 {
-    "name": "@lsp-placeholder/aws-lsp-core",
+    "name": "@aws/lsp-core",
     "version": "0.0.1",
     "description": "Core library, contains common code and utilities",
     "main": "out/index.js",

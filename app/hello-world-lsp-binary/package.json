@@ -1,5 +1,5 @@
 {
-    "name": "@lsp-placeholder/hello-world-lsp-binary",
+    "name": "@aws/hello-world-lsp-binary",
     "version": "0.0.1",
     "description": "Hello World Language Server Binary",
     "main": "out/index.js",
@@ -13,8 +13,8 @@
         "test-integ": "npm run package-x64 && mocha --timeout 5000 './out/**/*Integ.test.js'"
     },
     "dependencies": {
-        "@aws-placeholder/aws-language-server-runtimes": "file:../../bin/aws-placeholder-aws-language-server-runtimes-0.1.1.tgz",
-        "@lsp-placeholder/hello-world-lsp": "^0.0.1"
+        "@aws/language-server-runtimes": "file:../../bin/aws-language-server-runtimes-0.1.1.tgz",
+        "@aws/hello-world-lsp": "^0.0.1"
     },
     "devDependencies": {
         "@types/chai": "^4.3.5",

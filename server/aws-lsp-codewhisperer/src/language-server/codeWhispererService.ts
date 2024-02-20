@@ -1,5 +1,5 @@
-import { CredentialsProvider } from '@aws-placeholder/aws-language-server-runtimes/out/features'
-import { BearerCredentials } from '@aws-placeholder/aws-language-server-runtimes/out/features/auth/auth'
+import { CredentialsProvider } from '@aws/language-server-runtimes/out/features'
+import { BearerCredentials } from '@aws/language-server-runtimes/out/features/auth/auth'
 import { CredentialProviderChain, Credentials } from 'aws-sdk'
 import { v4 as uuidv4 } from 'uuid'
 import { createCodeWhispererSigv4Client } from '../client/sigv4/codewhisperer'

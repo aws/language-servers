@@ -1,11 +1,11 @@
-import { Server } from '@aws-placeholder/aws-language-server-runtimes'
-import { CredentialsProvider, Telemetry } from '@aws-placeholder/aws-language-server-runtimes/out/features'
+import { Server } from '@aws/language-server-runtimes'
+import { CredentialsProvider, Telemetry } from '@aws/language-server-runtimes/out/features'
 import {
     InlineCompletionItemWithReferences,
     InlineCompletionListWithReferences,
     InlineCompletionWithReferencesParams,
     LogInlineCompletionSessionResultsParams,
-} from '@aws-placeholder/aws-language-server-runtimes/out/features/lsp/inline-completions/protocolExtensions'
+} from '@aws/language-server-runtimes/out/features/lsp/inline-completions/protocolExtensions'
 import { AWSError } from 'aws-sdk'
 import { CancellationToken, InlineCompletionTriggerKind, Range } from 'vscode-languageserver'
 import { Position, TextDocument } from 'vscode-languageserver-textdocument'

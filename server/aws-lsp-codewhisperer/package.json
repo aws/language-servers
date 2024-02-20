@@ -1,8 +1,17 @@
 {
-    "name": "@lsp-placeholder/aws-lsp-codewhisperer",
+    "name": "@aws/lsp-codewhisperer",
     "version": "0.0.3",
     "description": "CodeWhisperer Language Server",
     "main": "out/index.js",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/aws/aws-language-servers"
+    },
+    "author": "Amazon Web Services",
+    "license": "Apache-2.0",
+    "engines": {
+        "node": ">=18.0.0"
+    },
     "scripts": {
         "compile": "tsc --build",
         "postcompile": "npm run copyServiceClient",
@@ -13,8 +22,7 @@
         "fix:prettier": "prettier . --write"
     },
     "dependencies": {
-        "@aws-placeholder/aws-language-server-runtimes": "file:../../bin/aws-placeholder-aws-language-server-runtimes-0.1.1.tgz",
-        "@lsp-placeholder/aws-lsp-core": "^0.0.1",
+        "@aws/language-server-runtimes": "file:../../bin/aws-language-server-runtimes-0.1.1.tgz",
         "aws-sdk": "^2.1403.0",
         "proxy-http-agent": "^1.0.1",
         "uuid": "^9.0.1",

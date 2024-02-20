@@ -1,5 +1,5 @@
-import { BuildspecServer, BuildspecServerProps, jsonSchemaUrl } from '@lsp-placeholder/aws-lsp-buildspec'
-import { httpsUtils } from '@lsp-placeholder/aws-lsp-core'
+import { BuildspecServer, BuildspecServerProps, jsonSchemaUrl } from '@aws/lsp-buildspec'
+import { httpsUtils } from '@aws/lsp-core'
 import { ProposedFeatures, createConnection } from 'vscode-languageserver/node'
 
 const connection = createConnection(ProposedFeatures.all)

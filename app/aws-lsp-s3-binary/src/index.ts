@@ -4,8 +4,8 @@ import {
     IdeCredentialsProvider,
     readEncryptionInitialization,
     shouldWaitForEncryptionKey,
-} from '@lsp-placeholder/aws-lsp-core'
-import { S3Server, S3ServerProps, S3ServiceProps, createS3Service } from '@lsp-placeholder/aws-lsp-s3'
+} from '@aws/lsp-core'
+import { S3Server, S3ServerProps, S3ServiceProps, createS3Service } from '@aws/lsp-s3'
 import { ProposedFeatures, createConnection } from 'vscode-languageserver/node'
 
 const lspConnection = createConnection(ProposedFeatures.all)

@@ -1,6 +1,6 @@
-import { standalone } from '@aws-placeholder/aws-language-server-runtimes'
-import { RuntimeProps } from '@aws-placeholder/aws-language-server-runtimes/out/runtimes/runtime'
-import { CodeWhispererServerTokenProxy } from '@lsp-placeholder/aws-lsp-codewhisperer/out/language-server/proxy-server'
+import { standalone } from '@aws/language-server-runtimes'
+import { RuntimeProps } from '@aws/language-server-runtimes/out/runtimes/runtime'
+import { CodeWhispererServerTokenProxy } from '@aws/lsp-codewhisperer/out/language-server/proxy-server'
 
 const MAJOR = 0
 const MINOR = 1

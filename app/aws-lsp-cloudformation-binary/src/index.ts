@@ -4,7 +4,7 @@ import {
     CloudFormationServiceProps,
     createCloudFormationService,
     jsonSchemaUrl,
-} from '@lsp-placeholder/aws-lsp-cloudformation'
+} from '@aws/lsp-cloudformation'
 import {
     CachedContentHandler,
     FileHandler,
@@ -13,7 +13,7 @@ import {
     UriResolver,
     UriResolverBuilder,
     httpsUtils,
-} from '@lsp-placeholder/aws-lsp-core'
+} from '@aws/lsp-core'
 import { ProposedFeatures, createConnection } from 'vscode-languageserver/node'
 
 function createJsonSchemaResolver(): UriResolver {
