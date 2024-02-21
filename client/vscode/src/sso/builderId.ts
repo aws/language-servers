@@ -32,15 +32,27 @@ export interface SsoAccess {
     readonly registration?: ClientRegistration
 }
 
-export const ssoAccountAccessScopes = ['sso:account:access']
-export const codewhispererScopes = ['codewhisperer:completions', 'codewhisperer:analysis']
+export const scopesSsoAccountAccess = ['sso:account:access']
+export const scopesCodeWhispererCore = ['codewhisperer:completions', 'codewhisperer:analysis']
+export const scopesCodeWhispererChat = ['codewhisperer:conversations']
+export const scopesFeatureDev = ['codewhisperer:taskassist']
+export const scopesGumby = ['codewhisperer:transformations']
+// export const scopesCodeCatalyst = ['codecatalyst:read_write']
+
 export const defaultSsoRegion = 'us-east-1'
-const defaultScopes = [...ssoAccountAccessScopes, ...codewhispererScopes]
+const defaultScopes = [
+    ...scopesSsoAccountAccess,
+    ...scopesCodeWhispererCore,
+    ...scopesCodeWhispererChat,
+    ...scopesFeatureDev,
+    ...scopesGumby,
+    // ...scopesCodeCatalyst,
+]
 const clientRegistrationType = 'public'
 const deviceGrantType = 'urn:ietf:params:oauth:grant-type:device_code'
 const refreshGrantType = 'refresh_token'
 
-export function sleep(duration: number = 0): Promise<void> {
+export function sleep(duration = 0): Promise<void> {
     return new Promise(r => setTimeout(r, Math.max(duration, 0)))
 }
 
@@ -319,7 +331,7 @@ export class BuilderIdConnectionBuilder {
         return connection
     }
 
-    private static createBuilderIdProfile(scopes = [...ssoAccountAccessScopes]): SsoProfile {
+    private static createBuilderIdProfile(scopes = [...scopesSsoAccountAccess]): SsoProfile {
         return {
             scopes,
             region: 'foo',

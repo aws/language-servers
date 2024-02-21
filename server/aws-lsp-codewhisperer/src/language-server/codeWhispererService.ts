@@ -2,8 +2,6 @@ import { CredentialsProvider } from '@aws-placeholder/aws-language-server-runtim
 import { BearerCredentials } from '@aws-placeholder/aws-language-server-runtimes/out/features/auth/auth'
 import { AWSError, CredentialProviderChain, Credentials } from 'aws-sdk'
 import { v4 as uuidv4 } from 'uuid'
-import { PromiseResult } from 'aws-sdk/lib/request'
-
 import { createCodeWhispererSigv4Client } from '../client/sigv4/codewhisperer'
 import {
     CodeWhispererTokenClientConfigurationOptions,
@@ -35,16 +33,19 @@ export interface GenerateSuggestionsResponse {
     responseContext: ResponseContext
 }
 
+export type CreateUploadUrlResponse = CodeWhispererTokenClient.CreateUploadUrlResponse
+
 import CodeWhispererSigv4Client = require('../client/sigv4/codewhispererclient')
-import CodeWhispererSigv4UserClient = require('../client/token/codewhispereruserclient')
 import CodeWhispererTokenUserClient = require('../client/token/codewhispereruserclient')
 import CodeWhispererTokenClient = require('../client/token/codewhispererclient')
 import AWS = require('aws-sdk')
+import { PromiseResult } from 'aws-sdk/lib/request'
+// import { PromiseResult } from 'aws-sdk/lib/request'
 
 // Right now the only difference between the token client and the IAM client for codewhsiperer is the difference in function name
 // This abstract class can grow in the future to account for any additional changes across the clients
 export abstract class CodeWhispererServiceBase {
-    public shareCodeWhispererContentWithAWS: boolean = false
+    public shareCodeWhispererContentWithAWS = false
     abstract client: CodeWhispererSigv4Client | CodeWhispererTokenClient
 
     abstract generateSuggestions(request: GenerateSuggestionsRequest): Promise<GenerateSuggestionsResponse>
@@ -72,27 +73,14 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
                 },
             ],
         }
-        const userOptions: CodeWhispererTokenClientConfigurationOptions = {
-            region: this.codeWhispererRegion,
-            endpoint: this.codeWhispererEndpoint,
-            credentialProvider: new CredentialProviderChain([
-                () => credentialsProvider.getCredentials('iam') as Credentials,
-            ]),
-            onRequestSetup: [
-                req => {
-                    req.on('build', ({ httpRequest }) => {
-                        httpRequest.headers['x-amzn-codewhisperer-optout'] = `${!this.shareCodeWhispererContentWithAWS}`
-                    })
-                },
-            ],
-        }
+
         this.client = createCodeWhispererSigv4Client(options)
     }
 
     async generateSuggestions(request: GenerateSuggestionsRequest): Promise<GenerateSuggestionsResponse> {
         // add cancellation check
         // add error check
-
+        console.log('from sigv4')
         const response = await this.client.generateRecommendations(request).promise()
         const responseContext = {
             requestId: response?.$response?.requestId,
@@ -109,11 +97,6 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
             responseContext,
         }
     }
-    // public async codeModernizerStartCodeTransformation(
-    //     request: CodeWhispererSigv4UserClient.StartTransformationRequest
-    // ): Promise<PromiseResult<CodeWhispererSigv4UserClient.StartTransformationResponse, AWSError>> {
-    //     return await this.userClient.startTransformation(request).promise()
-    // }
 
     generateItemId = () => uuidv4()
 }
@@ -122,7 +105,9 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     client: CodeWhispererTokenClient
     userClient: CodeWhispererTokenUserClient
     private readonly codeWhispererRegion = 'us-east-1'
-    private readonly codeWhispererEndpoint = 'https://codewhisperer.us-east-1.amazonaws.com/'
+    private readonly codeWhispererEndpoint =
+        // 'https://rts.gamma-us-east-1.codewhisperer.ai.aws.dev/'
+        'https://codewhisperer.us-east-1.amazonaws.com/'
 
     constructor(credentialsProvider: CredentialsProvider, additionalAwsConfig: any) {
         super()
@@ -167,7 +152,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     async generateSuggestions(request: GenerateSuggestionsRequest): Promise<GenerateSuggestionsResponse> {
         // add cancellation check
         // add error check
-
+        console.log('from Berear Token')
         const response = await this.client.generateCompletions(request).promise()
         const responseContext = {
             requestId: response?.$response?.requestId,
@@ -183,6 +168,56 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
             suggestions: response.completions as Suggestion[],
             responseContext,
         }
+    }
+
+    public async createUploadUrl(
+        request: CodeWhispererTokenUserClient.CreateUploadUrlRequest
+    ): Promise<CodeWhispererTokenUserClient.CreateUploadUrlResponse> {
+        return this.userClient.createUploadUrl(request).promise()
+    }
+    /**
+     * @description Use this function to start the transformation job.
+     * @param request
+     * @returns transformationJobId - String id for the Job
+     */
+
+    public async codeModernizerStartCodeTransformation(
+        request: CodeWhispererTokenUserClient.StartTransformationRequest
+    ): Promise<PromiseResult<CodeWhispererTokenUserClient.StartTransformationResponse, AWSError>> {
+        return await this.userClient.startTransformation(request).promise()
+    }
+
+    /**
+     * @description Use this function to stop the transformation job.
+     * @param request
+     * @returns transformationJobId - String id for the Job
+     */
+    public async codeModernizerStopCodeTransformation(
+        request: CodeWhispererTokenUserClient.StopTransformationRequest
+    ): Promise<PromiseResult<CodeWhispererTokenUserClient.StopTransformationResponse, AWSError>> {
+        return await this.userClient.stopTransformation(request).promise()
+    }
+
+    /**
+     * @description Use this function to get the status of the code transformation. We should
+     * be polling this function periodically to get updated results. When this function
+     * returns COMPLETED we know the transformation is done.
+     */
+    public async codeModernizerGetCodeTransformation(
+        request: CodeWhispererTokenUserClient.GetTransformationRequest
+    ): Promise<PromiseResult<CodeWhispererTokenUserClient.GetTransformationResponse, AWSError>> {
+        return await this.userClient.getTransformation(request).promise()
+    }
+
+    /**
+     * @description After starting a transformation use this function to display the LLM
+     * transformation plan to the user.
+     * @params tranformationJobId - String id returned from StartCodeTransformationResponse
+     */
+    public async codeModernizerGetCodeTransformationPlan(
+        request: CodeWhispererTokenUserClient.GetTransformationPlanRequest
+    ): Promise<PromiseResult<CodeWhispererTokenUserClient.GetTransformationPlanResponse, AWSError>> {
+        return this.userClient.getTransformationPlan(request).promise()
     }
 
     updateAwsConfiguration = (awsConfig: any) => {

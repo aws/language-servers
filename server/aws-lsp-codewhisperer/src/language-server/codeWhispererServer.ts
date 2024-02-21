@@ -1,4 +1,9 @@
+/* eslint-disable @typescript-eslint/no-inferrable-types */
+/* eslint-disable prefer-const */
 import { Server } from '@aws-placeholder/aws-language-server-runtimes'
+import * as os from 'os'
+import * as crypto from 'crypto'
+import * as fs from 'fs-extra'
 import { CredentialsProvider, Telemetry } from '@aws-placeholder/aws-language-server-runtimes/out/features'
 import {
     InlineCompletionItemWithReferences,
@@ -7,15 +12,10 @@ import {
     LogInlineCompletionSessionResultsParams,
 } from '@aws-placeholder/aws-language-server-runtimes/out/features/lsp/inline-completions/protocolExtensions'
 import { AWSError } from 'aws-sdk'
-import { CancellationToken, InlineCompletionTriggerKind, Range } from 'vscode-languageserver'
+import { CancellationToken, ExecuteCommandParams, InlineCompletionTriggerKind, Range } from 'vscode-languageserver'
 import { Position, TextDocument } from 'vscode-languageserver-textdocument'
 import { autoTrigger, triggerType } from './auto-trigger/autoTrigger'
-import {
-    CodeWhispererServiceBase,
-    CodeWhispererServiceIAM,
-    CodeWhispererServiceToken,
-    Suggestion,
-} from './codeWhispererService'
+import { CodeWhispererServiceBase, CodeWhispererServiceToken, Suggestion } from './codeWhispererService'
 import { CodewhispererLanguage, getSupportedLanguageId } from './languageDetection'
 import { getPrefixSuffixOverlap, truncateOverlapWithRightContext } from './mergeRightUtils'
 import { CodeWhispererSession, SessionManager } from './session/sessionManager'
@@ -27,6 +27,7 @@ import {
     CodeWhispererUserTriggerDecisionEvent,
 } from './telemetry/types'
 import { getCompletionType, isAwsError } from './utils'
+import path = require('path')
 
 const EMPTY_RESULT = { sessionId: '', items: [] }
 export const CONTEXT_CHARACTERS_LIMIT = 10240
@@ -296,7 +297,7 @@ export const CodewhispererServerFactory =
                 sessionManager.discardSession(currentSession)
             }
 
-            return workspace.getTextDocument(params.textDocument.uri).then(textDocument => {
+            return workspace.getTextDocument(params.textDocument.uri).then(async textDocument => {
                 if (!textDocument) {
                     logging.log(`textDocument [${params.textDocument.uri}] not found`)
                     return EMPTY_RESULT
@@ -357,7 +358,6 @@ export const CodewhispererServerFactory =
                     classifierThreshold: autoTriggerResult?.classifierThreshold,
                     credentialStartUrl: credentialsProvider.getConnectionMetadata()?.sso?.startUrl ?? undefined,
                 })
-
                 codePercentageTracker.countInvocation(inferredLanguageId)
 
                 return codeWhispererService
@@ -528,6 +528,44 @@ export const CodewhispererServerFactory =
                 })
                 .catch(reason => logging.log(`Error in GetConfiguration: ${reason}`))
 
+        const onExecuteCommandHandler = async (
+            params: ExecuteCommandParams,
+            _token: CancellationToken
+        ): Promise<any> => {
+            let response = undefined
+            const client = codeWhispererService as CodeWhispererServiceToken
+            const fileName = path.join(os.tmpdir(), 'zipped-code.zip')
+            const sha256 = getSha256(fileName)
+
+            switch (params.command) {
+                case '/helloWorld/log':
+                    response = await client.createUploadUrl({
+                        contentChecksum: sha256,
+                        contentChecksumType: 'SHA_256',
+                        uploadIntent: 'TRANSFORMATION',
+                    })
+                    // console.log('RESPONSE FROM CWSPR',response)
+                    // //  response = await client.codeModernizerStartCodeTransformation({
+                    // //     workspaceState: {
+                    // //         uploadId: "uploadId",
+                    // //         programmingLanguage: { languageName: CodeWhispererConstants.defaultLanguage.toLowerCase() },
+                    // //     },
+                    // //     transformationSpec: {
+                    // //         transformationType: CodeWhispererConstants.transformationType,
+                    // //         source: { language: sourceLanguageVersion },
+                    // //         target: { language: targetLanguageVersion },
+                    // //     },
+                    // // })
+                    // response = await client.codeModernizerGetCodeTransformation({
+                    //    transformationJobId:'1234'
+                    // })
+                    console.log('RESPONSE FROM CWSPR GetTransformation', response)
+                    break
+            }
+            return
+        }
+        lsp.onExecuteCommand(onExecuteCommandHandler)
+
         lsp.extensions.onInlineCompletionWithReferences(onInlineCompletionHandler)
         lsp.extensions.onLogInlineCompletionSessionResults(onLogInlineCompletionSessionResultsHandler)
         lsp.onInitialized(updateConfiguration)
@@ -559,9 +597,14 @@ export const CodewhispererServerFactory =
         }
     }
 
-export const CodeWhispererServerIAM = CodewhispererServerFactory(
-    credentialsProvider => new CodeWhispererServiceIAM(credentialsProvider)
-)
+// export const CodeWhispererServerIAM = CodewhispererServerFactory(
+//     credentialsProvider => new CodeWhispererServiceIAM(credentialsProvider)
+// )
 export const CodeWhispererServerToken = CodewhispererServerFactory(
     credentialsProvider => new CodeWhispererServiceToken(credentialsProvider, {})
 )
+export function getSha256(fileName: string) {
+    const hasher = crypto.createHash('sha256')
+    hasher.update(fs.readFileSync(fileName))
+    return hasher.digest('base64')
+}

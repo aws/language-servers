@@ -30,6 +30,7 @@
         "typescript": "^5.0.4"
     },
     "devDependencies": {
+        "@types/fs-extra": "^11.0.4",
         "@types/node": "^20.2.5",
         "@types/node-fetch": "^2.6.11",
         "@types/request": "^2.48.12",
