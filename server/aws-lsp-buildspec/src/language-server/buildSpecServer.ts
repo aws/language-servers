@@ -4,9 +4,9 @@ import {
     UriResolver,
     completionItemUtils,
     textDocumentUtils,
-} from '@lsp-placeholder/aws-lsp-core'
-import { JsonLanguageService } from '@lsp-placeholder/aws-lsp-json-common'
-import { YamlLanguageService } from '@lsp-placeholder/aws-lsp-yaml-common'
+} from '@aws/lsp-core'
+import { JsonLanguageService } from '@aws/lsp-json-common'
+import { YamlLanguageService } from '@aws/lsp-yaml-common'
 import {
     Connection,
     InitializeParams,

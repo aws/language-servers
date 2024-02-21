@@ -1,4 +1,4 @@
-# AWS Language Servers
+# Language Servers for AWS
 
 Language servers for integration with IDEs and Editors
 

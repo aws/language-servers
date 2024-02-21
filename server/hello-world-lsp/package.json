@@ -1,5 +1,5 @@
 {
-    "name": "@lsp-placeholder/hello-world-lsp",
+    "name": "@aws/hello-world-lsp",
     "version": "0.0.1",
     "description": "Hello World Server",
     "main": "out/index.js",
@@ -8,7 +8,7 @@
         "test": "ts-mocha -b 'src/**/*.test.ts'"
     },
     "dependencies": {
-        "@aws-placeholder/aws-language-server-runtimes": "file:../../bin/aws-placeholder-aws-language-server-runtimes-0.1.1.tgz",
+        "@aws/language-server-runtimes": "file:../../bin/aws-language-server-runtimes-0.1.1.tgz",
         "vscode-languageserver": "^9.0.1"
     }
 }

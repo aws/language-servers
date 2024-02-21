@@ -1,4 +1,4 @@
-import { AwsLanguageService, textDocumentUtils } from '@lsp-placeholder/aws-lsp-core'
+import { AwsLanguageService, textDocumentUtils } from '@aws/lsp-core'
 import {
     Connection,
     InitializeParams,

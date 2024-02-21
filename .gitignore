@@ -3,7 +3,6 @@ build
 .gradle
 .idea
 **/*.tgz
-!aws-placeholder-aws-language-server-runtimes-0.1.0.tgz
 .testresults/**
 
 # Visual Studio Related
