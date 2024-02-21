@@ -38,6 +38,18 @@
             "preLaunchTask": "npm: compile"
         },
         {
+            "name": "YAML/JSON Server",
+            "type": "extensionHost",
+            "request": "launch",
+            "runtimeExecutable": "${execPath}",
+            "args": ["--extensionDevelopmentPath=${workspaceFolder}/client/vscode"],
+            "outFiles": ["${workspaceFolder}/client/vscode/out/**/*.js"],
+            "env": {
+                "LSP_SERVER": "${workspaceFolder}/app/aws-lsp-yaml-json-binary/out/index.js"
+            },
+            "preLaunchTask": "npm: compile"
+        },
+        {
             "name": "CodeWhisperer Server",
             "type": "extensionHost",
             "request": "launch",
