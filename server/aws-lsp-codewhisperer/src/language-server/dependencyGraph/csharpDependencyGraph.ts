@@ -53,12 +53,11 @@ export class CsharpDependencyGraph extends DependencyGraph {
         await sleep(1000)
         const truncDirPath = this.getTruncDirPath()
         this.copyFilesToTmpDir(this._pickedSourceFiles, truncDirPath)
-        const zipFilePath = this.zipDir(truncDirPath, CodeWhispererConstants.codeScanZipExt)
-        const zipFileSize = (await this.workspace.fs.getFileSize(zipFilePath)).size
+        const { zipFileBuffer, zipFileSize } = this.createZip(truncDirPath)
 
         return {
             rootDir: truncDirPath,
-            zipFilePath: zipFilePath,
+            zipFileBuffer,
             scannedFiles: new Set(this._pickedSourceFiles),
             srcPayloadSizeInBytes: this._totalSize,
             zipFileSizeInBytes: zipFileSize,

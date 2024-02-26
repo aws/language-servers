@@ -1,59 +1,16 @@
 import { Workspace } from '@aws/language-server-runtimes/out/features'
 import * as admZip from 'adm-zip'
 import * as path from 'path'
-import { URI as Uri } from 'vscode-uri'
 import * as CodeWhispererConstants from './constants'
 
 export interface Truncation {
     rootDir: string
-    zipFilePath: string
+    zipFileBuffer: Buffer
     scannedFiles: Set<string>
     srcPayloadSizeInBytes: number
     buildPayloadSizeInBytes: number
     zipFileSizeInBytes: number
     lines: number
-}
-
-export const DependencyGraphConstants = {
-    /**
-     * Key words
-     */
-    import: 'import',
-    from: 'from',
-    as: 'as',
-    static: 'static',
-    package: 'package',
-    using: 'using',
-    globalusing: 'global using',
-    semicolon: ';',
-    equals: '=',
-    require: 'require',
-    require_relative: 'require_relative',
-    load: 'load',
-    include: 'include',
-    extend: 'extend',
-
-    /**
-     * Regex
-     */
-    newlineRegex: /\r?\n/,
-
-    /**
-     * File extension
-     */
-    pythonExt: '.py',
-    javaExt: '.java',
-    javaBuildExt: '.class',
-    jsExt: '.js',
-    tsExt: '.ts',
-    csharpExt: '.cs',
-    jsonExt: '.json',
-    yamlExt: '.yaml',
-    ymlExt: '.yml',
-    tfExt: '.tf',
-    hclExt: '.hcl',
-    rubyExt: '.rb',
-    goExt: '.go',
 }
 
 /**
@@ -147,39 +104,38 @@ export abstract class DependencyGraph {
         // Use Promise.all to asynchronously copy all files
         await Promise.all(
             fileArray.map(async filePath => {
-                await this.copyFileToTmp(Uri.file(filePath), dir)
+                await this.copyFileToTmp(filePath, dir)
             })
         )
     }
 
     /**
-     * copy input file in temp dir at destDir location and match input uri's relative path at destDir
-     * @param uri file path to be copied
+     * copy input file in temp dir (destDir) with same relative path of srcFile in destDir.
+     * @param srcFilePath file path to be copied
      * @param destDir destination directory path
      */
-    protected async copyFileToTmp(uri: Uri, destDir: string) {
-        const sourceWorkspacePath = this.getProjectPath(uri.fsPath)
-        const fileRelativePath = path.relative(sourceWorkspacePath, uri.fsPath)
+    protected async copyFileToTmp(srcFilePath: string, destDir: string) {
+        const sourceWorkspacePath = this.getProjectPath(srcFilePath)
+        const fileRelativePath = path.relative(sourceWorkspacePath, srcFilePath)
         const destinationFileAbsolutePath = path.join(destDir, fileRelativePath)
-        await this.workspace.fs.copy(uri.fsPath, destinationFileAbsolutePath)
+        await this.workspace.fs.copy(srcFilePath, destinationFileAbsolutePath)
     }
 
     /**
-     * Zip dir with given extension
+     * create a zip dir buffer of the given dir.
      * @param dir directory path to create zip of the directory
-     * @returns zip file path
+     * @returns zipped dir buffer object and its size in bytes
      */
-    zipDir(dir: string, extension: string): string {
+    createZip(dir: string) {
         const zip = new admZip()
         zip.addLocalFolder(dir)
-        zip.writeZip(dir + extension)
 
         // writeZip uses `fs` under the hood and it wouldn't work in browsers
         // Instead of writeZip to write to disk, we should consider using zip.toBuffer
         // The zip buffer can then be uploaded to s3
         const zipBuffer = zip.toBuffer()
 
-        return dir + extension
+        return { zipFileBuffer: zipBuffer, zipFileSize: zipBuffer.byteLength }
     }
 
     /**
@@ -233,7 +189,6 @@ export abstract class DependencyGraph {
      * remove all files and zip from temp directory
      */
     protected async removeTmpFiles(truncation: Truncation) {
-        await this.removeZip(truncation.zipFilePath)
         await this.removeDir(truncation.rootDir)
     }
 

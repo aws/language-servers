@@ -1,4 +1,4 @@
-import { Workspace } from '@aws-placeholder/aws-language-server-runtimes/out/features'
+import { Workspace } from '@aws/language-server-runtimes/out/features'
 import { TextDocument } from 'vscode-languageserver-textdocument'
 import { CsharpDependencyGraph } from './csharpDependencyGraph'
 
@@ -17,7 +17,7 @@ export class DependencyGraphFactory {
     }
 
     static getDependencyGraph<K extends Keys>(document: TextDocument, workspace: Required<Workspace>): ClassType<K> {
-        switch (document.languageId) {
+        switch (document.languageId.toLowerCase()) {
             case 'csharp':
                 return new languageMap['csharp'](workspace)
             default:

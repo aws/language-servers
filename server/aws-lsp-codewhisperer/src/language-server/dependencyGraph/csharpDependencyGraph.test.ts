@@ -350,12 +350,15 @@ namespace Amazon.Toolkit.Demo {
         })
         it('should call zip dir', async () => {
             const zipSize = Math.pow(2, 19)
+            const zipFileBuffer = 'dummy-zip-data'
             mockedFs.getFileSize.atLeast(1).resolves({ size: zipSize })
-            const zipFilePath = path.join(tempDirPath, 'codewhisperer_scan_111111111.zip')
-            csharpDependencyGraph.zipDir = Sinon.stub().returns(zipFilePath)
+            csharpDependencyGraph.createZip = Sinon.stub().returns({
+                zipFileBuffer,
+                zipFileSize: zipSize,
+            })
             const expectedResult = {
                 rootDir: path.join(tempDirPath, 'codewhisperer_scan_111111111'),
-                zipFilePath: zipFilePath,
+                zipFileBuffer,
                 scannedFiles: new Set([path.join(projectPathUri, 'main.cs')]),
                 srcPayloadSizeInBytes: 0,
                 zipFileSizeInBytes: zipSize,
