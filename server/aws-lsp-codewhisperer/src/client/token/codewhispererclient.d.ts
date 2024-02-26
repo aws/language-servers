@@ -93,6 +93,7 @@ declare namespace CodeWhispererClient {
     export type CompletionContentString = string
     export type Completions = Completion[]
     export type ContentChecksumType = 'SHA_256' | string
+    export type ConversationId = string
     export interface CreateUploadUrlRequest {
         contentMd5?: CreateUploadUrlRequestContentMd5String
         contentChecksum?: CreateUploadUrlRequestContentChecksumString
@@ -197,6 +198,9 @@ declare namespace CodeWhispererClient {
     export type StartCodeAnalysisResponseJobIdString = string
 
     export type String = string
+    export interface TaskAssistPlanningUploadContext {
+        conversationId: ConversationId
+    }
     export interface UploadContext {
         taskAssistPlanningUploadContext?: TaskAssistPlanningUploadContext
     }

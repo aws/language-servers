@@ -72,101 +72,101 @@
                     "shape": "AccessDeniedException"
                 }
             ]
+        },
+        "GetCodeAnalysis": {
+            "name": "GetCodeAnalysis",
+            "http": {
+                "method": "POST",
+                "requestUri": "/"
+            },
+            "input": {
+                "shape": "GetCodeAnalysisRequest"
+            },
+            "output": {
+                "shape": "GetCodeAnalysisResponse"
+            },
+            "errors": [
+                {
+                    "shape": "ThrottlingException"
+                },
+                {
+                    "shape": "ResourceNotFoundException"
+                },
+                {
+                    "shape": "InternalServerException"
+                },
+                {
+                    "shape": "ValidationException"
+                },
+                {
+                    "shape": "AccessDeniedException"
+                }
+            ]
+        },
+        "ListCodeAnalysisFindings": {
+            "name": "ListCodeAnalysisFindings",
+            "http": {
+                "method": "POST",
+                "requestUri": "/"
+            },
+            "input": {
+                "shape": "ListCodeAnalysisFindingsRequest"
+            },
+            "output": {
+                "shape": "ListCodeAnalysisFindingsResponse"
+            },
+            "errors": [
+                {
+                    "shape": "ThrottlingException"
+                },
+                {
+                    "shape": "ResourceNotFoundException"
+                },
+                {
+                    "shape": "InternalServerException"
+                },
+                {
+                    "shape": "ValidationException"
+                },
+                {
+                    "shape": "AccessDeniedException"
+                }
+            ]
+        },
+        "StartCodeAnalysis": {
+            "name": "StartCodeAnalysis",
+            "http": {
+                "method": "POST",
+                "requestUri": "/"
+            },
+            "idempotent": true,
+            "input": {
+                "shape": "StartCodeAnalysisRequest"
+            },
+            "output": {
+                "shape": "StartCodeAnalysisResponse"
+            },
+            "errors": [
+                {
+                    "shape": "ThrottlingException"
+                },
+                {
+                    "shape": "ConflictException"
+                },
+                {
+                    "shape": "ResourceNotFoundException"
+                },
+                {
+                    "shape": "InternalServerException"
+                },
+                {
+                    "shape": "ValidationException"
+                },
+                {
+                    "shape": "AccessDeniedException"
+                }
+            ]
         }
-    },
-    "GetCodeAnalysis": {
-        "name": "GetCodeAnalysis",
-        "http": {
-            "method": "POST",
-            "requestUri": "/"
-        },
-        "input": {
-            "shape": "GetCodeAnalysisRequest"
-        },
-        "output": {
-            "shape": "GetCodeAnalysisResponse"
-        },
-        "errors": [
-            {
-                "shape": "ThrottlingException"
-            },
-            {
-                "shape": "ResourceNotFoundException"
-            },
-            {
-                "shape": "InternalServerException"
-            },
-            {
-                "shape": "ValidationException"
-            },
-            {
-                "shape": "AccessDeniedException"
-            }
-        ]
-    },
-    "ListCodeAnalysisFindings": {
-        "name": "ListCodeAnalysisFindings",
-        "http": {
-            "method": "POST",
-            "requestUri": "/"
-        },
-        "input": {
-            "shape": "ListCodeAnalysisFindingsRequest"
-        },
-        "output": {
-            "shape": "ListCodeAnalysisFindingsResponse"
-        },
-        "errors": [
-            {
-                "shape": "ThrottlingException"
-            },
-            {
-                "shape": "ResourceNotFoundException"
-            },
-            {
-                "shape": "InternalServerException"
-            },
-            {
-                "shape": "ValidationException"
-            },
-            {
-                "shape": "AccessDeniedException"
-            }
-        ]
-    },
-    "StartCodeAnalysis": {
-        "name": "StartCodeAnalysis",
-        "http": {
-            "method": "POST",
-            "requestUri": "/"
-        },
-        "idempotent": true,
-        "input": {
-            "shape": "StartCodeAnalysisRequest"
-        },
-        "output": {
-            "shape": "StartCodeAnalysisResponse"
-        },
-        "errors": [
-            {
-                "shape": "ThrottlingException"
-            },
-            {
-                "shape": "ConflictException"
-            },
-            {
-                "shape": "ResourceNotFoundException"
-            },
-            {
-                "shape": "InternalServerException"
-            },
-            {
-                "shape": "ValidationException"
-            },
-            {
-                "shape": "AccessDeniedException"
-            }
-        ]
     },
     "shapes": {
         "AccessDeniedException": {
@@ -556,6 +556,10 @@
             },
             "exception": true
         },
+        "SensitiveString": {
+            "type": "string",
+            "sensitive": true
+        },
         "Span": {
             "type": "structure",
             "members": {
@@ -646,17 +650,6 @@
         "UploadIntent": {
             "type": "string",
             "enum": ["TRANSFORMATION", "TASK_ASSIST_PLANNING"]
-        },
-        "UserContext": {
-            "type": "structure",
-            "required": ["ideCategory", "operatingSystem", "product"],
-            "members": {
-                "ideCategory": { "shape": "IdeCategory" },
-                "operatingSystem": { "shape": "OperatingSystem" },
-                "product": { "shape": "UserContextProductString" },
-                "clientId": { "shape": "UUID" },
-                "ideVersion": { "shape": "String" }
-            }
         },
         "ValidationException": {
             "type": "structure",
