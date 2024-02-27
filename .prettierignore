@@ -4,6 +4,6 @@ node_modules/
 out/
 **/bin/
 **/obj/
-server/aws-lsp-codewhisperer/src/client/sigv4/codewhispererclient.d.ts
-server/aws-lsp-codewhisperer/src/client/token/codewhispererclient.d.ts
+server/aws-lsp-codewhisperer/src/client/sigv4/codewhisperersigv4client.d.ts
+server/aws-lsp-codewhisperer/src/client/token/codewhispererbearertokenclient.d.ts
 **/*.md
