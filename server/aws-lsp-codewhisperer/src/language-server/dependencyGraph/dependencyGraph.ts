@@ -41,8 +41,8 @@ export abstract class DependencyGraph {
      * @param uri file path to get project name
      * @returns project folder name
      */
-    public getProjectName(uri: string) {
-        const projectPath = this.getProjectPath(uri)
+    public async getProjectName(uri: string) {
+        const projectPath = await this.getProjectPath(uri)
         return path.basename(projectPath)
     }
 
@@ -51,11 +51,11 @@ export abstract class DependencyGraph {
      * @param uri file path to get project path
      * @returns project path uri if found within workspace otherwise current directory path of input uri
      */
-    public getProjectPath(uri: string) {
+    public async getProjectPath(uri: string) {
         const workspaceFolder = this.workspace.getWorkspaceFolder(uri)
 
         if (!workspaceFolder) {
-            return this.workspace.fs.isFile(uri) ? path.dirname(uri) : uri
+            return (await this.workspace.fs.isFile(uri)) ? path.dirname(uri) : uri
         }
         return workspaceFolder.uri
     }
@@ -115,7 +115,7 @@ export abstract class DependencyGraph {
      * @param destDir destination directory path
      */
     protected async copyFileToTmp(srcFilePath: string, destDir: string) {
-        const sourceWorkspacePath = this.getProjectPath(srcFilePath)
+        const sourceWorkspacePath = await this.getProjectPath(srcFilePath)
         const fileRelativePath = path.relative(sourceWorkspacePath, srcFilePath)
         const destinationFileAbsolutePath = path.join(destDir, fileRelativePath)
         await this.workspace.fs.copy(srcFilePath, destinationFileAbsolutePath)
@@ -131,7 +131,7 @@ export abstract class DependencyGraph {
         zip.addLocalFolder(dir)
 
         // writeZip uses `fs` under the hood and it wouldn't work in browsers
-        // Instead of writeZip to write to disk, we should consider using zip.toBuffer
+        // Instead of writeZip to write to disk.
         // The zip buffer can then be uploaded to s3
         const zipBuffer = zip.toBuffer()
 
@@ -145,17 +145,6 @@ export abstract class DependencyGraph {
     protected async removeDir(dir: string) {
         if (await this.workspace.fs.exists(dir)) {
             await this.workspace.fs.remove(dir)
-        }
-    }
-
-    /**
-     * delete zip if it exists
-     * @param zipFilePath zip file path to remove
-     * @returns
-     */
-    protected async removeZip(zipFilePath: string) {
-        if (await this.workspace.fs.exists(zipFilePath)) {
-            await this.workspace.fs.remove(zipFilePath)
         }
     }
 
@@ -186,7 +175,7 @@ export abstract class DependencyGraph {
     }
 
     /**
-     * remove all files and zip from temp directory
+     * remove all copied files from temp directory
      */
     protected async removeTmpFiles(truncation: Truncation) {
         await this.removeDir(truncation.rootDir)
@@ -195,8 +184,7 @@ export abstract class DependencyGraph {
     /**
      * This method will traverse throw the input file and its dependecy files to creates a list of files for the scan.
      * If the list does not exceeds the payload size limit then it will scan all the remaining files to add them into the list
-     * until it reaches to the payload size limit. Then, it copies all the selected files to temp directory, creates a zip
-     * and deletes copied files and directory created in temp.
+     * until it reaches to the payload size limit. Then, it copies all the selected files to temp directory, creates a zip buffer.
      * @param uri file path for which truncation being created
      * @returns Truncation object
      */

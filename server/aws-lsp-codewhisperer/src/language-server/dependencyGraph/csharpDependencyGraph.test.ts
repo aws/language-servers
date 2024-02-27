@@ -43,37 +43,40 @@ describe('test CsharpDependencyGraph', () => {
     describe('Test getProjectName', () => {
         beforeEach(() => {
             mockedFs.isFile.reset()
-            mockedFs.isFile.returns(false)
+            mockedFs.isFile.resolves(false)
         })
-        it('should return current folder name for given file path outside workspace folder', () => {
-            mockedFs.isFile.returns(true)
-            assert.equal(csharpDependencyGraph.getProjectName(path.join(projectPathUri, 'sample.cs')), 'sampleWs')
+        it('should return current folder name for given file path outside workspace folder', async () => {
+            mockedFs.isFile.resolves(true)
+            assert.equal(await csharpDependencyGraph.getProjectName(path.join(projectPathUri, 'sample.cs')), 'sampleWs')
         })
-        it('should return correct project name for given forlder path within workspace folder', () => {
+        it('should return correct project name for given forlder path within workspace folder', async () => {
             const expectedProjectName = 'sampleWs'
             mockedGetWorkspaceFolder.returns({ uri: projectPathUri, name: expectedProjectName })
-            assert.equal(csharpDependencyGraph.getProjectName(path.join(projectPathUri, 'src')), expectedProjectName)
+            assert.equal(
+                await csharpDependencyGraph.getProjectName(path.join(projectPathUri, 'src')),
+                expectedProjectName
+            )
         })
     })
 
     describe('Test getProjectPath', () => {
         beforeEach(() => {
             mockedFs.isFile.reset()
-            mockedFs.isFile.returns(false)
+            mockedFs.isFile.resolves(false)
         })
-        it('should not find workspace folder path for given path', () => {
+        it('should not find workspace folder path for given path', async () => {
             const fileFolderPath = path.resolve('\\workspace\\src')
             const fileUri = path.join(fileFolderPath, 'sample.cs')
-            mockedFs.isFile.returns(true)
+            mockedFs.isFile.resolves(true)
 
-            const response = csharpDependencyGraph.getProjectPath(fileUri)
+            const response = await csharpDependencyGraph.getProjectPath(fileUri)
             assert.equal(response, fileFolderPath)
         })
-        it('should return project name for within project file', () => {
+        it('should return project name for within project file', async () => {
             const expectedProjectName = 'sampleWs'
 
             mockedGetWorkspaceFolder.returns({ uri: projectPathUri, name: expectedProjectName })
-            assert.equal(csharpDependencyGraph.getProjectPath(path.join(projectPathUri, 'src')), projectPathUri)
+            assert.equal(await csharpDependencyGraph.getProjectPath(path.join(projectPathUri, 'src')), projectPathUri)
             mockedGetWorkspaceFolder.reset()
         })
     })
