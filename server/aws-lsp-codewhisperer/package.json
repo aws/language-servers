@@ -30,7 +30,6 @@
         "vscode-languageserver-textdocument": "^1.0.8"
     },
     "devDependencies": {
-        "@types/fs-extra": "^11.0.4",
         "@types/uuid": "^9.0.6",
         "assert": "^2.1.0",
         "copyfiles": "^2.4.1",

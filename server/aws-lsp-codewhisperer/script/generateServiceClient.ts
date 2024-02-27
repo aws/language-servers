@@ -4,7 +4,7 @@
  */
 
 import * as child_process from 'child_process'
-import * as fs from 'fs-extra'
+import * as fs from 'fs'
 import * as path from 'path'
 
 const repoRoot = path.join(process.cwd()) // root/packages/toolkit -> root/
