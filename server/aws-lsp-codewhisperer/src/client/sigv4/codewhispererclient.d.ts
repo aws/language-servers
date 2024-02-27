@@ -3,34 +3,32 @@
  * DO NOT EDIT BY HAND.
  */
 
-import { Request } from 'aws-sdk/lib/request'
-import { Response } from 'aws-sdk/lib/response'
-import { AWSError } from 'aws-sdk/lib/error'
-import { Service } from 'aws-sdk/lib/service'
-import { ServiceConfigurationOptions } from 'aws-sdk/lib/service'
 import { ConfigBase as Config } from 'aws-sdk/lib/config-base'
+import { AWSError } from 'aws-sdk/lib/error'
+import { Request } from 'aws-sdk/lib/request'
+import { Service, ServiceConfigurationOptions } from 'aws-sdk/lib/service'
 interface Blob {}
-declare class CodeWhispererSigV4Client extends Service {
+declare class CodeWhispererClient extends Service {
     /**
      * Constructs a service object. This object has one method for each API operation.
      */
-    constructor(options?: CodeWhispererSigV4Client.Types.ClientConfiguration)
-    config: Config & CodeWhispererSigV4Client.Types.ClientConfiguration
+    constructor(options?: CodeWhispererClient.Types.ClientConfiguration)
+    config: Config & CodeWhispererClient.Types.ClientConfiguration
     /**
      *
      */
     generateRecommendations(
-        params: CodeWhispererSigV4Client.Types.GenerateRecommendationsRequest,
-        callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.GenerateRecommendationsResponse) => void
-    ): Request<CodeWhispererSigV4Client.Types.GenerateRecommendationsResponse, AWSError>
+        params: CodeWhispererClient.Types.GenerateRecommendationsRequest,
+        callback?: (err: AWSError, data: CodeWhispererClient.Types.GenerateRecommendationsResponse) => void
+    ): Request<CodeWhispererClient.Types.GenerateRecommendationsResponse, AWSError>
     /**
      *
      */
     generateRecommendations(
-        callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.GenerateRecommendationsResponse) => void
-    ): Request<CodeWhispererSigV4Client.Types.GenerateRecommendationsResponse, AWSError>
+        callback?: (err: AWSError, data: CodeWhispererClient.Types.GenerateRecommendationsResponse) => void
+    ): Request<CodeWhispererClient.Types.GenerateRecommendationsResponse, AWSError>
 }
-declare namespace CodeWhispererSigV4Client {
+declare namespace CodeWhispererClient {
     export interface FileContext {
         leftFileContent: FileContextLeftFileContentString
         rightFileContent: FileContextRightFileContentString
@@ -50,7 +48,7 @@ declare namespace CodeWhispererSigV4Client {
     export type GenerateRecommendationsRequestNextTokenString = string
     export interface GenerateRecommendationsResponse {
         recommendations?: RecommendationsList
-        nextToken?: String
+        nextToken?: string
     }
     export interface Import {
         statement?: ImportStatementString
@@ -101,8 +99,8 @@ declare namespace CodeWhispererSigV4Client {
     }
     export type ClientConfiguration = ServiceConfigurationOptions & ClientApiVersions
     /**
-     * Contains interfaces for use with the CodeWhispererSigV4Client client.
+     * Contains interfaces for use with the CodeWhispererClient client.
      */
-    export import Types = CodeWhispererSigV4Client
+    export import Types = CodeWhispererClient
 }
-export = CodeWhispererSigV4Client
+export = CodeWhispererClient

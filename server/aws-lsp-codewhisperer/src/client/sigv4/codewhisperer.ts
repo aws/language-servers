@@ -1,7 +1,7 @@
 import { Service } from 'aws-sdk'
 import { ServiceConfigurationOptions } from 'aws-sdk/lib/service'
 const apiConfig = require('./service.json')
-import CodeWhispererClient = require('./codewhisperersigv4client')
+import CodeWhispererClient = require('./codewhispererclient')
 
 export function createCodeWhispererSigv4Client(options: ServiceConfigurationOptions): CodeWhispererClient {
     return createService(options) as CodeWhispererClient

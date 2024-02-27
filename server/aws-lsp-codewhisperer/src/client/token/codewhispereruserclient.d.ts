@@ -10,265 +10,235 @@ import { Service } from 'aws-sdk/lib/service'
 import { ServiceConfigurationOptions } from 'aws-sdk/lib/service'
 import { ConfigBase as Config } from 'aws-sdk/lib/config-base'
 interface Blob {}
-declare class CodeWhispererBearerTokenClient extends Service {
+declare class CodeWhispererUserClient extends Service {
     /**
      * Constructs a service object. This object has one method for each API operation.
      */
-    constructor(options?: CodeWhispererBearerTokenClient.Types.ClientConfiguration)
-    config: Config & CodeWhispererBearerTokenClient.Types.ClientConfiguration
+    constructor(options?: CodeWhispererUserClient.Types.ClientConfiguration)
+    config: Config & CodeWhispererUserClient.Types.ClientConfiguration
     /**
      * Creates a pre-signed, S3 write URL for uploading a repository zip archive.
      */
     createArtifactUploadUrl(
-        params: CodeWhispererBearerTokenClient.Types.CreateUploadUrlRequest,
-        callback?: (err: AWSError, data: CodeWhispererBearerTokenClient.Types.CreateUploadUrlResponse) => void
-    ): Request<CodeWhispererBearerTokenClient.Types.CreateUploadUrlResponse, AWSError>
+        params: CodeWhispererUserClient.Types.CreateUploadUrlRequest,
+        callback?: (err: AWSError, data: CodeWhispererUserClient.Types.CreateUploadUrlResponse) => void
+    ): Request<CodeWhispererUserClient.Types.CreateUploadUrlResponse, AWSError>
     /**
      * Creates a pre-signed, S3 write URL for uploading a repository zip archive.
      */
     createArtifactUploadUrl(
-        callback?: (err: AWSError, data: CodeWhispererBearerTokenClient.Types.CreateUploadUrlResponse) => void
-    ): Request<CodeWhispererBearerTokenClient.Types.CreateUploadUrlResponse, AWSError>
+        callback?: (err: AWSError, data: CodeWhispererUserClient.Types.CreateUploadUrlResponse) => void
+    ): Request<CodeWhispererUserClient.Types.CreateUploadUrlResponse, AWSError>
     /**
      * API to create task assist conversation.
      */
     createTaskAssistConversation(
-        params: CodeWhispererBearerTokenClient.Types.CreateTaskAssistConversationRequest,
-        callback?: (
-            err: AWSError,
-            data: CodeWhispererBearerTokenClient.Types.CreateTaskAssistConversationResponse
-        ) => void
-    ): Request<CodeWhispererBearerTokenClient.Types.CreateTaskAssistConversationResponse, AWSError>
+        params: CodeWhispererUserClient.Types.CreateTaskAssistConversationRequest,
+        callback?: (err: AWSError, data: CodeWhispererUserClient.Types.CreateTaskAssistConversationResponse) => void
+    ): Request<CodeWhispererUserClient.Types.CreateTaskAssistConversationResponse, AWSError>
     /**
      * API to create task assist conversation.
      */
     createTaskAssistConversation(
-        callback?: (
-            err: AWSError,
-            data: CodeWhispererBearerTokenClient.Types.CreateTaskAssistConversationResponse
-        ) => void
-    ): Request<CodeWhispererBearerTokenClient.Types.CreateTaskAssistConversationResponse, AWSError>
+        callback?: (err: AWSError, data: CodeWhispererUserClient.Types.CreateTaskAssistConversationResponse) => void
+    ): Request<CodeWhispererUserClient.Types.CreateTaskAssistConversationResponse, AWSError>
     /**
      * Creates a pre-signed, S3 write URL for uploading a repository zip archive.
      */
     createUploadUrl(
-        params: CodeWhispererBearerTokenClient.Types.CreateUploadUrlRequest,
-        callback?: (err: AWSError, data: CodeWhispererBearerTokenClient.Types.CreateUploadUrlResponse) => void
-    ): Request<CodeWhispererBearerTokenClient.Types.CreateUploadUrlResponse, AWSError>
+        params: CodeWhispererUserClient.Types.CreateUploadUrlRequest,
+        callback?: (err: AWSError, data: CodeWhispererUserClient.Types.CreateUploadUrlResponse) => void
+    ): Request<CodeWhispererUserClient.Types.CreateUploadUrlResponse, AWSError>
     /**
      * Creates a pre-signed, S3 write URL for uploading a repository zip archive.
      */
     createUploadUrl(
-        callback?: (err: AWSError, data: CodeWhispererBearerTokenClient.Types.CreateUploadUrlResponse) => void
-    ): Request<CodeWhispererBearerTokenClient.Types.CreateUploadUrlResponse, AWSError>
+        callback?: (err: AWSError, data: CodeWhispererUserClient.Types.CreateUploadUrlResponse) => void
+    ): Request<CodeWhispererUserClient.Types.CreateUploadUrlResponse, AWSError>
     /**
      * API to delete task assist conversation.
      */
     deleteTaskAssistConversation(
-        params: CodeWhispererBearerTokenClient.Types.DeleteTaskAssistConversationRequest,
-        callback?: (
-            err: AWSError,
-            data: CodeWhispererBearerTokenClient.Types.DeleteTaskAssistConversationResponse
-        ) => void
-    ): Request<CodeWhispererBearerTokenClient.Types.DeleteTaskAssistConversationResponse, AWSError>
+        params: CodeWhispererUserClient.Types.DeleteTaskAssistConversationRequest,
+        callback?: (err: AWSError, data: CodeWhispererUserClient.Types.DeleteTaskAssistConversationResponse) => void
+    ): Request<CodeWhispererUserClient.Types.DeleteTaskAssistConversationResponse, AWSError>
     /**
      * API to delete task assist conversation.
      */
     deleteTaskAssistConversation(
-        callback?: (
-            err: AWSError,
-            data: CodeWhispererBearerTokenClient.Types.DeleteTaskAssistConversationResponse
-        ) => void
-    ): Request<CodeWhispererBearerTokenClient.Types.DeleteTaskAssistConversationResponse, AWSError>
+        callback?: (err: AWSError, data: CodeWhispererUserClient.Types.DeleteTaskAssistConversationResponse) => void
+    ): Request<CodeWhispererUserClient.Types.DeleteTaskAssistConversationResponse, AWSError>
     /**
      * Generate completions based on the provided file context in a paginated response.
      */
     generateCompletions(
-        params: CodeWhispererBearerTokenClient.Types.GenerateCompletionsRequest,
-        callback?: (err: AWSError, data: CodeWhispererBearerTokenClient.Types.GenerateCompletionsResponse) => void
-    ): Request<CodeWhispererBearerTokenClient.Types.GenerateCompletionsResponse, AWSError>
+        params: CodeWhispererUserClient.Types.GenerateCompletionsRequest,
+        callback?: (err: AWSError, data: CodeWhispererUserClient.Types.GenerateCompletionsResponse) => void
+    ): Request<CodeWhispererUserClient.Types.GenerateCompletionsResponse, AWSError>
     /**
      * Generate completions based on the provided file context in a paginated response.
      */
     generateCompletions(
-        callback?: (err: AWSError, data: CodeWhispererBearerTokenClient.Types.GenerateCompletionsResponse) => void
-    ): Request<CodeWhispererBearerTokenClient.Types.GenerateCompletionsResponse, AWSError>
+        callback?: (err: AWSError, data: CodeWhispererUserClient.Types.GenerateCompletionsResponse) => void
+    ): Request<CodeWhispererUserClient.Types.GenerateCompletionsResponse, AWSError>
     /**
      * Gets the metadata of a code analysis job.
      */
     getCodeAnalysis(
-        params: CodeWhispererBearerTokenClient.Types.GetCodeAnalysisRequest,
-        callback?: (err: AWSError, data: CodeWhispererBearerTokenClient.Types.GetCodeAnalysisResponse) => void
-    ): Request<CodeWhispererBearerTokenClient.Types.GetCodeAnalysisResponse, AWSError>
+        params: CodeWhispererUserClient.Types.GetCodeAnalysisRequest,
+        callback?: (err: AWSError, data: CodeWhispererUserClient.Types.GetCodeAnalysisResponse) => void
+    ): Request<CodeWhispererUserClient.Types.GetCodeAnalysisResponse, AWSError>
     /**
      * Gets the metadata of a code analysis job.
      */
     getCodeAnalysis(
-        callback?: (err: AWSError, data: CodeWhispererBearerTokenClient.Types.GetCodeAnalysisResponse) => void
-    ): Request<CodeWhispererBearerTokenClient.Types.GetCodeAnalysisResponse, AWSError>
+        callback?: (err: AWSError, data: CodeWhispererUserClient.Types.GetCodeAnalysisResponse) => void
+    ): Request<CodeWhispererUserClient.Types.GetCodeAnalysisResponse, AWSError>
     /**
      * API to get status of task assist code generation.
      */
     getTaskAssistCodeGeneration(
-        params: CodeWhispererBearerTokenClient.Types.GetTaskAssistCodeGenerationRequest,
-        callback?: (
-            err: AWSError,
-            data: CodeWhispererBearerTokenClient.Types.GetTaskAssistCodeGenerationResponse
-        ) => void
-    ): Request<CodeWhispererBearerTokenClient.Types.GetTaskAssistCodeGenerationResponse, AWSError>
+        params: CodeWhispererUserClient.Types.GetTaskAssistCodeGenerationRequest,
+        callback?: (err: AWSError, data: CodeWhispererUserClient.Types.GetTaskAssistCodeGenerationResponse) => void
+    ): Request<CodeWhispererUserClient.Types.GetTaskAssistCodeGenerationResponse, AWSError>
     /**
      * API to get status of task assist code generation.
      */
     getTaskAssistCodeGeneration(
-        callback?: (
-            err: AWSError,
-            data: CodeWhispererBearerTokenClient.Types.GetTaskAssistCodeGenerationResponse
-        ) => void
-    ): Request<CodeWhispererBearerTokenClient.Types.GetTaskAssistCodeGenerationResponse, AWSError>
+        callback?: (err: AWSError, data: CodeWhispererUserClient.Types.GetTaskAssistCodeGenerationResponse) => void
+    ): Request<CodeWhispererUserClient.Types.GetTaskAssistCodeGenerationResponse, AWSError>
     /**
      * API to get code transformation status.
      */
     getTransformation(
-        params: CodeWhispererBearerTokenClient.Types.GetTransformationRequest,
-        callback?: (err: AWSError, data: CodeWhispererBearerTokenClient.Types.GetTransformationResponse) => void
-    ): Request<CodeWhispererBearerTokenClient.Types.GetTransformationResponse, AWSError>
+        params: CodeWhispererUserClient.Types.GetTransformationRequest,
+        callback?: (err: AWSError, data: CodeWhispererUserClient.Types.GetTransformationResponse) => void
+    ): Request<CodeWhispererUserClient.Types.GetTransformationResponse, AWSError>
     /**
      * API to get code transformation status.
      */
     getTransformation(
-        callback?: (err: AWSError, data: CodeWhispererBearerTokenClient.Types.GetTransformationResponse) => void
-    ): Request<CodeWhispererBearerTokenClient.Types.GetTransformationResponse, AWSError>
+        callback?: (err: AWSError, data: CodeWhispererUserClient.Types.GetTransformationResponse) => void
+    ): Request<CodeWhispererUserClient.Types.GetTransformationResponse, AWSError>
     /**
      * API to get code transformation status.
      */
     getTransformationPlan(
-        params: CodeWhispererBearerTokenClient.Types.GetTransformationPlanRequest,
-        callback?: (err: AWSError, data: CodeWhispererBearerTokenClient.Types.GetTransformationPlanResponse) => void
-    ): Request<CodeWhispererBearerTokenClient.Types.GetTransformationPlanResponse, AWSError>
+        params: CodeWhispererUserClient.Types.GetTransformationPlanRequest,
+        callback?: (err: AWSError, data: CodeWhispererUserClient.Types.GetTransformationPlanResponse) => void
+    ): Request<CodeWhispererUserClient.Types.GetTransformationPlanResponse, AWSError>
     /**
      * API to get code transformation status.
      */
     getTransformationPlan(
-        callback?: (err: AWSError, data: CodeWhispererBearerTokenClient.Types.GetTransformationPlanResponse) => void
-    ): Request<CodeWhispererBearerTokenClient.Types.GetTransformationPlanResponse, AWSError>
+        callback?: (err: AWSError, data: CodeWhispererUserClient.Types.GetTransformationPlanResponse) => void
+    ): Request<CodeWhispererUserClient.Types.GetTransformationPlanResponse, AWSError>
     /**
      *
      */
     listAvailableCustomizations(
-        params: CodeWhispererBearerTokenClient.Types.ListAvailableCustomizationsRequest,
-        callback?: (
-            err: AWSError,
-            data: CodeWhispererBearerTokenClient.Types.ListAvailableCustomizationsResponse
-        ) => void
-    ): Request<CodeWhispererBearerTokenClient.Types.ListAvailableCustomizationsResponse, AWSError>
+        params: CodeWhispererUserClient.Types.ListAvailableCustomizationsRequest,
+        callback?: (err: AWSError, data: CodeWhispererUserClient.Types.ListAvailableCustomizationsResponse) => void
+    ): Request<CodeWhispererUserClient.Types.ListAvailableCustomizationsResponse, AWSError>
     /**
      *
      */
     listAvailableCustomizations(
-        callback?: (
-            err: AWSError,
-            data: CodeWhispererBearerTokenClient.Types.ListAvailableCustomizationsResponse
-        ) => void
-    ): Request<CodeWhispererBearerTokenClient.Types.ListAvailableCustomizationsResponse, AWSError>
+        callback?: (err: AWSError, data: CodeWhispererUserClient.Types.ListAvailableCustomizationsResponse) => void
+    ): Request<CodeWhispererUserClient.Types.ListAvailableCustomizationsResponse, AWSError>
     /**
      * Lists the findings from a particular code analysis job.
      */
     listCodeAnalysisFindings(
-        params: CodeWhispererBearerTokenClient.Types.ListCodeAnalysisFindingsRequest,
-        callback?: (err: AWSError, data: CodeWhispererBearerTokenClient.Types.ListCodeAnalysisFindingsResponse) => void
-    ): Request<CodeWhispererBearerTokenClient.Types.ListCodeAnalysisFindingsResponse, AWSError>
+        params: CodeWhispererUserClient.Types.ListCodeAnalysisFindingsRequest,
+        callback?: (err: AWSError, data: CodeWhispererUserClient.Types.ListCodeAnalysisFindingsResponse) => void
+    ): Request<CodeWhispererUserClient.Types.ListCodeAnalysisFindingsResponse, AWSError>
     /**
      * Lists the findings from a particular code analysis job.
      */
     listCodeAnalysisFindings(
-        callback?: (err: AWSError, data: CodeWhispererBearerTokenClient.Types.ListCodeAnalysisFindingsResponse) => void
-    ): Request<CodeWhispererBearerTokenClient.Types.ListCodeAnalysisFindingsResponse, AWSError>
+        callback?: (err: AWSError, data: CodeWhispererUserClient.Types.ListCodeAnalysisFindingsResponse) => void
+    ): Request<CodeWhispererUserClient.Types.ListCodeAnalysisFindingsResponse, AWSError>
     /**
      * Return configruations for each feature that has been setup for A/B testing.
      */
     listFeatureEvaluations(
-        params: CodeWhispererBearerTokenClient.Types.ListFeatureEvaluationsRequest,
-        callback?: (err: AWSError, data: CodeWhispererBearerTokenClient.Types.ListFeatureEvaluationsResponse) => void
-    ): Request<CodeWhispererBearerTokenClient.Types.ListFeatureEvaluationsResponse, AWSError>
+        params: CodeWhispererUserClient.Types.ListFeatureEvaluationsRequest,
+        callback?: (err: AWSError, data: CodeWhispererUserClient.Types.ListFeatureEvaluationsResponse) => void
+    ): Request<CodeWhispererUserClient.Types.ListFeatureEvaluationsResponse, AWSError>
     /**
      * Return configruations for each feature that has been setup for A/B testing.
      */
     listFeatureEvaluations(
-        callback?: (err: AWSError, data: CodeWhispererBearerTokenClient.Types.ListFeatureEvaluationsResponse) => void
-    ): Request<CodeWhispererBearerTokenClient.Types.ListFeatureEvaluationsResponse, AWSError>
+        callback?: (err: AWSError, data: CodeWhispererUserClient.Types.ListFeatureEvaluationsResponse) => void
+    ): Request<CodeWhispererUserClient.Types.ListFeatureEvaluationsResponse, AWSError>
     /**
      * API to record telemetry events.
      */
     sendTelemetryEvent(
-        params: CodeWhispererBearerTokenClient.Types.SendTelemetryEventRequest,
-        callback?: (err: AWSError, data: CodeWhispererBearerTokenClient.Types.SendTelemetryEventResponse) => void
-    ): Request<CodeWhispererBearerTokenClient.Types.SendTelemetryEventResponse, AWSError>
+        params: CodeWhispererUserClient.Types.SendTelemetryEventRequest,
+        callback?: (err: AWSError, data: CodeWhispererUserClient.Types.SendTelemetryEventResponse) => void
+    ): Request<CodeWhispererUserClient.Types.SendTelemetryEventResponse, AWSError>
     /**
      * API to record telemetry events.
      */
     sendTelemetryEvent(
-        callback?: (err: AWSError, data: CodeWhispererBearerTokenClient.Types.SendTelemetryEventResponse) => void
-    ): Request<CodeWhispererBearerTokenClient.Types.SendTelemetryEventResponse, AWSError>
+        callback?: (err: AWSError, data: CodeWhispererUserClient.Types.SendTelemetryEventResponse) => void
+    ): Request<CodeWhispererUserClient.Types.SendTelemetryEventResponse, AWSError>
     /**
      * Starts a code analysis job
      */
     startCodeAnalysis(
-        params: CodeWhispererBearerTokenClient.Types.StartCodeAnalysisRequest,
-        callback?: (err: AWSError, data: CodeWhispererBearerTokenClient.Types.StartCodeAnalysisResponse) => void
-    ): Request<CodeWhispererBearerTokenClient.Types.StartCodeAnalysisResponse, AWSError>
+        params: CodeWhispererUserClient.Types.StartCodeAnalysisRequest,
+        callback?: (err: AWSError, data: CodeWhispererUserClient.Types.StartCodeAnalysisResponse) => void
+    ): Request<CodeWhispererUserClient.Types.StartCodeAnalysisResponse, AWSError>
     /**
      * Starts a code analysis job
      */
     startCodeAnalysis(
-        callback?: (err: AWSError, data: CodeWhispererBearerTokenClient.Types.StartCodeAnalysisResponse) => void
-    ): Request<CodeWhispererBearerTokenClient.Types.StartCodeAnalysisResponse, AWSError>
+        callback?: (err: AWSError, data: CodeWhispererUserClient.Types.StartCodeAnalysisResponse) => void
+    ): Request<CodeWhispererUserClient.Types.StartCodeAnalysisResponse, AWSError>
     /**
      * API to start task assist code generation.
      */
     startTaskAssistCodeGeneration(
-        params: CodeWhispererBearerTokenClient.Types.StartTaskAssistCodeGenerationRequest,
-        callback?: (
-            err: AWSError,
-            data: CodeWhispererBearerTokenClient.Types.StartTaskAssistCodeGenerationResponse
-        ) => void
-    ): Request<CodeWhispererBearerTokenClient.Types.StartTaskAssistCodeGenerationResponse, AWSError>
+        params: CodeWhispererUserClient.Types.StartTaskAssistCodeGenerationRequest,
+        callback?: (err: AWSError, data: CodeWhispererUserClient.Types.StartTaskAssistCodeGenerationResponse) => void
+    ): Request<CodeWhispererUserClient.Types.StartTaskAssistCodeGenerationResponse, AWSError>
     /**
      * API to start task assist code generation.
      */
     startTaskAssistCodeGeneration(
-        callback?: (
-            err: AWSError,
-            data: CodeWhispererBearerTokenClient.Types.StartTaskAssistCodeGenerationResponse
-        ) => void
-    ): Request<CodeWhispererBearerTokenClient.Types.StartTaskAssistCodeGenerationResponse, AWSError>
+        callback?: (err: AWSError, data: CodeWhispererUserClient.Types.StartTaskAssistCodeGenerationResponse) => void
+    ): Request<CodeWhispererUserClient.Types.StartTaskAssistCodeGenerationResponse, AWSError>
     /**
      * API to start code translation.
      */
     startTransformation(
-        params: CodeWhispererBearerTokenClient.Types.StartTransformationRequest,
-        callback?: (err: AWSError, data: CodeWhispererBearerTokenClient.Types.StartTransformationResponse) => void
-    ): Request<CodeWhispererBearerTokenClient.Types.StartTransformationResponse, AWSError>
+        params: CodeWhispererUserClient.Types.StartTransformationRequest,
+        callback?: (err: AWSError, data: CodeWhispererUserClient.Types.StartTransformationResponse) => void
+    ): Request<CodeWhispererUserClient.Types.StartTransformationResponse, AWSError>
     /**
      * API to start code translation.
      */
     startTransformation(
-        callback?: (err: AWSError, data: CodeWhispererBearerTokenClient.Types.StartTransformationResponse) => void
-    ): Request<CodeWhispererBearerTokenClient.Types.StartTransformationResponse, AWSError>
+        callback?: (err: AWSError, data: CodeWhispererUserClient.Types.StartTransformationResponse) => void
+    ): Request<CodeWhispererUserClient.Types.StartTransformationResponse, AWSError>
     /**
      * API to stop code transformation status.
      */
     stopTransformation(
-        params: CodeWhispererBearerTokenClient.Types.StopTransformationRequest,
-        callback?: (err: AWSError, data: CodeWhispererBearerTokenClient.Types.StopTransformationResponse) => void
-    ): Request<CodeWhispererBearerTokenClient.Types.StopTransformationResponse, AWSError>
+        params: CodeWhispererUserClient.Types.StopTransformationRequest,
+        callback?: (err: AWSError, data: CodeWhispererUserClient.Types.StopTransformationResponse) => void
+    ): Request<CodeWhispererUserClient.Types.StopTransformationResponse, AWSError>
     /**
      * API to stop code transformation status.
      */
     stopTransformation(
-        callback?: (err: AWSError, data: CodeWhispererBearerTokenClient.Types.StopTransformationResponse) => void
-    ): Request<CodeWhispererBearerTokenClient.Types.StopTransformationResponse, AWSError>
+        callback?: (err: AWSError, data: CodeWhispererUserClient.Types.StopTransformationResponse) => void
+    ): Request<CodeWhispererUserClient.Types.StopTransformationResponse, AWSError>
 }
-declare namespace CodeWhispererBearerTokenClient {
+declare namespace CodeWhispererUserClient {
     export type ArtifactMap = { [key: string]: UploadId }
     export type ArtifactType = 'SourceCode' | 'BuiltJars' | string
     export interface AssistantResponseMessage {
@@ -1091,8 +1061,8 @@ declare namespace CodeWhispererBearerTokenClient {
     }
     export type ClientConfiguration = ServiceConfigurationOptions & ClientApiVersions
     /**
-     * Contains interfaces for use with the CodeWhispererBearerTokenClient client.
+     * Contains interfaces for use with the CodeWhispererUserClient client.
      */
-    export import Types = CodeWhispererBearerTokenClient
+    export import Types = CodeWhispererUserClient
 }
-export = CodeWhispererBearerTokenClient
+export = CodeWhispererUserClient

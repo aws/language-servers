@@ -6,6 +6,7 @@ import { createCodeWhispererSigv4Client } from '../client/sigv4/codewhisperer'
 import {
     CodeWhispererTokenClientConfigurationOptions,
     createCodeWhispererTokenClient,
+    createCodeWhispererTokenUserClient,
 } from '../client/token/codewhisperer'
 
 // Define our own Suggestion interface to wrap the differences between Token and IAM Client
@@ -32,8 +33,9 @@ export interface GenerateSuggestionsResponse {
     responseContext: ResponseContext
 }
 
-import CodeWhispererSigv4Client = require('../client/sigv4/codewhisperersigv4client')
-import CodeWhispererTokenClient = require('../client/token/codewhispererbearertokenclient')
+import CodeWhispererSigv4Client = require('../client/sigv4/codewhispererclient')
+import CodeWhispererTokenClient = require('../client/token/codewhispererclient')
+import CodeWhispererTokenUserClient = require('../client/token/codewhispereruserclient')
 import AWS = require('aws-sdk')
 import { PromiseResult } from 'aws-sdk/lib/request'
 
@@ -97,6 +99,7 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
 
 export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     client: CodeWhispererTokenClient
+    userClient: CodeWhispererTokenUserClient
     private readonly codeWhispererRegion = 'us-east-1'
     private readonly codeWhispererEndpoint = 'https://codewhisperer.us-east-1.amazonaws.com/'
 
@@ -120,7 +123,24 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
                 },
             ],
         }
+        const userOptions: CodeWhispererTokenClientConfigurationOptions = {
+            region: this.codeWhispererRegion,
+            endpoint: this.codeWhispererEndpoint,
+            onRequestSetup: [
+                req => {
+                    req.on('build', ({ httpRequest }) => {
+                        const creds = credentialsProvider.getCredentials('bearer') as BearerCredentials
+                        if (!creds?.token) {
+                            throw new Error('Authorization failed, bearer token is not set')
+                        }
+                        httpRequest.headers['Authorization'] = `Bearer ${creds.token}`
+                        httpRequest.headers['x-amzn-codewhisperer-optout'] = `${!this.shareCodeWhispererContentWithAWS}`
+                    })
+                },
+            ],
+        }
         this.client = createCodeWhispererTokenClient(options)
+        this.userClient = createCodeWhispererTokenUserClient(userOptions)
     }
 
     async generateSuggestions(request: GenerateSuggestionsRequest): Promise<GenerateSuggestionsResponse> {
@@ -144,9 +164,9 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         }
     }
     public async codeModernizerCreateUploadUrl(
-        request: CodeWhispererTokenClient.CreateUploadUrlRequest
-    ): Promise<CodeWhispererTokenClient.CreateUploadUrlResponse> {
-        return this.client.createUploadUrl(request).promise()
+        request: CodeWhispererTokenUserClient.CreateUploadUrlRequest
+    ): Promise<CodeWhispererTokenUserClient.CreateUploadUrlResponse> {
+        return this.userClient.createUploadUrl(request).promise()
     }
     /**
      * @description Use this function to start the transformation job.
@@ -155,9 +175,9 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
      */
 
     public async codeModernizerStartCodeTransformation(
-        request: CodeWhispererTokenClient.StartTransformationRequest
-    ): Promise<PromiseResult<CodeWhispererTokenClient.StartTransformationResponse, AWSError>> {
-        return await this.client.startTransformation(request).promise()
+        request: CodeWhispererTokenUserClient.StartTransformationRequest
+    ): Promise<PromiseResult<CodeWhispererTokenUserClient.StartTransformationResponse, AWSError>> {
+        return await this.userClient.startTransformation(request).promise()
     }
 
     /**
@@ -166,9 +186,9 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
      * @returns transformationJobId - String id for the Job
      */
     public async codeModernizerStopCodeTransformation(
-        request: CodeWhispererTokenClient.StopTransformationRequest
-    ): Promise<PromiseResult<CodeWhispererTokenClient.StopTransformationResponse, AWSError>> {
-        return await this.client.stopTransformation(request).promise()
+        request: CodeWhispererTokenUserClient.StopTransformationRequest
+    ): Promise<PromiseResult<CodeWhispererTokenUserClient.StopTransformationResponse, AWSError>> {
+        return await this.userClient.stopTransformation(request).promise()
     }
 
     /**
@@ -177,9 +197,9 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
      * returns COMPLETED we know the transformation is done.
      */
     public async codeModernizerGetCodeTransformation(
-        request: CodeWhispererTokenClient.GetTransformationRequest
-    ): Promise<PromiseResult<CodeWhispererTokenClient.GetTransformationResponse, AWSError>> {
-        return await this.client.getTransformation(request).promise()
+        request: CodeWhispererTokenUserClient.GetTransformationRequest
+    ): Promise<PromiseResult<CodeWhispererTokenUserClient.GetTransformationResponse, AWSError>> {
+        return await this.userClient.getTransformation(request).promise()
     }
 
     /**
@@ -188,9 +208,9 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
      * @params tranformationJobId - String id returned from StartCodeTransformationResponse
      */
     public async codeModernizerGetCodeTransformationPlan(
-        request: CodeWhispererTokenClient.GetTransformationPlanRequest
-    ): Promise<PromiseResult<CodeWhispererTokenClient.GetTransformationPlanResponse, AWSError>> {
-        return this.client.getTransformationPlan(request).promise()
+        request: CodeWhispererTokenUserClient.GetTransformationPlanRequest
+    ): Promise<PromiseResult<CodeWhispererTokenUserClient.GetTransformationPlanResponse, AWSError>> {
+        return this.userClient.getTransformationPlan(request).promise()
     }
 
     updateAwsConfiguration = (awsConfig: any) => {
