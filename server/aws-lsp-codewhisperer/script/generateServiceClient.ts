@@ -9,7 +9,7 @@ import * as path from 'path'
 
 const repoRoot = path.join(process.cwd()) // root/packages/toolkit -> root/
 /**
- * This script uses the AWS JS SDK to generate service clients where the client definition is contained within
+ * This script uses the AWS JS SDK v2 to generate service clients where the client definition is contained within
  * this repo. Client definitions are added at the bottom of this script.
  */
 
