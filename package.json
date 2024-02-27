@@ -25,6 +25,7 @@
         "package": "npm install && npm run compile && npm run package-x64 --workspaces --if-present"
     },
     "dependencies": {
+        "fs-extra": "^11.2.0",
         "typescript": "^5.0.4"
     },
     "devDependencies": {
