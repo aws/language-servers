@@ -15,7 +15,8 @@
         "format": "prettier --write .",
         "format-staged": "npx pretty-quick --staged",
         "clean": "ts-node ./script/clean.ts",
-        "compile": "tsc --build --verbose && npm run postcompile --workspaces --if-present",
+        "compile": "npm run generateClients && tsc --build --verbose && npm run postcompile --workspaces --if-present",
+        "generateClients": " ts-node ./script/generateServiceClient.ts ",
         "watch": "tsc --build --watch",
         "test": "npm run compile && npm run test --workspaces --if-present",
         "test-integ": "npm run compile && npm run test-integ --workspaces --if-present",
@@ -24,9 +25,11 @@
         "package": "npm install && npm run compile && npm run package-x64 --workspaces --if-present"
     },
     "dependencies": {
+        "fs-extra": "^11.2.0",
         "typescript": "^5.0.4"
     },
     "devDependencies": {
+        "@types/fs-extra": "^11.0.4",
         "@types/node": "^20.2.5",
         "@typescript-eslint/eslint-plugin": "^5.59.9",
         "@typescript-eslint/parser": "^5.59.9",

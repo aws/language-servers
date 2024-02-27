@@ -1,9 +1,7 @@
 import { AWSError, Request, Service } from 'aws-sdk'
 import { ServiceConfigurationOptions } from 'aws-sdk/lib/service'
 const apiConfig = require('./bearer-token-service.json')
-const userApiConfig = require('./user-service-2.json')
-import CodeWhispererClient = require('./codewhispererclient')
-import CodeWhispererUserClient = require('./codewhispereruserclient')
+import CodeWhispererClient = require('./codewhispererbearertokenclient')
 
 // PROOF OF CONCEPT
 // This client fiddling was copied from the AWS Toolkit for VS Code
@@ -24,16 +22,10 @@ export interface CodeWhispererTokenClientConfigurationOptions extends ServiceCon
 export function createCodeWhispererTokenClient(
     options: CodeWhispererTokenClientConfigurationOptions
 ): CodeWhispererClient {
-    return createService(apiConfig, options) as CodeWhispererClient
+    return createService(options) as CodeWhispererClient
 }
 
-export function createCodeWhispererTokenUserClient(
-    options: CodeWhispererTokenClientConfigurationOptions
-): CodeWhispererUserClient {
-    return createService(userApiConfig, options) as CodeWhispererUserClient
-}
-
-function createService(apiConfig: any, options: CodeWhispererTokenClientConfigurationOptions): Service {
+function createService(options: CodeWhispererTokenClientConfigurationOptions): Service {
     const onRequest = options?.onRequestSetup ?? []
     const listeners = Array.isArray(onRequest) ? onRequest : [onRequest]
     const opt = { ...options }
