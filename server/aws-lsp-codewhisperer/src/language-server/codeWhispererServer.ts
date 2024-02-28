@@ -27,6 +27,7 @@ import {
     CodeWhispererUserTriggerDecisionEvent,
 } from './telemetry/types'
 import { getCompletionType, isAwsError } from './utils'
+import { FeatureDevClient, downloadExportResultArchive } from './testStreamClinet'
 
 const EMPTY_RESULT = { sessionId: '', items: [] }
 export const CONTEXT_CHARACTERS_LIMIT = 10240
@@ -296,7 +297,7 @@ export const CodewhispererServerFactory =
                 sessionManager.discardSession(currentSession)
             }
 
-            return workspace.getTextDocument(params.textDocument.uri).then(textDocument => {
+            return workspace.getTextDocument(params.textDocument.uri).then(async textDocument => {
                 if (!textDocument) {
                     logging.log(`textDocument [${params.textDocument.uri}] not found`)
                     return EMPTY_RESULT
@@ -359,7 +360,17 @@ export const CodewhispererServerFactory =
                 })
 
                 codePercentageTracker.countInvocation(inferredLanguageId)
+                const featureDevClient = new FeatureDevClient()
+                const cwStreamingClient = await featureDevClient.getStreamingClient(credentialsProvider)
 
+                await downloadExportResultArchive(
+                    cwStreamingClient,
+                    {
+                        exportId: "1234",
+                        exportIntent: "TRANSFORMATION",
+                    },
+                    // pathToArchive
+                )
                 return codeWhispererService
                     .generateSuggestions({
                         ...requestContext,
@@ -565,3 +576,6 @@ export const CodeWhispererServerIAM = CodewhispererServerFactory(
 export const CodeWhispererServerToken = CodewhispererServerFactory(
     credentialsProvider => new CodeWhispererServiceToken(credentialsProvider, {})
 )
+
+
+

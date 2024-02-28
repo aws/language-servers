@@ -45,5 +45,8 @@
         "bracketSpacing": true,
         "arrowParens": "avoid",
         "endOfLine": "lf"
-    }
+    },
+    "workspaces": [
+        "src.gen/@amzn/codewhisperer-streaming"
+    ]
 }
