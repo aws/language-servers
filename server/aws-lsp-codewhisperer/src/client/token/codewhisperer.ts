@@ -1,7 +1,7 @@
 import { AWSError, Request, Service } from 'aws-sdk'
 import { ServiceConfigurationOptions } from 'aws-sdk/lib/service'
 const apiConfig = require('./bearer-token-service.json')
-import CodeWhispererClient = require('./codewhispererclient')
+import CodeWhispererClient = require('./codewhispererbearertokenclient')
 
 // PROOF OF CONCEPT
 // This client fiddling was copied from the AWS Toolkit for VS Code
