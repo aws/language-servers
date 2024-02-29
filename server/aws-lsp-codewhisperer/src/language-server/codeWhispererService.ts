@@ -1,6 +1,7 @@
 import { CredentialsProvider } from '@aws/language-server-runtimes/out/features'
 import { BearerCredentials } from '@aws/language-server-runtimes/out/features/auth/auth'
 import { AWSError, CredentialProviderChain, Credentials } from 'aws-sdk'
+import { PromiseResult } from 'aws-sdk/lib/request'
 import { v4 as uuidv4 } from 'uuid'
 import { createCodeWhispererSigv4Client } from '../client/sigv4/codewhisperer'
 import {
@@ -35,12 +36,11 @@ export interface GenerateSuggestionsResponse {
 import CodeWhispererSigv4Client = require('../client/sigv4/codewhisperersigv4client')
 import CodeWhispererTokenClient = require('../client/token/codewhispererbearertokenclient')
 import AWS = require('aws-sdk')
-import { PromiseResult } from 'aws-sdk/lib/request'
 
 // Right now the only difference between the token client and the IAM client for codewhsiperer is the difference in function name
 // This abstract class can grow in the future to account for any additional changes across the clients
 export abstract class CodeWhispererServiceBase {
-    public shareCodeWhispererContentWithAWS: boolean = false
+    public shareCodeWhispererContentWithAWS = false
     abstract client: CodeWhispererSigv4Client | CodeWhispererTokenClient
 
     abstract generateSuggestions(request: GenerateSuggestionsRequest): Promise<GenerateSuggestionsResponse>
@@ -191,6 +191,42 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         request: CodeWhispererTokenClient.GetTransformationPlanRequest
     ): Promise<PromiseResult<CodeWhispererTokenClient.GetTransformationPlanResponse, AWSError>> {
         return this.client.getTransformationPlan(request).promise()
+    }
+
+    /**
+     * @description get a pre-signed url to upload source code into S3 bucket
+     */
+    async createUploadUrl(
+        request: CodeWhispererTokenClient.CreateUploadUrlRequest
+    ): Promise<PromiseResult<CodeWhispererTokenClient.CreateUploadUrlResponse, AWSError>> {
+        return this.client.createUploadUrl(request).promise()
+    }
+
+    /**
+     * @description Once source code uploaded to S3, send a request to run security scan on uploaded source code.
+     */
+    async startCodeAnalysis(
+        request: CodeWhispererTokenClient.StartCodeAnalysisRequest
+    ): Promise<PromiseResult<CodeWhispererTokenClient.StartCodeAnalysisResponse, AWSError>> {
+        return this.client.startCodeAnalysis(request).promise()
+    }
+
+    /**
+     * @description Send a request to get the code scan status detail.
+     */
+    async getCodeAnalysis(
+        request: CodeWhispererTokenClient.GetCodeAnalysisRequest
+    ): Promise<PromiseResult<CodeWhispererTokenClient.GetCodeAnalysisResponse, AWSError>> {
+        return this.client.getCodeAnalysis(request).promise()
+    }
+
+    /**
+     * @description Once scan completed successfully, send a request to get list of all the findings for the given scan.
+     */
+    async listCodeAnalysisFindings(
+        request: CodeWhispererTokenClient.ListCodeAnalysisFindingsRequest
+    ): Promise<PromiseResult<CodeWhispererTokenClient.ListCodeAnalysisFindingsResponse, AWSError>> {
+        return this.client.listCodeAnalysisFindings(request).promise()
     }
 
     updateAwsConfiguration = (awsConfig: any) => {
