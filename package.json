@@ -7,7 +7,8 @@
         "app/*",
         "client/**",
         "core/*",
-        "server/*"
+        "server/*",
+        "server/aws-lsp-codewhisperer/src.gen/@amzn/codewhisperer-streaming"
     ],
     "scripts": {
         "prepare": "husky install .husky",
@@ -16,7 +17,7 @@
         "format-staged": "npx pretty-quick --staged",
         "clean": "ts-node ./script/clean.ts",
         "compile": "npm run generateClients && tsc --build --verbose && npm run postcompile --workspaces --if-present",
-        "generateClients": " ts-node server/aws-lsp-codewhisperer/script/generateServiceClient.ts",
+        "generateClients": "npm run build -w server/aws-lsp-codewhisperer/src.gen/@amzn/codewhisperer-streaming && ts-node server/aws-lsp-codewhisperer/script/generateServiceClient.ts",
         "watch": "tsc --build --watch",
         "test": "npm run compile && npm run test --workspaces --if-present",
         "test-integ": "npm run compile && npm run test-integ --workspaces --if-present",
