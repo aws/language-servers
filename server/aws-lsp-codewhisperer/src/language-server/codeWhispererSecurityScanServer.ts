@@ -84,7 +84,3 @@ export const SecurityScanServerToken =
             // dispose function
         }
     }
-
-export const CodeWhispererSecurityScanServer = SecurityScanServerToken(
-    credentialsProvider => new CodeWhispererServiceToken(credentialsProvider, {})
-)

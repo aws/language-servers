@@ -1,7 +1,6 @@
 import { Workspace } from '@aws/language-server-runtimes/out/features'
-
-import { createHash } from 'crypto'
 import got from 'got'
+import { md5 } from 'js-md5'
 import * as path from 'path'
 
 import {
@@ -24,10 +23,8 @@ export class SecurityScanHandler {
         this.workspace = workspace
     }
 
-    getMd5 = (content: Buffer) => {
-        const hasher = createHash('md5')
-        hasher.update(content)
-        return hasher.digest('base64')
+    getMd5(content: Buffer) {
+        return md5.base64(content)
     }
 
     async createCodeResourcePresignedUrlHandler(zipContent: Buffer) {
@@ -61,10 +58,7 @@ export class SecurityScanHandler {
                       'Content-Type': 'application/zip',
                       'x-amz-server-side-encryption-context': Buffer.from(encryptionContext, 'utf8').toString('base64'),
                   }
-        const response = got.put(resp.uploadUrl, {
-            body: zipBuffer,
-            headers: headersObj,
-        })
+        const response = await got.put(resp.uploadUrl, { body: zipBuffer, headers: headersObj })
         return response
     }
 
