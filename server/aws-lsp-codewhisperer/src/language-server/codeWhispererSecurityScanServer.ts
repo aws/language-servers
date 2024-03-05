@@ -3,13 +3,16 @@ import { CredentialsProvider } from '@aws/language-server-runtimes/out/features'
 import { SecurityScanRequestParams } from '@aws/language-server-runtimes/out/features/securityScan/securityScan'
 import { pathToFileURL } from 'url'
 import { CodeWhispererServiceToken } from './codeWhispererService'
+import { getSupportedLanguageId, supportedSecurityScanLanguages } from './languageDetection'
+import SecurityScanDiagnosticsProvider from './securityScan/securityScanDiagnosticsProvider'
 import { SecurityScanHandler } from './securityScan/securityScanHandler'
 import { parseJson } from './utils'
 
 export const SecurityScanServerToken =
     (service: (credentialsProvider: CredentialsProvider) => CodeWhispererServiceToken): Server =>
-    ({ credentialsProvider, workspace, logging }) => {
+    ({ credentialsProvider, workspace, logging, lsp }) => {
         const codewhispererclient = service(credentialsProvider)
+        const diagnosticsProvider = new SecurityScanDiagnosticsProvider(lsp)
 
         const runSecurityScan = async (params: SecurityScanRequestParams) => {
             if (!credentialsProvider.hasCredentials('bearer')) {
@@ -66,12 +69,12 @@ export const SecurityScanServerToken =
                 /**
                  * Step 5: Process and render scan results
                  */
-                await scanHandler.listScanResults(scanJob.jobId, projectPath)
+                const scanResult = await scanHandler.listScanResults(scanJob.jobId, projectPath)
 
                 /**
                  * Step 6: send results to diagnostics
                  */
-                // Todo: update diagnostics to add new issues
+                diagnosticsProvider.createDiagnostics(scanResult)
             } catch (error) {
                 logging.log(String(error))
                 // Todo: notify client about scan job failure.
@@ -79,6 +82,18 @@ export const SecurityScanServerToken =
         }
         // Todo: register the securityScan command
         logging.log('SecurityScan server has been initialized')
+        lsp.onDidChangeTextDocument(async p => {
+            const textDocument = await workspace.getTextDocument(p.textDocument.uri)
+            const languageId = getSupportedLanguageId(textDocument)
+
+            if (!textDocument || !languageId || !supportedSecurityScanLanguages.includes(languageId)) {
+                return
+            }
+
+            p.contentChanges.forEach(change => {
+                diagnosticsProvider.validateDiagnostics(p.textDocument.uri, change)
+            })
+        })
 
         return () => {
             // dispose function
