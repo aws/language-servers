@@ -4,6 +4,7 @@ node_modules/
 out/
 **/bin/
 **/obj/
-src/client/codewhispererclient.d.ts
-src/client/token/codewhispererclient.d.ts
+src/client/sigv4/codewhisperersigv4client.d.ts
+src/client/token/codewhispererbearertokenclient.d.ts
+src.gen/@amzn/codewhisperer-streaming/*
 **/*.md

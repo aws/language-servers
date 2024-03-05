@@ -112,6 +112,79 @@ to ensure the standalone language server is compressed even more you can do:
 ```bash
 pkg --compress GZip .
 ```
+### AWS SDK generator
+
+When the AWS SDK does not (yet) support a service but you have an API
+model file (`*.api.json`), use `generateServiceClient.ts` to generate
+a TypeScript `*.d.ts` file and pass that to the AWS JS SDK to create
+requests just from the model/types.
+
+1. Add an entry to the list in `generateServiceClient.ts`:
+    ```diff
+     diff --git a/src/scripts/build/generateServiceClient.ts b/src/scripts/build/generateServiceClient.ts
+     index 8bb278972d29..6c6914ec8812 100644
+     --- a/src/scripts/build/generateServiceClient.ts
+     +++ b/src/scripts/build/generateServiceClient.ts
+     @@ -199,6 +199,10 @@ ${fileContents}
+      ;(async () => {
+          const serviceClientDefinitions: ServiceClientDefinition[] = [
+     +        {
+     +            serviceJsonPath: 'src/shared/foo.api.json',
+     +            serviceName: 'ClientFoo'
+     +        },
+              {
+                  serviceJsonPath: 'src/shared/telemetry/service-2.json',
+                  serviceName: 'ClientTelemetry',
+    ```
+2. Run the script:
+    ```
+    npm run generateClients
+    ```
+3. The script produces a `*.d.ts` file (used only for IDE
+   code-completion, not required to actually make requests):
+    ```
+    src/shared/foo.d.ts
+    ```
+4. To make requests with the SDK, pass the `*.api.json` service model to
+   `globals.sdkClientBuilder.createAndConfigureServiceClient` as a generic
+   `Service` with `apiConfig=require('foo.api.json')`.
+
+    ```ts
+    // Import the `*.d.ts` file for code-completion convenience.
+    import * as ClientFoo from '../shared/clientfoo'
+    // The AWS JS SDK uses this to dynamically build service requests.
+    import apiConfig = require('../shared/foo.api.json')
+
+    ...
+
+    const c = await globals.sdkClientBuilder.createAwsService(
+        opts => new Service(opts),
+        {
+            apiConfig: apiConfig,
+            region: 'us-west-2',
+            credentials: credentials,
+            correctClockSkew: true,
+            endpoint: 'foo-beta.aws.dev',
+        }) as ClientFoo
+    const req = c.getThing({ id: 'asdf' })
+    req.send(function (err, data) { ... });
+    ```
+
+### Building Codewhisperer-Streaming client
+
+The Transform features rely on the `codewhisperer-streaming` service, who's client
+is generated from the service's smithy models and placed in
+`src.gen/@amzn/codewhisperer-streaming` (For more
+information about this client and how it is generated, please see this
+[quip document](https://quip-amazon.com/2dAWAvTIYXXr/Build-instructions-for-AWS-CodeWhisperer-Streaming-Typescript-client)).
+
+This client is a standalone npm project in typescript, and it is added to
+the project as a workspace in the project's root `package.json` with the line `"workspaces": [ ..., "src.gen/@amzn/codewhisperer-streaming" ]`.
+The client may be manually built using `npm run build -w @amzn/codewhisperer-streaming"`.
+The `generateClients` run script ensures that this dependency is
+built before the toolkit project itself. Workspaces are automatically ready to
+be imported in the root toolkit project by their declared package.json name,
+(`@amzn/codewhisperer-streaming` in this case).
 
 ## Running + Debugging
 

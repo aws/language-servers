@@ -1,6 +1,6 @@
 import { CredentialsProvider } from '@aws/language-server-runtimes/out/features'
 import { BearerCredentials } from '@aws/language-server-runtimes/out/features/auth/auth'
-import { CredentialProviderChain, Credentials } from 'aws-sdk'
+import { AWSError, CredentialProviderChain, Credentials } from 'aws-sdk'
 import { v4 as uuidv4 } from 'uuid'
 import { createCodeWhispererSigv4Client } from '../client/sigv4/codewhisperer'
 import {
@@ -32,9 +32,10 @@ export interface GenerateSuggestionsResponse {
     responseContext: ResponseContext
 }
 
-import CodeWhispererSigv4Client = require('../client/sigv4/codewhispererclient')
-import CodeWhispererTokenClient = require('../client/token/codewhispererclient')
+import CodeWhispererSigv4Client = require('../client/sigv4/codewhisperersigv4client')
+import CodeWhispererTokenClient = require('../client/token/codewhispererbearertokenclient')
 import AWS = require('aws-sdk')
+import { PromiseResult } from 'aws-sdk/lib/request'
 
 // Right now the only difference between the token client and the IAM client for codewhsiperer is the difference in function name
 // This abstract class can grow in the future to account for any additional changes across the clients
@@ -141,6 +142,55 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
             suggestions: response.completions as Suggestion[],
             responseContext,
         }
+    }
+    public async codeModernizerCreateUploadUrl(
+        request: CodeWhispererTokenClient.CreateUploadUrlRequest
+    ): Promise<CodeWhispererTokenClient.CreateUploadUrlResponse> {
+        return this.client.createUploadUrl(request).promise()
+    }
+    /**
+     * @description Use this function to start the transformation job.
+     * @param request
+     * @returns transformationJobId - String id for the Job
+     */
+
+    public async codeModernizerStartCodeTransformation(
+        request: CodeWhispererTokenClient.StartTransformationRequest
+    ): Promise<PromiseResult<CodeWhispererTokenClient.StartTransformationResponse, AWSError>> {
+        return await this.client.startTransformation(request).promise()
+    }
+
+    /**
+     * @description Use this function to stop the transformation job.
+     * @param request
+     * @returns transformationJobId - String id for the Job
+     */
+    public async codeModernizerStopCodeTransformation(
+        request: CodeWhispererTokenClient.StopTransformationRequest
+    ): Promise<PromiseResult<CodeWhispererTokenClient.StopTransformationResponse, AWSError>> {
+        return await this.client.stopTransformation(request).promise()
+    }
+
+    /**
+     * @description Use this function to get the status of the code transformation. We should
+     * be polling this function periodically to get updated results. When this function
+     * returns COMPLETED we know the transformation is done.
+     */
+    public async codeModernizerGetCodeTransformation(
+        request: CodeWhispererTokenClient.GetTransformationRequest
+    ): Promise<PromiseResult<CodeWhispererTokenClient.GetTransformationResponse, AWSError>> {
+        return await this.client.getTransformation(request).promise()
+    }
+
+    /**
+     * @description After starting a transformation use this function to display the LLM
+     * transformation plan to the user.
+     * @params tranformationJobId - String id returned from StartCodeTransformationResponse
+     */
+    public async codeModernizerGetCodeTransformationPlan(
+        request: CodeWhispererTokenClient.GetTransformationPlanRequest
+    ): Promise<PromiseResult<CodeWhispererTokenClient.GetTransformationPlanResponse, AWSError>> {
+        return this.client.getTransformationPlan(request).promise()
     }
 
     updateAwsConfiguration = (awsConfig: any) => {
