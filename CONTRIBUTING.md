@@ -61,12 +61,17 @@ See the [LICENSE](LICENSE) file for our project's licensing. We will ask you to 
 Run:
 
 ```
-git clone git@github.com:aws/aws-language-servers.git
+git clone git@github.com:aws/language-servers.git
 
-cd aws-language-servers
+cd language-servers
 
 npm install
 ```
+
+## Package naming
+When creating new sub-packages, take into account the following naming guidelines: 
+* If package is intended for publishing and distribution on NPM JS, use `@aws/` prefix. E.g. `@aws/<name>`.
+* If package is not intended to be published, use the `@amzn/` prefix. E.g. `@amzn/<name>`
 
 ## Building the Repo
 
@@ -204,12 +209,12 @@ The VSCode Toolkit Extension can start the AWS Documents Language Server itself.
 This will explain how to setup the extension to run with the language server
 and be able to debug it all.
 
-1. Clone the [`aws-language-servers`](https://github.com/aws/aws-language-servers) repo:
+1. Clone the [`language-servers`](https://github.com/aws/language-servers) repo:
 
     ```
-    git clone git@github.com:aws/aws-language-servers.git
+    git clone git@github.com:aws/language-servers.git
 
-    cd aws-language-servers
+    cd language-servers
     ```
 
 2. Run:
@@ -357,31 +362,31 @@ myStubbedFunc.returns()
 
 ### Develop and test Language servers with Language Server Runtimes locally
 
-Language servers developed in this package can be built for different runtimes developed in [Language Server Runtimes](https://github.com/aws/aws-language-server-runtimes) project.
+Language servers developed in this package can be built for different runtimes developed in [Language Server Runtimes](https://github.com/aws/language-server-runtimes) project.
 
 `Language Server Runtimes` provides a set of interfaces and constructs that can be used to inject cross-platform implementations of features, reused across language servers. Using runtime constructs, Language Servers could be built and packages into artifact of different formats: binary formats as explained earlier in this document, or packages as Javascript Webworker bundle.
 
 To build and test Language Servers with AWS Runtime, follow these steps:
 
-1. Clone the [`aws-language-servers`](https://github.com/aws/aws-language-servers) and the [`language-server-runtimes`](https://github.com/aws/language-server-runtimes) repos:
+1. Clone the [`language-servers`](https://github.com/aws/language-servers) and the [`language-server-runtimes`](https://github.com/aws/language-server-runtimes) repos:
 
     ```
-    git clone git@github.com:aws/aws-language-servers.git
-    git clone git@github.com:aws/aws-language-server-runtimes.git
+    git clone git@github.com:aws/language-servers.git
+    git clone git@github.com:aws/language-server-runtimes.git
     ```
 
-2. Install dependencies in `aws-language-server-runtimes` folder. Create `npm link` for it, if you plan to modify it for development and testing purposes:
+2. Install dependencies in `language-server-runtimes` folder. Create `npm link` for it, if you plan to modify it for development and testing purposes:
 
     ```
-    cd aws-language-server-runtimes && npm install && npm run compile && npm link
+    cd language-server-runtimes && npm install && npm run compile && npm link
     ```
 
-3. Install dependencies in `aws-language-servers` folder:
+3. Install dependencies in `language-servers` folder:
 
     **Note:** We are temporarily commiting a snapshot of `language-server-runtimes` package as zip archive and use it as npm dependency for some servers. To develop and build language servers with local checkout of `language-server-runtimes`, for servers develped in ./server directory change `"@aws/language-server-runtimes"` dependency to point to `"*"` instead of file path before running `npm install`.
 
     ```
-    cd ../aws-language-servers && npm install
+    cd ../language-servers && npm install
     ```
 
 4. (Optional) Use npm link to `language-server-runtimes`, if you're developing locally and want to use local copy to produce build artifacts:
