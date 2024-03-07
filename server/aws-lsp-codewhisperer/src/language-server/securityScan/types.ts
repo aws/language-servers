@@ -1,3 +1,5 @@
+import { ExecuteCommandParams } from 'vscode-languageserver'
+
 export interface RecommendationDescription {
     text: string
     markdown: string
@@ -49,4 +51,16 @@ export interface CodeScanIssue {
 export interface AggregatedCodeScanIssue {
     filePath: string
     issues: CodeScanIssue[]
+}
+
+export type SecurityScanStatus = 'Succeeded' | 'Failed' | 'InProgress'
+export interface SecurityScanRequestParams extends ExecuteCommandParams {
+    command: 'aws/codewhisperer/runSecurityScan'
+}
+export interface SecurityScanResponseParams {
+    result: SecurityScanResult
+    error?: string
+}
+export interface SecurityScanResult {
+    status: SecurityScanStatus
 }
