@@ -8,6 +8,7 @@
         "test": "ts-mocha -b 'src/**/*.test.ts'"
     },
     "dependencies": {
+        "@aws/language-server-runtimes": "file:../../bin/aws-language-server-runtimes-0.1.1.tgz",
         "@lsp-placeholder/aws-lsp-core": "^0.0.1",
         "@lsp-placeholder/aws-lsp-json-common": "^0.0.1",
         "@lsp-placeholder/aws-lsp-yaml-common": "^0.0.1",

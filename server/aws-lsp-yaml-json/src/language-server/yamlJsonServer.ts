@@ -1,4 +1,4 @@
-import { Server } from '@aws/language-server-runtimes/out/runtimes'
+import { Server } from '@aws/language-server-runtimes'
 import {
     AwsLanguageService,
     CachedContentHandler,
@@ -13,6 +13,7 @@ import {
     CompletionList,
     CompletionParams,
     DidChangeTextDocumentParams,
+    InitializeParams,
 } from 'vscode-languageserver/node'
 import { create } from './yamlJsonService'
 
@@ -27,6 +28,14 @@ import { create } from './yamlJsonService'
 export const YamlJsonServerFactory =
     (service: AwsLanguageService): Server =>
     ({ credentialsProvider, lsp, workspace, telemetry, logging }) => {
+        const onInitializeHandler = () => {
+            return {
+                capabilities: {
+                    completionProvider: { resolveProvider: true },
+                },
+            }
+        }
+
         const onInitializedHandler = async () => {}
 
         const onCompletionHandler = async (
@@ -35,7 +44,6 @@ export const YamlJsonServerFactory =
         ): Promise<CompletionList | null> => {
             const emptyCompletionList = CompletionList.create([])
 
-            // For the example, we will always return these completion items
             const textDocument = await workspace.getTextDocument(params.textDocument.uri)
             if (!textDocument) {
                 logging.log(`textDocument [${params.textDocument.uri}] not found`)
@@ -63,6 +71,7 @@ export const YamlJsonServerFactory =
         lsp.onInitialized(onInitializedHandler)
         lsp.onCompletion(onCompletionHandler)
         lsp.onDidChangeTextDocument(onDidChangeTextDocumentHandler)
+        lsp.addInitializer(onInitializeHandler)
 
         logging.log('The YAML JSON LSP Language Server has been initialised')
 
