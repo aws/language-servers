@@ -4,7 +4,6 @@ build
 .idea
 **/*.tgz
 .testresults/**
-server/aws-lsp-codewhisperer/src.gen/@amzn/codewhisperer-streaming/dist*
 
 # Visual Studio Related
 **/.vs
