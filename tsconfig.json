@@ -40,6 +40,9 @@
             "path": "./server/aws-lsp-s3"
         },
         {
+            "path": "./server/aws-lsp-yaml-json"
+        },
+        {
             "path": "./app/aws-lsp-buildspec-binary"
         },
         {
@@ -53,6 +56,9 @@
         },
         {
             "path": "./app/hello-world-lsp-binary"
+        },
+        {
+            "path": "./app/aws-lsp-yaml-json-binary"
         }
     ]
 }

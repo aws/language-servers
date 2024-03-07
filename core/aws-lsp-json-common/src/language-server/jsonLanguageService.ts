@@ -6,6 +6,7 @@ import { Position, TextDocument, TextEdit } from 'vscode-languageserver-textdocu
 export type JsonLanguageServiceProps = {
     defaultSchemaUri?: string
     uriResolver?: UriResolver
+    allowComments?: boolean
 }
 
 /**
@@ -22,7 +23,7 @@ export class JsonLanguageService implements AwsLanguageService {
 
         const schemas = props.defaultSchemaUri ? [{ fileMatch: ['*.json'], uri: props.defaultSchemaUri }] : undefined
 
-        this.jsonService.configure({ allowComments: false, schemas })
+        this.jsonService.configure({ allowComments: props.allowComments ?? false, schemas })
     }
 
     public isSupported(document: TextDocument): boolean {

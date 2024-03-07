@@ -23,3 +23,11 @@ export function getCompletionType(suggestion: Suggestion): CodewhispererCompleti
 
     return nonBlankLines > 1 ? 'Block' : 'Line'
 }
+
+export function parseJson(jsonString: string) {
+    try {
+        return JSON.parse(jsonString)
+    } catch {
+        throw new Error(`error while parsing string: ${jsonString}`)
+    }
+}
