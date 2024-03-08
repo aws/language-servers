@@ -18,7 +18,7 @@ export class DependencyGraphFactory {
 
     static getDependencyGraph<K extends Keys>(
         document: TextDocument,
-        workspace: Required<Workspace>,
+        workspace: Workspace,
         logging: Logging,
         workspaceFolderPath: string
     ): ClassType<K> {
