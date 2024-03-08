@@ -1,4 +1,4 @@
-import { Workspace } from '@aws/language-server-runtimes/out/features'
+import { Logging, Workspace } from '@aws/language-server-runtimes/out/features'
 import { TextDocument } from 'vscode-languageserver-textdocument'
 import { CsharpDependencyGraph } from './csharpDependencyGraph'
 
@@ -16,10 +16,15 @@ export class DependencyGraphFactory {
         return undefined
     }
 
-    static getDependencyGraph<K extends Keys>(document: TextDocument, workspace: Required<Workspace>): ClassType<K> {
+    static getDependencyGraph<K extends Keys>(
+        document: TextDocument,
+        workspace: Required<Workspace>,
+        logging: Logging,
+        workspaceFolderPath: string
+    ): ClassType<K> {
         switch (document.languageId.toLowerCase()) {
             case 'csharp':
-                return new languageMap['csharp'](workspace)
+                return new languageMap['csharp'](workspace, logging, workspaceFolderPath)
             default:
                 return this.getDependencyGraphFromFileExtensions(document.uri)
         }
