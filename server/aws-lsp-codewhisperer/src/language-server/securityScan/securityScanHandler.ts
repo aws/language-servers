@@ -3,6 +3,7 @@ import got from 'got'
 import { md5 } from 'js-md5'
 import * as path from 'path'
 
+import { CancellationToken, CancellationTokenSource } from 'vscode-languageserver'
 import {
     ArtifactMap,
     CreateUploadUrlRequest,
@@ -19,15 +20,29 @@ export class SecurityScanHandler {
     private client: CodeWhispererServiceToken
     private workspace: Workspace
     private logging: Logging
+    public tokenSource: CancellationTokenSource
 
     constructor(client: CodeWhispererServiceToken, workspace: Workspace, logging: Logging) {
         this.client = client
         this.workspace = workspace
         this.logging = logging
+        this.tokenSource = new CancellationTokenSource()
     }
 
     getMd5(content: Buffer) {
         return md5.base64(content)
+    }
+
+    throwIfCancelled(token: CancellationToken) {
+        if (token.isCancellationRequested) {
+            this.tokenSource.dispose()
+            this.tokenSource = new CancellationTokenSource()
+            throw new SecurityScanCancelledError('Security Scan has been cancelled')
+        }
+    }
+
+    cancelSecurityScan() {
+        this.tokenSource.cancel()
     }
 
     async createCodeResourcePresignedUrlHandler(zipContent: Buffer) {
@@ -187,5 +202,12 @@ export class SecurityScanHandler {
             }
         }
         return aggregatedCodeScanIssueList
+    }
+}
+
+export class SecurityScanCancelledError extends Error {
+    constructor(message?: string) {
+        super(message)
+        this.name = 'SecurityScanCancelledError'
     }
 }

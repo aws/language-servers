@@ -52,7 +52,7 @@ export interface AggregatedCodeScanIssue {
     issues: CodeScanIssue[]
 }
 
-export type SecurityScanStatus = 'Succeeded' | 'Failed' | 'InProgress'
+export type SecurityScanStatus = 'Succeeded' | 'Failed' | 'InProgress' | 'Cancelled'
 export interface SecurityScanRequestParams extends ExecuteCommandParams {
     command: 'aws/codewhisperer/runSecurityScan'
 }
@@ -62,4 +62,5 @@ export interface SecurityScanResponseParams {
 }
 export interface SecurityScanResult {
     status: SecurityScanStatus
+    scannedFiles?: string
 }
