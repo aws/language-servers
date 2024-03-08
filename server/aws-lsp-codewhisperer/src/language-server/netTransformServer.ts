@@ -1,7 +1,13 @@
+import { ExportIntent } from '@amzn/codewhisperer-streaming'
 import { Server } from '@aws/language-server-runtimes'
 import { CredentialsProvider } from '@aws/language-server-runtimes/out/features/auth/auth'
 import { CancellationToken, ExecuteCommandParams } from 'vscode-languageserver'
+import { StreamingClient, downloadExportResultArchive } from '../client/streamingClient/codewhispererStreamingClient'
 import { CodeWhispererServiceToken } from './codeWhispererService'
+import { QNetCancelTransformRequest, QNetGetTransformPlanRequest, QNetGetTransformRequest, QNetStartTransformRequest } from './netTransform/models'
+import { TransformHandler } from './netTransform/transformHandler'
+
+
 
 /**
  *
@@ -18,11 +24,63 @@ export const NetTransformServerFactory: (
             params: ExecuteCommandParams,
             _token: CancellationToken
         ): Promise<any> => {
-            //Placeholder for logic
+            try {
+                const client = createService(credentialsProvider)
+                const transformHandler = new TransformHandler(client, workspace)
+                switch (params.command) {
+                    case 'aws/qNetTransform/startTransform': {
+                        const userInputrequest = params as QNetStartTransformRequest
+                        logging.log('prepare artifact for solution: ' + userInputrequest.SolutionRootPath)
+                        return await transformHandler.startTransformation(userInputrequest)
+                    }
+                    case 'aws/qNetTransform/getTransform': {
+                        const request = params as QNetGetTransformRequest
+                        logging.log('Calling getTransform request with job Id: ' + request.TransformationJobId)
+                        return await transformHandler.getTransformation(request)
+                    }
+                    case 'aws/qNetTransform/pollTransform': {
+                        const request = params as QNetGetTransformRequest
+                        logging.log('Calling pollTransform request with job Id: ' + request.TransformationJobId)
+                        const transformationJob = await transformHandler.pollTransformation(request)
+                        logging.log(
+                            'Transformation job for job Id' + request.TransformationJobId + ' is ' + transformationJob
+                        )
+                        return transformationJob
+                    }
+                    case 'aws/qNetTransform/getTransformPlan': {
+                        const request = params as QNetGetTransformPlanRequest
+                        logging.log('Calling getTransformPlan request with job Id: ' + request.TransformationJobId)
+                        const transformationPlan = await transformHandler.getTransformationPlan(request)
+                        logging.log(
+                            'Transformation plan for job Id' + request.TransformationJobId + ' is ' + transformationPlan
+                        )
+                        return transformationPlan
+                    }
+                    case 'aws/qNetTransform/cancelTransform': {
+                        const request = params as QNetCancelTransformRequest
+                        logging.log('request job ID: ' + request.TransformationJobId)
+                        return await transformHandler.cancelTransformation(request)
+                    }
+                    case 'aws/qNetTransform/downloadArtifacts': {
+                        const cwStreamingClientInstance = new StreamingClient()
+                        const cwStreamingClient = await cwStreamingClientInstance.getStreamingClient(
+                            credentialsProvider
+                        )
+                        downloadExportResultArchive(cwStreamingClient, {
+                            exportId: 'jobIdfromGet', //b0aa56de-7663-4761-b752-582eaede60dd
+                            exportIntent: ExportIntent.TRANSFORMATION,
+                        })
+                    }
+                }
+                return
+            } catch (e: any) {
+                logging.log('error from catch ' + e)
+            }
         }
 
         // Do the thing
         lsp.onExecuteCommand(onExecuteCommandHandler)
+        
 
         // Disposable
         return () => {
