@@ -24,6 +24,7 @@
     "dependencies": {
         "@aws/language-server-runtimes": "file:../../bin/aws-language-server-runtimes-0.1.1.tgz",
         "adm-zip": "^0.5.10",
+        "archiver": "^6.0.1",
         "aws-sdk": "^2.1403.0",
         "got": "^11.8.5",
         "js-md5": "^0.8.3",
@@ -35,6 +36,7 @@
     "devDependencies": {
         "@types/node-fetch": "^2.6.11",
         "@types/archiver": "^6.0.2",
+        "mock-fs": "^5.2.0",
         "@types/adm-zip": "^0.4.34",
         "@types/uuid": "^9.0.6",
         "assert": "^2.1.0",
