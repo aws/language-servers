@@ -1,4 +1,4 @@
-import { Workspace } from '@aws/language-server-runtimes/out/features'
+import { Logging, Workspace } from '@aws/language-server-runtimes/out/features'
 import * as assert from 'assert'
 import { HttpResponse } from 'aws-sdk'
 import got from 'got'
@@ -51,11 +51,12 @@ describe('securityScanHandler', () => {
     let client: StubbedInstance<CodeWhispererServiceToken>
     let workspace: StubbedInstance<Workspace>
     let securityScanhandler: SecurityScanHandler
+    const mockedLogging = stubInterface<Logging>()
     beforeEach(async () => {
         // Set up the server with a mock service
         client = stubInterface<CodeWhispererServiceToken>()
         workspace = stubInterface<Workspace>()
-        securityScanhandler = new SecurityScanHandler(client, workspace)
+        securityScanhandler = new SecurityScanHandler(client, workspace, mockedLogging)
     })
 
     describe('Test createCodeResourcePresignedUrlHandler', () => {
@@ -68,7 +69,7 @@ describe('securityScanHandler', () => {
                 kmsKeyArn: 'ResourceArn',
                 ...mocked$Response,
             })
-            putStub = Sinon.stub(got, 'put')
+            putStub = Sinon.stub(got, 'put').resolves({ statusCode: 'Success' })
         })
 
         it('returns correct source code', async () => {

@@ -1,11 +1,14 @@
+import { Logging } from '@aws/language-server-runtimes/out/features'
 import * as assert from 'assert'
 import * as path from 'path'
 import * as Sinon from 'sinon'
+import { StubbedInstance, stubInterface } from 'ts-sinon'
 import { CsharpDependencyGraph } from './csharpDependencyGraph'
 
-describe('test CsharpDependencyGraph', () => {
+describe('Test CsharpDependencyGraph', () => {
     let csharpDependencyGraph: CsharpDependencyGraph
     const mockedGetWorkspaceFolder = Sinon.mock()
+    let mockedLogging: StubbedInstance<Logging>
     const projectPathUri = path.resolve(path.join(__dirname, 'sampleWs'))
     const tempDirPath = path.resolve('\\Temp')
     const mockedFs = {
@@ -23,20 +26,18 @@ describe('test CsharpDependencyGraph', () => {
         getWorkspaceFolder: mockedGetWorkspaceFolder,
         fs: mockedFs,
     }
-    before(() => {
-        csharpDependencyGraph = new CsharpDependencyGraph(mockedWorkspace)
-    })
+
     beforeEach(() => {
         mockedGetWorkspaceFolder.reset()
         mockedGetWorkspaceFolder.returns(undefined)
-
-        csharpDependencyGraph = new CsharpDependencyGraph(mockedWorkspace)
+        mockedLogging = stubInterface<Logging>()
+        csharpDependencyGraph = new CsharpDependencyGraph(mockedWorkspace, mockedLogging, projectPathUri)
     })
 
     describe('Test getPayloadSizeLimitInBytes', () => {
         it('should return correct payload size', () => {
             const expectedPayloadSize = Math.pow(2, 20)
-            assert.equal(csharpDependencyGraph.getPayloadSizeLimitInBytes(), expectedPayloadSize)
+            assert.strictEqual(csharpDependencyGraph.getPayloadSizeLimitInBytes(), expectedPayloadSize)
         })
     })
 
@@ -47,12 +48,15 @@ describe('test CsharpDependencyGraph', () => {
         })
         it('should return current folder name for given file path outside workspace folder', async () => {
             mockedFs.isFile.resolves(true)
-            assert.equal(await csharpDependencyGraph.getProjectName(path.join(projectPathUri, 'sample.cs')), 'sampleWs')
+            assert.strictEqual(
+                await csharpDependencyGraph.getProjectName(path.join(projectPathUri, 'sample.cs')),
+                'sampleWs'
+            )
         })
         it('should return correct project name for given forlder path within workspace folder', async () => {
             const expectedProjectName = 'sampleWs'
             mockedGetWorkspaceFolder.returns({ uri: projectPathUri, name: expectedProjectName })
-            assert.equal(
+            assert.strictEqual(
                 await csharpDependencyGraph.getProjectName(path.join(projectPathUri, 'src')),
                 expectedProjectName
             )
@@ -70,20 +74,23 @@ describe('test CsharpDependencyGraph', () => {
             mockedFs.isFile.resolves(true)
 
             const response = await csharpDependencyGraph.getProjectPath(fileUri)
-            assert.equal(response, fileFolderPath)
+            assert.strictEqual(response, fileFolderPath)
         })
         it('should return project name for within project file', async () => {
             const expectedProjectName = 'sampleWs'
 
             mockedGetWorkspaceFolder.returns({ uri: projectPathUri, name: expectedProjectName })
-            assert.equal(await csharpDependencyGraph.getProjectPath(path.join(projectPathUri, 'src')), projectPathUri)
+            assert.strictEqual(
+                await csharpDependencyGraph.getProjectPath(path.join(projectPathUri, 'src')),
+                projectPathUri
+            )
             mockedGetWorkspaceFolder.reset()
         })
     })
 
     describe('Test getReadableSizeLimit', () => {
         it('should return size 1 MB', () => {
-            assert.equal(csharpDependencyGraph.getReadableSizeLimit(), '1MB')
+            assert.strictEqual(csharpDependencyGraph.getReadableSizeLimit(), '1MB')
         })
     })
 
@@ -91,12 +98,12 @@ describe('test CsharpDependencyGraph', () => {
         it('should not exceed size limit', () => {
             const size = 100
             const expectedResult = false
-            assert.equal(csharpDependencyGraph.exceedsSizeLimit(size), expectedResult)
+            assert.strictEqual(csharpDependencyGraph.exceedsSizeLimit(size), expectedResult)
         })
         it('should exceed size limit', () => {
             const size = Math.pow(2, 21)
             const expectedResult = true
-            assert.equal(csharpDependencyGraph.exceedsSizeLimit(size), expectedResult)
+            assert.strictEqual(csharpDependencyGraph.exceedsSizeLimit(size), expectedResult)
         })
     })
 
@@ -104,30 +111,39 @@ describe('test CsharpDependencyGraph', () => {
         beforeEach(() => {
             mockedFs.readdir.reset()
             mockedFs.readFile.reset()
-            mockedFs.readdir.resolves([
-                {
-                    isFile: () => false,
-                    isDirectory: () => true,
-                    name: 'src',
-                    path: projectPathUri,
-                },
-                {
-                    isFile: () => true,
-                    isDirectory: () => false,
-                    name: 'sample.cs',
-                    path: path.join(projectPathUri, 'src'),
-                },
-                {
-                    isFile: () => true,
-                    isDirectory: () => false,
-                    name: 'model.cs',
-                    path: path.join(projectPathUri, 'src'),
-                },
-            ])
+            mockedFs.readdir.callsFake(async dirpath => {
+                switch (dirpath) {
+                    case projectPathUri:
+                        return [
+                            {
+                                isFile: () => false,
+                                isDirectory: () => true,
+                                name: 'src',
+                                path: projectPathUri,
+                            },
+                        ]
+                    case path.join(projectPathUri, 'src'):
+                        return [
+                            {
+                                isFile: () => true,
+                                isDirectory: () => false,
+                                name: 'sample.cs',
+                                path: path.join(projectPathUri, 'src'),
+                            },
+                            {
+                                isFile: () => true,
+                                isDirectory: () => false,
+                                name: 'model.cs',
+                                path: path.join(projectPathUri, 'src'),
+                            },
+                        ]
+                    default:
+                        return []
+                }
+            })
         })
 
         it('should create the map with namespace to filepath mapping', async () => {
-            csharpDependencyGraph.namespaceToFilepathDirectory = new Map<string, Set<string>>()
             mockedFs.readFile.callsFake(async filePath => {
                 if (filePath === path.join(projectPathUri, 'src', 'sample.cs')) {
                     return `namespace Amazon.Cw.Utils.Sample {}`
@@ -137,7 +153,7 @@ describe('test CsharpDependencyGraph', () => {
                 }
             })
             await csharpDependencyGraph.createNamespaceFilenameMapper(projectPathUri)
-            assert.deepEqual(
+            assert.deepStrictEqual(
                 csharpDependencyGraph.namespaceToFilepathDirectory,
                 new Map([
                     ['Amazon.Cw.Model', new Set([path.join(projectPathUri, 'src', 'model.cs')])],
@@ -156,7 +172,7 @@ describe('test CsharpDependencyGraph', () => {
                 }
             })
             await csharpDependencyGraph.createNamespaceFilenameMapper(projectPathUri)
-            assert.deepEqual(csharpDependencyGraph.namespaceToFilepathDirectory, new Map([]))
+            assert.deepStrictEqual(csharpDependencyGraph.namespaceToFilepathDirectory, new Map([]))
         })
     })
     describe('Test searchDependency', () => {
@@ -183,7 +199,7 @@ describe('test CsharpDependencyGraph', () => {
             const filePath = path.join(projectPathUri, 'main.cs')
 
             const pickedSourceFiles = await csharpDependencyGraph.searchDependency(filePath)
-            assert.deepEqual(pickedSourceFiles, new Set([filePath]))
+            assert.deepStrictEqual(pickedSourceFiles, new Set([filePath]))
         })
 
         it("should return source file with its dependecies' file path", async () => {
@@ -194,7 +210,7 @@ describe('test CsharpDependencyGraph', () => {
         var total = 5 + 4;`
             )
             const pickedSourceFiles = await csharpDependencyGraph.searchDependency(path.join(projectPathUri, 'main.cs'))
-            assert.deepEqual(
+            assert.deepStrictEqual(
                 pickedSourceFiles,
                 new Set([
                     path.join(projectPathUri, 'main.cs'),
@@ -213,7 +229,7 @@ describe('test CsharpDependencyGraph', () => {
         var total = 5 + 4;`
             )
             const pickedSourceFiles = await csharpDependencyGraph.searchDependency(path.join(projectPathUri, 'main.cs'))
-            assert.deepEqual(
+            assert.deepStrictEqual(
                 pickedSourceFiles,
                 new Set([
                     path.join(projectPathUri, 'main.cs'),
@@ -238,44 +254,63 @@ describe('test CsharpDependencyGraph', () => {
                     ]),
                 ],
             ])
-            mockedFs.readdir.resolves([
-                {
-                    isFile: () => false,
-                    isDirectory: () => true,
-                    name: 'src',
-                    path: projectPathUri,
-                },
-                {
-                    isFile: () => true,
-                    isDirectory: () => false,
-                    name: 'sample.cs',
-                    path: path.join(projectPathUri, 'src'),
-                },
-                {
-                    isFile: () => true,
-                    isDirectory: () => false,
-                    name: 'model.cs',
-                    path: path.join(projectPathUri, 'src'),
-                },
-                {
-                    isFile: () => true,
-                    isDirectory: () => false,
-                    name: 'scan.cs',
-                    path: path.join(projectPathUri, 'src', 'props'),
-                },
-                {
-                    isFile: () => true,
-                    isDirectory: () => false,
-                    name: 'recommendation.cs',
-                    path: path.join(projectPathUri, 'src', 'props'),
-                },
-            ])
+            mockedFs.readdir.callsFake(async dirpath => {
+                switch (dirpath) {
+                    case projectPathUri:
+                        return [
+                            {
+                                isFile: () => false,
+                                isDirectory: () => true,
+                                name: 'src',
+                                path: projectPathUri,
+                            },
+                        ]
+                    case path.join(projectPathUri, 'src'):
+                        return [
+                            {
+                                isFile: () => true,
+                                isDirectory: () => false,
+                                name: 'sample.cs',
+                                path: path.join(projectPathUri, 'src'),
+                            },
+                            {
+                                isFile: () => true,
+                                isDirectory: () => false,
+                                name: 'model.cs',
+                                path: path.join(projectPathUri, 'src'),
+                            },
+                            {
+                                isFile: () => false,
+                                isDirectory: () => true,
+                                name: 'props',
+                                path: path.join(projectPathUri, 'src'),
+                            },
+                        ]
+                    case path.join(projectPathUri, 'src', 'props'):
+                        return [
+                            {
+                                isFile: () => true,
+                                isDirectory: () => false,
+                                name: 'scan.cs',
+                                path: path.join(projectPathUri, 'src', 'props'),
+                            },
+                            {
+                                isFile: () => true,
+                                isDirectory: () => false,
+                                name: 'recommendation.cs',
+                                path: path.join(projectPathUri, 'src', 'props'),
+                            },
+                        ]
+                    default:
+                        return []
+                }
+            })
         })
         it('should return without traversing due to payload size limit reached', async () => {
             mockedFs.getFileSize.resolves({ size: Math.pow(2, 20) })
             await csharpDependencyGraph.searchDependency(path.join(projectPathUri, 'main.cs'))
             await csharpDependencyGraph.traverseDir(projectPathUri)
-            assert.equal(mockedFs.readFile.calledWith(projectPathUri), false)
+            assert.strictEqual(mockedFs.readFile.calledWith(projectPathUri), false)
         })
         it('should traverse through files until it reaches payload size limit', async () => {
             mockedFs.getFileSize.atLeast(1).resolves({ size: Math.pow(2, 19) })
@@ -307,13 +342,13 @@ describe('test CsharpDependencyGraph', () => {
                 path.join(projectPathUri, 'src', 'model.cs'),
                 path.join(projectPathUri, 'src', 'sample.cs'),
             ])
-            assert.deepEqual(
+            assert.deepStrictEqual(
                 csharpDependencyGraph.getDependencies(['Amazon.Cw.Utils.Sample', 'Amazon.Cw.Model']),
                 expectedResponse
             )
         })
         it('should return empty list', () => {
-            assert.deepEqual(csharpDependencyGraph.getDependencies(['Amazon.Cw']), new Set())
+            assert.deepStrictEqual(csharpDependencyGraph.getDependencies(['Amazon.Cw']), new Set())
         })
     })
     describe('Test readImports', () => {
@@ -332,7 +367,7 @@ namespace Amazon.Toolkit.Demo {
         `
             const response = csharpDependencyGraph.readImports(content)
             const expectedImports = ['Amazon.Cw.Utils', 'Amazon.Cw.Model', 'Amazon.Cw.Prototypes']
-            assert.deepEqual(response, expectedImports)
+            assert.deepStrictEqual(response, expectedImports)
         })
         it('should return empty list', () => {
             const content = `
@@ -344,7 +379,7 @@ namespace Amazon.Toolkit.Demo {
 }
         `
             const response = csharpDependencyGraph.readImports(content)
-            assert.deepEqual(response, [])
+            assert.deepStrictEqual(response, [])
         })
     })
     describe('Test generateTruncation', () => {
@@ -363,7 +398,7 @@ namespace Amazon.Toolkit.Demo {
                 rootDir: path.join(tempDirPath, 'codewhisperer_scan_111111111'),
                 zipFileBuffer,
                 scannedFiles: new Set([path.join(projectPathUri, 'main.cs')]),
-                srcPayloadSizeInBytes: 0,
+                srcPayloadSizeInBytes: zipSize,
                 zipFileSizeInBytes: zipSize,
                 buildPayloadSizeInBytes: 0,
                 lines: 0,
@@ -371,7 +406,7 @@ namespace Amazon.Toolkit.Demo {
 
             const trucation = await csharpDependencyGraph.generateTruncation(path.join(projectPathUri, 'main.cs'))
 
-            assert.deepEqual(trucation, expectedResult)
+            assert.deepStrictEqual(trucation, expectedResult)
         })
     })
 })

@@ -1,4 +1,4 @@
-import { Workspace } from '@aws/language-server-runtimes/out/features'
+import { Logging, Workspace } from '@aws/language-server-runtimes/out/features'
 import * as admZip from 'adm-zip'
 import * as path from 'path'
 import * as CodeWhispererConstants from './constants'
@@ -19,7 +19,7 @@ export interface Truncation {
  * @returns
  */
 export abstract class DependencyGraph {
-    workspace: Workspace // All optional fields are required
+    protected workspace: Workspace
     protected _sysPaths: Set<string> = new Set<string>()
     protected _parsedStatements: Set<string> = new Set<string>()
     protected _pickedSourceFiles: Set<string> = new Set<string>()
@@ -28,12 +28,16 @@ export abstract class DependencyGraph {
     protected _tmpDir = ''
     protected _truncDir = ''
     protected _totalLines = 0
+    protected logging: Logging
+    protected _workspaceFolderPath: string
 
     private _isProjectTruncated = false
 
-    constructor(workspace: Workspace) {
+    constructor(workspace: Workspace, logging: Logging, workspaceFolderPath: string) {
         this.workspace = workspace
+        this.logging = logging
         this._tmpDir = this.workspace.fs.getTempDirPath()
+        this._workspaceFolderPath = workspaceFolderPath
     }
 
     /**
@@ -53,11 +57,13 @@ export abstract class DependencyGraph {
      */
     public async getProjectPath(uri: string) {
         const workspaceFolder = this.workspace.getWorkspaceFolder(uri)
-
-        if (!workspaceFolder) {
-            return (await this.workspace.fs.isFile(uri)) ? path.dirname(uri) : uri
+        if (workspaceFolder) {
+            return workspaceFolder.uri
         }
-        return workspaceFolder.uri
+        if (uri.includes(this._workspaceFolderPath)) {
+            return this._workspaceFolderPath
+        }
+        return (await this.workspace.fs.isFile(uri)) ? path.dirname(uri) : uri
     }
 
     /**
@@ -92,6 +98,22 @@ export abstract class DependencyGraph {
      */
     set isProjectTruncated(value: boolean) {
         this._isProjectTruncated = value
+    }
+
+    /**
+     * find all the files inside `dir` recursively.
+     * @param dir folder path from where search for all the files.
+     * @returns return a promise of list of absolute file paths
+     */
+    async getFiles(dir: string): Promise<string[]> {
+        const subdirs = await this.workspace.fs.readdir(dir)
+        const files = await Promise.all(
+            subdirs.map(async subdir => {
+                const res = path.resolve(dir, subdir.name)
+                return subdir.isDirectory() ? await this.getFiles(res) : [res]
+            })
+        )
+        return files.reduce((a, f) => a.concat(f), [])
     }
 
     /**
@@ -177,8 +199,8 @@ export abstract class DependencyGraph {
     /**
      * remove all copied files from temp directory
      */
-    protected async removeTmpFiles(truncation: Truncation) {
-        await this.removeDir(truncation.rootDir)
+    async removeTmpFiles() {
+        await this.removeDir(this.getTruncDirPath())
     }
 
     /**

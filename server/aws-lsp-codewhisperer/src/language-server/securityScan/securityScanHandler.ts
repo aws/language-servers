@@ -1,4 +1,4 @@
-import { Workspace } from '@aws/language-server-runtimes/out/features'
+import { Logging, Workspace } from '@aws/language-server-runtimes/out/features'
 import got from 'got'
 import { md5 } from 'js-md5'
 import * as path from 'path'
@@ -18,9 +18,12 @@ import { AggregatedCodeScanIssue, RawCodeScanIssue } from './types'
 export class SecurityScanHandler {
     private client: CodeWhispererServiceToken
     private workspace: Workspace
-    constructor(client: CodeWhispererServiceToken, workspace: Workspace) {
+    private logging: Logging
+
+    constructor(client: CodeWhispererServiceToken, workspace: Workspace, logging: Logging) {
         this.client = client
         this.workspace = workspace
+        this.logging = logging
     }
 
     getMd5(content: Buffer) {
@@ -32,12 +35,23 @@ export class SecurityScanHandler {
             contentMd5: this.getMd5(zipContent),
             artifactType: 'SourceCode',
         }
-        const response = await this.client.createUploadUrl(request)
-        await this.uploadArtifactToS3(zipContent, response)
-        const artifactMap: ArtifactMap = {
-            SourceCode: response.uploadId,
+        try {
+            this.logging.log('Prepare for uploading src context...')
+            const response = await this.client.createUploadUrl(request)
+            this.logging.log(`Request id: ${response.$response.requestId}`)
+            this.logging.log(`Complete Getting presigned Url for uploading src context.`)
+            this.logging.log(`Uploading src context...`)
+            await this.uploadArtifactToS3(zipContent, response)
+            this.logging.log(`Complete uploading src context.`)
+
+            const artifactMap: ArtifactMap = {
+                SourceCode: response.uploadId,
+            }
+            return artifactMap
+        } catch (error) {
+            this.logging.log(`Error creating upload artifacts url: ${error}`)
+            throw error
         }
-        return artifactMap
     }
 
     async uploadArtifactToS3(zipBuffer: Buffer, resp: CreateUploadUrlResponse) {
@@ -58,8 +72,11 @@ export class SecurityScanHandler {
                       'Content-Type': 'application/zip',
                       'x-amz-server-side-encryption-context': Buffer.from(encryptionContext, 'utf8').toString('base64'),
                   }
-        const response = await got.put(resp.uploadUrl, { body: zipBuffer, headers: headersObj })
-        return response
+        const response = await got.put(resp.uploadUrl, {
+            body: zipBuffer,
+            headers: headersObj,
+        })
+        this.logging.log(`StatusCode: ${response.statusCode}`)
     }
 
     async createScanJob(artifactMap: ArtifactMap, languageName: string) {
@@ -69,10 +86,18 @@ export class SecurityScanHandler {
                 languageName,
             },
         }
-        const resp = await this.client.startCodeAnalysis(req)
-        return resp
+        this.logging.log(`Creating scan job...`)
+        try {
+            const resp = await this.client.startCodeAnalysis(req)
+            this.logging.log(`Request id: ${resp.$response.requestId}`)
+            return resp
+        } catch (error) {
+            this.logging.log(`Error while creating scan job: ${error}`)
+            throw error
+        }
     }
     async pollScanJobStatus(jobId: string) {
+        this.logging.log(`Polling scan job status...`)
         let status = 'Pending'
         let timer = 0
         const codeScanJobPollingIntervalSeconds = 1
@@ -83,13 +108,19 @@ export class SecurityScanHandler {
                 jobId: jobId,
             }
             const resp = await this.client.getCodeAnalysis(req)
+            this.logging.log(`Request id: ${resp.$response.requestId}`)
+
             if (resp.status !== 'Pending') {
                 status = resp.status
+                this.logging.log(`Scan job status: ${status}`)
+                this.logging.log(`Complete Polling scan job status.`)
                 break
             }
             await sleep(codeScanJobPollingIntervalSeconds * 1000)
             timer += codeScanJobPollingIntervalSeconds
             if (timer > codeScanJobTimeoutSeconds) {
+                this.logging.log(`Scan job status: ${status}`)
+                this.logging.log(`Scan job timeout.`)
                 throw new Error('Scan job timeout.')
             }
         }
@@ -97,30 +128,23 @@ export class SecurityScanHandler {
     }
 
     async listScanResults(jobId: string, projectPath: string) {
-        const codeScanIssueMap: Map<string, RawCodeScanIssue[]> = new Map()
-        const aggregatedCodeScanIssueList: AggregatedCodeScanIssue[] = []
         const request: ListCodeAnalysisFindingsRequest = {
             jobId,
             codeAnalysisFindingsSchema: 'codeanalysis/findings/1.0',
         }
         const response = await this.client.listCodeAnalysisFindings(request)
+        this.logging.log(`Request id: ${response.$response.requestId}`)
 
-        this.mapToAggregatedList(
-            codeScanIssueMap,
-            aggregatedCodeScanIssueList,
-            response.codeAnalysisFindings,
-            projectPath
-        )
+        const aggregatedCodeScanIssueList = await this.mapToAggregatedList(response.codeAnalysisFindings, projectPath)
         return aggregatedCodeScanIssueList
     }
 
-    mapToAggregatedList(
-        codeScanIssueMap: Map<string, RawCodeScanIssue[]>,
-        aggregatedCodeScanIssueList: AggregatedCodeScanIssue[],
-        json: string,
-        projectPath: string
-    ) {
+    async mapToAggregatedList(json: string, projectPath: string) {
+        const codeScanIssueMap: Map<string, RawCodeScanIssue[]> = new Map()
+        const aggregatedCodeScanIssueList: AggregatedCodeScanIssue[] = []
+
         const codeScanIssues: RawCodeScanIssue[] = JSON.parse(json)
+
         codeScanIssues.forEach(issue => {
             if (codeScanIssueMap.has(issue.filePath)) {
                 const list = codeScanIssueMap.get(issue.filePath)
@@ -135,8 +159,8 @@ export class SecurityScanHandler {
             }
         })
 
-        codeScanIssueMap.forEach(async (issues, key) => {
-            const filePath = path.join(projectPath, '..', key)
+        for (const [relFilePath, issues] of codeScanIssueMap) {
+            const filePath = path.join(projectPath, relFilePath)
             const fileExists = await this.workspace.fs.exists(filePath)
             if (fileExists) {
                 const aggregatedCodeScanIssue = {
@@ -161,6 +185,7 @@ export class SecurityScanHandler {
                 }
                 aggregatedCodeScanIssueList.push(aggregatedCodeScanIssue)
             }
-        })
+        }
+        return aggregatedCodeScanIssueList
     }
 }

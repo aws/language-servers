@@ -1,4 +1,4 @@
-import { Workspace } from '@aws/language-server-runtimes/out/features'
+import { Logging, Workspace } from '@aws/language-server-runtimes/out/features'
 import * as path from 'path'
 import { sleep } from './commonUtil'
 import * as CodeWhispererConstants from './constants'
@@ -9,8 +9,8 @@ export const importRegex = /((global\s+)?using\s+(static\s+)?)([A-Z]\w*\s*?=\s*)
 export class CsharpDependencyGraph extends DependencyGraph {
     // This contains a dictionary of namespace name and the set of filepaths, where namespace has been defined.
     namespaceToFilepathDirectory = new Map<string, Set<string>>()
-    constructor(workspace: Workspace) {
-        super(workspace)
+    constructor(workspace: Workspace, logging: Logging, workspaceFolderPath: string) {
+        super(workspace, logging, workspaceFolderPath)
     }
 
     /**
@@ -20,49 +20,52 @@ export class CsharpDependencyGraph extends DependencyGraph {
      * @param workspacePath provides absolute path for workspace
      */
     async createNamespaceFilenameMapper(workspacePath: string) {
-        const files = await this.workspace.fs.readdir(workspacePath, true)
-        const csharpFiles = files.filter(f => f.name.match(/.*.cs$/gi) && f.isFile())
+        const files = await this.getFiles(workspacePath)
+        const csharpFiles = files.filter(f => f.match(/.*.cs$/gi))
         const searchRegEx = new RegExp('namespace ([A-Z]\\w*(.[A-Z]\\w*)*)', 'g')
-
-        for (const file of csharpFiles) {
-            const absFilePath = path.join(file.path, file.name)
-            const content = await this.workspace.fs.readFile(absFilePath)
+        for (const filePath of csharpFiles) {
+            const content = await this.workspace.fs.readFile(filePath)
             if (!content) {
                 continue
             }
             for (const matchedStr of content.matchAll(searchRegEx)) {
                 if (this.namespaceToFilepathDirectory.has(matchedStr[1])) {
-                    this.namespaceToFilepathDirectory.get(matchedStr[1])?.add(absFilePath)
+                    this.namespaceToFilepathDirectory.get(matchedStr[1])?.add(filePath)
                 } else {
-                    this.namespaceToFilepathDirectory.set(matchedStr[1], new Set([absFilePath]))
+                    this.namespaceToFilepathDirectory.set(matchedStr[1], new Set([filePath]))
                 }
             }
         }
     }
 
-    async generateTruncation(uri: string): Promise<Truncation> {
-        const workspaceFolder = this.workspace.getWorkspaceFolder(uri)
-        const dirName = path.dirname(uri)
-        if (!dirName || !workspaceFolder) {
-            this._pickedSourceFiles.add(uri)
-        } else {
-            await this.createNamespaceFilenameMapper(workspaceFolder.uri)
-            await this.searchDependency(uri)
-            await this.traverseDir(workspaceFolder.uri)
-        }
-        await sleep(1000)
-        const truncDirPath = this.getTruncDirPath()
-        this.copyFilesToTmpDir(this._pickedSourceFiles, truncDirPath)
-        const { zipFileBuffer, zipFileSize } = this.createZip(truncDirPath)
+    async generateTruncation(filePath: string): Promise<Truncation> {
+        try {
+            const dirName = path.dirname(filePath)
+            await this.createNamespaceFilenameMapper(dirName)
 
-        return {
-            rootDir: truncDirPath,
-            zipFileBuffer,
-            scannedFiles: new Set(this._pickedSourceFiles),
-            srcPayloadSizeInBytes: this._totalSize,
-            zipFileSizeInBytes: zipFileSize,
-            buildPayloadSizeInBytes: 0,
-            lines: this._totalLines,
+            if (!dirName) {
+                this._pickedSourceFiles.add(filePath)
+            } else {
+                await this.searchDependency(filePath)
+                await this.traverseDir(dirName)
+            }
+            await sleep(1000)
+            const truncDirPath = this.getTruncDirPath()
+            await this.copyFilesToTmpDir(this._pickedSourceFiles, truncDirPath)
+            const { zipFileBuffer, zipFileSize } = this.createZip(truncDirPath)
+
+            return {
+                rootDir: truncDirPath,
+                zipFileBuffer,
+                scannedFiles: this._pickedSourceFiles,
+                srcPayloadSizeInBytes: this._totalSize,
+                zipFileSizeInBytes: zipFileSize,
+                buildPayloadSizeInBytes: 0,
+                lines: this._totalLines,
+            }
+        } catch (error) {
+            this.logging.log(`ERROR: ${error}`)
+            throw error
         }
     }
 
@@ -89,7 +92,6 @@ export class CsharpDependencyGraph extends DependencyGraph {
 
                 if (content) {
                     const imports = this.readImports(content)
-
                     const dependencies = this.getDependencies(imports)
                     dependencies.forEach(dependency => {
                         q.push(dependency)
@@ -131,19 +133,18 @@ export class CsharpDependencyGraph extends DependencyGraph {
         if (this.exceedsSizeLimit(this._totalSize)) {
             return
         }
-        const files = await this.workspace.fs.readdir(dirPath, true)
-        const csharpFiles = files.filter(f => f.name.match(/.*.cs$/gi) && f.isFile())
+        const files = await this.getFiles(dirPath)
+        const csharpFiles = files.filter(f => f.match(/.*.cs$/gi))
         for (const file of csharpFiles) {
-            const absFilePath = path.join(file.path, file.name)
-            const fileSize = (await this.workspace.fs.getFileSize(absFilePath)).size
+            const fileSize = (await this.workspace.fs.getFileSize(file)).size
             const doesExceedsSize = this.exceedsSizeLimit(this._totalSize + fileSize)
             this.isProjectTruncated = this.isProjectTruncated || doesExceedsSize
 
             if (doesExceedsSize) {
                 return
             }
-            if (!this._pickedSourceFiles.has(absFilePath)) {
-                await this.searchDependency(absFilePath)
+            if (!this._pickedSourceFiles.has(file)) {
+                await this.searchDependency(file)
             }
         }
     }
