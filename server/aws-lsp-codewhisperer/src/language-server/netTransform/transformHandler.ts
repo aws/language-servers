@@ -1,5 +1,15 @@
 import path = require('path')
+import { Workspace } from '@aws/language-server-runtimes/out/features'
 import * as fs from 'fs'
+import * as os from 'os'
+import { v4 as uuidv4 } from 'uuid'
+import {
+    CreateUploadUrlResponse,
+    GetTransformationRequest,
+    StopTransformationRequest,
+} from '../../client/token/codewhispererbearertokenclient'
+import { CodeWhispererServiceToken } from '../codeWhispererService'
+import { getCWStartTransformRequest, getCWStartTransformResponse } from './converter'
 import {
     CancellationJobStatus,
     QNetCancelTransformRequest,
@@ -11,13 +21,6 @@ import {
     QNetStartTransformRequest,
     QNetStartTransformResponse,
 } from './models'
-import { Workspace } from '@aws/language-server-runtimes/out/features'
-import { TransformJob } from 'aws-sdk/clients/sagemaker'
-import * as os from 'os'
-import { v4 as uuidv4 } from 'uuid'
-import { CreateUploadUrlResponse, GetTransformationRequest, StopTransformationRequest } from '../../client/token/codewhispererbearertokenclient'
-import { CodeWhispererServiceToken } from '../codeWhispererService'
-import { getCWStartTransformRequest, getCWStartTransformResponse } from './converter'
 import { cleanup, createZip, getSha256 } from './utils'
 import fetch = require('node-fetch')
 
@@ -35,7 +38,7 @@ export class TransformHandler {
             const request = getCWStartTransformRequest(userInputrequest, uploadId)
             console.log('send request to start transform api: ' + JSON.stringify(request))
             const response = await this.client.codeModernizerStartCodeTransformation(request)
-            console.log(JSON.stringify(response))
+            console.log('response start transform api: ' + JSON.stringify(response))
             return getCWStartTransformResponse(response, uploadId)
         } catch (error) {
             const errorMessage = (error as Error).message ?? 'Error in StartTransformation API call'
@@ -135,11 +138,12 @@ export class TransformHandler {
     }
     async getTransformation(request: QNetGetTransformRequest) {
         try {
-            const stopCodeTransformationRequest = {
+            const getCodeTransformationRequest = {
                 transformationJobId: request.TransformationJobId,
             } as GetTransformationRequest
-            const response = await this.client.codeModernizerGetCodeTransformation(stopCodeTransformationRequest)
-
+            console.log('send request to get transform api: ' + JSON.stringify(getCodeTransformationRequest))
+            const response = await this.client.codeModernizerGetCodeTransformation(getCodeTransformationRequest)
+            console.log('response received from get transform api: ' + JSON.stringify(response))
             return {
                 TransformationJob: response.transformationJob,
             } as QNetGetTransformResponse
@@ -165,7 +169,9 @@ export class TransformHandler {
         const getCodeTransformationPlanRequest = {
             transformationJobId: request.TransformationJobId,
         } as GetTransformationRequest
+        console.log('send request to get transform plan api: ' + JSON.stringify(getCodeTransformationPlanRequest))
         const response = await this.client.codeModernizerGetCodeTransformationPlan(getCodeTransformationPlanRequest)
+        console.log('received response from get transform plan api: ' + JSON.stringify(response))
         return {
             TransformationPlan: response.transformationPlan,
         } as QNetGetTransformPlanResponse
@@ -176,8 +182,9 @@ export class TransformHandler {
             const stopCodeTransformationRequest = {
                 transformationJobId: request.TransformationJobId,
             } as StopTransformationRequest
+            console.log('send request to cancel transform plan api: ' + JSON.stringify(stopCodeTransformationRequest))
             const response = await this.client.codeModernizerStopCodeTransformation(stopCodeTransformationRequest)
-
+            console.log('received response from cancel transform plan api: ' + JSON.stringify(response))
             let status: CancellationJobStatus
             switch (response.transformationStatus) {
                 case 'STOPPED':
@@ -210,33 +217,42 @@ export class TransformHandler {
     }
 
     async pollTransformation(request: QNetGetTransformRequest) {
-        let status = ''
         let timer = 0
 
-        while (status != 'Timed_out' && status != 'Failed') {
+        const getCodeTransformationRequest = {
+            transformationJobId: request.TransformationJobId,
+        } as GetTransformationRequest
+        console.log('poll : send request to get transform  api: ' + JSON.stringify(getCodeTransformationRequest))
+        let response = await this.client.codeModernizerGetCodeTransformation(getCodeTransformationRequest)
+        console.log('poll : received response from get transform  api: ' + JSON.stringify(response))
+        let status = response.transformationJob.status
+
+        while (status != 'Timed_out' && status != 'FAILED') {
             try {
                 const apiStartTime = Date.now()
-                //var response = (await this.client.codeModernizerGetCodeTransformation(request)) as QNetGetTransformResponse
-                const dummy = {
-                    TransformJobName: 'sample',
-                    TransformJobStatus: 'In_progress',
-                } as TransformJob
-                await new Promise(f => setTimeout(f, 100))
-                const response = {
-                    TransformationJob: dummy,
-                } as QNetGetTransformResponse
-                //delete above staging
 
-                status = response.TransformationJob.status!
+                const getCodeTransformationRequest = {
+                    transformationJobId: request.TransformationJobId,
+                } as GetTransformationRequest
+                console.log(
+                    'poll : send request to get transform  api: ' + JSON.stringify(getCodeTransformationRequest)
+                )
+                response = await this.client.codeModernizerGetCodeTransformation(getCodeTransformationRequest)
+                console.log('poll : received response from get transform  api: ' + JSON.stringify(response))
+                console.log('poll : job status here : ' + response.transformationJob.status)
+
+                status = response.transformationJob.status!
                 await this.sleep(10 * 1000)
                 timer += 10
+                console.log('current polling timer ' + timer)
 
-                //delete below lines
-                if (timer > 4000) {
-                    status = 'COMPLETED'
+                //adding this block only for staging
+                if (timer >= 20) {
+                    response.transformationJob.status = 'COMPLETED'
+                    console.log('returning completed response')
                     break
                 }
-                //
+                //delete above when API is actually implemented
 
                 if (timer > 24 * 3600 * 1000) {
                     status = 'Timed_out'
@@ -245,17 +261,19 @@ export class TransformHandler {
             } catch (e: any) {
                 const errorMessage = (e as Error).message ?? 'Error in GetTransformation API call'
                 console.log('CodeTransformation: GetTransformation error = ', errorMessage)
-                status = 'Failed'
+                status = 'FAILED'
                 break
             }
         }
-        const dummy = {
-            TransformJobName: 'sample',
-            TransformJobStatus: status,
-        } as TransformJob
-        await new Promise(f => setTimeout(f, 100))
-        return {
-            TransformationJob: dummy,
-        } as QNetGetTransformResponse
+        // const dummy = {
+        //     TransformJobName: 'sample',
+        //     TransformJobStatus: status,
+        // } as TransformJob
+        // await new Promise(f => setTimeout(f, 100))
+        // return {
+        //     TransformationJob: dummy,
+        // } as QNetGetTransformResponse
+        console.log('poll : returning response : ' + JSON.stringify(response))
+        return response
     }
 }
