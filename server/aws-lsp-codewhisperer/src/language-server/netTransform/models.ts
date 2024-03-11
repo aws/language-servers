@@ -35,6 +35,10 @@ export interface QNetCancelTransformRequest extends ExecuteCommandParams {
     TransformationJobId: string
 }
 
+export interface QNetDownloadArtifactsRequest extends ExecuteCommandParams {
+    TransformationJobId: string
+}
+
 export enum CancellationJobStatus {
     NOT_STARTED,
     IN_PROGRESS,

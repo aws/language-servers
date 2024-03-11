@@ -6,6 +6,7 @@ import { StreamingClient, downloadExportResultArchive } from '../client/streamin
 import { CodeWhispererServiceToken } from './codeWhispererService'
 import {
     QNetCancelTransformRequest,
+    QNetDownloadArtifactsRequest,
     QNetGetTransformPlanRequest,
     QNetGetTransformRequest,
     QNetStartTransformRequest,
@@ -65,6 +66,7 @@ export const NetTransformServerFactory: (
                         return await transformHandler.cancelTransformation(request)
                     }
                     case 'aws/qNetTransform/downloadArtifacts': {
+                        const request = params as QNetDownloadArtifactsRequest
                         const cwStreamingClientInstance = new StreamingClient()
                         const cwStreamingClient = await cwStreamingClientInstance.getStreamingClient(
                             credentialsProvider
