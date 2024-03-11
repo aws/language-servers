@@ -1,22 +1,42 @@
 import { Server } from '@aws/language-server-runtimes'
 import { CredentialsProvider } from '@aws/language-server-runtimes/out/features'
-import { SecurityScanRequestParams } from '@aws/language-server-runtimes/out/features/securityScan/securityScan'
 import { pathToFileURL } from 'url'
 import { CancellationToken, ExecuteCommandParams } from 'vscode-languageserver'
 import { ArtifactMap } from '../client/token/codewhispererbearertokenclient'
 import { CodeWhispererServiceToken } from './codeWhispererService'
 import { DependencyGraphFactory } from './dependencyGraph/dependencyGraphFactory'
-import { SecurityScanHandler } from './securityScan/securityScanHandler'
-import { SecurityScanResponseParams } from './securityScan/types'
+import { getSupportedLanguageId, supportedSecurityScanLanguages } from './languageDetection'
+import SecurityScanDiagnosticsProvider from './securityScan/securityScanDiagnosticsProvider'
+import { SecurityScanCancelledError, SecurityScanHandler } from './securityScan/securityScanHandler'
+import { SecurityScanRequestParams, SecurityScanResponseParams } from './securityScan/types'
+import { SecurityScanEvent } from './telemetry/types'
 import { parseJson } from './utils'
 
 export const SecurityScanServerToken =
     (service: (credentialsProvider: CredentialsProvider) => CodeWhispererServiceToken): Server =>
-    ({ credentialsProvider, workspace, logging, lsp }) => {
+    ({ credentialsProvider, workspace, logging, lsp, telemetry }) => {
         const codewhispererclient = service(credentialsProvider)
-        let jobStatus: string
-        const runSecurityScan = async (params: SecurityScanRequestParams) => {
+        const diagnosticsProvider = new SecurityScanDiagnosticsProvider(lsp, logging)
+        const scanHandler = new SecurityScanHandler(codewhispererclient, workspace, logging)
+
+        const runSecurityScan = async (params: SecurityScanRequestParams, token: CancellationToken) => {
             logging.log(`Starting security scan`)
+            let jobStatus: string
+            const securityScanStartTime = performance.now()
+            let serviceInvocationStartTime = 0
+            const securityScanTelemetryEntry: Partial<SecurityScanEvent> = {
+                codewhispererCodeScanSrcPayloadBytes: 0,
+                codewhispererCodeScanSrcZipFileBytes: 0,
+                codewhispererCodeScanLines: 0,
+                duration: 0,
+                contextTruncationDuration: 0,
+                artifactsUploadDuration: 0,
+                codeScanServiceInvocationsDuration: 0,
+                result: 'Succeeded',
+                codewhispererCodeScanTotalIssues: 0,
+                codewhispererCodeScanIssuesWithFixes: 0,
+                credentialStartUrl: credentialsProvider.getConnectionMetadata()?.sso?.startUrl ?? undefined,
+            }
             try {
                 if (!credentialsProvider.hasCredentials('bearer')) {
                     throw new Error('credentialsrProvider does not have bearer token credentials')
@@ -32,6 +52,7 @@ export const SecurityScanServerToken =
                 }
                 const activeFilePathUri = pathToFileURL(activeFilePath).href
                 const document = await workspace.getTextDocument(activeFilePathUri)
+                securityScanTelemetryEntry.codewhispererLanguage = getSupportedLanguageId(document)
                 if (!document) {
                     throw new Error('Text document for given activeFilePath is undefined.')
                 }
@@ -52,13 +73,21 @@ export const SecurityScanServerToken =
                         `Selected file larger than ${dependencyGraph.getReadableSizeLimit()}. Try a different file.`
                     )
                 }
+                const contextTruncationStartTime = performance.now()
                 const truncation = await dependencyGraph.generateTruncation(activeFilePath)
-                const scanHandler = new SecurityScanHandler(codewhispererclient, workspace, logging)
+                securityScanTelemetryEntry.contextTruncationDuration = performance.now() - contextTruncationStartTime
+                securityScanTelemetryEntry.codewhispererCodeScanSrcPayloadBytes = truncation.srcPayloadSizeInBytes
+                securityScanTelemetryEntry.codewhispererCodeScanBuildPayloadBytes = truncation.buildPayloadSizeInBytes
+                securityScanTelemetryEntry.codewhispererCodeScanSrcZipFileBytes = truncation.zipFileSizeInBytes
+                securityScanTelemetryEntry.codewhispererCodeScanLines = truncation.lines
+                scanHandler.throwIfCancelled(token)
+
                 logging.log(`Complete project context processing.`)
 
                 /**
                  * Step 2: Get presigned Url, upload and clean up
                  */
+                const uploadStartTime = performance.now()
                 let artifactMap: ArtifactMap = {}
                 try {
                     artifactMap = await scanHandler.createCodeResourcePresignedUrlHandler(truncation.zipFileBuffer)
@@ -67,12 +96,17 @@ export const SecurityScanServerToken =
                     throw error
                 } finally {
                     await dependencyGraph.removeTmpFiles()
+                    securityScanTelemetryEntry.artifactsUploadDuration = performance.now() - uploadStartTime
                 }
+                scanHandler.throwIfCancelled(token)
                 /**
                  * Step 3:  Create scan job
                  */
+                serviceInvocationStartTime = performance.now()
                 const scanJob = await scanHandler.createScanJob(artifactMap, document.languageId.toLowerCase())
-                logging.log(`Created security scan job.`)
+                logging.log(`Created security scan job id: ${scanJob.jobId}`)
+                securityScanTelemetryEntry.codewhispererCodeScanJobId = scanJob.jobId
+                scanHandler.throwIfCancelled(token)
 
                 /**
                  * Step 4:  Polling mechanism on scan job status
@@ -81,6 +115,7 @@ export const SecurityScanServerToken =
                 if (jobStatus === 'Failed') {
                     throw new Error('security scan job failed.')
                 }
+                scanHandler.throwIfCancelled(token)
 
                 /**
                  * Step 5: Process and render scan results
@@ -96,45 +131,83 @@ export const SecurityScanServerToken =
                     { total: 0, withFixes: 0 }
                 )
                 logging.log(`Security scan totally found ${total} issues. ${withFixes} of them have fixes.`)
+                securityScanTelemetryEntry.codewhispererCodeScanTotalIssues = total
+                securityScanTelemetryEntry.codewhispererCodeScanIssuesWithFixes = withFixes
+                scanHandler.throwIfCancelled(token)
 
                 /**
                  * Step 6: send results to diagnostics
                  */
-                // Todo: update diagnostics to add securityRecommendationCollection
+                await diagnosticsProvider.createDiagnostics(securityRecommendationCollection)
 
                 logging.log(`Security scan completed.`)
+                truncation.scannedFiles.forEach(file => logging.log(`Scanned file: ${file}`))
                 return {
                     result: {
                         status: jobStatus,
+                        scannedFiles: Array.from(truncation.scannedFiles.values()).join(','),
                     },
                 } as SecurityScanResponseParams
             } catch (error) {
+                if (error instanceof SecurityScanCancelledError) {
+                    logging.log(`Security scan has been cancelled. ${error}`)
+                    securityScanTelemetryEntry.result = 'Cancelled'
+                    return {
+                        result: {
+                            status: 'Cancelled',
+                        },
+                    } as SecurityScanResponseParams
+                }
                 logging.log(`Security scan failed. ${error}`)
-                // Todo: notify client about scan job failure.
+                securityScanTelemetryEntry.result = 'Failed'
                 return {
                     result: {
                         status: 'Failed',
                     },
                     error,
                 } as SecurityScanResponseParams
+            } finally {
+                securityScanTelemetryEntry.duration = performance.now() - securityScanStartTime
+                securityScanTelemetryEntry.codeScanServiceInvocationsDuration =
+                    performance.now() - serviceInvocationStartTime
+                telemetry.emitMetric({
+                    name: 'codewhisperer_securityScan',
+                    result: securityScanTelemetryEntry.result,
+                    data: securityScanTelemetryEntry,
+                })
             }
         }
+
         const onExecuteCommandHandler = async (
             params: ExecuteCommandParams,
             _token: CancellationToken
         ): Promise<any> => {
+            logging.log(params.command)
             switch (params.command) {
                 case 'aws/codewhisperer/runSecurityScan':
-                    return runSecurityScan(params as SecurityScanRequestParams)
+                    return runSecurityScan(params as SecurityScanRequestParams, scanHandler.tokenSource.token)
                 case 'aws/codewhisperer/cancelSecurityScan':
-                // Todo: cancel command
+                    scanHandler.cancelSecurityScan()
             }
             return
         }
-        lsp.onExecuteCommand(onExecuteCommandHandler)
         logging.log('SecurityScan server has been initialized')
+        lsp.onExecuteCommand(onExecuteCommandHandler)
+        lsp.onDidChangeTextDocument(async p => {
+            const textDocument = await workspace.getTextDocument(p.textDocument.uri)
+            const languageId = getSupportedLanguageId(textDocument)
+
+            if (!textDocument || !languageId || !supportedSecurityScanLanguages.includes(languageId)) {
+                return
+            }
+
+            p.contentChanges.forEach(async change => {
+                await diagnosticsProvider.validateDiagnostics(p.textDocument.uri, change)
+            })
+        })
 
         return () => {
             // dispose function
+            scanHandler.tokenSource.dispose()
         }
     }

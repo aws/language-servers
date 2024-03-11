@@ -74,3 +74,25 @@ export interface CodeWhispererUserDecisionEvent {
     codewhispererSuggestionReferences?: string[]
     codewhispererSuggestionReferenceCount: number
 }
+
+export type Result = 'Succeeded' | 'Failed' | 'Cancelled'
+
+export interface SecurityScanEvent {
+    codewhispererCodeScanJobId?: string
+    codewhispererLanguage: CodewhispererLanguage
+    codewhispererCodeScanProjectBytes?: number
+    codewhispererCodeScanSrcPayloadBytes: number
+    codewhispererCodeScanBuildPayloadBytes?: number
+    codewhispererCodeScanSrcZipFileBytes: number
+    codewhispererCodeScanBuildZipFileBytes?: number
+    codewhispererCodeScanLines: number
+    duration: number
+    contextTruncationDuration: number
+    artifactsUploadDuration: number
+    codeScanServiceInvocationsDuration: number
+    result: Result
+    reason?: string
+    codewhispererCodeScanTotalIssues: number
+    codewhispererCodeScanIssuesWithFixes: number
+    credentialStartUrl: string | undefined
+}
