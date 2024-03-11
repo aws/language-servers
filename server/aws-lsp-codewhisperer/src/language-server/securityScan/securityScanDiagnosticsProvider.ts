@@ -42,11 +42,14 @@ class SecurityScanDiagnosticsProvider {
         if (!currentDiagnostics) {
             return
         }
+        // range will be omitted if the change is for entire document
+        const changeStartLine = (e as any).range?.start?.line
+        const changeEndLine = (e as any).range?.end?.line
         const nextDiagnostics: Diagnostic[] = currentDiagnostics.map(diagnostic => {
-            if ((e as any).range.start.line > diagnostic.range.end.line) {
+            if (changeStartLine && changeStartLine > diagnostic.range.end.line) {
                 // change has no overlap with diagnostic
                 return diagnostic
-            } else if ((e as any).range.end.line < diagnostic.range.start.line) {
+            } else if (changeEndLine && changeEndLine < diagnostic.range.start.line) {
                 // change is before diagnostic range, update diagnostic range
                 const lineOffset = this.getLineOffset((e as any).range, e.text)
                 return {
@@ -73,7 +76,10 @@ class SecurityScanDiagnosticsProvider {
         await this.publishDiagnostics(uri, nextDiagnostics)
     }
 
-    getChangedDiagnosticRange(diagnosticRange: Range, documentChangeRange: Range): Range {
+    getChangedDiagnosticRange(diagnosticRange: Range, documentChangeRange?: Range): Range {
+        if (!documentChangeRange) {
+            return diagnosticRange
+        }
         const start = Math.max(diagnosticRange.start.line, documentChangeRange.start.line)
         const end = Math.min(diagnosticRange.end.line, documentChangeRange.end.line)
         return this.createDiagnosticsRange(start, end === start ? start + 1 : end)
