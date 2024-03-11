@@ -4,10 +4,13 @@ import { CredentialsProvider } from '@aws/language-server-runtimes/out/features/
 import { CancellationToken, ExecuteCommandParams } from 'vscode-languageserver'
 import { StreamingClient, downloadExportResultArchive } from '../client/streamingClient/codewhispererStreamingClient'
 import { CodeWhispererServiceToken } from './codeWhispererService'
-import { QNetCancelTransformRequest, QNetGetTransformPlanRequest, QNetGetTransformRequest, QNetStartTransformRequest } from './netTransform/models'
+import {
+    QNetCancelTransformRequest,
+    QNetGetTransformPlanRequest,
+    QNetGetTransformRequest,
+    QNetStartTransformRequest,
+} from './netTransform/models'
 import { TransformHandler } from './netTransform/transformHandler'
-
-
 
 /**
  *
@@ -66,7 +69,7 @@ export const NetTransformServerFactory: (
                         const cwStreamingClient = await cwStreamingClientInstance.getStreamingClient(
                             credentialsProvider
                         )
-                        downloadExportResultArchive(cwStreamingClient, {
+                        return await downloadExportResultArchive(cwStreamingClient, {
                             exportId: 'jobIdfromGet', //b0aa56de-7663-4761-b752-582eaede60dd
                             exportIntent: ExportIntent.TRANSFORMATION,
                         })
@@ -80,7 +83,6 @@ export const NetTransformServerFactory: (
 
         // Do the thing
         lsp.onExecuteCommand(onExecuteCommandHandler)
-        
 
         // Disposable
         return () => {

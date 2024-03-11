@@ -1,8 +1,8 @@
-import * as os from 'os'
 import { CodeWhispererStreaming, ExportResultArchiveCommandInput } from '@amzn/codewhisperer-streaming'
 import { ConfiguredRetryStrategy } from '@aws-sdk/util-retry'
-const codeWhispererRegion = 'us-east-1'
 import * as fs from 'fs/promises'
+import * as os from 'os'
+const codeWhispererRegion = 'us-east-1'
 import path = require('path')
 const codeWhispererEndpoint = 'https://rts.alpha-us-west-2.codewhisperer.ai.aws.dev/'
 // 'https://codewhisperer.us-east-1.amazonaws.com/'
@@ -56,7 +56,9 @@ export async function downloadExportResultArchive(
         console.log('pathTosave --', pathTosave)
 
         await fs.writeFile(pathTosave, Buffer.concat(buffer))
+        return pathTosave
     } catch (e: any) {
         console.log('Error when downloading the artifacts', e)
+        return
     }
 }
