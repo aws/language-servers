@@ -9,8 +9,8 @@ import { getSupportedLanguageId, supportedSecurityScanLanguages } from './langua
 import SecurityScanDiagnosticsProvider from './securityScan/securityScanDiagnosticsProvider'
 import { SecurityScanCancelledError, SecurityScanHandler } from './securityScan/securityScanHandler'
 import { SecurityScanRequestParams, SecurityScanResponseParams } from './securityScan/types'
-import { parseJson } from './utils'
 import { SecurityScanEvent } from './telemetry/types'
+import { parseJson } from './utils'
 
 export const SecurityScanServerToken =
     (service: (credentialsProvider: CredentialsProvider) => CodeWhispererServiceToken): Server =>
@@ -18,24 +18,25 @@ export const SecurityScanServerToken =
         const codewhispererclient = service(credentialsProvider)
         const diagnosticsProvider = new SecurityScanDiagnosticsProvider(lsp, logging)
         const scanHandler = new SecurityScanHandler(codewhispererclient, workspace, logging)
-        let jobStatus: string
-        const securityScanStartTime = performance.now()
-        let serviceInvocationStartTime = 0
-        const securityScanTelemetryEntry: Partial<SecurityScanEvent> = {
-            codewhispererCodeScanSrcPayloadBytes: 0,
-            codewhispererCodeScanSrcZipFileBytes: 0,
-            codewhispererCodeScanLines: 0,
-            duration: 0,
-            contextTruncationDuration: 0,
-            artifactsUploadDuration: 0,
-            codeScanServiceInvocationsDuration: 0,
-            result: 'Succeeded',
-            codewhispererCodeScanTotalIssues: 0,
-            codewhispererCodeScanIssuesWithFixes: 0,
-            credentialStartUrl: credentialsProvider.getConnectionMetadata()?.sso?.startUrl ?? undefined,
-        }
+
         const runSecurityScan = async (params: SecurityScanRequestParams, token: CancellationToken) => {
             logging.log(`Starting security scan`)
+            let jobStatus: string
+            const securityScanStartTime = performance.now()
+            let serviceInvocationStartTime = 0
+            const securityScanTelemetryEntry: Partial<SecurityScanEvent> = {
+                codewhispererCodeScanSrcPayloadBytes: 0,
+                codewhispererCodeScanSrcZipFileBytes: 0,
+                codewhispererCodeScanLines: 0,
+                duration: 0,
+                contextTruncationDuration: 0,
+                artifactsUploadDuration: 0,
+                codeScanServiceInvocationsDuration: 0,
+                result: 'Succeeded',
+                codewhispererCodeScanTotalIssues: 0,
+                codewhispererCodeScanIssuesWithFixes: 0,
+                credentialStartUrl: credentialsProvider.getConnectionMetadata()?.sso?.startUrl ?? undefined,
+            }
             try {
                 if (!credentialsProvider.hasCredentials('bearer')) {
                     throw new Error('credentialsrProvider does not have bearer token credentials')
