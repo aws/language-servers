@@ -155,15 +155,6 @@ export class TransformHandler {
                 TransformationJob: { status: 'FAILED' },
             } as QNetGetTransformResponse
         }
-
-        // const dummy = {
-        //     TransformJobName: 'sample',
-        //     TransformJobStatus: 'Running',
-        // } as TransformJob
-        // await new Promise(f => setTimeout(f, 100))
-        // return {
-        //     TransformationJob: dummy,
-        // } as QNetGetTransformResponse
     }
     async getTransformationPlan(request: QNetGetTransformPlanRequest) {
         const getCodeTransformationPlanRequest = {
@@ -194,7 +185,6 @@ export class TransformHandler {
                     status = CancellationJobStatus.FAILED_TO_CANCEL
                     break
             }
-
             return {
                 TransformationJobStatus: status,
             } as QNetCancelTransformResponse
@@ -205,11 +195,6 @@ export class TransformHandler {
                 TransformationJobStatus: CancellationJobStatus.FAILED_TO_CANCEL,
             } as QNetCancelTransformResponse
         }
-
-        // await new Promise(f => setTimeout(f, 100))
-        // return {
-        //     TransformationJobStatus: 2,
-        // } as QNetCancelTransformResponse
     }
 
     async sleep(duration = 0): Promise<void> {
@@ -265,14 +250,6 @@ export class TransformHandler {
                 break
             }
         }
-        // const dummy = {
-        //     TransformJobName: 'sample',
-        //     TransformJobStatus: status,
-        // } as TransformJob
-        // await new Promise(f => setTimeout(f, 100))
-        // return {
-        //     TransformationJob: dummy,
-        // } as QNetGetTransformResponse
         console.log('poll : returning response : ' + JSON.stringify(response))
         return response
     }
