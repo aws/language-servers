@@ -18,8 +18,6 @@ export class StreamingClient {
 }
 export async function createFeatureDevStreamingClient(credentialsProvider: any): Promise<CodeWhispererStreaming> {
     const creds = credentialsProvider.getCredentials('bearer')
-    console.log('bearerToken')
-    console.log(creds)
     const streamingClient = new CodeWhispererStreaming({
         region: codeWhispererRegion,
         endpoint: codeWhispererEndpoint,
