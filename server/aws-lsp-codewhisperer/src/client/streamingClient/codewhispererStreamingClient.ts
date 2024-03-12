@@ -1,9 +1,11 @@
-import { CodeWhispererStreaming, ExportResultArchiveCommandInput } from '@amzn/codewhisperer-streaming'
+import { CodeWhispererStreaming, ExportIntent } from '@amzn/codewhisperer-streaming'
 import { ConfiguredRetryStrategy } from '@aws-sdk/util-retry'
 import * as fs from 'fs/promises'
 import * as os from 'os'
 const codeWhispererRegion = 'us-east-1'
 import path = require('path')
+import AdmZip = require('adm-zip')
+import { PathLike } from 'fs'
 const codeWhispererEndpoint = 'https://rts.alpha-us-west-2.codewhisperer.ai.aws.dev/'
 // 'https://codewhisperer.us-east-1.amazonaws.com/'
 
@@ -29,13 +31,13 @@ export async function createFeatureDevStreamingClient(credentialsProvider: any):
     return streamingClient
 }
 
-export async function downloadExportResultArchive(
-    cwStreamingClient: CodeWhispererStreaming,
-    exportResultArchiveArgs: ExportResultArchiveCommandInput
-) {
+export async function downloadExportResultArchive(cwStreamingClient: CodeWhispererStreaming, exportId: string) {
     let result
     try {
-        result = await cwStreamingClient.exportResultArchive(exportResultArchiveArgs)
+        result = await cwStreamingClient.exportResultArchive({
+            exportId,
+            exportIntent: ExportIntent.TRANSFORMATION,
+        })
 
         const buffer = []
 
@@ -51,14 +53,29 @@ export async function downloadExportResultArchive(
                 }
             }
         }
-        const pathTosave = path.join(os.tmpdir(), 'downloadedArtifact.zip')
+        const tempDir = path.join(os.tmpdir(), exportId)
+        const pathToArchive = path.join(tempDir, 'ExportResultsArchive.zip')
+        await directoryExists(tempDir)
+        await fs.writeFile(pathToArchive, Buffer.concat(buffer))
+        let pathContainingArchive = ''
+        pathContainingArchive = path.dirname(pathToArchive)
+        const zip = new AdmZip(pathToArchive)
+        zip.extractAllTo(pathContainingArchive)
 
-        console.log('pathTosave --', pathTosave)
+        console.log('pathContainingArchive :', pathContainingArchive)
 
-        await fs.writeFile(pathTosave, Buffer.concat(buffer))
-        return pathTosave
-    } catch (e: any) {
-        console.log('Error when downloading the artifacts', e)
-        return
+        return pathContainingArchive
+    } catch (error) {
+        const errorMessage = (error as Error).message ?? 'Failed to download the artifacts'
+        throw new Error(errorMessage)
+    }
+}
+
+async function directoryExists(directoryPath: PathLike) {
+    try {
+        await fs.access(directoryPath)
+    } catch (error) {
+        // Directory doesn't exist, create it
+        await fs.mkdir(directoryPath, { recursive: true })
     }
 }

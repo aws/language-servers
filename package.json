@@ -26,10 +26,12 @@
         "package": "npm install && npm run compile && npm run package-x64 --workspaces --if-present"
     },
     "dependencies": {
+        "adm-zip": "^0.5.10",
         "typescript": "^5.0.4"
     },
     "devDependencies": {
         "@types/node": "^20.2.5",
+        "@types/adm-zip": "^0.4.34",
         "@typescript-eslint/eslint-plugin": "^5.59.9",
         "@typescript-eslint/parser": "^5.59.9",
         "eslint": "^8.42.0",

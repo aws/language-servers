@@ -1,4 +1,3 @@
-import { ExportIntent } from '@amzn/codewhisperer-streaming'
 import { Server } from '@aws/language-server-runtimes'
 import { CredentialsProvider } from '@aws/language-server-runtimes/out/features/auth/auth'
 import { CancellationToken, ExecuteCommandParams } from 'vscode-languageserver'
@@ -71,15 +70,17 @@ export const NetTransformServerFactory: (
                         const cwStreamingClient = await cwStreamingClientInstance.getStreamingClient(
                             credentialsProvider
                         )
-                        return await downloadExportResultArchive(cwStreamingClient, {
-                            exportId: 'jobIdfromGet', //b0aa56de-7663-4761-b752-582eaede60dd
-                            exportIntent: ExportIntent.TRANSFORMATION,
-                        })
+                        logging.log('Calling Download Archive  with job Id: ' + request.TransformationJobId)
+                        downloadExportResultArchive(
+                            cwStreamingClient,
+                            // request.TransformationJobId
+                            'f22cc7c7-e01c-4ce0-8cf1-9ae7cf4d4936' //Job id for shailaja Account
+                        )
                     }
                 }
                 return
             } catch (e: any) {
-                logging.log('error from catch ' + e)
+                logging.log('Server side error while executing transformer Command ' + e)
             }
         }
 
