@@ -98,10 +98,7 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
 export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     client: CodeWhispererTokenClient
     private readonly codeWhispererRegion = 'us-east-1'
-    private readonly codeWhispererEndpoint =
-        //Alpha test url
-        'https://rts.alpha-us-west-2.codewhisperer.ai.aws.dev/'
-    // 'https://codewhisperer.us-east-1.amazonaws.com/'
+    private readonly codeWhispererEndpoint = 'https://codewhisperer.us-east-1.amazonaws.com/'
 
     constructor(credentialsProvider: CredentialsProvider, additionalAwsConfig: any) {
         super()
