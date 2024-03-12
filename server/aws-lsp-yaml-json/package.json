@@ -8,10 +8,10 @@
         "test": "ts-mocha -b 'src/**/*.test.ts'"
     },
     "dependencies": {
-        "@aws/language-server-runtimes": "file:../../bin/aws-language-server-runtimes-0.1.1.tgz",
-        "@lsp-placeholder/aws-lsp-core": "^0.0.1",
-        "@lsp-placeholder/aws-lsp-json-common": "^0.0.1",
-        "@lsp-placeholder/aws-lsp-yaml-common": "^0.0.1",
+        "@aws/language-server-runtimes": "^0.x",
+        "@aws/lsp-core": "^0.0.1",
+        "@aws/lsp-json-common": "^0.0.1",
+        "@aws/lsp-yaml-common": "^0.0.1",
         "vscode-languageserver": "^8.0.1",
         "vscode-languageserver-textdocument": "^1.0.8"
     },

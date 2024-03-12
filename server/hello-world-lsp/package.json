@@ -8,7 +8,7 @@
         "test": "ts-mocha -b 'src/**/*.test.ts'"
     },
     "dependencies": {
-        "@aws/language-server-runtimes": "file:../../bin/aws-language-server-runtimes-0.1.1.tgz",
+        "@aws/language-server-runtimes": "^0.x",
         "vscode-languageserver": "^9.0.1"
     }
 }
