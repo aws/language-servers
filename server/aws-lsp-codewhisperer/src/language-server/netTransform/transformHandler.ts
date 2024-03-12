@@ -80,7 +80,6 @@ export class TransformHandler {
             console.log('Error: ', errorMessage)
             throw new Error(errorMessage)
         }
-        // Pass along error to callee function
 
         try {
             await this.uploadArtifactToS3Async(payloadFileName, response)
