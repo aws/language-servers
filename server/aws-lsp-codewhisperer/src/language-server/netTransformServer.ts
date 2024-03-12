@@ -1,11 +1,9 @@
 import { Server } from '@aws/language-server-runtimes'
 import { CredentialsProvider } from '@aws/language-server-runtimes/out/features/auth/auth'
 import { CancellationToken, ExecuteCommandParams } from 'vscode-languageserver'
-import { StreamingClient, downloadExportResultArchive } from '../client/streamingClient/codewhispererStreamingClient'
 import { CodeWhispererServiceToken } from './codeWhispererService'
 import {
     QNetCancelTransformRequest,
-    QNetDownloadArtifactsRequest,
     QNetGetTransformPlanRequest,
     QNetGetTransformRequest,
     QNetStartTransformRequest,
@@ -64,19 +62,19 @@ export const NetTransformServerFactory: (
                         logging.log('request job ID: ' + request.TransformationJobId)
                         return await transformHandler.cancelTransformation(request)
                     }
-                    case 'aws/qNetTransform/downloadArtifacts': {
-                        const request = params as QNetDownloadArtifactsRequest
-                        const cwStreamingClientInstance = new StreamingClient()
-                        const cwStreamingClient = await cwStreamingClientInstance.getStreamingClient(
-                            credentialsProvider
-                        )
-                        logging.log('Calling Download Archive  with job Id: ' + request.TransformationJobId)
-                        downloadExportResultArchive(
-                            cwStreamingClient,
-                            // request.TransformationJobId
-                            'f22cc7c7-e01c-4ce0-8cf1-9ae7cf4d4936' //Job id for shailaja Account
-                        )
-                    }
+                    // case 'aws/qNetTransform/downloadArtifacts': {
+                    //     const request = params as QNetDownloadArtifactsRequest
+                    //     const cwStreamingClientInstance = new StreamingClient()
+                    //     const cwStreamingClient = await cwStreamingClientInstance.getStreamingClient(
+                    //         credentialsProvider
+                    //     )
+                    //     logging.log('Calling Download Archive  with job Id: ' + request.TransformationJobId)
+                    //     downloadExportResultArchive(
+                    //         cwStreamingClient,
+                    //         // request.TransformationJobId
+                    //         'f22cc7c7-e01c-4ce0-8cf1-9ae7cf4d4936' //Job id for shailaja Account
+                    //     )
+                    // }
                 }
                 return
             } catch (e: any) {
