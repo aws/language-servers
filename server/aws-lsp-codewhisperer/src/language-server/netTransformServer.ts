@@ -2,6 +2,13 @@ import { Server } from '@aws/language-server-runtimes'
 import { CredentialsProvider } from '@aws/language-server-runtimes/out/features/auth/auth'
 import { CancellationToken, ExecuteCommandParams } from 'vscode-languageserver'
 import { CodeWhispererServiceToken } from './codeWhispererService'
+import {
+    QNetCancelTransformRequest,
+    QNetGetTransformPlanRequest,
+    QNetGetTransformRequest,
+    QNetStartTransformRequest,
+} from './netTransform/models'
+import { TransformHandler } from './netTransform/transformHandler'
 
 /**
  *
@@ -18,7 +25,61 @@ export const NetTransformServerFactory: (
             params: ExecuteCommandParams,
             _token: CancellationToken
         ): Promise<any> => {
-            //Placeholder for logic
+            try {
+                const client = createService(credentialsProvider)
+                const transformHandler = new TransformHandler(client, workspace)
+                switch (params.command) {
+                    case 'aws/qNetTransform/startTransform': {
+                        const userInputrequest = params as QNetStartTransformRequest
+                        logging.log('prepare artifact for solution: ' + userInputrequest.SolutionRootPath)
+                        return await transformHandler.startTransformation(userInputrequest)
+                    }
+                    case 'aws/qNetTransform/getTransform': {
+                        const request = params as QNetGetTransformRequest
+                        logging.log('Calling getTransform request with job Id: ' + request.TransformationJobId)
+                        return await transformHandler.getTransformation(request)
+                    }
+                    case 'aws/qNetTransform/pollTransform': {
+                        const request = params as QNetGetTransformRequest
+                        logging.log('Calling pollTransform request with job Id: ' + request.TransformationJobId)
+                        const transformationJob = await transformHandler.pollTransformation(request)
+                        logging.log(
+                            'Transformation job for job Id' + request.TransformationJobId + ' is ' + transformationJob
+                        )
+                        return transformationJob
+                    }
+                    case 'aws/qNetTransform/getTransformPlan': {
+                        const request = params as QNetGetTransformPlanRequest
+                        logging.log('Calling getTransformPlan request with job Id: ' + request.TransformationJobId)
+                        const transformationPlan = await transformHandler.getTransformationPlan(request)
+                        logging.log(
+                            'Transformation plan for job Id' + request.TransformationJobId + ' is ' + transformationPlan
+                        )
+                        return transformationPlan
+                    }
+                    case 'aws/qNetTransform/cancelTransform': {
+                        const request = params as QNetCancelTransformRequest
+                        logging.log('request job ID: ' + request.TransformationJobId)
+                        return await transformHandler.cancelTransformation(request)
+                    }
+                    // case 'aws/qNetTransform/downloadArtifacts': {
+                    //     const request = params as QNetDownloadArtifactsRequest
+                    //     const cwStreamingClientInstance = new StreamingClient()
+                    //     const cwStreamingClient = await cwStreamingClientInstance.getStreamingClient(
+                    //         credentialsProvider
+                    //     )
+                    //     logging.log('Calling Download Archive  with job Id: ' + request.TransformationJobId)
+                    //     downloadExportResultArchive(
+                    //         cwStreamingClient,
+                    //         // request.TransformationJobId
+                    //         'f22cc7c7-e01c-4ce0-8cf1-9ae7cf4d4936' //Job id for shailaja Account
+                    //     )
+                    // }
+                }
+                return
+            } catch (e: any) {
+                logging.log('Server side error while executing transformer Command ' + e)
+            }
         }
 
         // Do the thing

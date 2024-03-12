@@ -40,6 +40,10 @@
             {
                 "command": "helloWorld.log",
                 "title": "Hello World LSP - Log Command"
+            },
+            {
+                "command": "aws/qNetTransform/startTransform",
+                "title": "qNetTransform - test"
             }
         ],
         "configuration": {
