@@ -4,14 +4,14 @@
     "description": "YAML/JSON Language Server Binary",
     "main": "out/index.js",
     "bin": {
-        "aws-lsp-codewhisperer-binary": "./out/index.js"
+        "aws-lsp-yaml-json-binary": "./out/index.js"
     },
     "scripts": {
         "compile": "tsc --build",
         "package-x64": "pkg --targets node18-linux-x64,node18-win-x64,node18-macos-x64 --out-path bin --compress GZip ."
     },
     "dependencies": {
-        "@aws/language-server-runtimes": "file:../../bin/aws-language-server-runtimes-0.1.1.tgz",
+        "@aws/language-server-runtimes": "^0.x",
         "@aws/aws-lsp-yaml-json": "*"
     },
     "devDependencies": {

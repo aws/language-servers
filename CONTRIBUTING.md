@@ -342,8 +342,6 @@ myStubbedFunc.returns()
 
 ## Developer Notes
 
--   The `bin/aws-language-server-runtimes-0.1.0.tgz` file is a temporary solution to use the `language-server-runtimes` package without publishing to NPM before the first release. Tracking ID: `AWS-Cloud9-25329`
-
 ### Develop and test Language servers with Language Server Runtimes locally
 
 Language servers developed in this package can be built for different runtimes developed in [Language Server Runtimes](https://github.com/aws/language-server-runtimes) project.
