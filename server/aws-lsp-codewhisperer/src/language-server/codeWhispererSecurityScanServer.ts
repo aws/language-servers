@@ -21,6 +21,7 @@ export const SecurityScanServerToken =
 
         const runSecurityScan = async (params: SecurityScanRequestParams, token: CancellationToken) => {
             logging.log(`Starting security scan`)
+            diagnosticsProvider.resetDiagnostics()
             let jobStatus: string
             const securityScanStartTime = performance.now()
             let serviceInvocationStartTime = 0
@@ -45,8 +46,7 @@ export const SecurityScanServerToken =
                     throw new Error(`Incorrect params provided. Params: ${params}`)
                 }
                 const [arg] = params.arguments
-                const { activeFilePath, projectPath } = parseJson(arg)
-
+                const { ActiveFilePath: activeFilePath, ProjectPath: projectPath } = parseJson(arg)
                 if (!activeFilePath || !projectPath) {
                     throw new Error(`Error: file path or project path not provided. Params: ${params}`)
                 }
@@ -191,7 +191,7 @@ export const SecurityScanServerToken =
             }
             return
         }
-        logging.log('SecurityScan server has been initialized')
+        diagnosticsProvider.handleHover()
         lsp.onExecuteCommand(onExecuteCommandHandler)
         lsp.onDidChangeTextDocument(async p => {
             const textDocument = await workspace.getTextDocument(p.textDocument.uri)
@@ -205,6 +205,7 @@ export const SecurityScanServerToken =
                 await diagnosticsProvider.validateDiagnostics(p.textDocument.uri, change)
             })
         })
+        logging.log('SecurityScan server has been initialized')
 
         return () => {
             // dispose function

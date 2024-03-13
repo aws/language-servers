@@ -7,14 +7,25 @@ class SecurityScanDiagnosticsProvider {
     private diagnostics: Map<string, Diagnostic[]>
     private lsp: Lsp
     private logging: Logging
+    private findings: AggregatedCodeScanIssue[]
 
     constructor(lsp: Lsp, logging: Logging) {
         this.diagnostics = new Map()
         this.lsp = lsp
         this.logging = logging
+        this.findings = []
+    }
+
+    resetDiagnostics() {
+        this.findings.forEach(finding => {
+            this.logging.log(finding.filePath)
+            this.publishDiagnostics(finding.filePath, [])
+        })
+        this.diagnostics = new Map()
     }
 
     async createDiagnostics(findings: AggregatedCodeScanIssue[]) {
+        this.findings = findings
         for (const finding of findings) {
             const path = URI.file(finding.filePath).path
             const diagnostics = finding.issues.map(issue => this.mapScanIssueToDiagnostics(issue))
@@ -92,15 +103,20 @@ class SecurityScanDiagnosticsProvider {
         return true
     }
 
-    handleHover = (uri: string, diagnostics: Diagnostic[]) => {
-        this.lsp.onHover(({ position }) => {
-            for (const diagnostic of diagnostics) {
-                if (this.isPositionInRange(position, diagnostic.range)) {
-                    const hover: Hover = {
-                        contents: diagnostic.message,
-                        range: diagnostic.range,
+    handleHover = () => {
+        this.lsp.onHover(({ position, textDocument }) => {
+            for (let [uri, diagnostics] of this.diagnostics) {
+                if (uri !== URI.parse(textDocument.uri).path) {
+                    continue
+                }
+                for (const diagnostic of diagnostics) {
+                    if (this.isPositionInRange(position, diagnostic.range)) {
+                        const hover: Hover = {
+                            contents: diagnostic.message,
+                            range: diagnostic.range,
+                        }
+                        return hover
                     }
-                    return hover
                 }
             }
         })
@@ -130,7 +146,6 @@ class SecurityScanDiagnosticsProvider {
             uri,
             diagnostics: diagnostics,
         })
-        this.handleHover(uri, diagnostics)
     }
 }
 export default SecurityScanDiagnosticsProvider
