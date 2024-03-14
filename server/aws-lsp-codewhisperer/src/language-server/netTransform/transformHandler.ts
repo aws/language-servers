@@ -1,7 +1,6 @@
-import path = require('path')
-import { Workspace } from '@aws/language-server-runtimes/out/features'
-import * as fs from 'fs'
-import * as os from 'os'
+import { Workspace, Logging } from '@aws/language-server-runtimes/out/features'
+// import * as fs from 'fs'
+// import * as os from 'os'
 import { v4 as uuidv4 } from 'uuid'
 import {
     CreateUploadUrlResponse,
@@ -27,22 +26,24 @@ import fetch = require('node-fetch')
 export class TransformHandler {
     private client: CodeWhispererServiceToken
     private workspace: Workspace
-    constructor(client: CodeWhispererServiceToken, workspace: Workspace) {
+    private logging: Logging
+    constructor(client: CodeWhispererServiceToken, workspace: Workspace, logging: Logging) {
         this.client = client
         this.workspace = workspace
+        this.logging = logging
     }
 
     async startTransformation(userInputrequest: QNetStartTransformRequest): Promise<QNetStartTransformResponse> {
         try {
             const uploadId = await this.preTransformationUploadCode(userInputrequest)
             const request = getCWStartTransformRequest(userInputrequest, uploadId)
-            console.log('send request to start transform api: ' + JSON.stringify(request))
+            this.logging.log('send request to start transform api: ' + JSON.stringify(request))
             const response = await this.client.codeModernizerStartCodeTransformation(request)
-            console.log('response start transform api: ' + JSON.stringify(response))
+            this.logging.log('response start transform api: ' + JSON.stringify(response))
             return getCWStartTransformResponse(response, uploadId)
         } catch (error) {
             const errorMessage = (error as Error).message ?? 'Error in StartTransformation API call'
-            console.log(errorMessage)
+            this.logging.log(errorMessage)
             throw new Error(errorMessage)
         }
     }
@@ -50,12 +51,12 @@ export class TransformHandler {
     async preTransformationUploadCode(userInputrequest: QNetStartTransformRequest): Promise<string> {
         let uploadId = ''
         const randomPath = uuidv4().substring(0, 4)
-        const workspacePath = path.join(os.tmpdir(), randomPath)
+        const workspacePath = path.join(this.workspace.fs.getTempDirPath(), randomPath)
         try {
             const payloadFilePath = await this.zipCodeAsync(userInputrequest, workspacePath)
-            console.log('payload path: ' + payloadFilePath)
+            this.logging.log('payload path: ' + payloadFilePath)
             uploadId = await this.uploadPayloadAsync(payloadFilePath)
-            console.log('artifact successfully uploaded. upload tracking id: ' + uploadId)
+            this.logging.log('artifact successfully uploaded. upload tracking id: ' + uploadId)
         } catch (error) {
             const errorMessage = (error as Error).message ?? 'Failed to upload zip file'
             throw new Error(errorMessage)
@@ -77,7 +78,7 @@ export class TransformHandler {
             })
         } catch (e: any) {
             const errorMessage = (e as Error).message ?? 'Error in CreateUploadUrl API call'
-            console.log('Error: ', errorMessage)
+            this.logging.log('Error: ' + errorMessage)
             throw new Error(errorMessage)
         }
 
@@ -85,7 +86,7 @@ export class TransformHandler {
             await this.uploadArtifactToS3Async(payloadFileName, response)
         } catch (e: any) {
             const errorMessage = (e as Error).message ?? 'Error in uploadArtifactToS3 call'
-            console.log('Error: ', errorMessage)
+            this.logging.log('Error: ' + errorMessage)
             throw new Error(errorMessage)
         }
         return response.uploadId
@@ -95,7 +96,7 @@ export class TransformHandler {
         try {
             return await createZip(request, basePath)
         } catch (e: any) {
-            console.log({ cause: e as Error })
+            this.logging.log('cause:' + e)
         }
         return ''
     }
@@ -106,15 +107,15 @@ export class TransformHandler {
         try {
             const response = await fetch(resp.uploadUrl, {
                 method: 'PUT',
-                body: fs.readFileSync(fileName),
+                body: this.workspace.fs.readFile(fileName),
                 headers: headersObj,
             })
 
-            console.log(`CodeTransform: Status from S3 Upload = ${response.status}`)
+            this.logging.log(`CodeTransform: Status from S3 Upload = ${response.status}`)
         } catch (e: any) {
             const errorMessage = (e as Error).message ?? 'Error in S3 UploadZip API call'
 
-            console.log({ cause: e as Error })
+            this.logging.log(errorMessage)
         }
     }
 
@@ -140,15 +141,15 @@ export class TransformHandler {
             const getCodeTransformationRequest = {
                 transformationJobId: request.TransformationJobId,
             } as GetTransformationRequest
-            console.log('send request to get transform api: ' + JSON.stringify(getCodeTransformationRequest))
+            this.logging.log('send request to get transform api: ' + JSON.stringify(getCodeTransformationRequest))
             const response = await this.client.codeModernizerGetCodeTransformation(getCodeTransformationRequest)
-            console.log('response received from get transform api: ' + JSON.stringify(response))
+            this.logging.log('response received from get transform api: ' + JSON.stringify(response))
             return {
                 TransformationJob: response.transformationJob,
             } as QNetGetTransformResponse
         } catch (e: any) {
             const errorMessage = (e as Error).message ?? 'Error in GetTransformation API call'
-            console.log('Error: ', errorMessage)
+            this.logging.log('Error: ' + errorMessage)
 
             return {
                 TransformationJob: { status: 'FAILED' },
@@ -159,9 +160,9 @@ export class TransformHandler {
         const getCodeTransformationPlanRequest = {
             transformationJobId: request.TransformationJobId,
         } as GetTransformationRequest
-        console.log('send request to get transform plan api: ' + JSON.stringify(getCodeTransformationPlanRequest))
+        this.logging.log('send request to get transform plan api: ' + JSON.stringify(getCodeTransformationPlanRequest))
         const response = await this.client.codeModernizerGetCodeTransformationPlan(getCodeTransformationPlanRequest)
-        console.log('received response from get transform plan api: ' + JSON.stringify(response))
+        this.logging.log('received response from get transform plan api: ' + JSON.stringify(response))
         return {
             TransformationPlan: response.transformationPlan,
         } as QNetGetTransformPlanResponse
@@ -172,9 +173,11 @@ export class TransformHandler {
             const stopCodeTransformationRequest = {
                 transformationJobId: request.TransformationJobId,
             } as StopTransformationRequest
-            console.log('send request to cancel transform plan api: ' + JSON.stringify(stopCodeTransformationRequest))
+            this.logging.log(
+                'send request to cancel transform plan api: ' + JSON.stringify(stopCodeTransformationRequest)
+            )
             const response = await this.client.codeModernizerStopCodeTransformation(stopCodeTransformationRequest)
-            console.log('received response from cancel transform plan api: ' + JSON.stringify(response))
+            this.logging.log('received response from cancel transform plan api: ' + JSON.stringify(response))
             let status: CancellationJobStatus
             switch (response.transformationStatus) {
                 case 'STOPPED':
@@ -189,7 +192,7 @@ export class TransformHandler {
             } as QNetCancelTransformResponse
         } catch (e: any) {
             const errorMessage = (e as Error).message ?? 'Error in CancelTransformation API call'
-            console.log('Error: ', errorMessage)
+            this.logging.log('Error: ' + errorMessage)
             return {
                 TransformationJobStatus: CancellationJobStatus.FAILED_TO_CANCEL,
             } as QNetCancelTransformResponse
@@ -206,9 +209,9 @@ export class TransformHandler {
         const getCodeTransformationRequest = {
             transformationJobId: request.TransformationJobId,
         } as GetTransformationRequest
-        console.log('poll : send request to get transform  api: ' + JSON.stringify(getCodeTransformationRequest))
+        this.logging.log('poll : send request to get transform  api: ' + JSON.stringify(getCodeTransformationRequest))
         let response = await this.client.codeModernizerGetCodeTransformation(getCodeTransformationRequest)
-        console.log('poll : received response from get transform  api: ' + JSON.stringify(response))
+        this.logging.log('poll : received response from get transform  api: ' + JSON.stringify(response))
         let status = response.transformationJob.status
 
         while (status != 'Timed_out' && status != 'FAILED') {
@@ -218,22 +221,22 @@ export class TransformHandler {
                 const getCodeTransformationRequest = {
                     transformationJobId: request.TransformationJobId,
                 } as GetTransformationRequest
-                console.log(
+                this.logging.log(
                     'poll : send request to get transform  api: ' + JSON.stringify(getCodeTransformationRequest)
                 )
                 response = await this.client.codeModernizerGetCodeTransformation(getCodeTransformationRequest)
-                console.log('poll : received response from get transform  api: ' + JSON.stringify(response))
-                console.log('poll : job status here : ' + response.transformationJob.status)
+                this.logging.log('poll : received response from get transform  api: ' + JSON.stringify(response))
+                this.logging.log('poll : job status here : ' + response.transformationJob.status)
 
                 status = response.transformationJob.status!
                 await this.sleep(10 * 1000)
                 timer += 10
-                console.log('current polling timer ' + timer)
+                this.logging.log('current polling timer ' + timer)
 
                 //adding this block only for staging
                 if (timer >= 20) {
                     response.transformationJob.status = 'COMPLETED'
-                    console.log('returning completed response')
+                    this.logging.log('returning completed response')
                     break
                 }
                 //delete above when API is actually implemented
@@ -244,12 +247,12 @@ export class TransformHandler {
                 }
             } catch (e: any) {
                 const errorMessage = (e as Error).message ?? 'Error in GetTransformation API call'
-                console.log('CodeTransformation: GetTransformation error = ', errorMessage)
+                this.logging.log('CodeTransformation: GetTransformation error = ' + errorMessage)
                 status = 'FAILED'
                 break
             }
         }
-        console.log('poll : returning response : ' + JSON.stringify(response))
+        this.logging.log('poll : returning response : ' + JSON.stringify(response))
         return response
     }
 }

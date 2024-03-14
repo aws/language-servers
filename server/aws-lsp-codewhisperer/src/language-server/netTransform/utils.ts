@@ -136,7 +136,7 @@ function zipDirectory(sourceDir: string, outPath: string) {
     })
 }
 
-async function writeReuqirmentJsonAsync(dir: string, fileContent: string) {
+async function writeRequirmentJsonAsync(dir: string, fileContent: string) {
     const fileName = path.join(dir, requriementJsonFileName)
     fs.writeFileSync(fileName, fileContent)
 }
