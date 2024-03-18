@@ -1,14 +1,15 @@
-import { Server } from '@aws/language-server-runtimes'
-import { MetricEvent } from '@aws/language-server-runtimes/out/features/telemetry/telemetry'
+import {
+    Server,
+    CancellationToken,
+    InlineCompletionTriggerKind,
+    TextDocument,
+    MetricEvent,
+} from '@aws/language-server-runtimes/out/features'
+// import {  } from '@aws/language-server-runtimes/out/features/telemetry/telemetry'
 import { TestFeatures } from '@aws/language-server-runtimes/out/testing'
 import * as assert from 'assert'
 import { AWSError } from 'aws-sdk'
 import sinon, { StubbedInstance, stubInterface } from 'ts-sinon'
-import {
-    CancellationToken,
-    InlineCompletionTriggerKind,
-    TextDocument,
-} from '@aws/language-server-runtimes/out/protocol'
 import { CONTEXT_CHARACTERS_LIMIT, CodewhispererServerFactory } from './codeWhispererServer'
 import { CodeWhispererServiceBase, ResponseContext, Suggestion } from './codeWhispererService'
 import { CodeWhispererSession, SessionData, SessionManager } from './session/sessionManager'

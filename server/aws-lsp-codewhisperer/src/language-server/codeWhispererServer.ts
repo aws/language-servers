@@ -10,7 +10,7 @@ import {
     Position,
     Range,
     TextDocument,
-} from '@aws/language-server-runtimes/out/protocol'
+} from '@aws/language-server-runtimes/out/features'
 import { AWSError } from 'aws-sdk'
 import { autoTrigger, triggerType } from './auto-trigger/autoTrigger'
 import {

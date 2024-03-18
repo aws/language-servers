@@ -1,4 +1,4 @@
-import { InlineCompletionStates, Position } from '@aws/language-server-runtimes/out/protocol'
+import { InlineCompletionStates, Position } from '@aws/language-server-runtimes/out/features'
 import { v4 as uuidv4 } from 'uuid'
 import { CodewhispererAutomatedTriggerType, CodewhispererTriggerType } from '../auto-trigger/autoTrigger'
 import { GenerateSuggestionsRequest, ResponseContext, Suggestion } from '../codeWhispererService'

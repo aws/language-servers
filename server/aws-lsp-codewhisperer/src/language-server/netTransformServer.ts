@@ -1,6 +1,9 @@
-import { Server } from '@aws/language-server-runtimes'
-import { CredentialsProvider } from '@aws/language-server-runtimes/out/features/auth/auth'
-import { CancellationToken, ExecuteCommandParams } from '@aws/language-server-runtimes/out/protocol'
+import {
+    Server,
+    CredentialsProvider,
+    CancellationToken,
+    ExecuteCommandParams,
+} from '@aws/language-server-runtimes/out/features'
 import { CodeWhispererServiceToken } from './codeWhispererService'
 
 /**

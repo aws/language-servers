@@ -1,9 +1,9 @@
-import { Server } from '@aws/language-server-runtimes'
 import {
+    Server,
     InlineCompletionListWithReferences,
     CancellationToken,
     InlineCompletionTriggerKind,
-} from '@aws/language-server-runtimes/out/protocol'
+} from '@aws/language-server-runtimes/out/features'
 import { TestFeatures } from '@aws/language-server-runtimes/out/testing'
 import * as assert from 'assert'
 import sinon, { StubbedInstance, stubInterface } from 'ts-sinon'

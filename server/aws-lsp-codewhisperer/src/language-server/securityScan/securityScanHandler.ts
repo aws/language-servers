@@ -1,9 +1,13 @@
-import { Logging, Workspace } from '@aws/language-server-runtimes/out/features'
+import {
+    Logging,
+    Workspace,
+    CancellationToken,
+    CancellationTokenSource,
+} from '@aws/language-server-runtimes/out/features'
 import got from 'got'
 import { md5 } from 'js-md5'
 import * as path from 'path'
 
-import { CancellationToken, CancellationTokenSource } from '@aws/language-server-runtimes/out/protocol'
 import {
     ArtifactMap,
     CreateUploadUrlRequest,

@@ -1,5 +1,4 @@
-import { Logging, Workspace } from '@aws/language-server-runtimes/out/features'
-import { TextDocument } from '@aws/language-server-runtimes/out/protocol'
+import { Logging, Workspace, TextDocument } from '@aws/language-server-runtimes/out/features'
 import { CsharpDependencyGraph } from './csharpDependencyGraph'
 
 const languageMap = {

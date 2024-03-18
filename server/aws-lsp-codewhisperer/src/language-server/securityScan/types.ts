@@ -1,4 +1,4 @@
-import { ExecuteCommandParams } from '@aws/language-server-runtimes/out/protocol'
+import { ExecuteCommandParams } from '@aws/language-server-runtimes/out/features'
 export interface RecommendationDescription {
     text: string
     markdown: string

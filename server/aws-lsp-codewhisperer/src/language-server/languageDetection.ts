@@ -1,4 +1,4 @@
-import { TextDocument } from '@aws/language-server-runtimes/out/protocol'
+import { TextDocument } from '@aws/language-server-runtimes/out/features'
 
 export type CodewhispererLanguage =
     | 'java'
