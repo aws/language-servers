@@ -8,7 +8,7 @@
     },
     "dependencies": {
         "@aws-sdk/client-s3": "^3.377.0",
-        "@aws-sdk/types": "^3.357.0",
+        "@aws-sdk/types": "^3.535.0",
         "@aws/lsp-core": "^0.0.1",
         "vscode-languageserver": "^9.0.1",
         "vscode-languageserver-textdocument": "^1.0.8"
