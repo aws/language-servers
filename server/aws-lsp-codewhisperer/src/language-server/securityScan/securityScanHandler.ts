@@ -3,7 +3,7 @@ import got from 'got'
 import { md5 } from 'js-md5'
 import * as path from 'path'
 
-import { CancellationToken, CancellationTokenSource } from 'vscode-languageserver'
+import { CancellationToken, CancellationTokenSource } from '@aws/language-server-runtimes/out/protocol'
 import {
     ArtifactMap,
     CreateUploadUrlRequest,

@@ -1,4 +1,4 @@
-import { ExecuteCommandParams } from 'vscode-languageserver'
+import { ExecuteCommandParams } from '@aws/language-server-runtimes/out/protocol'
 export interface RecommendationDescription {
     text: string
     markdown: string

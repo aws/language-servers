@@ -1,5 +1,11 @@
 import { Logging, Lsp } from '@aws/language-server-runtimes/out/features'
-import { Diagnostic, Hover, Position, Range, TextDocumentContentChangeEvent } from 'vscode-languageserver'
+import {
+    Diagnostic,
+    Hover,
+    Position,
+    Range,
+    TextDocumentContentChangeEvent,
+} from '@aws/language-server-runtimes/out/protocol'
 import { URI } from 'vscode-uri'
 import { AggregatedCodeScanIssue, CodeScanIssue } from './types'
 

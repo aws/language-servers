@@ -1,6 +1,5 @@
-import { InlineCompletionStates } from '@aws/language-server-runtimes/out/features/lsp/inline-completions/protocolExtensions'
+import { InlineCompletionStates, Position } from '@aws/language-server-runtimes/out/protocol'
 import { v4 as uuidv4 } from 'uuid'
-import { Position } from 'vscode-languageserver'
 import { CodewhispererAutomatedTriggerType, CodewhispererTriggerType } from '../auto-trigger/autoTrigger'
 import { GenerateSuggestionsRequest, ResponseContext, Suggestion } from '../codeWhispererService'
 import { CodewhispererLanguage } from '../languageDetection'

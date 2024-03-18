@@ -1,9 +1,12 @@
 import { Server } from '@aws/language-server-runtimes'
-import { InlineCompletionListWithReferences } from '@aws/language-server-runtimes/out/features/lsp/inline-completions/protocolExtensions'
+import {
+    InlineCompletionListWithReferences,
+    CancellationToken,
+    InlineCompletionTriggerKind,
+} from '@aws/language-server-runtimes/out/protocol'
 import { TestFeatures } from '@aws/language-server-runtimes/out/testing'
 import * as assert from 'assert'
 import sinon, { StubbedInstance, stubInterface } from 'ts-sinon'
-import { CancellationToken, InlineCompletionTriggerKind } from 'vscode-languageserver'
 import { TextDocument } from 'vscode-languageserver-textdocument'
 import { CodewhispererServerFactory } from '../codeWhispererServer'
 import { CodeWhispererServiceBase, ResponseContext, Suggestion } from '../codeWhispererService'
