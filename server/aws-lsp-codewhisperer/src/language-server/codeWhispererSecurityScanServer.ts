@@ -3,7 +3,7 @@ import {
     CredentialsProvider,
     CancellationToken,
     ExecuteCommandParams,
-} from '@aws/language-server-runtimes/out/features'
+} from '@aws/language-server-runtimes/server-interface'
 import { pathToFileURL } from 'url'
 import { ArtifactMap } from '../client/token/codewhispererbearertokenclient'
 import { CodeWhispererServiceToken } from './codeWhispererService'

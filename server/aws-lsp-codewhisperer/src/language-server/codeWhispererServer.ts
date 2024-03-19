@@ -1,6 +1,7 @@
-import { Server } from '@aws/language-server-runtimes'
-import { CredentialsProvider, Telemetry } from '@aws/language-server-runtimes/out/features'
 import {
+    Server,
+    CredentialsProvider,
+    Telemetry,
     CancellationToken,
     InlineCompletionItemWithReferences,
     InlineCompletionListWithReferences,
@@ -10,7 +11,7 @@ import {
     Position,
     Range,
     TextDocument,
-} from '@aws/language-server-runtimes/out/features'
+} from '@aws/language-server-runtimes/out/server-interface'
 import { AWSError } from 'aws-sdk'
 import { autoTrigger, triggerType } from './auto-trigger/autoTrigger'
 import {

@@ -4,9 +4,8 @@ import {
     InlineCompletionTriggerKind,
     TextDocument,
     MetricEvent,
-} from '@aws/language-server-runtimes/out/features'
-// import {  } from '@aws/language-server-runtimes/out/features/telemetry/telemetry'
-import { TestFeatures } from '@aws/language-server-runtimes/out/testing'
+} from '@aws/language-server-runtimes/server-interface'
+import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import * as assert from 'assert'
 import { AWSError } from 'aws-sdk'
 import sinon, { StubbedInstance, stubInterface } from 'ts-sinon'

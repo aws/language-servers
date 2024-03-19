@@ -6,7 +6,7 @@ import {
     Position,
     Range,
     TextDocumentContentChangeEvent,
-} from '@aws/language-server-runtimes/out/features'
+} from '@aws/language-server-runtimes/server-interface'
 import { URI } from 'vscode-uri'
 import { AggregatedCodeScanIssue, CodeScanIssue } from './types'
 

@@ -3,8 +3,8 @@ import {
     InlineCompletionListWithReferences,
     CancellationToken,
     InlineCompletionTriggerKind,
-} from '@aws/language-server-runtimes/out/features'
-import { TestFeatures } from '@aws/language-server-runtimes/out/testing'
+} from '@aws/language-server-runtimes/server-interface'
+import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import sinon, { StubbedInstance, stubInterface } from 'ts-sinon'
 import { TextDocument } from 'vscode-languageserver-textdocument'
 import { CodewhispererServerFactory } from './codeWhispererServer'
