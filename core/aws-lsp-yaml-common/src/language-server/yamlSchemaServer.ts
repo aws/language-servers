@@ -1,4 +1,4 @@
-import { AwsLanguageService, UriResolver, completionItemUtils, textDocumentUtils } from '@aws/lsp-core'
+import { AwsLanguageService, UriResolver, completionItemUtils, textDocumentUtils } from '@aws/lsp-core/out/base'
 import {
     Connection,
     InitializeParams,

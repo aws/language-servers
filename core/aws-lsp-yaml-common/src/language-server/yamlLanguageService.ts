@@ -1,4 +1,4 @@
-import { AwsLanguageService, UriResolver } from '@aws/lsp-core'
+import { AwsLanguageService, UriResolver } from '@aws/lsp-core/out'
 import { CompletionList, Diagnostic, Hover, Position, Range, TextEdit } from 'vscode-languageserver'
 import { TextDocument } from 'vscode-languageserver-textdocument'
 import { LanguageService, getLanguageService } from 'yaml-language-server'
