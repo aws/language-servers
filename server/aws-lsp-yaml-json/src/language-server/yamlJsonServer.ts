@@ -1,19 +1,10 @@
 import { Server } from '@aws/language-server-runtimes'
-import {
-    AwsLanguageService,
-    CachedContentHandler,
-    FileHandler,
-    HttpHandler,
-    UriCacheRepository,
-    UriResolver,
-    UriResolverBuilder,
-} from '@aws/lsp-core'
+import { AwsLanguageService } from '@aws/lsp-core/out/base'
 import {
     CancellationToken,
     CompletionList,
     CompletionParams,
     DidChangeTextDocumentParams,
-    InitializeParams,
 } from 'vscode-languageserver/node'
 import { create } from './yamlJsonService'
 
@@ -84,27 +75,17 @@ export const YamlJsonServerFactory =
 const jsonSchemaUrl =
     'https://raw.githubusercontent.com/aws/serverless-application-model/main/samtranslator/schema/schema.json'
 
-function createJsonSchemaResolver(): UriResolver {
-    const builder = new UriResolverBuilder()
+async function getSchema(url: string) {
+    const response = await fetch(url)
+    const schema = await (await response.blob()).text()
 
-    const cacheRepository = new UriCacheRepository()
-
-    builder
-        .addHandler(new FileHandler())
-        .addHandler(
-            new CachedContentHandler({
-                cacheRepository: cacheRepository,
-            })
-        )
-        .addHandler(new HttpHandler())
-
-    return builder.build()
+    return schema
 }
 
 const yamlJsonServerProps = {
     displayName: 'aws-lsp-yaml-json',
     defaultSchemaUri: jsonSchemaUrl,
-    uriResolver: createJsonSchemaResolver(),
+    uriResolver: getSchema,
     allowComments: true,
 }
 

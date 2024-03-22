@@ -1,4 +1,4 @@
-import { AwsLanguageService, MutuallyExclusiveLanguageService, UriResolver } from '@aws/lsp-core'
+import { AwsLanguageService, MutuallyExclusiveLanguageService, UriResolver } from '@aws/lsp-core/out/base'
 import { JsonLanguageService } from '@aws/lsp-json-common'
 import { YamlLanguageService } from '@aws/lsp-yaml-common'
 

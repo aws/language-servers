@@ -1,6 +1,6 @@
 import { Server } from '@aws/language-server-runtimes'
 import { TestFeatures } from '@aws/language-server-runtimes/out/testing'
-import { AwsLanguageService } from '@aws/lsp-core'
+import { AwsLanguageService } from '@aws/lsp-core/out/base'
 import sinon, { StubbedInstance, stubInterface } from 'ts-sinon'
 import { CancellationToken } from 'vscode-languageserver'
 import { JSON_COMPLETION_FILE, JSON_COMPLETION_POSITION, JSON_VALIDATION_FILE } from './testUtils'
