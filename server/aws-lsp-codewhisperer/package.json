@@ -34,7 +34,6 @@
         "vscode-languageserver-textdocument": "^1.0.8"
     },
     "devDependencies": {
-        "@types/node-fetch": "^2.6.11",
         "@types/archiver": "^6.0.2",
         "mock-fs": "^5.2.0",
         "@types/adm-zip": "^0.4.34",
