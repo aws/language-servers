@@ -1,7 +1,7 @@
 import { Workspace, Logging } from '@aws/language-server-runtimes/out/features'
-// import * as fs from 'fs'
-// import * as os from 'os'
+import path = require('path')
 import { v4 as uuidv4 } from 'uuid'
+import * as fs from 'fs'
 import {
     CreateUploadUrlResponse,
     GetTransformationRequest,
@@ -21,7 +21,7 @@ import {
     QNetStartTransformResponse,
 } from './models'
 import { cleanup, createZip, getSha256 } from './utils'
-import fetch = require('node-fetch')
+import got from 'got'
 
 export class TransformHandler {
     private client: CodeWhispererServiceToken
@@ -78,7 +78,7 @@ export class TransformHandler {
             })
         } catch (e: any) {
             const errorMessage = (e as Error).message ?? 'Error in CreateUploadUrl API call'
-            this.logging.log('Error: ' + errorMessage)
+            this.logging.log('Error when creating Upload url: ' + errorMessage)
             throw new Error(errorMessage)
         }
 
@@ -86,7 +86,7 @@ export class TransformHandler {
             await this.uploadArtifactToS3Async(payloadFileName, response)
         } catch (e: any) {
             const errorMessage = (e as Error).message ?? 'Error in uploadArtifactToS3 call'
-            this.logging.log('Error: ' + errorMessage)
+            this.logging.log('Error when calling uploadArtifactToS3Async: ' + errorMessage)
             throw new Error(errorMessage)
         }
         return response.uploadId
@@ -105,13 +105,12 @@ export class TransformHandler {
         const sha256 = getSha256(fileName)
         const headersObj = this.getHeadersObj(sha256, resp.kmsKeyArn)
         try {
-            const response = await fetch(resp.uploadUrl, {
-                method: 'PUT',
-                body: this.workspace.fs.readFile(fileName),
+            const response = await got.put(resp.uploadUrl, {
+                body: fs.readFileSync(fileName),
                 headers: headersObj,
-            })
+                })
 
-            this.logging.log(`CodeTransform: Status from S3 Upload = ${response.status}`)
+            this.logging.log(`CodeTransform: Response from S3 Upload = ${response}`)
         } catch (e: any) {
             const errorMessage = (e as Error).message ?? 'Error in S3 UploadZip API call'
 

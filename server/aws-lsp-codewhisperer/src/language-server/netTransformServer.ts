@@ -27,7 +27,7 @@ export const NetTransformServerFactory: (
         ): Promise<any> => {
             try {
                 const client = createService(credentialsProvider)
-                const transformHandler = new TransformHandler(client, workspace)
+                const transformHandler = new TransformHandler(client, workspace, logging)
                 switch (params.command) {
                     case 'aws/qNetTransform/startTransform': {
                         const userInputrequest = params as QNetStartTransformRequest

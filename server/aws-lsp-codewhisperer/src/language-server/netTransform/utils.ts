@@ -30,7 +30,7 @@ export function cleanup(basePath: string) {
 export async function createRequirementJson(request: QNetStartTransformRequest, basePath: string) {
     const fileContent = await createRequirementJsonContent(request)
     const dir = getRequirementJsonPath(basePath)
-    await writeReuqirmentJsonAsync(dir, JSON.stringify(fileContent))
+    await writeRequirmentJsonAsync(dir, JSON.stringify(fileContent))
 }
 
 export async function copyReferenceDlls(request: QNetStartTransformRequest, basePath: string) {
