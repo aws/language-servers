@@ -76,7 +76,6 @@ const jsonSchemaUrl =
     'https://raw.githubusercontent.com/aws/serverless-application-model/main/samtranslator/schema/schema.json'
 
 async function getSchema(url: string) {
-    // Fetching DEXP server bundles from CDN URL and create worker.
     const response = await fetch(url)
     const schema = await (await response.blob()).text()
 
