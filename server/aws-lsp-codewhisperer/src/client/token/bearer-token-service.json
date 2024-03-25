@@ -1389,6 +1389,38 @@
             "min": 0
         },
         "Timestamp": { "type": "timestamp" },
+        "TransformationDotNetRuntimeEnv": {
+            "type": "string",
+            "enum": [
+                "NET_FRAMEWORK_V_3_5",
+                "NET_FRAMEWORK_V_4_0",
+                "NET_FRAMEWORK_V_4_5",
+                "NET_FRAMEWORK_V_4_5_1",
+                "NET_FRAMEWORK_V_4_5_2",
+                "NET_FRAMEWORK_V_4_6",
+                "NET_FRAMEWORK_V_4_6_1",
+                "NET_FRAMEWORK_V_4_6_2",
+                "NET_FRAMEWORK_V_4_7",
+                "NET_FRAMEWORK_V_4_7_1",
+                "NET_FRAMEWORK_V_4_7_2",
+                "NET_FRAMEWORK_V_4_8",
+                "NET_CORE_APP_1_0",
+                "NET_CORE_APP_1_1",
+                "NET_CORE_APP_2_0",
+                "NET_CORE_APP_2_1",
+                "NET_CORE_APP_2_2",
+                "NET_CORE_APP_3_0",
+                "NET_CORE_APP_3_1",
+                "NET_5_0",
+                "NET_6_0",
+                "NET_7_0",
+                "NET_8_0"
+            ]
+        },
+        "TransformationJavaRuntimeEnv": {
+            "type": "string",
+            "enum": ["JVM_8", "JVM_11", "JVM_17"]
+        },
         "TransformationJob": {
             "type": "structure",
             "members": {
@@ -1434,7 +1466,8 @@
                 "NET_5_0",
                 "NET_6_0",
                 "NET_7_0",
-                "NET_8_0"
+                "NET_8_0",
+                "C_SHARP"
             ]
         },
         "TransformationOperatingSystemFamily": {
@@ -1473,8 +1506,17 @@
             "type": "structure",
             "members": {
                 "language": { "shape": "TransformationLanguage" },
+                "runtimeEnv": { "shape": "TransformationRuntimeEnv" },
                 "platformConfig": { "shape": "TransformationPlatformConfig" }
             }
+        },
+        "TransformationRuntimeEnv": {
+            "type": "structure",
+            "members": {
+                "java": { "shape": "TransformationJavaRuntimeEnv" },
+                "dotNet": { "shape": "TransformationDotNetRuntimeEnv" }
+            },
+            "union": true
         },
         "TransformationSpec": {
             "type": "structure",

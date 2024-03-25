@@ -59,15 +59,21 @@ export function getCWStartTransformRequest(
         transformationSpec: {
             transformationType: 'LANGUAGE_UPGRADE',
             source: {
-                language: sourceFramework,
+                language: 'C_SHARP',
+                runtimeEnv: {
+                    dotNet: sourceFramework,
+                },
                 platformConfig: {
                     operatingSystemFamily: 'WINDOWS',
                 },
             },
             target: {
-                language: targetFrameworkMap.has(userInputRequest.TargetFramework)
-                    ? targetFrameworkMap.get(userInputRequest.TargetFramework)
-                    : '',
+                language: 'C_SHARP',
+                runtimeEnv: {
+                    dotNet: targetFrameworkMap.has(userInputRequest.TargetFramework)
+                        ? targetFrameworkMap.get(userInputRequest.TargetFramework)
+                        : '',
+                },
                 platformConfig: {
                     operatingSystemFamily: 'LINUX',
                 },
