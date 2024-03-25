@@ -1,7 +1,7 @@
-import * as archiverClass from 'archiver'
-import * as cryptoClass from 'crypto'
-import * as fsClass from 'fs'
-import * as pathClass from 'path'
+import * as crypto from 'crypto'
+import * as archiver from 'archiver'
+import * as fs from 'fs'
+import path = require('path')
 import { QNetStartTransformRequest, RequirementJson } from './models'
 import { Workspace, Logging } from '@aws/language-server-runtimes/out/features'
 const requriementJsonFileName = 'requirement.json'
@@ -23,13 +23,17 @@ export class ArtifactManager {
         await this.copySoureFiles(request, basePath)
         return await this.zipArtifact(basePath)
     }
-
+    async removeDir(dir: string) {
+        if (await this.workspace.fs.exists(dir)) {
+            await this.workspace.fs.remove(dir)
+        }
+    }
     cleanup(basePath: string) {
         try {
-            const artifactFolder = pathClass.join(basePath, artifactFolderName)
-            const zipFile = pathClass.join(basePath, zipFileName)
-            fsClass.rmSync(artifactFolder, { recursive: true, force: true })
-            fsClass.unlinkSync(zipFile)
+            const artifactFolder = path.join(basePath, artifactFolderName)
+            const zipFile = path.join(basePath, zipFileName)
+            fs.rmSync(artifactFolder, { recursive: true, force: true })
+            fs.unlinkSync(zipFile)
         } catch (error) {
             this.logging.log('failed to cleanup:' + error)
         }
@@ -93,49 +97,49 @@ export class ArtifactManager {
     }
 
     async zipArtifact(basePath: string): Promise<string> {
-        const folderPath = pathClass.join(basePath, artifactFolderName)
-        if (!fsClass.existsSync(folderPath)) {
+        const folderPath = path.join(basePath, artifactFolderName)
+        if (!fs.existsSync(folderPath)) {
             this.logging.log('cannot find artifact folder')
             return ''
         }
-        const zipPath = pathClass.join(basePath, zipFileName)
+        const zipPath = path.join(basePath, zipFileName)
         this.logging.log('zipping files to' + zipPath)
         await this.zipDirectory(folderPath, zipPath)
         return zipPath
     }
 
     static getSha256(fileName: string) {
-        const hasher = cryptoClass.createHash('sha256')
-        hasher.update(fsClass.readFileSync(fileName))
+        const hasher = crypto.createHash('sha256')
+        hasher.update(fs.readFileSync(fileName))
         return hasher.digest('base64')
     }
 
     getRequirementJsonPath(basePath: string): string {
-        const dir = pathClass.join(basePath, artifactFolderName)
+        const dir = path.join(basePath, artifactFolderName)
         this.createFolderIfNotExist(dir)
         return dir
     }
 
     getReferencePathFromRelativePath(basePath: string, relativePath: string): string {
-        return pathClass.join(basePath, artifactFolderName, referenceFolderName, relativePath)
+        return path.join(basePath, artifactFolderName, referenceFolderName, relativePath)
     }
 
     getSourceCodePathFromRelativePath(basePath: string, relativePath: string): string {
-        return pathClass.join(basePath, artifactFolderName, relativePath)
+        return path.join(basePath, artifactFolderName, relativePath)
     }
 
     normalizeSourceFileRelativePath(solutionRootPath: string, fullPath: string) {
         if (fullPath.startsWith(solutionRootPath))
-            return pathClass.join(sourceCodeFolderName, fullPath.replace(solutionRootPath, ''))
+            return path.join(sourceCodeFolderName, fullPath.replace(solutionRootPath, ''))
         else {
             const relativePath = fullPath.substring(fullPath.indexOf(':\\') + 2, fullPath.length)
-            return pathClass.join(sourceCodeFolderName, relativePath)
+            return path.join(sourceCodeFolderName, relativePath)
         }
     }
 
     zipDirectory(sourceDir: string, outPath: string) {
-        const archive = archiverClass('zip', { zlib: { level: 9 } })
-        const stream = fsClass.createWriteStream(outPath)
+        const archive = archiver('zip', { zlib: { level: 9 } })
+        const stream = fs.createWriteStream(outPath)
 
         return new Promise<void>((resolve, reject) => {
             archive
@@ -149,20 +153,20 @@ export class ArtifactManager {
     }
 
     async writeRequirmentJsonAsync(dir: string, fileContent: string) {
-        const fileName = pathClass.join(dir, requriementJsonFileName)
-        fsClass.writeFileSync(fileName, fileContent)
+        const fileName = path.join(dir, requriementJsonFileName)
+        fs.writeFileSync(fileName, fileContent)
     }
 
     createFolderIfNotExist(dir: string) {
-        if (!fsClass.existsSync(dir)) {
-            fsClass.mkdirSync(dir, { recursive: true })
+        if (!fs.existsSync(dir)) {
+            fs.mkdirSync(dir, { recursive: true })
         }
     }
 
     copyFile(sourceFilePath: string, destFilePath: string) {
-        const dir = pathClass.dirname(destFilePath)
+        const dir = path.dirname(destFilePath)
         this.createFolderIfNotExist(dir)
-        fsClass.copyFile(sourceFilePath, destFilePath, err => {
+        fs.copyFile(sourceFilePath, destFilePath, err => {
             if (err) {
                 this.logging.log('failed to copy: ' + sourceFilePath + err)
             }
