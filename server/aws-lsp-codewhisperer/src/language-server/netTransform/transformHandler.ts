@@ -8,6 +8,7 @@ import {
     StopTransformationRequest,
 } from '../../client/token/codewhispererbearertokenclient'
 import { CodeWhispererServiceToken } from '../codeWhispererService'
+import { ArtifactManager } from './artifactManager'
 import { getCWStartTransformRequest, getCWStartTransformResponse } from './converter'
 import {
     CancellationJobStatus,
@@ -20,17 +21,18 @@ import {
     QNetStartTransformRequest,
     QNetStartTransformResponse,
 } from './models'
-import { cleanup, createZip, getSha256 } from './utils'
 import got from 'got'
 
 export class TransformHandler {
     private client: CodeWhispererServiceToken
     private workspace: Workspace
     private logging: Logging
+    private artifactManager: ArtifactManager
     constructor(client: CodeWhispererServiceToken, workspace: Workspace, logging: Logging) {
         this.client = client
         this.workspace = workspace
         this.logging = logging
+        this.artifactManager = new ArtifactManager(workspace, logging)
     }
 
     async startTransformation(userInputrequest: QNetStartTransformRequest): Promise<QNetStartTransformResponse> {
@@ -50,6 +52,7 @@ export class TransformHandler {
 
     async preTransformationUploadCode(userInputrequest: QNetStartTransformRequest): Promise<string> {
         let uploadId = ''
+
         const randomPath = uuidv4().substring(0, 4)
         const workspacePath = path.join(this.workspace.fs.getTempDirPath(), randomPath)
         try {
@@ -61,13 +64,13 @@ export class TransformHandler {
             const errorMessage = (error as Error).message ?? 'Failed to upload zip file'
             throw new Error(errorMessage)
         } finally {
-            cleanup(workspacePath)
+            this.artifactManager.cleanup(workspacePath)
         }
         return uploadId
     }
 
     async uploadPayloadAsync(payloadFileName: string): Promise<string> {
-        const sha256 = getSha256(payloadFileName)
+        const sha256 = ArtifactManager.getSha256(payloadFileName)
         let response: CreateUploadUrlResponse
         try {
             const apiStartTime = Date.now()
@@ -94,7 +97,7 @@ export class TransformHandler {
 
     async zipCodeAsync(request: QNetStartTransformRequest, basePath: string): Promise<string> {
         try {
-            return await createZip(request, basePath)
+            return await this.artifactManager.createZip(request, basePath)
         } catch (e: any) {
             this.logging.log('cause:' + e)
         }
@@ -102,13 +105,13 @@ export class TransformHandler {
     }
 
     async uploadArtifactToS3Async(fileName: string, resp: CreateUploadUrlResponse) {
-        const sha256 = getSha256(fileName)
+        const sha256 = ArtifactManager.getSha256(fileName)
         const headersObj = this.getHeadersObj(sha256, resp.kmsKeyArn)
         try {
             const response = await got.put(resp.uploadUrl, {
                 body: fs.readFileSync(fileName),
                 headers: headersObj,
-                })
+            })
 
             this.logging.log(`CodeTransform: Response from S3 Upload = ${response}`)
         } catch (e: any) {
