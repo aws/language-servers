@@ -52,7 +52,6 @@ export class TransformHandler {
 
     async preTransformationUploadCode(userInputrequest: QNetStartTransformRequest): Promise<string> {
         let uploadId = ''
-
         const randomPath = uuidv4().substring(0, 4)
         const workspacePath = path.join(this.workspace.fs.getTempDirPath(), randomPath)
         try {
@@ -205,7 +204,7 @@ export class TransformHandler {
         return new Promise(r => setTimeout(r, Math.max(duration, 0)))
     }
 
-    async pollTransformation(request: QNetGetTransformRequest) {
+    async pollTransformation(request: QNetGetTransformRequest, validExitStatus: string[], failureStates: string[]) {
         let timer = 0
 
         const getCodeTransformationRequest = {
@@ -214,9 +213,12 @@ export class TransformHandler {
         this.logging.log('poll : send request to get transform  api: ' + JSON.stringify(getCodeTransformationRequest))
         let response = await this.client.codeModernizerGetCodeTransformation(getCodeTransformationRequest)
         this.logging.log('poll : received response from get transform  api: ' + JSON.stringify(response))
-        let status = response.transformationJob.status
+        let status = response?.transformationJob?.status ?? 'NOT_FOUND'
 
-        while (status != 'Timed_out' && status != 'FAILED') {
+        this.logging.log('validExitStatus here are : '+ validExitStatus)
+        this.logging.log('failureStatus here are : '+ failureStates)
+
+        while (status != 'Timed_out' && !failureStates.includes(status)) {
             try {
                 const apiStartTime = Date.now()
 
@@ -230,18 +232,22 @@ export class TransformHandler {
                 this.logging.log('poll : received response from get transform  api: ' + JSON.stringify(response))
                 this.logging.log('poll : job status here : ' + response.transformationJob.status)
 
+                if (response.transformationJob?.status) {
+                    this.logging.log(
+                        'status is included in validExitSTatus for poll '+
+                        validExitStatus.includes(response.transformationJob.status)
+                    )
+                }
+
+                if (validExitStatus.includes(status)) {
+                    this.logging.log('returning status as : '+ status)
+                    break
+                }
+
                 status = response.transformationJob.status!
                 await this.sleep(10 * 1000)
                 timer += 10
                 this.logging.log('current polling timer ' + timer)
-
-                //adding this block only for staging
-                if (timer >= 20) {
-                    response.transformationJob.status = 'COMPLETED'
-                    this.logging.log('returning completed response')
-                    break
-                }
-                //delete above when API is actually implemented
 
                 if (timer > 24 * 3600 * 1000) {
                     status = 'Timed_out'
@@ -249,12 +255,14 @@ export class TransformHandler {
                 }
             } catch (e: any) {
                 const errorMessage = (e as Error).message ?? 'Error in GetTransformation API call'
-                this.logging.log('CodeTransformation: GetTransformation error = ' + errorMessage)
+                this.logging.log('CodeTransformation: GetTransformation error = '+ errorMessage)
                 status = 'FAILED'
                 break
             }
         }
-        this.logging.log('poll : returning response : ' + JSON.stringify(response))
-        return response
+        this.logging.log('poll : returning response from server : ' + JSON.stringify(response))
+        return {
+            TransformationJob: response.transformationJob,
+        } as QNetGetTransformResponse
     }
 }

@@ -17,7 +17,7 @@ export class ArtifactManager {
         this.workspace = workspace
         this.logging = logging
     }
-    async createZip(request: QNetStartTransformRequest, basePath: string) {
+    async createZip(request: QNetStartTransformRequest, basePath: string): Promise<string> {
         await this.createRequirementJson(request, basePath)
         await this.copyReferenceDlls(request, basePath)
         await this.copySoureFiles(request, basePath)
@@ -63,25 +63,27 @@ export class ArtifactManager {
     }
 
     async createRequirementJsonContent(request: QNetStartTransformRequest): Promise<RequirementJson> {
-        const projectToReference = request.ProjectMetadata.map(p => {
-            return {
-                project: this.normalizeSourceFileRelativePath(request.SolutionRootPath, p.ProjectPath),
-                references: p.ExternalReferences.map(r => {
-                    return {
-                        AssemblyFullPath: '',
-                        IncludedInArtifact: r.IncludedInArtifact,
-                        ProjectPath: this.normalizeSourceFileRelativePath(request.SolutionRootPath, r.ProjectPath),
-                        RelativePath: r.RelativePath,
-                        TargetFrameworkId: r.TargetFrameworkId,
-                    }
-                }),
-            }
-        })
-        const fileContent: RequirementJson = {
-            ProjectToReference: projectToReference,
+        const entryPath = this.normalizeSourceFileRelativePath(request.SolutionRootPath, request.SelectedProjectPath)
+    const projectToReference = request.ProjectMetadata.map(p => {
+        return {
+            project: this.normalizeSourceFileRelativePath(request.SolutionRootPath, p.ProjectPath),
+            references: p.ExternalReferences.map(r => {
+                return {
+                    AssemblyFullPath: '',
+                    IncludedInArtifact: r.IncludedInArtifact,
+                    ProjectPath: this.normalizeSourceFileRelativePath(request.SolutionRootPath, r.ProjectPath),
+                    RelativePath: r.RelativePath,
+                    TargetFrameworkId: r.TargetFrameworkId,
+                }
+            }),
         }
-        this.logging.log('total project reference:' + projectToReference.length)
-        return fileContent
+    })
+    const fileContent: RequirementJson = {
+        EntryPath: entryPath,
+        ProjectToReference: projectToReference,
+    }
+    this.logging.log('total project reference:' + projectToReference.length)
+    return fileContent
     }
 
     filterReferences(request: QNetStartTransformRequest) {

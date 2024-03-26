@@ -5,6 +5,7 @@ export interface QNetStartTransformRequest extends ExecuteCommandParams {
     SolutionRootPath: string
     TargetFramework: string
     ProgramLanguage: string
+    SelectedProjectPath: string
     SourceCodeFilePaths: string[]
     ProjectMetadata: QNetTransformProjectMetadata[]
 }
@@ -51,7 +52,13 @@ export interface QNetCancelTransformResponse {
     TransformationJobStatus: CancellationJobStatus
 }
 
+export interface QNetDownloadArtifactsRespone {
+    PathTosave: string
+    Error: string
+}
+
 export interface RequirementJson {
+    EntryPath: string
     ProjectToReference: ProjectToReference[]
 }
 
