@@ -10,6 +10,10 @@ import {
 } from './netTransform/models'
 import { TransformHandler } from './netTransform/transformHandler'
 
+export const validStatesForGettingPlan = ['COMPLETED', 'PARTIALLY_COMPLETED', 'PLANNED', 'TRANSFORMING', 'TRANSFORMED']
+export const validStatesForComplete = ['COMPLETED']
+export const failureStates = ['FAILED', 'STOPPING', 'STOPPED', 'REJECTED']
+
 /**
  *
  * @param createService Inject service instance based on credentials provider.
@@ -42,9 +46,32 @@ export const NetTransformServerFactory: (
                     case 'aws/qNetTransform/pollTransform': {
                         const request = params as QNetGetTransformRequest
                         logging.log('Calling pollTransform request with job Id: ' + request.TransformationJobId)
-                        const transformationJob = await transformHandler.pollTransformation(request)
+                        const transformationJob = await transformHandler.pollTransformation(
+                            request,
+                            validStatesForComplete,
+                            failureStates
+                        )
                         logging.log(
-                            'Transformation job for job Id' + request.TransformationJobId + ' is ' + transformationJob
+                            'Transformation job for job Id' +
+                                request.TransformationJobId +
+                                ' is ' +
+                                JSON.stringify(transformationJob)
+                        )
+                        return transformationJob
+                    }
+                    case 'aws/qNetTransform/pollTransformForPlan': {
+                        const request = params as QNetGetTransformRequest
+                        logging.log('Calling pollTransformForPlan request with job Id: ' + request.TransformationJobId)
+                        const transformationJob = await transformHandler.pollTransformation(
+                            request,
+                            validStatesForGettingPlan,
+                            failureStates
+                        )
+                        logging.log(
+                            'Transformation job for job Id' +
+                                request.TransformationJobId +
+                                ' is ' +
+                                JSON.stringify(transformationJob)
                         )
                         return transformationJob
                     }
@@ -53,7 +80,10 @@ export const NetTransformServerFactory: (
                         logging.log('Calling getTransformPlan request with job Id: ' + request.TransformationJobId)
                         const transformationPlan = await transformHandler.getTransformationPlan(request)
                         logging.log(
-                            'Transformation plan for job Id' + request.TransformationJobId + ' is ' + transformationPlan
+                            'Transformation plan for job Id' +
+                                request.TransformationJobId +
+                                ' is ' +
+                                JSON.stringify(transformationPlan)
                         )
                         return transformationPlan
                     }
