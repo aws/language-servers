@@ -305,6 +305,8 @@ To build and test Language Servers with AWS Runtime, follow these steps:
     cd language-server-runtimes && npm install && npm run compile && npm link
     ```
 
+**Note**: Since v0.2.0, we need to create a link to `/language-server-runtimes/out` directory to preserve correct imports structure. A package published to NPM uses sources from `out` folder, not the repository root.
+
 3. Install dependencies in `language-servers` folder:
 
     **Note:** We are temporarily commiting a snapshot of `language-server-runtimes` package as zip archive and use it as npm dependency for some servers. To develop and build language servers with local checkout of `language-server-runtimes`, for servers develped in ./server directory change `"@aws/language-server-runtimes"` dependency to point to `"*"` instead of file path before running `npm install`.
