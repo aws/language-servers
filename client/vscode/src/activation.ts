@@ -9,6 +9,7 @@ import * as path from 'path'
 import { ExtensionContext, workspace } from 'vscode'
 
 import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind } from 'vscode-languageclient/node'
+import { registerChatCommand } from './chatActivation'
 import {
     configureCredentialsCapabilities,
     registerBearerTokenProviderSupport,
@@ -117,6 +118,11 @@ export async function activateDocumentsLanguageServer(extensionContext: Extensio
     const enableCustomCommands = process.env.ENABLE_CUSTOM_COMMANDS === 'true'
     if (enableCustomCommands) {
         await registerLogCommand(client, extensionContext)
+    }
+
+    const enableChatDemo = process.env.ENABLE_CHAT_DEMO === 'true'
+    if (enableChatDemo) {
+        registerChatCommand(client)
     }
 
     client.start()

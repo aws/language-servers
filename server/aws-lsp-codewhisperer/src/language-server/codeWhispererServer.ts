@@ -1,15 +1,15 @@
 import {
-    Server,
-    CredentialsProvider,
-    Telemetry,
     CancellationToken,
+    CredentialsProvider,
     InlineCompletionItemWithReferences,
     InlineCompletionListWithReferences,
+    InlineCompletionTriggerKind,
     InlineCompletionWithReferencesParams,
     LogInlineCompletionSessionResultsParams,
-    InlineCompletionTriggerKind,
     Position,
     Range,
+    Server,
+    Telemetry,
     TextDocument,
 } from '@aws/language-server-runtimes/server-interface'
 import { AWSError } from 'aws-sdk'
@@ -21,7 +21,7 @@ import {
     Suggestion,
 } from './codeWhispererService'
 import { CodewhispererLanguage, getSupportedLanguageId } from './languageDetection'
-import { getPrefixSuffixOverlap, truncateOverlapWithRightContext } from './mergeRightUtils'
+import { truncateOverlapWithRightContext } from './mergeRightUtils'
 import { CodeWhispererSession, SessionManager } from './session/sessionManager'
 import { CodePercentageTracker } from './telemetry/codePercentage'
 import {
@@ -257,18 +257,6 @@ const mergeSuggestionsWithRightContext = (
             references: references?.length ? references : undefined,
         }
     })
-}
-
-// Checks if any suggestion in list of suggestions matches with left context of the file
-const hasLeftContextMatch = (suggestions: Suggestion[], leftFileContent: string): boolean => {
-    for (const suggestion of suggestions) {
-        const overlap = getPrefixSuffixOverlap(leftFileContent, suggestion.content)
-
-        if (overlap.length > 0 && overlap != suggestion.content) {
-            return true
-        }
-    }
-    return false
 }
 
 export const CodewhispererServerFactory =

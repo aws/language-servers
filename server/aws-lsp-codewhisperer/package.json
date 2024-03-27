@@ -22,6 +22,7 @@
         "fix:prettier": "prettier . --write"
     },
     "dependencies": {
+        "@amzn/codewhisperer-streaming": "*",
         "@aws/language-server-runtimes": "^0.2.0",
         "adm-zip": "^0.5.10",
         "aws-sdk": "^2.1403.0",

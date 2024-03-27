@@ -33,7 +33,11 @@ export interface SsoAccess {
 }
 
 export const ssoAccountAccessScopes = ['sso:account:access']
-export const codewhispererScopes = ['codewhisperer:completions', 'codewhisperer:analysis']
+export const codewhispererScopes = [
+    'codewhisperer:completions',
+    'codewhisperer:analysis',
+    `codewhisperer:conversations`,
+]
 export const defaultSsoRegion = 'us-east-1'
 const defaultScopes = [...ssoAccountAccessScopes, ...codewhispererScopes]
 const clientRegistrationType = 'public'
@@ -122,7 +126,10 @@ export interface SsoConnection extends SsoProfile {
 }
 
 export class OidcClient {
-    public constructor(private readonly client: SSOOIDC, private readonly clock: { Date: typeof Date }) {}
+    public constructor(
+        private readonly client: SSOOIDC,
+        private readonly clock: { Date: typeof Date }
+    ) {}
 
     public async registerClient(request: RegisterClientRequest) {
         const response = await this.client.registerClient(request)
