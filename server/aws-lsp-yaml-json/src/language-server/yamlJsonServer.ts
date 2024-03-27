@@ -1,11 +1,11 @@
-import { Server } from '@aws/language-server-runtimes'
+import { Server } from '@aws/language-server-runtimes/server-interface'
 import { AwsLanguageService } from '@aws/lsp-core/out/base'
 import {
     CancellationToken,
     CompletionList,
     CompletionParams,
     DidChangeTextDocumentParams,
-} from 'vscode-languageserver/node'
+} from '@aws/language-server-runtimes/server-interface'
 import { create } from './yamlJsonService'
 
 /**

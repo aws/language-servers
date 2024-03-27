@@ -1,14 +1,18 @@
-import { Server } from '@aws/language-server-runtimes'
-import { CredentialsProvider, Telemetry } from '@aws/language-server-runtimes/out/features'
 import {
+    Server,
+    CredentialsProvider,
+    Telemetry,
+    CancellationToken,
     InlineCompletionItemWithReferences,
     InlineCompletionListWithReferences,
     InlineCompletionWithReferencesParams,
     LogInlineCompletionSessionResultsParams,
-} from '@aws/language-server-runtimes/out/features/lsp/inline-completions/protocolExtensions'
+    InlineCompletionTriggerKind,
+    Position,
+    Range,
+    TextDocument,
+} from '@aws/language-server-runtimes/server-interface'
 import { AWSError } from 'aws-sdk'
-import { CancellationToken, InlineCompletionTriggerKind, Range } from 'vscode-languageserver'
-import { Position, TextDocument } from 'vscode-languageserver-textdocument'
 import { autoTrigger, triggerType } from './auto-trigger/autoTrigger'
 import {
     CodeWhispererServiceBase,

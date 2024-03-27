@@ -1,5 +1,4 @@
-import { Logging, Workspace } from '@aws/language-server-runtimes/out/features'
-import { TextDocument } from 'vscode-languageserver-textdocument'
+import { Logging, Workspace, TextDocument } from '@aws/language-server-runtimes/server-interface'
 import { CsharpDependencyGraph } from './csharpDependencyGraph'
 
 const languageMap = {
