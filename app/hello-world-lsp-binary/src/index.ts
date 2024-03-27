@@ -1,5 +1,5 @@
-import { standalone } from '@aws/language-server-runtimes/out/runtimes'
-import { RuntimeProps } from '@aws/language-server-runtimes/out/runtimes/runtime'
+import { standalone } from '@aws/language-server-runtimes/runtimes'
+import { RuntimeProps } from '@aws/language-server-runtimes/runtimes/runtime'
 import { HelloWorldServer } from '@aws/hello-world-lsp'
 
 const MAJOR = 0

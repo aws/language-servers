@@ -1,7 +1,10 @@
-import { Server } from '@aws/language-server-runtimes'
-import { CredentialsProvider } from '@aws/language-server-runtimes/out/features'
+import {
+    Server,
+    CredentialsProvider,
+    CancellationToken,
+    ExecuteCommandParams,
+} from '@aws/language-server-runtimes/server-interface'
 import { pathToFileURL } from 'url'
-import { CancellationToken, ExecuteCommandParams } from 'vscode-languageserver'
 import { ArtifactMap } from '../client/token/codewhispererbearertokenclient'
 import { CodeWhispererServiceToken } from './codeWhispererService'
 import { DependencyGraphFactory } from './dependencyGraph/dependencyGraphFactory'

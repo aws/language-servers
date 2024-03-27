@@ -1,5 +1,4 @@
-import { CredentialsProvider } from '@aws/language-server-runtimes/out/features'
-import { BearerCredentials } from '@aws/language-server-runtimes/out/features/auth/auth'
+import { CredentialsProvider, BearerCredentials } from '@aws/language-server-runtimes/server-interface'
 import { AWSError, CredentialProviderChain, Credentials } from 'aws-sdk'
 import { PromiseResult } from 'aws-sdk/lib/request'
 import { v4 as uuidv4 } from 'uuid'

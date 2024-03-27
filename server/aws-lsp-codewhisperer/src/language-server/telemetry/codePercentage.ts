@@ -1,4 +1,4 @@
-import { Telemetry } from '@aws/language-server-runtimes/out/features'
+import { Telemetry } from '@aws/language-server-runtimes/server-interface'
 import { CodeWhispererCodePercentageEvent } from './types'
 
 const CODE_PERCENTAGE_INTERVAL = 5 * 60 * 1000

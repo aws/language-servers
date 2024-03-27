@@ -1,4 +1,4 @@
-import { Logging, Workspace } from '@aws/language-server-runtimes/out/features'
+import { Logging, Workspace } from '@aws/language-server-runtimes/server-interface'
 import * as path from 'path'
 import { sleep } from './commonUtil'
 import * as CodeWhispererConstants from './constants'
