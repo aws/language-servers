@@ -64,26 +64,26 @@ export class ArtifactManager {
 
     async createRequirementJsonContent(request: QNetStartTransformRequest): Promise<RequirementJson> {
         const entryPath = this.normalizeSourceFileRelativePath(request.SolutionRootPath, request.SelectedProjectPath)
-    const projectToReference = request.ProjectMetadata.map(p => {
-        return {
-            project: this.normalizeSourceFileRelativePath(request.SolutionRootPath, p.ProjectPath),
-            references: p.ExternalReferences.map(r => {
-                return {
-                    AssemblyFullPath: '',
-                    IncludedInArtifact: r.IncludedInArtifact,
-                    ProjectPath: this.normalizeSourceFileRelativePath(request.SolutionRootPath, r.ProjectPath),
-                    RelativePath: r.RelativePath,
-                    TargetFrameworkId: r.TargetFrameworkId,
-                }
-            }),
+        const projectToReference = request.ProjectMetadata.map(p => {
+            return {
+                project: this.normalizeSourceFileRelativePath(request.SolutionRootPath, p.ProjectPath),
+                references: p.ExternalReferences.map(r => {
+                    return {
+                        AssemblyFullPath: '',
+                        IncludedInArtifact: r.IncludedInArtifact,
+                        ProjectPath: this.normalizeSourceFileRelativePath(request.SolutionRootPath, r.ProjectPath),
+                        RelativePath: r.RelativePath,
+                        TargetFrameworkId: r.TargetFrameworkId,
+                    }
+                }),
+            }
+        })
+        const fileContent: RequirementJson = {
+            EntryPath: entryPath,
+            ProjectToReference: projectToReference,
         }
-    })
-    const fileContent: RequirementJson = {
-        EntryPath: entryPath,
-        ProjectToReference: projectToReference,
-    }
-    this.logging.log('total project reference:' + projectToReference.length)
-    return fileContent
+        this.logging.log('total project reference:' + projectToReference.length)
+        return fileContent
     }
 
     filterReferences(request: QNetStartTransformRequest) {

@@ -40,8 +40,8 @@ export function getCWStartTransformRequest(
         targetProject == undefined
             ? ''
             : targetFrameworkMap.has(targetProject.ProjectTargetFramework)
-            ? targetFrameworkMap.get(targetProject.ProjectTargetFramework)
-            : ''
+              ? targetFrameworkMap.get(targetProject.ProjectTargetFramework)
+              : ''
     return {
         workspaceState: {
             uploadId: uploadId,

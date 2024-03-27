@@ -215,8 +215,8 @@ export class TransformHandler {
         this.logging.log('poll : received response from get transform  api: ' + JSON.stringify(response))
         let status = response?.transformationJob?.status ?? 'NOT_FOUND'
 
-        this.logging.log('validExitStatus here are : '+ validExitStatus)
-        this.logging.log('failureStatus here are : '+ failureStates)
+        this.logging.log('validExitStatus here are : ' + validExitStatus)
+        this.logging.log('failureStatus here are : ' + failureStates)
 
         while (status != 'Timed_out' && !failureStates.includes(status)) {
             try {
@@ -234,13 +234,13 @@ export class TransformHandler {
 
                 if (response.transformationJob?.status) {
                     this.logging.log(
-                        'status is included in validExitSTatus for poll '+
-                        validExitStatus.includes(response.transformationJob.status)
+                        'status is included in validExitSTatus for poll ' +
+                            validExitStatus.includes(response.transformationJob.status)
                     )
                 }
 
                 if (validExitStatus.includes(status)) {
-                    this.logging.log('returning status as : '+ status)
+                    this.logging.log('returning status as : ' + status)
                     break
                 }
 
@@ -255,7 +255,7 @@ export class TransformHandler {
                 }
             } catch (e: any) {
                 const errorMessage = (e as Error).message ?? 'Error in GetTransformation API call'
-                this.logging.log('CodeTransformation: GetTransformation error = '+ errorMessage)
+                this.logging.log('CodeTransformation: GetTransformation error = ' + errorMessage)
                 status = 'FAILED'
                 break
             }
