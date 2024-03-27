@@ -1,5 +1,14 @@
 import { Server } from '@aws/language-server-runtimes/server-interface'
 import { AwsLanguageService } from '@aws/lsp-core/out/base'
+import { TextDocument, Range } from 'vscode-languageserver-textdocument'
+import {
+    Hover,
+    HoverParams,
+    DidOpenTextDocumentParams,
+    DocumentFormattingParams,
+    FormattingOptions,
+    TextEdit,
+} from 'vscode-languageserver'
 import {
     CancellationToken,
     CompletionList,
@@ -23,6 +32,8 @@ export const YamlJsonServerFactory =
             return {
                 capabilities: {
                     completionProvider: { resolveProvider: true },
+                    hoverProvider: true,
+                    documentFormattingProvider: true,
                 },
             }
         }
@@ -44,6 +55,16 @@ export const YamlJsonServerFactory =
             return completions ?? emptyCompletionList
         }
 
+        const onHoverHandler = async (params: HoverParams, _token: CancellationToken): Promise<Hover | null> => {
+            const textDocument = await workspace.getTextDocument(params.textDocument.uri)
+            if (!textDocument) {
+                logging.log(`textDocument [${params.textDocument.uri}] not found`)
+                return null
+            }
+            const hover = await service.doHover(textDocument, params.position)
+            return hover
+        }
+
         const onDidChangeTextDocumentHandler = async (params: DidChangeTextDocumentParams): Promise<any> => {
             const textDocument = await workspace.getTextDocument(params.textDocument.uri)
             if (!textDocument) {
@@ -59,9 +80,56 @@ export const YamlJsonServerFactory =
             })
         }
 
+        const onDidOpenTextDocumentHandler = async (params: DidOpenTextDocumentParams): Promise<any> => {
+            let textDocument = await workspace.getTextDocument(params.textDocument.uri)
+            if (!textDocument) {
+                textDocument = TextDocument.create(
+                    params.textDocument.uri,
+                    params.textDocument.languageId,
+                    params.textDocument.version,
+                    params.textDocument.text
+                )
+            }
+
+            const diagnostics = await service.doValidation(textDocument)
+
+            await lsp.publishDiagnostics({
+                uri: params.textDocument.uri,
+                diagnostics: diagnostics,
+            })
+        }
+
+        const onFormatHandler = async (params: DocumentFormattingParams): Promise<TextEdit[] | null> => {
+            const getTextDocumentFullRange = (textDocument: TextDocument): Range => {
+                return {
+                    start: {
+                        line: 0,
+                        character: 0,
+                    },
+                    end: {
+                        line: textDocument.lineCount,
+                        character: 0,
+                    },
+                }
+            }
+
+            const textDocument = await workspace.getTextDocument(params.textDocument.uri)
+            if (!textDocument) {
+                logging.log(`textDocument [${params.textDocument.uri}] not found`)
+                return null
+            }
+
+            const format = service.format(textDocument, getTextDocumentFullRange(textDocument), {} as FormattingOptions)
+
+            return format
+        }
+
         lsp.onInitialized(onInitializedHandler)
         lsp.onCompletion(onCompletionHandler)
         lsp.onDidChangeTextDocument(onDidChangeTextDocumentHandler)
+        lsp.onDidOpenTextDocument(onDidOpenTextDocumentHandler)
+        lsp.onHover(onHoverHandler)
+        lsp.onDidFormatDocument(onFormatHandler)
         lsp.addInitializer(onInitializeHandler)
 
         logging.log('The YAML JSON LSP Language Server has been initialised')
