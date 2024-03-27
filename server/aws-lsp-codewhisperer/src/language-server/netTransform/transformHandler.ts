@@ -1,4 +1,4 @@
-import { Workspace, Logging } from '@aws/language-server-runtimes/out/features'
+import { Workspace, Logging } from '@aws/language-server-runtimes/server-interface'
 import path = require('path')
 import { v4 as uuidv4 } from 'uuid'
 import * as fs from 'fs'

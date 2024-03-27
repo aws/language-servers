@@ -9,11 +9,11 @@
         "test-unit": "mocha './out/**/*.test.js'"
     },
     "dependencies": {
-        "jose": "^4.14.4",
+        "jose": "^4.15.5",
         "vscode-languageserver-textdocument": "^1.0.8",
         "vscode-languageserver-types": "^3.17.3",
         "vscode-uri": "^3.0.7",
-        "request-light": "^0.5.7"
+        "request-light": "^0.7.0"
     },
     "devDependencies": {
         "@types/chai": "^4.3.5",

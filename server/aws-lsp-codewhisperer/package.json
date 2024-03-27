@@ -22,16 +22,14 @@
         "fix:prettier": "prettier . --write"
     },
     "dependencies": {
-        "@aws/language-server-runtimes": "file:../../bin/aws-language-server-runtimes-0.1.1.tgz",
+        "@aws/language-server-runtimes": "^0.2.0",
         "adm-zip": "^0.5.10",
         "archiver": "^6.0.1",
         "aws-sdk": "^2.1403.0",
         "got": "^11.8.5",
         "js-md5": "^0.8.3",
         "proxy-http-agent": "^1.0.1",
-        "uuid": "^9.0.1",
-        "vscode-languageserver": "^9.0.1",
-        "vscode-languageserver-textdocument": "^1.0.8"
+        "uuid": "^9.0.1"
     },
     "devDependencies": {
         "@types/archiver": "^6.0.2",
@@ -41,7 +39,8 @@
         "assert": "^2.1.0",
         "copyfiles": "^2.4.1",
         "ts-mocha": "^10.0.0",
-        "ts-sinon": "^2.0.2"
+        "ts-sinon": "^2.0.2",
+        "vscode-languageserver-textdocument": "^1.0.11"
     },
     "prettier": {
         "printWidth": 120,

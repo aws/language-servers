@@ -1,0 +1,5 @@
+export { AwsLanguageService } from '../language-service/awsLanguageService'
+export { MutuallyExclusiveLanguageService } from '../language-service/mutuallyExclusiveLanguageService'
+export { UriResolver } from '../content/uriResolver'
+export * as completionItemUtils from '../util/completionItemUtils'
+export * as textDocumentUtils from '../util/textDocumentUtils'

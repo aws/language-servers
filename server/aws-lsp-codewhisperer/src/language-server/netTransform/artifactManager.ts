@@ -3,7 +3,7 @@ import * as archiver from 'archiver'
 import * as fs from 'fs'
 import path = require('path')
 import { QNetStartTransformRequest, RequirementJson } from './models'
-import { Workspace, Logging } from '@aws/language-server-runtimes/out/features'
+import { Workspace, Logging } from '@aws/language-server-runtimes/server-interface'
 const requriementJsonFileName = 'requirement.json'
 const artifactFolderName = 'artifact'
 const zipFileName = 'artifact.zip'

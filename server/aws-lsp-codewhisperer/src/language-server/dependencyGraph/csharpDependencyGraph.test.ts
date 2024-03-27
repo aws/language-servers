@@ -1,4 +1,4 @@
-import { Logging } from '@aws/language-server-runtimes/out/features'
+import { Logging } from '@aws/language-server-runtimes/server-interface'
 import * as assert from 'assert'
 import * as path from 'path'
 import * as Sinon from 'sinon'

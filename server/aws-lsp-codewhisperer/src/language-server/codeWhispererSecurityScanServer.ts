@@ -1,7 +1,10 @@
-import { Server } from '@aws/language-server-runtimes'
-import { CredentialsProvider } from '@aws/language-server-runtimes/out/features'
+import {
+    Server,
+    CredentialsProvider,
+    CancellationToken,
+    ExecuteCommandParams,
+} from '@aws/language-server-runtimes/server-interface'
 import { pathToFileURL } from 'url'
-import { CancellationToken, ExecuteCommandParams } from 'vscode-languageserver'
 import { ArtifactMap } from '../client/token/codewhispererbearertokenclient'
 import { CodeWhispererServiceToken } from './codeWhispererService'
 import { DependencyGraphFactory } from './dependencyGraph/dependencyGraphFactory'
@@ -21,6 +24,7 @@ export const SecurityScanServerToken =
 
         const runSecurityScan = async (params: SecurityScanRequestParams, token: CancellationToken) => {
             logging.log(`Starting security scan`)
+            diagnosticsProvider.resetDiagnostics()
             let jobStatus: string
             const securityScanStartTime = performance.now()
             let serviceInvocationStartTime = 0
@@ -45,8 +49,7 @@ export const SecurityScanServerToken =
                     throw new Error(`Incorrect params provided. Params: ${params}`)
                 }
                 const [arg] = params.arguments
-                const { activeFilePath, projectPath } = parseJson(arg)
-
+                const { ActiveFilePath: activeFilePath, ProjectPath: projectPath } = parseJson(arg)
                 if (!activeFilePath || !projectPath) {
                     throw new Error(`Error: file path or project path not provided. Params: ${params}`)
                 }
@@ -191,7 +194,7 @@ export const SecurityScanServerToken =
             }
             return
         }
-        logging.log('SecurityScan server has been initialized')
+        diagnosticsProvider.handleHover()
         lsp.onExecuteCommand(onExecuteCommandHandler)
         lsp.onDidChangeTextDocument(async p => {
             const textDocument = await workspace.getTextDocument(p.textDocument.uri)
@@ -205,6 +208,7 @@ export const SecurityScanServerToken =
                 await diagnosticsProvider.validateDiagnostics(p.textDocument.uri, change)
             })
         })
+        logging.log('SecurityScan server has been initialized')
 
         return () => {
             // dispose function

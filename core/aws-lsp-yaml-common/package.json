@@ -8,7 +8,7 @@
     },
     "dependencies": {
         "@aws/lsp-core": "^0.0.1",
-        "vscode-languageserver": "8.0.1",
+        "vscode-languageserver": "9.0.1",
         "yaml-language-server": "^1.13.0"
     }
 }

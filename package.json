@@ -16,8 +16,7 @@
         "format": "prettier --write .",
         "format-staged": "npx pretty-quick --staged",
         "clean": "ts-node ./script/clean.ts",
-        "compile": "npm run generateClients && tsc --build --verbose && npm run postcompile --workspaces --if-present",
-        "generateClients": "ts-node server/aws-lsp-codewhisperer/script/generateServiceClient.ts",
+        "compile": "tsc --build --verbose && npm run postcompile --workspaces --if-present",
         "watch": "tsc --build --watch",
         "test": "npm run compile && npm run test --workspaces --if-present",
         "test-integ": "npm run compile && npm run test-integ --workspaces --if-present",
@@ -30,15 +29,14 @@
         "typescript": "^5.0.4"
     },
     "devDependencies": {
-        "@types/node": "^20.2.5",
-        "@types/adm-zip": "^0.4.34",
-        "@typescript-eslint/eslint-plugin": "^5.59.9",
-        "@typescript-eslint/parser": "^5.59.9",
+        "@types/node": "^20.11.28",
+        "@typescript-eslint/eslint-plugin": "^7.3.1",
+        "@typescript-eslint/parser": "^7.3.1",
         "eslint": "^8.42.0",
-        "eslint-plugin-unused-imports": "^2.0.0",
+        "eslint-plugin-unused-imports": "^3.1.0",
         "husky": "^8.0.3",
-        "prettier": "^2.8.8",
-        "pretty-quick": "^3.1.3",
+        "prettier": "^3.2.5",
+        "pretty-quick": "^4.0.0",
         "ts-node": "^10.9.1"
     },
     "prettier": {
