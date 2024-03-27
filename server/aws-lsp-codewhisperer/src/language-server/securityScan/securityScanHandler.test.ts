@@ -1,4 +1,4 @@
-import { Logging, Workspace } from '@aws/language-server-runtimes/out/features'
+import { Logging, Workspace } from '@aws/language-server-runtimes/server-interface'
 import * as assert from 'assert'
 import { HttpResponse } from 'aws-sdk'
 import got from 'got'

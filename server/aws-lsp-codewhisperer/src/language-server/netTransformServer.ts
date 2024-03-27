@@ -1,6 +1,9 @@
-import { Server } from '@aws/language-server-runtimes'
-import { CredentialsProvider } from '@aws/language-server-runtimes/out/features/auth/auth'
-import { CancellationToken, ExecuteCommandParams } from 'vscode-languageserver'
+import {
+    Server,
+    CredentialsProvider,
+    CancellationToken,
+    ExecuteCommandParams,
+} from '@aws/language-server-runtimes/server-interface'
 import { CodeWhispererServiceToken } from './codeWhispererService'
 
 /**

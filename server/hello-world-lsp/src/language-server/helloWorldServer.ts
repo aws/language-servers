@@ -1,6 +1,11 @@
-import { Logging, Lsp, Telemetry, Workspace } from '@aws/language-server-runtimes/out/features'
-import { CredentialsProvider } from '@aws/language-server-runtimes/out/features/auth/auth'
-import { Server } from '@aws/language-server-runtimes/out/runtimes'
+import {
+    Server,
+    Logging,
+    Lsp,
+    Telemetry,
+    Workspace,
+    CredentialsProvider,
+} from '@aws/language-server-runtimes/server-interface'
 import {
     CancellationToken,
     CompletionItem,
