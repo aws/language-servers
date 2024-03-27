@@ -561,6 +561,8 @@ declare namespace CodeWhispererBearerTokenClient {
   export type TextDocumentTextString = string;
   export type TimeBetweenChunks = Double[];
   export type Timestamp = Date;
+  export type TransformationDotNetRuntimeEnv = "NET_FRAMEWORK_V_3_5"|"NET_FRAMEWORK_V_4_0"|"NET_FRAMEWORK_V_4_5"|"NET_FRAMEWORK_V_4_5_1"|"NET_FRAMEWORK_V_4_5_2"|"NET_FRAMEWORK_V_4_6"|"NET_FRAMEWORK_V_4_6_1"|"NET_FRAMEWORK_V_4_6_2"|"NET_FRAMEWORK_V_4_7"|"NET_FRAMEWORK_V_4_7_1"|"NET_FRAMEWORK_V_4_7_2"|"NET_FRAMEWORK_V_4_8"|"NET_CORE_APP_1_0"|"NET_CORE_APP_1_1"|"NET_CORE_APP_2_0"|"NET_CORE_APP_2_1"|"NET_CORE_APP_2_2"|"NET_CORE_APP_3_0"|"NET_CORE_APP_3_1"|"NET_5_0"|"NET_6_0"|"NET_7_0"|"NET_8_0"|string;
+  export type TransformationJavaRuntimeEnv = "JVM_8"|"JVM_11"|"JVM_17"|string;
   export interface TransformationJob {
     jobId?: TransformationJobId;
     transformationSpec?: TransformationSpec;
@@ -571,9 +573,13 @@ declare namespace CodeWhispererBearerTokenClient {
     endExecutionTime?: Timestamp;
   }
   export type TransformationJobId = string;
-  export type TransformationLanguage = "JAVA_8"|"JAVA_11"|"JAVA_17"|string;
+  export type TransformationLanguage = "JAVA_8"|"JAVA_11"|"JAVA_17"|"NET_FRAMEWORK_V_3_5"|"NET_FRAMEWORK_V_4_0"|"NET_FRAMEWORK_V_4_5"|"NET_FRAMEWORK_V_4_5_1"|"NET_FRAMEWORK_V_4_5_2"|"NET_FRAMEWORK_V_4_6"|"NET_FRAMEWORK_V_4_6_1"|"NET_FRAMEWORK_V_4_6_2"|"NET_FRAMEWORK_V_4_7"|"NET_FRAMEWORK_V_4_7_1"|"NET_FRAMEWORK_V_4_7_2"|"NET_FRAMEWORK_V_4_8"|"NET_CORE_APP_1_0"|"NET_CORE_APP_1_1"|"NET_CORE_APP_2_0"|"NET_CORE_APP_2_1"|"NET_CORE_APP_2_2"|"NET_CORE_APP_3_0"|"NET_CORE_APP_3_1"|"NET_5_0"|"NET_6_0"|"NET_7_0"|"NET_8_0"|"C_SHARP"|string;
+  export type TransformationOperatingSystemFamily = "WINDOWS"|"LINUX"|string;
   export interface TransformationPlan {
     transformationSteps: TransformationSteps;
+  }
+  export interface TransformationPlatformConfig {
+    operatingSystemFamily?: TransformationOperatingSystemFamily;
   }
   export interface TransformationProgressUpdate {
     name: String;
@@ -585,6 +591,12 @@ declare namespace CodeWhispererBearerTokenClient {
   export type TransformationProgressUpdateStatus = "IN_PROGRESS"|"COMPLETED"|"FAILED"|string;
   export interface TransformationProjectState {
     language?: TransformationLanguage;
+    runtimeEnv?: TransformationRuntimeEnv;
+    platformConfig?: TransformationPlatformConfig;
+  }
+  export interface TransformationRuntimeEnv {
+    java?: TransformationJavaRuntimeEnv;
+    dotNet?: TransformationDotNetRuntimeEnv;
   }
   export interface TransformationSpec {
     transformationType?: TransformationType;
