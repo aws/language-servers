@@ -1,5 +1,5 @@
-import { standalone } from '@aws/language-server-runtimes'
-import { RuntimeProps } from '@aws/language-server-runtimes/out/runtimes/runtime'
+import { standalone } from '@aws/language-server-runtimes/runtimes'
+import { RuntimeProps } from '@aws/language-server-runtimes/runtimes/runtime'
 import { YamlLanguageServer } from '@aws/aws-lsp-yaml-json'
 
 const MAJOR = 0

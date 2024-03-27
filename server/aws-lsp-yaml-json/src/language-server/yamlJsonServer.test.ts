@@ -1,5 +1,5 @@
-import { Server } from '@aws/language-server-runtimes'
-import { TestFeatures } from '@aws/language-server-runtimes/out/testing'
+import { Server } from '@aws/language-server-runtimes/server-interface'
+import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import { AwsLanguageService } from '@aws/lsp-core/out/base'
 import sinon, { StubbedInstance, stubInterface } from 'ts-sinon'
 import { CancellationToken } from 'vscode-languageserver'

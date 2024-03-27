@@ -11,7 +11,7 @@ import {
     Position,
     Range,
     TextDocument,
-} from '@aws/language-server-runtimes/out/server-interface'
+} from '@aws/language-server-runtimes/server-interface'
 import { AWSError } from 'aws-sdk'
 import { autoTrigger, triggerType } from './auto-trigger/autoTrigger'
 import {
