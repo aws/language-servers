@@ -28,7 +28,8 @@
         "got": "^11.8.5",
         "js-md5": "^0.8.3",
         "proxy-http-agent": "^1.0.1",
-        "uuid": "^9.0.1"
+        "uuid": "^9.0.1",
+        "vscode-uri": "^3.0.8"
     },
     "devDependencies": {
         "@types/adm-zip": "^0.4.34",
