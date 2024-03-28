@@ -7,7 +7,8 @@
         "app/*",
         "client/**",
         "core/*",
-        "server/*"
+        "server/*",
+        "server/aws-lsp-codewhisperer/src.gen/@amzn/codewhisperer-streaming"
     ],
     "scripts": {
         "prepare": "husky install .husky",
@@ -24,6 +25,7 @@
         "package": "npm install && npm run compile && npm run package-x64 --workspaces --if-present"
     },
     "dependencies": {
+        "adm-zip": "^0.5.10",
         "typescript": "^5.0.4"
     },
     "devDependencies": {
