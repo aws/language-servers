@@ -1,8 +1,8 @@
 import {
-    Server,
-    CredentialsProvider,
     CancellationToken,
+    CredentialsProvider,
     ExecuteCommandParams,
+    Server,
 } from '@aws/language-server-runtimes/server-interface'
 import { pathToFileURL } from 'url'
 import { ArtifactMap } from '../client/token/codewhispererbearertokenclient'
@@ -14,6 +14,9 @@ import { SecurityScanCancelledError, SecurityScanHandler } from './securityScan/
 import { SecurityScanRequestParams, SecurityScanResponseParams } from './securityScan/types'
 import { SecurityScanEvent } from './telemetry/types'
 import { parseJson } from './utils'
+
+const RunSecurityScanCommand = 'aws/codewhisperer/runSecurityScan'
+const CancelSecurityScanCommand = 'aws/codewhisperer/cancelSecurityScan'
 
 export const SecurityScanServerToken =
     (service: (credentialsProvider: CredentialsProvider) => CodeWhispererServiceToken): Server =>
@@ -185,16 +188,28 @@ export const SecurityScanServerToken =
             params: ExecuteCommandParams,
             _token: CancellationToken
         ): Promise<any> => {
-            logging.log(params.command)
+            logging.log(`Executing command ${params.command}`)
             switch (params.command) {
-                case 'aws/codewhisperer/runSecurityScan':
+                case RunSecurityScanCommand:
                     return runSecurityScan(params as SecurityScanRequestParams, scanHandler.tokenSource.token)
-                case 'aws/codewhisperer/cancelSecurityScan':
+                case CancelSecurityScanCommand:
                     scanHandler.cancelSecurityScan()
             }
             return
         }
+
+        const onInitializeHandler = () => {
+            return {
+                capabilities: {
+                    executeCommandProvider: {
+                        commands: [RunSecurityScanCommand, CancelSecurityScanCommand],
+                    },
+                },
+            }
+        }
+
         diagnosticsProvider.handleHover()
+        lsp.addInitializer(onInitializeHandler)
         lsp.onExecuteCommand(onExecuteCommandHandler)
         lsp.onDidChangeTextDocument(async p => {
             const textDocument = await workspace.getTextDocument(p.textDocument.uri)

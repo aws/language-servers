@@ -40,6 +40,14 @@
             {
                 "command": "helloWorld.log",
                 "title": "Hello World LSP - Log Command"
+            },
+            {
+                "command": "aws.codewhisperer.runSecurityScan",
+                "title": "Security Code Scan - Run"
+            },
+            {
+                "command": "aws.codewhisperer.cancelSecurityScan",
+                "title": "Security Code Scan - Cancel"
             }
         ],
         "configuration": {
