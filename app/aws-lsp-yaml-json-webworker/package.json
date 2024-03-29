@@ -6,16 +6,13 @@
         "compile": "tsc --build",
         "clean": "rm -rf dist && rm -rf node_modules && rm -rf build",
         "build": "tsc",
-        "prepublishOnly": "npm run build && npm run compile && npm run bundle && npm run generate:attribution",
-        "package": "bash ./scripts/package.sh",
+        "prepublishOnly": "npm run build && npm run compile && npm run bundle",
         "bundle": "webpack",
-        "versioning": "ts-node src/scripts/inject-version.ts",
-        "generate:attribution": "./scripts/attribution.sh",
         "serve:webpack": "NODE_ENV=development webpack serve"
     },
     "dependencies": {
         "@aws/aws-lsp-yaml-json": "*",
-        "@aws/language-server-runtimes": "^0.1.1"
+        "@aws/language-server-runtimes": "^0.2.0"
     },
     "devDependencies": {
         "@types/node": "^20.11.30",

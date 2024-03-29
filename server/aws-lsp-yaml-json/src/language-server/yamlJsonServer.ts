@@ -1,12 +1,12 @@
 import { Server } from '@aws/language-server-runtimes/server-interface'
-import { AwsLanguageService } from '@aws/lsp-core/out/base'
+import { AwsLanguageService, textDocumentUtils } from '@aws/lsp-core/out/base'
 import { TextDocument, Range } from 'vscode-languageserver-textdocument'
 import {
     Hover,
     HoverParams,
     DidOpenTextDocumentParams,
     DocumentFormattingParams,
-    FormattingOptions,
+    TextDocumentSyncKind,
     TextEdit,
 } from 'vscode-languageserver'
 import {
@@ -34,6 +34,10 @@ export const YamlJsonServerFactory =
                     completionProvider: { resolveProvider: true },
                     hoverProvider: true,
                     documentFormattingProvider: true,
+                    textDocumentSync: {
+                        openClose: true,
+                        change: TextDocumentSyncKind.Incremental,
+                    },
                 },
             }
         }
@@ -77,6 +81,7 @@ export const YamlJsonServerFactory =
             await lsp.publishDiagnostics({
                 uri: params.textDocument.uri,
                 diagnostics: diagnostics,
+                version: textDocument.version,
             })
         }
 
@@ -96,30 +101,18 @@ export const YamlJsonServerFactory =
             await lsp.publishDiagnostics({
                 uri: params.textDocument.uri,
                 diagnostics: diagnostics,
+                version: textDocument.version,
             })
         }
 
         const onFormatHandler = async (params: DocumentFormattingParams): Promise<TextEdit[] | null> => {
-            const getTextDocumentFullRange = (textDocument: TextDocument): Range => {
-                return {
-                    start: {
-                        line: 0,
-                        character: 0,
-                    },
-                    end: {
-                        line: textDocument.lineCount,
-                        character: 0,
-                    },
-                }
-            }
-
             const textDocument = await workspace.getTextDocument(params.textDocument.uri)
             if (!textDocument) {
                 logging.log(`textDocument [${params.textDocument.uri}] not found`)
                 return null
             }
 
-            const format = service.format(textDocument, getTextDocumentFullRange(textDocument), {} as FormattingOptions)
+            const format = service.format(textDocument, textDocumentUtils.getFullRange(textDocument), params.options)
 
             return format
         }

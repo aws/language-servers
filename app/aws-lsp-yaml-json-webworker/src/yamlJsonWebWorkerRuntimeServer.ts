@@ -1,5 +1,5 @@
-import { webworker } from '@aws/language-server-runtimes/out/runtimes/webworker'
-import { RuntimeProps } from '@aws/language-server-runtimes/out/runtimes/runtime'
+import { webworker } from '@aws/language-server-runtimes/runtimes/webworker'
+import { RuntimeProps } from '@aws/language-server-runtimes/runtimes/runtime'
 import { YamlLanguageServer } from '@aws/aws-lsp-yaml-json'
 
 const MAJOR = 0
