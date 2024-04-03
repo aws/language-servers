@@ -164,7 +164,7 @@ export const SecurityScanServerToken =
                 }
                 logging.log(`Security scan failed. ${error}`)
                 securityScanTelemetryEntry.result = 'Failed'
-                var err = getErrorMessage(error)
+                const err = getErrorMessage(error)
                 return {
                     status: 'Failed',
                     error: err,
