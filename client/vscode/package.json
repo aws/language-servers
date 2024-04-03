@@ -71,7 +71,7 @@
         "compile": "tsc -b"
     },
     "devDependencies": {
-        "@aws-sdk/credential-providers": "^3.360.0",
+        "@aws-sdk/credential-providers": "^3.540.0",
         "@aws-sdk/types": "^3.535.0",
         "@types/vscode": "^1.78.1",
         "jose": "^4.15.5",
