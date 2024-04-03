@@ -1,4 +1,6 @@
+import { TransformationSpec, TransformationSteps } from '../../client/token/codewhispererbearertokenclient'
 import { CodewhispererLanguage } from '../languageDetection'
+import { CancellationJobStatus } from '../netTransform/models'
 import { UserDecision } from '../session/sessionManager'
 
 export type CodewhispererCompletionType = 'Block' | 'Line'
@@ -95,4 +97,46 @@ export interface SecurityScanEvent {
     codewhispererCodeScanTotalIssues: number
     codewhispererCodeScanIssuesWithFixes: number
     credentialStartUrl: string | undefined
+}
+
+export interface TransformationJobStartedEvent {
+    category: string
+    transformationJobId: string
+    uploadId: string
+    error: string
+}
+
+export interface TransformationJobReceivedEvent {
+    category: string
+    transformationJobId: string
+    transformationJobStatus: string
+    creationTime: Date
+    startExecutionTime: Date
+    endExecutionTime: Date
+    reason: string
+    transformationSpec: TransformationSpec
+}
+
+export interface TransformationPlanReceivedEvent {
+    category: string
+    transformationJobId: string
+    transformationSteps: TransformationSteps
+}
+
+export interface TransformationJobCancelledEvent {
+    category: string
+    transformationJobId: string
+    cancellationJobStatus: CancellationJobStatus
+}
+
+export interface TransformationJobArtifactsDownloadedEvent {
+    category: string
+    transformationJobId: string
+    error: string
+}
+
+export interface TransformationFailureEvent {
+    [key: string]: any
+    category: string
+    transformationJobId?: string
 }
