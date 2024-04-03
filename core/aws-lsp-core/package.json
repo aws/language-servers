@@ -24,7 +24,7 @@
         "chai-as-promised": "^7.1.1",
         "mocha": "^10.2.0",
         "mock-fs": "^5.2.0",
-        "sinon": "^15.1.0",
+        "sinon": "^17.0.1",
         "ts-sinon": "^2.0.2"
     }
 }
