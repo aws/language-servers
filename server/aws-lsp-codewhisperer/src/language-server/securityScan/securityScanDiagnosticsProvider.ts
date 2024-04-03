@@ -50,7 +50,7 @@ class SecurityScanDiagnosticsProvider {
             `${issue.title} - ${issue.description.text}`,
             2,
             issue.relatedVulnerabilities.join(','),
-            'CodeWhisperer Security Scan'
+            'CodeWhisperer'
         )
     }
 
