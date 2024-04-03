@@ -1,8 +1,8 @@
 import {
-    Server,
-    CredentialsProvider,
     CancellationToken,
+    CredentialsProvider,
     ExecuteCommandParams,
+    Server,
 } from '@aws/language-server-runtimes/server-interface'
 import { pathToFileURL } from 'url'
 import { ArtifactMap } from '../client/token/codewhispererbearertokenclient'
@@ -11,9 +11,9 @@ import { DependencyGraphFactory } from './dependencyGraph/dependencyGraphFactory
 import { getSupportedLanguageId, supportedSecurityScanLanguages } from './languageDetection'
 import SecurityScanDiagnosticsProvider from './securityScan/securityScanDiagnosticsProvider'
 import { SecurityScanCancelledError, SecurityScanHandler } from './securityScan/securityScanHandler'
-import { SecurityScanRequestParams, SecurityScanResponseParams } from './securityScan/types'
+import { SecurityScanRequestParams, SecurityScanResponse } from './securityScan/types'
 import { SecurityScanEvent } from './telemetry/types'
-import { parseJson } from './utils'
+import { getErrorMessage, parseJson } from './utils'
 
 export const SecurityScanServerToken =
     (service: (credentialsProvider: CredentialsProvider) => CodeWhispererServiceToken): Server =>
@@ -43,7 +43,7 @@ export const SecurityScanServerToken =
             }
             try {
                 if (!credentialsProvider.hasCredentials('bearer')) {
-                    throw new Error('credentialsrProvider does not have bearer token credentials')
+                    throw new Error('credentialsProvider does not have bearer token credentials')
                 }
                 if (!params.arguments || params.arguments.length === 0) {
                     throw new Error(`Incorrect params provided. Params: ${params}`)
@@ -133,7 +133,7 @@ export const SecurityScanServerToken =
                     }),
                     { total: 0, withFixes: 0 }
                 )
-                logging.log(`Security scan totally found ${total} issues. ${withFixes} of them have fixes.`)
+                logging.log(`Security scan found ${total} issues, ${withFixes} have suggested fixes.`)
                 securityScanTelemetryEntry.codewhispererCodeScanTotalIssues = total
                 securityScanTelemetryEntry.codewhispererCodeScanIssuesWithFixes = withFixes
                 scanHandler.throwIfCancelled(token)
@@ -145,30 +145,30 @@ export const SecurityScanServerToken =
 
                 logging.log(`Security scan completed.`)
                 truncation.scannedFiles.forEach(file => logging.log(`Scanned file: ${file}`))
+
                 return {
-                    result: {
-                        status: jobStatus,
+                    status: 'Succeeded',
+                    findings: {
+                        totalFindings: total,
+                        findingsWithFixes: withFixes,
                         scannedFiles: Array.from(truncation.scannedFiles.values()).join(','),
                     },
-                } as SecurityScanResponseParams
+                } as SecurityScanResponse
             } catch (error) {
                 if (error instanceof SecurityScanCancelledError) {
                     logging.log(`Security scan has been cancelled. ${error}`)
                     securityScanTelemetryEntry.result = 'Cancelled'
                     return {
-                        result: {
-                            status: 'Cancelled',
-                        },
-                    } as SecurityScanResponseParams
+                        status: 'Cancelled',
+                    } as SecurityScanResponse
                 }
                 logging.log(`Security scan failed. ${error}`)
                 securityScanTelemetryEntry.result = 'Failed'
+                const err = getErrorMessage(error)
                 return {
-                    result: {
-                        status: 'Failed',
-                    },
-                    error,
-                } as SecurityScanResponseParams
+                    status: 'Failed',
+                    error: err,
+                } as SecurityScanResponse
             } finally {
                 securityScanTelemetryEntry.duration = performance.now() - securityScanStartTime
                 securityScanTelemetryEntry.codeScanServiceInvocationsDuration =
