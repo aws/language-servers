@@ -1,8 +1,8 @@
 import {
-    Logging,
-    Lsp,
     Diagnostic,
     Hover,
+    Logging,
+    Lsp,
     Position,
     Range,
     TextDocumentContentChangeEvent,
@@ -50,7 +50,7 @@ class SecurityScanDiagnosticsProvider {
             `${issue.title} - ${issue.description.text}`,
             2,
             issue.relatedVulnerabilities.join(','),
-            'Detected by CodeWhisperer'
+            'CodeWhisperer'
         )
     }
 
