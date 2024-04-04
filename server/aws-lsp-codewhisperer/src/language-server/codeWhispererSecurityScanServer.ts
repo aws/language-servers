@@ -14,6 +14,7 @@ import { SecurityScanCancelledError, SecurityScanHandler } from './securityScan/
 import { SecurityScanRequestParams, SecurityScanResponseParams } from './securityScan/types'
 import { SecurityScanEvent } from './telemetry/types'
 import { parseJson } from './utils'
+import { performance } from 'perf_hooks'
 
 export const SecurityScanServerToken =
     (service: (credentialsProvider: CredentialsProvider) => CodeWhispererServiceToken): Server =>

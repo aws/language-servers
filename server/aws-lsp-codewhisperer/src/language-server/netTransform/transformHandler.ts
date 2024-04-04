@@ -14,6 +14,7 @@ import {
     CancellationJobStatus,
     QNetCancelTransformRequest,
     QNetCancelTransformResponse,
+    QNetDownloadArtifactsRespone,
     QNetGetTransformPlanRequest,
     QNetGetTransformPlanResponse,
     QNetGetTransformRequest,
@@ -22,6 +23,8 @@ import {
     QNetStartTransformResponse,
 } from './models'
 import got from 'got'
+import { CodeWhispererStreaming, ExportIntent } from '@amzn/codewhisperer-streaming'
+import AdmZip = require('adm-zip')
 
 export class TransformHandler {
     private client: CodeWhispererServiceToken
@@ -112,7 +115,7 @@ export class TransformHandler {
                 headers: headersObj,
             })
 
-            this.logging.log(`CodeTransform: Response from S3 Upload = ${response}`)
+            this.logging.log(`CodeTransform: Response from S3 Upload = ${response.statusCode}`)
         } catch (e: any) {
             const errorMessage = (e as Error).message ?? 'Error in S3 UploadZip API call'
 
@@ -264,5 +267,57 @@ export class TransformHandler {
         return {
             TransformationJob: response.transformationJob,
         } as QNetGetTransformResponse
+    }
+
+    async downloadExportResultArchive(cwStreamingClient: CodeWhispererStreaming, exportId: string) {
+        let result
+        try {
+            result = await cwStreamingClient.exportResultArchive({
+                exportId,
+                exportIntent: ExportIntent.TRANSFORMATION,
+            })
+
+            const buffer = []
+
+            if (result.body === undefined) {
+                throw new Error('Empty response from CodeWhisperer Streaming service.')
+            }
+
+            for await (const chunk of result.body) {
+                if (chunk.binaryPayloadEvent) {
+                    const chunkData = chunk.binaryPayloadEvent
+                    if (chunkData.bytes) {
+                        buffer.push(chunkData.bytes)
+                    }
+                }
+            }
+            const tempDir = path.join(this.workspace.fs.getTempDirPath(), exportId)
+            const pathToArchive = path.join(tempDir, 'ExportResultsArchive.zip')
+            await this.directoryExists(tempDir)
+            await fs.writeFileSync(pathToArchive, Buffer.concat(buffer))
+            let pathContainingArchive = ''
+            pathContainingArchive = path.dirname(pathToArchive)
+            const zip = new AdmZip(pathToArchive)
+            zip.extractAllTo(pathContainingArchive)
+            pathContainingArchive = path.join(pathContainingArchive, 'sourceCode')
+            this.logging.log('pathContainingArchive :' + pathContainingArchive)
+            return {
+                PathTosave: pathContainingArchive,
+            } as QNetDownloadArtifactsRespone
+        } catch (error) {
+            const errorMessage = (error as Error).message ?? 'Failed to download the artifacts'
+            return {
+                Error: errorMessage,
+            } as QNetDownloadArtifactsRespone
+        }
+    }
+
+    async directoryExists(directoryPath: any) {
+        try {
+            await fs.accessSync(directoryPath)
+        } catch (error) {
+            // Directory doesn't exist, create it
+            await fs.mkdirSync(directoryPath, { recursive: true })
+        }
     }
 }

@@ -16,7 +16,8 @@
         "format": "prettier --write .",
         "format-staged": "npx pretty-quick --staged",
         "clean": "ts-node ./script/clean.ts",
-        "compile": "tsc --build --verbose && npm run postcompile --workspaces --if-present",
+        "compile": "npm run steamingClient && tsc --build --verbose && npm run postcompile --workspaces --if-present",
+        "steamingClient": "npm run build -w server/aws-lsp-codewhisperer/src.gen/@amzn/codewhisperer-streaming",
         "watch": "tsc --build --watch",
         "test": "npm run compile && npm run test --workspaces --if-present",
         "test-integ": "npm run compile && npm run test-integ --workspaces --if-present",
@@ -25,7 +26,6 @@
         "package": "npm install && npm run compile && npm run package-x64 --workspaces --if-present"
     },
     "dependencies": {
-        "adm-zip": "^0.5.10",
         "typescript": "^5.0.4"
     },
     "devDependencies": {

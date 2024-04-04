@@ -7,11 +7,13 @@ import {
 import { CodeWhispererServiceToken } from './codeWhispererService'
 import {
     QNetCancelTransformRequest,
+    QNetDownloadArtifactsRequest,
     QNetGetTransformPlanRequest,
     QNetGetTransformRequest,
     QNetStartTransformRequest,
 } from './netTransform/models'
 import { TransformHandler } from './netTransform/transformHandler'
+import { StreamingClient } from '../client/streamingClient/codewhispererStreamingClient'
 
 export const validStatesForGettingPlan = ['COMPLETED', 'PARTIALLY_COMPLETED', 'PLANNED', 'TRANSFORMING', 'TRANSFORMED']
 export const validStatesForComplete = ['COMPLETED']
@@ -94,6 +96,17 @@ export const NetTransformServerFactory: (
                         const request = params as QNetCancelTransformRequest
                         logging.log('request job ID: ' + request.TransformationJobId)
                         return await transformHandler.cancelTransformation(request)
+                    }
+                    case 'aws/qNetTransform/downloadArtifacts': {
+                        const request = params as QNetDownloadArtifactsRequest
+                        const cwStreamingClientInstance = new StreamingClient()
+                        const cwStreamingClient =
+                            await cwStreamingClientInstance.getStreamingClient(credentialsProvider)
+                        logging.log('Calling Download Archive  with job Id: ' + request.TransformationJobId)
+                        return await transformHandler.downloadExportResultArchive(
+                            cwStreamingClient,
+                            request.TransformationJobId
+                        )
                     }
                 }
                 return
