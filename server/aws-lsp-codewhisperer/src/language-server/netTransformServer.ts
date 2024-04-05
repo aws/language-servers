@@ -5,7 +5,7 @@ import {
     Server,
     Telemetry,
 } from '@aws/language-server-runtimes/server-interface'
-import { StreamingClient, downloadExportResultArchive } from '../client/streamingClient/codewhispererStreamingClient'
+import { StreamingClient } from '../client/streamingClient/codewhispererStreamingClient'
 import { TransformationSpec } from '../client/token/codewhispererbearertokenclient'
 import { CodeWhispererServiceToken } from './codeWhispererService'
 import {
@@ -408,10 +408,9 @@ export const NetTransformServerFactory: (
                         const cwStreamingClient =
                             await cwStreamingClientInstance.getStreamingClient(credentialsProvider)
                         logging.log('Calling Download Archive  with job Id: ' + request.TransformationJobId)
-                        const response = await downloadExportResultArchive(
+                        const response = await transformHandler.downloadExportResultArchive(
                             cwStreamingClient,
-                            request.TransformationJobId,
-                            workspace
+                            request.TransformationJobId
                         )
                         emitTransformationJobArtifactsDownloadedTelemetry(
                             telemetry,
