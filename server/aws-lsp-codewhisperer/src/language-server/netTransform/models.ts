@@ -52,7 +52,7 @@ export interface QNetCancelTransformResponse {
     TransformationJobStatus: CancellationJobStatus
 }
 
-export interface QNetDownloadArtifactsRespone {
+export interface QNetDownloadArtifactsResponse {
     PathTosave: string
     Error: string
 }

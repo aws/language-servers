@@ -14,7 +14,7 @@ import {
     CancellationJobStatus,
     QNetCancelTransformRequest,
     QNetCancelTransformResponse,
-    QNetDownloadArtifactsRespone,
+    QNetDownloadArtifactsResponse,
     QNetGetTransformPlanRequest,
     QNetGetTransformPlanResponse,
     QNetGetTransformRequest,
@@ -30,12 +30,10 @@ export class TransformHandler {
     private client: CodeWhispererServiceToken
     private workspace: Workspace
     private logging: Logging
-    private artifactManager: ArtifactManager
     constructor(client: CodeWhispererServiceToken, workspace: Workspace, logging: Logging) {
         this.client = client
         this.workspace = workspace
         this.logging = logging
-        this.artifactManager = new ArtifactManager(workspace, logging)
     }
 
     async startTransformation(userInputrequest: QNetStartTransformRequest): Promise<QNetStartTransformResponse> {
@@ -55,10 +53,11 @@ export class TransformHandler {
 
     async preTransformationUploadCode(userInputrequest: QNetStartTransformRequest): Promise<string> {
         let uploadId = ''
-        const randomPath = uuidv4().substring(0, 4)
+        const randomPath = uuidv4().substring(0, 8)
         const workspacePath = path.join(this.workspace.fs.getTempDirPath(), randomPath)
+        const artifactManager = new ArtifactManager(this.workspace, this.logging, workspacePath)
         try {
-            const payloadFilePath = await this.zipCodeAsync(userInputrequest, workspacePath)
+            const payloadFilePath = await this.zipCodeAsync(userInputrequest, artifactManager)
             this.logging.log('payload path: ' + payloadFilePath)
             uploadId = await this.uploadPayloadAsync(payloadFilePath)
             this.logging.log('artifact successfully uploaded. upload tracking id: ' + uploadId)
@@ -66,7 +65,7 @@ export class TransformHandler {
             const errorMessage = (error as Error).message ?? 'Failed to upload zip file'
             throw new Error(errorMessage)
         } finally {
-            this.artifactManager.cleanup(workspacePath)
+            artifactManager.cleanup()
         }
         return uploadId
     }
@@ -88,7 +87,7 @@ export class TransformHandler {
         }
 
         try {
-            await this.uploadArtifactToS3Async(payloadFileName, response)
+            await this.uploadArtifactToS3Async(payloadFileName, response, sha256)
         } catch (e: any) {
             const errorMessage = (e as Error).message ?? 'Error in uploadArtifactToS3 call'
             this.logging.log('Error when calling uploadArtifactToS3Async: ' + errorMessage)
@@ -97,17 +96,16 @@ export class TransformHandler {
         return response.uploadId
     }
 
-    async zipCodeAsync(request: QNetStartTransformRequest, basePath: string): Promise<string> {
+    async zipCodeAsync(request: QNetStartTransformRequest, artifactManager: ArtifactManager): Promise<string> {
         try {
-            return await this.artifactManager.createZip(request, basePath)
+            return await artifactManager.createZip(request)
         } catch (e: any) {
             this.logging.log('cause:' + e)
         }
         return ''
     }
 
-    async uploadArtifactToS3Async(fileName: string, resp: CreateUploadUrlResponse) {
-        const sha256 = ArtifactManager.getSha256(fileName)
+    async uploadArtifactToS3Async(fileName: string, resp: CreateUploadUrlResponse, sha256: string) {
         const headersObj = this.getHeadersObj(sha256, resp.kmsKeyArn)
         try {
             const response = await got.put(resp.uploadUrl, {
@@ -291,25 +289,30 @@ export class TransformHandler {
                     }
                 }
             }
-            const tempDir = path.join(this.workspace.fs.getTempDirPath(), exportId)
-            const pathToArchive = path.join(tempDir, 'ExportResultsArchive.zip')
-            await this.directoryExists(tempDir)
-            await fs.writeFileSync(pathToArchive, Buffer.concat(buffer))
-            let pathContainingArchive = ''
-            pathContainingArchive = path.dirname(pathToArchive)
-            const zip = new AdmZip(pathToArchive)
-            zip.extractAllTo(pathContainingArchive)
-            pathContainingArchive = path.join(pathContainingArchive, 'sourceCode')
+            const pathContainingArchive = await this.archivePathGenerator(exportId, buffer)
             this.logging.log('pathContainingArchive :' + pathContainingArchive)
             return {
                 PathTosave: pathContainingArchive,
-            } as QNetDownloadArtifactsRespone
+            } as QNetDownloadArtifactsResponse
         } catch (error) {
             const errorMessage = (error as Error).message ?? 'Failed to download the artifacts'
             return {
                 Error: errorMessage,
-            } as QNetDownloadArtifactsRespone
+            } as QNetDownloadArtifactsResponse
         }
+    }
+
+    async archivePathGenerator(exportId: string, buffer: Uint8Array[]) {
+        const tempDir = path.join(this.workspace.fs.getTempDirPath(), exportId)
+        const pathToArchive = path.join(tempDir, 'ExportResultsArchive.zip')
+        await this.directoryExists(tempDir)
+        await fs.writeFileSync(pathToArchive, Buffer.concat(buffer))
+        let pathContainingArchive = ''
+        pathContainingArchive = path.dirname(pathToArchive)
+        const zip = new AdmZip(pathToArchive)
+        zip.extractAllTo(pathContainingArchive)
+        pathContainingArchive = path.join(pathContainingArchive, 'sourceCode')
+        return pathContainingArchive
     }
 
     async directoryExists(directoryPath: any) {

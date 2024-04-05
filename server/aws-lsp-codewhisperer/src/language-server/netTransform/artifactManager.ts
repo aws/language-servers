@@ -13,57 +13,60 @@ const sourceCodeFolderName = 'sourceCode'
 export class ArtifactManager {
     private workspace: Workspace
     private logging: Logging
-    constructor(workspace: Workspace, logging: Logging) {
+    private workspacePath: string
+    constructor(workspace: Workspace, logging: Logging, workspacePath: string) {
         this.workspace = workspace
         this.logging = logging
+        this.workspacePath = workspacePath
     }
-    async createZip(request: QNetStartTransformRequest, basePath: string): Promise<string> {
-        await this.createRequirementJson(request, basePath)
-        await this.copyReferenceDlls(request, basePath)
-        await this.copySoureFiles(request, basePath)
-        return await this.zipArtifact(basePath)
+    async createZip(request: QNetStartTransformRequest): Promise<string> {
+        await this.createRequirementJson(request)
+        await this.copyReferenceDlls(request)
+        await this.copySoureFiles(request)
+        return await this.zipArtifact()
     }
     async removeDir(dir: string) {
         if (await this.workspace.fs.exists(dir)) {
             await this.workspace.fs.remove(dir)
         }
     }
-    cleanup(basePath: string) {
+    cleanup() {
         try {
-            const artifactFolder = path.join(basePath, artifactFolderName)
-            const zipFile = path.join(basePath, zipFileName)
+            const artifactFolder = path.join(this.workspacePath, artifactFolderName)
+            const zipFile = path.join(this.workspacePath, zipFileName)
             fs.rmSync(artifactFolder, { recursive: true, force: true })
             fs.unlinkSync(zipFile)
+            fs.rmSync(this.workspacePath, { recursive: true, force: true })
         } catch (error) {
             this.logging.log('failed to cleanup:' + error)
         }
     }
 
-    async createRequirementJson(request: QNetStartTransformRequest, basePath: string) {
+    async createRequirementJson(request: QNetStartTransformRequest) {
         const fileContent = await this.createRequirementJsonContent(request)
-        const dir = this.getRequirementJsonPath(basePath)
+        const dir = this.getRequirementJsonPath()
         await this.writeRequirmentJsonAsync(dir, JSON.stringify(fileContent))
     }
 
-    async copyReferenceDlls(request: QNetStartTransformRequest, basePath: string) {
+    async copyReferenceDlls(request: QNetStartTransformRequest) {
         const filteredReferences = this.filterReferences(request)
         filteredReferences.forEach(reference =>
-            this.copyFile(
-                reference.AssemblyFullPath,
-                this.getReferencePathFromRelativePath(basePath, reference.RelativePath)
-            )
+            this.copyFile(reference.AssemblyFullPath, this.getReferencePathFromRelativePath(reference.RelativePath))
         )
     }
 
-    async copySoureFiles(request: QNetStartTransformRequest, basePath: string) {
+    async copySoureFiles(request: QNetStartTransformRequest) {
         request.SourceCodeFilePaths.forEach(filePath => {
             const relativePath = this.normalizeSourceFileRelativePath(request.SolutionRootPath, filePath)
-            this.copyFile(filePath, this.getSourceCodePathFromRelativePath(basePath, relativePath))
+            this.copyFile(filePath, this.getSourceCodePathFromRelativePath(relativePath))
         })
     }
 
     async createRequirementJsonContent(request: QNetStartTransformRequest): Promise<RequirementJson> {
-        const entryPath = this.normalizeSourceFileRelativePath(request.SolutionRootPath, request.SelectedProjectPath)
+        const entryPath =
+            request.SelectedProjectPath == ''
+                ? ''
+                : this.normalizeSourceFileRelativePath(request.SolutionRootPath, request.SelectedProjectPath)
         const projectToReference = request.ProjectMetadata.map(p => {
             return {
                 project: this.normalizeSourceFileRelativePath(request.SolutionRootPath, p.ProjectPath),
@@ -98,13 +101,13 @@ export class ArtifactManager {
             )
     }
 
-    async zipArtifact(basePath: string): Promise<string> {
-        const folderPath = path.join(basePath, artifactFolderName)
+    async zipArtifact(): Promise<string> {
+        const folderPath = path.join(this.workspacePath, artifactFolderName)
         if (!fs.existsSync(folderPath)) {
             this.logging.log('cannot find artifact folder')
             return ''
         }
-        const zipPath = path.join(basePath, zipFileName)
+        const zipPath = path.join(this.workspacePath, zipFileName)
         this.logging.log('zipping files to' + zipPath)
         await this.zipDirectory(folderPath, zipPath)
         return zipPath
@@ -116,18 +119,18 @@ export class ArtifactManager {
         return hasher.digest('base64')
     }
 
-    getRequirementJsonPath(basePath: string): string {
-        const dir = path.join(basePath, artifactFolderName)
+    getRequirementJsonPath(): string {
+        const dir = path.join(this.workspacePath, artifactFolderName)
         this.createFolderIfNotExist(dir)
         return dir
     }
 
-    getReferencePathFromRelativePath(basePath: string, relativePath: string): string {
-        return path.join(basePath, artifactFolderName, referenceFolderName, relativePath)
+    getReferencePathFromRelativePath(relativePath: string): string {
+        return path.join(this.workspacePath, artifactFolderName, referenceFolderName, relativePath)
     }
 
-    getSourceCodePathFromRelativePath(basePath: string, relativePath: string): string {
-        return path.join(basePath, artifactFolderName, relativePath)
+    getSourceCodePathFromRelativePath(relativePath: string): string {
+        return path.join(this.workspacePath, artifactFolderName, relativePath)
     }
 
     normalizeSourceFileRelativePath(solutionRootPath: string, fullPath: string) {
