@@ -60,6 +60,7 @@ export class YamlLanguageService implements AwsLanguageService {
         this.yamlService.configure({
             hover: true,
             completion: true,
+            format: true,
             validate: true,
             customTags: [],
             schemas: [
