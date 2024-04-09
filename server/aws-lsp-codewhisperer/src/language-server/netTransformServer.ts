@@ -3,317 +3,37 @@ import {
     CredentialsProvider,
     ExecuteCommandParams,
     Server,
-    Telemetry,
 } from '@aws/language-server-runtimes/server-interface'
 import { StreamingClient } from '../client/streamingClient/codewhispererStreamingClient'
-import { TransformationSpec } from '../client/token/codewhispererbearertokenclient'
 import { CodeWhispererServiceToken } from './codeWhispererService'
 import {
+    emitTransformationJobArtifactsDownloadedFailure,
+    emitTransformationJobArtifactsDownloadedTelemetry,
+    emitTransformationJobCancelledFailure,
+    emitTransformationJobCancelledTelemetry,
+    emitTransformationJobPolledFailure,
+    emitTransformationJobPolledForPlanFailure,
+    emitTransformationJobPolledForPlanTelemetry,
+    emitTransformationJobPolledTelemetry,
+    emitTransformationJobReceivedFailure,
+    emitTransformationJobReceivedTelemetry,
+    emitTransformationJobStartedFailure,
+    emitTransformationJobStartedTelemetry,
+    emitTransformationPlanReceivedFailure,
+    emitTransformationPlanReceivedTelemetry,
+} from './metrics'
+import {
     QNetCancelTransformRequest,
-    QNetCancelTransformResponse,
     QNetDownloadArtifactsRequest,
-    QNetDownloadArtifactsResponse,
     QNetGetTransformPlanRequest,
-    QNetGetTransformPlanResponse,
     QNetGetTransformRequest,
-    QNetGetTransformResponse,
     QNetStartTransformRequest,
-    QNetStartTransformResponse,
 } from './netTransform/models'
 import { TransformHandler } from './netTransform/transformHandler'
-import {
-    TransformationFailureEvent,
-    TransformationJobArtifactsDownloadedEvent,
-    TransformationJobCancelledEvent,
-    TransformationJobReceivedEvent,
-    TransformationJobStartedEvent,
-    TransformationPlanReceivedEvent,
-} from './telemetry/types'
 
 export const validStatesForGettingPlan = ['COMPLETED', 'PARTIALLY_COMPLETED', 'PLANNED', 'TRANSFORMING', 'TRANSFORMED']
 export const validStatesForComplete = ['COMPLETED']
 export const failureStates = ['FAILED', 'STOPPING', 'STOPPED', 'REJECTED']
-
-const CODETRANSFORM_CATEGORY = 'codeTransform'
-
-const flattenMetric = (obj: any, prefix = '') => {
-    const flattened: any = {}
-
-    Object.keys(obj).forEach(key => {
-        const value = obj[key]
-
-        if (prefix !== '') {
-            key = '_' + key
-        }
-
-        if (typeof value === 'object' && value !== null) {
-            Object.assign(flattened, flattenMetric(value, prefix + key))
-        } else {
-            flattened[prefix + key] = value
-        }
-    })
-
-    return flattened
-}
-
-const emitTransformationJobStartedTelemetry = (telemetry: Telemetry, response: QNetStartTransformResponse) => {
-    const data: TransformationJobStartedEvent = {
-        category: CODETRANSFORM_CATEGORY,
-        transformationJobId: response.TransformationJobId,
-        uploadId: response.UploadId,
-        error: response.Error as string,
-    }
-
-    telemetry.emitMetric({
-        name: 'codeTransform_jobIsStartedByUser',
-        result: 'Succeeded',
-        data: flattenMetric(data),
-    })
-}
-
-const emitTransformationJobStartedFailure = (
-    telemetry: Telemetry,
-    request: QNetStartTransformRequest,
-    error: Error
-) => {
-    const data: TransformationFailureEvent = {
-        category: CODETRANSFORM_CATEGORY,
-        programLanguage: request.ProgramLanguage,
-        selectedProjectPath: request.SelectedProjectPath,
-        targetFramework: request.TargetFramework,
-    }
-
-    telemetry.emitMetric({
-        name: 'codeTransform_jobIsStartedByUser',
-        result: 'Failed',
-        errorData: {
-            reason: error.message || 'UnknownError',
-        },
-    })
-}
-
-const emitTransformationJobReceivedTelemetry = (telemetry: Telemetry, response: QNetGetTransformResponse) => {
-    const data: TransformationJobReceivedEvent = {
-        category: CODETRANSFORM_CATEGORY,
-        transformationJobId: response.TransformationJob?.jobId as string,
-        transformationJobStatus: response.TransformationJob?.status as string,
-        creationTime: response.TransformationJob?.creationTime as Date,
-        startExecutionTime: response.TransformationJob?.startExecutionTime as Date,
-        endExecutionTime: response.TransformationJob?.endExecutionTime as Date,
-        reason: response.TransformationJob?.reason as string,
-        transformationSpec: response.TransformationJob?.transformationSpec as TransformationSpec,
-    }
-
-    telemetry.emitMetric({
-        name: 'codeTransform_jobIsReceivedByUser',
-        result: 'Succeeded',
-        data: flattenMetric(data),
-    })
-}
-
-const emitTransformationJobReceivedFailure = (telemetry: Telemetry, request: QNetGetTransformRequest, error: Error) => {
-    const data: TransformationFailureEvent = {
-        category: CODETRANSFORM_CATEGORY,
-        transformationJobId: request.TransformationJobId,
-    }
-
-    telemetry.emitMetric({
-        name: 'codeTransform_jobIsReceivedByUser',
-        result: 'Failed',
-        data,
-        errorData: {
-            reason: error.message || 'UnknownError',
-        },
-    })
-}
-
-const emitTransformationJobCancelledTelemetry = (
-    telemetry: Telemetry,
-    response: QNetCancelTransformResponse,
-    jobId: string
-) => {
-    const data: TransformationJobCancelledEvent = {
-        category: CODETRANSFORM_CATEGORY,
-        transformationJobId: jobId,
-        cancellationJobStatus: response.TransformationJobStatus,
-    }
-
-    telemetry.emitMetric({
-        name: 'codeTransform_jobIsCancelledByUser',
-        result: 'Succeeded',
-        data: flattenMetric(data),
-    })
-}
-
-const emitTransformationJobCancelledFailure = (
-    telemetry: Telemetry,
-    request: QNetCancelTransformRequest,
-    error: Error
-) => {
-    const data: TransformationFailureEvent = {
-        category: CODETRANSFORM_CATEGORY,
-        transformationJobId: request.TransformationJobId,
-    }
-
-    telemetry.emitMetric({
-        name: 'codeTransform_jobIsCancelledByUser',
-        result: 'Failed',
-        data,
-        errorData: {
-            reason: error.message || 'UnknownError',
-        },
-    })
-}
-
-const emitTransformationJobPolledTelemetry = (telemetry: Telemetry, response: QNetGetTransformResponse) => {
-    const data: TransformationJobReceivedEvent = {
-        category: CODETRANSFORM_CATEGORY,
-        transformationJobId: response.TransformationJob?.jobId as string,
-        transformationJobStatus: response.TransformationJob?.status as string,
-        creationTime: response.TransformationJob?.creationTime as Date,
-        startExecutionTime: response.TransformationJob?.startExecutionTime as Date,
-        endExecutionTime: response.TransformationJob?.endExecutionTime as Date,
-        reason: response.TransformationJob?.reason as string,
-        transformationSpec: response.TransformationJob?.transformationSpec as TransformationSpec,
-    }
-
-    telemetry.emitMetric({
-        name: 'codeTransform_jobIsPolledByUser',
-        result: 'Succeeded',
-        data: flattenMetric(data),
-    })
-}
-
-const emitTransformationJobPolledFailure = (telemetry: Telemetry, request: QNetGetTransformRequest, error: Error) => {
-    const data: TransformationFailureEvent = {
-        category: CODETRANSFORM_CATEGORY,
-        transformationJobId: request.TransformationJobId,
-    }
-
-    telemetry.emitMetric({
-        name: 'codeTransform_jobIsPolledByUser',
-        result: 'Failed',
-        data,
-        errorData: {
-            reason: error.message || 'UnknownError',
-        },
-    })
-}
-
-const emitTransformationJobPolledForPlanTelemetry = (telemetry: Telemetry, response: QNetGetTransformResponse) => {
-    const data: TransformationJobReceivedEvent = {
-        category: CODETRANSFORM_CATEGORY,
-        transformationJobId: response.TransformationJob?.jobId as string,
-        transformationJobStatus: response.TransformationJob?.status as string,
-        creationTime: response.TransformationJob?.creationTime as Date,
-        startExecutionTime: response.TransformationJob?.startExecutionTime as Date,
-        endExecutionTime: response.TransformationJob?.endExecutionTime as Date,
-        reason: response.TransformationJob?.reason as string,
-        transformationSpec: response.TransformationJob?.transformationSpec as TransformationSpec,
-    }
-
-    telemetry.emitMetric({
-        name: 'codeTransform_jobIsPolledForPlanByUser',
-        result: 'Succeeded',
-        data: flattenMetric(data),
-    })
-}
-
-const emitTransformationJobPolledForPlanFailure = (
-    telemetry: Telemetry,
-    request: QNetGetTransformRequest,
-    error: Error
-) => {
-    const data: TransformationFailureEvent = {
-        category: CODETRANSFORM_CATEGORY,
-        transformationJobId: request.TransformationJobId,
-    }
-
-    telemetry.emitMetric({
-        name: 'codeTransform_jobIsPolledForPlanByUser',
-        result: 'Failed',
-        data,
-        errorData: {
-            reason: error.message || 'UnknownError',
-        },
-    })
-}
-
-const emitTransformationPlanReceivedTelemetry = (
-    telemetry: Telemetry,
-    response: QNetGetTransformPlanResponse,
-    jobId: string
-) => {
-    const data: TransformationPlanReceivedEvent = {
-        category: CODETRANSFORM_CATEGORY,
-        transformationJobId: jobId as string,
-        transformationSteps: response.TransformationPlan.transformationSteps,
-    }
-
-    telemetry.emitMetric({
-        name: 'codeTransform_planIsReceivedByUser',
-        result: 'Succeeded',
-        data: flattenMetric(data),
-    })
-}
-
-const emitTransformationPlanReceivedFailure = (
-    telemetry: Telemetry,
-    request: QNetGetTransformPlanRequest,
-    error: Error
-) => {
-    const data: TransformationFailureEvent = {
-        category: CODETRANSFORM_CATEGORY,
-        transformationJobId: request.TransformationJobId,
-    }
-
-    telemetry.emitMetric({
-        name: 'codeTransform_planIsReceivedByUser',
-        result: 'Failed',
-        data,
-        errorData: {
-            reason: error.message || 'UnknownError',
-        },
-    })
-}
-
-const emitTransformationJobArtifactsDownloadedTelemetry = (
-    telemetry: Telemetry,
-    response: QNetDownloadArtifactsResponse,
-    jobId: string
-) => {
-    const data: TransformationJobArtifactsDownloadedEvent = {
-        category: CODETRANSFORM_CATEGORY,
-        transformationJobId: jobId,
-        error: response.Error,
-    }
-
-    telemetry.emitMetric({
-        name: 'codeTransform_artifactsAreDownloadedByUser',
-        result: 'Succeeded',
-        data: flattenMetric(data),
-    })
-}
-
-const emitTransformationJobArtifactsDownloadedFailure = (
-    telemetry: Telemetry,
-    request: QNetDownloadArtifactsRequest,
-    error: Error
-) => {
-    const data: TransformationFailureEvent = {
-        category: CODETRANSFORM_CATEGORY,
-        transformationJobId: request.TransformationJobId,
-    }
-
-    telemetry.emitMetric({
-        name: 'codeTransform_artifactsAreDownloadedByUser',
-        result: 'Failed',
-        data,
-        errorData: {
-            reason: error.message || 'UnknownError',
-        },
-    })
-}
 
 /**
  *
