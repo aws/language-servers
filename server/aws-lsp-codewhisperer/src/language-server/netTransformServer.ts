@@ -152,37 +152,37 @@ export const NetTransformServerFactory: (
                 logging.log('Server side error while executing transformer Command ' + e)
 
                 switch (params.command) {
-                    case 'aws/qNetTransform/startTransform': {
+                    case StartTransformCommand: {
                         const request = params as QNetStartTransformRequest
                         emitTransformationJobStartedFailure(telemetry, request, e)
                         break
                     }
-                    case 'aws/qNetTransform/getTransform': {
+                    case GetTransformCommand: {
                         const request = params as QNetGetTransformRequest
                         emitTransformationJobReceivedFailure(telemetry, request, e)
                         break
                     }
-                    case 'aws/qNetTransform/pollTransform': {
+                    case PollTransformCommand: {
                         const request = params as QNetGetTransformRequest
                         emitTransformationJobPolledFailure(telemetry, request, e)
                         break
                     }
-                    case 'aws/qNetTransform/pollTransformForPlan': {
+                    case PollTransformForPlanCommand: {
                         const request = params as QNetGetTransformRequest
                         emitTransformationJobPolledForPlanFailure(telemetry, request, e)
                         break
                     }
-                    case 'aws/qNetTransform/getTransformPlan': {
+                    case GetTransformPlanCommand: {
                         const request = params as QNetGetTransformPlanRequest
                         emitTransformationPlanReceivedFailure(telemetry, request, e)
                         break
                     }
-                    case 'aws/qNetTransform/cancelTransform': {
+                    case CancelTransformCommand: {
                         const request = params as QNetCancelTransformRequest
                         emitTransformationJobCancelledFailure(telemetry, request, e)
                         break
                     }
-                    case 'aws/qNetTransform/downloadArtifacts': {
+                    case DownloadArtifactsCommand: {
                         const request = params as QNetDownloadArtifactsRequest
                         emitTransformationJobArtifactsDownloadedFailure(telemetry, request, e)
                         break
