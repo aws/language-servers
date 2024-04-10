@@ -1,7 +1,8 @@
-import { Workspace, Logging } from '@aws/language-server-runtimes/server-interface'
-import path = require('path')
-import { v4 as uuidv4 } from 'uuid'
+import { CodeWhispererStreaming, ExportIntent } from '@amzn/codewhisperer-streaming'
+import { Logging, Workspace } from '@aws/language-server-runtimes/server-interface'
 import * as fs from 'fs'
+import got from 'got'
+import { v4 as uuidv4 } from 'uuid'
 import {
     CreateUploadUrlResponse,
     GetTransformationRequest,
@@ -22,8 +23,7 @@ import {
     QNetStartTransformRequest,
     QNetStartTransformResponse,
 } from './models'
-import got from 'got'
-import { CodeWhispererStreaming, ExportIntent } from '@amzn/codewhisperer-streaming'
+import path = require('path')
 import AdmZip = require('adm-zip')
 
 export class TransformHandler {
@@ -65,7 +65,7 @@ export class TransformHandler {
             const errorMessage = (error as Error).message ?? 'Failed to upload zip file'
             throw new Error(errorMessage)
         } finally {
-            artifactManager.cleanup()
+            //artifactManager.cleanup()
         }
         return uploadId
     }
