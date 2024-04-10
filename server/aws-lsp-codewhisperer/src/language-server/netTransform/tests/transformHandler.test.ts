@@ -253,7 +253,7 @@ describe('Test Transform handler ', () => {
             client.codeModernizerGetCodeTransformation.returns(
                 Promise.resolve({
                     transformationJob: {
-                        transformationJobId: testTransformId,
+                        jobId: testTransformId,
                         status: 'COMPLETED',
                         ...mocked$Response,
                     },
@@ -278,7 +278,7 @@ describe('Test Transform handler ', () => {
             client.codeModernizerGetCodeTransformation.returns(
                 Promise.resolve({
                     transformationJob: {
-                        transformationJobId: testTransformId,
+                        jobId: testTransformId,
                         status: 'FAILED',
                         ...mocked$Response,
                     },
@@ -287,7 +287,7 @@ describe('Test Transform handler ', () => {
             )
         })
 
-        it('should get transform', async () => {
+        it('should get transform for failed case', async () => {
             const requestString = JSON.stringify({ TransformationJobId: testTransformId })
             const request = JSON.parse(requestString) as QNetGetTransformRequest
             const res = await transformHandler.getTransformation(request)
@@ -297,7 +297,7 @@ describe('Test Transform handler ', () => {
         })
     })
 
-    describe('Test get transfor plan', () => {
+    describe('Test get transform plan', () => {
         beforeEach(async () => {
             // mock default return value for Transformation plan
 
@@ -325,7 +325,7 @@ describe('Test Transform handler ', () => {
                 },
             })
             const response = JSON.parse(mockPlanString)
-            client.codeModernizerGetCodeTransformation.returns(Promise.resolve(response))
+            client.codeModernizerGetCodeTransformationPlan.returns(Promise.resolve(response))
         })
 
         it('should get transform plan', async () => {
