@@ -65,7 +65,7 @@ export class TransformHandler {
             const errorMessage = (error as Error).message ?? 'Failed to upload zip file'
             throw new Error(errorMessage)
         } finally {
-            //artifactManager.cleanup()
+            artifactManager.cleanup()
         }
         return uploadId
     }

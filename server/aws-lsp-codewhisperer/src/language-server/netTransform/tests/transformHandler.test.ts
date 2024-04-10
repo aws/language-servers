@@ -1,3 +1,4 @@
+import { CodeWhispererStreaming } from '@amzn/codewhisperer-streaming'
 import { Logging, Workspace } from '@aws/language-server-runtimes/server-interface'
 import * as assert from 'assert'
 import { HttpResponse } from 'aws-sdk'
@@ -5,13 +6,18 @@ import { expect } from 'chai'
 import * as fs from 'fs'
 import got from 'got'
 import { StubbedInstance, default as simon, stubInterface } from 'ts-sinon'
+import { StreamingClient, createStreamingClient } from '../../../client/streamingClient/codewhispererStreamingClient'
 import { CodeWhispererServiceToken } from '../../codeWhispererService'
-import { CancellationJobStatus, QNetCancelTransformRequest, QNetStartTransformRequest } from '../models'
+import {
+    CancellationJobStatus,
+    QNetCancelTransformRequest,
+    QNetGetTransformPlanRequest,
+    QNetGetTransformRequest,
+    QNetStartTransformRequest,
+} from '../models'
 import { TransformHandler } from '../transformHandler'
 import { EXAMPLE_REQUEST } from './mockData'
 import sinon = require('sinon')
-import { StreamingClient, createStreamingClient } from '../../../client/streamingClient/codewhispererStreamingClient'
-import { CodeWhispererStreaming } from '@amzn/codewhisperer-streaming'
 const mocked$Response = {
     $response: {
         hasNextPage: simon.mock(),
@@ -238,6 +244,102 @@ describe('Test Transform handler ', () => {
             // Assertions
             expect(response.PathTosave).to.be.equal('mockFile.zip')
             sinon.assert.calledOnce(archivePathGenerator)
+        })
+    })
+
+    describe('Test get transformJob', () => {
+        beforeEach(async () => {
+            // mock default return value for Transformation Job
+            client.codeModernizerGetCodeTransformation.returns(
+                Promise.resolve({
+                    transformationJob: {
+                        transformationJobId: testTransformId,
+                        status: 'COMPLETED',
+                        ...mocked$Response,
+                    },
+                    ...mocked$Response,
+                })
+            )
+        })
+
+        it('should get transform', async () => {
+            const requestString = JSON.stringify({ TransformationJobId: testTransformId })
+            const request = JSON.parse(requestString) as QNetGetTransformRequest
+            const res = await transformHandler.getTransformation(request)
+
+            expect(res.TransformationJob.jobId).to.equal(testTransformId)
+            expect(res.TransformationJob.status).to.equal('COMPLETED')
+        })
+    })
+
+    describe('Test get transformJob for failed case', () => {
+        beforeEach(async () => {
+            // mock default return value for Transformation Job
+            client.codeModernizerGetCodeTransformation.returns(
+                Promise.resolve({
+                    transformationJob: {
+                        transformationJobId: testTransformId,
+                        status: 'FAILED',
+                        ...mocked$Response,
+                    },
+                    ...mocked$Response,
+                })
+            )
+        })
+
+        it('should get transform', async () => {
+            const requestString = JSON.stringify({ TransformationJobId: testTransformId })
+            const request = JSON.parse(requestString) as QNetGetTransformRequest
+            const res = await transformHandler.getTransformation(request)
+
+            expect(res.TransformationJob.jobId).to.equal(testTransformId)
+            expect(res.TransformationJob.status).to.equal('FAILED')
+        })
+    })
+
+    describe('Test get transfor plan', () => {
+        beforeEach(async () => {
+            // mock default return value for Transformation plan
+
+            const mockPlanString = JSON.stringify({
+                transformationPlan: {
+                    transformationSteps: [
+                        {
+                            id: '1',
+                            name: 'PlanStepName 1',
+                            description: 'PlanStepDescription 1',
+                            status: 'COMPLETED',
+                            progressUpdates: [
+                                {
+                                    name: 'ProgressUpdateName 1 for PlanStep 1',
+                                    status: 'COMPLETED',
+                                    description: 'ProgressUpdateDescription 1 for PlanStep 1',
+                                    startTime: '2024-03-11T23:27:33.935Z',
+                                    endTime: '2024-03-11T23:27:34.038Z',
+                                },
+                            ],
+                            startTime: '2024-03-12T18:49:41.431Z',
+                            endTime: '2024-03-12T18:49:42.431Z',
+                        },
+                    ],
+                },
+            })
+            const response = JSON.parse(mockPlanString)
+            client.codeModernizerGetCodeTransformation.returns(Promise.resolve(response))
+        })
+
+        it('should get transform plan', async () => {
+            const requestString = JSON.stringify({ TransformationJobId: testTransformId })
+            const request = JSON.parse(requestString) as QNetGetTransformPlanRequest
+            const res = await transformHandler.getTransformationPlan(request)
+
+            expect(res.TransformationPlan.transformationSteps[0].status).to.equal('COMPLETED')
+            expect(res.TransformationPlan.transformationSteps[0].name).to.equal('PlanStepName 1')
+            if (res.TransformationPlan.transformationSteps[0].progressUpdates) {
+                expect(res.TransformationPlan.transformationSteps[0].progressUpdates[0].name).to.equal(
+                    'ProgressUpdateName 1 for PlanStep 1'
+                )
+            }
         })
     })
 })
