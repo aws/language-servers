@@ -12,7 +12,7 @@
     },
     "dependencies": {
         "@aws/aws-lsp-yaml-json": "*",
-        "@aws/language-server-runtimes": "^0.2.0"
+        "@aws/language-server-runtimes": "^0.2.1"
     },
     "devDependencies": {
         "pkg": "^5.8.1"
