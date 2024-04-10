@@ -38,3 +38,23 @@ export function getErrorMessage(error: any): string {
     }
     return String(error)
 }
+
+export const flattenMetric = (obj: any, prefix = '') => {
+    const flattened: any = {}
+
+    Object.keys(obj).forEach(key => {
+        const value = obj[key]
+
+        if (prefix !== '') {
+            key = '_' + key
+        }
+
+        if (typeof value === 'object' && value !== null) {
+            Object.assign(flattened, flattenMetric(value, prefix + key))
+        } else {
+            flattened[prefix + key] = value
+        }
+    })
+
+    return flattened
+}

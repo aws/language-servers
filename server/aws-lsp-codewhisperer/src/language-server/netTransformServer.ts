@@ -1,10 +1,27 @@
 import {
-    Server,
-    CredentialsProvider,
     CancellationToken,
+    CredentialsProvider,
     ExecuteCommandParams,
+    Server,
 } from '@aws/language-server-runtimes/server-interface'
+import { StreamingClient } from '../client/streamingClient/codewhispererStreamingClient'
 import { CodeWhispererServiceToken } from './codeWhispererService'
+import {
+    emitTransformationJobArtifactsDownloadedFailure,
+    emitTransformationJobArtifactsDownloadedTelemetry,
+    emitTransformationJobCancelledFailure,
+    emitTransformationJobCancelledTelemetry,
+    emitTransformationJobPolledFailure,
+    emitTransformationJobPolledForPlanFailure,
+    emitTransformationJobPolledForPlanTelemetry,
+    emitTransformationJobPolledTelemetry,
+    emitTransformationJobReceivedFailure,
+    emitTransformationJobReceivedTelemetry,
+    emitTransformationJobStartedFailure,
+    emitTransformationJobStartedTelemetry,
+    emitTransformationPlanReceivedFailure,
+    emitTransformationPlanReceivedTelemetry,
+} from './metrics'
 import {
     QNetCancelTransformRequest,
     QNetDownloadArtifactsRequest,
@@ -13,7 +30,6 @@ import {
     QNetStartTransformRequest,
 } from './netTransform/models'
 import { TransformHandler } from './netTransform/transformHandler'
-import { StreamingClient } from '../client/streamingClient/codewhispererStreamingClient'
 
 export const validStatesForGettingPlan = ['COMPLETED', 'PARTIALLY_COMPLETED', 'PLANNED', 'TRANSFORMING', 'TRANSFORMED']
 export const validStatesForComplete = ['COMPLETED']
@@ -48,17 +64,21 @@ export const NetTransformServerFactory: (
                     case StartTransformCommand: {
                         const userInputrequest = params as QNetStartTransformRequest
                         logging.log('prepare artifact for solution: ' + userInputrequest.SolutionRootPath)
-                        return await transformHandler.startTransformation(userInputrequest)
+                        const response = await transformHandler.startTransformation(userInputrequest)
+                        emitTransformationJobStartedTelemetry(telemetry, response)
+                        return response
                     }
                     case GetTransformCommand: {
                         const request = params as QNetGetTransformRequest
                         logging.log('Calling getTransform request with job Id: ' + request.TransformationJobId)
-                        return await transformHandler.getTransformation(request)
+                        const response = await transformHandler.getTransformation(request)
+                        emitTransformationJobReceivedTelemetry(telemetry, response)
+                        return response
                     }
                     case PollTransformCommand: {
                         const request = params as QNetGetTransformRequest
                         logging.log('Calling pollTransform request with job Id: ' + request.TransformationJobId)
-                        const transformationJob = await transformHandler.pollTransformation(
+                        const response = await transformHandler.pollTransformation(
                             request,
                             validStatesForComplete,
                             failureStates
@@ -67,14 +87,15 @@ export const NetTransformServerFactory: (
                             'Transformation job for job Id' +
                                 request.TransformationJobId +
                                 ' is ' +
-                                JSON.stringify(transformationJob)
+                                JSON.stringify(response)
                         )
-                        return transformationJob
+                        emitTransformationJobPolledTelemetry(telemetry, response)
+                        return response
                     }
                     case PollTransformForPlanCommand: {
                         const request = params as QNetGetTransformRequest
                         logging.log('Calling pollTransformForPlan request with job Id: ' + request.TransformationJobId)
-                        const transformationJob = await transformHandler.pollTransformation(
+                        const response = await transformHandler.pollTransformation(
                             request,
                             validStatesForGettingPlan,
                             failureStates
@@ -83,26 +104,30 @@ export const NetTransformServerFactory: (
                             'Transformation job for job Id' +
                                 request.TransformationJobId +
                                 ' is ' +
-                                JSON.stringify(transformationJob)
+                                JSON.stringify(response)
                         )
-                        return transformationJob
+                        emitTransformationJobPolledForPlanTelemetry(telemetry, response)
+                        return response
                     }
                     case GetTransformPlanCommand: {
                         const request = params as QNetGetTransformPlanRequest
                         logging.log('Calling getTransformPlan request with job Id: ' + request.TransformationJobId)
-                        const transformationPlan = await transformHandler.getTransformationPlan(request)
+                        const response = await transformHandler.getTransformationPlan(request)
                         logging.log(
                             'Transformation plan for job Id' +
                                 request.TransformationJobId +
                                 ' is ' +
-                                JSON.stringify(transformationPlan)
+                                JSON.stringify(response)
                         )
-                        return transformationPlan
+                        emitTransformationPlanReceivedTelemetry(telemetry, response, request.TransformationJobId)
+                        return response
                     }
                     case CancelTransformCommand: {
                         const request = params as QNetCancelTransformRequest
                         logging.log('request job ID: ' + request.TransformationJobId)
-                        return await transformHandler.cancelTransformation(request)
+                        const response = await transformHandler.cancelTransformation(request)
+                        emitTransformationJobCancelledTelemetry(telemetry, response, request.TransformationJobId)
+                        return response
                     }
                     case DownloadArtifactsCommand: {
                         const request = params as QNetDownloadArtifactsRequest
@@ -110,15 +135,59 @@ export const NetTransformServerFactory: (
                         const cwStreamingClient =
                             await cwStreamingClientInstance.getStreamingClient(credentialsProvider)
                         logging.log('Calling Download Archive  with job Id: ' + request.TransformationJobId)
-                        return await transformHandler.downloadExportResultArchive(
+                        const response = await transformHandler.downloadExportResultArchive(
                             cwStreamingClient,
                             request.TransformationJobId
                         )
+                        emitTransformationJobArtifactsDownloadedTelemetry(
+                            telemetry,
+                            response,
+                            request.TransformationJobId
+                        )
+                        return response
                     }
                 }
                 return
             } catch (e: any) {
                 logging.log('Server side error while executing transformer Command ' + e)
+
+                switch (params.command) {
+                    case StartTransformCommand: {
+                        const request = params as QNetStartTransformRequest
+                        emitTransformationJobStartedFailure(telemetry, request, e)
+                        break
+                    }
+                    case GetTransformCommand: {
+                        const request = params as QNetGetTransformRequest
+                        emitTransformationJobReceivedFailure(telemetry, request, e)
+                        break
+                    }
+                    case PollTransformCommand: {
+                        const request = params as QNetGetTransformRequest
+                        emitTransformationJobPolledFailure(telemetry, request, e)
+                        break
+                    }
+                    case PollTransformForPlanCommand: {
+                        const request = params as QNetGetTransformRequest
+                        emitTransformationJobPolledForPlanFailure(telemetry, request, e)
+                        break
+                    }
+                    case GetTransformPlanCommand: {
+                        const request = params as QNetGetTransformPlanRequest
+                        emitTransformationPlanReceivedFailure(telemetry, request, e)
+                        break
+                    }
+                    case CancelTransformCommand: {
+                        const request = params as QNetCancelTransformRequest
+                        emitTransformationJobCancelledFailure(telemetry, request, e)
+                        break
+                    }
+                    case DownloadArtifactsCommand: {
+                        const request = params as QNetDownloadArtifactsRequest
+                        emitTransformationJobArtifactsDownloadedFailure(telemetry, request, e)
+                        break
+                    }
+                }
             }
         }
         const onInitializeHandler = () => {
