@@ -105,7 +105,7 @@ export const createMynahUI = (chatApi: ChatApi, amazonQEnabled: boolean) => {
                 }
             }
         },
-        onFileActionClick: (tabID: string, messageId: string, filePath: string, actionName: string): void => {},
+        onFileActionClick: (tabID: string, messageId: string, filePath: string, actionName: string): void => { },
         onQuickHandlerCommand: (tabID: string, command?: string, eventId?: string) => {
             if (command === 'aws.awsq.transform') {
                 quickActionHandler.handle({ command: '/transform' }, tabID, eventId)
@@ -394,7 +394,7 @@ export const createMynahUI = (chatApi: ChatApi, amazonQEnabled: boolean) => {
             mouseEvent?.stopImmediatePropagation()
             connector.onInfoLinkClick(tabId, link)
         },
-        onResetStore: () => {},
+        onResetStore: () => { },
         onFollowUpClicked: (tabID, messageId, followUp) => {
             followUpsInteractionHandler.onFollowUpClicked(tabID, messageId, followUp)
         },

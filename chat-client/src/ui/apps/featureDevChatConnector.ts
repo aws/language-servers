@@ -138,12 +138,12 @@ export class Connector {
                 followUp:
                     messageData.followUps !== undefined && messageData.followUps.length > 0
                         ? {
-                              text:
-                                  messageData.messageType === ChatItemType.SYSTEM_PROMPT
-                                      ? ''
-                                      : 'Please follow up with one of these',
-                              options: messageData.followUps,
-                          }
+                            text:
+                                messageData.messageType === ChatItemType.SYSTEM_PROMPT
+                                    ? ''
+                                    : 'Please follow up with one of these',
+                            options: messageData.followUps,
+                        }
                         : undefined,
             }
             this.onChatAnswerReceived(messageData.tabID, answer)
