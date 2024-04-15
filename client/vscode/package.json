@@ -76,6 +76,6 @@
         "@types/vscode": "^1.88.0",
         "jose": "^5.2.4",
         "typescript": "^5.1.3",
-        "vscode-languageclient": "^8.1.0"
+        "vscode-languageclient": "^9.0.1"
     }
 }
