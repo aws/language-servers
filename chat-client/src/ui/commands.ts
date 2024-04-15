@@ -3,14 +3,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-type MessageCommand =
+export const UI_IS_READY = 'ui-is-ready'
+export const UI_FOCUS = 'ui-focus'
+
+export type MessageCommand =
     | 'chat-prompt'
     | 'trigger-message-processed'
     | 'new-tab-was-created'
     | 'tab-was-removed'
     | 'tab-was-changed'
-    | 'ui-is-ready'
-    | 'ui-focus'
+    | typeof UI_IS_READY
+    | typeof UI_FOCUS
     | 'follow-up-was-clicked'
     | 'auth-follow-up-was-clicked'
     | 'open-diff'

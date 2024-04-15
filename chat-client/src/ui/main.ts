@@ -2,9 +2,10 @@
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
-import { ChatItem, ChatItemType, MynahUI, MynahUIDataModel, NotificationType } from '@aws/mynah-ui'
+import { ChatItem, ChatItemType, MynahUI, NotificationType } from '@aws/mynah-ui'
 import { ChatPrompt } from '@aws/mynah-ui/dist/static'
 import { WelcomeFollowupType } from './apps/amazonqCommonsConnector'
+import { ChatApi } from './chatApi'
 import { Connector } from './connector'
 import { getActions, getDetails } from './diffTree/actions'
 import { DiffTreeFileInfo } from './diffTree/types'
@@ -17,8 +18,7 @@ import { TabType, TabsStorage } from './storages/tabsStorage'
 import { TabDataGenerator } from './tabs/generator'
 import { uiComponentsTexts } from './texts/constants'
 
-// TODO: Replace ideApi with clientApi
-export const createMynahUI = (ideApi: any, amazonQEnabled: boolean) => {
+export const createMynahUI = (chatApi: ChatApi, amazonQEnabled: boolean) => {
     // eslint-disable-next-line prefer-const
     let mynahUI: MynahUI
     // eslint-disable-next-line prefer-const
@@ -65,6 +65,7 @@ export const createMynahUI = (ideApi: any, amazonQEnabled: boolean) => {
     // eslint-disable-next-line prefer-const
     connector = new Connector({
         tabsStorage,
+        chatApi,
         onUpdateAuthentication: (isAmazonQEnabled: boolean, authenticatingTabIDs: string[]): void => {
             isFeatureDevEnabled = isAmazonQEnabled
             isGumbyEnabled = isAmazonQEnabled
@@ -167,8 +168,10 @@ export const createMynahUI = (ideApi: any, amazonQEnabled: boolean) => {
             })
             tabsStorage.updateTabStatus(tabID, 'free')
         },
+        // TODO: Stop using this method
+        // and use typed chatApi directly: e.g. chatApi.chat, chatApi.endChat, so on
         sendMessageToExtension: message => {
-            ideApi.postMessage(message)
+            chatApi.sendMessageToClient(message)
         },
         onChatAnswerUpdated: (tabID: string, item: ChatItem) => {
             if (item.messageId !== undefined) {
@@ -229,9 +232,6 @@ export const createMynahUI = (ideApi: any, amazonQEnabled: boolean) => {
                 })
                 tabsStorage.updateTabStatus(tabID, 'free')
             }
-        },
-        onMessageReceived: (tabID: string, messageData: MynahUIDataModel) => {
-            mynahUI.updateStore(tabID, messageData)
         },
         onFileComponentUpdate: (tabID: string, filePaths: DiffTreeFileInfo[], deletedFiles: DiffTreeFileInfo[]) => {
             const updateWith: Partial<ChatItem> = {
@@ -444,7 +444,8 @@ export const createMynahUI = (ideApi: any, amazonQEnabled: boolean) => {
     })
 
     return {
-        mynahUI,
-        messageReceiver: connector.handleMessageReceive,
+        // TODO: Extend this api with typed methods, e.g. handleChatResult, sendToPrompt, so on
+        // and remove generic handleMessageReceive
+        handleMessageReceive: connector.handleMessageReceive,
     }
 }
