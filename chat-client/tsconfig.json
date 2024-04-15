@@ -4,7 +4,8 @@
         "rootDir": "./src",
         "outDir": "./out",
         "lib": ["dom", "ES2021"],
-        "resolveJsonModule": true
+        "resolveJsonModule": true,
+        "sourceMap": true
     },
     "include": ["src"]
 }
