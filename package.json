@@ -6,6 +6,7 @@
     "workspaces": [
         "app/*",
         "client/**",
+        "chat-client/*",
         "core/*",
         "server/*"
     ],
