@@ -2,5 +2,6 @@ package-lock.json
 dist/
 node_modules/
 out/
+build/
 **/bin/
 **/obj/
