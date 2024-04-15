@@ -5,11 +5,11 @@
 
 import { ChatItem, ChatItemAction, ChatItemType, FeedbackPayload } from '@aws/mynah-ui'
 import { ExtensionMessage } from '../commands'
-import { TabType, TabsStorage } from '../storages/tabsStorage'
-import { CodeReference } from './amazonqCommonsConnector'
-import { FollowUpGenerator } from '../followUps/generator'
 import { getActions } from '../diffTree/actions'
 import { DiffTreeFileInfo } from '../diffTree/types'
+import { FollowUpGenerator } from '../followUps/generator'
+import { TabType, TabsStorage } from '../storages/tabsStorage'
+import { CodeReference } from './amazonqCommonsConnector'
 
 interface ChatPayload {
     chatMessage: string
@@ -17,7 +17,6 @@ interface ChatPayload {
 
 export interface ConnectorProps {
     sendMessageToExtension: (message: ExtensionMessage) => void
-    onMessageReceived?: (tabID: string, messageData: any, needToShowAPIDocsTab: boolean) => void
     onAsyncEventProgress: (tabID: string, inProgress: boolean, message: string) => void
     onChatAnswerReceived?: (tabID: string, message: ChatItem) => void
     sendFeedback?: (tabId: string, feedbackPayload: FeedbackPayload) => void | undefined

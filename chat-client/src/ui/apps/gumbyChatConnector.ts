@@ -15,7 +15,6 @@ import { GumbyMessageType } from './gumbyMessage'
 
 export interface ConnectorProps {
     sendMessageToExtension: (message: ExtensionMessage) => void
-    onMessageReceived?: (tabID: string, messageData: any, needToShowAPIDocsTab: boolean) => void
     onAsyncEventProgress: (tabID: string, inProgress: boolean, message: string, messageId: string) => void
     onChatAnswerReceived?: (tabID: string, message: ChatItem) => void
     onChatAnswerUpdated?: (tabID: string, message: ChatItem) => void

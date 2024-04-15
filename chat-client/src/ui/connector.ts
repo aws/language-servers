@@ -8,6 +8,7 @@ import { Connector as AmazonQCommonsConnector, WelcomeFollowupType } from './app
 import { Connector as CWChatConnector } from './apps/cwChatConnector'
 import { Connector as FeatureDevChatConnector } from './apps/featureDevChatConnector'
 import { Connector as GumbyChatConnector } from './apps/gumbyChatConnector'
+import { ChatApi } from './chatApi'
 import { ExtensionMessage } from './commands'
 import { DiffTreeFileInfo } from './diffTree/types'
 import { AuthFollowUpType } from './followUps/generator'
@@ -30,7 +31,6 @@ export interface ChatPayload {
 
 export interface ConnectorProps {
     sendMessageToExtension: (message: ExtensionMessage) => void
-    onMessageReceived?: (tabID: string, messageData: any, needToShowAPIDocsTab: boolean) => void
     onChatAnswerUpdated?: (tabID: string, message: ChatItem) => void
     onChatAnswerReceived?: (tabID: string, message: ChatItem) => void
     onWelcomeFollowUpClicked: (tabID: string, welcomeFollowUpType: WelcomeFollowupType) => void
@@ -47,22 +47,22 @@ export interface ConnectorProps {
     onNewTab: (tabType: TabType) => void
     onFileActionClick: (tabID: string, messageId: string, filePath: string, actionName: string) => void
     tabsStorage: TabsStorage
+    chatApi: ChatApi
 }
 
 export class Connector {
     private readonly sendMessageToExtension
-    private readonly onMessageReceived
     private readonly cwChatConnector
     private readonly featureDevChatConnector
     private readonly gumbyChatConnector
     private readonly tabsStorage
+    private readonly chatApi
     private readonly amazonqCommonsConnector: AmazonQCommonsConnector
 
     private isUIReady = false
 
     constructor(props: ConnectorProps) {
         this.sendMessageToExtension = props.sendMessageToExtension
-        this.onMessageReceived = props.onMessageReceived
         this.cwChatConnector = new CWChatConnector(props as ConnectorProps)
         this.featureDevChatConnector = new FeatureDevChatConnector(props)
         this.gumbyChatConnector = new GumbyChatConnector(props)
@@ -71,6 +71,7 @@ export class Connector {
             onWelcomeFollowUpClicked: props.onWelcomeFollowUpClicked,
         })
         this.tabsStorage = props.tabsStorage
+        this.chatApi = props.chatApi
     }
 
     onSourceLinkClick = (tabID: string, messageId: string, link: string): void => {
@@ -145,24 +146,13 @@ export class Connector {
         this.gumbyChatConnector.transform(tabID)
     }
 
-    handleMessageReceive = async (message: MessageEvent): Promise<void> => {
-        if (message.data === undefined) {
-            return
-        }
-
-        // TODO: potential json parsing error exists. Need to determine the failing case.
-        const messageData = JSON.parse(message.data)
-
-        if (messageData === undefined) {
-            return
-        }
-
-        if (messageData.sender === 'CWChat') {
-            await this.cwChatConnector.handleMessageReceive(messageData)
-        } else if (messageData.sender === 'featureDevChat') {
-            await this.featureDevChatConnector.handleMessageReceive(messageData)
-        } else if (messageData.sender === 'gumbyChat') {
-            await this.gumbyChatConnector.handleMessageReceive(messageData)
+    handleMessageReceive = async (message: any): Promise<void> => {
+        if (message.sender === 'CWChat') {
+            await this.cwChatConnector.handleMessageReceive(message)
+        } else if (message.sender === 'featureDevChat') {
+            await this.featureDevChatConnector.handleMessageReceive(message)
+        } else if (message.sender === 'gumbyChat') {
+            await this.gumbyChatConnector.handleMessageReceive(message)
         }
     }
 
@@ -252,25 +242,7 @@ export class Connector {
 
     uiReady = (): void => {
         this.isUIReady = true
-        this.sendMessageToExtension({
-            command: 'ui-is-ready',
-        })
-
-        // TODO: Move these handlers to client
-        if (this.onMessageReceived !== undefined) {
-            window.addEventListener('message', this.handleMessageReceive.bind(this))
-        }
-
-        window.addEventListener('focus', this.handleApplicationFocus)
-        window.addEventListener('blur', this.handleApplicationFocus)
-    }
-
-    handleApplicationFocus = async (event: FocusEvent): Promise<void> => {
-        this.sendMessageToExtension({
-            command: 'ui-focus',
-            type: event.type,
-            tabType: 'cwc',
-        })
+        this.chatApi.uiReady()
     }
 
     triggerSuggestionEngagement = (tabId: string, messageId: string, engagement: Engagement): void => {

@@ -5,9 +5,9 @@
 
 import { ChatItem, ChatItemAction, ChatItemType, FeedbackPayload } from '@aws/mynah-ui'
 import { ExtensionMessage } from '../commands'
-import { CodeReference } from './amazonqCommonsConnector'
-import { TabOpenType, TabsStorage } from '../storages/tabsStorage'
 import { FollowUpGenerator } from '../followUps/generator'
+import { TabOpenType, TabsStorage } from '../storages/tabsStorage'
+import { CodeReference } from './amazonqCommonsConnector'
 
 interface ChatPayload {
     chatMessage: string
@@ -16,7 +16,6 @@ interface ChatPayload {
 
 export interface ConnectorProps {
     sendMessageToExtension: (message: ExtensionMessage) => void
-    onMessageReceived?: (tabID: string, messageData: any, needToShowAPIDocsTab: boolean) => void
     onChatAnswerReceived?: (tabID: string, message: ChatItem) => void
     onCWCContextCommandMessage: (message: ChatItem, command?: string) => string | undefined
     onError: (tabID: string, message: string, title: string) => void
