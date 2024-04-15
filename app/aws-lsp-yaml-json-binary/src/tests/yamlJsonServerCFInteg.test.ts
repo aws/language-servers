@@ -23,7 +23,7 @@ import {
 } from './testUtilsCF'
 
 describe('Test YamlJsonServer with CloudFormation schema', async () => {
-    const rootPath = path.resolve(path.join(__dirname, 'testFixture'))
+    const rootPath = path.resolve(__dirname)
     let process: ChildProcessWithoutNullStreams
     let endpoint: JSONRPCEndpoint
     let client: LspClient
@@ -76,7 +76,7 @@ describe('Test YamlJsonServer with CloudFormation schema', async () => {
     })
 
     it('should return completion items for CloudFormation, JSON', async () => {
-        const docUri = pathToFileURL(path.join(rootPath, 'completion.json')).href
+        const docUri = 'completion.json'
         const emptyObject = '{}'
         client.didOpen({
             textDocument: {
@@ -103,7 +103,7 @@ describe('Test YamlJsonServer with CloudFormation schema', async () => {
     })
 
     it('should return hover item, JSON', async () => {
-        const docUri = pathToFileURL(path.join(rootPath, 'hover.json')).href
+        const docUri = 'hover.json'
         client.didOpen({
             textDocument: {
                 uri: docUri,
@@ -126,7 +126,7 @@ describe('Test YamlJsonServer with CloudFormation schema', async () => {
     })
 
     it('should return diagnostic items, JSON', async () => {
-        const docUri = pathToFileURL(path.join(rootPath, 'diagnostics.json')).href
+        const docUri = 'diagnostics.json'
         client.didOpen({
             textDocument: {
                 uri: docUri,
@@ -146,7 +146,7 @@ describe('Test YamlJsonServer with CloudFormation schema', async () => {
     })
 
     it('should return format items, JSON', async () => {
-        const docUri = pathToFileURL(path.join(rootPath, 'format.json')).href
+        const docUri = 'format.json'
         client.didOpen({
             textDocument: {
                 uri: docUri,
@@ -170,7 +170,7 @@ describe('Test YamlJsonServer with CloudFormation schema', async () => {
     })
 
     it('should return completion items for CloudFormation, YAML', async () => {
-        const docUri = pathToFileURL(path.join(rootPath, 'completion.yml')).href
+        const docUri = 'completion.yml'
         const emptyObject = ''
         client.didOpen({
             textDocument: {
@@ -198,7 +198,7 @@ describe('Test YamlJsonServer with CloudFormation schema', async () => {
     })
 
     it('should return hover items, YAML', async () => {
-        const docUri = pathToFileURL(path.join(rootPath, 'hover.yml')).href
+        const docUri = 'hover.yml'
         await client.didOpen({
             textDocument: {
                 uri: docUri,
@@ -221,7 +221,7 @@ describe('Test YamlJsonServer with CloudFormation schema', async () => {
     })
 
     it('should return diagnostic items, YAML', async () => {
-        const docUri = pathToFileURL(path.join(rootPath, 'diagnostics.yml')).href
+        const docUri = 'diagnostics.yml'
 
         client.didOpen({
             textDocument: {
@@ -243,7 +243,7 @@ describe('Test YamlJsonServer with CloudFormation schema', async () => {
     })
 
     it('should return format items, YAML', async () => {
-        const docUri = pathToFileURL(path.join(rootPath, 'format.yml')).href
+        const docUri = 'format.yml'
         client.didOpen({
             textDocument: {
                 uri: docUri,
