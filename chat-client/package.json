@@ -11,13 +11,11 @@
     "license": "Apache-2.0",
     "scripts": {
         "compile": "tsc --build",
-        "bundle": "webpack",
-        "build": "npm run compile && npm run bundle",
         "test:unit": "ts-mocha -b 'src/**/*.test.ts'",
         "test:prettier": "prettier . --check",
         "test": "npm run test:prettier && npm run test:unit",
         "fix:prettier": "prettier . --write",
-        "clean": "rm -rf out && rm -rf node_modules && rm -rf build"
+        "package": "webpack"
     },
     "dependencies": {
         "@aws/mynah-ui": "^4.5.4"
