@@ -59,6 +59,9 @@
         },
         {
             "path": "./app/aws-lsp-yaml-json-binary"
+        },
+        {
+            "path": "./app/aws-lsp-yaml-json-webworker"
         }
     ]
 }

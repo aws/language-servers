@@ -1,6 +1,6 @@
 {
     "name": "@aws/lsp-codewhisperer",
-    "version": "0.0.3",
+    "version": "0.0.4",
     "description": "CodeWhisperer Language Server",
     "main": "out/index.js",
     "repository": {
@@ -12,8 +12,12 @@
     "engines": {
         "node": ">=18.0.0"
     },
+    "workspaces": [
+        "src.gen/@amzn/codewhisperer-streaming"
+    ],
     "scripts": {
-        "compile": "tsc --build",
+        "compile-streamingClient": "npm run build -w src.gen/@amzn/codewhisperer-streaming",
+        "compile": "npm run compile-streamingClient && tsc --build",
         "postcompile": "npm run copyServiceClient",
         "copyServiceClient": "copyfiles -u 1 --error ./src/client/sigv4/*.json out && copyfiles -u 1 --error ./src/client/token/*.json out",
         "test:unit": "ts-mocha -b 'src/**/*.test.ts'",
@@ -22,14 +26,14 @@
         "fix:prettier": "prettier . --write"
     },
     "dependencies": {
-        "@amzn/codewhisperer-streaming": "*",
-        "@aws/language-server-runtimes": "^0.2.0",
+        "@aws/language-server-runtimes": "^0.2.1",
         "adm-zip": "^0.5.10",
         "aws-sdk": "^2.1403.0",
         "got": "^11.8.5",
         "js-md5": "^0.8.3",
         "proxy-http-agent": "^1.0.1",
-        "uuid": "^9.0.1"
+        "uuid": "^9.0.1",
+        "vscode-uri": "^3.0.8"
     },
     "devDependencies": {
         "@types/adm-zip": "^0.4.34",
