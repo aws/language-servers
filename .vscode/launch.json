@@ -60,7 +60,7 @@
                 "LSP_SERVER": "${workspaceFolder}/app/aws-lsp-codewhisperer-binary/out/index.js",
                 "ENABLE_INLINE_COMPLETION": "true",
                 "ENABLE_TOKEN_PROVIDER": "true",
-                "ENABLE_CHAT_DEMO": "true"
+                "ENABLE_CHAT_DEMO": "false"
                 // "HTTPS_PROXY": "http://127.0.0.1:8888",
             },
             "preLaunchTask": "npm: compile"

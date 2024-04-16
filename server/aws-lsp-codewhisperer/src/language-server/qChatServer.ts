@@ -4,12 +4,11 @@ import {
     GenerateAssistantResponseRequest,
 } from '@amzn/codewhisperer-streaming'
 import { BearerCredentials, ChatParams, ChatResult, chatRequestType } from '@aws/language-server-runtimes/protocol'
-import { CancellationToken, CredentialsProvider, Server } from '@aws/language-server-runtimes/server-interface'
-import { CodeWhispererServiceBase, CodeWhispererServiceToken } from './codeWhispererService'
+import { CancellationToken, Server } from '@aws/language-server-runtimes/server-interface'
 
 export const QChatServerFactory =
-    (service: (credentials: CredentialsProvider) => CodeWhispererServiceBase): Server =>
-    ({ credentialsProvider, lsp, workspace, telemetry, logging, chat }) => {
+    (): Server =>
+    ({ credentialsProvider, lsp, logging, chat }) => {
         const onChatPromptHandler = async (params: ChatParams, token: CancellationToken): Promise<ChatResult> => {
             logging.log(`Chat server received ${JSON.stringify(params)}`)
 
@@ -39,6 +38,11 @@ export const QChatServerFactory =
             let chatResult: ChatResult = { body: '' }
 
             for await (const value of response.generateAssistantResponseResponse) {
+                if (token.isCancellationRequested) {
+                    // handle cancellation
+                    return chatResult
+                }
+
                 if (value?.assistantResponseEvent?.content) {
                     chatResult.body += value?.assistantResponseEvent?.content
 
@@ -61,6 +65,4 @@ export const QChatServerFactory =
         }
     }
 
-export const QChatServer = QChatServerFactory(
-    credentialsProvider => new CodeWhispererServiceToken(credentialsProvider, {})
-)
+export const QChatServer = QChatServerFactory()
