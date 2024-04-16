@@ -16,6 +16,9 @@ import { SecurityScanRequestParams, SecurityScanResponse } from './securityScan/
 import { SecurityScanEvent } from './telemetry/types'
 import { getErrorMessage, parseJson } from './utils'
 
+const RunSecurityScanCommand = 'aws/codewhisperer/runSecurityScan'
+const CancelSecurityScanCommand = 'aws/codewhisperer/cancelSecurityScan'
+
 export const SecurityScanServerToken =
     (service: (credentialsProvider: CredentialsProvider) => CodeWhispererServiceToken): Server =>
     ({ credentialsProvider, workspace, logging, lsp, telemetry }) => {
@@ -188,15 +191,26 @@ export const SecurityScanServerToken =
         ): Promise<any> => {
             logging.log(params.command)
             switch (params.command) {
-                case 'aws/codewhisperer/runSecurityScan':
+                case RunSecurityScanCommand:
                     return runSecurityScan(params as SecurityScanRequestParams, scanHandler.tokenSource.token)
-                case 'aws/codewhisperer/cancelSecurityScan':
+                case CancelSecurityScanCommand:
                     scanHandler.cancelSecurityScan()
             }
             return
         }
+        const onInitializeHandler = () => {
+            return {
+                capabilities: {
+                    executeCommandProvider: {
+                        commands: [RunSecurityScanCommand, CancelSecurityScanCommand],
+                    },
+                },
+            }
+        }
         diagnosticsProvider.handleHover()
+
         lsp.onExecuteCommand(onExecuteCommandHandler)
+        lsp.addInitializer(onInitializeHandler)
         lsp.onDidChangeTextDocument(async p => {
             const textDocument = await workspace.getTextDocument(p.textDocument.uri)
             const languageId = getSupportedLanguageId(textDocument)
