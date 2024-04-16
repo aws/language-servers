@@ -23,7 +23,7 @@
         "test-integ": "npm run compile && npm run test-integ --workspaces --if-present",
         "test-unit": "npm run compile && npm run test-unit --workspaces --if-present",
         "update-runtimes": "cp ../language-server-runtimes/aws-*.tgz bin/ && npm update @aws/language-server-runtimes",
-        "package": "npm install && npm run compile && npm run package-x64 --workspaces --if-present"
+        "package": "npm install && npm run compile && npm run package-x64 --workspaces --if-present && npm run package --workspaces --if-present"
     },
     "dependencies": {
         "typescript": "^5.0.4"
