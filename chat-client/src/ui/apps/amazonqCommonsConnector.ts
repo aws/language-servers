@@ -10,7 +10,7 @@ import { AuthFollowUpType } from '../followUps/generator'
 export type WelcomeFollowupType = 'continue-to-chat'
 
 export interface ConnectorProps {
-    sendMessageToExtension: (message: ExtensionMessage) => void
+    sendMessageToClient: (message: ExtensionMessage) => void
     onWelcomeFollowUpClicked: (tabID: string, welcomeFollowUpType: WelcomeFollowupType) => void
 }
 export interface CodeReference {
@@ -24,11 +24,11 @@ export interface CodeReference {
 }
 
 export class Connector {
-    private readonly sendMessageToExtension
+    private readonly sendMessageToClient
     private readonly onWelcomeFollowUpClicked
 
     constructor(props: ConnectorProps) {
-        this.sendMessageToExtension = props.sendMessageToExtension
+        this.sendMessageToClient = props.sendMessageToClient
         this.onWelcomeFollowUpClicked = props.onWelcomeFollowUpClicked
     }
 
@@ -39,7 +39,7 @@ export class Connector {
     }
 
     authFollowUpClicked = (tabID: string, tabType: string, authType: AuthFollowUpType): void => {
-        this.sendMessageToExtension({
+        this.sendMessageToClient({
             command: 'auth-follow-up-was-clicked',
             authType,
             tabID,

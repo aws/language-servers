@@ -170,7 +170,7 @@ export const createMynahUI = (chatApi: ChatApi, amazonQEnabled: boolean) => {
         },
         // TODO: Stop using this method
         // and use typed chatApi directly: e.g. chatApi.chat, chatApi.endChat, so on
-        sendMessageToExtension: message => {
+        sendMessageToClient: message => {
             chatApi.sendMessageToClient(message)
         },
         onChatAnswerUpdated: (tabID: string, item: ChatItem) => {

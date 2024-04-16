@@ -16,7 +16,7 @@ interface ChatPayload {
 }
 
 export interface ConnectorProps {
-    sendMessageToExtension: (message: ExtensionMessage) => void
+    sendMessageToClient: (message: ExtensionMessage) => void
     onAsyncEventProgress: (tabID: string, inProgress: boolean, message: string) => void
     onChatAnswerReceived?: (tabID: string, message: ChatItem) => void
     sendFeedback?: (tabId: string, feedbackPayload: FeedbackPayload) => void | undefined
@@ -32,7 +32,7 @@ export interface ConnectorProps {
 }
 
 export class Connector {
-    private readonly sendMessageToExtension
+    private readonly sendMessageToClient
     private readonly onError
     private readonly onWarning
     private readonly onFileComponentUpdate
@@ -45,7 +45,7 @@ export class Connector {
     private readonly onNewTab
 
     constructor(props: ConnectorProps) {
-        this.sendMessageToExtension = props.sendMessageToExtension
+        this.sendMessageToClient = props.sendMessageToClient
         this.onChatAnswerReceived = props.onChatAnswerReceived
         this.onWarning = props.onWarning
         this.onFileComponentUpdate = props.onFileComponentUpdate
@@ -64,7 +64,7 @@ export class Connector {
         type?: 'selection' | 'block',
         codeReference?: CodeReference[]
     ): void => {
-        this.sendMessageToExtension({
+        this.sendMessageToClient({
             tabID: tabID,
             code,
             command: 'insert_code_at_cursor_position',
@@ -79,7 +79,7 @@ export class Connector {
         type?: 'selection' | 'block',
         codeReference?: CodeReference[]
     ): void => {
-        this.sendMessageToExtension({
+        this.sendMessageToClient({
             tabID: tabID,
             code,
             command: 'code_was_copied_to_clipboard',
@@ -89,7 +89,7 @@ export class Connector {
     }
 
     onOpenDiff = (tabID: string, filePath: string, deleted: boolean): void => {
-        this.sendMessageToExtension({
+        this.sendMessageToClient({
             command: 'open-diff',
             tabID,
             filePath,
@@ -98,7 +98,7 @@ export class Connector {
         })
     }
     onFileActionClick = (tabID: string, messageId: string, filePath: string, actionName: string): void => {
-        this.sendMessageToExtension({
+        this.sendMessageToClient({
             command: 'file-click',
             tabID,
             messageId,
@@ -109,7 +109,7 @@ export class Connector {
     }
 
     followUpClicked = (tabID: string, followUp: ChatItemAction): void => {
-        this.sendMessageToExtension({
+        this.sendMessageToClient({
             command: 'follow-up-was-clicked',
             followUp,
             tabID,
@@ -119,7 +119,7 @@ export class Connector {
 
     requestGenerativeAIAnswer = (tabID: string, payload: ChatPayload): Promise<any> =>
         new Promise((resolve, reject) => {
-            this.sendMessageToExtension({
+            this.sendMessageToClient({
                 tabID: tabID,
                 command: 'chat-prompt',
                 chatMessage: payload.chatMessage,
@@ -251,14 +251,14 @@ export class Connector {
     }
 
     onStopChatResponse = (tabID: string): void => {
-        this.sendMessageToExtension({
+        this.sendMessageToClient({
             tabID: tabID,
             command: 'stop-response',
         })
     }
 
     onTabOpen = (tabID: string): void => {
-        this.sendMessageToExtension({
+        this.sendMessageToClient({
             tabID,
             command: 'new-tab-was-created',
             tabType: 'featuredev',
@@ -266,7 +266,7 @@ export class Connector {
     }
 
     onTabRemove = (tabID: string): void => {
-        this.sendMessageToExtension({
+        this.sendMessageToClient({
             tabID: tabID,
             command: 'tab-was-removed',
             tabType: 'featuredev',
@@ -278,7 +278,7 @@ export class Connector {
     }
 
     onChatItemVoted = (tabId: string, messageId: string, vote: string): void | undefined => {
-        this.sendMessageToExtension({
+        this.sendMessageToClient({
             tabID: tabId,
             messageId: messageId,
             vote: vote,
@@ -288,7 +288,7 @@ export class Connector {
     }
 
     onResponseBodyLinkClick = (tabID: string, messageId: string, link: string): void => {
-        this.sendMessageToExtension({
+        this.sendMessageToClient({
             command: 'response-body-link-click',
             tabID,
             messageId,

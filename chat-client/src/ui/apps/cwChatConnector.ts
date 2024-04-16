@@ -15,7 +15,7 @@ interface ChatPayload {
 }
 
 export interface ConnectorProps {
-    sendMessageToExtension: (message: ExtensionMessage) => void
+    sendMessageToClient: (message: ExtensionMessage) => void
     onChatAnswerReceived?: (tabID: string, message: ChatItem) => void
     onCWCContextCommandMessage: (message: ChatItem, command?: string) => string | undefined
     onError: (tabID: string, message: string, title: string) => void
@@ -24,7 +24,7 @@ export interface ConnectorProps {
 }
 
 export class Connector {
-    private readonly sendMessageToExtension
+    private readonly sendMessageToClient
     private readonly onError
     private readonly onWarning
     private readonly onChatAnswerReceived
@@ -32,7 +32,7 @@ export class Connector {
     private readonly followUpGenerator: FollowUpGenerator
 
     constructor(props: ConnectorProps) {
-        this.sendMessageToExtension = props.sendMessageToExtension
+        this.sendMessageToClient = props.sendMessageToClient
         this.onChatAnswerReceived = props.onChatAnswerReceived
         this.onWarning = props.onWarning
         this.onError = props.onError
@@ -41,7 +41,7 @@ export class Connector {
     }
 
     onSourceLinkClick = (tabID: string, messageId: string, link: string): void => {
-        this.sendMessageToExtension({
+        this.sendMessageToClient({
             command: 'source-link-click',
             tabID,
             messageId,
@@ -50,7 +50,7 @@ export class Connector {
         })
     }
     onResponseBodyLinkClick = (tabID: string, messageId: string, link: string): void => {
-        this.sendMessageToExtension({
+        this.sendMessageToClient({
             command: 'response-body-link-click',
             tabID,
             messageId,
@@ -59,7 +59,7 @@ export class Connector {
         })
     }
     onInfoLinkClick = (tabID: string, link: string): void => {
-        this.sendMessageToExtension({
+        this.sendMessageToClient({
             command: 'footer-info-link-click',
             tabID,
             link,
@@ -68,7 +68,7 @@ export class Connector {
     }
 
     followUpClicked = (tabID: string, messageId: string, followUp: ChatItemAction): void => {
-        this.sendMessageToExtension({
+        this.sendMessageToClient({
             command: 'follow-up-was-clicked',
             followUp,
             tabID,
@@ -78,7 +78,7 @@ export class Connector {
     }
 
     onTabAdd = (tabID: string, tabOpenInteractionType?: TabOpenType): void => {
-        this.sendMessageToExtension({
+        this.sendMessageToClient({
             tabID: tabID,
             command: 'new-tab-was-created',
             tabType: 'cwc',
@@ -93,7 +93,7 @@ export class Connector {
         type?: 'selection' | 'block',
         codeReference?: CodeReference[]
     ): void => {
-        this.sendMessageToExtension({
+        this.sendMessageToClient({
             tabID: tabID,
             messageId,
             code,
@@ -111,7 +111,7 @@ export class Connector {
         type?: 'selection' | 'block',
         codeReference?: CodeReference[]
     ): void => {
-        this.sendMessageToExtension({
+        this.sendMessageToClient({
             tabID: tabID,
             messageId,
             code,
@@ -123,7 +123,7 @@ export class Connector {
     }
 
     onTabRemove = (tabID: string): void => {
-        this.sendMessageToExtension({
+        this.sendMessageToClient({
             tabID: tabID,
             command: 'tab-was-removed',
             tabType: 'cwc',
@@ -131,7 +131,7 @@ export class Connector {
     }
 
     onTabChange = (tabID: string, prevTabID?: string) => {
-        this.sendMessageToExtension({
+        this.sendMessageToClient({
             tabID: tabID,
             command: 'tab-was-changed',
             tabType: 'cwc',
@@ -140,7 +140,7 @@ export class Connector {
     }
 
     onStopChatResponse = (tabID: string): void => {
-        this.sendMessageToExtension({
+        this.sendMessageToClient({
             tabID: tabID,
             command: 'stop-response',
             tabType: 'cwc',
@@ -148,7 +148,7 @@ export class Connector {
     }
 
     onChatItemVoted = (tabID: string, messageId: string, vote: 'upvote' | 'downvote'): void => {
-        this.sendMessageToExtension({
+        this.sendMessageToClient({
             tabID: tabID,
             command: 'chat-item-voted',
             messageId,
@@ -157,7 +157,7 @@ export class Connector {
         })
     }
     onSendFeedback = (tabID: string, feedbackPayload: FeedbackPayload): void | undefined => {
-        this.sendMessageToExtension({
+        this.sendMessageToClient({
             command: 'chat-item-feedback',
             ...feedbackPayload,
             tabType: 'cwc',
@@ -167,7 +167,7 @@ export class Connector {
 
     requestGenerativeAIAnswer = (tabID: string, payload: ChatPayload): Promise<any> =>
         new Promise((resolve, reject) => {
-            this.sendMessageToExtension({
+            this.sendMessageToClient({
                 tabID: tabID,
                 command: 'chat-prompt',
                 chatMessage: payload.chatMessage,
@@ -177,7 +177,7 @@ export class Connector {
         })
 
     clearChat = (tabID: string): void => {
-        this.sendMessageToExtension({
+        this.sendMessageToClient({
             tabID: tabID,
             command: 'clear',
             chatMessage: '',
@@ -186,7 +186,7 @@ export class Connector {
     }
 
     help = (tabID: string): void => {
-        this.sendMessageToExtension({
+        this.sendMessageToClient({
             tabID: tabID,
             command: 'help',
             chatMessage: '',
@@ -195,7 +195,7 @@ export class Connector {
     }
 
     private sendTriggerMessageProcessed = async (requestID: any): Promise<void> => {
-        this.sendMessageToExtension({
+        this.sendMessageToClient({
             command: 'trigger-message-processed',
             requestID: requestID,
             tabType: 'cwc',
@@ -217,7 +217,7 @@ export class Connector {
     }
 
     private sendTriggerTabIDReceived = async (triggerID: string, tabID: string): Promise<void> => {
-        this.sendMessageToExtension({
+        this.sendMessageToClient({
             command: 'trigger-tabID-received',
             triggerID,
             tabID,

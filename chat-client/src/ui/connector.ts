@@ -30,7 +30,7 @@ export interface ChatPayload {
 }
 
 export interface ConnectorProps {
-    sendMessageToExtension: (message: ExtensionMessage) => void
+    sendMessageToClient: (message: ExtensionMessage) => void
     onChatAnswerUpdated?: (tabID: string, message: ChatItem) => void
     onChatAnswerReceived?: (tabID: string, message: ChatItem) => void
     onWelcomeFollowUpClicked: (tabID: string, welcomeFollowUpType: WelcomeFollowupType) => void
@@ -51,7 +51,7 @@ export interface ConnectorProps {
 }
 
 export class Connector {
-    private readonly sendMessageToExtension
+    private readonly sendMessageToClient
     private readonly cwChatConnector
     private readonly featureDevChatConnector
     private readonly gumbyChatConnector
@@ -62,12 +62,12 @@ export class Connector {
     private isUIReady = false
 
     constructor(props: ConnectorProps) {
-        this.sendMessageToExtension = props.sendMessageToExtension
+        this.sendMessageToClient = props.sendMessageToClient
         this.cwChatConnector = new CWChatConnector(props as ConnectorProps)
         this.featureDevChatConnector = new FeatureDevChatConnector(props)
         this.gumbyChatConnector = new GumbyChatConnector(props)
         this.amazonqCommonsConnector = new AmazonQCommonsConnector({
-            sendMessageToExtension: this.sendMessageToExtension,
+            sendMessageToClient: this.sendMessageToClient,
             onWelcomeFollowUpClicked: props.onWelcomeFollowUpClicked,
         })
         this.tabsStorage = props.tabsStorage

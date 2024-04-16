@@ -14,7 +14,7 @@ import { TabOpenType, TabsStorage } from '../storages/tabsStorage'
 import { GumbyMessageType } from './gumbyMessage'
 
 export interface ConnectorProps {
-    sendMessageToExtension: (message: ExtensionMessage) => void
+    sendMessageToClient: (message: ExtensionMessage) => void
     onAsyncEventProgress: (tabID: string, inProgress: boolean, message: string, messageId: string) => void
     onChatAnswerReceived?: (tabID: string, message: ChatItem) => void
     onChatAnswerUpdated?: (tabID: string, message: ChatItem) => void
@@ -34,7 +34,7 @@ export interface MessageData {
 
 export class Connector {
     private readonly onAuthenticationUpdate
-    private readonly sendMessageToExtension
+    private readonly sendMessageToClient
     private readonly onError
     private readonly onChatAnswerReceived
     private readonly onChatAnswerUpdated
@@ -45,7 +45,7 @@ export class Connector {
     private readonly tabStorage
 
     constructor(props: ConnectorProps) {
-        this.sendMessageToExtension = props.sendMessageToExtension
+        this.sendMessageToClient = props.sendMessageToClient
         this.onChatAnswerReceived = props.onChatAnswerReceived
         this.onChatAnswerUpdated = props.onChatAnswerUpdated
         this.onError = props.onError
@@ -58,7 +58,7 @@ export class Connector {
     }
 
     onTabAdd = (tabID: string, tabOpenInteractionType?: TabOpenType): void => {
-        this.sendMessageToExtension({
+        this.sendMessageToClient({
             tabID: tabID,
             command: 'new-tab-was-created',
             tabType: 'gumby',
@@ -67,7 +67,7 @@ export class Connector {
     }
 
     onTabRemove(tabID: string) {
-        this.sendMessageToExtension({
+        this.sendMessageToClient({
             tabID: tabID,
             command: 'tab-was-removed',
             tabType: 'gumby',
@@ -118,7 +118,7 @@ export class Connector {
     }
 
     transform = (tabID: string): void => {
-        this.sendMessageToExtension({
+        this.sendMessageToClient({
             tabID: tabID,
             command: 'transform',
             chatMessage: 'transform',
@@ -128,7 +128,7 @@ export class Connector {
 
     requestAnswer = (tabID: string, payload: ChatPayload) => {
         this.tabStorage.updateTabStatus(tabID, 'busy')
-        this.sendMessageToExtension({
+        this.sendMessageToClient({
             tabID: tabID,
             command: 'chat-prompt',
             chatMessage: payload.chatMessage,
@@ -160,7 +160,7 @@ export class Connector {
             return
         }
 
-        this.sendMessageToExtension({
+        this.sendMessageToClient({
             command: 'form-action-click',
             action: action.id,
             formSelectedValues: action.formItemValues,
@@ -170,7 +170,7 @@ export class Connector {
     }
 
     onResponseBodyLinkClick = (tabID: string, messageId: string, link: string): void => {
-        this.sendMessageToExtension({
+        this.sendMessageToClient({
             command: 'response-body-link-click',
             tabID,
             messageId,
