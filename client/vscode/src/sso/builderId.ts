@@ -122,7 +122,10 @@ export interface SsoConnection extends SsoProfile {
 }
 
 export class OidcClient {
-    public constructor(private readonly client: SSOOIDC, private readonly clock: { Date: typeof Date }) {}
+    public constructor(
+        private readonly client: SSOOIDC,
+        private readonly clock: { Date: typeof Date }
+    ) {}
 
     public async registerClient(request: RegisterClientRequest) {
         const response = await this.client.registerClient(request)

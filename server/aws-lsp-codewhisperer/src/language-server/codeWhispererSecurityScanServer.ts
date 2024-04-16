@@ -4,6 +4,7 @@ import {
     ExecuteCommandParams,
     Server,
 } from '@aws/language-server-runtimes/server-interface'
+import { performance } from 'perf_hooks'
 import { pathToFileURL } from 'url'
 import { ArtifactMap } from '../client/token/codewhispererbearertokenclient'
 import { CodeWhispererServiceToken } from './codeWhispererService'
