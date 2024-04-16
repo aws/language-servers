@@ -12,8 +12,12 @@
     "engines": {
         "node": ">=18.0.0"
     },
+    "workspaces": [
+        "src.gen/@amzn/codewhisperer-streaming"
+    ],
     "scripts": {
-        "compile": "tsc --build",
+        "compile-streamingClient": "npm run build -w src.gen/@amzn/codewhisperer-streaming",
+        "compile": "npm run compile-streamingClient && tsc --build",
         "postcompile": "npm run copyServiceClient",
         "copyServiceClient": "copyfiles -u 1 --error ./src/client/sigv4/*.json out && copyfiles -u 1 --error ./src/client/token/*.json out",
         "test:unit": "ts-mocha -b 'src/**/*.test.ts'",

@@ -8,7 +8,8 @@
         "client/**",
         "chat-client",
         "core/*",
-        "server/*"
+        "server/*",
+        "server/**"
     ],
     "scripts": {
         "prepare": "husky install .husky",
