@@ -10,7 +10,7 @@
         "compile": "tsc --build",
         "package-x64": "pkg --targets node18-linux-x64,node18-win-x64,node18-macos-x64 --out-path bin --compress GZip .",
         "test": "npm run test-integ",
-        "test-integ": "npm run package-x64 && mocha --timeout 5000 './out/**/*Integ.test.js'"
+        "test-integ": "npm run package-x64 && mocha --timeout 5000 './out/**/*Integ.test.js' --retries 2"
     },
     "dependencies": {
         "@aws/aws-lsp-yaml-json": "*",

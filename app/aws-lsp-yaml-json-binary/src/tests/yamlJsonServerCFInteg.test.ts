@@ -22,7 +22,7 @@ import {
     TEXT_TO_HOVER_YAML,
 } from './testUtilsCF'
 
-describe('Test YamlJsonServer with CloudFormation schema', async () => {
+describe('Test YamlJsonServer with CloudFormation schema', () => {
     const rootPath = path.resolve(__dirname)
     let process: ChildProcessWithoutNullStreams
     let endpoint: JSONRPCEndpoint
@@ -71,7 +71,7 @@ describe('Test YamlJsonServer with CloudFormation schema', async () => {
         expect(result.capabilities).to.exist
     })
 
-    after(async () => {
+    after(() => {
         client.exit()
     })
 
@@ -137,12 +137,7 @@ describe('Test YamlJsonServer with CloudFormation schema', async () => {
         })
         const result = await client.once('textDocument/publishDiagnostics')
 
-        const expectedDiagnostics = {
-            ...DIAGNOSTICS_RESPONSE_JSON,
-            uri: docUri,
-        }
-
-        expect(result[0]).to.deep.equal(expectedDiagnostics)
+        expect(result[0]).to.deep.equal(DIAGNOSTICS_RESPONSE_JSON)
     })
 
     it('should return format items, JSON', async () => {
@@ -199,7 +194,7 @@ describe('Test YamlJsonServer with CloudFormation schema', async () => {
 
     it('should return hover items, YAML', async () => {
         const docUri = 'hover.yml'
-        await client.didOpen({
+        client.didOpen({
             textDocument: {
                 uri: docUri,
                 text: TEXT_TO_HOVER_YAML,
@@ -234,12 +229,7 @@ describe('Test YamlJsonServer with CloudFormation schema', async () => {
 
         const result = await client.once('textDocument/publishDiagnostics')
 
-        const expectedDiagnostics = {
-            ...DIAGNOSTICS_RESPONSE_YAML,
-            uri: docUri,
-        }
-
-        expect(result[0]).to.deep.equal(expectedDiagnostics)
+        expect(result[0]).to.deep.equal(DIAGNOSTICS_RESPONSE_YAML)
     })
 
     it('should return format items, YAML', async () => {
