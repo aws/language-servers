@@ -6,13 +6,13 @@
     "workspaces": [
         "app/*",
         "client/**",
-        "chat-client/*",
+        "chat-client",
         "core/*",
         "server/*"
     ],
     "scripts": {
         "prepare": "husky install .husky",
-        "lint": "eslint app/ client/ core/ script/ server/ --ext .ts,.tsx && prettier --check .",
+        "lint": "eslint app/ chat-client/ client/ core/ script/ server/ --ext .ts,.tsx && prettier --check .",
         "format": "prettier --write .",
         "format-staged": "npx pretty-quick --staged",
         "clean": "ts-node ./script/clean.ts",
