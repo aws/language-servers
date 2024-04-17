@@ -26,7 +26,7 @@
         "fix:prettier": "prettier . --write"
     },
     "dependencies": {
-        "@aws/language-server-runtimes": "^0.2.1",
+        "@aws/language-server-runtimes": "^0.2.2",
         "adm-zip": "^0.5.10",
         "aws-sdk": "^2.1403.0",
         "got": "^11.8.5",

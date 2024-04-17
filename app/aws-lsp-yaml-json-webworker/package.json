@@ -12,26 +12,26 @@
     },
     "dependencies": {
         "@aws/aws-lsp-yaml-json": "*",
-        "@aws/language-server-runtimes": "^0.2.1"
+        "@aws/language-server-runtimes": "^0.2.2"
     },
     "devDependencies": {
         "@types/node": "^20.11.30",
+        "assert": "^2.1.0",
+        "crypto-browserify": "^3.12.0",
         "fs": "^0.0.1-security",
         "license-checker": "^25.0.1",
+        "os-browserify": "^0.3.0",
+        "oss-attribution-generator": "^1.7.1",
         "path": "^0.12.7",
+        "path-browserify": "^1.0.1",
         "pkg": "^5.8.1",
+        "stream-browserify": "^3.0.0",
         "ts-loader": "^9.5.1",
         "ts-node": "^10.9.2",
         "typescript": "^5.4.3",
+        "umd-compat-loader": "^2.1.2",
         "webpack": "^5.91.0",
         "webpack-cli": "^5.1.4",
-        "webpack-dev-server": "^5.0.4",
-        "assert": "^2.1.0",
-        "crypto-browserify": "^3.12.0",
-        "os-browserify": "^0.3.0",
-        "oss-attribution-generator": "^1.7.1",
-        "path-browserify": "^1.0.1",
-        "stream-browserify": "^3.0.0",
-        "umd-compat-loader": "^2.1.2"
+        "webpack-dev-server": "^5.0.4"
     }
 }
