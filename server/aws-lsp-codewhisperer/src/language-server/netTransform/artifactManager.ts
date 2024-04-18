@@ -7,7 +7,6 @@ import path = require('path')
 const requriementJsonFileName = 'requirement.json'
 const artifactFolderName = 'artifact'
 const zipFileName = 'artifact.zip'
-const referenceFolderName = 'reference'
 const sourceCodeFolderName = 'sourceCode'
 
 export class ArtifactManager {
@@ -124,7 +123,7 @@ export class ArtifactManager {
     }
 
     getReferencePathFromRelativePath(relativePath: string): string {
-        return path.join(this.workspacePath, artifactFolderName, referenceFolderName, relativePath)
+        return path.join(this.workspacePath, artifactFolderName, relativePath)
     }
 
     getSourceCodePathFromRelativePath(relativePath: string): string {
