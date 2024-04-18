@@ -7,8 +7,8 @@ export const ERROR_MESSAGE = 'error-message'
 
 export type UiMessageCommand =
     | typeof UI_IS_READY
-    | typeof UI_FOCUS // TODO: Move to server
-    | typeof TAB_ID_RECEIVED // TODO: Move to server
+    | typeof UI_FOCUS
+    | typeof TAB_ID_RECEIVED
     | typeof SEND_TO_PROMPT
     | typeof AUTH_NEEDED_EXCEPTION
     | typeof ERROR_MESSAGE
@@ -23,7 +23,6 @@ export interface UiMessage extends Message {
 
 export type UiMessageParams = FocusParams | TabIdReceivedParams
 
-// TODO: This needs to be event to server as well, as it records metrics
 export interface FocusParams {
     type: string
 }
@@ -48,7 +47,6 @@ export interface SendToPromptParams {
     triggerId: string
 }
 
-// TODO: Use generics?
 export interface SendToPromptMessage {
     command: typeof SEND_TO_PROMPT
     params: SendToPromptParams
