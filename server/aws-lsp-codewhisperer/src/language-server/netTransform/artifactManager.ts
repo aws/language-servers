@@ -1,9 +1,9 @@
-import * as crypto from 'crypto'
+import { Logging, Workspace } from '@aws/language-server-runtimes/server-interface'
 import * as archiver from 'archiver'
+import * as crypto from 'crypto'
 import * as fs from 'fs'
-import path = require('path')
 import { QNetStartTransformRequest, RequirementJson } from './models'
-import { Workspace, Logging } from '@aws/language-server-runtimes/server-interface'
+import path = require('path')
 const requriementJsonFileName = 'requirement.json'
 const artifactFolderName = 'artifact'
 const zipFileName = 'artifact.zip'
@@ -92,13 +92,11 @@ export class ArtifactManager {
     filterReferences(request: QNetStartTransformRequest) {
         //remove duplicate externalreference
         const externalReferences = request.ProjectMetadata.flatMap(r => r.ExternalReferences)
-        return externalReferences
-            .filter(reference => reference.IncludedInArtifact)
-            .filter(
-                (reference, index) =>
-                    index ===
-                    externalReferences.findIndex(other => reference.AssemblyFullPath === other.AssemblyFullPath)
-            )
+        const includedReferences = externalReferences.filter(reference => reference.IncludedInArtifact)
+        return includedReferences.filter(
+            (reference, index) =>
+                index === includedReferences.findIndex(other => reference.AssemblyFullPath === other.AssemblyFullPath)
+        )
     }
 
     async zipArtifact(): Promise<string> {
