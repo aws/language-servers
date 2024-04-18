@@ -9,6 +9,7 @@ module.exports = {
     output: {
         filename: 'amazonq-ui.js',
         path: path.resolve(__dirname, 'build'),
+        library: 'amazonQChat',
     },
     resolve: {
         extensions: ['.ts', '.js'],

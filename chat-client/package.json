@@ -10,14 +10,15 @@
     "author": "Amazon Web Services",
     "license": "Apache-2.0",
     "scripts": {
-        "compile": "tsc --build",
+        "compile": "tsc --build && npm run package",
         "test:prettier": "prettier . --check",
         "test": "npm run test:prettier",
         "fix:prettier": "prettier . --write",
         "package": "webpack"
     },
     "dependencies": {
-        "@aws/mynah-ui": "^4.5.4"
+        "@aws/mynah-ui": "^4.5.4",
+        "@aws/language-server-runtimes": "^0.2.1"
     },
     "devDependencies": {
         "webpack": "^5.38.1",
