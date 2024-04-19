@@ -6,6 +6,7 @@ import { QNetStartTransformRequest, RequirementJson } from './models'
 import path = require('path')
 const requriementJsonFileName = 'requirement.json'
 const artifactFolderName = 'artifact'
+const referencesFolderName = 'references'
 const zipFileName = 'artifact.zip'
 const sourceCodeFolderName = 'sourceCode'
 
@@ -74,7 +75,7 @@ export class ArtifactManager {
                         AssemblyFullPath: '',
                         IncludedInArtifact: r.IncludedInArtifact,
                         ProjectPath: this.normalizeSourceFileRelativePath(request.SolutionRootPath, r.ProjectPath),
-                        RelativePath: r.RelativePath,
+                        RelativePath: this.normalizeReferenceFileRelativePath(r.RelativePath, r.IncludedInArtifact),
                         TargetFrameworkId: r.TargetFrameworkId,
                     }
                 }),
@@ -123,7 +124,7 @@ export class ArtifactManager {
     }
 
     getReferencePathFromRelativePath(relativePath: string): string {
-        return path.join(this.workspacePath, artifactFolderName, relativePath)
+        return path.join(this.workspacePath, artifactFolderName, referencesFolderName, relativePath)
     }
 
     getSourceCodePathFromRelativePath(relativePath: string): string {
@@ -137,6 +138,10 @@ export class ArtifactManager {
             const relativePath = fullPath.substring(fullPath.indexOf(':\\') + 2, fullPath.length)
             return path.join(sourceCodeFolderName, relativePath)
         }
+    }
+
+    normalizeReferenceFileRelativePath(relativePath: string, includedInArtifact: boolean): string {
+        return includedInArtifact ? path.join(referencesFolderName, relativePath) : relativePath
     }
 
     zipDirectory(sourceDir: string, outPath: string) {
