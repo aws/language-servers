@@ -6,6 +6,7 @@ import {
 import { ConfiguredRetryStrategy } from '@aws-sdk/util-retry'
 import { CredentialsProvider } from '@aws/language-server-runtimes/server-interface'
 import { AbortController } from '@smithy/abort-controller'
+import { addProxyToClient } from 'aws-sdk-v3-proxy'
 import { getBearerTokenFromProvider } from '../utils'
 
 export class ChatSessionService {
@@ -25,15 +26,23 @@ export class ChatSessionService {
     }
 
     constructor(credentialsProvider: CredentialsProvider) {
-        this.#client = new CodeWhispererStreaming({
+        const steamingClient = new CodeWhispererStreaming({
             region: this.#codeWhispererRegion,
             endpoint: this.#codeWhispererEndpoint,
             token: () => Promise.resolve({ token: getBearerTokenFromProvider(credentialsProvider) }),
             retryStrategy: new ConfiguredRetryStrategy(0, (attempt: number) => 500 + attempt ** 10),
         })
+
+        /**
+         * Streaming client use v3 sdk so there is no longer a global configuration for proxy
+         *
+         * addProxyToClient detects environment variables and determines whether or not to attach proxy
+         */
+
+        this.#client = addProxyToClient(steamingClient, { throwOnNoProxy: false })
     }
 
-    async generateAssistantResponse(
+    public async generateAssistantResponse(
         request: GenerateAssistantResponseCommandInput
     ): Promise<GenerateAssistantResponseCommandOutput> {
         this.#abortController = new AbortController()
