@@ -40,6 +40,10 @@
             {
                 "command": "helloWorld.log",
                 "title": "Hello World LSP - Log Command"
+            },
+            {
+                "command": "chat.sendCommandsFromUI",
+                "title": "Amazon Q Chat - Send test commands from UI"
             }
         ],
         "configuration": {
@@ -68,7 +72,8 @@
     },
     "scripts": {
         "vscode:prepublish": "npm run compile",
-        "compile": "tsc -b"
+        "compile": "tsc -b && npm run compile:chat-client",
+        "compile:chat-client": "npm run compile --prefix ../../chat-client && cp -R ../../chat-client/build/ ."
     },
     "devDependencies": {
         "@aws-sdk/credential-providers": "^3.540.0",

@@ -1,0 +1,37 @@
+{
+    "name": "@aws/q-chat-client",
+    "version": "0.0.1",
+    "description": "Q Chat Client",
+    "main": "out/index.js",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/aws/language-servers"
+    },
+    "author": "Amazon Web Services",
+    "license": "Apache-2.0",
+    "scripts": {
+        "compile": "tsc --build && npm run package",
+        "test:prettier": "prettier . --check",
+        "test": "npm run test:prettier",
+        "fix:prettier": "prettier . --write",
+        "package": "webpack"
+    },
+    "dependencies": {
+        "@aws/mynah-ui": "^4.5.4",
+        "@aws/language-server-runtimes": "^0.2.1"
+    },
+    "devDependencies": {
+        "webpack": "^5.38.1",
+        "webpack-cli": "^4.7.2"
+    },
+    "prettier": {
+        "printWidth": 120,
+        "trailingComma": "es5",
+        "tabWidth": 4,
+        "singleQuote": true,
+        "semi": false,
+        "bracketSpacing": true,
+        "arrowParens": "avoid",
+        "endOfLine": "lf"
+    }
+}

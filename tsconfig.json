@@ -16,6 +16,9 @@
             "path": "./client/vscode"
         },
         {
+            "path": "./chat-client"
+        },
+        {
             "path": "./core/aws-lsp-core"
         },
         {
