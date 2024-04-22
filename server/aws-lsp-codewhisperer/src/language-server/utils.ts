@@ -1,3 +1,4 @@
+import { BearerCredentials, CredentialsProvider } from '@aws/language-server-runtimes/server-interface'
 import { AWSError } from 'aws-sdk'
 import { Suggestion } from './codeWhispererService'
 import { CodewhispererCompletionType } from './telemetry/types'
@@ -37,4 +38,18 @@ export function getErrorMessage(error: any): string {
         return error.message
     }
     return String(error)
+}
+
+export function getBearerTokenFromProvider(credentialsProvider: CredentialsProvider) {
+    if (!credentialsProvider.hasCredentials('bearer')) {
+        throw new Error('credentialsProvider does not have bearer token credentials')
+    }
+
+    const credentials = credentialsProvider.getCredentials('bearer') as BearerCredentials
+
+    if (!credentials.token) {
+        throw new Error('credentialsProvider does not have bearer token credentials')
+    }
+
+    return credentials.token
 }
