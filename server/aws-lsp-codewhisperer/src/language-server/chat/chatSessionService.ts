@@ -15,7 +15,6 @@ export class ChatSessionService {
     #client: CodeWhispererStreaming
     #abortController?: AbortController
     #sessionId?: string
-    #credentialsProvider: CredentialsProvider
 
     public get sessionId(): string | undefined {
         return this.#sessionId
@@ -26,12 +25,10 @@ export class ChatSessionService {
     }
 
     constructor(credentialsProvider: CredentialsProvider) {
-        this.#credentialsProvider = credentialsProvider
-
         this.#client = new CodeWhispererStreaming({
             region: this.#codeWhispererRegion,
             endpoint: this.#codeWhispererEndpoint,
-            token: () => Promise.resolve({ token: getBearerTokenFromProvider(this.#credentialsProvider) }),
+            token: () => Promise.resolve({ token: getBearerTokenFromProvider(credentialsProvider) }),
             retryStrategy: new ConfiguredRetryStrategy(0, (attempt: number) => 500 + attempt ** 10),
         })
     }
