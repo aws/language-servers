@@ -17,7 +17,7 @@
         "package": "webpack"
     },
     "dependencies": {
-        "@aws/mynah-ui": "^4.5.4",
+        "@aws/mynah-ui": "^4.6.1",
         "@aws/language-server-runtimes": "^0.2.1"
     },
     "devDependencies": {
