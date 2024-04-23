@@ -1,0 +1,176 @@
+diff --git a/node_modules/yaml-language-server/lib/esm/.DS_Store b/node_modules/yaml-language-server/lib/esm/.DS_Store
+new file mode 100644
+index 0000000..524f402
+Binary files /dev/null and b/node_modules/yaml-language-server/lib/esm/.DS_Store differ
+diff --git a/node_modules/yaml-language-server/lib/esm/languageservice/services/yamlHover.js b/node_modules/yaml-language-server/lib/esm/languageservice/services/yamlHover.js
+index 7da17dd..3e9622f 100644
+--- a/node_modules/yaml-language-server/lib/esm/languageservice/services/yamlHover.js
++++ b/node_modules/yaml-language-server/lib/esm/languageservice/services/yamlHover.js
+@@ -16,11 +16,13 @@ export class YAMLHover {
+     constructor(schemaService, telemetry) {
+         this.telemetry = telemetry;
+         this.shouldHover = true;
++        this.hoverSettings = {showSource: false, showTitle: false};
+         this.schemaService = schemaService;
+     }
+     configure(languageSettings) {
+         if (languageSettings) {
+             this.shouldHover = languageSettings.hover;
++            this.hoverSettings = languageSettings.hoverSettings;
+             this.indentation = languageSettings.indentation;
+         }
+     }
+@@ -82,6 +84,8 @@ export class YAMLHover {
+         const removePipe = (value) => {
+             return value.replace(/\|\|\s*$/, '');
+         };
++        const showSource = this.hoverSettings?.showSource ?? false;
++        const showTitle = this.hoverSettings?.showTitle ?? false;
+         return this.schemaService.getSchemaForResource(document.uri, doc).then((schema) => {
+             if (schema && node && !schema.errors.length) {
+                 const matchingSchemas = doc.getMatchingSchemas(schema.schema, node.offset);
+@@ -133,7 +137,7 @@ export class YAMLHover {
+                     return true;
+                 });
+                 let result = '';
+-                if (title) {
++                if (showTitle && title) {
+                     result = '#### ' + toMarkdown(title);
+                 }
+                 if (markdownDescription) {
+@@ -157,7 +161,7 @@ export class YAMLHover {
+                         result += `\n\n\`\`\`${example}\`\`\``;
+                     });
+                 }
+-                if (result.length > 0 && schema.schema.url) {
++                if (showSource && result.length > 0 && schema.schema.url) {
+                     result += `\n\nSource: [${getSchemaName(schema.schema)}](${schema.schema.url})`;
+                 }
+                 return createHover(result);
+diff --git a/node_modules/yaml-language-server/lib/esm/languageservice/yamlLanguageService.d.ts b/node_modules/yaml-language-server/lib/esm/languageservice/yamlLanguageService.d.ts
+index 3b84f32..f1925ff 100644
+--- a/node_modules/yaml-language-server/lib/esm/languageservice/yamlLanguageService.d.ts
++++ b/node_modules/yaml-language-server/lib/esm/languageservice/yamlLanguageService.d.ts
+@@ -25,6 +25,7 @@ export interface SchemasSettings {
+ export interface LanguageSettings {
+     validate?: boolean;
+     hover?: boolean;
++    hoverSettings?: {showSource?: boolean; showTitle?: boolean;};
+     completion?: boolean;
+     format?: boolean;
+     isKubernetes?: boolean;
+diff --git a/node_modules/yaml-language-server/lib/umd/languageservice/services/yamlHover.js b/node_modules/yaml-language-server/lib/umd/languageservice/services/yamlHover.js
+index 0bea95f..0f3b2c8 100644
+--- a/node_modules/yaml-language-server/lib/umd/languageservice/services/yamlHover.js
++++ b/node_modules/yaml-language-server/lib/umd/languageservice/services/yamlHover.js
+@@ -27,11 +27,13 @@
+         constructor(schemaService, telemetry) {
+             this.telemetry = telemetry;
+             this.shouldHover = true;
++            this.hoverSettings = {showSource: false, showTitle: false};
+             this.schemaService = schemaService;
+         }
+         configure(languageSettings) {
+             if (languageSettings) {
+                 this.shouldHover = languageSettings.hover;
++                this.hoverSettings = languageSettings.hoverSettings;
+                 this.indentation = languageSettings.indentation;
+             }
+         }
+@@ -93,6 +95,8 @@
+             const removePipe = (value) => {
+                 return value.replace(/\|\|\s*$/, '');
+             };
++            const showSource = this.hoverSettings?.showSource ?? false;
++            const showTitle = this.hoverSettings?.showTitle ?? false;
+             return this.schemaService.getSchemaForResource(document.uri, doc).then((schema) => {
+                 if (schema && node && !schema.errors.length) {
+                     const matchingSchemas = doc.getMatchingSchemas(schema.schema, node.offset);
+@@ -144,7 +148,7 @@
+                         return true;
+                     });
+                     let result = '';
+-                    if (title) {
++                    if (showTitle && title) {
+                         result = '#### ' + toMarkdown(title);
+                     }
+                     if (markdownDescription) {
+@@ -168,7 +172,7 @@
+                             result += `\n\n\`\`\`${example}\`\`\``;
+                         });
+                     }
+-                    if (result.length > 0 && schema.schema.url) {
++                    if (showSource && result.length > 0 && schema.schema.url) {
+                         result += `\n\nSource: [${getSchemaName(schema.schema)}](${schema.schema.url})`;
+                     }
+                     return createHover(result);
+diff --git a/node_modules/yaml-language-server/lib/umd/languageservice/yamlLanguageService.d.ts b/node_modules/yaml-language-server/lib/umd/languageservice/yamlLanguageService.d.ts
+index 3b84f32..f1925ff 100644
+--- a/node_modules/yaml-language-server/lib/umd/languageservice/yamlLanguageService.d.ts
++++ b/node_modules/yaml-language-server/lib/umd/languageservice/yamlLanguageService.d.ts
+@@ -25,6 +25,7 @@ export interface SchemasSettings {
+ export interface LanguageSettings {
+     validate?: boolean;
+     hover?: boolean;
++    hoverSettings?: {showSource?: boolean; showTitle?: boolean;};
+     completion?: boolean;
+     format?: boolean;
+     isKubernetes?: boolean;
+diff --git a/node_modules/yaml-language-server/out/server/src/languageservice/services/yamlHover.js b/node_modules/yaml-language-server/out/server/src/languageservice/services/yamlHover.js
+index 1fb340e..647130f 100644
+--- a/node_modules/yaml-language-server/out/server/src/languageservice/services/yamlHover.js
++++ b/node_modules/yaml-language-server/out/server/src/languageservice/services/yamlHover.js
+@@ -18,11 +18,13 @@ class YAMLHover {
+     constructor(schemaService, telemetry) {
+         this.telemetry = telemetry;
+         this.shouldHover = true;
++        this.hoverSettings = {showSource: false, showTitle: false};
+         this.schemaService = schemaService;
+     }
+     configure(languageSettings) {
+         if (languageSettings) {
+             this.shouldHover = languageSettings.hover;
++            this.hoverSettings = languageSettings.hoverSettings;
+             this.indentation = languageSettings.indentation;
+         }
+     }
+@@ -84,6 +86,9 @@ class YAMLHover {
+         const removePipe = (value) => {
+             return value.replace(/\|\|\s*$/, '');
+         };
++        const showSource = this.hoverSettings?.showSource ?? false;
++        const showTitle = this.hoverSettings?.showTitle ?? false;
++
+         return this.schemaService.getSchemaForResource(document.uri, doc).then((schema) => {
+             if (schema && node && !schema.errors.length) {
+                 const matchingSchemas = doc.getMatchingSchemas(schema.schema, node.offset);
+@@ -135,7 +140,7 @@ class YAMLHover {
+                     return true;
+                 });
+                 let result = '';
+-                if (title) {
++                if (showTitle && title) {
+                     result = '#### ' + toMarkdown(title);
+                 }
+                 if (markdownDescription) {
+@@ -159,7 +164,7 @@ class YAMLHover {
+                         result += `\n\n\`\`\`${example}\`\`\``;
+                     });
+                 }
+-                if (result.length > 0 && schema.schema.url) {
++                if (showSource && result.length > 0 && schema.schema.url) {
+                     result += `\n\nSource: [${getSchemaName(schema.schema)}](${schema.schema.url})`;
+                 }
+                 return createHover(result);
+diff --git a/node_modules/yaml-language-server/out/server/src/languageservice/yamlLanguageService.d.ts b/node_modules/yaml-language-server/out/server/src/languageservice/yamlLanguageService.d.ts
+index 3b84f32..f1925ff 100644
+--- a/node_modules/yaml-language-server/out/server/src/languageservice/yamlLanguageService.d.ts
++++ b/node_modules/yaml-language-server/out/server/src/languageservice/yamlLanguageService.d.ts
+@@ -25,6 +25,7 @@ export interface SchemasSettings {
+ export interface LanguageSettings {
+     validate?: boolean;
+     hover?: boolean;
++    hoverSettings?: {showSource?: boolean; showTitle?: boolean;};
+     completion?: boolean;
+     format?: boolean;
+     isKubernetes?: boolean;

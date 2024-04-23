@@ -4,11 +4,13 @@
     "description": "YAML Language Server common code library",
     "main": "out/index.js",
     "scripts": {
-        "compile": "tsc --build"
+        "compile": "tsc --build",
+        "postinstall": "patch-package"
     },
     "dependencies": {
         "@aws/lsp-core": "^0.0.1",
         "vscode-languageserver": "9.0.1",
-        "yaml-language-server": "^1.13.0"
+        "yaml-language-server": "1.14.0",
+        "patch-package": "^6.5.1"
     }
 }

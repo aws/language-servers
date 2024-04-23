@@ -22,7 +22,8 @@
         "test-integ": "npm run compile && npm run test-integ --workspaces --if-present",
         "test-unit": "npm run compile && npm run test-unit --workspaces --if-present",
         "update-runtimes": "cp ../language-server-runtimes/aws-*.tgz bin/ && npm update @aws/language-server-runtimes",
-        "package": "npm install && npm run compile && npm run package-x64 --workspaces --if-present"
+        "package": "npm install && npm run compile && npm run package-x64 --workspaces --if-present",
+        "postinstall": "patch-package"
     },
     "dependencies": {
         "typescript": "^5.0.4"
@@ -36,7 +37,8 @@
         "husky": "^9.0.11",
         "prettier": "^3.2.5",
         "pretty-quick": "^4.0.0",
-        "ts-node": "^10.9.1"
+        "ts-node": "^10.9.1",
+        "patch-package": "^6.5.1"
     },
     "prettier": {
         "printWidth": 120,
