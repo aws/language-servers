@@ -15,11 +15,11 @@ export class ChatSessionManagementService {
         this.#clientConfig = clientConfig
     }
 
-    hasSession(tabId: string): boolean {
+    public hasSession(tabId: string): boolean {
         return this.#sessionByTab.has(tabId)
     }
 
-    getSession(tabId: string): ChatSessionService {
+    public getSession(tabId: string): ChatSessionService {
         const maybeSession = this.#sessionByTab.get(tabId)
 
         if (!maybeSession) {
@@ -34,12 +34,12 @@ export class ChatSessionManagementService {
         return maybeSession
     }
 
-    deleteSession(tabId: string): void {
+    public deleteSession(tabId: string): void {
         this.#sessionByTab.get(tabId)?.dispose()
         this.#sessionByTab.delete(tabId)
     }
 
-    dispose(): void {
+    public dispose(): void {
         this.#sessionByTab.forEach(session => session.dispose())
     }
 }
