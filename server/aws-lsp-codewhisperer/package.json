@@ -28,7 +28,6 @@
     },
     "dependencies": {
         "@aws/language-server-runtimes": "^0.2.2",
-        "aws-sdk-v3-proxy": "^2.1.2",
         "adm-zip": "^0.5.10",
         "aws-sdk": "^2.1403.0",
         "got": "^11.8.5",
