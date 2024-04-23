@@ -1,13 +1,18 @@
 import { CredentialsProvider } from '@aws/language-server-runtimes/server-interface'
-import { ChatSessionService } from './chatSessionService'
+import { ChatSessionService, ChatSessionServiceConfig } from './chatSessionService'
 
 export class ChatSessionManagementService {
     #sessionByTab: Map<string, ChatSessionService>
     #credentialsProvider: CredentialsProvider
+    #clientConfig?: ChatSessionServiceConfig | (() => ChatSessionServiceConfig)
 
-    constructor(credentialsProvider: CredentialsProvider) {
+    constructor(
+        credentialsProvider: CredentialsProvider,
+        clientConfig?: ChatSessionServiceConfig | (() => ChatSessionServiceConfig)
+    ) {
         this.#credentialsProvider = credentialsProvider
         this.#sessionByTab = new Map<string, any>()
+        this.#clientConfig = clientConfig
     }
 
     hasSession(tabId: string): boolean {
@@ -18,7 +23,8 @@ export class ChatSessionManagementService {
         const maybeSession = this.#sessionByTab.get(tabId)
 
         if (!maybeSession) {
-            const newSession = new ChatSessionService(this.#credentialsProvider)
+            const clientConfig = typeof this.#clientConfig === 'function' ? this.#clientConfig() : this.#clientConfig
+            const newSession = new ChatSessionService(this.#credentialsProvider, clientConfig)
 
             this.#sessionByTab.set(tabId, newSession)
 
