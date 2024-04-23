@@ -51,12 +51,12 @@ export class ChatSessionService {
         return response
     }
 
-    public dispose() {
+    public dispose(): void {
         this.#abortController?.abort()
         this.#client.destroy()
     }
 
-    public abortRequest() {
+    public abortRequest(): void {
         this.#abortController?.abort()
     }
 }
