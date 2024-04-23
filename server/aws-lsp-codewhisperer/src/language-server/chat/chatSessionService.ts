@@ -1,5 +1,6 @@
 import {
     CodeWhispererStreaming,
+    CodeWhispererStreamingClientConfig,
     GenerateAssistantResponseCommandInput,
     GenerateAssistantResponseCommandOutput,
 } from '@amzn/codewhisperer-streaming'
@@ -8,6 +9,7 @@ import { CredentialsProvider } from '@aws/language-server-runtimes/server-interf
 import { AbortController } from '@smithy/abort-controller'
 import { getBearerTokenFromProvider } from '../utils'
 
+export type ChatSessionServiceConfig = CodeWhispererStreamingClientConfig
 export class ChatSessionService {
     public shareCodeWhispererContentWithAWS = false
     readonly #codeWhispererRegion = 'us-east-1'
@@ -24,12 +26,13 @@ export class ChatSessionService {
         this.#sessionId = value
     }
 
-    constructor(credentialsProvider: CredentialsProvider) {
+    constructor(credentialsProvider: CredentialsProvider, config?: CodeWhispererStreamingClientConfig) {
         this.#client = new CodeWhispererStreaming({
             region: this.#codeWhispererRegion,
             endpoint: this.#codeWhispererEndpoint,
             token: () => Promise.resolve({ token: getBearerTokenFromProvider(credentialsProvider) }),
             retryStrategy: new ConfiguredRetryStrategy(0, (attempt: number) => 500 + attempt ** 10),
+            ...config,
         })
     }
 
