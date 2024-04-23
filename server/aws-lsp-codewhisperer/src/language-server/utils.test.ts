@@ -8,7 +8,7 @@ describe('getBearerTokenFromProvider', () => {
     it('returns the bearer token from the provider', () => {
         const mockCredentialsProvider: CredentialsProvider = {
             hasCredentials: sinon.stub().returns(true),
-            getCredentials: sinon.stub().returns(Promise.resolve({ token: mockToken })),
+            getCredentials: sinon.stub().returns({ token: mockToken }),
             getConnectionMetadata: sinon.stub(),
         }
 
@@ -18,7 +18,7 @@ describe('getBearerTokenFromProvider', () => {
     it('throws an error if the credentials does not contain bearer credentials', () => {
         const mockCredentialsProvider: CredentialsProvider = {
             hasCredentials: sinon.stub().returns(false),
-            getCredentials: sinon.stub().returns(Promise.resolve({ token: mockToken })),
+            getCredentials: sinon.stub().returns({ token: mockToken }),
             getConnectionMetadata: sinon.stub(),
         }
 
@@ -32,7 +32,7 @@ describe('getBearerTokenFromProvider', () => {
     it('throws an error if token is empty in bearer token', () => {
         const mockCredentialsProvider: CredentialsProvider = {
             hasCredentials: sinon.stub().returns(true),
-            getCredentials: sinon.stub().returns(Promise.resolve({ token: '' })),
+            getCredentials: sinon.stub().returns({ token: '' }),
             getConnectionMetadata: sinon.stub(),
         }
 
