@@ -24,10 +24,12 @@ class SecurityScanDiagnosticsProvider {
     }
 
     async resetDiagnostics() {
-        this.findings.forEach(async finding => {
-            this.logging.log(`reset diagnostics for: ${finding.filePath}`)
-            await this.publishDiagnostics(finding.filePath, [])
-        })
+        await Promise.all(
+            this.findings.map(finding => {
+                this.logging.log(`reset diagnostics for: ${finding.filePath}`)
+                this.publishDiagnostics(finding.filePath, [])
+            })
+        )
         this.diagnostics = new Map()
     }
 
