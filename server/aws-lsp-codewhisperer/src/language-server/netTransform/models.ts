@@ -67,7 +67,7 @@ export interface ExternalReference {
     RelativePath: string
     AssemblyFullPath: string
     TargetFrameworkId: string
-    IncludedInArtifact: string
+    IncludedInArtifact: boolean
 }
 
 interface QNetTransformProjectMetadata {

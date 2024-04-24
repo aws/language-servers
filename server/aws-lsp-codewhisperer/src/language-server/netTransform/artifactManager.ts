@@ -1,13 +1,13 @@
-import * as crypto from 'crypto'
+import { Logging, Workspace } from '@aws/language-server-runtimes/server-interface'
 import * as archiver from 'archiver'
+import * as crypto from 'crypto'
 import * as fs from 'fs'
-import path = require('path')
 import { QNetStartTransformRequest, RequirementJson } from './models'
-import { Workspace, Logging } from '@aws/language-server-runtimes/server-interface'
+import path = require('path')
 const requriementJsonFileName = 'requirement.json'
 const artifactFolderName = 'artifact'
+const referencesFolderName = 'references'
 const zipFileName = 'artifact.zip'
-const referenceFolderName = 'reference'
 const sourceCodeFolderName = 'sourceCode'
 
 export class ArtifactManager {
@@ -75,7 +75,7 @@ export class ArtifactManager {
                         AssemblyFullPath: '',
                         IncludedInArtifact: r.IncludedInArtifact,
                         ProjectPath: this.normalizeSourceFileRelativePath(request.SolutionRootPath, r.ProjectPath),
-                        RelativePath: r.RelativePath,
+                        RelativePath: this.normalizeReferenceFileRelativePath(r.RelativePath, r.IncludedInArtifact),
                         TargetFrameworkId: r.TargetFrameworkId,
                     }
                 }),
@@ -92,13 +92,11 @@ export class ArtifactManager {
     filterReferences(request: QNetStartTransformRequest) {
         //remove duplicate externalreference
         const externalReferences = request.ProjectMetadata.flatMap(r => r.ExternalReferences)
-        return externalReferences
-            .filter(reference => reference.IncludedInArtifact)
-            .filter(
-                (reference, index) =>
-                    index ===
-                    externalReferences.findIndex(other => reference.AssemblyFullPath === other.AssemblyFullPath)
-            )
+        const includedReferences = externalReferences.filter(reference => reference.IncludedInArtifact)
+        return includedReferences.filter(
+            (reference, index) =>
+                index === includedReferences.findIndex(other => reference.AssemblyFullPath === other.AssemblyFullPath)
+        )
     }
 
     async zipArtifact(): Promise<string> {
@@ -126,7 +124,7 @@ export class ArtifactManager {
     }
 
     getReferencePathFromRelativePath(relativePath: string): string {
-        return path.join(this.workspacePath, artifactFolderName, referenceFolderName, relativePath)
+        return path.join(this.workspacePath, artifactFolderName, referencesFolderName, relativePath)
     }
 
     getSourceCodePathFromRelativePath(relativePath: string): string {
@@ -140,6 +138,10 @@ export class ArtifactManager {
             const relativePath = fullPath.substring(fullPath.indexOf(':\\') + 2, fullPath.length)
             return path.join(sourceCodeFolderName, relativePath)
         }
+    }
+
+    normalizeReferenceFileRelativePath(relativePath: string, includedInArtifact: boolean): string {
+        return includedInArtifact ? path.join(referencesFolderName, relativePath) : relativePath
     }
 
     zipDirectory(sourceDir: string, outPath: string) {
