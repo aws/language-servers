@@ -1,5 +1,10 @@
-import { ChatParams, EndChatParams } from '@aws/language-server-runtimes-types'
-import { CancellationToken, CredentialsProvider, Server } from '@aws/language-server-runtimes/server-interface'
+import {
+    CancellationToken,
+    ChatParams,
+    CredentialsProvider,
+    EndChatParams,
+    Server,
+} from '@aws/language-server-runtimes/server-interface'
 import { ChatSessionManagementService } from './chat/chatSessionManagementService'
 
 export const QChatServerToken =
