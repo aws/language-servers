@@ -1,6 +1,9 @@
+import { ChatSessionManagementService } from './chat/chatSessionManagementService'
+import { ChatSessionServiceConfig } from './chat/chatSessionService'
 import { SecurityScanServerToken } from './codeWhispererSecurityScanServer'
 import { CodewhispererServerFactory } from './codeWhispererServer'
 import { CodeWhispererServiceToken } from './codeWhispererService'
+import { QChatServerToken } from './qChatServer'
 
 export const CodeWhispererServerTokenProxy = CodewhispererServerFactory(credentialsProvider => {
     let additionalAwsConfig = {}
@@ -32,4 +35,41 @@ export const CodeWhispererSecurityScanServerTokenProxy = SecurityScanServerToken
         }
     }
     return new CodeWhispererServiceToken(credentialsProvider, additionalAwsConfig)
+})
+
+export const QChatServerTokenProxy = QChatServerToken(credentialsProvider => {
+    let clientOptions: ChatSessionServiceConfig | undefined
+
+    const proxyUrl = process.env.HTTPS_PROXY ?? process.env.https_proxy
+
+    if (proxyUrl) {
+        const { NodeHttpHandler } = require('@smithy/node-http-handler')
+
+        /**
+         * TODO: consolidate the libraries we need for http proxy
+         *
+         * proxy-http-agent is not compatible with smithy's node-http-handler,
+         *  so we will use hpagent to create a new http handler
+         *
+         * At the same time, hpagent is not compatible with v2 sdk
+         */
+        const { HttpsHandler } = require('hpagent')
+
+        // passing client options as a function so a new http handler can be created
+        clientOptions = () => {
+            // this approach mimics aws-sdk-v3-js-proxy
+            const agent = new HttpsHandler({
+                proxy: proxyUrl,
+            })
+
+            return {
+                requestHandler: new NodeHttpHandler({
+                    httpAgent: agent,
+                    httpsAgent: agent,
+                }),
+            }
+        }
+    }
+
+    return new ChatSessionManagementService(credentialsProvider, clientOptions)
 })
