@@ -19,19 +19,17 @@ export class ChatSessionManagementService {
         return this.#sessionByTab.has(tabId)
     }
 
-    public getSession(tabId: string): ChatSessionService {
-        const maybeSession = this.#sessionByTab.get(tabId)
+    public createSession(tabId: string): ChatSessionService {
+        const clientConfig = typeof this.#clientConfig === 'function' ? this.#clientConfig() : this.#clientConfig
+        const newSession = new ChatSessionService(this.#credentialsProvider, clientConfig)
 
-        if (!maybeSession) {
-            const clientConfig = typeof this.#clientConfig === 'function' ? this.#clientConfig() : this.#clientConfig
-            const newSession = new ChatSessionService(this.#credentialsProvider, clientConfig)
+        this.#sessionByTab.set(tabId, newSession)
 
-            this.#sessionByTab.set(tabId, newSession)
+        return newSession
+    }
 
-            return newSession
-        }
-
-        return maybeSession
+    public getSession(tabId: string): ChatSessionService | undefined {
+        return this.#sessionByTab.get(tabId)
     }
 
     public deleteSession(tabId: string): void {
