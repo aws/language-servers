@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { TabEventParams } from '@aws/language-server-runtimes/protocol' // TODO: Use types
+import { TabEventParams } from '@aws/language-server-runtimes-types'
 import { SendToPromptParams, TabIdReceivedParams } from '../contracts/uiContracts'
 
 export interface OutboundChatApi {
