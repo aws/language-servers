@@ -1,3 +1,4 @@
+import { tabAddNotificationType, tabRemoveNotificationType } from '@aws/language-server-runtimes/protocol'
 import { Uri, ViewColumn, Webview, commands, window } from 'vscode'
 import { LanguageClient } from 'vscode-languageclient/node'
 
@@ -14,6 +15,16 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri) 
 
     panel.webview.onDidReceiveMessage(message => {
         languageClient.info(`vscode client: Received ${JSON.stringify(message)} from chat`)
+
+        // TODO: get server contract types from chat-client
+        switch (message.command) {
+            case 'new-tab-was-created':
+                languageClient.sendNotification(tabAddNotificationType, message.params)
+                break
+            case 'tab-was-removed':
+                languageClient.sendNotification(tabRemoveNotificationType, message.params)
+                break
+        }
     }, undefined)
 
     panel.webview.html = getWebviewContent(panel.webview, extensionUri)
@@ -51,6 +62,7 @@ function generateJS(webView: Webview, extensionUri: Uri): string {
     <script type="text/javascript" src="${entrypoint.toString()}" defer onload="init()"></script>
     <script type="text/javascript">
         const init = () => {
+            console.log("init")
             amazonQChat.createChat(acquireVsCodeApi());
         }
     </script>
