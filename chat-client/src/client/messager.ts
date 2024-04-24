@@ -21,8 +21,8 @@ export class Messager {
         this.chatApi.tabAdded({ tabId })
     }
 
-    onTabChange = (tabId: string, prevTabId?: string): void => {
-        this.chatApi.tabChanged({ tabId }) // TODO: Extend server contract for prevTabId?
+    onTabChange = (tabId: string): void => {
+        this.chatApi.tabChanged({ tabId })
     }
 
     onTabRemove = (tabId: string): void => {

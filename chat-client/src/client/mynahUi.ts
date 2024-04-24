@@ -6,30 +6,23 @@ import { MynahUI, NotificationType } from '@aws/mynah-ui'
 import { SendToPromptParams } from '../contracts/uiContracts'
 import { Messager } from './messager'
 import { TabFactory } from './tabs/tabFactory'
-import { TabStorage } from './tabs/tabStorage'
 
 export interface InboundChatApi {
     sendToPrompt(params: SendToPromptParams): void
 }
 
-export const createMynahUI = (messager: Messager, tabFactory: TabFactory, tabStorage: TabStorage): InboundChatApi => {
+export const createMynahUI = (messager: Messager, tabFactory: TabFactory): InboundChatApi => {
     const mynahUI = new MynahUI({
         onReady: messager.onUiReady,
         onTabAdd: (tabId: string) => {
             mynahUI.updateStore(tabId, {})
-            tabStorage.addTab({
-                id: tabId,
-                isSelected: true,
-            })
             messager.onTabAdd(tabId)
         },
         onTabRemove: (tabId: string) => {
-            tabStorage.deleteTab(tabId)
             messager.onTabRemove(tabId)
         },
         onTabChange: (tabId: string) => {
-            const prevTabId = tabStorage.setSelectedTab(tabId)
-            messager.onTabChange(tabId, prevTabId)
+            messager.onTabChange(tabId)
         },
         onResetStore: () => {},
         tabs: {
@@ -47,15 +40,8 @@ export const createMynahUI = (messager: Messager, tabFactory: TabFactory, tabSto
         },
     })
 
-    // Adding the first default tab
-    tabStorage.addTab({
-        id: 'tab-1',
-        isSelected: true,
-    })
-
     const sendToPrompt = (params: SendToPromptParams) => {
-        const selectedTab = tabStorage.getSelectedTab()
-        let tabId = selectedTab?.id
+        let tabId = mynahUI.getSelectedTabId()
         if (!tabId) {
             tabId = mynahUI.updateStore('', tabFactory.createTab(false))
             if (tabId === undefined) {
@@ -65,10 +51,6 @@ export const createMynahUI = (messager: Messager, tabFactory: TabFactory, tabSto
                 })
                 return undefined
             }
-            tabStorage.addTab({
-                id: tabId,
-                isSelected: true,
-            })
         }
 
         mynahUI.addToUserPrompt(tabId, params.prompt)

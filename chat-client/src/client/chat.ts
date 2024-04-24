@@ -15,7 +15,6 @@ import {
 import { Messager, OutboundChatApi } from './messager'
 import { InboundChatApi, createMynahUI } from './mynahUi'
 import { TabFactory } from './tabs/tabFactory'
-import { TabStorage } from './tabs/tabStorage'
 
 export const createChat = (clientApi: { postMessage: (msg: UiMessage | ServerMessage) => void }) => {
     // eslint-disable-next-line semi
@@ -75,8 +74,7 @@ export const createChat = (clientApi: { postMessage: (msg: UiMessage | ServerMes
         },
     }
 
-    const connector = new Messager(chatApi)
+    const messager = new Messager(chatApi)
     const tabFactory = new TabFactory()
-    const tabStorage = new TabStorage()
-    mynahApi = createMynahUI(connector, tabFactory, tabStorage)
+    mynahApi = createMynahUI(messager, tabFactory)
 }
