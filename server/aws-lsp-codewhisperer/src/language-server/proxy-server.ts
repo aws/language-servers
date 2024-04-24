@@ -53,12 +53,12 @@ export const QChatServerTokenProxy = QChatServerToken(credentialsProvider => {
          *
          * At the same time, hpagent is not compatible with v2 sdk
          */
-        const { HttpsHandler } = require('hpagent')
+        const { HttpsProxyAgent } = require('hpagent')
 
         // passing client options as a function so a new http handler can be created
         clientOptions = () => {
-            // this approach mimics aws-sdk-v3-js-proxy
-            const agent = new HttpsHandler({
+            // this mimics aws-sdk-v3-js-proxy
+            const agent = new HttpsProxyAgent({
                 proxy: proxyUrl,
             })
 
