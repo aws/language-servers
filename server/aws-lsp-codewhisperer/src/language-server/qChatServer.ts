@@ -7,7 +7,7 @@ import {
 } from '@aws/language-server-runtimes/server-interface'
 import { ChatSessionManagementService } from './chat/chatSessionManagementService'
 
-export const QChatServerToken =
+export const QChatServer =
     (service: (credentialsProvider: CredentialsProvider) => ChatSessionManagementService): Server =>
     ({ chat, credentialsProvider, logging }) => {
         const codewhispererclient: ChatSessionManagementService = service(credentialsProvider)
