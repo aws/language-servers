@@ -25,10 +25,11 @@ describe('ChatSessionManagementService', () => {
         disposeStub.restore()
     })
 
-    it('getSession should return an existing client if found or create a new client if not found', () => {
+    it('getSession should return an existing client if found', () => {
         assert.ok(!chatSessionManagementService.hasSession(mockSessionId))
-        // getSession creates a new session if not found
-        const chatClient = chatSessionManagementService.getSession(mockSessionId)
+        assert.strictEqual(chatSessionManagementService.getSession(mockSessionId), undefined)
+
+        const chatClient = chatSessionManagementService.createSession(mockSessionId)
 
         assert.ok(chatClient instanceof ChatSessionService)
         assert.ok(chatSessionManagementService.hasSession(mockSessionId))
@@ -38,7 +39,7 @@ describe('ChatSessionManagementService', () => {
     })
 
     it('deleting session should dispose the chat session service and delete from map', () => {
-        chatSessionManagementService.getSession(mockSessionId)
+        chatSessionManagementService.createSession(mockSessionId)
 
         assert.ok(chatSessionManagementService.hasSession(mockSessionId))
 
@@ -50,8 +51,8 @@ describe('ChatSessionManagementService', () => {
     })
 
     it('disposing the chat session management should dispose all the chat session services', () => {
-        chatSessionManagementService.getSession(mockSessionId)
-        chatSessionManagementService.getSession(mockSessionId2)
+        chatSessionManagementService.createSession(mockSessionId)
+        chatSessionManagementService.createSession(mockSessionId2)
 
         chatSessionManagementService.dispose()
 

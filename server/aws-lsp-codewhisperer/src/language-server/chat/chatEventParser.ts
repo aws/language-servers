@@ -14,17 +14,21 @@ export class ChatEventParser implements ChatResult {
     followUp?: { text?: string; options?: ChatItemAction[] }
     codeReference?: ReferenceTrackerInformation[]
 
-    static #mapRelatedData({ title = '', url = '', snippet }: SupplementaryWebLink): SourceLink {
+    static getReferencedInformation(reference: Reference): string {
+        return `Reference code under **${reference.licenseName}** license from repository \`${reference.repository}\``
+    }
+
+    static mapRelatedData({ title = '', url = '', snippet }: SupplementaryWebLink): SourceLink {
         return {
             title,
             url,
             body: snippet,
         }
     }
-    static #mapReferenceData(reference: Reference): ReferenceTrackerInformation {
+    static mapReferenceData(reference: Reference): ReferenceTrackerInformation {
         return {
             ...reference,
-            information: `Reference code under **${reference.licenseName}** license from repository \`${reference.repository}\``,
+            information: ChatEventParser.getReferencedInformation(reference),
         }
     }
 
@@ -33,6 +37,7 @@ export class ChatEventParser implements ChatResult {
     }
 
     public processPartialEvent(chatEvent: ChatResponseStream): ChatResult {
+        // TODO: handle error, invalid state, message metadata event
         const { followupPromptEvent, supplementaryWebLinksEvent, codeReferenceEvent, assistantResponseEvent } =
             chatEvent
 
@@ -59,7 +64,7 @@ export class ChatEventParser implements ChatResult {
             supplementaryWebLinksEvent?.supplementaryWebLinks &&
             supplementaryWebLinksEvent.supplementaryWebLinks.length > 0
         ) {
-            const sourceLinks = supplementaryWebLinksEvent.supplementaryWebLinks.map(ChatEventParser.#mapRelatedData)
+            const sourceLinks = supplementaryWebLinksEvent.supplementaryWebLinks.map(ChatEventParser.mapRelatedData)
 
             this.relatedContent = {
                 ...this.relatedContent,
@@ -68,7 +73,7 @@ export class ChatEventParser implements ChatResult {
         }
 
         if (codeReferenceEvent?.references && codeReferenceEvent.references.length > 0) {
-            const references = codeReferenceEvent.references.map(ChatEventParser.#mapReferenceData)
+            const references = codeReferenceEvent.references.map(ChatEventParser.mapReferenceData)
             this.codeReference = [...(this.codeReference ?? []), ...references]
         }
 
