@@ -15,6 +15,10 @@ export class ChatSessionManagementService {
         return ChatSessionManagementService.#instance
     }
 
+    public static reset() {
+        ChatSessionManagementService.#instance = undefined
+    }
+
     private constructor() {}
 
     public withConfig(clientConfig?: ChatSessionServiceConfig | (() => ChatSessionServiceConfig)) {
@@ -36,7 +40,11 @@ export class ChatSessionManagementService {
     public createSession(tabId: string): ChatSessionService {
         if (!this.#credentialsProvider) {
             throw new Error('Credentials provider is not set')
+        } else if (this.#sessionByTab.has(tabId)) {
+            // TODO: determine if we want to throw here
+            throw new Error('Session already exists')
         }
+
         const clientConfig = typeof this.#clientConfig === 'function' ? this.#clientConfig() : this.#clientConfig
         const newSession = new ChatSessionService(this.#credentialsProvider, clientConfig)
 
