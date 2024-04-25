@@ -12,7 +12,7 @@ import { ChatEventParser } from './chat/chatEventParser'
 import { ChatSessionManagementService } from './chat/chatSessionManagementService'
 import { convertChatParamsToRequestInput } from './chat/utils'
 
-export const QChatServerToken =
+export const QChatServer =
     (service: (credentialsProvider: CredentialsProvider) => ChatSessionManagementService): Server =>
     ({ chat, credentialsProvider, logging, lsp }) => {
         const codewhispererclient: ChatSessionManagementService = service(credentialsProvider)

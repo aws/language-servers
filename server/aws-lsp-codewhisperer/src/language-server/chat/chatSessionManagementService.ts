@@ -2,17 +2,31 @@ import { CredentialsProvider } from '@aws/language-server-runtimes/server-interf
 import { ChatSessionService, ChatSessionServiceConfig } from './chatSessionService'
 
 export class ChatSessionManagementService {
-    #sessionByTab: Map<string, ChatSessionService>
-    #credentialsProvider: CredentialsProvider
+    static #instance?: ChatSessionManagementService
+    #sessionByTab: Map<string, ChatSessionService> = new Map<string, any>()
+    #credentialsProvider?: CredentialsProvider
     #clientConfig?: ChatSessionServiceConfig | (() => ChatSessionServiceConfig)
 
-    constructor(
-        credentialsProvider: CredentialsProvider,
-        clientConfig?: ChatSessionServiceConfig | (() => ChatSessionServiceConfig)
-    ) {
-        this.#credentialsProvider = credentialsProvider
-        this.#sessionByTab = new Map<string, any>()
+    public static getInstance() {
+        if (!ChatSessionManagementService.#instance) {
+            ChatSessionManagementService.#instance = new ChatSessionManagementService()
+        }
+
+        return ChatSessionManagementService.#instance
+    }
+
+    private constructor() {}
+
+    public withConfig(clientConfig?: ChatSessionServiceConfig | (() => ChatSessionServiceConfig)) {
         this.#clientConfig = clientConfig
+
+        return this
+    }
+
+    public withCredentialsProvider(credentialsProvider: CredentialsProvider) {
+        this.#credentialsProvider = credentialsProvider
+
+        return this
     }
 
     public hasSession(tabId: string): boolean {
@@ -20,6 +34,9 @@ export class ChatSessionManagementService {
     }
 
     public createSession(tabId: string): ChatSessionService {
+        if (!this.#credentialsProvider) {
+            throw new Error('Credentials provider is not set')
+        }
         const clientConfig = typeof this.#clientConfig === 'function' ? this.#clientConfig() : this.#clientConfig
         const newSession = new ChatSessionService(this.#credentialsProvider, clientConfig)
 
