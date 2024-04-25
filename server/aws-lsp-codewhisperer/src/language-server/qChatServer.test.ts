@@ -1,12 +1,12 @@
 import { ChatResponseStream, CodeWhispererStreaming } from '@amzn/codewhisperer-streaming'
 import { CredentialsProvider, ResponseError, Server } from '@aws/language-server-runtimes/server-interface'
+import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import * as assert from 'assert'
 import sinon from 'ts-sinon'
 import { ChatSessionManagementService } from './chat/chatSessionManagementService'
 import { ChatSessionService } from './chat/chatSessionService'
 import { QChatServer } from './qChatServer'
 import { createIterableResponse } from './testUtils'
-import { TestFeaturesWithChat } from './testing/TestFeaturesWithChat'
 
 const mockAssistantResponseList: ChatResponseStream[] = [
     {
@@ -41,7 +41,7 @@ describe('QChatServer', () => {
     let abortStub: sinon.SinonStub
     let clock: sinon.SinonFakeTimers
 
-    let testFeatures: TestFeaturesWithChat
+    let testFeatures: TestFeatures
     let chatSessionManagementService: ChatSessionManagementService
 
     beforeEach(() => {
@@ -72,7 +72,7 @@ describe('QChatServer', () => {
             return chatSessionManagementService.withCredentialsProvider(credentialProvider)
         })
 
-        testFeatures = new TestFeaturesWithChat()
+        testFeatures = new TestFeatures()
         chatServerFactory(testFeatures)
     })
 
@@ -86,28 +86,28 @@ describe('QChatServer', () => {
     // TODO handle what happens if a session is already created for a tabId
 
     it('server creates a session when a tab add notifcation is received', () => {
-        testFeatures.doTabAdd({ tabId: mockTabId })
+        testFeatures.chat.onTabAdd.getCall(0).firstArg({ tabId: mockTabId })
 
         assert.ok(chatSessionManagementService.getSession(mockTabId) instanceof ChatSessionService)
     })
 
     it('server deletes a session by tab id when a tab remove notifcation is received', () => {
-        testFeatures.doTabAdd({ tabId: mockTabId })
+        testFeatures.chat.onTabAdd.getCall(0).firstArg({ tabId: mockTabId })
 
         assert.ok(chatSessionManagementService.getSession(mockTabId) instanceof ChatSessionService)
 
-        testFeatures.doTabRemove({ tabId: mockTabId })
+        testFeatures.chat.onTabRemove.getCall(0).firstArg({ tabId: mockTabId })
 
         sinon.assert.calledOnce(disposeStub)
         assert.strictEqual(chatSessionManagementService.getSession(mockTabId), undefined)
     })
 
-    it('server deletes a session by tab id a tab remove notifcation is received', () => {
-        testFeatures.doTabAdd({ tabId: mockTabId })
+    it('server deletes a session by tab id a end chat request is received', () => {
+        testFeatures.chat.onTabAdd.getCall(0).firstArg({ tabId: mockTabId })
 
         assert.ok(chatSessionManagementService.getSession(mockTabId) instanceof ChatSessionService)
 
-        testFeatures.doEndChat({ tabId: mockTabId }, mockCancellationToken)
+        testFeatures.chat.onEndChat.getCall(0).firstArg({ tabId: mockTabId }, mockCancellationToken)
 
         sinon.assert.calledOnce(disposeStub)
         assert.strictEqual(chatSessionManagementService.getSession(mockTabId), undefined)
@@ -115,24 +115,22 @@ describe('QChatServer', () => {
 
     describe('onChatPrompt', () => {
         it('throw error if session is not found', async () => {
-            const result = await testFeatures.doChatPrompt(
-                { tabId: 'XXXX', prompt: { prompt: 'Hello' } },
-                mockCancellationToken
-            )
+            const result = await testFeatures.chat.onChatPrompt
+                .getCall(0)
+                .firstArg({ tabId: 'XXXX', prompt: { prompt: 'Hello' } }, mockCancellationToken)
 
             assert.deepStrictEqual(result, new ResponseError(404, 'Session not found'))
         })
 
         // Why doesn't this work!?
         it.skip('onEndChat should abort the request if one is being made', async () => {
-            testFeatures.doTabAdd({ tabId: mockTabId })
+            testFeatures.chat.onTabAdd.getCall(0).firstArg({ tabId: mockTabId })
 
-            const chatResultPromise = testFeatures.doChatPrompt(
-                { tabId: mockTabId, prompt: { prompt: 'Hello' } },
-                mockCancellationToken
-            )
+            const chatResultPromise = testFeatures.chat.onChatPrompt
+                .getCall(0)
+                .firstArg({ tabId: mockTabId, prompt: { prompt: 'Hello' } }, mockCancellationToken)
 
-            testFeatures.doEndChat({ tabId: mockTabId }, mockCancellationToken)
+            testFeatures.chat.onEndChat.getCall(0).firstArg({ tabId: mockTabId }, mockCancellationToken)
 
             clock.next()
             await chatResultPromise
@@ -142,12 +140,11 @@ describe('QChatServer', () => {
 
         // TODO: partialResultToken is missing from the types so tests need to be added later
         it('read all the response streams and return compiled results', async () => {
-            testFeatures.doTabAdd({ tabId: mockTabId })
+            testFeatures.chat.onTabAdd.getCall(0).firstArg({ tabId: mockTabId })
 
-            const chatResultPromise = testFeatures.doChatPrompt(
-                { tabId: mockTabId, prompt: { prompt: 'Hello' } },
-                mockCancellationToken
-            )
+            const chatResultPromise = testFeatures.chat.onChatPrompt
+                .getCall(0)
+                .firstArg({ tabId: mockTabId, prompt: { prompt: 'Hello' } }, mockCancellationToken)
 
             clock.next()
 
