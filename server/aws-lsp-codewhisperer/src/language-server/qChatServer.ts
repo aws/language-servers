@@ -1,5 +1,9 @@
-import { GenerateAssistantResponseCommandOutput } from '@amzn/codewhisperer-streaming'
-import { ChatRequest, chatRequestType } from '@aws/language-server-runtimes/protocol'
+import {
+    CodeWhispererStreamingServiceException,
+    GenerateAssistantResponseCommandInput,
+    GenerateAssistantResponseCommandOutput,
+} from '@amzn/codewhisperer-streaming'
+import { ChatRequest, ResponseError, chatRequestType } from '@aws/language-server-runtimes/protocol'
 import {
     CancellationToken,
     CredentialsProvider,
@@ -15,40 +19,41 @@ import { convertChatParamsToRequestInput } from './chat/utils'
 export const QChatServer =
     (service: (credentialsProvider: CredentialsProvider) => ChatSessionManagementService): Server =>
     ({ chat, credentialsProvider, logging, lsp }) => {
-        const codewhispererclient: ChatSessionManagementService = service(credentialsProvider)
+        const chatSessionManagementService: ChatSessionManagementService = service(credentialsProvider)
 
         chat.onTabAdd((params: TabAddParams) => {
-            logging.log('received tab add request')
+            logging.log('Received tab add request')
 
             try {
-                codewhispererclient.createSession(params.tabId)
+                chatSessionManagementService.createSession(params.tabId)
             } catch (e) {
-                logging.log('create session error')
+                logging.log(`Create session error ${e}`)
                 throw e
             }
         })
 
         chat.onTabRemove((params: TabRemoveParams) => {
-            logging.log('received tab remove request')
-            codewhispererclient.deleteSession(params.tabId)
+            logging.log('Received tab remove request')
+            chatSessionManagementService.deleteSession(params.tabId)
         })
 
         chat.onEndChat((params: EndChatParams, _token: CancellationToken) => {
-            logging.log('received end chat request')
-            codewhispererclient.deleteSession(params.tabId)
+            logging.log('Received end chat request')
+
+            chatSessionManagementService.deleteSession(params.tabId)
 
             return true
         })
 
         chat.onChatPrompt(async (_params, token: CancellationToken) => {
-            logging.log('received chat prompt')
+            logging.log('Received chat prompt')
 
             const params = _params as ChatRequest
-            const session = codewhispererclient.getSession(params.tabId)
+            const session = chatSessionManagementService.getSession(params.tabId)
 
             if (!session) {
-                logging.log('session not found')
-                throw new Error('Session not found')
+                logging.log(`Session not found for tabId: ${params.tabId}`)
+                return new ResponseError(404, 'Session not found')
             }
 
             token.onCancellationRequested(() => {
@@ -56,21 +61,41 @@ export const QChatServer =
                 session.abortRequest()
             })
 
+            let requestInput: GenerateAssistantResponseCommandInput
             let response: GenerateAssistantResponseCommandOutput
-            const requestInput = convertChatParamsToRequestInput(params)
+
+            try {
+                requestInput = convertChatParamsToRequestInput(params)
+            } catch (err) {
+                logging.log('Invalid request input')
+
+                return new ResponseError(422, 'Invalid request input')
+            }
 
             try {
                 response = await session.generateAssistantResponse(requestInput)
-            } catch (e) {
-                logging.log('generate assistant response error')
+            } catch (err) {
+                logging.log('Q api request error')
 
-                throw e
+                return err instanceof CodeWhispererStreamingServiceException
+                    ? new ResponseError(err.$metadata.httpStatusCode ?? 400, err.message)
+                    : new ResponseError(500, err instanceof Error ? err.message : 'Internal Server Error')
             }
 
             const chatEventParser = new ChatEventParser(response.$metadata.requestId!)
 
             for await (const chatEvent of response.generateAssistantResponseResponse!) {
-                logging.log('recevied partial chat event')
+                if (chatEvent.error) {
+                    logging.log('Streaming error')
+
+                    return new ResponseError(
+                        chatEvent.error.$metadata.httpStatusCode ?? 400,
+                        chatEvent.error.message,
+                        chatEventParser.getChatResult()
+                    )
+                }
+
+                logging.log('Streaming partial chat event')
 
                 const chatResult = chatEventParser.processPartialEvent(chatEvent)
 
@@ -85,6 +110,6 @@ export const QChatServer =
         logging.log('Q Chat server has been initialized')
 
         return () => {
-            codewhispererclient.dispose()
+            chatSessionManagementService.dispose()
         }
     }
