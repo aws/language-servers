@@ -47,15 +47,13 @@ class SecurityScanDiagnosticsProvider {
     }
 
     mapScanIssueToDiagnostics(issue: CodeScanIssue): Diagnostic {
-        const diagnostic: Diagnostic = {
-            range: this.createDiagnosticsRange(issue.startLine, issue.endLine),
-            message: `${issue.detectorName} - ${issue.description.text}`,
-            severity: DiagnosticSeverity.Warning,
-            code: issue.relatedVulnerabilities.join(','),
-            source: 'CodeWhisperer',
-        }
-
-        return diagnostic
+        return Diagnostic.create(
+            this.createDiagnosticsRange(issue.startLine, issue.endLine),
+            `${issue.detectorName} - ${issue.description.text}`,
+            DiagnosticSeverity.Warning,
+            issue.relatedVulnerabilities.join(','),
+            'CodeWhisperer'
+        )
     }
 
     async validateDiagnostics(uri: string, e: TextDocumentContentChangeEvent) {
