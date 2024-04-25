@@ -1,6 +1,6 @@
 import {
     Diagnostic,
-    Hover,
+    DiagnosticSeverity,
     Logging,
     Lsp,
     Position,
@@ -47,13 +47,15 @@ class SecurityScanDiagnosticsProvider {
     }
 
     mapScanIssueToDiagnostics(issue: CodeScanIssue): Diagnostic {
-        return Diagnostic.create(
-            this.createDiagnosticsRange(issue.startLine, issue.endLine),
-            `${issue.title} - ${issue.description.text}`,
-            2,
-            issue.relatedVulnerabilities.join(','),
-            'CodeWhisperer'
-        )
+        const diagnostic: Diagnostic = {
+            range: this.createDiagnosticsRange(issue.startLine, issue.endLine),
+            message: `${issue.detectorName} - ${issue.description.text}`,
+            severity: DiagnosticSeverity.Warning,
+            code: issue.relatedVulnerabilities.join(','),
+            source: 'CodeWhisperer',
+        }
+
+        return diagnostic
     }
 
     async validateDiagnostics(uri: string, e: TextDocumentContentChangeEvent) {
@@ -112,22 +114,16 @@ class SecurityScanDiagnosticsProvider {
         return true
     }
 
+    /**
+     * A default hover element for diagnostics is surfaced in the IDE
+     * that displays as `${diagnostic.Code}: ${diagnostic.Description}`
+     *
+     * Creating a custom lsp hover will add content to the IDE's existing hover,
+     * but will not replace the above default display text.
+     */
     handleHover = () => {
         this.lsp.onHover(({ position, textDocument }) => {
-            for (let [uri, diagnostics] of this.diagnostics) {
-                if (uri !== URI.parse(textDocument.uri).path) {
-                    continue
-                }
-                for (const diagnostic of diagnostics) {
-                    if (this.isPositionInRange(position, diagnostic.range)) {
-                        const hover: Hover = {
-                            contents: diagnostic.message,
-                            range: diagnostic.range,
-                        }
-                        return hover
-                    }
-                }
-            }
+            return null
         })
     }
 
