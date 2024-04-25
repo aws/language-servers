@@ -18,7 +18,6 @@
     "scripts": {
         "compile-streamingClient": "npm run build -w src.gen/@amzn/codewhisperer-streaming",
         "compile": "npm run compile-streamingClient && tsc --build",
-        "postinstall": "npm run compile-streamingClient",
         "postcompile": "npm run copyServiceClient",
         "copyServiceClient": "copyfiles -u 1 --error ./src/client/sigv4/*.json out && copyfiles -u 1 --error ./src/client/token/*.json out",
         "test:unit": "ts-mocha -b 'src/**/*.test.ts'",
