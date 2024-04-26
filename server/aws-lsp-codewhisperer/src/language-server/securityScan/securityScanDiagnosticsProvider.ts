@@ -112,19 +112,6 @@ class SecurityScanDiagnosticsProvider {
         return true
     }
 
-    /**
-     * A default hover element for diagnostics is surfaced in the IDE
-     * that displays as `${diagnostic.Code}: ${diagnostic.Description}`
-     *
-     * Creating a custom lsp hover will add content to the IDE's existing hover,
-     * but will not replace the above default display text.
-     */
-    handleHover = () => {
-        this.lsp.onHover(({ position, textDocument }) => {
-            return null
-        })
-    }
-
     getLineOffset(range: Range, text: string) {
         const originLines = range.end.line - range.start.line + 1
         const changedLines = text.split('\n').length
