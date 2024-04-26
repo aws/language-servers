@@ -11,11 +11,11 @@ export interface InboundChatApi {
     sendToPrompt(params: SendToPromptParams): void
 }
 
-export const createMynahUI = (messager: Messager, tabFactory: TabFactory): InboundChatApi => {
-    const mynahUI = new MynahUI({
+export const createMynahUi = (messager: Messager, tabFactory: TabFactory): [MynahUI, InboundChatApi] => {
+    const mynahUi = new MynahUI({
         onReady: messager.onUiReady,
         onTabAdd: (tabId: string) => {
-            mynahUI.updateStore(tabId, {})
+            mynahUi.updateStore(tabId, {})
             messager.onTabAdd(tabId)
         },
         onTabRemove: (tabId: string) => {
@@ -41,11 +41,11 @@ export const createMynahUI = (messager: Messager, tabFactory: TabFactory): Inbou
     })
 
     const sendToPrompt = (params: SendToPromptParams) => {
-        let tabId = mynahUI.getSelectedTabId()
+        let tabId = mynahUi.getSelectedTabId()
         if (!tabId) {
-            tabId = mynahUI.updateStore('', tabFactory.createTab(false))
+            tabId = mynahUi.updateStore('', tabFactory.createTab(false))
             if (tabId === undefined) {
-                mynahUI.notify({
+                mynahUi.notify({
                     content: uiComponentsTexts.noMoreTabsTooltip,
                     type: NotificationType.WARNING,
                 })
@@ -53,14 +53,16 @@ export const createMynahUI = (messager: Messager, tabFactory: TabFactory): Inbou
             }
         }
 
-        mynahUI.addToUserPrompt(tabId, params.prompt)
+        mynahUi.addToUserPrompt(tabId, params.prompt)
 
         messager.onSendToPrompt(params, tabId)
     }
 
-    return {
+    const api = {
         sendToPrompt: sendToPrompt,
     }
+
+    return [mynahUi, api]
 }
 
 const uiComponentsTexts = {

@@ -1,5 +1,5 @@
 /* eslint-disable prefer-const */
-import { TabEventParams } from '@aws/language-server-runtimes/protocol'
+import { TabAddParams, TabChangeParams, TabRemoveParams } from '@aws/language-server-runtimes-types'
 import { CHAT_PROMPT, NEW_TAB_CREATED, ServerMessage, TAB_CHANGED, TAB_REMOVED } from '../contracts/serverContracts'
 import {
     AUTH_NEEDED_EXCEPTION,
@@ -13,7 +13,7 @@ import {
     UiMessage,
 } from '../contracts/uiContracts'
 import { Messager, OutboundChatApi } from './messager'
-import { InboundChatApi, createMynahUI } from './mynahUi'
+import { InboundChatApi, createMynahUi } from './mynahUi'
 import { TabFactory } from './tabs/tabFactory'
 
 export const createChat = (clientApi: { postMessage: (msg: UiMessage | ServerMessage) => void }) => {
@@ -51,16 +51,17 @@ export const createChat = (clientApi: { postMessage: (msg: UiMessage | ServerMes
     }
 
     const chatApi: OutboundChatApi = {
+        // TODO: Change to telemetry event & package name
         tabIdReceived: (params: TabIdReceivedParams) => {
             sendMessageToClient({ command: TAB_ID_RECEIVED, params })
         },
-        tabAdded: (params: TabEventParams) => {
+        tabAdded: (params: TabAddParams) => {
             sendMessageToClient({ command: NEW_TAB_CREATED, params })
         },
-        tabChanged: (params: TabEventParams) => {
+        tabChanged: (params: TabChangeParams) => {
             sendMessageToClient({ command: TAB_CHANGED, params })
         },
-        tabRemoved: (params: TabEventParams) => {
+        tabRemoved: (params: TabRemoveParams) => {
             sendMessageToClient({ command: TAB_REMOVED, params })
         },
         uiReady: () => {
@@ -76,5 +77,9 @@ export const createChat = (clientApi: { postMessage: (msg: UiMessage | ServerMes
 
     const messager = new Messager(chatApi)
     const tabFactory = new TabFactory()
-    mynahApi = createMynahUI(messager, tabFactory)
+    const [mynahUi, api] = createMynahUi(messager, tabFactory)
+
+    mynahApi = api
+
+    return mynahUi
 }

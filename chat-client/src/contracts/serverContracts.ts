@@ -1,5 +1,6 @@
 import { TabEventParams } from '@aws/language-server-runtimes/protocol'
 
+// TODO: Adjust names
 export const CHAT_PROMPT = 'chat-prompt'
 export const NEW_TAB_CREATED = 'new-tab-was-created'
 export const TAB_REMOVED = 'tab-was-removed'
