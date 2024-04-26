@@ -93,6 +93,7 @@ describe('QChatServer', () => {
         generateAssistantResponseStub.restore()
         disposeStub.restore()
         ChatSessionManagementService.reset()
+        clock.restore()
     })
 
     it('dispose should dispose all chat session services', () => {
