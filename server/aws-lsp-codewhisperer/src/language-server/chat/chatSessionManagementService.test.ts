@@ -35,6 +35,7 @@ describe('ChatSessionManagementService', () => {
         })
 
         afterEach(() => {
+            ChatSessionManagementService.reset()
             disposeStub.restore()
         })
 
@@ -51,7 +52,7 @@ describe('ChatSessionManagementService', () => {
         })
 
         it('deleting session should dispose the chat session service and delete from map', () => {
-            chatSessionManagementService.getSession(mockSessionId)
+            chatSessionManagementService.createSession(mockSessionId)
 
             assert.ok(chatSessionManagementService.hasSession(mockSessionId))
 

@@ -1,9 +1,8 @@
 import {
-    CodeWhispererStreamingServiceException,
     GenerateAssistantResponseCommandInput,
     GenerateAssistantResponseCommandOutput,
 } from '@amzn/codewhisperer-streaming'
-import { ChatRequest, ResponseError, chatRequestType } from '@aws/language-server-runtimes/protocol'
+import { ChatParams, ErrorCodes, ResponseError } from '@aws/language-server-runtimes/protocol'
 import {
     CancellationToken,
     CredentialsProvider,
@@ -45,15 +44,14 @@ export const QChatServer =
             return true
         })
 
-        chat.onChatPrompt(async (_params, token: CancellationToken) => {
+        chat.onChatPrompt(async (params: ChatParams, token: CancellationToken) => {
             logging.log('Received chat prompt')
 
-            const params = _params as ChatRequest
             const session = chatSessionManagementService.getSession(params.tabId)
 
             if (!session) {
                 logging.log(`Session not found for tabId: ${params.tabId}`)
-                return new ResponseError(404, 'Session not found')
+                return new ResponseError(ErrorCodes.InvalidParams, 'Session not found')
             }
 
             token.onCancellationRequested(() => {
@@ -69,7 +67,7 @@ export const QChatServer =
             } catch (err) {
                 logging.log('Invalid request input')
 
-                return new ResponseError(422, 'Invalid request input')
+                return new ResponseError(ErrorCodes.InvalidParams, 'Invalid request input')
             }
 
             try {
@@ -77,31 +75,27 @@ export const QChatServer =
             } catch (err) {
                 logging.log('Q api request error')
 
-                return err instanceof CodeWhispererStreamingServiceException
-                    ? new ResponseError(err.$metadata.httpStatusCode ?? 400, err.message)
-                    : new ResponseError(500, err instanceof Error ? err.message : 'Internal Server Error')
+                return new ResponseError(
+                    ErrorCodes.InternalError,
+                    err instanceof Error ? err.message : 'Internal Server Error'
+                )
             }
 
             const chatEventParser = new ChatEventParser(response.$metadata.requestId!)
 
             for await (const chatEvent of response.generateAssistantResponseResponse!) {
-                if (chatEvent.error) {
-                    logging.log('Streaming error')
-
-                    return new ResponseError(
-                        chatEvent.error.$metadata.httpStatusCode ?? 400,
-                        chatEvent.error.message,
-                        chatEventParser.getChatResult()
-                    )
-                }
-
                 logging.log('Streaming partial chat event')
 
                 const chatResult = chatEventParser.processPartialEvent(chatEvent)
 
-                if (params.partialResultToken) {
-                    lsp.sendProgress(chatRequestType, params.partialResultToken, chatResult)
+                if (chatEventParser.error) {
+                    return new ResponseError(ErrorCodes.InternalError, chatEventParser.error, chatResult)
                 }
+
+                // TODO: partialResultToken is missing from the type
+                // if (params.partialResultToken) {
+                //     lsp.sendProgress(chatRequestType, params.partialResultToken, chatResult)
+                // }
             }
 
             return chatEventParser.getChatResult()
