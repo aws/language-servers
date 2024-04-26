@@ -1,5 +1,5 @@
 {
-    "name": "@aws/q-chat-client",
+    "name": "@aws/chat-client",
     "version": "0.0.1",
     "description": "Q Chat Client",
     "main": "out/index.js",
