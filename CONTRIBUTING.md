@@ -290,40 +290,42 @@ Language servers developed in this package can be built for different runtimes d
 
 `Language Server Runtimes` provides a set of interfaces and constructs that can be used to inject cross-platform implementations of features, reused across language servers. Using runtime constructs, Language Servers could be built and packages into artifact of different formats: binary formats as explained earlier in this document, or packages as Javascript Webworker bundle.
 
-To build and test Language Servers with AWS Runtime, follow these steps:
+This Language Servers repository includes set of packages, which demonstrate how to build Language server together with specific runtime. See [Building the Repo](#building-the-repo) section in this guide.
+
+#### Developing both Language Servers and Runtimes projects
+
+Sometimes there is a need to build and develop both Language Servers with Language Server Runtimes projects. Since [`language-server-runtimes`](https://github.com/aws/language-server-runtimes) is used as an nmp dependency, it can be developed using `npm link` in this repo.
 
 1. Clone the [`language-servers`](https://github.com/aws/language-servers) and the [`language-server-runtimes`](https://github.com/aws/language-server-runtimes) repos:
 
-    ```
+    ```bash
     git clone git@github.com:aws/language-servers.git
     git clone git@github.com:aws/language-server-runtimes.git
     ```
 
-2. Install dependencies in `language-server-runtimes` folder. Create `npm link` for it, if you plan to modify it for development and testing purposes:
+2. Install dependencies in `language-server-runtimes` folder. Create `npm link` for it, if you plan to modify it for development and testing purposes.
 
-    ```
-    cd language-server-runtimes && npm install && npm run compile && npm link
-    ```
+**Note**: Since v0.2.3, we need to create a link to `/language-server-runtimes/runtimes/out` directory, due to monorepo structure of `language-server-runtimes` project.
 
-**Note**: Since v0.2.0, we need to create a link to `/language-server-runtimes/out` directory to preserve correct imports structure. A package published to NPM uses sources from `out` folder, not the repository root.
+    ```bash
+    cd language-server-runtimes && npm install && cd ./runtimes && npm run prepub && cd ./out && npm link
+    ```
 
 3. Install dependencies in `language-servers` folder:
 
-    **Note:** We are temporarily commiting a snapshot of `language-server-runtimes` package as zip archive and use it as npm dependency for some servers. To develop and build language servers with local checkout of `language-server-runtimes`, for servers develped in ./server directory change `"@aws/language-server-runtimes"` dependency to point to `"*"` instead of file path before running `npm install`.
-
-    ```
+    ```bash
     cd ../language-servers && npm install
     ```
 
-4. (Optional) Use npm link to `language-server-runtimes`, if you're developing locally and want to use local copy to produce build artifacts:
+4. Use npm link to `language-server-runtimes`:
 
-    ```
+    ```bash
     npm link @aws/language-server-runtimes
     ```
 
 5. Build server binaries:
 
-    ```
+    ```bash
     npm run package
     ```
 
