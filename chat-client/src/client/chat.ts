@@ -1,6 +1,16 @@
 /* eslint-disable prefer-const */
 import { TabAddParams, TabChangeParams, TabRemoveParams } from '@aws/language-server-runtimes-types'
-import { CHAT_PROMPT, NEW_TAB_CREATED, ServerMessage, TAB_CHANGED, TAB_REMOVED } from '../contracts/serverContracts'
+import {
+    CHAT_PROMPT,
+    NEW_TAB_CREATED,
+    ServerMessage,
+    TAB_CHANGED,
+    TAB_REMOVED,
+    TELEMETRY,
+    TelemetryParams,
+    UI_IS_READY,
+} from '../contracts/serverContracts'
+import { ENTER_FOCUS, EXIT_FOCUS } from '../contracts/telemetry'
 import {
     AUTH_NEEDED_EXCEPTION,
     ERROR_MESSAGE,
@@ -8,8 +18,6 @@ import {
     SendToPromptMessage,
     TAB_ID_RECEIVED,
     TabIdReceivedParams,
-    UI_FOCUS,
-    UI_IS_READY,
     UiMessage,
 } from '../contracts/uiContracts'
 import { Messager, OutboundChatApi } from './messager'
@@ -47,13 +55,16 @@ export const createChat = (clientApi: { postMessage: (msg: UiMessage | ServerMes
     }
 
     const handleApplicationFocus = (event: FocusEvent): void => {
-        sendMessageToClient({ command: UI_FOCUS, params: { type: event.type } })
+        const params = { name: event.type === 'focus' ? ENTER_FOCUS : EXIT_FOCUS }
+        sendMessageToClient({ command: TELEMETRY, params })
     }
 
     const chatApi: OutboundChatApi = {
-        // TODO: Change to telemetry event & package name
         tabIdReceived: (params: TabIdReceivedParams) => {
             sendMessageToClient({ command: TAB_ID_RECEIVED, params })
+        },
+        telemetry: (params: TelemetryParams) => {
+            sendMessageToClient({ command: TELEMETRY, params })
         },
         tabAdded: (params: TabAddParams) => {
             sendMessageToClient({ command: NEW_TAB_CREATED, params })

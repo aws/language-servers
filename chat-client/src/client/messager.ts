@@ -4,6 +4,7 @@
  */
 
 import { TabEventParams } from '@aws/language-server-runtimes-types'
+import { TelemetryParams } from '../contracts/serverContracts'
 import { SendToPromptParams, TabIdReceivedParams } from '../contracts/uiContracts'
 
 export interface OutboundChatApi {
@@ -11,6 +12,7 @@ export interface OutboundChatApi {
     tabChanged(params: TabEventParams): void
     tabRemoved(params: TabEventParams): void
     tabIdReceived(params: TabIdReceivedParams): void
+    telemetry(params: TelemetryParams): void
     uiReady(): void
 }
 

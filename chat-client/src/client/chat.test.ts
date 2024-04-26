@@ -4,8 +4,8 @@ injectJSDOM()
 
 import { afterEach } from 'mocha'
 import { assert } from 'sinon'
-import { NEW_TAB_CREATED, TAB_CHANGED, TAB_REMOVED } from '../contracts/serverContracts'
-import { SEND_TO_PROMPT, TAB_ID_RECEIVED, UI_IS_READY } from '../contracts/uiContracts'
+import { NEW_TAB_CREATED, TAB_CHANGED, TAB_REMOVED, UI_IS_READY } from '../contracts/serverContracts'
+import { SEND_TO_PROMPT, TAB_ID_RECEIVED } from '../contracts/uiContracts'
 import { createChat } from './chat'
 import sinon = require('sinon')
 
