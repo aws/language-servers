@@ -17,17 +17,18 @@ import { convertChatParamsToRequestInput } from './chat/utils'
 
 export const QChatServer =
     (service: (credentialsProvider: CredentialsProvider) => ChatSessionManagementService): Server =>
-    ({ chat, credentialsProvider, logging, lsp }) => {
+    ({ chat, credentialsProvider, logging }) => {
         const chatSessionManagementService: ChatSessionManagementService = service(credentialsProvider)
 
         chat.onTabAdd((params: TabAddParams) => {
             logging.log('Received tab add request')
 
-            try {
+            // while createSession should throw an error when we are trying to
+            // create a duplicate session, but this handler doesn't need to care
+            if (chatSessionManagementService.getSession(params.tabId)) {
+                logging.log('Session already exists')
+            } else {
                 chatSessionManagementService.createSession(params.tabId)
-            } catch (e) {
-                logging.log(`Create session error ${e}`)
-                throw e
             }
         })
 

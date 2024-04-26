@@ -41,7 +41,6 @@ export class ChatSessionManagementService {
         if (!this.#credentialsProvider) {
             throw new Error('Credentials provider is not set')
         } else if (this.#sessionByTab.has(tabId)) {
-            // TODO: determine if we want to throw here
             throw new Error('Session already exists')
         }
 

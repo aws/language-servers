@@ -51,6 +51,12 @@ describe('ChatSessionManagementService', () => {
             assert.strictEqual(chatSessionManagementService.getSession(mockSessionId), chatClient)
         })
 
+        it('creating a session with an existing id should throw an error', () => {
+            chatSessionManagementService.createSession(mockSessionId)
+
+            assert.throws(() => chatSessionManagementService.createSession(mockSessionId))
+        })
+
         it('deleting session should dispose the chat session service and delete from map', () => {
             chatSessionManagementService.createSession(mockSessionId)
 
