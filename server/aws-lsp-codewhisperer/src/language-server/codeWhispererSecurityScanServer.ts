@@ -28,7 +28,7 @@ export const SecurityScanServerToken =
 
         const runSecurityScan = async (params: SecurityScanRequestParams, token: CancellationToken) => {
             logging.log(`Starting security scan`)
-            diagnosticsProvider.resetDiagnostics()
+            await diagnosticsProvider.resetDiagnostics()
             let jobStatus: string
             const securityScanStartTime = performance.now()
             let serviceInvocationStartTime = 0
@@ -223,6 +223,12 @@ export const SecurityScanServerToken =
                 await diagnosticsProvider.validateDiagnostics(p.textDocument.uri, change)
             })
         })
+
+        lsp.workspace.onDidChangeWorkspaceFolders(async event => {
+            // clear security scan diagnostics for previous run when a workspace change event occurs
+            await diagnosticsProvider.resetDiagnostics()
+        })
+
         logging.log('SecurityScan server has been initialized')
 
         return () => {
