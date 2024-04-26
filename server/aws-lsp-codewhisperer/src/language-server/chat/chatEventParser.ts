@@ -7,6 +7,7 @@ import {
 } from '@aws/language-server-runtimes/protocol'
 
 export class ChatEventParser implements ChatResult {
+    error?: string
     messageId?: string
     body?: string
     canBeVoted?: boolean
@@ -37,15 +38,22 @@ export class ChatEventParser implements ChatResult {
     }
 
     public processPartialEvent(chatEvent: ChatResponseStream): ChatResult {
-        // TODO: handle error, invalid state, message metadata event
-        const { followupPromptEvent, supplementaryWebLinksEvent, codeReferenceEvent, assistantResponseEvent } =
-            chatEvent
+        const {
+            followupPromptEvent,
+            supplementaryWebLinksEvent,
+            codeReferenceEvent,
+            assistantResponseEvent,
+            error,
+            invalidStateEvent,
+        } = chatEvent
 
-        if (assistantResponseEvent?.content) {
+        if (error) {
+            this.error = error.message
+        } else if (invalidStateEvent) {
+            this.error = invalidStateEvent.message ?? invalidStateEvent.reason ?? 'Invalid state'
+        } else if (assistantResponseEvent?.content) {
             this.body = (this.body ?? '') + assistantResponseEvent.content
-        }
-
-        if (followupPromptEvent?.followupPrompt) {
+        } else if (followupPromptEvent?.followupPrompt) {
             const { content } = followupPromptEvent.followupPrompt
 
             this.followUp = {
@@ -58,9 +66,7 @@ export class ChatEventParser implements ChatResult {
                     },
                 ],
             }
-        }
-
-        if (
+        } else if (
             supplementaryWebLinksEvent?.supplementaryWebLinks &&
             supplementaryWebLinksEvent.supplementaryWebLinks.length > 0
         ) {
@@ -70,9 +76,7 @@ export class ChatEventParser implements ChatResult {
                 ...this.relatedContent,
                 content: [...(this.relatedContent?.content ?? []), ...sourceLinks],
             }
-        }
-
-        if (codeReferenceEvent?.references && codeReferenceEvent.references.length > 0) {
+        } else if (codeReferenceEvent?.references && codeReferenceEvent.references.length > 0) {
             const references = codeReferenceEvent.references.map(ChatEventParser.mapReferenceData)
             this.codeReference = [...(this.codeReference ?? []), ...references]
         }

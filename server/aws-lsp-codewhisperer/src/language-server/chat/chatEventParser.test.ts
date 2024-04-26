@@ -5,6 +5,55 @@ import { ChatEventParser } from './chatEventParser'
 describe('ChatEventParser', () => {
     const mockMessageId = 'mock-message-id'
 
+    it('set error if invalidState event is received', () => {
+        const chatEventParser = new ChatEventParser(mockMessageId)
+
+        assert.deepStrictEqual(
+            chatEventParser.processPartialEvent({
+                invalidStateEvent: {
+                    message: 'Invalid state!',
+                    reason: 'Unknown!',
+                },
+            }),
+            {
+                messageId: mockMessageId,
+                body: undefined,
+                canBeVoted: undefined,
+                codeReference: undefined,
+                followUp: undefined,
+                relatedContent: undefined,
+            }
+        )
+
+        assert.strictEqual(chatEventParser.error, 'Invalid state!')
+    })
+
+    it('set error if error event is received', () => {
+        const chatEventParser = new ChatEventParser(mockMessageId)
+
+        assert.deepStrictEqual(
+            chatEventParser.processPartialEvent({
+                error: {
+                    name: 'InternalServerException',
+                    message: 'Error!',
+                    $fault: 'server',
+                    $retryable: false,
+                    $metadata: {},
+                },
+            }),
+            {
+                messageId: mockMessageId,
+                body: undefined,
+                canBeVoted: undefined,
+                codeReference: undefined,
+                followUp: undefined,
+                relatedContent: undefined,
+            }
+        )
+
+        assert.strictEqual(chatEventParser.error, 'Error!')
+    })
+
     it('processPartialEvent appends new event on top of the previous result', () => {
         const chatEventParser = new ChatEventParser(mockMessageId)
 
