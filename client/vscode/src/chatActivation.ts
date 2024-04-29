@@ -45,11 +45,28 @@ function getWebviewContent(webView: Webview, extensionUri: Uri) {
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Chat UI</title>
+        ${generateCss()}
     </head>
     <body>
         ${generateJS(webView, extensionUri)}
     </body>
     </html>`
+}
+
+function generateCss() {
+    return `
+    <style>
+        body,
+        html {
+            background-color: var(--mynah-color-bg);
+            color: var(--mynah-color-text-default);
+            height: 100%;
+            width: 100%;
+            overflow: hidden;
+            margin: 0;
+            padding: 0;
+        }
+    </style>`
 }
 
 function generateJS(webView: Webview, extensionUri: Uri): string {

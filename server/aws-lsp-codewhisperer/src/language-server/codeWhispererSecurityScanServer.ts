@@ -207,7 +207,6 @@ export const SecurityScanServerToken =
                 },
             }
         }
-        diagnosticsProvider.handleHover()
 
         lsp.onExecuteCommand(onExecuteCommandHandler)
         lsp.addInitializer(onInitializeHandler)

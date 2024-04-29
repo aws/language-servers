@@ -1,7 +1,7 @@
 {
-    "name": "@aws/q-chat-client",
+    "name": "@aws/chat-client",
     "version": "0.0.1",
-    "description": "Q Chat Client",
+    "description": "AWS Chat Client",
     "main": "out/index.js",
     "repository": {
         "type": "git",
@@ -12,16 +12,23 @@
     "scripts": {
         "compile": "tsc --build && npm run package",
         "test:prettier": "prettier . --check",
-        "test": "npm run test:prettier",
+        "test:unit": "ts-mocha -b 'src/**/*.test.ts'",
+        "test": "npm run test:prettier && npm run test:unit",
         "fix:prettier": "prettier . --write",
         "package": "webpack"
     },
     "dependencies": {
-        "@aws/language-server-runtimes": "^0.2.3",
         "@aws/language-server-runtimes-types": "^0.0.1",
         "@aws/mynah-ui": "^4.6.4"
     },
     "devDependencies": {
+        "@types/jsdom": "^21.1.6",
+        "@types/mocha": "^10.0.1",
+        "assert": "^2.0.0",
+        "jsdom": "^24.0.0",
+        "sinon": "^17.0.1",
+        "ts-mocha": "^10.0.0",
+        "ts-sinon": "^2.0.2",
         "webpack": "^5.38.1",
         "webpack-cli": "^4.7.2"
     },
