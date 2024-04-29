@@ -1,6 +1,16 @@
 /* eslint-disable prefer-const */
-import { TabEventParams } from '@aws/language-server-runtimes/protocol'
-import { CHAT_PROMPT, NEW_TAB_CREATED, ServerMessage, TAB_CHANGED, TAB_REMOVED } from '../contracts/serverContracts'
+import { TabAddParams, TabChangeParams, TabRemoveParams } from '@aws/language-server-runtimes-types'
+import {
+    CHAT_PROMPT,
+    NEW_TAB_CREATED,
+    ServerMessage,
+    TAB_CHANGED,
+    TAB_REMOVED,
+    TELEMETRY,
+    TelemetryParams,
+    UI_IS_READY,
+} from '../contracts/serverContracts'
+import { ENTER_FOCUS, EXIT_FOCUS } from '../contracts/telemetry'
 import {
     AUTH_NEEDED_EXCEPTION,
     ERROR_MESSAGE,
@@ -8,14 +18,11 @@ import {
     SendToPromptMessage,
     TAB_ID_RECEIVED,
     TabIdReceivedParams,
-    UI_FOCUS,
-    UI_IS_READY,
     UiMessage,
 } from '../contracts/uiContracts'
 import { Messager, OutboundChatApi } from './messager'
-import { InboundChatApi, createMynahUI } from './mynahUi'
+import { InboundChatApi, createMynahUi } from './mynahUi'
 import { TabFactory } from './tabs/tabFactory'
-import { TabStorage } from './tabs/tabStorage'
 
 export const createChat = (clientApi: { postMessage: (msg: UiMessage | ServerMessage) => void }) => {
     // eslint-disable-next-line semi
@@ -48,20 +55,24 @@ export const createChat = (clientApi: { postMessage: (msg: UiMessage | ServerMes
     }
 
     const handleApplicationFocus = (event: FocusEvent): void => {
-        sendMessageToClient({ command: UI_FOCUS, params: { type: event.type } })
+        const params = { name: event.type === 'focus' ? ENTER_FOCUS : EXIT_FOCUS }
+        sendMessageToClient({ command: TELEMETRY, params })
     }
 
     const chatApi: OutboundChatApi = {
         tabIdReceived: (params: TabIdReceivedParams) => {
             sendMessageToClient({ command: TAB_ID_RECEIVED, params })
         },
-        tabAdded: (params: TabEventParams) => {
+        telemetry: (params: TelemetryParams) => {
+            sendMessageToClient({ command: TELEMETRY, params })
+        },
+        tabAdded: (params: TabAddParams) => {
             sendMessageToClient({ command: NEW_TAB_CREATED, params })
         },
-        tabChanged: (params: TabEventParams) => {
+        tabChanged: (params: TabChangeParams) => {
             sendMessageToClient({ command: TAB_CHANGED, params })
         },
-        tabRemoved: (params: TabEventParams) => {
+        tabRemoved: (params: TabRemoveParams) => {
             sendMessageToClient({ command: TAB_REMOVED, params })
         },
         uiReady: () => {
@@ -75,8 +86,11 @@ export const createChat = (clientApi: { postMessage: (msg: UiMessage | ServerMes
         },
     }
 
-    const connector = new Messager(chatApi)
+    const messager = new Messager(chatApi)
     const tabFactory = new TabFactory()
-    const tabStorage = new TabStorage()
-    mynahApi = createMynahUI(connector, tabFactory, tabStorage)
+    const [mynahUi, api] = createMynahUi(messager, tabFactory)
+
+    mynahApi = api
+
+    return mynahUi
 }
