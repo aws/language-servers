@@ -19,7 +19,7 @@
     },
     "dependencies": {
         "@aws/language-server-runtimes-types": "^0.0.1",
-        "@aws/mynah-ui": "^4.5.4"
+        "@aws/mynah-ui": "^4.6.4"
     },
     "devDependencies": {
         "@types/jsdom": "^21.1.6",
