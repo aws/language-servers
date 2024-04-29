@@ -1,7 +1,7 @@
 {
     "name": "@aws/chat-client",
     "version": "0.0.1",
-    "description": "Q Chat Client",
+    "description": "AWS Chat Client",
     "main": "out/index.js",
     "repository": {
         "type": "git",

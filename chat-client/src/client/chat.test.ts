@@ -23,7 +23,7 @@ describe('Chat', () => {
         sandbox.restore()
     })
 
-    it('chat initialized publishes ready event', () => {
+    it('initialized publishes ready event', () => {
         createChat(clientApi)
         assert.calledOnceWithExactly(clientApi.postMessage, { command: UI_IS_READY })
     })
