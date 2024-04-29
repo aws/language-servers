@@ -359,7 +359,7 @@ export const CodewhispererServerFactory =
                     triggerCharacter: triggerCharacter,
                     classifierResult: autoTriggerResult?.classifierResult,
                     classifierThreshold: autoTriggerResult?.classifierThreshold,
-                    credentialStartUrl: credentialsProvider.getConnectionMetadata()?.sso?.startUrl ?? undefined,
+                    credentialStartUrl: credentialsProvider.getConnectionMetadata?.()?.sso?.startUrl ?? undefined,
                 })
 
                 codePercentageTracker.countInvocation(inferredLanguageId)

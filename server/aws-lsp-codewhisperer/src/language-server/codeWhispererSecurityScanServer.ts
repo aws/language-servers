@@ -43,7 +43,7 @@ export const SecurityScanServerToken =
                 result: 'Succeeded',
                 codewhispererCodeScanTotalIssues: 0,
                 codewhispererCodeScanIssuesWithFixes: 0,
-                credentialStartUrl: credentialsProvider.getConnectionMetadata()?.sso?.startUrl ?? undefined,
+                credentialStartUrl: credentialsProvider.getConnectionMetadata?.()?.sso?.startUrl ?? undefined,
             }
             try {
                 if (!credentialsProvider.hasCredentials('bearer')) {
