@@ -16,12 +16,11 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri) 
     panel.webview.onDidReceiveMessage(message => {
         languageClient.info(`vscode client: Received ${JSON.stringify(message)} from chat`)
 
-        // TODO: get server contract types from chat-client
         switch (message.command) {
-            case 'new-tab-was-created':
+            case tabAddNotificationType.method:
                 languageClient.sendNotification(tabAddNotificationType, message.params)
                 break
-            case 'tab-was-removed':
+            case tabRemoveNotificationType.method:
                 languageClient.sendNotification(tabRemoveNotificationType, message.params)
                 break
         }
