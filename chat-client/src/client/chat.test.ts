@@ -23,12 +23,12 @@ describe('Chat', () => {
         sandbox.restore()
     })
 
-    it('initialized publishes ready event', () => {
+    it('publishes ready event, when initialized', () => {
         createChat(clientApi)
         assert.calledOnceWithExactly(clientApi.postMessage, { command: UI_IS_READY })
     })
 
-    it('send to prompt publishes telemetry event', () => {
+    it('publishes telemetry event, when send to prompt is triggered', () => {
         createChat(clientApi)
 
         const sendToPromptEvent = createInboundEvent({ command: SEND_TO_PROMPT, params: { prompt: 'hey' } })
@@ -37,14 +37,14 @@ describe('Chat', () => {
         assert.calledWithMatch(clientApi.postMessage, { command: TAB_ID_RECEIVED })
     })
 
-    it('UI tab add publishes tab added event', () => {
+    it('publishes tab added event, when UI tab is added', () => {
         const mynahUi = createChat(clientApi)
         const tabId = mynahUi.updateStore('', {})
 
         assert.calledWithMatch(clientApi.postMessage, { command: NEW_TAB_CREATED, params: { tabId: tabId } })
     })
 
-    it('UI tab removed publishes tab removed event', () => {
+    it('publishes tab removed event, when UI tab is removed', () => {
         const mynahUi = createChat(clientApi)
         const tabId = mynahUi.updateStore('', {})
         mynahUi.removeTab(tabId!, (mynahUi as any).lastEventId)
@@ -52,7 +52,7 @@ describe('Chat', () => {
         assert.calledWithMatch(clientApi.postMessage, { command: TAB_REMOVED, params: { tabId: tabId } })
     })
 
-    it('UI tab changed publishes tab changed event', () => {
+    it('publishes tab changed event, when UI tab is changed ', () => {
         const mynahUi = createChat(clientApi)
         const tabId = mynahUi.updateStore('', {})
         mynahUi.updateStore('', {})
