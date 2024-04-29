@@ -15,7 +15,6 @@ export const createMynahUi = (messager: Messager, tabFactory: TabFactory): [Myna
     const mynahUi = new MynahUI({
         onReady: messager.onUiReady,
         onTabAdd: (tabId: string) => {
-            mynahUi.updateStore(tabId, {})
             messager.onTabAdd(tabId)
         },
         onTabRemove: (tabId: string) => {
