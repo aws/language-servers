@@ -2,11 +2,13 @@ import {
     GenerateAssistantResponseCommandInput,
     GenerateAssistantResponseCommandOutput,
 } from '@amzn/codewhisperer-streaming'
-import { ChatParams, ErrorCodes, ResponseError } from '@aws/language-server-runtimes/protocol'
 import {
     CancellationToken,
+    ChatParams,
     CredentialsProvider,
     EndChatParams,
+    ErrorCodes,
+    ResponseError,
     Server,
     TabAddParams,
     TabRemoveParams,
