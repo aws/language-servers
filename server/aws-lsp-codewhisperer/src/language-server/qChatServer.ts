@@ -1,7 +1,4 @@
-import {
-    GenerateAssistantResponseCommandInput,
-    GenerateAssistantResponseCommandOutput,
-} from '@amzn/codewhisperer-streaming'
+import { GenerateAssistantResponseCommandOutput } from '@amzn/codewhisperer-streaming'
 import {
     CancellationToken,
     ChatParams,
@@ -62,19 +59,17 @@ export const QChatServer =
                 session.abortRequest()
             })
 
-            let requestInput: GenerateAssistantResponseCommandInput
             let response: GenerateAssistantResponseCommandOutput
 
-            try {
-                requestInput = convertChatParamsToRequestInput(params)
-            } catch (err) {
-                logging.log('Invalid request input')
+            const requestInput = convertChatParamsToRequestInput(params)
 
-                return new ResponseError(ErrorCodes.InvalidParams, 'Invalid request input')
+            if (!requestInput.success) {
+                logging.log(requestInput.error)
+                return new ResponseError(ErrorCodes.InvalidParams, requestInput.error)
             }
 
             try {
-                response = await session.generateAssistantResponse(requestInput)
+                response = await session.generateAssistantResponse(requestInput.data)
             } catch (err) {
                 logging.log('Q api request error')
 
