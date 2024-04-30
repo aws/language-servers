@@ -20,7 +20,7 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri) 
 
     commands.registerCommand('chat.sendCommandsFromUI', () => {
         panel.webview.postMessage({
-            command: 'send-to-prompt',
+            command: 'sendToPrompt',
             params: { prompt: 'Hello from vscode!', triggerId: '1' },
         })
     })

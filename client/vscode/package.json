@@ -73,7 +73,7 @@
     "scripts": {
         "vscode:prepublish": "npm run compile",
         "compile": "tsc -b && npm run compile:chat-client",
-        "compile:chat-client": "npm run compile --prefix ../../chat-client && cp -R ../../chat-client/build/ ."
+        "compile:chat-client": "npm run compile --prefix ../../chat-client && cp -R ../../chat-client/build ."
     },
     "devDependencies": {
         "@aws-sdk/credential-providers": "^3.540.0",

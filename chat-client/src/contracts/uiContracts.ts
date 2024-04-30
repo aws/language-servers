@@ -1,4 +1,4 @@
-export const TAB_ID_RECEIVED = 'trigger-tabId-received'
+export const TAB_ID_RECEIVED = 'triggerTabIdReceived'
 export const SEND_TO_PROMPT = 'sendToPrompt'
 export const AUTH_NEEDED_EXCEPTION = 'authNeededException'
 export const ERROR_MESSAGE = 'errorMessage'
