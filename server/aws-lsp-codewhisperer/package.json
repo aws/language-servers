@@ -27,6 +27,7 @@
         "fix:prettier": "prettier . --write"
     },
     "dependencies": {
+        "@aws/fully-qualified-names": "2.1.4",
         "@aws/language-server-runtimes": "^0.2.3",
         "@smithy/abort-controller": "^2.2.0",
         "@smithy/node-http-handler": "^2.5.0",
