@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import { MynahUI, NotificationType } from '@aws/mynah-ui'
-import { SendToPromptParams } from '../contracts/uiContracts'
+import { InsertToCursorPositionParams, SendToPromptParams } from '../contracts/uiContracts'
 import { Messager } from './messager'
 import { TabFactory } from './tabs/tabFactory'
 
@@ -13,6 +13,28 @@ export interface InboundChatApi {
 
 export const createMynahUi = (messager: Messager, tabFactory: TabFactory): [MynahUI, InboundChatApi] => {
     const mynahUi = new MynahUI({
+        onCodeInsertToCursorPosition(
+            tabId,
+            messageId,
+            code,
+            type,
+            referenceTrackerInformation,
+            eventId,
+            codeBlockIndex,
+            totalCodeBlocks
+        ) {
+            const payload: InsertToCursorPositionParams = {
+                tabId,
+                messageId,
+                code,
+                type,
+                referenceTrackerInformation,
+                eventId,
+                codeBlockIndex,
+                totalCodeBlocks,
+            }
+            messager.onInsertToCursorPosition(payload)
+        },
         onReady: messager.onUiReady,
         onTabAdd: (tabId: string) => {
             messager.onTabAdd(tabId)

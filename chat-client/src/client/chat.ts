@@ -14,6 +14,8 @@ import { ENTER_FOCUS, EXIT_FOCUS } from '../contracts/telemetry'
 import {
     AUTH_NEEDED_EXCEPTION,
     ERROR_MESSAGE,
+    INSERT_TO_CURSOR_POSITION,
+    InsertToCursorPositionParams,
     SEND_TO_PROMPT,
     SendToPromptMessage,
     TAB_ID_RECEIVED,
@@ -74,6 +76,9 @@ export const createChat = (clientApi: { postMessage: (msg: UiMessage | ServerMes
         },
         tabRemoved: (params: TabRemoveParams) => {
             sendMessageToClient({ command: TAB_REMOVED, params })
+        },
+        insertToCursorPosition: (params: InsertToCursorPositionParams) => {
+            sendMessageToClient({ command: INSERT_TO_CURSOR_POSITION, params })
         },
         uiReady: () => {
             sendMessageToClient({
