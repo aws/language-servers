@@ -15,6 +15,10 @@ export class ChatSessionManagementService {
         return ChatSessionManagementService.#instance
     }
 
+    public static reset() {
+        ChatSessionManagementService.#instance = undefined
+    }
+
     private constructor() {}
 
     public withConfig(clientConfig?: ChatSessionServiceConfig | (() => ChatSessionServiceConfig)) {
@@ -33,23 +37,23 @@ export class ChatSessionManagementService {
         return this.#sessionByTab.has(tabId)
     }
 
-    public getSession(tabId: string): ChatSessionService {
-        const maybeSession = this.#sessionByTab.get(tabId)
-
-        if (!maybeSession) {
-            const clientConfig = typeof this.#clientConfig === 'function' ? this.#clientConfig() : this.#clientConfig
-
-            if (!this.#credentialsProvider) {
-                throw new Error('Credentials provider is not set')
-            }
-            const newSession = new ChatSessionService(this.#credentialsProvider, clientConfig)
-
-            this.#sessionByTab.set(tabId, newSession)
-
-            return newSession
+    public createSession(tabId: string): ChatSessionService {
+        if (!this.#credentialsProvider) {
+            throw new Error('Credentials provider is not set')
+        } else if (this.#sessionByTab.has(tabId)) {
+            throw new Error('Session already exists')
         }
 
-        return maybeSession
+        const clientConfig = typeof this.#clientConfig === 'function' ? this.#clientConfig() : this.#clientConfig
+        const newSession = new ChatSessionService(this.#credentialsProvider, clientConfig)
+
+        this.#sessionByTab.set(tabId, newSession)
+
+        return newSession
+    }
+
+    public getSession(tabId: string): ChatSessionService | undefined {
+        return this.#sessionByTab.get(tabId)
     }
 
     public deleteSession(tabId: string): void {

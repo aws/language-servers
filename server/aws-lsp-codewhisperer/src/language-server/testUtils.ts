@@ -111,3 +111,20 @@ export const EXPECTED_RESULT_WITHOUT_REFERENCES = {
 }
 
 export const EMPTY_RESULT = { items: [], sessionId: '' }
+
+export const createIterableResponse = <T>(data: T[]): AsyncIterable<T> => {
+    let index = 0
+
+    return {
+        [Symbol.asyncIterator]() {
+            return {
+                next() {
+                    return Promise.resolve({
+                        done: index >= data.length,
+                        value: data[index++],
+                    })
+                },
+            }
+        },
+    }
+}

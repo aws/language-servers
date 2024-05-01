@@ -13,7 +13,7 @@ describe('ChatSessionManagementService', () => {
     })
 
     it('creating a session without credentials provider should throw an error', () => {
-        assert.throws(() => ChatSessionManagementService.getInstance().getSession('mockSessionId'))
+        assert.throws(() => ChatSessionManagementService.getInstance().createSession('mockSessionId'))
     })
 
     describe('Session interface', () => {
@@ -35,23 +35,30 @@ describe('ChatSessionManagementService', () => {
         })
 
         afterEach(() => {
+            ChatSessionManagementService.reset()
             disposeStub.restore()
         })
 
-        it('getSession should return an existing client if found or create a new client if not found', () => {
+        it('getSession should return an existing client if found', () => {
             assert.ok(!chatSessionManagementService.hasSession(mockSessionId))
-            // getSession creates a new session if not found
-            const chatClient = chatSessionManagementService.getSession(mockSessionId)
+            assert.strictEqual(chatSessionManagementService.getSession(mockSessionId), undefined)
+
+            const chatClient = chatSessionManagementService.createSession(mockSessionId)
 
             assert.ok(chatClient instanceof ChatSessionService)
             assert.ok(chatSessionManagementService.hasSession(mockSessionId))
 
-            // check if the object reference is the same to ensure we are only creating one client
             assert.strictEqual(chatSessionManagementService.getSession(mockSessionId), chatClient)
         })
 
+        it('creating a session with an existing id should throw an error', () => {
+            chatSessionManagementService.createSession(mockSessionId)
+
+            assert.throws(() => chatSessionManagementService.createSession(mockSessionId))
+        })
+
         it('deleting session should dispose the chat session service and delete from map', () => {
-            chatSessionManagementService.getSession(mockSessionId)
+            chatSessionManagementService.createSession(mockSessionId)
 
             assert.ok(chatSessionManagementService.hasSession(mockSessionId))
 
@@ -63,8 +70,8 @@ describe('ChatSessionManagementService', () => {
         })
 
         it('disposing the chat session management should dispose all the chat session services', () => {
-            chatSessionManagementService.getSession(mockSessionId)
-            chatSessionManagementService.getSession(mockSessionId2)
+            chatSessionManagementService.createSession(mockSessionId)
+            chatSessionManagementService.createSession(mockSessionId2)
 
             chatSessionManagementService.dispose()
 
