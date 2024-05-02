@@ -11,6 +11,7 @@ import {
 import { CodeWhispererServiceToken } from '../codeWhispererService'
 import { ArtifactManager } from './artifactManager'
 import { getCWStartTransformRequest, getCWStartTransformResponse } from './converter'
+import * as dryRunConstant from './dryRunConstant'
 import {
     CancellationJobStatus,
     QNetCancelTransformRequest,
@@ -30,10 +31,12 @@ export class TransformHandler {
     private client: CodeWhispererServiceToken
     private workspace: Workspace
     private logging: Logging
-    constructor(client: CodeWhispererServiceToken, workspace: Workspace, logging: Logging) {
+    private dryRun: boolean
+    constructor(client: CodeWhispererServiceToken, workspace: Workspace, logging: Logging, dryRun: boolean = false) {
         this.client = client
         this.workspace = workspace
         this.logging = logging
+        this.dryRun = dryRun
     }
 
     async startTransformation(userInputrequest: QNetStartTransformRequest): Promise<QNetStartTransformResponse> {
@@ -41,9 +44,14 @@ export class TransformHandler {
             const uploadId = await this.preTransformationUploadCode(userInputrequest)
             const request = getCWStartTransformRequest(userInputrequest, uploadId)
             this.logging.log('send request to start transform api: ' + JSON.stringify(request))
-            const response = await this.client.codeModernizerStartCodeTransformation(request)
-            this.logging.log('response start transform api: ' + JSON.stringify(response))
-            return getCWStartTransformResponse(response, uploadId)
+            if (this.dryRun) {
+                this.logging.log('activating dry run mode.')
+                return dryRunConstant.StartTransformationResponse
+            } else {
+                const response = await this.client.codeModernizerStartCodeTransformation(request)
+                this.logging.log('response start transform api: ' + JSON.stringify(response))
+                return getCWStartTransformResponse(response, uploadId)
+            }
         } catch (error) {
             const errorMessage = (error as Error).message ?? 'Error in StartTransformation API call'
             this.logging.log(errorMessage)
@@ -53,9 +61,11 @@ export class TransformHandler {
 
     async preTransformationUploadCode(userInputrequest: QNetStartTransformRequest): Promise<string> {
         let uploadId = ''
-        const randomPath = uuidv4().substring(0, 8)
-        const workspacePath = path.join(this.workspace.fs.getTempDirPath(), randomPath)
-        const artifactManager = new ArtifactManager(this.workspace, this.logging, workspacePath)
+        const artifactManager = new ArtifactManager(
+            this.workspace,
+            this.logging,
+            this.getWorkspacePath(userInputrequest.SolutionRootPath)
+        )
         try {
             const payloadFilePath = await this.zipCodeAsync(userInputrequest, artifactManager)
             this.logging.log('payload path: ' + payloadFilePath)
@@ -65,12 +75,17 @@ export class TransformHandler {
             const errorMessage = (error as Error).message ?? 'Failed to upload zip file'
             throw new Error(errorMessage)
         } finally {
-            artifactManager.cleanup()
+            if (!this.dryRun) {
+                artifactManager.cleanup()
+            }
         }
         return uploadId
     }
 
     async uploadPayloadAsync(payloadFileName: string): Promise<string> {
+        if (this.dryRun) {
+            return dryRunConstant.uploadId
+        }
         const sha256 = ArtifactManager.getSha256(payloadFileName)
         let response: CreateUploadUrlResponse
         try {
@@ -139,6 +154,9 @@ export class TransformHandler {
         return headersObj
     }
     async getTransformation(request: QNetGetTransformRequest) {
+        if (this.dryRun) {
+            return dryRunConstant.GetTransformationResponse
+        }
         try {
             const getCodeTransformationRequest = {
                 transformationJobId: request.TransformationJobId,
@@ -321,6 +339,19 @@ export class TransformHandler {
         } catch (error) {
             // Directory doesn't exist, create it
             await fs.mkdirSync(directoryPath, { recursive: true })
+        }
+    }
+
+    getWorkspacePath(solutionRootPath: string): string {
+        if (this.dryRun) {
+            const workspacePath = path.join(solutionRootPath, dryRunConstant.workspaceFolderName)
+            if (!fs.existsSync(workspacePath)) {
+                fs.mkdirSync(workspacePath)
+            }
+            return workspacePath
+        } else {
+            const randomPath = uuidv4().substring(0, 8)
+            return path.join(this.workspace.fs.getTempDirPath(), randomPath)
         }
     }
 }
