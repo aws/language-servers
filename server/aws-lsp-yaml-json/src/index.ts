@@ -1,1 +1,1 @@
-export { YamlLanguageServer } from './language-server/yamlJsonServer'
+export { CreateYamlJsonLanguageServer } from './language-server/yamlJsonServer'
