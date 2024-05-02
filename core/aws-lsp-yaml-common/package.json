@@ -4,7 +4,8 @@
     "description": "YAML Language Server common code library",
     "main": "out/index.js",
     "scripts": {
-        "compile": "tsc --build"
+        "compile": "tsc --build",
+        "postinstall": "node patchYamlJsonPackage.js"
     },
     "dependencies": {
         "@aws/lsp-core": "^0.0.1",

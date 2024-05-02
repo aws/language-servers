@@ -420,7 +420,7 @@ Globals:
 export const HOVER_YAML = {
     contents: {
         kind: 'markdown',
-        value: '#### Resources\n\nSource: [schema.json](https://raw.githubusercontent.com/aws/serverless-application-model/main/samtranslator/schema/schema.json)',
+        value: '',
     },
     range: {
         start: { line: 0, character: 0 },

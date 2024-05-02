@@ -1,0 +1,33 @@
+--- a/node_modules/yaml-language-server/lib/umd/languageservice/services/yamlSchemaService.js	2024-05-02 15:45:09
++++ b/node_modules/yaml-language-server/lib/umd/languageservice/services/yamlSchemaService.js	2024-05-02 15:44:54
+@@ -23,14 +23,8 @@
+     const yaml_1 = require("yaml");
+     const path = require("path");
+     const modelineUtil_1 = require("./modelineUtil");
+-    const ajv_1 = require("ajv");
+     const schemaUtils_1 = require("../utils/schemaUtils");
+     const localize = nls.loadMessageBundle();
+-    const ajv = new ajv_1.default();
+-    // load JSON Schema 07 def to validate loaded schemas
+-    // eslint-disable-next-line @typescript-eslint/no-var-requires
+-    const jsonSchema07 = require('ajv/dist/refs/json-schema-draft-07.json');
+-    const schema07Validator = ajv.compile(jsonSchema07);
+     var MODIFICATION_ACTIONS;
+     (function (MODIFICATION_ACTIONS) {
+         MODIFICATION_ACTIONS[MODIFICATION_ACTIONS["delete"] = 0] = "delete";
+\ No newline at end of file
+@@ -99,13 +93,6 @@
+             const resolveErrors = schemaToResolve.errors.slice(0);
+             let schema = schemaToResolve.schema;
+             const contextService = this.contextService;
+-            if (!schema07Validator(schema)) {
+-                const errs = [];
+-                for (const err of schema07Validator.errors) {
+-                    errs.push(`${err.instancePath} : ${err.message}`);
+-                }
+-                resolveErrors.push(`Schema '${(0, schemaUtils_1.getSchemaTitle)(schemaToResolve.schema, schemaURL)}' is not valid:\n${errs.join('\n')}`);
+-            }
+             const findSection = (schema, path) => {
+                 if (!path) {
+                     return schema;
+\ No newline at end of file

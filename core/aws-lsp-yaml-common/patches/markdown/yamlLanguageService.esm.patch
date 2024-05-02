@@ -1,0 +1,10 @@
+--- a/node_modules/yaml-language-server/lib/esm/languageservice/yamlLanguageService.d.ts	2024-05-02 15:36:28
++++ b/node_modules/yaml-language-server/lib/esm/languageservice/yamlLanguageService.d.ts	2024-05-02 15:36:32
+@@ -25,6 +25,7 @@
+ export interface LanguageSettings {
+     validate?: boolean;
+     hover?: boolean;
++    hoverSettings?: {showSource?: boolean; showTitle?: boolean;};
+     completion?: boolean;
+     format?: boolean;
+     isKubernetes?: boolean;
