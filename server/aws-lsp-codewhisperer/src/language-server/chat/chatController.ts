@@ -10,6 +10,7 @@ import {
     ResponseError,
     TabAddParams,
     TabRemoveParams,
+    TextDocumentIdentifier,
 } from '@aws/language-server-runtimes/server-interface'
 import { Features, LspHandlers, Result } from '../types'
 import { ChatEventParser } from './chatEventParser'
@@ -63,7 +64,14 @@ export class ChatController implements ChatHandlers {
             session.abortRequest()
         })
 
-        const requestInput = convertChatParamsToRequestInput(params)
+        const documentIdentifier = (params as any).textDocument as TextDocumentIdentifier
+
+        const textDocument = await this.#features.workspace.getTextDocument(documentIdentifier.uri)
+        const editorState = textDocument && (await extractEditorState(textDocument, (params as any).cursorState))
+
+        this.#log(`Editor context ${editorState ? JSON.stringify(editorState, null, 4) : undefined}`)
+
+        const requestInput = convertChatParamsToRequestInput(params, editorState)
 
         if (!requestInput.success) {
             this.#log(requestInput.error)
