@@ -1,6 +1,12 @@
 import { webworker } from '@aws/language-server-runtimes/runtimes/webworker'
 import { RuntimeProps } from '@aws/language-server-runtimes/runtimes/runtime'
-import { YamlLanguageServer } from '@aws/aws-lsp-yaml-json'
+import { CreateYamlJsonLanguageServer } from '@aws/aws-lsp-yaml-json'
+
+const jsonSchemaUrl =
+    'https://raw.githubusercontent.com/aws/serverless-application-model/main/samtranslator/schema/schema.json'
+const displayName = 'aws-lsp-yaml-json'
+
+const YamlJsonLanguageServer = CreateYamlJsonLanguageServer(displayName, jsonSchemaUrl)
 
 const MAJOR = 0
 const MINOR = 1
@@ -9,7 +15,7 @@ const VERSION = `${MAJOR}.${MINOR}.${PATCH}`
 
 const props: RuntimeProps = {
     version: VERSION,
-    servers: [YamlLanguageServer],
+    servers: [YamlJsonLanguageServer],
     name: 'AWS YAML/JSON server',
 }
 webworker(props)

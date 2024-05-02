@@ -133,9 +133,6 @@ export const YamlJsonServerFactory =
         }
     }
 
-const jsonSchemaUrl =
-    'https://raw.githubusercontent.com/aws/serverless-application-model/main/samtranslator/schema/schema.json'
-
 async function getSchema(url: string) {
     const response = await fetch(url)
     const schema = await (await response.blob()).text()
@@ -143,12 +140,17 @@ async function getSchema(url: string) {
     return schema
 }
 
-const yamlJsonServerProps = {
-    displayName: 'aws-lsp-yaml-json',
-    defaultSchemaUri: jsonSchemaUrl,
-    uriResolver: getSchema,
-    allowComments: true,
-}
-
-const service = create(yamlJsonServerProps)
-export const YamlLanguageServer = YamlJsonServerFactory(service)
+export const CreateYamlJsonLanguageServer = (
+    displayName: string,
+    defaultSchemaUri: string,
+    allowComments: boolean = true,
+    uriResolver: (url: string) => Promise<string> = getSchema
+) =>
+    YamlJsonServerFactory(
+        create({
+            displayName: displayName,
+            defaultSchemaUri: defaultSchemaUri,
+            allowComments: allowComments,
+            uriResolver: uriResolver,
+        })
+    )
