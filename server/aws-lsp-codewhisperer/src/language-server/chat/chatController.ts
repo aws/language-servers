@@ -64,10 +64,14 @@ export class ChatController implements ChatHandlers {
             session.abortRequest()
         })
 
-        const documentIdentifier = (params as any).textDocument as TextDocumentIdentifier
+        const documentIdentifier = (params as any)?.textDocument as TextDocumentIdentifier | undefined
 
-        const textDocument = await this.#features.workspace.getTextDocument(documentIdentifier.uri)
-        const editorState = textDocument && (await extractEditorState(textDocument, (params as any).cursorState))
+        const textDocument =
+            documentIdentifier && (await this.#features.workspace.getTextDocument(documentIdentifier.uri))
+        const editorState =
+            textDocument &&
+            (params as any).cursorState &&
+            (await extractEditorState(textDocument, (params as any).cursorState))
 
         this.#log(`Editor context ${editorState ? JSON.stringify(editorState, null, 4) : undefined}`)
 
