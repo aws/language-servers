@@ -103,4 +103,15 @@ describe('Chat Session Service', () => {
         sinon.assert.calledOnce(abortStub)
         sinon.assert.calledOnce(destroyClientStub)
     })
+
+    it('calling .clearSession() empties the sessionId', async () => {
+        await chatSessionService.generateAssistantResponse(mockRequestParams)
+
+        assert.strictEqual(chatSessionService.sessionId, mockConversationId)
+
+        chatSessionService.clearSession()
+
+        sinon.assert.calledOnce(abortStub)
+        assert.strictEqual(chatSessionService.sessionId, undefined)
+    })
 })

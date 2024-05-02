@@ -36,6 +36,14 @@ export class ChatSessionService {
         })
     }
 
+    /**
+     * starting anew by discarding the conversation id stored in state
+     */
+    public clearSession() {
+        this.#abortController?.abort()
+        this.#sessionId = undefined
+    }
+
     public async generateAssistantResponse(
         request: GenerateAssistantResponseCommandInput
     ): Promise<GenerateAssistantResponseCommandOutput> {
