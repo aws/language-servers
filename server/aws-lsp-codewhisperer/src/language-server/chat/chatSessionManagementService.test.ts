@@ -5,6 +5,8 @@ import { ChatSessionManagementService } from './chatSessionManagementService'
 import { ChatSessionService } from './chatSessionService'
 
 describe('ChatSessionManagementService', () => {
+    const mockSessionId = 'mockSessionId'
+
     it('getInstance should return the same instance if initialized', () => {
         const instance = ChatSessionManagementService.getInstance()
         const instance2 = ChatSessionManagementService.getInstance()
@@ -13,7 +15,9 @@ describe('ChatSessionManagementService', () => {
     })
 
     it('creating a session without credentials provider should throw an error', () => {
-        assert.throws(() => ChatSessionManagementService.getInstance().createSession('mockSessionId'))
+        const createSessionResult = ChatSessionManagementService.getInstance().createSession(mockSessionId)
+
+        sinon.assert.match(createSessionResult, { success: false, error: sinon.match.string })
     })
 
     describe('Session interface', () => {
@@ -23,7 +27,6 @@ describe('ChatSessionManagementService', () => {
             getConnectionMetadata: sinon.stub(),
         }
 
-        const mockSessionId = 'mockSessionId'
         const mockSessionId2 = 'mockSessionId2'
         let disposeStub: sinon.SinonStub
         let chatSessionManagementService: ChatSessionManagementService
@@ -41,20 +44,32 @@ describe('ChatSessionManagementService', () => {
 
         it('getSession should return an existing client if found', () => {
             assert.ok(!chatSessionManagementService.hasSession(mockSessionId))
-            assert.strictEqual(chatSessionManagementService.getSession(mockSessionId), undefined)
 
-            const chatClient = chatSessionManagementService.createSession(mockSessionId)
+            sinon.assert.match(chatSessionManagementService.getSession(mockSessionId), {
+                success: false,
+                error: sinon.match.string,
+            })
 
-            assert.ok(chatClient instanceof ChatSessionService)
+            const chatClientData = chatSessionManagementService.createSession(mockSessionId)
+
+            sinon.assert.match(chatClientData, {
+                success: true,
+                data: sinon.match.instanceOf(ChatSessionService),
+            })
+
             assert.ok(chatSessionManagementService.hasSession(mockSessionId))
 
-            assert.strictEqual(chatSessionManagementService.getSession(mockSessionId), chatClient)
+            // asserting object reference
+            assert.strictEqual(chatSessionManagementService.getSession(mockSessionId).data, chatClientData.data)
         })
 
-        it('creating a session with an existing id should throw an error', () => {
+        it('creating a session with an existing id should return an error', () => {
             chatSessionManagementService.createSession(mockSessionId)
 
-            assert.throws(() => chatSessionManagementService.createSession(mockSessionId))
+            sinon.assert.match(chatSessionManagementService.createSession(mockSessionId), {
+                success: false,
+                error: sinon.match.string,
+            })
         })
 
         it('deleting session should dispose the chat session service and delete from map', () => {

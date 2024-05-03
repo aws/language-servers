@@ -5,6 +5,7 @@ import {
     ReferenceTrackerInformation,
     SourceLink,
 } from '@aws/language-server-runtimes/protocol'
+import { Result } from '../types'
 
 export class ChatEventParser implements ChatResult {
     error?: string
@@ -37,7 +38,7 @@ export class ChatEventParser implements ChatResult {
         this.messageId = messageId
     }
 
-    public processPartialEvent(chatEvent: ChatResponseStream): ChatResult {
+    public processPartialEvent(chatEvent: ChatResponseStream): Result<ChatResult, string> {
         const {
             followupPromptEvent,
             supplementaryWebLinksEvent,
@@ -84,8 +85,8 @@ export class ChatEventParser implements ChatResult {
         return this.getChatResult()
     }
 
-    public getChatResult(): ChatResult {
-        return {
+    public getChatResult(): Result<ChatResult, string> {
+        const chatResult: ChatResult = {
             messageId: this.messageId,
             body: this.body,
             canBeVoted: this.canBeVoted,
@@ -93,5 +94,16 @@ export class ChatEventParser implements ChatResult {
             followUp: this.followUp,
             codeReference: this.codeReference,
         }
+
+        return this.error
+            ? {
+                  success: false,
+                  data: chatResult,
+                  error: this.error,
+              }
+            : {
+                  success: true,
+                  data: chatResult,
+              }
     }
 }
