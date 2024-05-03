@@ -4,7 +4,7 @@ import { Position, Range, TextDocument } from 'vscode-languageserver-textdocumen
 export type CursorState = { position: Position } | { range: Range }
 
 /**
- * Extend the cursor range up to charactersLimit for context (if applicable)
+ * Extend the cursor range on both end up to charactersLimit for context (if applicable)
  */
 export function getExtendedCodeBlockRange(
     document: TextDocument,
@@ -24,26 +24,31 @@ export function getExtendedCodeBlockRange(
         }
     }
 
-    // line: lineCount + 1 puts us outside the bound so .offsetAt returns the upper bound
+    // lineCount + 1 puts us outside the bound so `.offsetAt` returns the max offset
     const maxOffset = document.offsetAt({
         line: document.lineCount + 1,
         character: 0,
     })
 
-    // wonder if we want to prioritize snedinng an entire line
-    while (endOffset - startOffset < charactersLimit && (startOffset > 0 || endOffset < maxOffset)) {
-        const charactersCount = endOffset - startOffset
+    const extraCharactersAllowed = charactersLimit - totalSelectedCharacters
 
-        // edge case where extending on both side would result in exceeding character limit
-        if (charactersCount === charactersLimit - 1) {
-            if (startOffset > 0) {
-                startOffset--
-            } else {
-                endOffset++
-            }
+    // Accounting for the edge case when there is an odd number of characters
+    const beforeCharacters = Math.ceil(extraCharactersAllowed / 2)
+    const afterCharacters = Math.floor(extraCharactersAllowed / 2)
+
+    // Try adding number of extra characters equally on both end first
+    startOffset = Math.max(0, startOffset - beforeCharacters)
+    endOffset = Math.min(endOffset + afterCharacters, maxOffset)
+
+    // If there are remaining characters, which means that we reached at least one end of the document
+    const remainingCharacters = charactersLimit - (endOffset - startOffset)
+
+    if (remainingCharacters > 0) {
+        // Since we are at the beginning on the document, try adding the remaining to the characters, and vice versa.
+        if (startOffset === 0) {
+            endOffset = Math.min(endOffset + remainingCharacters, maxOffset)
         } else {
-            startOffset = Math.max(0, startOffset - 1)
-            endOffset = Math.min(endOffset + 1, maxOffset)
+            startOffset = Math.max(startOffset - remainingCharacters, 0)
         }
     }
 

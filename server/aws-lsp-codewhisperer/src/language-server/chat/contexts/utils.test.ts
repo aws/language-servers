@@ -36,6 +36,23 @@ describe('getExtendedCodeBlockRange', () => {
         })
     })
 
+    it('able to extend a code block range correctly if character limit is an odd number', () => {
+        const result = getExtendedCodeBlockRange(
+            mockDocument,
+            {
+                // highlightling "console"
+                start: { line: 4, character: 8 },
+                end: { line: 4, character: 14 },
+            },
+            9
+        )
+
+        assert.deepStrictEqual(result, {
+            start: { line: 4, character: 6 },
+            end: { line: 4, character: 15 },
+        })
+    })
+
     it('does not extend beyond the lower document bound', () => {
         const result = getExtendedCodeBlockRange(
             mockDocument,
