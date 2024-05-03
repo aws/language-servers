@@ -12,14 +12,7 @@ export type Result<TData, TError> =
           data?: TData
           error: TError
       }
-export type EnsurePromise<T> = T extends Promise<any> ? T : Promise<any>
 
 export type LspHandlers<THandlerMap> = {
     [K in keyof THandlerMap]: THandlerMap[K] extends (...args: any[]) => any ? Parameters<THandlerMap[K]>[0] : never
 }
-
-export type HandlerReturnType<THandlerMap, TKey extends keyof THandlerMap> = THandlerMap[TKey] extends (
-    ...args: any[]
-) => any
-    ? ReturnType<THandlerMap[TKey]>
-    : never

@@ -1,5 +1,5 @@
 import { GenerateAssistantResponseCommandOutput } from '@amzn/codewhisperer-streaming'
-import { TabRemoveParams, chatRequestType } from '@aws/language-server-runtimes/protocol'
+import { chatRequestType } from '@aws/language-server-runtimes/protocol'
 import {
     CancellationToken,
     Chat,
@@ -9,8 +9,9 @@ import {
     ErrorCodes,
     ResponseError,
     TabAddParams,
+    TabRemoveParams,
 } from '@aws/language-server-runtimes/server-interface'
-import { EnsurePromise, Features, HandlerReturnType, LspHandlers, Result } from '../types'
+import { Features, LspHandlers, Result } from '../types'
 import { ChatEventParser } from './chatEventParser'
 import { ChatSessionManagementService } from './chatSessionManagementService'
 import { convertChatParamsToRequestInput } from './utils'
@@ -38,16 +39,13 @@ export class ChatController implements ChatHandlers {
         this.#chatSessionManagementService.deleteSession(params.tabId)
     }
 
-    onEndChat(params: EndChatParams, _token: CancellationToken): HandlerReturnType<ChatHandlers, 'onEndChat'> {
+    onEndChat(params: EndChatParams, _token: CancellationToken): boolean {
         const { success } = this.#chatSessionManagementService.deleteSession(params.tabId)
 
         return success
     }
 
-    async onChatPrompt(
-        params: ChatParams,
-        token: CancellationToken
-    ): EnsurePromise<HandlerReturnType<ChatHandlers, 'onChatPrompt'>> {
+    async onChatPrompt(params: ChatParams, token: CancellationToken): Promise<ResponseError<ChatResult> | ChatResult> {
         const sessionResult = this.#chatSessionManagementService.getSession(params.tabId)
 
         const { data: session } = sessionResult
@@ -85,7 +83,7 @@ export class ChatController implements ChatHandlers {
             )
         }
 
-        const result = await this.#processAssistantResponse(response, (params as any).partialResultToken)
+        const result = await this.#processAssistantResponse(response)
 
         return result.success
             ? result.data
