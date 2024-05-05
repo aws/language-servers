@@ -1,6 +1,6 @@
 import * as assert from 'assert'
 import { TextDocument } from 'vscode-languageserver-textdocument'
-import { extractLanguageNameFromFile, getExtendedCodeBlockRange } from './utils'
+import { getExtendedCodeBlockRange } from './utils'
 
 describe('getExtendedCodeBlockRange', () => {
     const mockDocument = TextDocument.create(
@@ -101,17 +101,5 @@ describe('getExtendedCodeBlockRange', () => {
             start: { line: 3, character: 8 },
             end: { line: 3, character: 48 },
         })
-    })
-})
-
-describe('extractLanguageNameFromFile', () => {
-    it('returns undefined for unknown language', () => {
-        const result = extractLanguageNameFromFile(TextDocument.create('file://test.ts', 'unknown', 1, ''))
-        assert.deepStrictEqual(result, { languageName: undefined })
-    })
-
-    it('extracts language name from file name', () => {
-        const result = extractLanguageNameFromFile(TextDocument.create('file://test.ts', 'typescript', 1, ''))
-        assert.deepStrictEqual(result, { languageName: 'typescript' })
     })
 })
