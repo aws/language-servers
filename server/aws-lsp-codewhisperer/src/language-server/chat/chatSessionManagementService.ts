@@ -1,4 +1,5 @@
 import { CredentialsProvider } from '@aws/language-server-runtimes/server-interface'
+import { Result } from '../types'
 import { ChatSessionService, ChatSessionServiceConfig } from './chatSessionService'
 
 export class ChatSessionManagementService {
@@ -37,11 +38,18 @@ export class ChatSessionManagementService {
         return this.#sessionByTab.has(tabId)
     }
 
-    public createSession(tabId: string): ChatSessionService {
+    public createSession(tabId: string): Result<ChatSessionService, string> {
         if (!this.#credentialsProvider) {
-            throw new Error('Credentials provider is not set')
+            return {
+                success: false,
+                error: 'Credentials provider is not set',
+            }
         } else if (this.#sessionByTab.has(tabId)) {
-            throw new Error('Session already exists')
+            return {
+                success: false,
+                data: this.#sessionByTab.get(tabId),
+                error: 'Session already exists',
+            }
         }
 
         const clientConfig = typeof this.#clientConfig === 'function' ? this.#clientConfig() : this.#clientConfig
@@ -49,19 +57,36 @@ export class ChatSessionManagementService {
 
         this.#sessionByTab.set(tabId, newSession)
 
-        return newSession
+        return {
+            success: true,
+            data: newSession,
+        }
     }
 
-    public getSession(tabId: string): ChatSessionService | undefined {
-        return this.#sessionByTab.get(tabId)
+    public getSession(tabId: string): Result<ChatSessionService, string> {
+        const session = this.#sessionByTab.get(tabId)
+        return session
+            ? {
+                  success: true,
+                  data: session,
+              }
+            : {
+                  success: false,
+                  error: 'Session does not exist',
+              }
     }
 
-    public deleteSession(tabId: string): void {
+    public deleteSession(tabId: string): Result<void, string> {
         this.#sessionByTab.get(tabId)?.dispose()
         this.#sessionByTab.delete(tabId)
+
+        return {
+            success: true,
+            data: undefined,
+        }
     }
 
-    public dispose(): void {
+    public dispose() {
         this.#sessionByTab.forEach(session => session.dispose())
     }
 }

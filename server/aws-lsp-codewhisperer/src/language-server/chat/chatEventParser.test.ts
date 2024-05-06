@@ -1,5 +1,7 @@
 import { ChatResult } from '@aws/language-server-runtimes/protocol'
 import * as assert from 'assert'
+import sinon from 'ts-sinon'
+
 import { ChatEventParser } from './chatEventParser'
 
 describe('ChatEventParser', () => {
@@ -8,7 +10,7 @@ describe('ChatEventParser', () => {
     it('set error if invalidState event is received', () => {
         const chatEventParser = new ChatEventParser(mockMessageId)
 
-        assert.deepStrictEqual(
+        sinon.assert.match(
             chatEventParser.processPartialEvent({
                 invalidStateEvent: {
                     message: 'Invalid state!',
@@ -16,22 +18,24 @@ describe('ChatEventParser', () => {
                 },
             }),
             {
-                messageId: mockMessageId,
-                body: undefined,
-                canBeVoted: undefined,
-                codeReference: undefined,
-                followUp: undefined,
-                relatedContent: undefined,
+                success: false,
+                data: {
+                    messageId: mockMessageId,
+                    body: undefined,
+                    canBeVoted: undefined,
+                    codeReference: undefined,
+                    followUp: undefined,
+                    relatedContent: undefined,
+                },
+                error: sinon.match.string,
             }
         )
-
-        assert.strictEqual(chatEventParser.error, 'Invalid state!')
     })
 
     it('set error if error event is received', () => {
         const chatEventParser = new ChatEventParser(mockMessageId)
 
-        assert.deepStrictEqual(
+        sinon.assert.match(
             chatEventParser.processPartialEvent({
                 error: {
                     name: 'InternalServerException',
@@ -42,12 +46,16 @@ describe('ChatEventParser', () => {
                 },
             }),
             {
-                messageId: mockMessageId,
-                body: undefined,
-                canBeVoted: undefined,
-                codeReference: undefined,
-                followUp: undefined,
-                relatedContent: undefined,
+                success: false,
+                data: {
+                    messageId: mockMessageId,
+                    body: undefined,
+                    canBeVoted: undefined,
+                    codeReference: undefined,
+                    followUp: undefined,
+                    relatedContent: undefined,
+                },
+                error: sinon.match.string,
             }
         )
 
@@ -64,12 +72,15 @@ describe('ChatEventParser', () => {
                 },
             }),
             {
-                messageId: mockMessageId,
-                body: 'This is an ',
-                canBeVoted: undefined,
-                codeReference: undefined,
-                followUp: undefined,
-                relatedContent: undefined,
+                success: true,
+                data: {
+                    messageId: mockMessageId,
+                    body: 'This is an ',
+                    canBeVoted: undefined,
+                    codeReference: undefined,
+                    followUp: undefined,
+                    relatedContent: undefined,
+                },
             }
         )
 
@@ -80,12 +91,15 @@ describe('ChatEventParser', () => {
                 },
             }),
             {
-                messageId: mockMessageId,
-                body: 'This is an assistant response.',
-                canBeVoted: undefined,
-                codeReference: undefined,
-                followUp: undefined,
-                relatedContent: undefined,
+                success: true,
+                data: {
+                    messageId: mockMessageId,
+                    body: 'This is an assistant response.',
+                    canBeVoted: undefined,
+                    codeReference: undefined,
+                    followUp: undefined,
+                    relatedContent: undefined,
+                },
             }
         )
     })
@@ -108,19 +122,22 @@ describe('ChatEventParser', () => {
         })
 
         assert.deepStrictEqual(chatEventParser.getChatResult(), {
-            messageId: mockMessageId,
-            body: 'This is an ',
-            followUp: {
-                options: [
-                    {
-                        pillText: 'follow up 1',
-                        prompt: 'follow up 1',
-                    },
-                ],
+            success: true,
+            data: {
+                messageId: mockMessageId,
+                body: 'This is an ',
+                followUp: {
+                    options: [
+                        {
+                            pillText: 'follow up 1',
+                            prompt: 'follow up 1',
+                        },
+                    ],
+                },
+                canBeVoted: undefined,
+                codeReference: undefined,
+                relatedContent: undefined,
             },
-            canBeVoted: undefined,
-            codeReference: undefined,
-            relatedContent: undefined,
         })
 
         chatEventParser.processPartialEvent({
@@ -196,6 +213,6 @@ describe('ChatEventParser', () => {
             },
         }
 
-        assert.deepStrictEqual(chatEventParser.getChatResult(), expectedData)
+        assert.deepStrictEqual(chatEventParser.getChatResult(), { success: true, data: expectedData })
     })
 })
