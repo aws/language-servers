@@ -9,19 +9,24 @@ export interface ReferenceTrackerInformation {
     information: string
 }
 export type CodeSelectionType = 'selection' | 'block'
+export type AuthFollowUpType = 'full-auth' | 're-auth' | 'missing_scopes' | 'use-supported-auth'
+
+export function isValidAuthFollowUpType(value: string): value is AuthFollowUpType {
+    return ['full-auth', 're-auth', 'missing_scopes', 'use-supported-auth'].includes(value)
+}
 
 export const TAB_ID_RECEIVED = 'triggerTabIdReceived'
 export const SEND_TO_PROMPT = 'sendToPrompt'
-export const AUTH_NEEDED_EXCEPTION = 'authNeededException'
 export const ERROR_MESSAGE = 'errorMessage'
 export const INSERT_TO_CURSOR_POSITION = 'insertToCursorPosition'
+export const AUTH_FOLLOW_UP_CLICKED = 'authFollowUpClicked'
 
 export type UiMessageCommand =
     | typeof TAB_ID_RECEIVED
     | typeof SEND_TO_PROMPT
-    | typeof AUTH_NEEDED_EXCEPTION
     | typeof ERROR_MESSAGE
     | typeof INSERT_TO_CURSOR_POSITION
+    | typeof AUTH_FOLLOW_UP_CLICKED
 
 export interface Message {
     command: UiMessageCommand
@@ -67,4 +72,16 @@ export interface InsertToCursorPositionParams {
 export interface InsertToCursorPositionMessage {
     command: typeof INSERT_TO_CURSOR_POSITION
     params: InsertToCursorPositionParams
+}
+
+export interface AuthFollowUpClickedParams {
+    tabId: string
+    messageId: string
+    eventId?: string
+    authFollowupType: AuthFollowUpType
+}
+
+export interface AuthFollowUpClickedMessage {
+    command: typeof AUTH_FOLLOW_UP_CLICKED
+    params: AuthFollowUpClickedParams
 }

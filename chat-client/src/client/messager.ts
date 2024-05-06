@@ -5,7 +5,12 @@
 
 import { TabAddParams, TabChangeParams, TabRemoveParams } from '@aws/language-server-runtimes-types'
 import { TelemetryParams } from '../contracts/serverContracts'
-import { InsertToCursorPositionParams, SendToPromptParams, TabIdReceivedParams } from '../contracts/uiContracts'
+import {
+    AuthFollowUpClickedParams,
+    InsertToCursorPositionParams,
+    SendToPromptParams,
+    TabIdReceivedParams,
+} from '../contracts/uiContracts'
 
 export interface OutboundChatApi {
     tabAdded(params: TabAddParams): void
@@ -14,6 +19,7 @@ export interface OutboundChatApi {
     tabIdReceived(params: TabIdReceivedParams): void
     telemetry(params: TelemetryParams): void
     insertToCursorPosition(params: InsertToCursorPositionParams): void
+    authFollowUpClicked(params: AuthFollowUpClickedParams): void
     uiReady(): void
 }
 
@@ -45,5 +51,9 @@ export class Messager {
 
     onInsertToCursorPosition = (params: InsertToCursorPositionParams): void => {
         this.chatApi.insertToCursorPosition(params)
+    }
+
+    onAuthFollowUpClicked = (params: AuthFollowUpClickedParams): void => {
+        this.chatApi.authFollowUpClicked(params)
     }
 }

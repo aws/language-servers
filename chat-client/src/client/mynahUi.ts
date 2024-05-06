@@ -3,7 +3,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import { MynahUI, NotificationType } from '@aws/mynah-ui'
-import { InsertToCursorPositionParams, SendToPromptParams } from '../contracts/uiContracts'
+import {
+    AuthFollowUpClickedParams,
+    InsertToCursorPositionParams,
+    SendToPromptParams,
+    isValidAuthFollowUpType,
+} from '../contracts/uiContracts'
 import { Messager } from './messager'
 import { TabFactory } from './tabs/tabFactory'
 
@@ -34,6 +39,18 @@ export const createMynahUi = (messager: Messager, tabFactory: TabFactory): [Myna
                 totalCodeBlocks,
             }
             messager.onInsertToCursorPosition(payload)
+        },
+        onFollowUpClicked(tabId, messageId, followUp, eventId) {
+            if (followUp.type !== undefined && isValidAuthFollowUpType(followUp.type)) {
+                const payload: AuthFollowUpClickedParams = {
+                    tabId,
+                    messageId,
+                    eventId,
+                    authFollowupType: followUp.type,
+                }
+                messager.onAuthFollowUpClicked(payload)
+            }
+            //  messager.onFollowUpClicked
         },
         onReady: messager.onUiReady,
         onTabAdd: (tabId: string) => {

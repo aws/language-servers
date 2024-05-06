@@ -12,7 +12,8 @@ import {
 } from '../contracts/serverContracts'
 import { ENTER_FOCUS, EXIT_FOCUS } from '../contracts/telemetry'
 import {
-    AUTH_NEEDED_EXCEPTION,
+    AUTH_FOLLOW_UP_CLICKED,
+    AuthFollowUpClickedParams,
     ERROR_MESSAGE,
     INSERT_TO_CURSOR_POSITION,
     InsertToCursorPositionParams,
@@ -46,8 +47,6 @@ export const createChat = (clientApi: { postMessage: (msg: UiMessage | ServerMes
             case SEND_TO_PROMPT:
                 mynahApi.sendToPrompt((message as SendToPromptMessage).params)
                 break
-            case AUTH_NEEDED_EXCEPTION:
-                break
             case ERROR_MESSAGE:
                 break
             default:
@@ -79,6 +78,9 @@ export const createChat = (clientApi: { postMessage: (msg: UiMessage | ServerMes
         },
         insertToCursorPosition: (params: InsertToCursorPositionParams) => {
             sendMessageToClient({ command: INSERT_TO_CURSOR_POSITION, params })
+        },
+        authFollowUpClicked: (params: AuthFollowUpClickedParams) => {
+            sendMessageToClient({ command: AUTH_FOLLOW_UP_CLICKED, params })
         },
         uiReady: () => {
             sendMessageToClient({
