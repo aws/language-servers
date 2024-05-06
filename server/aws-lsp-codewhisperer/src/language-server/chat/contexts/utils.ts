@@ -3,8 +3,9 @@ import { Position, Range, TextDocument } from 'vscode-languageserver-textdocumen
 export type CursorState = { position: Position } | { range: Range }
 
 /**
- * Extend the cursor range on both end up to charactersLimit for context (if applicable)
+ * Extend the cursor range on both ends up to charactersLimit for context (if applicable)
  */
+
 export function getExtendedCodeBlockRange(
     document: TextDocument,
     originalRange: Range,
@@ -32,18 +33,18 @@ export function getExtendedCodeBlockRange(
     const extraCharactersAllowed = charactersLimit - totalSelectedCharacters
 
     // Accounting for the edge case when there is an odd number of characters
-    const beforeCharacters = Math.ceil(extraCharactersAllowed / 2)
-    const afterCharacters = Math.floor(extraCharactersAllowed / 2)
+    const prependCharacterCount = Math.ceil(extraCharactersAllowed / 2)
+    const appendCharacterCount = Math.floor(extraCharactersAllowed / 2)
 
-    // Try adding number of extra characters equally on both end first
-    startOffset = Math.max(0, startOffset - beforeCharacters)
-    endOffset = Math.min(endOffset + afterCharacters, maxOffset)
+    // Try adding number of extra characters "equally" on both end first
+    startOffset = Math.max(0, startOffset - prependCharacterCount)
+    endOffset = Math.min(endOffset + appendCharacterCount, maxOffset)
 
     // If there are remaining characters, which means that we reached at least one end of the document
     const remainingCharacters = charactersLimit - (endOffset - startOffset)
 
     if (remainingCharacters > 0) {
-        // Since we are at the beginning on the document, try adding the remaining to the characters, and vice versa.
+        // Since we are at the beginning on the document, try adding the remaining characters to the end, and vice versa.
         if (startOffset === 0) {
             endOffset = Math.min(endOffset + remainingCharacters, maxOffset)
         } else {

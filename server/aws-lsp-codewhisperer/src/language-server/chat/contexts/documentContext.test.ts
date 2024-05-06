@@ -2,8 +2,8 @@ import { EditorState } from '@amzn/codewhisperer-streaming'
 import * as assert from 'assert'
 import sinon from 'ts-sinon'
 import { TextDocument } from 'vscode-languageserver-textdocument'
-import { extractDocumentContext, extractEditorState } from './documentContext'
-import { DocumentSymbols } from './documentSymbols'
+import { DocumentContextExtractor } from './documentContext'
+import { DocumentSymbolsExtractor } from './documentSymbols'
 
 describe('DocumentContext', () => {
     const mockTypescriptCodeBlock = `function test() {
@@ -12,15 +12,16 @@ describe('DocumentContext', () => {
     const mockTSDocument = TextDocument.create('file://test.ts', 'typescript', 1, mockTypescriptCodeBlock)
 
     beforeEach(() => {
-        sinon.stub(DocumentSymbols, 'getDocumentSymbols').resolves([])
+        sinon.stub(DocumentSymbolsExtractor.prototype, 'extractDocumentSymbols').resolves([])
     })
 
     afterEach(() => {
         sinon.restore()
     })
 
-    describe('extractEditorState', () => {
+    describe('documentContextExtractor.extractEditorState', () => {
         it('extracts editor state for range selection', async () => {
+            const documentContextExtractor = new DocumentContextExtractor(19)
             const expected: EditorState = {
                 document: {
                     programmingLanguage: { languageName: 'typescript' },
@@ -42,28 +43,25 @@ describe('DocumentContext', () => {
                 },
             }
 
-            const result = await extractEditorState(
-                mockTSDocument,
-                {
-                    // highlighing "log"
-                    range: {
-                        start: {
-                            line: 1,
-                            character: 12,
-                        },
-                        end: {
-                            line: 1,
-                            character: 15,
-                        },
+            const result = await documentContextExtractor.extractEditorState(mockTSDocument, {
+                // highlighing "log"
+                range: {
+                    start: {
+                        line: 1,
+                        character: 12,
+                    },
+                    end: {
+                        line: 1,
+                        character: 15,
                     },
                 },
-                19
-            )
+            })
 
             assert.deepStrictEqual(result, expected)
         })
 
         it('extracts editor state for collapsed poisition', async () => {
+            const documentContextExtractor = new DocumentContextExtractor(19)
             const expected: EditorState = {
                 document: {
                     programmingLanguage: { languageName: 'typescript' },
@@ -85,28 +83,26 @@ describe('DocumentContext', () => {
                 },
             }
 
-            const result = await extractEditorState(
-                mockTSDocument,
-                {
-                    // highlighing "o" in "log"
-                    range: {
-                        start: {
-                            line: 1,
-                            character: 13,
-                        },
-                        end: {
-                            line: 1,
-                            character: 14,
-                        },
+            const result = await documentContextExtractor.extractEditorState(mockTSDocument, {
+                // highlighing "o" in "log"
+                range: {
+                    start: {
+                        line: 1,
+                        character: 13,
+                    },
+                    end: {
+                        line: 1,
+                        character: 14,
                     },
                 },
-                19
-            )
+            })
 
             assert.deepStrictEqual(result, expected)
         })
 
         it('returns undefined cursorState if the end position was collapsed', async () => {
+            const documentContextExtractor = new DocumentContextExtractor(0)
+
             const expected: EditorState = {
                 document: {
                     programmingLanguage: { languageName: 'typescript' },
@@ -117,22 +113,18 @@ describe('DocumentContext', () => {
                 cursorState: undefined,
             }
 
-            const result = await extractEditorState(
-                mockTSDocument,
-                {
-                    range: {
-                        start: {
-                            line: 1,
-                            character: 13,
-                        },
-                        end: {
-                            line: 1,
-                            character: 13,
-                        },
+            const result = await documentContextExtractor.extractEditorState(mockTSDocument, {
+                range: {
+                    start: {
+                        line: 1,
+                        character: 13,
+                    },
+                    end: {
+                        line: 1,
+                        character: 13,
                     },
                 },
-                0
-            )
+            })
 
             assert.deepStrictEqual(result, expected)
         })
@@ -140,13 +132,15 @@ describe('DocumentContext', () => {
 
     describe('extractDocumentContext', () => {
         it('extract document context with the code block range correctly', async () => {
+            const documentContextExtractor = new DocumentContextExtractor()
+
             const expectedResult: EditorState['document'] = {
                 programmingLanguage: { languageName: 'typescript' },
                 relativeFilePath: 'file://test.ts',
                 documentSymbols: [],
                 text: "console.log('test')",
             }
-            const result = await extractDocumentContext(mockTSDocument, {
+            const result = await documentContextExtractor.extractDocumentContext(mockTSDocument, {
                 start: { line: 1, character: 4 },
                 end: { line: 1, character: 23 },
             })
@@ -155,6 +149,8 @@ describe('DocumentContext', () => {
         })
 
         it('handles other languages correctly', async () => {
+            const documentContextExtractor = new DocumentContextExtractor()
+
             const mockGoCodeBLock = `func main() {
     fmt.Println("test")
 }`
@@ -166,7 +162,7 @@ describe('DocumentContext', () => {
                 documentSymbols: [],
                 text: 'fmt.Println("test")',
             }
-            const result = await extractDocumentContext(mockDocument, {
+            const result = await documentContextExtractor.extractDocumentContext(mockDocument, {
                 start: { line: 1, character: 4 },
                 end: { line: 1, character: 23 },
             })
