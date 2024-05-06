@@ -1,7 +1,5 @@
 import { DocumentSymbol, SymbolType } from '@amzn/codewhisperer-streaming'
-import { Extent, Java, Location, Python, Tsx, TypeScript } from '@aws/fully-qualified-names'
 import { Range as DocumentRange, TextDocument } from 'vscode-languageserver-textdocument'
-import { Features } from '../../types'
 
 export interface FullyQualifiedName {
     readonly source: string[]
@@ -42,21 +40,17 @@ export class DocumentSymbolsExtractor {
     public async extractDocumentSymbols(
         document: TextDocument,
         range: DocumentRange,
-        languageId = document.languageId,
-        logger?: Features['logging']
+        languageId = document.languageId
     ): Promise<DocumentSymbol[]> {
-        logger?.log(`inside document symbols, ${languageId}`)
         if (DocumentSymbolsExtractor.FQN_SUPPORTED_LANGUAGE_SET.has(languageId)) {
-            logger?.log('isSupported!')
-
-            return this.#extractSymbols(document, range, logger)
+            return this.#extractSymbols(document, range)
         }
 
         return []
     }
 
-    async #extractSymbols(document: TextDocument, range: DocumentRange, logger?: Features['logging']) {
-        const names = await this.#extractNames(document, range, logger)
+    async #extractSymbols(document: TextDocument, range: DocumentRange) {
+        const names = await this.#extractNames(document, range)
 
         const documentSymbols: DocumentSymbol[] = []
 
@@ -84,14 +78,8 @@ export class DocumentSymbolsExtractor {
         return documentSymbols
     }
 
-    async #extractNames(
-        document: TextDocument,
-        range: DocumentRange,
-        logger?: Features['logging']
-    ): Promise<FullyQualifiedName[]> {
+    async #extractNames(document: TextDocument, range: DocumentRange): Promise<FullyQualifiedName[]> {
         const names = await this.#findNamesInRange(document.getText(), range, document.languageId)
-
-        logger?.log(`names: ${JSON.stringify(names, null, 4)}`)
 
         if (!names?.fullyQualified) {
             return []
@@ -111,24 +99,24 @@ export class DocumentSymbolsExtractor {
         )
     }
 
-    async #findNamesInRange(fileText: string, selection: DocumentRange, languageId: string) {
-        fileText.replace(/([\uE000-\uF8FF]|\uD83C[\uDF00-\uDFFF]|\uD83D[\uDC00-\uDDFF])/g, '')
-        const startLocation: Location = new Location(selection.start.line, selection.start.character)
-        const endLocation: Location = new Location(selection.end.line, selection.end.character)
-        const extent: Extent = new Extent(startLocation, endLocation)
+    async #findNamesInRange(_fileText: string, _selection: DocumentRange, languageId: string): Promise<any> {
+        // fileText.replace(/([\uE000-\uF8FF]|\uD83C[\uDF00-\uDFFF]|\uD83D[\uDC00-\uDDFF])/g, '')
+        // const startLocation: Location = new Location(selection.start.line, selection.start.character)
+        // const endLocation: Location = new Location(selection.end.line, selection.end.character)
+        // const extent: Extent = new Extent(startLocation, endLocation)
 
         switch (languageId) {
-            case 'java':
-                // java needs to be fixed
-                return Java.findNamesWithInExtent(fileText, extent)
-            case 'javascriptreact':
-            case 'typescriptreact':
-                return Tsx.findNamesWithInExtent(fileText, extent)
-            case 'python':
-                return Python.findNamesWithInExtent(fileText, extent)
-            case 'javascript':
-            case 'typescript':
-                return TypeScript.findNamesWithInExtent(fileText, extent)
+            // case 'java':
+            //     // java needs to be fixed
+            //     return Java.findNamesWithInExtent(fileText, extent)
+            // case 'javascriptreact':
+            // case 'typescriptreact':
+            //     return Tsx.findNamesWithInExtent(fileText, extent)
+            // case 'python':
+            //     return Python.findNamesWithInExtent(fileText, extent)
+            // case 'javascript':
+            // case 'typescript':
+            //     return TypeScript.findNamesWithInExtent(fileText, extent)
             default:
                 return {}
         }
