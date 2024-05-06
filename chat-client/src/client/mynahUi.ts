@@ -5,6 +5,7 @@
 import { ChatItem, ChatItemType, MynahUI, NotificationType } from '@aws/mynah-ui'
 import {
     AuthFollowUpClickedParams,
+    ErrorParams,
     GenericCommandParams,
     InsertToCursorPositionParams,
     SendToPromptParams,
@@ -16,6 +17,7 @@ import { TabFactory } from './tabs/tabFactory'
 export interface InboundChatApi {
     sendToPrompt(params: SendToPromptParams): void
     sendGenericCommand(params: GenericCommandParams): void
+    showError(params: ErrorParams): void
 }
 
 export const createMynahUi = (messager: Messager, tabFactory: TabFactory): [MynahUI, InboundChatApi] => {
@@ -108,7 +110,13 @@ export const createMynahUi = (messager: Messager, tabFactory: TabFactory): [Myna
         const tabId = getOrCreateTabId()
         if (!tabId) return
 
-        const body = [params.command, ' the following part of my code:', '\n```\n', params.selection, '\n```'].join('')
+        const body = [
+            params.genericCommand,
+            ' the following part of my code:',
+            '\n```\n',
+            params.selection,
+            '\n```',
+        ].join('')
 
         const chatItem: ChatItem = { body, type: ChatItemType.PROMPT }
 
@@ -116,9 +124,23 @@ export const createMynahUi = (messager: Messager, tabFactory: TabFactory): [Myna
         // messager.send
     }
 
+    const showError = (params: ErrorParams) => {
+        const tabId = getOrCreateTabId()
+        if (!tabId) return
+
+        const answer: ChatItem = {
+            type: ChatItemType.ANSWER,
+            body: `**${params.title}** 
+${params.message}`,
+        }
+
+        mynahUi.addChatItem(params.tabId, answer)
+    }
+
     const api = {
         sendToPrompt: sendToPrompt,
         sendGenericCommand: sendGenericCommand,
+        showError: showError,
     }
 
     return [mynahUi, api]

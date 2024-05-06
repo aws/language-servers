@@ -94,10 +94,22 @@ export interface GenericCommandParams {
     tabId: string
     selection: string
     eventId?: string
-    command: GenericCommandVerb
+    genericCommand: GenericCommandVerb
 }
 
 export interface GenericCommandMessage {
     command: typeof GENERIC_COMMAND
     params: GenericCommandParams
+}
+
+export interface ErrorParams {
+    tabId: string
+    eventId?: string
+    message: string
+    title: string
+}
+
+export interface ErrorMessage {
+    command: typeof ERROR_MESSAGE
+    params: ErrorParams
 }

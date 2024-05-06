@@ -7,6 +7,7 @@ import { TabAddParams, TabChangeParams, TabRemoveParams } from '@aws/language-se
 import { TelemetryParams } from '../contracts/serverContracts'
 import {
     AuthFollowUpClickedParams,
+    ErrorParams,
     InsertToCursorPositionParams,
     SendToPromptParams,
     TabIdReceivedParams,
@@ -55,5 +56,12 @@ export class Messager {
 
     onAuthFollowUpClicked = (params: AuthFollowUpClickedParams): void => {
         this.chatApi.authFollowUpClicked(params)
+    }
+
+    onError = (params: ErrorParams): void => {
+        this.chatApi.tabIdReceived({
+            eventId: params.eventId || '',
+            tabId: params.tabId,
+        })
     }
 }
