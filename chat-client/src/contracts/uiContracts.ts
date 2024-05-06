@@ -9,17 +9,20 @@ export interface ReferenceTrackerInformation {
     information: string
 }
 export type CodeSelectionType = 'selection' | 'block'
-export type AuthFollowUpType = 'full-auth' | 're-auth' | 'missing_scopes' | 'use-supported-auth'
 
+export type AuthFollowUpType = 'full-auth' | 're-auth' | 'missing_scopes' | 'use-supported-auth'
 export function isValidAuthFollowUpType(value: string): value is AuthFollowUpType {
     return ['full-auth', 're-auth', 'missing_scopes', 'use-supported-auth'].includes(value)
 }
+
+export type GenericCommandVerb = 'Explain' | 'Refactor' | 'Fix' | 'Optimize'
 
 export const TAB_ID_RECEIVED = 'triggerTabIdReceived'
 export const SEND_TO_PROMPT = 'sendToPrompt'
 export const ERROR_MESSAGE = 'errorMessage'
 export const INSERT_TO_CURSOR_POSITION = 'insertToCursorPosition'
 export const AUTH_FOLLOW_UP_CLICKED = 'authFollowUpClicked'
+export const GENERIC_COMMAND = 'genericCommand'
 
 export type UiMessageCommand =
     | typeof TAB_ID_RECEIVED
@@ -27,6 +30,7 @@ export type UiMessageCommand =
     | typeof ERROR_MESSAGE
     | typeof INSERT_TO_CURSOR_POSITION
     | typeof AUTH_FOLLOW_UP_CLICKED
+    | typeof GENERIC_COMMAND
 
 export interface Message {
     command: UiMessageCommand
@@ -36,10 +40,10 @@ export interface UiMessage extends Message {
     params?: UiMessageParams
 }
 
-export type UiMessageParams = TabIdReceivedParams | InsertToCursorPositionParams
+export type UiMessageParams = TabIdReceivedParams | InsertToCursorPositionParams | AuthFollowUpClickedParams
 
 export interface TabIdReceivedParams {
-    triggerId: string
+    eventId: string
     tabId: string
 }
 
@@ -49,8 +53,8 @@ export interface TabIdReceivedMessage {
 }
 
 export interface SendToPromptParams {
-    prompt: string
-    triggerId: string
+    selection: string
+    eventId: string
 }
 
 export interface SendToPromptMessage {
@@ -84,4 +88,16 @@ export interface AuthFollowUpClickedParams {
 export interface AuthFollowUpClickedMessage {
     command: typeof AUTH_FOLLOW_UP_CLICKED
     params: AuthFollowUpClickedParams
+}
+
+export interface GenericCommandParams {
+    tabId: string
+    selection: string
+    eventId?: string
+    command: GenericCommandVerb
+}
+
+export interface GenericCommandMessage {
+    command: typeof GENERIC_COMMAND
+    params: GenericCommandParams
 }

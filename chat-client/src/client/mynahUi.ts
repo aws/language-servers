@@ -2,9 +2,10 @@
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
-import { MynahUI, NotificationType } from '@aws/mynah-ui'
+import { ChatItem, ChatItemType, MynahUI, NotificationType } from '@aws/mynah-ui'
 import {
     AuthFollowUpClickedParams,
+    GenericCommandParams,
     InsertToCursorPositionParams,
     SendToPromptParams,
     isValidAuthFollowUpType,
@@ -14,6 +15,7 @@ import { TabFactory } from './tabs/tabFactory'
 
 export interface InboundChatApi {
     sendToPrompt(params: SendToPromptParams): void
+    sendGenericCommand(params: GenericCommandParams): void
 }
 
 export const createMynahUi = (messager: Messager, tabFactory: TabFactory): [MynahUI, InboundChatApi] => {
@@ -78,7 +80,7 @@ export const createMynahUi = (messager: Messager, tabFactory: TabFactory): [Myna
         },
     })
 
-    const sendToPrompt = (params: SendToPromptParams) => {
+    const getOrCreateTabId = () => {
         let tabId = mynahUi.getSelectedTabId()
         if (!tabId) {
             tabId = mynahUi.updateStore('', tabFactory.createTab(false))
@@ -91,13 +93,32 @@ export const createMynahUi = (messager: Messager, tabFactory: TabFactory): [Myna
             }
         }
 
-        mynahUi.addToUserPrompt(tabId, params.prompt)
+        return tabId
+    }
 
+    const sendToPrompt = (params: SendToPromptParams) => {
+        const tabId = getOrCreateTabId()
+        if (!tabId) return
+
+        mynahUi.addToUserPrompt(tabId, params.selection)
         messager.onSendToPrompt(params, tabId)
+    }
+
+    const sendGenericCommand = (params: GenericCommandParams) => {
+        const tabId = getOrCreateTabId()
+        if (!tabId) return
+
+        const body = [params.command, ' the following part of my code:', '\n```\n', params.selection, '\n```'].join('')
+
+        const chatItem: ChatItem = { body, type: ChatItemType.PROMPT }
+
+        mynahUi.addChatItem(tabId, chatItem)
+        // messager.send
     }
 
     const api = {
         sendToPrompt: sendToPrompt,
+        sendGenericCommand: sendGenericCommand,
     }
 
     return [mynahUi, api]

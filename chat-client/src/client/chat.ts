@@ -15,6 +15,8 @@ import {
     AUTH_FOLLOW_UP_CLICKED,
     AuthFollowUpClickedParams,
     ERROR_MESSAGE,
+    GENERIC_COMMAND,
+    GenericCommandMessage,
     INSERT_TO_CURSOR_POSITION,
     InsertToCursorPositionParams,
     SEND_TO_PROMPT,
@@ -46,6 +48,9 @@ export const createChat = (clientApi: { postMessage: (msg: UiMessage | ServerMes
                 break
             case SEND_TO_PROMPT:
                 mynahApi.sendToPrompt((message as SendToPromptMessage).params)
+                break
+            case GENERIC_COMMAND:
+                mynahApi.sendGenericCommand((message as GenericCommandMessage).params)
                 break
             case ERROR_MESSAGE:
                 break

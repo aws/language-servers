@@ -44,7 +44,7 @@ export class Messager {
 
     onSendToPrompt = (params: SendToPromptParams, tabId: string): void => {
         this.chatApi.tabIdReceived({
-            triggerId: params.triggerId,
+            eventId: params.eventId,
             tabId: tabId,
         })
     }
