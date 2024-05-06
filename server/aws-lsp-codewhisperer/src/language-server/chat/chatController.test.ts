@@ -47,14 +47,12 @@ describe('ChatController', () => {
 
     let generateAssistantResponseStub: sinon.SinonStub
     let disposeStub: sinon.SinonStub
-    let clock: sinon.SinonFakeTimers
 
     let testFeatures: TestFeatures
     let chatSessionManagementService: ChatSessionManagementService
     let chatController: ChatController
 
     beforeEach(() => {
-        clock = sinon.useFakeTimers()
         generateAssistantResponseStub = sinon
             .stub(CodeWhispererStreaming.prototype, 'generateAssistantResponse')
             .callsFake(() => {
@@ -67,7 +65,7 @@ describe('ChatController', () => {
                             },
                             generateAssistantResponseResponse: createIterableResponse(mockAssistantResponseList),
                         })
-                    }, 100)
+                    })
                 )
             })
 
@@ -86,7 +84,6 @@ describe('ChatController', () => {
         generateAssistantResponseStub.restore()
         disposeStub.restore()
         ChatSessionManagementService.reset()
-        clock.restore()
     })
 
     it('creates a session when a tab add notifcation is received', () => {
@@ -149,8 +146,6 @@ describe('ChatController', () => {
                 mockCancellationToken
             )
 
-            clock.next()
-
             const chatResult = await chatResultPromise
 
             assert.deepStrictEqual(chatResult, expectedCompleteChatResult)
@@ -164,7 +159,6 @@ describe('ChatController', () => {
                 mockCancellationToken
             )
 
-            clock.next()
             const chatResult = await chatResultPromise
             assert.ok(chatResult instanceof ResponseError)
         })

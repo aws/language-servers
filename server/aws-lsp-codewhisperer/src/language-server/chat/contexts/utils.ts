@@ -1,6 +1,4 @@
-import { Position, Range, TextDocument } from 'vscode-languageserver-textdocument'
-
-export type CursorState = { position: Position } | { range: Range }
+import { Range, TextDocument } from 'vscode-languageserver-textdocument'
 
 /**
  * Extend the cursor range on both ends up to charactersLimit for context (if applicable)

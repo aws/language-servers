@@ -1,8 +1,9 @@
 import { EditorState } from '@amzn/codewhisperer-streaming'
+import { CursorState } from '@aws/language-server-runtimes-types'
 import { Range, TextDocument } from 'vscode-languageserver-textdocument'
 import { getLanguageId } from '../../languageDetection'
 import { DocumentSymbolsExtractor, DocumentSymbolsExtractorConfig } from './documentSymbols'
-import { CursorState, getExtendedCodeBlockRange, getSelectionWithinExtendedRange } from './utils'
+import { getExtendedCodeBlockRange, getSelectionWithinExtendedRange } from './utils'
 
 export class DocumentContextExtractor {
     private static readonly DEFAULT_CHARACTER_LIMIT = 9000
