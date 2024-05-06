@@ -89,7 +89,7 @@ describe('ChatController', () => {
         clock.restore()
     })
 
-    it('chatController creates a session when a tab add notifcation is received', () => {
+    it('creates a session when a tab add notifcation is received', () => {
         chatController.onTabAdd({ tabId: mockTabId })
 
         const sessionResult = chatSessionManagementService.getSession(mockTabId)
@@ -99,7 +99,7 @@ describe('ChatController', () => {
         })
     })
 
-    it('chatController deletes a session by tab id when a tab remove notifcation is received', () => {
+    it('deletes a session by tab id when a tab remove notifcation is received', () => {
         chatController.onTabAdd({ tabId: mockTabId })
 
         assert.ok(chatSessionManagementService.getSession(mockTabId).data instanceof ChatSessionService)
@@ -116,7 +116,7 @@ describe('ChatController', () => {
         })
     })
 
-    it('chatController deletes a session by tab id a end chat request is received', () => {
+    it('deletes a session by tab id a end chat request is received', () => {
         chatController.onTabAdd({ tabId: mockTabId })
 
         chatController.onEndChat({ tabId: mockTabId }, mockCancellationToken)
