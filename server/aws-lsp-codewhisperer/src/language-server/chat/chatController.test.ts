@@ -1,5 +1,9 @@
-import { ChatResponseStream, CodeWhispererStreaming } from '@amzn/codewhisperer-streaming'
-import { ChatResult, ErrorCodes, ResponseError } from '@aws/language-server-runtimes/server-interface'
+import {
+    ChatResponseStream,
+    CodeWhispererStreaming,
+    GenerateAssistantResponseCommandInput,
+} from '@amzn/codewhisperer-streaming'
+import { ChatResult, ErrorCodes, ResponseError, TextDocument } from '@aws/language-server-runtimes/server-interface'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import * as assert from 'assert'
 import sinon from 'ts-sinon'
@@ -7,6 +11,7 @@ import { createIterableResponse } from '../testUtils'
 import { ChatController } from './chatController'
 import { ChatSessionManagementService } from './chatSessionManagementService'
 import { ChatSessionService } from './chatSessionService'
+import { DocumentContextExtractor } from './contexts/documentContext'
 
 describe('ChatController', () => {
     const mockTabId = 'tab-1'
@@ -47,14 +52,12 @@ describe('ChatController', () => {
 
     let generateAssistantResponseStub: sinon.SinonStub
     let disposeStub: sinon.SinonStub
-    let clock: sinon.SinonFakeTimers
 
     let testFeatures: TestFeatures
     let chatSessionManagementService: ChatSessionManagementService
     let chatController: ChatController
 
     beforeEach(() => {
-        clock = sinon.useFakeTimers()
         generateAssistantResponseStub = sinon
             .stub(CodeWhispererStreaming.prototype, 'generateAssistantResponse')
             .callsFake(() => {
@@ -67,7 +70,7 @@ describe('ChatController', () => {
                             },
                             generateAssistantResponseResponse: createIterableResponse(mockAssistantResponseList),
                         })
-                    }, 100)
+                    })
                 )
             })
 
@@ -86,7 +89,6 @@ describe('ChatController', () => {
         generateAssistantResponseStub.restore()
         disposeStub.restore()
         ChatSessionManagementService.reset()
-        clock.restore()
     })
 
     it('creates a session when a tab add notifcation is received', () => {
@@ -132,6 +134,9 @@ describe('ChatController', () => {
     })
 
     describe('onChatPrompt', () => {
+        beforeEach(() => {
+            chatController.onTabAdd({ tabId: mockTabId })
+        })
         it('throw error if session is not found', async () => {
             const result = await chatController.onChatPrompt(
                 { tabId: 'XXXX', prompt: { prompt: 'Hello' } },
@@ -142,29 +147,35 @@ describe('ChatController', () => {
         })
 
         it('read all the response streams and return compiled results', async () => {
-            chatController.onTabAdd({ tabId: mockTabId })
-
             const chatResultPromise = chatController.onChatPrompt(
                 { tabId: mockTabId, prompt: { prompt: 'Hello' } },
                 mockCancellationToken
             )
 
-            clock.next()
+            const chatResult = await chatResultPromise
+
+            sinon.assert.callCount(testFeatures.lsp.sendProgress, 0)
+            assert.deepStrictEqual(chatResult, expectedCompleteChatResult)
+        })
+
+        it('read all the response streams and send progress as partial result is received', async () => {
+            const chatResultPromise = chatController.onChatPrompt(
+                { tabId: mockTabId, prompt: { prompt: 'Hello' }, partialResultToken: 1 },
+                mockCancellationToken
+            )
 
             const chatResult = await chatResultPromise
 
+            sinon.assert.callCount(testFeatures.lsp.sendProgress, mockAssistantResponseList.length)
             assert.deepStrictEqual(chatResult, expectedCompleteChatResult)
         })
 
         it('returns a ResponseError if request input is not valid', async () => {
-            chatController.onTabAdd({ tabId: mockTabId })
-
             const chatResultPromise = chatController.onChatPrompt(
                 { tabId: mockTabId, prompt: {} },
                 mockCancellationToken
             )
 
-            clock.next()
             const chatResult = await chatResultPromise
             assert.ok(chatResult instanceof ResponseError)
         })
@@ -173,8 +184,6 @@ describe('ChatController', () => {
             generateAssistantResponseStub.callsFake(() => {
                 throw new Error('Error')
             })
-
-            chatController.onTabAdd({ tabId: mockTabId })
 
             const chatResult = await chatController.onChatPrompt(
                 { tabId: mockTabId, prompt: { prompt: 'Hello' } },
@@ -200,8 +209,6 @@ describe('ChatController', () => {
                     ]),
                 })
             })
-
-            chatController.onTabAdd({ tabId: mockTabId })
 
             const chatResult = await chatController.onChatPrompt(
                 { tabId: mockTabId, prompt: { prompt: 'Hello' } },
@@ -234,8 +241,6 @@ describe('ChatController', () => {
                 })
             })
 
-            chatController.onTabAdd({ tabId: mockTabId })
-
             const chatResult = await chatController.onChatPrompt(
                 { tabId: mockTabId, prompt: { prompt: 'Hello' } },
                 mockCancellationToken
@@ -248,6 +253,97 @@ describe('ChatController', () => {
                     body: 'Hello World',
                 })
             )
+        })
+
+        describe('#extractEditorState', () => {
+            const typescriptDocument = TextDocument.create('file:///test.ts', 'typescript', 1, 'test')
+            let extractEditorStateStub: sinon.SinonStub
+            const editorStateObject = {}
+            const mockCursorState = {
+                range: {
+                    start: {
+                        line: 1,
+                        character: 1,
+                    },
+                    end: {
+                        line: 1,
+                        character: 1,
+                    },
+                },
+            }
+
+            beforeEach(() => {
+                extractEditorStateStub = sinon.stub(DocumentContextExtractor.prototype, 'extractEditorState')
+                testFeatures.openDocument(typescriptDocument)
+                extractEditorStateStub.resolves(editorStateObject)
+            })
+
+            afterEach(() => {
+                extractEditorStateStub.restore()
+            })
+
+            it('leaves editor state as undefined if cursorState is not passed', async () => {
+                await chatController.onChatPrompt(
+                    {
+                        tabId: mockTabId,
+                        prompt: { prompt: 'Hello' },
+                        textDocument: { uri: 'file:///test.ts' },
+                        cursorState: undefined,
+                    },
+                    mockCancellationToken
+                )
+
+                const calledRequestInput: GenerateAssistantResponseCommandInput =
+                    generateAssistantResponseStub.firstCall.firstArg
+
+                assert.strictEqual(
+                    calledRequestInput.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext
+                        ?.editorState,
+                    undefined
+                )
+            })
+
+            it('leaves editor state as undefined if document identified is not passed', async () => {
+                await chatController.onChatPrompt(
+                    {
+                        tabId: mockTabId,
+                        prompt: { prompt: 'Hello' },
+                        cursorState: [mockCursorState],
+                    },
+                    mockCancellationToken
+                )
+
+                const calledRequestInput: GenerateAssistantResponseCommandInput =
+                    generateAssistantResponseStub.firstCall.firstArg
+
+                assert.strictEqual(
+                    calledRequestInput.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext
+                        ?.editorState,
+                    undefined
+                )
+            })
+
+            it('parses editor state context and includes as requestInput if both cursor state and text document are found', async () => {
+                await chatController.onChatPrompt(
+                    {
+                        tabId: mockTabId,
+                        prompt: { prompt: 'Hello' },
+                        textDocument: { uri: 'file:///test.ts' },
+                        cursorState: [mockCursorState],
+                    },
+                    mockCancellationToken
+                )
+
+                const calledRequestInput: GenerateAssistantResponseCommandInput =
+                    generateAssistantResponseStub.firstCall.firstArg
+
+                // asserting object reference equality
+                assert.strictEqual(
+                    calledRequestInput.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext
+                        ?.editorState,
+                    editorStateObject
+                )
+            })
         })
     })
 })

@@ -1,9 +1,10 @@
-import { ChatTriggerType, GenerateAssistantResponseCommandInput } from '@amzn/codewhisperer-streaming'
-import { ChatParams } from '@aws/language-server-runtimes-types'
+import { ChatTriggerType, EditorState, GenerateAssistantResponseCommandInput } from '@amzn/codewhisperer-streaming'
+import { ChatParams } from '@aws/language-server-runtimes/server-interface'
 import { Result } from '../types'
 
 export function convertChatParamsToRequestInput(
-    params: ChatParams
+    params: ChatParams,
+    editorState?: EditorState
 ): Result<GenerateAssistantResponseCommandInput, string> {
     const { prompt } = params
 
@@ -17,6 +18,11 @@ export function convertChatParamsToRequestInput(
                     currentMessage: {
                         userInputMessage: {
                             content: prompt.escapedPrompt ?? prompt.prompt,
+                            userInputMessageContext: editorState
+                                ? {
+                                      editorState,
+                                  }
+                                : undefined,
                         },
                     },
                 },

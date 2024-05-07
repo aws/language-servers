@@ -212,9 +212,9 @@ export const SecurityScanServerToken =
         lsp.addInitializer(onInitializeHandler)
         lsp.onDidChangeTextDocument(async p => {
             const textDocument = await workspace.getTextDocument(p.textDocument.uri)
-            const languageId = getSupportedLanguageId(textDocument)
+            const languageId = getSupportedLanguageId(textDocument, supportedSecurityScanLanguages)
 
-            if (!textDocument || !languageId || !supportedSecurityScanLanguages.includes(languageId)) {
+            if (!textDocument || !languageId) {
                 return
             }
 
