@@ -1,23 +1,13 @@
 import { EditorState } from '@amzn/codewhisperer-streaming'
 import * as assert from 'assert'
-import sinon from 'ts-sinon'
 import { TextDocument } from 'vscode-languageserver-textdocument'
 import { DocumentContextExtractor } from './documentContext'
-import { DocumentSymbolsExtractor } from './documentSymbols'
 
 describe('DocumentContext', () => {
     const mockTypescriptCodeBlock = `function test() {
     console.log('test')
 }`
     const mockTSDocument = TextDocument.create('file://test.ts', 'typescript', 1, mockTypescriptCodeBlock)
-
-    beforeEach(() => {
-        sinon.stub(DocumentSymbolsExtractor.prototype, 'extractDocumentSymbols').resolves([])
-    })
-
-    afterEach(() => {
-        sinon.restore()
-    })
 
     describe('documentContextExtractor.extractEditorState', () => {
         it('extracts editor state for range selection', async () => {
