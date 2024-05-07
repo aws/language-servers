@@ -42,15 +42,13 @@ export class DocumentSymbolsExtractor {
         range: DocumentRange,
         languageId = document.languageId
     ): Promise<DocumentSymbol[]> {
-        if (DocumentSymbolsExtractor.FQN_SUPPORTED_LANGUAGE_SET.has(languageId)) {
-            return this.#extractSymbols(document, range)
-        }
-
-        return []
+        return DocumentSymbolsExtractor.FQN_SUPPORTED_LANGUAGE_SET.has(languageId)
+            ? this.#extractSymbols(document, range, languageId)
+            : []
     }
 
-    async #extractSymbols(document: TextDocument, range: DocumentRange) {
-        const names = await this.#extractNames(document, range)
+    async #extractSymbols(document: TextDocument, range: DocumentRange, languageId: string) {
+        const names = await this.#extractNames(document, range, languageId)
 
         const documentSymbols: DocumentSymbol[] = []
 
@@ -59,10 +57,11 @@ export class DocumentSymbolsExtractor {
                 break
             }
 
+            const sourceSymbolString = name.source.join('.')
             const symbolFqn = {
-                name: name.symbol?.join('.') ?? '',
+                name: name.symbol.join('.'),
                 type: SymbolType.USAGE,
-                source: name.source?.join('.'),
+                source: sourceSymbolString.length > 0 ? sourceSymbolString : undefined,
             }
 
             if (
@@ -78,15 +77,19 @@ export class DocumentSymbolsExtractor {
         return documentSymbols
     }
 
-    async #extractNames(document: TextDocument, range: DocumentRange): Promise<FullyQualifiedName[]> {
-        const names = await this.#findNamesInRange(document.getText(), range, document.languageId)
+    async #extractNames(
+        document: TextDocument,
+        range: DocumentRange,
+        languageId: string
+    ): Promise<FullyQualifiedName[]> {
+        const names = await this.#findNamesInRange(document.getText(), range, languageId)
 
         if (!names?.fullyQualified) {
             return []
         }
 
         const dedupedUsedFullyQualifiedNames: { [key: string]: FullyQualifiedName } = Object.fromEntries(
-            names.fullyQualified.usedSymbols.map((name: any) => [
+            names.fullyQualified.usedSymbols.map((name: FullyQualifiedName) => [
                 JSON.stringify([name.source, name.symbol]),
                 { source: name.source, symbol: name.symbol },
             ])
