@@ -274,7 +274,7 @@ describe('ChatController', () => {
 
             beforeEach(() => {
                 extractEditorStateStub = sinon.stub(DocumentContextExtractor.prototype, 'extractEditorState')
-                testFeatures.workspace.getTextDocument.resolves(typescriptDocument)
+                testFeatures.openDocument(typescriptDocument)
                 extractEditorStateStub.resolves(editorStateObject)
             })
 

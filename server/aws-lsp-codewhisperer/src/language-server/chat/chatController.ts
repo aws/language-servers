@@ -60,7 +60,13 @@ export class ChatController implements ChatHandlers {
         let response: GenerateAssistantResponseCommandOutput
 
         try {
-            this.#log('Request from tab:', params.tabId, JSON.stringify(requestInput.data))
+            this.#log(
+                'Request from tab:',
+                params.tabId,
+                'conversation id:',
+                requestInput.data.conversationState?.conversationId ?? 'undefined'
+            )
+
             response = await session.generateAssistantResponse(requestInput.data)
             this.#log('Response to tab:', params.tabId, JSON.stringify(response.$metadata))
         } catch (err) {
@@ -72,11 +78,20 @@ export class ChatController implements ChatHandlers {
             )
         }
 
-        const result = await this.#processAssistantResponse(response, params.partialResultToken)
+        try {
+            const result = await this.#processAssistantResponse(response, params.partialResultToken)
 
-        return result.success
-            ? result.data
-            : new ResponseError<ChatResult>(ErrorCodes.InternalError, result.error, result.data)
+            return result.success
+                ? result.data
+                : new ResponseError<ChatResult>(ErrorCodes.InternalError, result.error, result.data)
+        } catch (err) {
+            this.#log('Error encountered during response streaming:', err instanceof Error ? err.message : 'unknown')
+
+            return new ResponseError<ChatResult>(
+                ErrorCodes.InternalError,
+                err instanceof Error ? err.message : 'Internal Server Error'
+            )
+        }
     }
 
     onCodeInsertToCursorPosition() {}

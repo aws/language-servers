@@ -7,6 +7,7 @@ export type CodewhispererLanguage =
     | 'go'
     | 'java'
     | 'javascript'
+    | 'json'
     | 'jsx'
     | 'kotlin'
     | 'php'
@@ -17,12 +18,9 @@ export type CodewhispererLanguage =
     | 'scala'
     | 'shell'
     | 'sql'
+    | 'tf'
     | 'tsx'
     | 'typescript'
-
-    // These work as well
-    | 'json'
-    | 'tf'
     | 'vue'
     | 'yaml'
 
@@ -62,10 +60,31 @@ export const languageByExtension: { [key: string]: CodewhispererLanguage } = {
     '.yml': 'yaml',
 }
 
-export const additionalLanguageMapping: { [key: string]: CodewhispererLanguage } = {
-    shellscript: 'shell',
+// some are exact match and some like javascriptreact and shellscript are not
+export const qLanguageIdByDocumentLanguageId: { [key: string]: CodewhispererLanguage } = {
+    c: 'c',
+    cpp: 'cpp',
+    csharp: 'csharp',
+    go: 'go',
+    java: 'java',
+    javascript: 'javascript',
     javascriptreact: 'jsx',
+    json: 'json',
+    jsx: 'jsx',
+    kotlin: 'kotlin',
+    php: 'php',
+    python: 'python',
+    ruby: 'ruby',
+    rust: 'rust',
+    scala: 'scala',
+    shell: 'shell',
+    shellscript: 'shell',
+    sql: 'sql',
+    tf: 'tf',
+    typescript: 'typescript',
     typescriptreact: 'tsx',
+    vue: 'vue',
+    yaml: 'yaml',
 }
 
 export const getSupportedLanguageId = (
@@ -87,7 +106,6 @@ export const getLanguageId = (textDocument: TextDocument | undefined): Codewhisp
     }
 
     return (
-        additionalLanguageMapping[textDocument.languageId] ||
         getCodeWhispererLanguageIdByTextDocumentLanguageId(textDocument.languageId) ||
         getCodeWhispererLanguageIdByExtension(textDocument)
     )
@@ -104,18 +122,16 @@ function getCodeWhispererLanguageIdByTextDocumentLanguageId(
 ): CodewhispererLanguage | undefined {
     if (textDocumentLanguageId === undefined) {
         return undefined
-    }
-
-    if (supportedFileTypes.includes(textDocumentLanguageId as CodewhispererLanguage)) {
-        return textDocumentLanguageId as CodewhispererLanguage
+    } else if (qLanguageIdByDocumentLanguageId[textDocumentLanguageId]) {
+        return qLanguageIdByDocumentLanguageId[textDocumentLanguageId]
     }
 
     // IDEs can identify a file's languageId using non-standardized values
     // Eg: 'CSHARP', 'CSharp' => 'csharp'
     // Try to map case-insensitive matches to increase the likelihood of supporting the file in an IDE.
-    for (const supportedFileType of supportedFileTypes) {
-        if (textDocumentLanguageId.toLowerCase() === supportedFileType.toLowerCase()) {
-            return supportedFileType as CodewhispererLanguage
+    for (const [languageId, cwprLanguageId] of Object.entries(qLanguageIdByDocumentLanguageId)) {
+        if (textDocumentLanguageId.toLowerCase() === languageId.toLowerCase()) {
+            return cwprLanguageId
         }
     }
 

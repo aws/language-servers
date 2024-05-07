@@ -1,14 +1,23 @@
-import assert = require('assert')
+import * as assert from 'assert'
 import { TextDocument } from 'vscode-languageserver-textdocument'
 import {
-    additionalLanguageMapping,
     getLanguageId,
     getSupportedLanguageId,
     languageByExtension,
+    qLanguageIdByDocumentLanguageId,
 } from './languageDetection'
 
 describe('LanguageDetection', () => {
     describe('getLanguageId', () => {
+        it('matches all document language ids that are defined in qLanguageIdByDocumentId', () => {
+            for (const [documentLanguageId, qLanguageId] of Object.entries(qLanguageIdByDocumentLanguageId)) {
+                assert.strictEqual(
+                    getLanguageId(TextDocument.create(`test://test.xxx`, documentLanguageId, 1, '')),
+                    qLanguageId
+                )
+            }
+        })
+
         it('able to match language ids regardless of casing', () => {
             assert.strictEqual(getLanguageId(TextDocument.create(`test://test.xxx`, 'CSHarp', 1, '')), 'csharp')
             assert.strictEqual(getLanguageId(TextDocument.create(`test://test.xxx`, 'TyPeScRipT', 1, '')), 'typescript')
@@ -19,15 +28,6 @@ describe('LanguageDetection', () => {
                 assert.strictEqual(
                     getLanguageId(TextDocument.create(`test://test.${extension}`, undefined as any, 1, '')),
                     languageId
-                )
-            }
-        })
-
-        it('matches inexact document language id to q language mapping', () => {
-            for (const [documentLanguageId, qLanguageId] of Object.entries(additionalLanguageMapping)) {
-                assert.strictEqual(
-                    getLanguageId(TextDocument.create(`test://test.xxx`, documentLanguageId, 1, '')),
-                    qLanguageId
                 )
             }
         })

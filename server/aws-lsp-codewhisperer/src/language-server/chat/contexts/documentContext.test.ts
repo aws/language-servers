@@ -34,7 +34,7 @@ describe('DocumentContext', () => {
             }
 
             const result = await documentContextExtractor.extractEditorState(mockTSDocument, {
-                // highlighing "log"
+                // highlighting "log"
                 range: {
                     start: {
                         line: 1,
@@ -50,7 +50,7 @@ describe('DocumentContext', () => {
             assert.deepStrictEqual(result, expected)
         })
 
-        it('extracts editor state for collapsed poisition', async () => {
+        it('extracts editor state for collapsed position', async () => {
             const documentContextExtractor = new DocumentContextExtractor(19)
             const expected: EditorState = {
                 document: {
@@ -74,7 +74,7 @@ describe('DocumentContext', () => {
             }
 
             const result = await documentContextExtractor.extractEditorState(mockTSDocument, {
-                // highlighing "o" in "log"
+                // highlighting "o" in "log"
                 range: {
                     start: {
                         line: 1,
