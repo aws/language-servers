@@ -21,7 +21,6 @@
         "compile": "tsc --build",
         "postcompile": "npm run copyServiceClient",
         "copyServiceClient": "copyfiles -u 1 --error ./src/client/sigv4/*.json out && copyfiles -u 1 --error ./src/client/token/*.json out",
-        "test-raw": "ts-mocha",
         "test:unit": "ts-mocha -b 'src/**/*.test.ts'",
         "test:prettier": "prettier . --check",
         "test": "npm run test:prettier && npm run test:unit",

@@ -111,7 +111,7 @@ function getCodeWhispererLanguageIdByTextDocumentLanguageId(
     }
 
     // IDEs can identify a file's languageId using non-standardized values
-    // Eg: 'CSharp', 'CSharp' => 'csharp'
+    // Eg: 'CSHARP', 'CSharp' => 'csharp'
     // Try to map case-insensitive matches to increase the likelihood of supporting the file in an IDE.
     for (const supportedFileType of supportedFileTypes) {
         if (textDocumentLanguageId.toLowerCase() === supportedFileType.toLowerCase()) {
