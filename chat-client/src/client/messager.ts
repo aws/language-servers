@@ -3,15 +3,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { TabAddParams, TabChangeParams, TabRemoveParams } from '@aws/language-server-runtimes-types'
-import { TelemetryParams } from '../contracts/serverContracts'
 import {
     AuthFollowUpClickedParams,
     ErrorParams,
     InsertToCursorPositionParams,
     SendToPromptParams,
     TabIdReceivedParams,
-} from '../contracts/uiContracts'
+} from '@aws/chat-client-ui-types'
+import { TabAddParams, TabChangeParams, TabRemoveParams } from '@aws/language-server-runtimes-types'
+import { TelemetryParams } from '../contracts/serverContracts'
 
 export interface OutboundChatApi {
     tabAdded(params: TabAddParams): void

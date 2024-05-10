@@ -1,16 +1,4 @@
 /* eslint-disable prefer-const */
-import { TabAddParams, TabChangeParams, TabRemoveParams } from '@aws/language-server-runtimes-types'
-import {
-    CHAT_PROMPT,
-    NEW_TAB_CREATED,
-    ServerMessage,
-    TAB_CHANGED,
-    TAB_REMOVED,
-    TELEMETRY,
-    TelemetryParams,
-    UI_IS_READY,
-} from '../contracts/serverContracts'
-import { ENTER_FOCUS, EXIT_FOCUS } from '../contracts/telemetry'
 import {
     AUTH_FOLLOW_UP_CLICKED,
     AuthFollowUpClickedParams,
@@ -25,7 +13,19 @@ import {
     TAB_ID_RECEIVED,
     TabIdReceivedParams,
     UiMessage,
-} from '../contracts/uiContracts'
+} from '@aws/chat-client-ui-types'
+import { TabAddParams, TabChangeParams, TabRemoveParams } from '@aws/language-server-runtimes-types'
+import {
+    CHAT_PROMPT,
+    NEW_TAB_CREATED,
+    ServerMessage,
+    TAB_CHANGED,
+    TAB_REMOVED,
+    TELEMETRY,
+    TelemetryParams,
+    UI_IS_READY,
+} from '../contracts/serverContracts'
+import { ENTER_FOCUS, EXIT_FOCUS } from '../contracts/telemetry'
 import { Messager, OutboundChatApi } from './messager'
 import { InboundChatApi, createMynahUi } from './mynahUi'
 import { TabFactory } from './tabs/tabFactory'

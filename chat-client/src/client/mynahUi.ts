@@ -2,7 +2,6 @@
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
-import { ChatItem, ChatItemType, MynahUI, NotificationType } from '@aws/mynah-ui'
 import {
     AuthFollowUpClickedParams,
     ErrorParams,
@@ -10,7 +9,8 @@ import {
     InsertToCursorPositionParams,
     SendToPromptParams,
     isValidAuthFollowUpType,
-} from '../contracts/uiContracts'
+} from '@aws/chat-client-ui-types'
+import { ChatItem, ChatItemType, MynahUI, NotificationType } from '@aws/mynah-ui'
 import { Messager } from './messager'
 import { TabFactory } from './tabs/tabFactory'
 
@@ -135,6 +135,7 @@ ${params.message}`,
         }
 
         mynahUi.addChatItem(params.tabId, answer)
+        messager.onError(params)
     }
 
     const api = {

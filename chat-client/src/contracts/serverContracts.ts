@@ -2,8 +2,8 @@ import { TabAddParams, TabChangeParams, TabRemoveParams } from '@aws/language-se
 
 export const CHAT_PROMPT = 'aws/chat/sendChatPrompt'
 export const NEW_TAB_CREATED = 'aws/chat/tabAdd'
-export const TAB_REMOVED = 'aws/chat/tabChange'
-export const TAB_CHANGED = 'aws/chat/tabRemove'
+export const TAB_CHANGED = 'aws/chat/tabChange'
+export const TAB_REMOVED = 'aws/chat/tabRemove'
 export const UI_IS_READY = 'aws/chat/ready'
 
 export const TELEMETRY = 'telemetry/event'
