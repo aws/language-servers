@@ -56,9 +56,11 @@ export class ArtifactManager {
     }
 
     async copySoureFiles(request: QNetStartTransformRequest) {
-        request.SourceCodeFilePaths.forEach(filePath => {
-            const relativePath = this.normalizeSourceFileRelativePath(request.SolutionRootPath, filePath)
-            this.copyFile(filePath, this.getSourceCodePathFromRelativePath(relativePath))
+        request.ProjectMetadata.forEach(project => {
+            project.SourceCodeFilePaths.forEach(filePath => {
+                const relativePath = this.normalizeSourceFileRelativePath(request.SolutionRootPath, filePath)
+                this.copyFile(filePath, this.getSourceCodePathFromRelativePath(relativePath))
+            })
         })
     }
 
@@ -67,25 +69,29 @@ export class ArtifactManager {
             request.SelectedProjectPath == ''
                 ? ''
                 : this.normalizeSourceFileRelativePath(request.SolutionRootPath, request.SelectedProjectPath)
-        const projectToReference = request.ProjectMetadata.map(p => {
+        const projects = request.ProjectMetadata.map(p => {
             return {
-                project: this.normalizeSourceFileRelativePath(request.SolutionRootPath, p.ProjectPath),
+                projectFilePath: this.normalizeSourceFileRelativePath(request.SolutionRootPath, p.ProjectPath),
+                codeFiles: p.SourceCodeFilePaths.map(codeFilePath => {
+                    return {
+                        contentMd5Hash: this.calculateMD5Sync(codeFilePath),
+                        relativePath: this.normalizeSourceFileRelativePath(request.SolutionRootPath, codeFilePath),
+                    }
+                }),
+
                 references: p.ExternalReferences.map(r => {
                     return {
-                        AssemblyFullPath: '',
-                        IncludedInArtifact: r.IncludedInArtifact,
-                        ProjectPath: this.normalizeSourceFileRelativePath(request.SolutionRootPath, r.ProjectPath),
-                        RelativePath: this.normalizeReferenceFileRelativePath(r.RelativePath, r.IncludedInArtifact),
-                        TargetFrameworkId: r.TargetFrameworkId,
+                        includedInArtifact: r.IncludedInArtifact,
+                        relativePath: this.normalizeReferenceFileRelativePath(r.RelativePath, r.IncludedInArtifact),
                     }
                 }),
             }
         })
         const fileContent: RequirementJson = {
             EntryPath: entryPath,
-            ProjectToReference: projectToReference,
+            Projects: projects,
         }
-        this.logging.log('total project reference:' + projectToReference.length)
+        this.logging.log('total project reference:' + projects.length)
         return fileContent
     }
 
@@ -131,7 +137,7 @@ export class ArtifactManager {
         return path.join(this.workspacePath, artifactFolderName, relativePath)
     }
 
-    normalizeSourceFileRelativePath(solutionRootPath: string, fullPath: string) {
+    normalizeSourceFileRelativePath(solutionRootPath: string, fullPath: string): string {
         if (fullPath.startsWith(solutionRootPath))
             return path.join(sourceCodeFolderName, fullPath.replace(solutionRootPath, ''))
         else {
@@ -178,5 +184,15 @@ export class ArtifactManager {
                 this.logging.log('failed to copy: ' + sourceFilePath + err)
             }
         })
+    }
+
+    calculateMD5Sync(filePath: string): string {
+        try {
+            const data = fs.readFileSync(filePath)
+            const hash = crypto.createHash('md5').update(data)
+            return hash.digest('hex')
+        } catch (error) {
+            return ''
+        }
     }
 }

@@ -6,7 +6,6 @@ export interface QNetStartTransformRequest extends ExecuteCommandParams {
     TargetFramework: string
     ProgramLanguage: string
     SelectedProjectPath: string
-    SourceCodeFilePaths: string[]
     ProjectMetadata: QNetTransformProjectMetadata[]
 }
 
@@ -59,7 +58,7 @@ export interface QNetDownloadArtifactsResponse {
 
 export interface RequirementJson {
     EntryPath: string
-    ProjectToReference: ProjectToReference[]
+    Projects: Project[]
 }
 
 export interface ExternalReference {
@@ -76,10 +75,22 @@ interface QNetTransformProjectMetadata {
     ProjectLanguage: string
     ProjectTargetFramework: string
     ProjectType: string
+    SourceCodeFilePaths: string[]
     ExternalReferences: ExternalReference[]
 }
 
-interface ProjectToReference {
-    project: string
-    references: ExternalReference[]
+interface Project {
+    projectFilePath: string
+    codeFiles: CodeFile[]
+    references: References[]
+}
+
+interface CodeFile {
+    contentMd5Hash: string
+    relativePath: string
+}
+
+interface References {
+    includedInArtifact: boolean
+    relativePath: string
 }
