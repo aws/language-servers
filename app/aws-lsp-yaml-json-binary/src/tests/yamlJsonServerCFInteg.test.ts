@@ -192,7 +192,7 @@ describe('Test YamlJsonServer with CloudFormation schema', () => {
         expect(result).to.deep.equal(COMPLETIONS_EMPTY_OBJECT_YAML)
     })
 
-    it('should return hover items, YAML', async () => {
+    it('should return hover item without header and footer, YAML', async () => {
         const docUri = 'hover.yml'
         client.didOpen({
             textDocument: {

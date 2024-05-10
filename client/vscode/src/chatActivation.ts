@@ -1,3 +1,4 @@
+import { tabAddNotificationType, tabRemoveNotificationType } from '@aws/language-server-runtimes/protocol'
 import { Uri, ViewColumn, Webview, commands, window } from 'vscode'
 import { LanguageClient } from 'vscode-languageclient/node'
 
@@ -14,6 +15,15 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri) 
 
     panel.webview.onDidReceiveMessage(message => {
         languageClient.info(`vscode client: Received ${JSON.stringify(message)} from chat`)
+
+        switch (message.command) {
+            case tabAddNotificationType.method:
+                languageClient.sendNotification(tabAddNotificationType, message.params)
+                break
+            case tabRemoveNotificationType.method:
+                languageClient.sendNotification(tabRemoveNotificationType, message.params)
+                break
+        }
     }, undefined)
 
     panel.webview.html = getWebviewContent(panel.webview, extensionUri)

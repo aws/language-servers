@@ -1,4 +1,5 @@
 import { CredentialsProvider } from '@aws/language-server-runtimes/server-interface'
+import { Result } from '../types'
 import { ChatSessionService, ChatSessionServiceConfig } from './chatSessionService'
 
 export class ChatSessionManagementService {
@@ -13,6 +14,10 @@ export class ChatSessionManagementService {
         }
 
         return ChatSessionManagementService.#instance
+    }
+
+    public static reset() {
+        ChatSessionManagementService.#instance = undefined
     }
 
     private constructor() {}
@@ -33,31 +38,55 @@ export class ChatSessionManagementService {
         return this.#sessionByTab.has(tabId)
     }
 
-    public getSession(tabId: string): ChatSessionService {
-        const maybeSession = this.#sessionByTab.get(tabId)
-
-        if (!maybeSession) {
-            const clientConfig = typeof this.#clientConfig === 'function' ? this.#clientConfig() : this.#clientConfig
-
-            if (!this.#credentialsProvider) {
-                throw new Error('Credentials provider is not set')
+    public createSession(tabId: string): Result<ChatSessionService, string> {
+        if (!this.#credentialsProvider) {
+            return {
+                success: false,
+                error: 'Credentials provider is not set',
             }
-            const newSession = new ChatSessionService(this.#credentialsProvider, clientConfig)
-
-            this.#sessionByTab.set(tabId, newSession)
-
-            return newSession
+        } else if (this.#sessionByTab.has(tabId)) {
+            return {
+                success: false,
+                data: this.#sessionByTab.get(tabId),
+                error: 'Session already exists',
+            }
         }
 
-        return maybeSession
+        const clientConfig = typeof this.#clientConfig === 'function' ? this.#clientConfig() : this.#clientConfig
+        const newSession = new ChatSessionService(this.#credentialsProvider, clientConfig)
+
+        this.#sessionByTab.set(tabId, newSession)
+
+        return {
+            success: true,
+            data: newSession,
+        }
     }
 
-    public deleteSession(tabId: string): void {
+    public getSession(tabId: string): Result<ChatSessionService, string> {
+        const session = this.#sessionByTab.get(tabId)
+        return session
+            ? {
+                  success: true,
+                  data: session,
+              }
+            : {
+                  success: false,
+                  error: 'Session does not exist',
+              }
+    }
+
+    public deleteSession(tabId: string): Result<void, string> {
         this.#sessionByTab.get(tabId)?.dispose()
         this.#sessionByTab.delete(tabId)
+
+        return {
+            success: true,
+            data: undefined,
+        }
     }
 
-    public dispose(): void {
+    public dispose() {
         this.#sessionByTab.forEach(session => session.dispose())
     }
 }

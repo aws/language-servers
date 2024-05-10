@@ -28,6 +28,7 @@
     },
     "dependencies": {
         "@aws/language-server-runtimes": "^0.2.3",
+        "@aws/language-server-runtimes-types": "^0.0.2",
         "@smithy/abort-controller": "^2.2.0",
         "@smithy/node-http-handler": "^2.5.0",
         "hpagent": "^1.2.0",
@@ -41,7 +42,7 @@
     },
     "devDependencies": {
         "@types/adm-zip": "^0.5.5",
-        "@types/uuid": "^9.0.6",
+        "@types/uuid": "^9.0.8",
         "assert": "^2.1.0",
         "copyfiles": "^2.4.1",
         "ts-mocha": "^10.0.0",
