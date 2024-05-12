@@ -1,41 +1,41 @@
 import { ExecuteCommandParams } from 'vscode-languageserver'
 import { TransformationJob, TransformationPlan } from '../../client/token/codewhispererbearertokenclient'
 
-export interface QNetStartTransformRequest extends ExecuteCommandParams {
+export interface StartTransformRequest extends ExecuteCommandParams {
     SolutionRootPath: string
     TargetFramework: string
     ProgramLanguage: string
     SelectedProjectPath: string
-    ProjectMetadata: QNetTransformProjectMetadata[]
+    ProjectMetadata: TransformProjectMetadata[]
 }
 
-export interface QNetStartTransformResponse {
+export interface StartTransformResponse {
     UploadId: string
     TransformationJobId: string
     Error?: string
 }
 
-export interface QNetGetTransformRequest extends ExecuteCommandParams {
+export interface GetTransformRequest extends ExecuteCommandParams {
     TransformationJobId: string
 }
 
-export interface QNetGetTransformResponse {
+export interface GetTransformResponse {
     TransformationJob: TransformationJob
 }
 
-export interface QNetGetTransformPlanRequest extends ExecuteCommandParams {
+export interface GetTransformPlanRequest extends ExecuteCommandParams {
     TransformationJobId: string
 }
 
-export interface QNetGetTransformPlanResponse {
+export interface GetTransformPlanResponse {
     TransformationPlan: TransformationPlan
 }
 
-export interface QNetCancelTransformRequest extends ExecuteCommandParams {
+export interface CancelTransformRequest extends ExecuteCommandParams {
     TransformationJobId: string
 }
 
-export interface QNetDownloadArtifactsRequest extends ExecuteCommandParams {
+export interface DownloadArtifactsRequest extends ExecuteCommandParams {
     TransformationJobId: string
 }
 
@@ -47,11 +47,11 @@ export enum CancellationJobStatus {
     TIMED_OUT,
 }
 
-export interface QNetCancelTransformResponse {
+export interface CancelTransformResponse {
     TransformationJobStatus: CancellationJobStatus
 }
 
-export interface QNetDownloadArtifactsResponse {
+export interface DownloadArtifactsResponse {
     PathTosave: string
     Error: string
 }
@@ -69,7 +69,7 @@ export interface ExternalReference {
     IncludedInArtifact: boolean
 }
 
-interface QNetTransformProjectMetadata {
+interface TransformProjectMetadata {
     Name: string
     ProjectPath: string
     ProjectLanguage: string

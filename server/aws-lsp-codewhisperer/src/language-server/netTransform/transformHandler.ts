@@ -13,16 +13,16 @@ import { ArtifactManager } from './artifactManager'
 import { getCWStartTransformRequest, getCWStartTransformResponse } from './converter'
 import * as dryRunConstant from './dryRunConstant'
 import {
+    CancelTransformRequest,
+    CancelTransformResponse,
     CancellationJobStatus,
-    QNetCancelTransformRequest,
-    QNetCancelTransformResponse,
-    QNetDownloadArtifactsResponse,
-    QNetGetTransformPlanRequest,
-    QNetGetTransformPlanResponse,
-    QNetGetTransformRequest,
-    QNetGetTransformResponse,
-    QNetStartTransformRequest,
-    QNetStartTransformResponse,
+    DownloadArtifactsResponse,
+    GetTransformPlanRequest,
+    GetTransformPlanResponse,
+    GetTransformRequest,
+    GetTransformResponse,
+    StartTransformRequest,
+    StartTransformResponse,
 } from './models'
 import path = require('path')
 import AdmZip = require('adm-zip')
@@ -39,7 +39,7 @@ export class TransformHandler {
         this.dryRun = dryRun
     }
 
-    async startTransformation(userInputrequest: QNetStartTransformRequest): Promise<QNetStartTransformResponse> {
+    async startTransformation(userInputrequest: StartTransformRequest): Promise<StartTransformResponse> {
         try {
             const uploadId = await this.preTransformationUploadCode(userInputrequest)
             const request = getCWStartTransformRequest(userInputrequest, uploadId)
@@ -59,7 +59,7 @@ export class TransformHandler {
         }
     }
 
-    async preTransformationUploadCode(userInputrequest: QNetStartTransformRequest): Promise<string> {
+    async preTransformationUploadCode(userInputrequest: StartTransformRequest): Promise<string> {
         let uploadId = ''
         const artifactManager = new ArtifactManager(
             this.workspace,
@@ -111,7 +111,7 @@ export class TransformHandler {
         return response.uploadId
     }
 
-    async zipCodeAsync(request: QNetStartTransformRequest, artifactManager: ArtifactManager): Promise<string> {
+    async zipCodeAsync(request: StartTransformRequest, artifactManager: ArtifactManager): Promise<string> {
         try {
             return await artifactManager.createZip(request)
         } catch (e: any) {
@@ -153,7 +153,7 @@ export class TransformHandler {
         }
         return headersObj
     }
-    async getTransformation(request: QNetGetTransformRequest) {
+    async getTransformation(request: GetTransformRequest) {
         if (this.dryRun) {
             return dryRunConstant.GetTransformationResponse
         }
@@ -166,17 +166,17 @@ export class TransformHandler {
             this.logging.log('response received from get transform api: ' + JSON.stringify(response))
             return {
                 TransformationJob: response.transformationJob,
-            } as QNetGetTransformResponse
+            } as GetTransformResponse
         } catch (e: any) {
             const errorMessage = (e as Error).message ?? 'Error in GetTransformation API call'
             this.logging.log('Error: ' + errorMessage)
 
             return {
                 TransformationJob: { status: 'FAILED' },
-            } as QNetGetTransformResponse
+            } as GetTransformResponse
         }
     }
-    async getTransformationPlan(request: QNetGetTransformPlanRequest) {
+    async getTransformationPlan(request: GetTransformPlanRequest) {
         const getCodeTransformationPlanRequest = {
             transformationJobId: request.TransformationJobId,
         } as GetTransformationRequest
@@ -185,10 +185,10 @@ export class TransformHandler {
         this.logging.log('received response from get transform plan api: ' + JSON.stringify(response))
         return {
             TransformationPlan: response.transformationPlan,
-        } as QNetGetTransformPlanResponse
+        } as GetTransformPlanResponse
     }
 
-    async cancelTransformation(request: QNetCancelTransformRequest) {
+    async cancelTransformation(request: CancelTransformRequest) {
         try {
             const stopCodeTransformationRequest = {
                 transformationJobId: request.TransformationJobId,
@@ -209,13 +209,13 @@ export class TransformHandler {
             }
             return {
                 TransformationJobStatus: status,
-            } as QNetCancelTransformResponse
+            } as CancelTransformResponse
         } catch (e: any) {
             const errorMessage = (e as Error).message ?? 'Error in CancelTransformation API call'
             this.logging.log('Error: ' + errorMessage)
             return {
                 TransformationJobStatus: CancellationJobStatus.FAILED_TO_CANCEL,
-            } as QNetCancelTransformResponse
+            } as CancelTransformResponse
         }
     }
 
@@ -223,7 +223,7 @@ export class TransformHandler {
         return new Promise(r => setTimeout(r, Math.max(duration, 0)))
     }
 
-    async pollTransformation(request: QNetGetTransformRequest, validExitStatus: string[], failureStates: string[]) {
+    async pollTransformation(request: GetTransformRequest, validExitStatus: string[], failureStates: string[]) {
         let timer = 0
 
         const getCodeTransformationRequest = {
@@ -282,7 +282,7 @@ export class TransformHandler {
         this.logging.log('poll : returning response from server : ' + JSON.stringify(response))
         return {
             TransformationJob: response.transformationJob,
-        } as QNetGetTransformResponse
+        } as GetTransformResponse
     }
 
     async downloadExportResultArchive(cwStreamingClient: CodeWhispererStreaming, exportId: string) {
@@ -311,12 +311,12 @@ export class TransformHandler {
             this.logging.log('pathContainingArchive :' + pathContainingArchive)
             return {
                 PathTosave: pathContainingArchive,
-            } as QNetDownloadArtifactsResponse
+            } as DownloadArtifactsResponse
         } catch (error) {
             const errorMessage = (error as Error).message ?? 'Failed to download the artifacts'
             return {
                 Error: errorMessage,
-            } as QNetDownloadArtifactsResponse
+            } as DownloadArtifactsResponse
         }
     }
 

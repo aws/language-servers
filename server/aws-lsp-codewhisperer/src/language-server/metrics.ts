@@ -1,16 +1,16 @@
 import { Telemetry } from '@aws/language-server-runtimes/server-interface'
 import { TransformationSpec } from '../client/token/codewhispererbearertokenclient'
 import {
-    QNetCancelTransformRequest,
-    QNetCancelTransformResponse,
-    QNetDownloadArtifactsRequest,
-    QNetDownloadArtifactsResponse,
-    QNetGetTransformPlanRequest,
-    QNetGetTransformPlanResponse,
-    QNetGetTransformRequest,
-    QNetGetTransformResponse,
-    QNetStartTransformRequest,
-    QNetStartTransformResponse,
+    CancelTransformRequest,
+    CancelTransformResponse,
+    DownloadArtifactsRequest,
+    DownloadArtifactsResponse,
+    GetTransformPlanRequest,
+    GetTransformPlanResponse,
+    GetTransformRequest,
+    GetTransformResponse,
+    StartTransformRequest,
+    StartTransformResponse,
 } from './netTransform/models'
 import {
     TransformationFailureEvent,
@@ -24,7 +24,7 @@ import { flattenMetric } from './utils'
 
 export const CODETRANSFORM_CATEGORY = 'codeTransform'
 
-export const emitTransformationJobStartedTelemetry = (telemetry: Telemetry, response: QNetStartTransformResponse) => {
+export const emitTransformationJobStartedTelemetry = (telemetry: Telemetry, response: StartTransformResponse) => {
     const data: TransformationJobStartedEvent = {
         category: CODETRANSFORM_CATEGORY,
         transformationJobId: response.TransformationJobId,
@@ -41,7 +41,7 @@ export const emitTransformationJobStartedTelemetry = (telemetry: Telemetry, resp
 
 export const emitTransformationJobStartedFailure = (
     telemetry: Telemetry,
-    request: QNetStartTransformRequest,
+    request: StartTransformRequest,
     error: Error
 ) => {
     const data: TransformationFailureEvent = {
@@ -60,7 +60,7 @@ export const emitTransformationJobStartedFailure = (
     })
 }
 
-export const emitTransformationJobReceivedTelemetry = (telemetry: Telemetry, response: QNetGetTransformResponse) => {
+export const emitTransformationJobReceivedTelemetry = (telemetry: Telemetry, response: GetTransformResponse) => {
     const data: TransformationJobReceivedEvent = {
         category: CODETRANSFORM_CATEGORY,
         transformationJobId: response.TransformationJob?.jobId as string,
@@ -81,7 +81,7 @@ export const emitTransformationJobReceivedTelemetry = (telemetry: Telemetry, res
 
 export const emitTransformationJobReceivedFailure = (
     telemetry: Telemetry,
-    request: QNetGetTransformRequest,
+    request: GetTransformRequest,
     error: Error
 ) => {
     const data: TransformationFailureEvent = {
@@ -101,7 +101,7 @@ export const emitTransformationJobReceivedFailure = (
 
 export const emitTransformationJobCancelledTelemetry = (
     telemetry: Telemetry,
-    response: QNetCancelTransformResponse,
+    response: CancelTransformResponse,
     jobId: string
 ) => {
     const data: TransformationJobCancelledEvent = {
@@ -119,7 +119,7 @@ export const emitTransformationJobCancelledTelemetry = (
 
 export const emitTransformationJobCancelledFailure = (
     telemetry: Telemetry,
-    request: QNetCancelTransformRequest,
+    request: CancelTransformRequest,
     error: Error
 ) => {
     const data: TransformationFailureEvent = {
@@ -137,7 +137,7 @@ export const emitTransformationJobCancelledFailure = (
     })
 }
 
-export const emitTransformationJobPolledTelemetry = (telemetry: Telemetry, response: QNetGetTransformResponse) => {
+export const emitTransformationJobPolledTelemetry = (telemetry: Telemetry, response: GetTransformResponse) => {
     const data: TransformationJobReceivedEvent = {
         category: CODETRANSFORM_CATEGORY,
         transformationJobId: response.TransformationJob?.jobId as string,
@@ -158,7 +158,7 @@ export const emitTransformationJobPolledTelemetry = (telemetry: Telemetry, respo
 
 export const emitTransformationJobPolledFailure = (
     telemetry: Telemetry,
-    request: QNetGetTransformRequest,
+    request: GetTransformRequest,
     error: Error
 ) => {
     const data: TransformationFailureEvent = {
@@ -176,10 +176,7 @@ export const emitTransformationJobPolledFailure = (
     })
 }
 
-export const emitTransformationJobPolledForPlanTelemetry = (
-    telemetry: Telemetry,
-    response: QNetGetTransformResponse
-) => {
+export const emitTransformationJobPolledForPlanTelemetry = (telemetry: Telemetry, response: GetTransformResponse) => {
     const data: TransformationJobReceivedEvent = {
         category: CODETRANSFORM_CATEGORY,
         transformationJobId: response.TransformationJob?.jobId as string,
@@ -200,7 +197,7 @@ export const emitTransformationJobPolledForPlanTelemetry = (
 
 export const emitTransformationJobPolledForPlanFailure = (
     telemetry: Telemetry,
-    request: QNetGetTransformRequest,
+    request: GetTransformRequest,
     error: Error
 ) => {
     const data: TransformationFailureEvent = {
@@ -220,7 +217,7 @@ export const emitTransformationJobPolledForPlanFailure = (
 
 export const emitTransformationPlanReceivedTelemetry = (
     telemetry: Telemetry,
-    response: QNetGetTransformPlanResponse,
+    response: GetTransformPlanResponse,
     jobId: string
 ) => {
     const data: TransformationPlanReceivedEvent = {
@@ -238,7 +235,7 @@ export const emitTransformationPlanReceivedTelemetry = (
 
 export const emitTransformationPlanReceivedFailure = (
     telemetry: Telemetry,
-    request: QNetGetTransformPlanRequest,
+    request: GetTransformPlanRequest,
     error: Error
 ) => {
     const data: TransformationFailureEvent = {
@@ -258,7 +255,7 @@ export const emitTransformationPlanReceivedFailure = (
 
 export const emitTransformationJobArtifactsDownloadedTelemetry = (
     telemetry: Telemetry,
-    response: QNetDownloadArtifactsResponse,
+    response: DownloadArtifactsResponse,
     jobId: string
 ) => {
     const data: TransformationJobArtifactsDownloadedEvent = {
@@ -276,7 +273,7 @@ export const emitTransformationJobArtifactsDownloadedTelemetry = (
 
 export const emitTransformationJobArtifactsDownloadedFailure = (
     telemetry: Telemetry,
-    request: QNetDownloadArtifactsRequest,
+    request: DownloadArtifactsRequest,
     error: Error
 ) => {
     const data: TransformationFailureEvent = {

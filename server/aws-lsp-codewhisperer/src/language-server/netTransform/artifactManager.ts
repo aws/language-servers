@@ -2,7 +2,7 @@ import { Logging, Workspace } from '@aws/language-server-runtimes/server-interfa
 import * as archiver from 'archiver'
 import * as crypto from 'crypto'
 import * as fs from 'fs'
-import { QNetStartTransformRequest, RequirementJson } from './models'
+import { RequirementJson, StartTransformRequest } from './models'
 import path = require('path')
 const requriementJsonFileName = 'requirement.json'
 const artifactFolderName = 'artifact'
@@ -19,7 +19,7 @@ export class ArtifactManager {
         this.logging = logging
         this.workspacePath = workspacePath
     }
-    async createZip(request: QNetStartTransformRequest): Promise<string> {
+    async createZip(request: StartTransformRequest): Promise<string> {
         await this.createRequirementJson(request)
         await this.copyReferenceDlls(request)
         await this.copySoureFiles(request)
@@ -42,20 +42,20 @@ export class ArtifactManager {
         }
     }
 
-    async createRequirementJson(request: QNetStartTransformRequest) {
+    async createRequirementJson(request: StartTransformRequest) {
         const fileContent = await this.createRequirementJsonContent(request)
         const dir = this.getRequirementJsonPath()
         await this.writeRequirmentJsonAsync(dir, JSON.stringify(fileContent))
     }
 
-    async copyReferenceDlls(request: QNetStartTransformRequest) {
+    async copyReferenceDlls(request: StartTransformRequest) {
         const filteredReferences = this.filterReferences(request)
         filteredReferences.forEach(reference =>
             this.copyFile(reference.AssemblyFullPath, this.getReferencePathFromRelativePath(reference.RelativePath))
         )
     }
 
-    async copySoureFiles(request: QNetStartTransformRequest) {
+    async copySoureFiles(request: StartTransformRequest) {
         request.ProjectMetadata.forEach(project => {
             project.SourceCodeFilePaths.forEach(filePath => {
                 const relativePath = this.normalizeSourceFileRelativePath(request.SolutionRootPath, filePath)
@@ -64,7 +64,7 @@ export class ArtifactManager {
         })
     }
 
-    async createRequirementJsonContent(request: QNetStartTransformRequest): Promise<RequirementJson> {
+    async createRequirementJsonContent(request: StartTransformRequest): Promise<RequirementJson> {
         const entryPath =
             request.SelectedProjectPath == ''
                 ? ''
@@ -95,7 +95,7 @@ export class ArtifactManager {
         return fileContent
     }
 
-    filterReferences(request: QNetStartTransformRequest) {
+    filterReferences(request: StartTransformRequest) {
         //remove duplicate externalreference
         const externalReferences = request.ProjectMetadata.flatMap(r => r.ExternalReferences)
         const includedReferences = externalReferences.filter(reference => reference.IncludedInArtifact)

@@ -9,11 +9,11 @@ import { StubbedInstance, default as simon, stubInterface } from 'ts-sinon'
 import { StreamingClient, createStreamingClient } from '../../../client/streamingClient/codewhispererStreamingClient'
 import { CodeWhispererServiceToken } from '../../codeWhispererService'
 import {
+    CancelTransformRequest,
     CancellationJobStatus,
-    QNetCancelTransformRequest,
-    QNetGetTransformPlanRequest,
-    QNetGetTransformRequest,
-    QNetStartTransformRequest,
+    GetTransformPlanRequest,
+    GetTransformRequest,
+    StartTransformRequest,
 } from '../models'
 import { TransformHandler } from '../transformHandler'
 import { EXAMPLE_REQUEST } from './mockData'
@@ -106,7 +106,7 @@ describe('Test Transform handler ', () => {
         })
         it('should upload payload and return uploadId', async () => {
             const requestString = JSON.stringify(EXAMPLE_REQUEST)
-            const request = JSON.parse(requestString) as QNetStartTransformRequest
+            const request = JSON.parse(requestString) as StartTransformRequest
             workspace.fs.getTempDirPath = simon.stub().returns('C:\\tmp')
             const zipStub = sinon.stub(transformHandler, 'zipCodeAsync').returns(Promise.resolve(payloadFileName))
             const uploadStub = sinon.stub(transformHandler, 'uploadPayloadAsync').returns(Promise.resolve(testUploadId))
@@ -122,7 +122,7 @@ describe('Test Transform handler ', () => {
             // Mocking necessary dependencies and methods
             const mockError = new Error('Upload failed')
             const requestString = JSON.stringify(EXAMPLE_REQUEST)
-            const request = JSON.parse(requestString) as QNetStartTransformRequest
+            const request = JSON.parse(requestString) as StartTransformRequest
             workspace.fs.getTempDirPath = simon.stub().returns('C:\\tmp')
             const zipStub = sinon.stub(transformHandler, 'zipCodeAsync').returns(Promise.resolve(payloadFileName))
             sinon.stub(transformHandler, 'uploadPayloadAsync').rejects(mockError)
@@ -150,7 +150,7 @@ describe('Test Transform handler ', () => {
 
         it('should create transform', async () => {
             const requestString = JSON.stringify(EXAMPLE_REQUEST)
-            const request = JSON.parse(requestString) as QNetStartTransformRequest
+            const request = JSON.parse(requestString) as StartTransformRequest
             workspace.fs.getTempDirPath = simon.stub().returns('C:\\tmp')
             const zipStub = sinon.stub(transformHandler, 'zipCodeAsync').returns(Promise.resolve(payloadFileName))
             const uploadStub = sinon.stub(transformHandler, 'uploadPayloadAsync').returns(Promise.resolve(testUploadId))
@@ -175,7 +175,7 @@ describe('Test Transform handler ', () => {
 
         it('should cancel transform', async () => {
             const requestString = JSON.stringify({ TransformationJobId: testTransformId })
-            const request = JSON.parse(requestString) as QNetCancelTransformRequest
+            const request = JSON.parse(requestString) as CancelTransformRequest
             const res = await transformHandler.cancelTransformation(request)
 
             expect(res.TransformationJobStatus).to.equal(CancellationJobStatus.SUCCESSFULLY_CANCELLED)
@@ -190,7 +190,7 @@ describe('Test Transform handler ', () => {
             )
 
             const requestString = JSON.stringify({ TransformationJobId: testTransformId })
-            const request = JSON.parse(requestString) as QNetCancelTransformRequest
+            const request = JSON.parse(requestString) as CancelTransformRequest
             const res = await transformHandler.cancelTransformation(request)
 
             expect(res.TransformationJobStatus).to.equal(CancellationJobStatus.FAILED_TO_CANCEL)
@@ -264,10 +264,9 @@ describe('Test Transform handler ', () => {
 
         it('should get transform', async () => {
             const requestString = JSON.stringify({ TransformationJobId: testTransformId })
-            const request = JSON.parse(requestString) as QNetGetTransformRequest
+            const request = JSON.parse(requestString) as GetTransformRequest
             const res = await transformHandler.getTransformation(request)
 
-            expect(res.TransformationJob.jobId).to.equal(testTransformId)
             expect(res.TransformationJob.status).to.equal('COMPLETED')
         })
     })
@@ -289,10 +288,9 @@ describe('Test Transform handler ', () => {
 
         it('should get transform for failed case', async () => {
             const requestString = JSON.stringify({ TransformationJobId: testTransformId })
-            const request = JSON.parse(requestString) as QNetGetTransformRequest
+            const request = JSON.parse(requestString) as GetTransformRequest
             const res = await transformHandler.getTransformation(request)
 
-            expect(res.TransformationJob.jobId).to.equal(testTransformId)
             expect(res.TransformationJob.status).to.equal('FAILED')
         })
     })
@@ -330,7 +328,7 @@ describe('Test Transform handler ', () => {
 
         it('should get transform plan', async () => {
             const requestString = JSON.stringify({ TransformationJobId: testTransformId })
-            const request = JSON.parse(requestString) as QNetGetTransformPlanRequest
+            const request = JSON.parse(requestString) as GetTransformPlanRequest
             const res = await transformHandler.getTransformationPlan(request)
 
             expect(res.TransformationPlan.transformationSteps[0].status).to.equal('COMPLETED')

@@ -1,6 +1,6 @@
 import { AWSError } from 'aws-sdk'
 import { PromiseResult } from 'aws-sdk/lib/request'
-import { QNetStartTransformRequest, QNetStartTransformResponse } from './models'
+import { StartTransformRequest, StartTransformResponse } from './models'
 import CodeWhispererTokenUserClient = require('../../client/token/codewhispererbearertokenclient')
 
 export const targetFrameworkMap = new Map<string, string>([
@@ -32,7 +32,7 @@ export const targetFrameworkMap = new Map<string, string>([
 ])
 
 export function getCWStartTransformRequest(
-    userInputRequest: QNetStartTransformRequest,
+    userInputRequest: StartTransformRequest,
     uploadId: string
 ): CodeWhispererTokenUserClient.StartTransformationRequest {
     const targetProject = userInputRequest.ProjectMetadata.find(project => project.ProjectTargetFramework != '')
@@ -85,7 +85,7 @@ export function getCWStartTransformRequest(
 export function getCWStartTransformResponse(
     response: PromiseResult<CodeWhispererTokenUserClient.StartTransformationResponse, AWSError>,
     uploadId: string
-): QNetStartTransformResponse {
+): StartTransformResponse {
     return {
         UploadId: uploadId,
         TransformationJobId: response.transformationJobId,

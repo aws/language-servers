@@ -3,9 +3,9 @@
     "[typescript]": {
         "editor.insertSpaces": true,
         "editor.codeActionsOnSave": {
-            "source.fixAll.eslint": true,
-            "source.organizeImports": true,
-            "source.sortMembers": true
+            "source.fixAll.eslint": "explicit",
+            "source.organizeImports": "explicit",
+            "source.sortMembers": "explicit"
         },
         "editor.formatOnSave": true
     }
