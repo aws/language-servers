@@ -14,6 +14,8 @@ import { InlineCompletionParams, inlineCompletionWithReferencesRequestType } fro
 export function registerInlineCompletion(languageClient: LanguageClient) {
     const inlineCompletionProvider = new CodeWhispererInlineCompletionItemProvider(languageClient)
     languages.registerInlineCompletionItemProvider({ scheme: 'file', language: 'typescript' }, inlineCompletionProvider)
+    languages.registerInlineCompletionItemProvider({ scheme: 'file', language: 'json' }, inlineCompletionProvider)
+    languages.registerInlineCompletionItemProvider({ scheme: 'file', language: 'yaml' }, inlineCompletionProvider)
 }
 
 class CodeWhispererInlineCompletionItemProvider implements InlineCompletionItemProvider {
