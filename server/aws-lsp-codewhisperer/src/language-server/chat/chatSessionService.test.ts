@@ -4,7 +4,6 @@ import {
     GenerateAssistantResponseCommandOutput,
 } from '@amzn/codewhisperer-streaming'
 import { CredentialsProvider } from '@aws/language-server-runtimes/server-interface'
-import { AbortController } from '@smithy/abort-controller'
 import * as assert from 'assert'
 import sinon from 'ts-sinon'
 import { ChatSessionService } from './chatSessionService'
