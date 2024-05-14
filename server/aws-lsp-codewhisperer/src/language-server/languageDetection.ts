@@ -27,7 +27,17 @@ export type CodewhispererLanguage =
 // This will be extended as more language features
 // are integrated into the language server and clients.
 // See: https://microsoft.github.io/language-server-protocol/specifications/lsp/3.18/specification/#textDocumentItem
-const supportedFileTypes: CodewhispererLanguage[] = ['c', 'cpp', 'csharp', 'javascript', 'jsx', 'python', 'typescript']
+const supportedFileTypes: CodewhispererLanguage[] = [
+    'c',
+    'cpp',
+    'csharp',
+    'javascript',
+    'jsx',
+    'python',
+    'typescript',
+    'json',
+    'yaml',
+]
 
 export const supportedSecurityScanLanguages: CodewhispererLanguage[] = ['csharp']
 
