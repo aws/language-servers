@@ -31,6 +31,7 @@ const supportedFileTypes: CodewhispererLanguage[] = [
     'c',
     'cpp',
     'csharp',
+    'java',
     'javascript',
     'jsx',
     'python',

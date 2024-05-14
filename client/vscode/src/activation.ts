@@ -91,10 +91,13 @@ export async function activateDocumentsLanguageServer(extensionContext: Extensio
             // typescript is illustrative of code-handling language servers
             { scheme: 'file', language: 'typescript' },
             { scheme: 'untitled', language: 'typescript' },
+            // java is illustrative of code-handling language servers
+            { scheme: 'file', language: 'java' },
+            { scheme: 'untitled', language: 'java' },
         ],
         initializationOptions: {},
         synchronize: {
-            fileEvents: workspace.createFileSystemWatcher('**/*.{json,yml,yaml,ts}'),
+            fileEvents: workspace.createFileSystemWatcher('**/*.{json,java,yml,yaml,ts}'),
         },
     }
 
