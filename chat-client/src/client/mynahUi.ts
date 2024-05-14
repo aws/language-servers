@@ -54,7 +54,7 @@ export const createMynahUi = (messager: Messager, tabFactory: TabFactory): [Myna
                 }
                 messager.onAuthFollowUpClicked(payload)
             }
-            //  messager.onFollowUpClicked
+            // TODO, Use messager to send followUpClicked event to server
         },
         onReady: messager.onUiReady,
         onTabAdd: (tabId: string) => {
@@ -121,7 +121,7 @@ export const createMynahUi = (messager: Messager, tabFactory: TabFactory): [Myna
         const chatItem: ChatItem = { body, type: ChatItemType.PROMPT }
 
         mynahUi.addChatItem(tabId, chatItem)
-        // messager.send
+        // TODO, use messager to send the chatItem to server
     }
 
     const showError = (params: ErrorParams) => {
