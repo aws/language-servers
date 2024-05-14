@@ -58,7 +58,7 @@
             "path": "./app/aws-lsp-s3-binary"
         },
         {
-            "path": "./app/hello-world-lsp-binary"
+            "path": "./app/hello-world-lsp-runtimes"
         },
         {
             "path": "./app/aws-lsp-yaml-json-binary"
