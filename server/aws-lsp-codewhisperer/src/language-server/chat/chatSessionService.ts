@@ -6,7 +6,6 @@ import {
 } from '@amzn/codewhisperer-streaming'
 import { ConfiguredRetryStrategy } from '@aws-sdk/util-retry'
 import { CredentialsProvider } from '@aws/language-server-runtimes/server-interface'
-import { AbortController } from '@smithy/abort-controller'
 import { getBearerTokenFromProvider } from '../utils'
 
 export type ChatSessionServiceConfig = CodeWhispererStreamingClientConfig
