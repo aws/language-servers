@@ -1,17 +1,30 @@
 import { EditorState } from '@amzn/codewhisperer-streaming'
-import { CursorState } from '@aws/language-server-runtimes-types'
+import { CursorState } from '@aws/language-server-runtimes/server-interface'
 import { Range, TextDocument } from 'vscode-languageserver-textdocument'
 import { getLanguageId } from '../../languageDetection'
+import { Features } from '../../types'
+import { DocumentFqnExtractor, DocumentFqnExtractorConfig } from './documentFqnExtractor'
 import { getExtendedCodeBlockRange, getSelectionWithinExtendedRange } from './utils'
+
+export interface DocumentContextExtractorConfig extends DocumentFqnExtractorConfig {
+    config?: DocumentFqnExtractorConfig
+    logger?: Features['logging']
+    characterLimits?: number
+}
 
 export class DocumentContextExtractor {
     private static readonly DEFAULT_CHARACTER_LIMIT = 9000
 
     #characterLimits: number
+    #documentSymbolExtractor: DocumentFqnExtractor
 
-    constructor(characterLimits: number = DocumentContextExtractor.DEFAULT_CHARACTER_LIMIT) {
-        this.#characterLimits = characterLimits
+    constructor(config?: DocumentContextExtractorConfig) {
+        const { characterLimits, ...fqnConfig } = config ?? {}
+
+        this.#characterLimits = characterLimits ?? DocumentContextExtractor.DEFAULT_CHARACTER_LIMIT
+        this.#documentSymbolExtractor = new DocumentFqnExtractor(fqnConfig)
     }
+
     /**
      * From the given the cursor state, we want to give Q context up to the characters limit
      * on both sides of the cursor.
@@ -50,7 +63,11 @@ export class DocumentContextExtractor {
             text,
             programmingLanguage: languageId ? { languageName: languageId } : undefined,
             relativeFilePath,
-            documentSymbols: [],
+            documentSymbols: await this.#documentSymbolExtractor.extractDocumentSymbols(
+                document,
+                codeBlockRange,
+                languageId
+            ),
         }
     }
 }

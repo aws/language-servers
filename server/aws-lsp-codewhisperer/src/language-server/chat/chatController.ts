@@ -1,10 +1,11 @@
 import { EditorState, GenerateAssistantResponseCommandOutput } from '@amzn/codewhisperer-streaming'
-import { ChatParams, CursorState } from '@aws/language-server-runtimes-types'
 import { chatRequestType } from '@aws/language-server-runtimes/protocol'
 import {
     CancellationToken,
     Chat,
+    ChatParams,
     ChatResult,
+    CursorState,
     EndChatParams,
     ErrorCodes,
     ResponseError,
