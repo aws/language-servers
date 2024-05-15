@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.5] - 2024-05-15
+- Create Chat server export it for consumption
+- Fix duplicate hover message in security scan
+- Clear security scan finding when a project is unloaded
+- Fix the consumption of streaming client
+- Add `json`, `yaml` and `java` to list of supported languages
+
 ## [0.0.4] - 2024-03-28
 - Integrate dependency graph with RunSecurityScan function
 - Add server for transform feature

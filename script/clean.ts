@@ -121,8 +121,6 @@ function rDirectoryFind(parentPath: string, directoryName: string): string[] {
     return directories
 }
 
-const subfolders = ['app', 'client', 'chat-client', 'core', 'server']
-
 ;(async () => {
     const pathsToDelete = getPathsToDelete()
 
