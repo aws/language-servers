@@ -1,0 +1,34 @@
+{
+    "name": "@aws/lsp-fqn",
+    "version": "0.0.1",
+    "description": "CodeWhisperer Language Server",
+    "main": "out/node/index.js",
+    "types": "out/index.d.ts",
+    "browser": "out/browser/index.js",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/aws/language-servers"
+    },
+    "author": "Amazon Web Services",
+    "license": "Apache-2.0",
+    "engines": {
+        "node": ">=18.0.0"
+    },
+    "scripts": {
+        "compile": "tsc --build"
+    },
+    "dependencies": {
+        "@aws/fully-qualified-names": "2.1.4",
+        "web-tree-sitter": "^0.20.8"
+    },
+    "prettier": {
+        "printWidth": 120,
+        "trailingComma": "es5",
+        "tabWidth": 4,
+        "singleQuote": true,
+        "semi": false,
+        "bracketSpacing": true,
+        "arrowParens": "avoid",
+        "endOfLine": "lf"
+    }
+}

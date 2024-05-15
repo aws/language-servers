@@ -28,6 +28,9 @@
             "path": "./core/aws-lsp-yaml-common"
         },
         {
+            "path": "./core/aws-lsp-fqn"
+        },
+        {
             "path": "./server/aws-lsp-buildspec"
         },
         {
