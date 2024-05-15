@@ -3,9 +3,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import {
+    AuthFollowUpClickedParams,
+    ErrorParams,
+    InsertToCursorPositionParams,
+    SendToPromptParams,
+    TabIdReceivedParams,
+} from '@aws/chat-client-ui-types'
 import { TabAddParams, TabChangeParams, TabRemoveParams } from '@aws/language-server-runtimes-types'
 import { TelemetryParams } from '../contracts/serverContracts'
-import { SendToPromptParams, TabIdReceivedParams } from '../contracts/uiContracts'
 
 export interface OutboundChatApi {
     tabAdded(params: TabAddParams): void
@@ -13,6 +19,8 @@ export interface OutboundChatApi {
     tabRemoved(params: TabRemoveParams): void
     tabIdReceived(params: TabIdReceivedParams): void
     telemetry(params: TelemetryParams): void
+    insertToCursorPosition(params: InsertToCursorPositionParams): void
+    authFollowUpClicked(params: AuthFollowUpClickedParams): void
     uiReady(): void
 }
 
@@ -37,8 +45,23 @@ export class Messager {
 
     onSendToPrompt = (params: SendToPromptParams, tabId: string): void => {
         this.chatApi.tabIdReceived({
-            triggerId: params.triggerId,
+            eventId: params.eventId,
             tabId: tabId,
+        })
+    }
+
+    onInsertToCursorPosition = (params: InsertToCursorPositionParams): void => {
+        this.chatApi.insertToCursorPosition(params)
+    }
+
+    onAuthFollowUpClicked = (params: AuthFollowUpClickedParams): void => {
+        this.chatApi.authFollowUpClicked(params)
+    }
+
+    onError = (params: ErrorParams): void => {
+        this.chatApi.tabIdReceived({
+            eventId: params.eventId || '',
+            tabId: params.tabId,
         })
     }
 }

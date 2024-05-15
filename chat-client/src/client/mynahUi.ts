@@ -2,17 +2,60 @@
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
-import { MynahUI, NotificationType } from '@aws/mynah-ui'
-import { SendToPromptParams } from '../contracts/uiContracts'
+import {
+    AuthFollowUpClickedParams,
+    ErrorParams,
+    GenericCommandParams,
+    InsertToCursorPositionParams,
+    SendToPromptParams,
+    isValidAuthFollowUpType,
+} from '@aws/chat-client-ui-types'
+import { ChatItem, ChatItemType, MynahUI, NotificationType } from '@aws/mynah-ui'
 import { Messager } from './messager'
 import { TabFactory } from './tabs/tabFactory'
 
 export interface InboundChatApi {
     sendToPrompt(params: SendToPromptParams): void
+    sendGenericCommand(params: GenericCommandParams): void
+    showError(params: ErrorParams): void
 }
 
 export const createMynahUi = (messager: Messager, tabFactory: TabFactory): [MynahUI, InboundChatApi] => {
     const mynahUi = new MynahUI({
+        onCodeInsertToCursorPosition(
+            tabId,
+            messageId,
+            code,
+            type,
+            referenceTrackerInformation,
+            eventId,
+            codeBlockIndex,
+            totalCodeBlocks
+        ) {
+            const payload: InsertToCursorPositionParams = {
+                tabId,
+                messageId,
+                code,
+                type,
+                referenceTrackerInformation,
+                eventId,
+                codeBlockIndex,
+                totalCodeBlocks,
+            }
+            messager.onInsertToCursorPosition(payload)
+        },
+        onFollowUpClicked(tabId, messageId, followUp, eventId) {
+            if (followUp.type !== undefined && isValidAuthFollowUpType(followUp.type)) {
+                const payload: AuthFollowUpClickedParams = {
+                    tabId,
+                    messageId,
+                    eventId,
+                    authFollowupType: followUp.type,
+                }
+                messager.onAuthFollowUpClicked(payload)
+            }
+            // TODO, Use messager to send followUpClicked event to server
+        },
         onReady: messager.onUiReady,
         onTabAdd: (tabId: string) => {
             messager.onTabAdd(tabId)
@@ -39,7 +82,7 @@ export const createMynahUi = (messager: Messager, tabFactory: TabFactory): [Myna
         },
     })
 
-    const sendToPrompt = (params: SendToPromptParams) => {
+    const getOrCreateTabId = () => {
         let tabId = mynahUi.getSelectedTabId()
         if (!tabId) {
             tabId = mynahUi.updateStore('', tabFactory.createTab(false))
@@ -52,13 +95,53 @@ export const createMynahUi = (messager: Messager, tabFactory: TabFactory): [Myna
             }
         }
 
-        mynahUi.addToUserPrompt(tabId, params.prompt)
+        return tabId
+    }
 
+    const sendToPrompt = (params: SendToPromptParams) => {
+        const tabId = getOrCreateTabId()
+        if (!tabId) return
+
+        mynahUi.addToUserPrompt(tabId, params.selection)
         messager.onSendToPrompt(params, tabId)
+    }
+
+    const sendGenericCommand = (params: GenericCommandParams) => {
+        const tabId = getOrCreateTabId()
+        if (!tabId) return
+
+        const body = [
+            params.genericCommand,
+            ' the following part of my code:',
+            '\n```\n',
+            params.selection,
+            '\n```',
+        ].join('')
+
+        const chatItem: ChatItem = { body, type: ChatItemType.PROMPT }
+
+        mynahUi.addChatItem(tabId, chatItem)
+        // TODO, use messager to send the chatItem to server
+    }
+
+    const showError = (params: ErrorParams) => {
+        const tabId = getOrCreateTabId()
+        if (!tabId) return
+
+        const answer: ChatItem = {
+            type: ChatItemType.ANSWER,
+            body: `**${params.title}** 
+${params.message}`,
+        }
+
+        mynahUi.addChatItem(params.tabId, answer)
+        messager.onError(params)
     }
 
     const api = {
         sendToPrompt: sendToPrompt,
+        sendGenericCommand: sendGenericCommand,
+        showError: showError,
     }
 
     return [mynahUi, api]

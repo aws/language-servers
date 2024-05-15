@@ -1,4 +1,19 @@
 /* eslint-disable prefer-const */
+import {
+    AUTH_FOLLOW_UP_CLICKED,
+    AuthFollowUpClickedParams,
+    ERROR_MESSAGE,
+    ErrorMessage,
+    GENERIC_COMMAND,
+    GenericCommandMessage,
+    INSERT_TO_CURSOR_POSITION,
+    InsertToCursorPositionParams,
+    SEND_TO_PROMPT,
+    SendToPromptMessage,
+    TAB_ID_RECEIVED,
+    TabIdReceivedParams,
+    UiMessage,
+} from '@aws/chat-client-ui-types'
 import { TabAddParams, TabChangeParams, TabRemoveParams } from '@aws/language-server-runtimes-types'
 import {
     CHAT_PROMPT,
@@ -11,15 +26,6 @@ import {
     UI_IS_READY,
 } from '../contracts/serverContracts'
 import { ENTER_FOCUS, EXIT_FOCUS } from '../contracts/telemetry'
-import {
-    AUTH_NEEDED_EXCEPTION,
-    ERROR_MESSAGE,
-    SEND_TO_PROMPT,
-    SendToPromptMessage,
-    TAB_ID_RECEIVED,
-    TabIdReceivedParams,
-    UiMessage,
-} from '../contracts/uiContracts'
 import { Messager, OutboundChatApi } from './messager'
 import { InboundChatApi, createMynahUi } from './mynahUi'
 import { TabFactory } from './tabs/tabFactory'
@@ -44,9 +50,11 @@ export const createChat = (clientApi: { postMessage: (msg: UiMessage | ServerMes
             case SEND_TO_PROMPT:
                 mynahApi.sendToPrompt((message as SendToPromptMessage).params)
                 break
-            case AUTH_NEEDED_EXCEPTION:
+            case GENERIC_COMMAND:
+                mynahApi.sendGenericCommand((message as GenericCommandMessage).params)
                 break
             case ERROR_MESSAGE:
+                mynahApi.showError((message as ErrorMessage).params)
                 break
             default:
                 // TODO: Report error?
@@ -74,6 +82,12 @@ export const createChat = (clientApi: { postMessage: (msg: UiMessage | ServerMes
         },
         tabRemoved: (params: TabRemoveParams) => {
             sendMessageToClient({ command: TAB_REMOVED, params })
+        },
+        insertToCursorPosition: (params: InsertToCursorPositionParams) => {
+            sendMessageToClient({ command: INSERT_TO_CURSOR_POSITION, params })
+        },
+        authFollowUpClicked: (params: AuthFollowUpClickedParams) => {
+            sendMessageToClient({ command: AUTH_FOLLOW_UP_CLICKED, params })
         },
         uiReady: () => {
             sendMessageToClient({

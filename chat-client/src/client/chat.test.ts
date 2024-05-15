@@ -2,10 +2,10 @@ import { injectJSDOM } from '../test/jsDomInjector'
 // This needs to be run before all other imports so that mynah ui gets loaded inside of jsdom
 injectJSDOM()
 
+import { ERROR_MESSAGE, SEND_TO_PROMPT, TAB_ID_RECEIVED } from '@aws/chat-client-ui-types'
 import { afterEach } from 'mocha'
 import { assert } from 'sinon'
 import { NEW_TAB_CREATED, TAB_CHANGED, TAB_REMOVED, UI_IS_READY } from '../contracts/serverContracts'
-import { SEND_TO_PROMPT, TAB_ID_RECEIVED } from '../contracts/uiContracts'
 import { createChat } from './chat'
 import sinon = require('sinon')
 
@@ -35,6 +35,15 @@ describe('Chat', () => {
         window.dispatchEvent(sendToPromptEvent)
 
         assert.calledWithMatch(clientApi.postMessage, { command: TAB_ID_RECEIVED })
+    })
+
+    it('publishes tab id received event, when show error is triggered', () => {
+        createChat(clientApi)
+
+        const errorEvent = createInboundEvent({ command: ERROR_MESSAGE, params: { tabId: '123' } })
+        window.dispatchEvent(errorEvent)
+
+        assert.calledWithMatch(clientApi.postMessage, { command: TAB_ID_RECEIVED, params: { tabId: '123' } })
     })
 
     it('publishes tab added event, when UI tab is added', () => {
