@@ -9,12 +9,11 @@ import {
     InsertToCursorPositionParams,
     SendToPromptParams,
     isValidAuthFollowUpType,
-    CopyCodeToClipboardParams,
-    VoteParams,
-} from '@aws/chat-client-ui-types'
+} from '@aws/chat-client-ui-types/out'
 import { ChatItem, ChatItemType, MynahUI, NotificationType } from '@aws/mynah-ui'
 import { Messager } from './messager'
 import { TabFactory } from './tabs/tabFactory'
+import { CopyCodeToClipboardParams, VoteParams } from '../contracts/telemetry'
 
 export interface InboundChatApi {
     sendToPrompt(params: SendToPromptParams): void

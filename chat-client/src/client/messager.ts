@@ -9,11 +9,10 @@ import {
     InsertToCursorPositionParams,
     SendToPromptParams,
     TabIdReceivedParams,
-    CopyCodeToClipboardParams,
-    VoteParams,
-} from '@aws/chat-client-ui-types'
+} from '@aws/chat-client-ui-types/out'
 import { TabAddParams, TabChangeParams, TabRemoveParams } from '@aws/language-server-runtimes-types'
 import { TelemetryParams } from '../contracts/serverContracts'
+import { CopyCodeToClipboardParams, VoteParams } from '../contracts/telemetry'
 
 export interface OutboundChatApi {
     tabAdded(params: TabAddParams): void
