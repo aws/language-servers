@@ -15,11 +15,18 @@
         "node": ">=18.0.0"
     },
     "scripts": {
-        "compile": "tsc --build"
+        "compile": "tsc --build",
+        "test:unit": "ts-mocha -b 'src/**/*.test.ts'",
+        "test": "npm run test:unit"
     },
     "dependencies": {
         "@aws/fully-qualified-names": "2.1.4",
         "web-tree-sitter": "^0.20.8"
+    },
+    "devDependencies": {
+        "assert": "^2.1.0",
+        "ts-mocha": "^10.0.0",
+        "ts-sinon": "^2.0.2"
     },
     "prettier": {
         "printWidth": 120,

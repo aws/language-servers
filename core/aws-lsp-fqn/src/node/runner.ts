@@ -1,4 +1,4 @@
-import { fork } from 'child_process'
+import { Worker } from 'worker_threads'
 import { FqnExtractor, FqnExtractorInput, FqnExtractorOutput, Result, RunnerConfig } from '../common/types'
 import path = require('path')
 
@@ -7,27 +7,25 @@ export const fqnExtractor: FqnExtractor = (input: FqnExtractorInput, config?: Ru
 
     let hasFulfilled = false
 
-    const abortController = new AbortController()
+    let timer: NodeJS.Timeout
+    const worker = new Worker(path.resolve(__dirname, './fqnExtractorWorker.js'), {
+        workerData: { input },
+        // allow us to intercept the logs, otherwise, the output will cause vscode extensions to crash
+        stdout: true,
+        stderr: true,
+    })
 
-    // fork starts a separate nodejs process that has a separate memory space
-    const childProcess = fork(
-        path.resolve(__dirname, './fqnExtractorProcess.js'),
-        [JSON.stringify(input)],
-        // note: we either have to use silent or pipe through to a logger, otherwise,
-        // the subprocess stdout will cause a length mismatch in logger that will crash the extension :(
-        { silent: true, timeout, signal: abortController.signal, killSignal: 'SIGKILL' }
-    )
-
-    const childProcessPromise = new Promise<Result<FqnExtractorOutput, string>>((resolve, reject) => {
-        childProcess.stdout?.on('data', data => {
+    const workerJobPromise = new Promise<Result<FqnExtractorOutput, string>>((resolve, reject) => {
+        worker.stdout?.on('data', data => {
             logger?.log(data)
         })
 
-        childProcess.stderr?.on('data', data => {
+        worker.stderr?.on('data', data => {
             logger?.error(data)
         })
 
-        childProcess.on('message', data => {
+        worker.once('message', data => {
+            clearTimeout(timer)
             const result = data as Result<FqnExtractorOutput, string>
 
             hasFulfilled = true
@@ -41,29 +39,33 @@ export const fqnExtractor: FqnExtractor = (input: FqnExtractorInput, config?: Ru
             }
         })
 
-        childProcess.on('error', error => {
+        worker.once('error', error => {
+            clearTimeout(timer)
             logger?.error(`Error encountered when extracting fully qualified names: ${error.message}`)
             hasFulfilled = true
 
             reject({ success: false, error: error.message })
         })
 
-        childProcess.on('close', code => {
-            if (code !== 0 && !hasFulfilled) {
-                hasFulfilled = true
+        timer = setTimeout(() => {
+            if (!hasFulfilled) {
+                logger?.log('Fully qualified names extraction timed out')
 
-                const error = `Fully qualified names extractor process exited with code ${code}`
+                // this is able to terminate worker that has event loop blocked
+                worker.terminate().then(() => {
+                    logger?.log('Terminated fully qualified names extraction')
+                })
 
-                logger?.error(error)
-                reject({ success: false, error })
+                reject({ success: false, error: 'Fully qualified names extraction timed out' })
             }
-        })
+        }, timeout)
     })
 
     return [
-        childProcessPromise,
+        workerJobPromise,
         () => {
-            abortController.abort()
+            clearTimeout(timer)
+            worker.terminate()
         },
     ]
 }

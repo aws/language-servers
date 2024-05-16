@@ -1,4 +1,4 @@
-import { Extent, Java, Location, Python, Tsx } from '@aws/fully-qualified-names'
+import { Extent, Java, Location, Python, Tsx, TypeScript } from '@aws/fully-qualified-names'
 import { FqnExtractorInput, FqnExtractorOutput } from './types'
 
 function extractNames(
@@ -14,7 +14,7 @@ function extractNames(
             return Tsx.findNamesWithInExtent(fileText, extent)
         case 'javascript':
         case 'typescript':
-            return Tsx.findNamesWithInExtent(fileText, extent)
+            return TypeScript.findNamesWithInExtent(fileText, extent)
         case 'python':
             return Python.findNamesWithInExtent(fileText, extent)
         default:

@@ -26,7 +26,7 @@ export interface RunnerConfig {
     /**
      * time out for graceful exit. SIGKILL will be sent 1000ms after
      *
-     * @default 2000ms
+     * @default 5000ms
      */
     timeout?: number
 }
