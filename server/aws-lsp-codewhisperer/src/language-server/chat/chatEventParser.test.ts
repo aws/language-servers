@@ -127,6 +127,7 @@ describe('ChatEventParser', () => {
                 messageId: mockMessageId,
                 body: 'This is an ',
                 followUp: {
+                    text: ChatEventParser.FOLLOW_UP_TEXT,
                     options: [
                         {
                             pillText: 'follow up 1',
@@ -200,6 +201,7 @@ describe('ChatEventParser', () => {
                 },
             ],
             followUp: {
+                text: ChatEventParser.FOLLOW_UP_TEXT,
                 options: [
                     {
                         pillText: 'follow up 1',

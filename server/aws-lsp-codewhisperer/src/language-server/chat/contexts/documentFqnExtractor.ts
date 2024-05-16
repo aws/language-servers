@@ -103,7 +103,7 @@ export class DocumentFqnExtractor {
         range: Range,
         languageId: FqnSupportedLanagues
     ): Promise<FullyQualifiedName[]> {
-        const result = await this.#findNamesInRange(document.getText(), range, languageId)
+        const result = await this.findNamesInRange(document.getText(), range, languageId)
 
         if (!result.success || !result.data.fullyQualified) {
             return []
@@ -121,7 +121,8 @@ export class DocumentFqnExtractor {
         )
     }
 
-    async #findNamesInRange(
+    // made public for stubbing in test
+    async findNamesInRange(
         fileText: string,
         selection: Range,
         languageId: FqnSupportedLanagues
