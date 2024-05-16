@@ -9,6 +9,8 @@ import {
     InsertToCursorPositionParams,
     SendToPromptParams,
     TabIdReceivedParams,
+    CopyCodeToClipboardParams,
+    VoteParams,
 } from '@aws/chat-client-ui-types'
 import { TabAddParams, TabChangeParams, TabRemoveParams } from '@aws/language-server-runtimes-types'
 import { TelemetryParams } from '../contracts/serverContracts'
@@ -56,6 +58,15 @@ export class Messager {
 
     onAuthFollowUpClicked = (params: AuthFollowUpClickedParams): void => {
         this.chatApi.authFollowUpClicked(params)
+        this.chatApi.telemetry(params)
+    }
+
+    onCopyCodeToClipboard = (params: CopyCodeToClipboardParams): void => {
+        this.chatApi.telemetry(params)
+    }
+
+    onVote = (params: VoteParams): void => {
+        this.chatApi.telemetry(params)
     }
 
     onError = (params: ErrorParams): void => {
