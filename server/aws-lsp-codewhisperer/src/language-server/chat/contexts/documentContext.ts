@@ -25,6 +25,10 @@ export class DocumentContextExtractor {
         this.#documentSymbolExtractor = new DocumentFqnExtractor(fqnConfig)
     }
 
+    public dispose() {
+        this.#documentSymbolExtractor.dispose()
+    }
+
     /**
      * From the given the cursor state, we want to give Q context up to the characters limit
      * on both sides of the cursor.
