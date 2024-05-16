@@ -19,8 +19,6 @@ Monorepo
     └── vscode/ - Minimal vscode extension to test the language server
 ── core - contains supporting libraries used by app and server packages
     └── aws-lsp-core - core support code
-    └── aws-lsp-json-common - reusable code related to JSON language service handling
-    └── aws-lsp-yaml-common - reusable code related to YAML language service handling
 ── script - loose scripts used to create `npm foo` commands in the root folder
 ── server - packages that contain Language Server implementations
     └── aws-lsp-buildspec - Language Server that wraps a JSON Schema for CodeBuild buildspec
@@ -31,7 +29,8 @@ Monorepo
     └── aws-lsp-s3 - Example language server that provides S3 bucket names as completion items
                    - Shows a concept where credentials can be provided from an IDE extension
                      (See vscode and vs client readmes)
-    └── aws-lsp-yaml-json - Language Server that wraps a JSON Schema and provides support for JSON and YAML formats
+    └── aws-lsp-yaml-json - Language Server that wraps a JSON Schema and provides support for JSON and YAML formats. 
+                            Includes reusable code related to YAML and JSON language service handling.
 ```
 
 ## How To Contribute

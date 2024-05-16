@@ -15,7 +15,7 @@ import {
     CompletionParams,
     DidChangeTextDocumentParams,
 } from '@aws/language-server-runtimes/server-interface'
-import { create } from './yamlJsonService'
+import { create } from '../language-service/yamlJsonService'
 
 /**
  * This is a demonstration language server that handles both JSON and YAML files according to the

@@ -7,7 +7,7 @@ import {
     TextDocuments,
 } from 'vscode-languageserver'
 import { TextDocument } from 'vscode-languageserver-textdocument'
-import { YamlLanguageService } from './yamlLanguageService'
+import { YamlLanguageService } from '@aws/aws-lsp-yaml-json'
 
 export type YamlSchemaServerProps = {
     displayName: string

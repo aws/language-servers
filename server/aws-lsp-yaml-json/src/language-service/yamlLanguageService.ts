@@ -29,7 +29,7 @@ export class YamlLanguageService implements AwsLanguageService {
             workspaceContext,
         })
 
-        this.yamlService.configure({ schemas: [{ fileMatch: ['*.yml'], uri: this.props.defaultSchemaUri }] })
+        this.yamlService.configure({ schemas: [{ fileMatch: ['*'], uri: this.props.defaultSchemaUri }] })
     }
 
     public isSupported(document: TextDocument): boolean {
