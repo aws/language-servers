@@ -9,7 +9,7 @@ import {
     InsertToCursorPositionParams,
     SendToPromptParams,
     isValidAuthFollowUpType,
-} from '@aws/chat-client-ui-types/out'
+} from '@aws/chat-client-ui-types'
 import { ChatItem, ChatItemType, MynahUI, NotificationType } from '@aws/mynah-ui'
 import { Messager } from './messager'
 import { TabFactory } from './tabs/tabFactory'

@@ -13,7 +13,7 @@ import {
     TAB_ID_RECEIVED,
     TabIdReceivedParams,
     UiMessage,
-} from '@aws/chat-client-ui-types/out'
+} from '@aws/chat-client-ui-types'
 import { TabAddParams, TabChangeParams, TabRemoveParams } from '@aws/language-server-runtimes-types'
 import {
     CHAT_PROMPT,

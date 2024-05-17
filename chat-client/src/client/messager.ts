@@ -9,7 +9,7 @@ import {
     InsertToCursorPositionParams,
     SendToPromptParams,
     TabIdReceivedParams,
-} from '@aws/chat-client-ui-types/out'
+} from '@aws/chat-client-ui-types'
 import { TabAddParams, TabChangeParams, TabRemoveParams } from '@aws/language-server-runtimes-types'
 import { TelemetryParams } from '../contracts/serverContracts'
 import { CopyCodeToClipboardParams, VoteParams } from '../contracts/telemetry'
