@@ -1,7 +1,7 @@
 import { $ } from 'zx'
 
 // Build/run docker container to build and encode binary.
-await $`docker build scripts/compile-partiql-wasm-docker --file scripts/compile-partiql-wasm-docker/compile-base64-partiql-wasm-binary.dockerfile -t partiql-wasm`
+await $`docker build build-scripts/compile-partiql-wasm-docker --file build-scripts/compile-partiql-wasm-docker/compile-base64-partiql-wasm-binary.dockerfile -t partiql-wasm`
 await $`docker run --name partiql-wasm -d partiql-wasm:latest`
 
 // Copy binary and bindings out of docker to host.
