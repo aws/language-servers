@@ -1,4 +1,8 @@
-import { tabAddNotificationType, tabRemoveNotificationType } from '@aws/language-server-runtimes/protocol'
+import {
+    tabAddNotificationType,
+    tabRemoveNotificationType,
+    telemetryNotificationType,
+} from '@aws/language-server-runtimes/protocol'
 import { Uri, ViewColumn, Webview, commands, window } from 'vscode'
 import { LanguageClient } from 'vscode-languageclient/node'
 
@@ -22,6 +26,9 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri) 
                 break
             case tabRemoveNotificationType.method:
                 languageClient.sendNotification(tabRemoveNotificationType, message.params)
+                break
+            case telemetryNotificationType.method:
+                languageClient.sendNotification(telemetryNotificationType, message.params)
                 break
         }
     }, undefined)

@@ -14,7 +14,7 @@
     },
     "dependencies": {
         "@aws/aws-lsp-yaml-json": "*",
-        "@aws/language-server-runtimes": "^0.2.3"
+        "@aws/language-server-runtimes": "^0.2.5"
     },
     "devDependencies": {
         "@types/chai": "^4.3.5",
