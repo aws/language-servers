@@ -21,13 +21,14 @@ export class QAPIInputConverter {
 
         try {
             // best effort to extract state
-            editorState = await this.#extractEditorStateFromInput(params)
+            editorState = await this.#extractEditorStateFromParams(params)
         } catch (e) {
-            this.#logger.log('Error extracting editorState. Skipping editorState')
+            this.#logger.log(
+                `Error extracting editorState but continuing on. ${e instanceof Error ? e.message : 'Unknown error'}`
+            )
         }
 
         if (prompt.prompt || prompt.escapedPrompt) {
-            // TODO: implement userInputMessageContext state when that is available, and diagnostic trigger type
             return {
                 success: true,
                 data: {
@@ -58,7 +59,7 @@ export class QAPIInputConverter {
         this.#documentContextExtractor.dispose()
     }
 
-    async #extractEditorStateFromInput(
+    async #extractEditorStateFromParams(
         input: Pick<ChatParams, 'cursorState' | 'textDocument'>
     ): Promise<EditorState | undefined> {
         const { textDocument: textDocumentIdentifier, cursorState = [] } = input
