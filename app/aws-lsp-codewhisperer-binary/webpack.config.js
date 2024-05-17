@@ -10,6 +10,9 @@ const baseConfig = {
             type: 'umd',
         },
     },
+    experiments: {
+        asyncWebAssembly: true,
+    },
     resolve: {
         extensions: ['.ts', '.tsx', '.js'],
     },
@@ -28,6 +31,7 @@ const nodeJsBearerTokenBundleConfig = {
     ...baseConfig,
     entry: {
         'aws-lsp-codewhisperer-token-binary': path.join(__dirname, 'src/token-standalone.ts'),
+        'aws-lsp-fqn-worker': '@aws/lsp-fqn/out/node/aws-lsp-fqn-worker.js'
     },
     target: 'node',
 }

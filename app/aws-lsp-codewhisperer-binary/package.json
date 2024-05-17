@@ -7,19 +7,22 @@
         "aws-lsp-codewhisperer-binary": "./out/index.js"
     },
     "scripts": {
-        "bundle": "npm run compile && npm run webpack && npm run package-x64",
+        "bundle": "npm run compile && npm run copy && npm run webpack && npm run package-x64",
         "clean": "rm -rf out/ bin/ tsconfig.tsbuildinfo",
         "compile": "tsc --build",
         "package-x64": "npm run package-x64:iam && npm run package-x64:token",
         "package-x64:iam": "pkg --targets node18-linux-x64,node18-win-x64,node18-macos-x64 --out-path bin --compress GZip out/iam-standalone.js",
         "package-x64:token": "pkg --targets node18-linux-x64,node18-win-x64,node18-macos-x64 --out-path bin --compress GZip out/token-standalone.js",
-        "webpack": "webpack"
+        "webpack": "webpack",
+        "copy": "npm run copy:wasm",
+        "copy:wasm": "copyfiles -f --error ../../node_modules/@aws/fully-qualified-names/node/aws_fully_qualified_names_bg.wasm ../../node_modules/web-tree-sitter/tree-sitter.wasm out"
     },
     "dependencies": {
         "@aws/language-server-runtimes": "^0.2.5",
         "@aws/lsp-codewhisperer": "*"
     },
     "devDependencies": {
+        "copyfiles": "^2.4.1",
         "pkg": "^5.8.1",
         "ts-loader": "^9.4.4",
         "webpack": "^5.88.2",
