@@ -13,6 +13,7 @@ import {
 import { ChatItem, ChatItemType, MynahUI, NotificationType } from '@aws/mynah-ui'
 import { Messager } from './messager'
 import { TabFactory } from './tabs/tabFactory'
+import { CopyCodeToClipboardParams, VoteParams } from '../contracts/telemetry'
 
 export interface InboundChatApi {
     sendToPrompt(params: SendToPromptParams): void
@@ -67,6 +68,37 @@ export const createMynahUi = (messager: Messager, tabFactory: TabFactory): [Myna
             messager.onTabChange(tabId)
         },
         onResetStore: () => {},
+        onCopyCodeToClipboard: (
+            tabId,
+            messageId,
+            code,
+            type,
+            referenceTrackerInformation,
+            eventId,
+            codeBlockIndex,
+            totalCodeBlocks
+        ) => {
+            const payload: CopyCodeToClipboardParams = {
+                tabId,
+                messageId,
+                code,
+                type,
+                referenceTrackerInformation,
+                eventId,
+                codeBlockIndex,
+                totalCodeBlocks,
+            }
+            messager.onCopyCodeToClipboard(payload)
+        },
+        onVote: (tabId, messageId, vote, eventId) => {
+            const payload: VoteParams = {
+                tabId,
+                messageId,
+                vote,
+                eventId,
+            }
+            messager.onVote(payload)
+        },
         tabs: {
             'tab-1': {
                 isSelected: true,
