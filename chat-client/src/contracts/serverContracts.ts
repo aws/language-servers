@@ -24,8 +24,6 @@ export interface ServerMessage extends Message {
     params?: ServerMessageParams
 }
 
-export interface TelemetryParams {
-    name: string
-}
+export type TelemetryParams = any
 
 export type ServerMessageParams = TabAddParams | TabChangeParams | TabRemoveParams | TelemetryParams
