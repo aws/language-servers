@@ -22,6 +22,9 @@
             "path": "./core/aws-lsp-core"
         },
         {
+            "path": "./server/aws-lsp-yaml-json"
+        },
+        {
             "path": "./server/aws-lsp-buildspec"
         },
         {
