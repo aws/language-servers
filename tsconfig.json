@@ -68,6 +68,9 @@
         },
         {
             "path": "./app/aws-lsp-yaml-json-webworker"
+        },
+        {
+            "path": "./app/aws-lsp-partiql-binary"
         }
     ]
 }

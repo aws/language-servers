@@ -1,0 +1,27 @@
+{
+    "name": "@aws/aws-lsp-partiql-binary",
+    "version": "0.0.1",
+    "description": "PartiQL Language Server Runtimes",
+    "main": "out/index.js",
+    "bin": {
+        "aws-lsp-partiql-binary": "./out/aws-lsp-partiql-binary.js"
+    },
+    "scripts": {
+        "bundle": "npm run compile && npm run webpack && npm run package-x64",
+        "clean": "rm -rf out/ bin/ tsconfig.tsbuildinfo",
+        "compile": "tsc --build",
+        "package-x64": "pkg --targets node18-linux-x64,node18-win-x64,node18-macos-x64 --output bin/aws-lsp-partiql-binary --compress GZip .",
+        "webpack": "webpack"
+    },
+    "dependencies": {
+        "@aws/aws-lsp-partiql": "^0.0.1",
+        "@aws/language-server-runtimes": "^0.2.5"
+    },
+    "devDependencies": {
+        "pkg": "^5.8.1",
+        "ts-lsp-client": "^1.0.3",
+        "ts-loader": "^9.4.4",
+        "webpack": "^5.88.2",
+        "webpack-cli": "^5.1.4"
+    }
+}
