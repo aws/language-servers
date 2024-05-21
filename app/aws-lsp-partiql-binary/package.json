@@ -9,9 +9,10 @@
     "scripts": {
         "bundle": "npm run compile && npm run webpack && npm run package-x64",
         "clean": "rm -rf out/ bin/ tsconfig.tsbuildinfo",
-        "compile": "tsc --build",
-        "package-x64": "pkg --targets node18-linux-x64,node18-win-x64,node18-macos-x64 --output bin/aws-lsp-partiql-binary --compress GZip .",
-        "webpack": "webpack"
+        "compile": "npm run compile:tsc && npm run compile:webpack",
+        "compile:tsc": "tsc --build",
+        "compile:webpack": "webpack",
+        "package-x64": "pkg --targets node18-linux-x64,node18-win-x64,node18-macos-x64 --output bin/aws-lsp-partiql-binary --compress GZip ."
     },
     "dependencies": {
         "@aws/aws-lsp-partiql": "^0.0.1",
