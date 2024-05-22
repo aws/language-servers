@@ -1,8 +1,7 @@
-import type { Diagnostic } from 'vscode-languageserver-protocol'
-import { DiagnosticSeverity } from 'vscode-languageserver-protocol'
-import { TextDocument } from 'vscode-json-languageservice'
-import { parse_as_json, initSync } from '../partiql-parser-wasm/partiql_playground'
+import type { Diagnostic } from '@aws/language-server-runtimes/server-interface'
+import { DiagnosticSeverity, TextDocument } from '@aws/language-server-runtimes/server-interface'
 import partiQlServerBinary from '../partiql-parser-wasm/partiql-wasm-parser-inline'
+import { initSync, parse_as_json } from '../partiql-parser-wasm/partiql_playground'
 import { convertObjectToParserError } from './error-parsing/parser-errors'
 
 export function normalizeQuery(data: string): string {

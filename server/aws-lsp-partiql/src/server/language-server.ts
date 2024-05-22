@@ -1,6 +1,10 @@
-import { type DidChangeTextDocumentParams, type Server } from '@aws/language-server-runtimes/server-interface'
-import { TextDocumentSyncKind, type DidOpenTextDocumentParams } from 'vscode-languageserver'
-import { TextDocument } from 'vscode-languageserver-textdocument'
+import {
+    TextDocument,
+    TextDocumentSyncKind,
+    type DidChangeTextDocumentParams,
+    type DidOpenTextDocumentParams,
+    type Server,
+} from '@aws/language-server-runtimes/server-interface'
 import { createPartiQLLanguageService } from './language-service'
 
 export const PartiQLServerFactory =
