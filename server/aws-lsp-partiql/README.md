@@ -18,5 +18,5 @@ Tests for this package are run using [Jest](https://jestjs.io/), to run the test
 
 This package currently has a couple of potential points-of-improvement:
 
-- In the bindings for the parser WASM binary, there is a [code path](https://code.amazon.com/packages/CloudEditor/blobs/c7d056f39bdf48379395516cdf49e5c5b18f047a/--/packages/partiql-language-server/src/partiql-parser-wasm/partiql_playground.js#L367) which imports the `partiql_playground_bg.wasm` file. We don't use this file and code path at runtime due to the inlining of the WASM binary. When doing import checks however, Webpack fails building because it cannot find this binary. To work around this, we include a no-op file with the expected name.
+- In the bindings for the parser WASM binary, there is a code path which imports the `partiql_playground_bg.wasm` file. We don't use this file and code path at runtime due to the inlining of the WASM binary. When doing import checks however, Webpack fails building because it cannot find this binary. To work around this, we include a no-op file with the expected name.
 - In the tests for the language service, there are a couple of untested happy paths. Input couldn't be found to trigger these happy paths.
