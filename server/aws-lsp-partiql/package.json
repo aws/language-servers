@@ -1,5 +1,5 @@
 {
-    "name": "@aws/aws-lsp-partiql",
+    "name": "@aws/lsp-partiql",
     "author": "Amazon Web Services",
     "license": "Apache-2.0",
     "description": "PartiQL language server",
