@@ -68,7 +68,6 @@ export class ChatController implements ChatHandlers {
             )
 
             response = await session.generateAssistantResponse(requestInput.data)
-            this.#log('Response to tab:', params.tabId, JSON.stringify(response.$metadata))
         } catch (err) {
             this.#log(`Q api request error ${err instanceof Error ? err.message : 'unknown'}`)
 
@@ -80,7 +79,6 @@ export class ChatController implements ChatHandlers {
 
         try {
             const result = await this.#processAssistantResponse(response, params.partialResultToken)
-
             return result.success
                 ? result.data
                 : new ResponseError<ChatResult>(ErrorCodes.InternalError, result.error, result.data)

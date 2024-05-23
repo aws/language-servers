@@ -10,18 +10,42 @@ import {
     SendToPromptParams,
     isValidAuthFollowUpType,
 } from '@aws/chat-client-ui-types'
-import { ChatItem, ChatItemType, MynahUI, NotificationType } from '@aws/mynah-ui'
+import { ChatResult } from '@aws/language-server-runtimes-types'
+import { ChatItem, ChatItemType, ChatPrompt, MynahUI, NotificationType } from '@aws/mynah-ui'
+import { CopyCodeToClipboardParams, VoteParams } from '../contracts/telemetry'
 import { Messager } from './messager'
 import { TabFactory } from './tabs/tabFactory'
-import { CopyCodeToClipboardParams, VoteParams } from '../contracts/telemetry'
 
 export interface InboundChatApi {
+    addChatResponse(params: ChatResult, tabId: string, isFinalResult: boolean): void
     sendToPrompt(params: SendToPromptParams): void
     sendGenericCommand(params: GenericCommandParams): void
     showError(params: ErrorParams): void
 }
 
 export const createMynahUi = (messager: Messager, tabFactory: TabFactory): [MynahUI, InboundChatApi] => {
+    const handleChatPrompt = (mynahUi: MynahUI, tabId: string, prompt: ChatPrompt, _eventId?: string) => {
+        // Send chat prompt to server
+        messager.onChatPrompt({ prompt, tabId })
+
+        // Add user prompt to UI
+        mynahUi.addChatItem(tabId, {
+            type: ChatItemType.PROMPT,
+            body: prompt.escapedPrompt,
+        })
+
+        // Set UI to loading state
+        mynahUi.updateStore(tabId, {
+            loadingChat: true,
+            promptInputDisabledState: true,
+        })
+
+        // Create initial empty response
+        mynahUi.addChatItem(tabId, {
+            type: ChatItemType.ANSWER_STREAM,
+        })
+    }
+
     const mynahUi = new MynahUI({
         onCodeInsertToCursorPosition(
             tabId,
@@ -54,9 +78,17 @@ export const createMynahUi = (messager: Messager, tabFactory: TabFactory): [Myna
                     authFollowupType: followUp.type,
                 }
                 messager.onAuthFollowUpClicked(payload)
+            } else {
+                const prompt = followUp.prompt ? followUp.prompt : followUp.pillText
+                handleChatPrompt(mynahUi, tabId, { prompt: prompt, escapedPrompt: prompt }, eventId)
             }
-            // TODO, Use messager to send followUpClicked event to server
+
+            // TODO, Use messager to send followUpClicked notification to server
         },
+        onChatPrompt(tabId, prompt, eventId) {
+            handleChatPrompt(mynahUi, tabId, prompt, eventId)
+        },
+
         onReady: messager.onUiReady,
         onTabAdd: (tabId: string) => {
             messager.onTabAdd(tabId)
@@ -130,6 +162,49 @@ export const createMynahUi = (messager: Messager, tabFactory: TabFactory): [Myna
         return tabId
     }
 
+    const addChatResponse = (chatResult: ChatResult, tabId: string, isPartialResult: boolean) => {
+        if (!chatResult.body) {
+            return
+        }
+
+        if (isPartialResult) {
+            mynahUi.updateLastChatAnswer(tabId, {
+                body: chatResult.body,
+                messageId: chatResult.messageId,
+                followUp: chatResult.followUp,
+                relatedContent: chatResult.relatedContent,
+                canBeVoted: chatResult.canBeVoted,
+                // Currently there is a typo in the codeReference field in runtimes package leading to incompatibility between mynah and runtimes
+                // TODO, use spread syntax when https://github.com/aws/language-server-runtimes/pull/120 is released into a new version
+                // ...chatResult
+            })
+
+            return
+        }
+
+        const followUps = chatResult.followUp
+            ? {
+                  text: chatResult.followUp.text || 'Suggested follow up questions:',
+                  options: chatResult.followUp.options,
+              }
+            : {}
+
+        mynahUi.updateLastChatAnswer(tabId, {
+            body: chatResult.body,
+            messageId: chatResult.messageId,
+            followUp: followUps,
+            relatedContent: chatResult.relatedContent,
+            canBeVoted: chatResult.canBeVoted,
+        })
+
+        mynahUi.endMessageStream(tabId, chatResult.messageId ?? '')
+
+        mynahUi.updateStore(tabId, {
+            loadingChat: false,
+            promptInputDisabledState: false,
+        })
+    }
+
     const sendToPrompt = (params: SendToPromptParams) => {
         const tabId = getOrCreateTabId()
         if (!tabId) return
@@ -171,6 +246,7 @@ ${params.message}`,
     }
 
     const api = {
+        addChatResponse: addChatResponse,
         sendToPrompt: sendToPrompt,
         sendGenericCommand: sendGenericCommand,
         showError: showError,
