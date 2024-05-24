@@ -1,7 +1,7 @@
 import { DocumentSymbol, SymbolType } from '@amzn/codewhisperer-streaming'
-import { FqnExtractorOutput, FullyQualifiedName, fqnExtractor } from '@aws/lsp-fqn'
+import { ExtractorResult, FqnSupportedLanguages, FqnWorkerPool, FullyQualifiedName } from '@aws/lsp-fqn'
 import { Range, TextDocument } from 'vscode-languageserver-textdocument'
-import { Features, Result } from '../../types'
+import { Features } from '../../types'
 
 export interface DocumentFqnExtractorConfig {
     nameMinLength?: number
@@ -10,14 +10,6 @@ export interface DocumentFqnExtractorConfig {
     timeout?: number
     logger?: Features['logging']
 }
-
-export type FqnSupportedLanagues =
-    | 'python'
-    | 'java'
-    | 'javascript'
-    | 'javascriptreact'
-    | 'typescript'
-    | 'typescriptreact'
 
 export class DocumentFqnExtractor {
     public static readonly DEFAULT_CONFIG = {
@@ -38,24 +30,29 @@ export class DocumentFqnExtractor {
     #nameMinLength: number
     #nameMaxLength: number
     #maxSymbols: number
-    #timeout?: number
 
-    #logger?: Features['logging']
-    #disposeFunctionSet: Set<() => void>
+    #workerPool: FqnWorkerPool
 
     constructor(config?: DocumentFqnExtractorConfig) {
         const { nameMaxLength, nameMinLength, maxSymbols, timeout, logger } = config ?? {}
         this.#nameMinLength = nameMinLength ?? DocumentFqnExtractor.DEFAULT_CONFIG.nameMinLength
         this.#nameMaxLength = nameMaxLength ?? DocumentFqnExtractor.DEFAULT_CONFIG.nameMaxLength
         this.#maxSymbols = maxSymbols ?? DocumentFqnExtractor.DEFAULT_CONFIG.maxSymbols
-        this.#timeout = timeout
         this.#logger = logger
-        this.#disposeFunctionSet = new Set()
+        this.#workerPool = new FqnWorkerPool({
+            timeout,
+            logger: logger
+                ? {
+                      // binding for log function (e.g. winston) that relies on "this"
+                      log: logger.log.bind(logger),
+                      error: logger.log.bind(logger),
+                  }
+                : undefined,
+        })
     }
 
     public dispose() {
-        this.#disposeFunctionSet.forEach(disposeFunction => disposeFunction())
-        this.#disposeFunctionSet.clear()
+        this.#workerPool.dispose()
     }
 
     public async extractDocumentSymbols(
@@ -64,11 +61,11 @@ export class DocumentFqnExtractor {
         languageId = document.languageId
     ): Promise<DocumentSymbol[]> {
         return DocumentFqnExtractor.FQN_SUPPORTED_LANGUAGE_SET.has(languageId)
-            ? this.#extractSymbols(document, range, languageId as FqnSupportedLanagues)
+            ? this.#extractSymbols(document, range, languageId as FqnSupportedLanguages)
             : []
     }
 
-    async #extractSymbols(document: TextDocument, range: Range, languageId: FqnSupportedLanagues) {
+    async #extractSymbols(document: TextDocument, range: Range, languageId: FqnSupportedLanguages) {
         const names = await this.#extractNames(document, range, languageId)
 
         const documentSymbols: DocumentSymbol[] = []
@@ -101,9 +98,9 @@ export class DocumentFqnExtractor {
     async #extractNames(
         document: TextDocument,
         range: Range,
-        languageId: FqnSupportedLanagues
+        languageId: FqnSupportedLanguages
     ): Promise<FullyQualifiedName[]> {
-        const result = await this.findNamesInRange(document.getText(), range, languageId)
+        const result = await this.#findNamesInRange(document.getText(), range, languageId)
 
         if (!result.success || !result.data.fullyQualified) {
             return []
@@ -121,41 +118,16 @@ export class DocumentFqnExtractor {
         )
     }
 
-    // made public for stubbing in test
-    async findNamesInRange(
-        fileText: string,
-        selection: Range,
-        languageId: FqnSupportedLanagues
-    ): Promise<Result<FqnExtractorOutput, string>> {
-        const [resultPromise, dispose] = fqnExtractor(
-            {
-                fileText: fileText.replace(/([\uE000-\uF8FF]|\uD83C[\uDF00-\uDFFF]|\uD83D[\uDC00-\uDDFF])/g, ''),
-                selection,
-                languageId,
-            },
-            {
-                timeout: this.#timeout,
-                logger: this.#logger
-                    ? {
-                          // binding for if log function (e.g. winston) relies on "this"
-                          log: this.#logger.log.bind(this.#logger),
-                          error: this.#logger.log.bind(this.#logger),
-                      }
-                    : undefined,
-            }
-        )
-
-        this.#disposeFunctionSet.add(dispose)
-
-        let result
-
-        try {
-            result = await resultPromise
-        } finally {
-            // remove reference to the dispose function
-            this.#disposeFunctionSet.delete(dispose)
-        }
-
-        return result
+    #findNamesInRange(fileText: string, selection: Range, languageId: FqnSupportedLanguages): Promise<ExtractorResult> {
+        return this.#workerPool.exec({
+            /**
+             * [\ue000-\uf8ff]: Private Use Area in Unicode
+             * \ud83c[\udf00-\udfff]: Presentation Symbols
+             * \ud83d[\udc00-\uddff]: Presentation Symbols
+             */
+            fileText: fileText.replace(/([\uE000-\uF8FF]|\uD83C[\uDF00-\uDFFF]|\uD83D[\uDC00-\uDDFF])/g, ''),
+            selection,
+            languageId,
+        })
     }
 }

@@ -1,7 +1,7 @@
 {
     "name": "@aws/lsp-fqn",
     "version": "0.0.1",
-    "description": "CodeWhisperer Language Server",
+    "description": "Provides environment dependent fully qualified names utils",
     "main": "out/node/index.js",
     "types": "out/index.d.ts",
     "browser": "out/browser/index.js",
@@ -20,8 +20,9 @@
         "test": "npm run test:unit"
     },
     "dependencies": {
-        "@aws/fully-qualified-names": "2.1.4",
-        "web-tree-sitter": "^0.20.8"
+        "@aws/fully-qualified-names": "^2.1.4",
+        "web-tree-sitter": "^0.20.8",
+        "workerpool": "^9.1.1"
     },
     "devDependencies": {
         "assert": "^2.1.0",

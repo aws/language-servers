@@ -1,4 +1,13 @@
 import type { Location } from '@aws/fully-qualified-names'
+import type { WorkerPoolOptions } from 'workerpool'
+
+export type FqnSupportedLanguages =
+    | 'python'
+    | 'java'
+    | 'javascript'
+    | 'javascriptreact'
+    | 'typescript'
+    | 'typescriptreact'
 
 export type Result<TData, TError> =
     | {
@@ -11,32 +20,28 @@ export type Result<TData, TError> =
           error: TError
       }
 
+export type ExtractorResult = Result<FqnExtractorOutput, string>
+
 export interface FullyQualifiedName {
     source: string[]
     symbol: string[]
 }
 
-interface Logger {
+export interface Logger {
     log: (message: string) => void
     error: (error: string) => void
 }
 
-export interface RunnerConfig {
+export interface WorkerPoolConfig {
     logger?: Logger
     /**
-     * time out for graceful exit. SIGKILL will be sent 1000ms after
+     * time a task is allowed to run before terminated
      *
      * @default 5000ms
      */
     timeout?: number
+    workerPoolOptions?: Pick<WorkerPoolOptions, 'minWorkers' | 'maxWorkers' | 'maxQueueSize' | 'workerTerminateTimeout'>
 }
-
-export type Dispose = () => void
-
-export type FqnExtractor = (
-    input: FqnExtractorInput,
-    config?: RunnerConfig
-) => [Promise<Result<FqnExtractorOutput, string>>, Dispose]
 
 export interface FqnExtractorOutput {
     fullyQualified: {
@@ -61,7 +66,7 @@ export type Range = {
 }
 
 export interface FqnExtractorInput {
-    languageId: 'java' | 'javascript' | 'javascriptreact' | 'python' | 'typescript' | 'typescriptreact'
+    languageId: FqnSupportedLanguages
     fileText: string
     selection: Range
 }

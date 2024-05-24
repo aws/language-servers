@@ -1,4 +1,5 @@
 import { Range } from '@aws/language-server-runtimes/server-interface'
+import { FqnWorkerPool } from '@aws/lsp-fqn'
 import * as assert from 'assert'
 import sinon from 'ts-sinon'
 import { TextDocument } from 'vscode-languageserver-textdocument'
@@ -13,7 +14,7 @@ describe('DocumentFQNExtractor', () => {
     let documentFqnExtractor: DocumentFqnExtractor
 
     beforeEach(() => {
-        extractorStub = sinon.stub(DocumentFqnExtractor.prototype, 'findNamesInRange')
+        extractorStub = sinon.stub(FqnWorkerPool.prototype, 'exec')
         documentFqnExtractor = new DocumentFqnExtractor()
     })
 
@@ -28,12 +29,11 @@ describe('DocumentFQNExtractor', () => {
         const documentSymbols = await documentFqnExtractor.extractDocumentSymbols(typescriptDocument, mockRange)
 
         assert.deepStrictEqual(documentSymbols, expectedExtractedNames)
-        sinon.assert.calledOnceWithExactly(
-            extractorStub,
-            typescriptDocument.getText(),
-            mockRange,
-            typescriptDocument.languageId
-        )
+        sinon.assert.calledOnceWithExactly(extractorStub, {
+            fileText: typescriptDocument.getText(),
+            selection: mockRange,
+            languageId: typescriptDocument.languageId,
+        })
     })
 
     it('returns empty array if language id is not supported', async () => {
@@ -74,7 +74,11 @@ describe('DocumentFQNExtractor', () => {
         )
 
         assert.deepStrictEqual(documentSymbols, expectedExtractedNames)
-        sinon.assert.calledOnceWithExactly(extractorStub, typescriptDocument.getText(), mockRange, 'python')
+        sinon.assert.calledOnceWithExactly(extractorStub, {
+            fileText: typescriptDocument.getText(),
+            selection: mockRange,
+            languageId: 'python',
+        })
     })
 
     it('dedups symbols', async () => {
