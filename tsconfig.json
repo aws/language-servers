@@ -49,6 +49,9 @@
             "path": "./server/aws-lsp-yaml-json"
         },
         {
+            "path": "./server/aws-lsp-partiql"
+        },
+        {
             "path": "./app/aws-lsp-buildspec-binary"
         },
         {
@@ -68,6 +71,9 @@
         },
         {
             "path": "./app/aws-lsp-yaml-json-webworker"
+        },
+        {
+            "path": "./app/aws-lsp-partiql-binary"
         }
     ]
 }
