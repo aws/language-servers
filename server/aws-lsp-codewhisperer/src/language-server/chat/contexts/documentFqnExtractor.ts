@@ -38,7 +38,6 @@ export class DocumentFqnExtractor {
         this.#nameMinLength = nameMinLength ?? DocumentFqnExtractor.DEFAULT_CONFIG.nameMinLength
         this.#nameMaxLength = nameMaxLength ?? DocumentFqnExtractor.DEFAULT_CONFIG.nameMaxLength
         this.#maxSymbols = maxSymbols ?? DocumentFqnExtractor.DEFAULT_CONFIG.maxSymbols
-        this.#logger = logger
         this.#workerPool = new FqnWorkerPool({
             timeout,
             logger: logger

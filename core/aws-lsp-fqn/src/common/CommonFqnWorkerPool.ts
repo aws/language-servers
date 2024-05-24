@@ -20,7 +20,7 @@ export class CommonFqnWorkerPool implements IFqnWorkerPool {
 
     public async exec(input: FqnExtractorInput): Promise<ExtractorResult> {
         return this.#workerPool
-            .exec('fqn', [input], { on: payload => this.#logger?.log(payload) })
+            .exec('fqn', [input])
             .timeout(this.#timeout)
             .then(data => data as ExtractorResult)
             .catch(error => {

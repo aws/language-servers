@@ -10,10 +10,10 @@ function extractNames(
     switch (languageId) {
         case 'java':
             return fqn.Java.findNamesWithInExtent(fileText, extent)
+        case 'javascript':
         case 'javascriptreact':
         case 'typescriptreact':
             return fqn.Tsx.findNamesWithInExtent(fileText, extent)
-        case 'javascript':
         case 'typescript':
             return fqn.TypeScript.findNamesWithInExtent(fileText, extent)
         case 'python':
