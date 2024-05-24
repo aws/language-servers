@@ -1,5 +1,5 @@
 import { pool, Pool } from 'workerpool'
-import { DEFAULT_MAX_WORKERS, DEFAULT_TIMEOUT } from './defaults'
+import { DEFAULT_MAX_WORKERS, DEFAULT_TIMEOUT, FQN_WORKER_ID } from './defaults'
 import { IFqnWorkerPool } from './IFqnWorkerPool'
 import { ExtractorResult, FqnExtractorInput, Logger, WorkerPoolConfig } from './types'
 
@@ -19,8 +19,9 @@ export class CommonFqnWorkerPool implements IFqnWorkerPool {
     }
 
     public async exec(input: FqnExtractorInput): Promise<ExtractorResult> {
+        // TODO: emits std streams to logger
         return this.#workerPool
-            .exec('fqn', [input])
+            .exec(FQN_WORKER_ID, [input])
             .timeout(this.#timeout)
             .then(data => data as ExtractorResult)
             .catch(error => {
