@@ -12,22 +12,28 @@ export class CommonFqnWorkerPool implements IFqnWorkerPool {
         this.#timeout = timeout
         this.#logger = logger
         this.#workerPool = pool(filePath, {
-            emitStdStreams: true,
             maxWorkers: DEFAULT_MAX_WORKERS,
             ...workerPoolOptions,
         })
     }
 
     public async exec(input: FqnExtractorInput): Promise<ExtractorResult> {
-        // TODO: emits std streams to logger
+        this.#logger?.log(`Extracting fully qualified names for ${input.languageId}`)
+
         return this.#workerPool
             .exec(FQN_WORKER_ID, [input])
             .timeout(this.#timeout)
             .then(data => data as ExtractorResult)
             .catch(error => {
+                const errorMessage = `Encountered error while extracting fully qualified names: ${
+                    error instanceof Error ? error.message : 'Unknown'
+                }`
+
+                this.#logger?.error(errorMessage)
+
                 return {
                     success: false,
-                    error: error instanceof Error ? error.message : 'Unknown error',
+                    error: errorMessage,
                 }
             })
     }

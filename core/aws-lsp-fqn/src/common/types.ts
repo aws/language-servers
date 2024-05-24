@@ -40,7 +40,7 @@ export interface WorkerPoolConfig {
      * @default 5000ms
      */
     timeout?: number
-    workerPoolOptions?: Pick<WorkerPoolOptions, 'minWorkers' | 'maxWorkers' | 'maxQueueSize' | 'workerTerminateTimeout'>
+    workerPoolOptions?: WorkerPoolOptions
 }
 
 export interface FqnExtractorOutput {
