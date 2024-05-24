@@ -28,8 +28,8 @@
     },
     "dependencies": {
         "@amzn/codewhisperer-streaming": "file:./src.gen/@amzn/codewhisperer-streaming",
-        "@aws/language-server-runtimes": "^0.2.5",
-        "@aws/language-server-runtimes-types": "^0.0.2",
+        "@aws/language-server-runtimes": "0.x.x",
+        "@aws/language-server-runtimes-types": "0.x.x",
         "@smithy/node-http-handler": "^2.5.0",
         "hpagent": "^1.2.0",
         "adm-zip": "^0.5.10",
