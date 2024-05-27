@@ -21,7 +21,7 @@ export class JsonLanguageService implements AwsLanguageService {
             schemaRequestService: props.uriResolver?.bind(this),
         })
 
-        const schemas = props.defaultSchemaUri ? [{ fileMatch: ['*.json'], uri: props.defaultSchemaUri }] : undefined
+        const schemas = props.defaultSchemaUri ? [{ fileMatch: ['*'], uri: props.defaultSchemaUri }] : undefined
 
         this.jsonService.configure({ allowComments: props.allowComments ?? false, schemas })
     }

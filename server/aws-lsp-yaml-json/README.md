@@ -1,3 +1,9 @@
+## Exports
+── index
+    └── CreateYamlJsonLanguageServer - a function that creates and returns a new instance of DEXP Language Server
+    └── JsonLanguageService - JSON language service. Provides language features like hover, completion, diagnostics and formatting
+    └── YamlLanguageService - YAML language service. Provides language features like hover, completion, diagnostics and formatting
+
 ## Temporary Patch for yaml-language-server Dependency
 
 In the current state of this package, we need to apply a temporary patch to the yaml-language-server dependency.

@@ -1,6 +1,6 @@
 import { AwsLanguageService, MutuallyExclusiveLanguageService, UriResolver } from '@aws/lsp-core/out/base'
-import { JsonLanguageService } from '@aws/lsp-json-common'
-import { YamlLanguageService } from '@aws/lsp-yaml-common'
+import { JsonLanguageService } from './jsonLanguageService'
+import { YamlLanguageService } from './yamlLanguageService'
 
 export type YamlJsonServiceProps = {
     displayName: string
