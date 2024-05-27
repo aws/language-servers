@@ -11,8 +11,8 @@
         "clean": "rm -rf out/ bin/ tsconfig.tsbuildinfo",
         "compile": "tsc --build",
         "package-x64": "npm run package-x64:iam && npm run package-x64:token",
-        "package-x64:iam": "pkg --targets node18-linux-x64,node18-win-x64,node18-macos-x64 --out-path bin --compress GZip out/aws-lsp-codewhisperer-iam-binary.js",
-        "package-x64:token": "pkg --targets node18-linux-x64,node18-win-x64,node18-macos-x64 --out-path bin --compress GZip out/aws-lsp-codewhisperer-token-binary.js",
+        "package-x64:iam": "pkg --targets node18-linux-x64,node18-win-x64,node18-macos-x64 --out-path bin --compress GZip out/iam-standalone.js",
+        "package-x64:token": "pkg --targets node18-linux-x64,node18-win-x64,node18-macos-x64 --out-path bin --compress GZip out/token-standalone.js",
         "webpack": "webpack"
     },
     "dependencies": {
