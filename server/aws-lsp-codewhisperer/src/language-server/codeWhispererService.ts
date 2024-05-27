@@ -1,4 +1,4 @@
-import { CredentialsProvider, BearerCredentials } from '@aws/language-server-runtimes/server-interface'
+import { BearerCredentials, CredentialsProvider } from '@aws/language-server-runtimes/server-interface'
 import { AWSError, CredentialProviderChain, Credentials } from 'aws-sdk'
 import { PromiseResult } from 'aws-sdk/lib/request'
 import { v4 as uuidv4 } from 'uuid'
@@ -32,6 +32,10 @@ export interface GenerateSuggestionsResponse {
     responseContext: ResponseContext
 }
 
+export interface AWSConfig {
+    proxy?: any
+}
+
 import CodeWhispererSigv4Client = require('../client/sigv4/codewhisperersigv4client')
 import CodeWhispererTokenClient = require('../client/token/codewhispererbearertokenclient')
 import AWS = require('aws-sdk')
@@ -50,8 +54,9 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
     private readonly codeWhispererRegion = 'us-east-1'
     private readonly codeWhispererEndpoint = 'https://codewhisperer.us-east-1.amazonaws.com/'
 
-    constructor(credentialsProvider: CredentialsProvider) {
+    constructor(credentialsProvider: CredentialsProvider, additionalAwsConfig: AWSConfig) {
         super()
+        this.updateAwsConfiguration(additionalAwsConfig)
 
         const options: CodeWhispererTokenClientConfigurationOptions = {
             region: this.codeWhispererRegion,
@@ -91,6 +96,14 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
         }
     }
 
+    updateAwsConfiguration = (awsConfig: AWSConfig) => {
+        if (awsConfig?.proxy) {
+            AWS.config.update({
+                httpOptions: { agent: awsConfig.proxy },
+            })
+        }
+    }
+
     generateItemId = () => uuidv4()
 }
 
@@ -99,7 +112,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     private readonly codeWhispererRegion = 'us-east-1'
     private readonly codeWhispererEndpoint = 'https://codewhisperer.us-east-1.amazonaws.com/'
 
-    constructor(credentialsProvider: CredentialsProvider, additionalAwsConfig: any) {
+    constructor(credentialsProvider: CredentialsProvider, additionalAwsConfig: AWSConfig) {
         super()
         this.updateAwsConfiguration(additionalAwsConfig)
 
@@ -228,8 +241,8 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         return this.client.listCodeAnalysisFindings(request).promise()
     }
 
-    updateAwsConfiguration = (awsConfig: any) => {
-        if (awsConfig.proxy) {
+    updateAwsConfiguration = (awsConfig: AWSConfig) => {
+        if (awsConfig?.proxy) {
             AWS.config.update({
                 httpOptions: { agent: awsConfig.proxy },
             })

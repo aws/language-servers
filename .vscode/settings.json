@@ -7,6 +7,6 @@
             "source.organizeImports": true,
             "source.sortMembers": true
         },
-        "editor.formatOnSave": true
+        "editor.formatOnSave": false
     }
 }
