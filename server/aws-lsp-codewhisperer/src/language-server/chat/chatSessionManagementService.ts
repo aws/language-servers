@@ -65,15 +65,8 @@ export class ChatSessionManagementService {
 
     public getSession(tabId: string): Result<ChatSessionService, string> {
         const session = this.#sessionByTab.get(tabId)
-        return session
-            ? {
-                  success: true,
-                  data: session,
-              }
-            : {
-                  success: false,
-                  error: 'Session does not exist',
-              }
+
+        return session ? { success: true, data: session } : this.createSession(tabId)
     }
 
     public deleteSession(tabId: string): Result<void, string> {
