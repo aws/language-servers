@@ -1,34 +1,41 @@
-import { EditorState, GenerateAssistantResponseCommandOutput } from '@amzn/codewhisperer-streaming'
-import { ChatParams, CursorState } from '@aws/language-server-runtimes-types'
+import {
+    GenerateAssistantResponseCommandInput,
+    GenerateAssistantResponseCommandOutput,
+} from '@amzn/codewhisperer-streaming'
 import { chatRequestType } from '@aws/language-server-runtimes/protocol'
 import {
     CancellationToken,
     Chat,
+    ChatParams,
     ChatResult,
     EndChatParams,
     ErrorCodes,
+    QuickActionParams,
     ResponseError,
     TabAddParams,
     TabRemoveParams,
-    TextDocumentIdentifier,
 } from '@aws/language-server-runtimes/server-interface'
 import { Features, LspHandlers, Result } from '../types'
 import { ChatEventParser } from './chatEventParser'
 import { ChatSessionManagementService } from './chatSessionManagementService'
-import { DocumentContextExtractor } from './contexts/documentContext'
-import { convertChatParamsToRequestInput } from './utils'
+import { QAPIInputConverter } from './qAPIInputConverter'
 
 type ChatHandlers = LspHandlers<Chat>
 
 export class ChatController implements ChatHandlers {
     #features: Features
     #chatSessionManagementService: ChatSessionManagementService
-    #documentContextExtractor: DocumentContextExtractor
+    #qAPIInputConverter: QAPIInputConverter
 
     constructor(chatSessionManagementService: ChatSessionManagementService, features: Features) {
         this.#features = features
         this.#chatSessionManagementService = chatSessionManagementService
-        this.#documentContextExtractor = new DocumentContextExtractor()
+        this.#qAPIInputConverter = new QAPIInputConverter(features.workspace, features.logging)
+    }
+
+    dispose() {
+        this.#chatSessionManagementService.dispose()
+        this.#qAPIInputConverter.dispose()
     }
 
     async onChatPrompt(params: ChatParams, token: CancellationToken): Promise<ChatResult | ResponseError<ChatResult>> {
@@ -44,18 +51,26 @@ export class ChatController implements ChatHandlers {
             )
         }
 
+        let requestInput: GenerateAssistantResponseCommandInput
+
+        try {
+            const inputResult = await this.#qAPIInputConverter.convertChatParamsToInput(params)
+
+            if (!inputResult.success) {
+                throw new Error(inputResult.error)
+            }
+
+            requestInput = inputResult.data
+        } catch (e) {
+            const error = e instanceof Error ? e.message : 'Failed to convert params to request input'
+            this.#log(error)
+            return new ResponseError<ChatResult>(ErrorCodes.InvalidParams, error)
+        }
+
         token.onCancellationRequested(() => {
             this.#log('cancellation requested')
             session.abortRequest()
         })
-
-        const editorState = await this.#extractEditorState(params.textDocument, params.cursorState)
-        const requestInput = convertChatParamsToRequestInput(params, editorState)
-
-        if (!requestInput.success) {
-            this.#log(requestInput.error)
-            return new ResponseError<ChatResult>(ErrorCodes.InvalidParams, requestInput.error)
-        }
 
         let response: GenerateAssistantResponseCommandOutput
 
@@ -64,10 +79,10 @@ export class ChatController implements ChatHandlers {
                 'Request from tab:',
                 params.tabId,
                 'conversation id:',
-                requestInput.data.conversationState?.conversationId ?? 'undefined'
+                requestInput.conversationState?.conversationId ?? 'undefined'
             )
 
-            response = await session.generateAssistantResponse(requestInput.data)
+            response = await session.generateAssistantResponse(requestInput)
             this.#log('Response to tab:', params.tabId, JSON.stringify(response.$metadata))
         } catch (err) {
             this.#log(`Q api request error ${err instanceof Error ? err.message : 'unknown'}`)
@@ -109,13 +124,10 @@ export class ChatController implements ChatHandlers {
 
     onLinkClick() {}
 
+    onReady() {}
+
     onSendFeedback() {}
 
-    onQuickAction(): never {
-        throw new Error('Method not implemented.')
-    }
-
-    onReady() {}
     onSourceLinkClick() {}
 
     onTabAdd(params: TabAddParams) {
@@ -128,18 +140,8 @@ export class ChatController implements ChatHandlers {
         this.#chatSessionManagementService.deleteSession(params.tabId)
     }
 
-    onVote() {}
-
-    async #extractEditorState(
-        identifier?: TextDocumentIdentifier,
-        cursorState?: CursorState[]
-    ): Promise<EditorState | undefined> {
-        if (!identifier || !Array.isArray(cursorState) || cursorState.length === 0) {
-            return
-        }
-        const textDocument = await this.#features.workspace.getTextDocument(identifier.uri)
-
-        return textDocument && (await this.#documentContextExtractor.extractEditorState(textDocument, cursorState[0]))
+    onQuickAction(_params: QuickActionParams, _cancellationToken: CancellationToken): never {
+        throw new Error('Not implemented')
     }
 
     async #processAssistantResponse(
@@ -149,8 +151,6 @@ export class ChatController implements ChatHandlers {
         const chatEventParser = new ChatEventParser(response.$metadata.requestId!)
 
         for await (const chatEvent of response.generateAssistantResponseResponse!) {
-            this.#log('Streaming partial chat event')
-
             const chatResult = chatEventParser.processPartialEvent(chatEvent)
 
             // terminate early when there is an error
