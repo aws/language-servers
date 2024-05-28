@@ -70,3 +70,8 @@ export interface FqnExtractorInput {
     fileText: string
     selection: Range
 }
+
+export interface IFqnWorkerPool {
+    exec(input: FqnExtractorInput): Promise<ExtractorResult>
+    dispose(): void
+}

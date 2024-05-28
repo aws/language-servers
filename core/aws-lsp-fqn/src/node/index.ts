@@ -1,2 +1,2 @@
 export * from '../common/types'
-export * from './FqnWorkerPool'
+export * from './fqnWorkerPool'

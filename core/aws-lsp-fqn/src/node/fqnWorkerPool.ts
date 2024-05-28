@@ -1,5 +1,5 @@
 import path = require('path')
-import { CommonFqnWorkerPool } from '../common/CommonFqnWorkerPool'
+import { CommonFqnWorkerPool } from '../common/commonFqnWorkerPool'
 import { WorkerPoolConfig } from '../common/types'
 
 export class FqnWorkerPool extends CommonFqnWorkerPool {

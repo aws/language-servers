@@ -1,5 +1,5 @@
 import { DocumentSymbol, SymbolType } from '@amzn/codewhisperer-streaming'
-import { ExtractorResult, FqnSupportedLanguages, FqnWorkerPool, FullyQualifiedName } from '@aws/lsp-fqn'
+import { ExtractorResult, FqnSupportedLanguages, FqnWorkerPool, FullyQualifiedName, IFqnWorkerPool } from '@aws/lsp-fqn'
 import { Range, TextDocument } from 'vscode-languageserver-textdocument'
 import { Features } from '../../types'
 
@@ -31,7 +31,7 @@ export class DocumentFqnExtractor {
     #nameMaxLength: number
     #maxSymbols: number
 
-    #workerPool: FqnWorkerPool
+    #workerPool: IFqnWorkerPool
 
     constructor(config?: DocumentFqnExtractorConfig) {
         const { nameMaxLength, nameMinLength, maxSymbols, timeout, logger } = config ?? {}

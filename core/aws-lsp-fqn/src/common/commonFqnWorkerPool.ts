@@ -1,7 +1,6 @@
 import { pool, Pool } from 'workerpool'
-import { DEFAULT_MAX_WORKERS, DEFAULT_TIMEOUT, FQN_WORKER_ID } from './defaults'
-import { IFqnWorkerPool } from './IFqnWorkerPool'
-import { ExtractorResult, FqnExtractorInput, Logger, WorkerPoolConfig } from './types'
+import { DEFAULT_MAX_QUEUE_SIZE, DEFAULT_MAX_WORKERS, DEFAULT_TIMEOUT, FQN_WORKER_ID } from './defaults'
+import { ExtractorResult, FqnExtractorInput, IFqnWorkerPool, Logger, WorkerPoolConfig } from './types'
 
 export class CommonFqnWorkerPool implements IFqnWorkerPool {
     #workerPool: Pool
@@ -13,6 +12,7 @@ export class CommonFqnWorkerPool implements IFqnWorkerPool {
         this.#logger = logger
         this.#workerPool = pool(filePath, {
             maxWorkers: DEFAULT_MAX_WORKERS,
+            maxQueueSize: DEFAULT_MAX_QUEUE_SIZE,
             ...workerPoolOptions,
         })
     }
