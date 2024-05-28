@@ -37,7 +37,7 @@ export class ChatController implements ChatHandlers {
         const { data: session } = sessionResult
 
         if (!session) {
-            this.#log('Session not found for tabId', params.tabId)
+            this.#log('Get session error', params.tabId)
             return new ResponseError<ChatResult>(
                 ErrorCodes.InvalidParams,
                 'error' in sessionResult ? sessionResult.error : 'Unknown error'
