@@ -2,7 +2,7 @@ import { ChatSessionManagementService } from './chat/chatSessionManagementServic
 import { ChatSessionServiceConfig } from './chat/chatSessionService'
 import { SecurityScanServerToken } from './codeWhispererSecurityScanServer'
 import { CodewhispererServerFactory } from './codeWhispererServer'
-import { CodeWhispererServiceToken } from './codeWhispererService'
+import { CodeWhispererServiceIAM, CodeWhispererServiceToken } from './codeWhispererService'
 import { QChatServer } from './qChatServer'
 
 export const CodeWhispererServerTokenProxy = CodewhispererServerFactory(credentialsProvider => {
@@ -19,6 +19,22 @@ export const CodeWhispererServerTokenProxy = CodewhispererServerFactory(credenti
         }
     }
     return new CodeWhispererServiceToken(credentialsProvider, additionalAwsConfig)
+})
+
+export const CodeWhispererServerIAMProxy = CodewhispererServerFactory(credentialsProvider => {
+    let additionalAwsConfig = {}
+    const proxyUrl = process.env.HTTPS_PROXY ?? process.env.https_proxy
+
+    if (proxyUrl) {
+        const { getProxyHttpAgent } = require('proxy-http-agent')
+        const proxyAgent = getProxyHttpAgent({
+            proxy: proxyUrl,
+        })
+        additionalAwsConfig = {
+            proxy: proxyAgent,
+        }
+    }
+    return new CodeWhispererServiceIAM(credentialsProvider, additionalAwsConfig)
 })
 
 export const CodeWhispererSecurityScanServerTokenProxy = SecurityScanServerToken(credentialsProvider => {
