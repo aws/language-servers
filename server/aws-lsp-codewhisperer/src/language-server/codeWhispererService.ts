@@ -43,20 +43,33 @@ import AWS = require('aws-sdk')
 // Right now the only difference between the token client and the IAM client for codewhsiperer is the difference in function name
 // This abstract class can grow in the future to account for any additional changes across the clients
 export abstract class CodeWhispererServiceBase {
+    protected readonly codeWhispererRegion = 'us-east-1'
+    protected readonly codeWhispererEndpoint = 'https://codewhisperer.us-east-1.amazonaws.com/'
     public shareCodeWhispererContentWithAWS = false
     abstract client: CodeWhispererSigv4Client | CodeWhispererTokenClient
 
     abstract generateSuggestions(request: GenerateSuggestionsRequest): Promise<GenerateSuggestionsResponse>
+
+    constructor(credentialsProvider: CredentialsProvider, additionalAwsConfig: AWSConfig = {}) {
+        this.updateAwsConfiguration(additionalAwsConfig)
+    }
+
+    updateAwsConfiguration = (awsConfig: AWSConfig) => {
+        if (awsConfig?.proxy) {
+            AWS.config.update({
+                httpOptions: { agent: awsConfig.proxy },
+            })
+        }
+    }
+
+    generateItemId = () => uuidv4()
 }
 
 export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
     client: CodeWhispererSigv4Client
-    private readonly codeWhispererRegion = 'us-east-1'
-    private readonly codeWhispererEndpoint = 'https://codewhisperer.us-east-1.amazonaws.com/'
 
-    constructor(credentialsProvider: CredentialsProvider, additionalAwsConfig: AWSConfig) {
-        super()
-        this.updateAwsConfiguration(additionalAwsConfig)
+    constructor(credentialsProvider: CredentialsProvider, additionalAwsConfig: AWSConfig = {}) {
+        super(credentialsProvider, additionalAwsConfig)
 
         const options: CodeWhispererTokenClientConfigurationOptions = {
             region: this.codeWhispererRegion,
@@ -95,26 +108,13 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
             responseContext,
         }
     }
-
-    updateAwsConfiguration = (awsConfig: AWSConfig) => {
-        if (awsConfig?.proxy) {
-            AWS.config.update({
-                httpOptions: { agent: awsConfig.proxy },
-            })
-        }
-    }
-
-    generateItemId = () => uuidv4()
 }
 
 export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     client: CodeWhispererTokenClient
-    private readonly codeWhispererRegion = 'us-east-1'
-    private readonly codeWhispererEndpoint = 'https://codewhisperer.us-east-1.amazonaws.com/'
 
-    constructor(credentialsProvider: CredentialsProvider, additionalAwsConfig: AWSConfig) {
-        super()
-        this.updateAwsConfiguration(additionalAwsConfig)
+    constructor(credentialsProvider: CredentialsProvider, additionalAwsConfig: AWSConfig = {}) {
+        super(credentialsProvider, additionalAwsConfig)
 
         const options: CodeWhispererTokenClientConfigurationOptions = {
             region: this.codeWhispererRegion,
@@ -240,14 +240,4 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     ): Promise<PromiseResult<CodeWhispererTokenClient.ListCodeAnalysisFindingsResponse, AWSError>> {
         return this.client.listCodeAnalysisFindings(request).promise()
     }
-
-    updateAwsConfiguration = (awsConfig: AWSConfig) => {
-        if (awsConfig?.proxy) {
-            AWS.config.update({
-                httpOptions: { agent: awsConfig.proxy },
-            })
-        }
-    }
-
-    generateItemId = () => uuidv4()
 }
