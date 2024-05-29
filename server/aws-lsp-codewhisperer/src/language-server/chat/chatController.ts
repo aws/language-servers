@@ -11,6 +11,7 @@ import {
     EndChatParams,
     ErrorCodes,
     QuickActionParams,
+    QuickActionResult,
     ResponseError,
     TabAddParams,
     TabRemoveParams,
@@ -139,8 +140,26 @@ export class ChatController implements ChatHandlers {
         this.#chatSessionManagementService.deleteSession(params.tabId)
     }
 
-    onQuickAction(_params: QuickActionParams, _cancellationToken: CancellationToken): never {
-        throw new Error('Not implemented')
+    async onQuickAction(params: QuickActionParams, token: CancellationToken): Promise<QuickActionResult> {
+        this.#log('Get new Quick Action command request', params.quickAction)
+
+        const result = (await this.onChatPrompt(
+            {
+                tabId: params.tabId,
+                prompt: {
+                    prompt: 'Hello Q. What can you do?',
+                },
+                cursorState: params.cursorState,
+                textDocument: params.textDocument,
+            },
+            token
+        )) as QuickActionResult
+
+        // const result = {
+        //     body: 'quick action response for' + params.quickAction
+        // }
+
+        return result
     }
 
     async #processAssistantResponse(

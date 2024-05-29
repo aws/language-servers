@@ -14,10 +14,17 @@ import {
     TabIdReceivedParams,
     UiMessage,
 } from '@aws/chat-client-ui-types'
-import { ChatParams, TabAddParams, TabChangeParams, TabRemoveParams } from '@aws/language-server-runtimes-types'
+import {
+    ChatParams,
+    QuickActionParams,
+    TabAddParams,
+    TabChangeParams,
+    TabRemoveParams,
+} from '@aws/language-server-runtimes-types'
 import {
     CHAT_PROMPT,
     NEW_TAB_CREATED,
+    QUICK_ACTION_COMMAND,
     ServerMessage,
     TAB_CHANGED,
     TAB_REMOVED,
@@ -71,6 +78,9 @@ export const createChat = (clientApi: { postMessage: (msg: UiMessage | ServerMes
     const chatApi: OutboundChatApi = {
         sendChatPrompt: (params: ChatParams) => {
             sendMessageToClient({ command: CHAT_PROMPT, params })
+        },
+        sendQuickActionCommand: (params: QuickActionParams) => {
+            sendMessageToClient({ command: QUICK_ACTION_COMMAND, params })
         },
         tabIdReceived: (params: TabIdReceivedParams) => {
             sendMessageToClient({ command: TAB_ID_RECEIVED, params })

@@ -1,6 +1,7 @@
 import {
     ChatResult,
     chatRequestType,
+    quickActionRequestType,
     tabAddNotificationType,
     tabRemoveNotificationType,
     telemetryNotificationType,
@@ -40,6 +41,33 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri) 
 
                 languageClient
                     .sendRequest(chatRequestType, Object.assign(message.params, { partialResultToken }))
+                    .then((chatResult: ChatResult) => {
+                        panel.webview.postMessage({
+                            command: 'aws/chat/sendChatPrompt',
+                            params: chatResult,
+                            tabId: message.params.tabId,
+                        })
+                    })
+                break
+            case quickActionRequestType.method:
+                const partialResultToken2 = uuidv4()
+
+                languageClient.onProgress(chatRequestType, partialResultToken2, partialResult => {
+                    if (partialResult.body) {
+                        panel.webview.postMessage({
+                            command: 'aws/chat/sendChatPrompt',
+                            params: partialResult,
+                            isPartialResult: true,
+                            tabId: message.params.tabId,
+                        })
+                    }
+                })
+
+                languageClient
+                    .sendRequest(
+                        quickActionRequestType,
+                        Object.assign(message.params, { partialResultToken: partialResultToken2 })
+                    )
                     .then((chatResult: ChatResult) => {
                         panel.webview.postMessage({
                             command: 'aws/chat/sendChatPrompt',

@@ -25,8 +25,16 @@ export interface InboundChatApi {
 
 export const createMynahUi = (messager: Messager, tabFactory: TabFactory): [MynahUI, InboundChatApi] => {
     const handleChatPrompt = (mynahUi: MynahUI, tabId: string, prompt: ChatPrompt, _eventId?: string) => {
-        // Send chat prompt to server
-        messager.onChatPrompt({ prompt, tabId })
+        if (prompt.command) {
+            messager.onQuickActionCommand({
+                quickAction: prompt.command,
+                prompt: prompt.prompt,
+                tabId,
+            })
+        } else {
+            // Send chat prompt to server
+            messager.onChatPrompt({ prompt, tabId })
+        }
 
         // Add user prompt to UI
         mynahUi.addChatItem(tabId, {

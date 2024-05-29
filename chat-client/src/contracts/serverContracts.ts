@@ -1,6 +1,7 @@
 import { ChatParams, TabAddParams, TabChangeParams, TabRemoveParams } from '@aws/language-server-runtimes-types'
 
 export const CHAT_PROMPT = 'aws/chat/sendChatPrompt'
+export const QUICK_ACTION_COMMAND = 'aws/chat/sendChatQuickAction'
 export const NEW_TAB_CREATED = 'aws/chat/tabAdd'
 export const TAB_CHANGED = 'aws/chat/tabChange'
 export const TAB_REMOVED = 'aws/chat/tabRemove'
@@ -10,6 +11,7 @@ export const TELEMETRY = 'telemetry/event'
 
 export type ServerMessageCommand =
     | typeof CHAT_PROMPT
+    | typeof QUICK_ACTION_COMMAND
     | typeof NEW_TAB_CREATED
     | typeof TAB_REMOVED
     | typeof TAB_CHANGED

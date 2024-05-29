@@ -21,6 +21,17 @@ export class TabFactory {
                       },
                   ]
                 : [],
+            quickActionCommands: [
+                {
+                    groupName: 'Demo Actions',
+                    commands: [
+                        {
+                            command: 'helloQCommand',
+                            description: 'Hi Q, tell me what can you do.',
+                        },
+                    ],
+                },
+            ],
         }
         return tabData
     }
