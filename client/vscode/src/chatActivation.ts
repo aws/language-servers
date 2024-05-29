@@ -1,8 +1,11 @@
 import {
+    ChatResult,
+    chatRequestType,
     tabAddNotificationType,
     tabRemoveNotificationType,
     telemetryNotificationType,
 } from '@aws/language-server-runtimes/protocol'
+import { v4 as uuidv4 } from 'uuid'
 import { Uri, ViewColumn, Webview, commands, window } from 'vscode'
 import { LanguageClient } from 'vscode-languageclient/node'
 
@@ -21,6 +24,30 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri) 
         languageClient.info(`vscode client: Received ${JSON.stringify(message)} from chat`)
 
         switch (message.command) {
+            case chatRequestType.method:
+                const partialResultToken = uuidv4()
+
+                languageClient.onProgress(chatRequestType, partialResultToken, partialResult => {
+                    if (partialResult.body) {
+                        panel.webview.postMessage({
+                            command: 'aws/chat/sendChatPrompt',
+                            params: partialResult,
+                            isPartialResult: true,
+                            tabId: message.params.tabId,
+                        })
+                    }
+                })
+
+                languageClient
+                    .sendRequest(chatRequestType, Object.assign(message.params, { partialResultToken }))
+                    .then((chatResult: ChatResult) => {
+                        panel.webview.postMessage({
+                            command: 'aws/chat/sendChatPrompt',
+                            params: chatResult,
+                            tabId: message.params.tabId,
+                        })
+                    })
+                break
             case tabAddNotificationType.method:
                 languageClient.sendNotification(tabAddNotificationType, message.params)
                 break

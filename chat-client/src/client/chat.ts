@@ -14,7 +14,7 @@ import {
     TabIdReceivedParams,
     UiMessage,
 } from '@aws/chat-client-ui-types'
-import { TabAddParams, TabChangeParams, TabRemoveParams } from '@aws/language-server-runtimes-types'
+import { ChatParams, TabAddParams, TabChangeParams, TabRemoveParams } from '@aws/language-server-runtimes-types'
 import {
     CHAT_PROMPT,
     NEW_TAB_CREATED,
@@ -46,6 +46,7 @@ export const createChat = (clientApi: { postMessage: (msg: UiMessage | ServerMes
 
         switch (message?.command) {
             case CHAT_PROMPT:
+                mynahApi.addChatResponse(message.params, message.tabId, message.isPartialResult)
                 break
             case SEND_TO_PROMPT:
                 mynahApi.sendToPrompt((message as SendToPromptMessage).params)
@@ -68,6 +69,9 @@ export const createChat = (clientApi: { postMessage: (msg: UiMessage | ServerMes
     }
 
     const chatApi: OutboundChatApi = {
+        sendChatPrompt: (params: ChatParams) => {
+            sendMessageToClient({ command: CHAT_PROMPT, params })
+        },
         tabIdReceived: (params: TabIdReceivedParams) => {
             sendMessageToClient({ command: TAB_ID_RECEIVED, params })
         },

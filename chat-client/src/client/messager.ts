@@ -10,11 +10,12 @@ import {
     SendToPromptParams,
     TabIdReceivedParams,
 } from '@aws/chat-client-ui-types'
-import { TabAddParams, TabChangeParams, TabRemoveParams } from '@aws/language-server-runtimes-types'
+import { ChatParams, TabAddParams, TabChangeParams, TabRemoveParams } from '@aws/language-server-runtimes-types'
 import { TelemetryParams } from '../contracts/serverContracts'
 import { CopyCodeToClipboardParams, VoteParams } from '../contracts/telemetry'
 
 export interface OutboundChatApi {
+    sendChatPrompt(params: ChatParams): void
     tabAdded(params: TabAddParams): void
     tabChanged(params: TabChangeParams): void
     tabRemoved(params: TabRemoveParams): void
@@ -49,6 +50,10 @@ export class Messager {
             eventId: params.eventId,
             tabId: tabId,
         })
+    }
+
+    onChatPrompt = (params: ChatParams): void => {
+        this.chatApi.sendChatPrompt(params)
     }
 
     onInsertToCursorPosition = (params: InsertToCursorPositionParams): void => {

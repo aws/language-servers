@@ -95,7 +95,6 @@ export class ChatController implements ChatHandlers {
 
         try {
             const result = await this.#processAssistantResponse(response, params.partialResultToken)
-
             return result.success
                 ? result.data
                 : new ResponseError<ChatResult>(ErrorCodes.InternalError, result.error, result.data)

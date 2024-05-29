@@ -1,4 +1,4 @@
-import { TabAddParams, TabChangeParams, TabRemoveParams } from '@aws/language-server-runtimes-types'
+import { ChatParams, TabAddParams, TabChangeParams, TabRemoveParams } from '@aws/language-server-runtimes-types'
 
 export const CHAT_PROMPT = 'aws/chat/sendChatPrompt'
 export const NEW_TAB_CREATED = 'aws/chat/tabAdd'
@@ -26,4 +26,4 @@ export interface ServerMessage extends Message {
 
 export type TelemetryParams = any
 
-export type ServerMessageParams = TabAddParams | TabChangeParams | TabRemoveParams | TelemetryParams
+export type ServerMessageParams = TabAddParams | TabChangeParams | TabRemoveParams | TelemetryParams | ChatParams
