@@ -1,4 +1,4 @@
-const execSync = require('child_process').execSync
+const execFileSync = require('child_process').execFileSync
 const fs = require('node:fs')
 
 const pathToYamlPackage = require.resolve('yaml-language-server')
@@ -35,9 +35,13 @@ const filePathToPatchPathUnsafeEval = {
 function applyPatch(filePathToPatchPath) {
     for (var filePath in filePathToPatchPath) {
         const pathToPatch = `${__dirname}/${filePathToPatchPath[filePath]}`
-        const script = `cd ${rootPackage} && patch ${filePath} ${pathToPatch}`
-        console.log(script)
-        const output = execSync(script, { encoding: 'utf-8', timeout: 2000 })
+        const patchProc = execFileSync('patch', [filePath, pathToPatch], { cwd: rootPackage, encoding: 'utf-8', timeout: 2000 })
+
+        console.log({
+            cmd: patchProc.spawnfile,
+            args: patchProc.spawnargs,
+            cwd: rootPackage,
+        });
     }
 }
 
