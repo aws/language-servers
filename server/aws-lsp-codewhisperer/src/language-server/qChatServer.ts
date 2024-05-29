@@ -34,6 +34,6 @@ export const QChatServer =
         logging.log('Q Chat server has been initialized')
 
         return () => {
-            chatSessionManagementService.dispose()
+            chatController.dispose()
         }
     }

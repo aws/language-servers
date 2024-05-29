@@ -1,7 +1,9 @@
 import { EditorState } from '@amzn/codewhisperer-streaming'
 import * as assert from 'assert'
+import sinon from 'ts-sinon'
 import { TextDocument } from 'vscode-languageserver-textdocument'
 import { DocumentContextExtractor } from './documentContext'
+import { DocumentFqnExtractor } from './documentFqnExtractor'
 
 describe('DocumentContext', () => {
     const mockTypescriptCodeBlock = `function test() {
@@ -9,9 +11,17 @@ describe('DocumentContext', () => {
 }`
     const mockTSDocument = TextDocument.create('file://test.ts', 'typescript', 1, mockTypescriptCodeBlock)
 
+    beforeEach(() => {
+        sinon.stub(DocumentFqnExtractor.prototype, 'extractDocumentSymbols').resolves([])
+    })
+
+    afterEach(() => {
+        sinon.restore()
+    })
+
     describe('documentContextExtractor.extractEditorState', () => {
         it('extracts editor state for range selection', async () => {
-            const documentContextExtractor = new DocumentContextExtractor(19)
+            const documentContextExtractor = new DocumentContextExtractor({ characterLimits: 19 })
             const expected: EditorState = {
                 document: {
                     programmingLanguage: { languageName: 'typescript' },
@@ -51,7 +61,7 @@ describe('DocumentContext', () => {
         })
 
         it('extracts editor state for collapsed position', async () => {
-            const documentContextExtractor = new DocumentContextExtractor(19)
+            const documentContextExtractor = new DocumentContextExtractor({ characterLimits: 19 })
             const expected: EditorState = {
                 document: {
                     programmingLanguage: { languageName: 'typescript' },
@@ -91,7 +101,7 @@ describe('DocumentContext', () => {
         })
 
         it('returns undefined cursorState if the end position was collapsed', async () => {
-            const documentContextExtractor = new DocumentContextExtractor(0)
+            const documentContextExtractor = new DocumentContextExtractor({ characterLimits: 0 })
 
             const expected: EditorState = {
                 document: {

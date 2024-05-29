@@ -1,6 +1,6 @@
 {
     "name": "@aws/lsp-codewhisperer",
-    "version": "0.0.5",
+    "version": "0.0.6",
     "description": "CodeWhisperer Language Server",
     "main": "out/index.js",
     "repository": {
@@ -28,8 +28,8 @@
     },
     "dependencies": {
         "@amzn/codewhisperer-streaming": "file:./src.gen/@amzn/codewhisperer-streaming",
-        "@aws/language-server-runtimes": "^0.2.5",
-        "@aws/language-server-runtimes-types": "^0.0.2",
+        "@aws/language-server-runtimes": "0.x.x",
+        "@aws/lsp-fqn": "^0.0.1",
         "@smithy/node-http-handler": "^2.5.0",
         "hpagent": "^1.2.0",
         "adm-zip": "^0.5.10",

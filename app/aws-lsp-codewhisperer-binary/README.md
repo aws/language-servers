@@ -7,12 +7,20 @@ To create bundle run:
 npm run bundle
 ```
 
-This command will compile package and produce bundled Javascript program at `./out/aws-lsp-codewhisperer-binary.js` path.
+This command will compile package and produce 2 bundled Javascript programs in `./out/` directory: 
+- `./out/iam-standalone.js` - Amazon Q server using IAM Credentials provider
+- `./out/token-standalone.js` - Amazon Q server using Bearer Token SSO Credentials provider
 
-To test server you can use sample IDEs client in [`./client`](../../client) subpackages. In VSCode, you can use "Run and Debug" functionality with [sample client extension](../../CONTRIBUTING.md#with-minimal-vscode-client) and update `launch.json` configuration to point to [compiled bundle file](../../.vscode/launch.json#L60). Change value for `LSP_SERVER` valiable from `${workspaceFolder}/app/aws-lsp-codewhisperer-binary/out/index.js` to `${workspaceFolder}/app/aws-lsp-codewhisperer-binary/out/aws-lsp-codewhisperer-binary.js`.
+To test server you can use sample IDEs client in [`./client`](../../client) subpackages. In VSCode, you can use "Run and Debug" functionality with [sample client extension](../../CONTRIBUTING.md#with-minimal-vscode-client) and update `launch.json` configuration to point to [compiled bundle file](../../.vscode/launch.json#L60). Change value for `LSP_SERVER` valiable from `${workspaceFolder}/app/aws-lsp-codewhisperer-binary/out/index.js` to `${workspaceFolder}/app/aws-lsp-codewhisperer-binary/out/token-standalone.js`.
 
 To verify compiled bundle can run, you can start it in your shell with NodeJS:
 
 ```bash
-node ./out/aws-lsp-codewhisperer-binary.js --stdio
+node ./out/token-standalone.js --stdio
+```
+
+or
+
+```bash
+node ./out/iam-standalone.js --stdio
 ```

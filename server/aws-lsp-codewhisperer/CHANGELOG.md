@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.0.6] - 2024-05-23
+- Send telemetry for vote, copyCodeToClipboard and authFollowUpClicked events
+- Rename CodeWhisperer to Amazon Q
+
 ## [0.0.5] - 2024-05-15
 - Create Chat server export it for consumption
 - Fix duplicate hover message in security scan

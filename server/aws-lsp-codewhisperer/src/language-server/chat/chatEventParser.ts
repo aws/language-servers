@@ -8,6 +8,8 @@ import {
 import { Result } from '../types'
 
 export class ChatEventParser implements ChatResult {
+    static readonly FOLLOW_UP_TEXT = 'Suggested follow up questions:'
+
     error?: string
     messageId?: string
     body?: string
@@ -15,6 +17,13 @@ export class ChatEventParser implements ChatResult {
     relatedContent?: { title?: string; content: SourceLink[] }
     followUp?: { text?: string; options?: ChatItemAction[] }
     codeReference?: ReferenceTrackerInformation[]
+
+    totalEvents = {
+        followupPromptEvent: 0,
+        supplementaryWebLinksEvent: 0,
+        codeReferenceEvent: 0,
+        assistantResponseEvent: 0,
+    }
 
     static getReferencedInformation(reference: Reference): string {
         return `Reference code under **${reference.licenseName}** license from repository \`${reference.repository}\``
@@ -27,6 +36,7 @@ export class ChatEventParser implements ChatResult {
             body: snippet,
         }
     }
+
     static mapReferenceData(reference: Reference): ReferenceTrackerInformation {
         return {
             ...reference,
@@ -53,12 +63,14 @@ export class ChatEventParser implements ChatResult {
         } else if (invalidStateEvent) {
             this.error = invalidStateEvent.message ?? invalidStateEvent.reason ?? 'Invalid state'
         } else if (assistantResponseEvent?.content) {
+            this.totalEvents.assistantResponseEvent += 1
             this.body = (this.body ?? '') + assistantResponseEvent.content
         } else if (followupPromptEvent?.followupPrompt) {
+            this.totalEvents.followupPromptEvent += 1
             const { content } = followupPromptEvent.followupPrompt
 
             this.followUp = {
-                ...this.followUp,
+                text: ChatEventParser.FOLLOW_UP_TEXT,
                 options: [
                     ...(this.followUp?.options ?? []),
                     {
@@ -71,6 +83,7 @@ export class ChatEventParser implements ChatResult {
             supplementaryWebLinksEvent?.supplementaryWebLinks &&
             supplementaryWebLinksEvent.supplementaryWebLinks.length > 0
         ) {
+            this.totalEvents.supplementaryWebLinksEvent += 1
             const sourceLinks = supplementaryWebLinksEvent.supplementaryWebLinks.map(ChatEventParser.mapRelatedData)
 
             this.relatedContent = {
@@ -78,6 +91,7 @@ export class ChatEventParser implements ChatResult {
                 content: [...(this.relatedContent?.content ?? []), ...sourceLinks],
             }
         } else if (codeReferenceEvent?.references && codeReferenceEvent.references.length > 0) {
+            this.totalEvents.codeReferenceEvent += 1
             const references = codeReferenceEvent.references.map(ChatEventParser.mapReferenceData)
             this.codeReference = [...(this.codeReference ?? []), ...references]
         }

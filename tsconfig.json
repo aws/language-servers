@@ -22,10 +22,10 @@
             "path": "./core/aws-lsp-core"
         },
         {
-            "path": "./core/aws-lsp-json-common"
+            "path": "./server/aws-lsp-yaml-json"
         },
         {
-            "path": "./core/aws-lsp-yaml-common"
+            "path": "./core/aws-lsp-fqn"
         },
         {
             "path": "./server/aws-lsp-buildspec"
@@ -44,6 +44,9 @@
         },
         {
             "path": "./server/aws-lsp-yaml-json"
+        },
+        {
+            "path": "./server/aws-lsp-partiql"
         },
         {
             "path": "./app/aws-lsp-buildspec-binary"
@@ -65,6 +68,9 @@
         },
         {
             "path": "./app/aws-lsp-yaml-json-webworker"
+        },
+        {
+            "path": "./app/aws-lsp-partiql-binary"
         }
     ]
 }

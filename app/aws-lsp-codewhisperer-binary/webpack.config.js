@@ -24,12 +24,20 @@ const baseConfig = {
     },
 }
 
-const nodeJsBundleConfig = {
+const nodeJsBearerTokenBundleConfig = {
     ...baseConfig,
     entry: {
-        'aws-lsp-codewhisperer-binary': path.join(__dirname, 'src/index.ts'),
+        'aws-lsp-codewhisperer-token-binary': path.join(__dirname, 'src/token-standalone.ts'),
     },
     target: 'node',
 }
 
-module.exports = [nodeJsBundleConfig]
+const nodeJsIamBundleConfig = {
+    ...baseConfig,
+    entry: {
+        'aws-lsp-codewhisperer-iam-binary': path.join(__dirname, 'src/iam-standalone.ts'),
+    },
+    target: 'node',
+}
+
+module.exports = [nodeJsBearerTokenBundleConfig, nodeJsIamBundleConfig]

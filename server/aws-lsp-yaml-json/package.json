@@ -5,15 +5,15 @@
     "main": "out/index.js",
     "scripts": {
         "compile": "tsc --build",
-        "test": "ts-mocha -b 'src/**/*.test.ts'"
+        "test": "ts-mocha -b 'src/**/*.test.ts'",
+        "postinstall": "node patchYamlJsonPackage.js"
     },
     "dependencies": {
         "@aws/language-server-runtimes": "^0.2.5",
         "@aws/lsp-core": "^0.0.1",
-        "@aws/lsp-json-common": "^0.0.1",
-        "@aws/lsp-yaml-common": "^0.0.1",
         "vscode-languageserver": "^9.0.1",
-        "vscode-languageserver-textdocument": "^1.0.8"
+        "vscode-languageserver-textdocument": "^1.0.8",
+        "yaml-language-server": "1.13.0"
     },
     "prettier": {
         "printWidth": 120,

@@ -110,34 +110,29 @@ describe('ChatController', () => {
 
         sinon.assert.calledOnce(disposeStub)
 
-        const sessionResult = chatSessionManagementService.getSession(mockTabId)
+        const hasSession = chatSessionManagementService.hasSession(mockTabId)
 
-        sinon.assert.match(sessionResult, {
-            success: false,
-            error: sinon.match.string,
-        })
+        assert.ok(!hasSession)
     })
 
-    it('deletes a session by tab id a end chat request is received', () => {
+    it('deletes a session by tab id an end chat request is received', () => {
         chatController.onTabAdd({ tabId: mockTabId })
 
         chatController.onEndChat({ tabId: mockTabId }, mockCancellationToken)
 
         sinon.assert.calledOnce(disposeStub)
 
-        const sessionResult = chatSessionManagementService.getSession(mockTabId)
+        const hasSession = chatSessionManagementService.hasSession(mockTabId)
 
-        sinon.assert.match(sessionResult, {
-            success: false,
-            error: sinon.match.string,
-        })
+        assert.ok(!hasSession)
     })
 
     describe('onChatPrompt', () => {
         beforeEach(() => {
             chatController.onTabAdd({ tabId: mockTabId })
         })
-        it('throw error if session is not found', async () => {
+        it("throws error if credentials provider doesn't exist", async () => {
+            ChatSessionManagementService.getInstance().withCredentialsProvider(undefined as any)
             const result = await chatController.onChatPrompt(
                 { tabId: 'XXXX', prompt: { prompt: 'Hello' } },
                 mockCancellationToken

@@ -42,25 +42,19 @@ describe('ChatSessionManagementService', () => {
             disposeStub.restore()
         })
 
-        it('getSession should return an existing client if found', () => {
+        it('getSession should create a client if not found and returns existing client if found', () => {
             assert.ok(!chatSessionManagementService.hasSession(mockSessionId))
 
-            sinon.assert.match(chatSessionManagementService.getSession(mockSessionId), {
-                success: false,
-                error: sinon.match.string,
-            })
+            const result = chatSessionManagementService.getSession(mockSessionId)
 
-            const chatClientData = chatSessionManagementService.createSession(mockSessionId)
-
-            sinon.assert.match(chatClientData, {
+            sinon.assert.match(result, {
                 success: true,
                 data: sinon.match.instanceOf(ChatSessionService),
             })
 
             assert.ok(chatSessionManagementService.hasSession(mockSessionId))
 
-            // asserting object reference
-            assert.strictEqual(chatSessionManagementService.getSession(mockSessionId).data, chatClientData.data)
+            assert.strictEqual(chatSessionManagementService.getSession(mockSessionId).data, result.data)
         })
 
         it('creating a session with an existing id should return an error', () => {
