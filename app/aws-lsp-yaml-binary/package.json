@@ -1,0 +1,30 @@
+{
+    "name": "@aws/lsp-yaml-binary",
+    "version": "0.0.1",
+    "description": "YAML Language Server Binary",
+    "main": "out/index.js",
+    "bin": {
+        "aws-lsp-yaml-binary": "./out/index.js"
+    },
+    "scripts": {
+        "compile": "tsc --build",
+        "package-x64": "pkg --targets node18-linux-x64,node18-win-x64,node18-macos-x64 --out-path bin --compress GZip .",
+        "test": "npm run test-integ",
+        "test-integ": "npm run package-x64 && mocha --timeout 5000 './out/**/*Integ.test.js' --retries 2"
+    },
+    "dependencies": {
+        "@aws/aws-lsp-yaml": "*",
+        "@aws/language-server-runtimes": "^0.2.5",
+        "yaml-language-server": "1.13.0"
+    },
+    "devDependencies": {
+        "@types/chai": "^4.3.5",
+        "@types/chai-as-promised": "^7.1.5",
+        "@types/mocha": "^10.0.1",
+        "chai": "^4.3.7",
+        "chai-as-promised": "^7.1.1",
+        "mocha": "^10.2.0",
+        "pkg": "^5.8.1",
+        "ts-lsp-client": "^1.0.3"
+    }
+}

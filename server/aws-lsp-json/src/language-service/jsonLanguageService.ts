@@ -1,4 +1,4 @@
-import { AwsLanguageService, UriResolver } from '@aws/lsp-core/out/base'
+import { AwsLanguageService, MutuallyExclusiveLanguageService, UriResolver } from '@aws/lsp-core/out/base'
 import { JSONDocument, LanguageService, getLanguageService } from 'vscode-json-languageservice'
 import { CompletionList, Diagnostic, FormattingOptions, Hover, Range } from 'vscode-languageserver'
 import { Position, TextDocument, TextEdit } from 'vscode-languageserver-textdocument'
@@ -64,4 +64,10 @@ export class JsonLanguageService implements AwsLanguageService {
 
         return jsonDocument
     }
+}
+
+export function create(props: JsonLanguageServiceProps): AwsLanguageService {
+    const jsonService = new JsonLanguageService(props)
+
+    return new MutuallyExclusiveLanguageService([jsonService])
 }

@@ -1,4 +1,4 @@
-import { AwsLanguageService, UriResolver } from '@aws/lsp-core/out'
+import { AwsLanguageService, MutuallyExclusiveLanguageService, UriResolver } from '@aws/lsp-core/out/base'
 import { CompletionList, Diagnostic, Hover, Position, Range, TextEdit } from 'vscode-languageserver'
 import { TextDocument } from 'vscode-languageserver-textdocument'
 import { LanguageService, getLanguageService } from 'yaml-language-server'
@@ -74,4 +74,10 @@ export class YamlLanguageService implements AwsLanguageService {
             ],
         })
     }
+}
+
+export function create(props: YamlLanguageServiceProps): AwsLanguageService {
+    const jsonService = new YamlLanguageService(props)
+
+    return new MutuallyExclusiveLanguageService([jsonService])
 }

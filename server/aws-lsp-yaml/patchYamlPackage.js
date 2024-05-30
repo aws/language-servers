@@ -35,13 +35,17 @@ const filePathToPatchPathUnsafeEval = {
 function applyPatch(filePathToPatchPath) {
     for (var filePath in filePathToPatchPath) {
         const pathToPatch = `${__dirname}/${filePathToPatchPath[filePath]}`
-        const patchProc = execFileSync('patch', [filePath, pathToPatch], { cwd: rootPackage, encoding: 'utf-8', timeout: 2000 })
+        const patchProc = execFileSync('patch', [filePath, pathToPatch], {
+            cwd: rootPackage,
+            encoding: 'utf-8',
+            timeout: 2000,
+        })
 
         console.log({
             cmd: patchProc.spawnfile,
             args: patchProc.spawnargs,
             cwd: rootPackage,
-        });
+        })
     }
 }
 

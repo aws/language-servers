@@ -14,10 +14,9 @@ import {
     JSON_FORMAT_FILE,
     JSON_FORMAT_RANGE,
 } from './testUtils'
-import { YamlJsonServerFactory } from './yamlJsonServer'
-export { YamlJsonServerFactory } from './yamlJsonServer'
+import { JsonServerFactory } from './jsonServer'
 
-describe('YamlJson Server', () => {
+describe('Json Server', () => {
     let features: TestFeatures
     let server: Server
 
@@ -27,7 +26,7 @@ describe('YamlJson Server', () => {
     beforeEach(async () => {
         service = stubInterface<AwsLanguageService>()
 
-        server = YamlJsonServerFactory(service)
+        server = JsonServerFactory(service)
 
         // Initialize the features, but don't start server yet
         features = new TestFeatures()

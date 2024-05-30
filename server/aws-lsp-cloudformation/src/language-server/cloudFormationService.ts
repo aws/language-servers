@@ -1,6 +1,6 @@
 import { AwsLanguageService, MutuallyExclusiveLanguageService, UriResolver } from '@aws/lsp-core'
-import { JsonLanguageService } from '@aws/aws-lsp-yaml-json'
-import { YamlLanguageService } from '@aws/aws-lsp-yaml-json'
+import { JsonLanguageService } from '@aws/aws-lsp-json'
+import { YamlLanguageService } from '@aws/aws-lsp-yaml'
 
 export type CloudFormationServiceProps = {
     displayName: string

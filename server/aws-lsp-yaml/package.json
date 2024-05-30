@@ -1,12 +1,11 @@
 {
-    "name": "@aws/aws-lsp-yaml-json",
+    "name": "@aws/aws-lsp-yaml",
     "version": "0.0.1",
-    "description": "CodeBuild Language Server for YAML and JSON templates",
+    "description": "CodeBuild Language Server for YAML template",
     "main": "out/index.js",
     "scripts": {
         "compile": "tsc --build",
-        "test": "ts-mocha -b 'src/**/*.test.ts'",
-        "postinstall": "node patchYamlJsonPackage.js"
+        "postinstall": "node patchYamlPackage.js"
     },
     "dependencies": {
         "@aws/language-server-runtimes": "^0.2.5",
