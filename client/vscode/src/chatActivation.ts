@@ -1,6 +1,12 @@
+import { isValidAuthFollowUpType } from '@aws/chat-client-ui-types'
 import {
     ChatResult,
     chatRequestType,
+    feedbackNotificationType,
+    followUpClickNotificationType,
+    infoLinkClickNotificationType,
+    linkClickNotificationType,
+    sourceLinkClickNotificationType,
     tabAddNotificationType,
     tabRemoveNotificationType,
     telemetryNotificationType,
@@ -47,6 +53,22 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri) 
                             tabId: message.params.tabId,
                         })
                     })
+                break
+            case feedbackNotificationType.method:
+                languageClient.sendNotification(feedbackNotificationType, message.params)
+                break
+            case followUpClickNotificationType.method:
+                if (!isValidAuthFollowUpType(message.params.followUp.type))
+                    languageClient.sendNotification(followUpClickNotificationType, message.params)
+                break
+            case linkClickNotificationType.method:
+                languageClient.sendNotification(linkClickNotificationType, message.params)
+                break
+            case sourceLinkClickNotificationType.method:
+                languageClient.sendNotification(sourceLinkClickNotificationType, message.params)
+                break
+            case infoLinkClickNotificationType.method:
+                languageClient.sendNotification(infoLinkClickNotificationType, message.params)
                 break
             case tabAddNotificationType.method:
                 languageClient.sendNotification(tabAddNotificationType, message.params)

@@ -10,7 +10,17 @@ import {
     SendToPromptParams,
     TabIdReceivedParams,
 } from '@aws/chat-client-ui-types'
-import { ChatParams, TabAddParams, TabChangeParams, TabRemoveParams } from '@aws/language-server-runtimes-types'
+import {
+    ChatParams,
+    FeedbackParams,
+    FollowUpClickParams,
+    InfoLinkClickParams,
+    LinkClickParams,
+    SourceLinkClickParams,
+    TabAddParams,
+    TabChangeParams,
+    TabRemoveParams,
+} from '@aws/language-server-runtimes-types'
 import { TelemetryParams } from '../contracts/serverContracts'
 import { CopyCodeToClipboardParams, VoteParams } from '../contracts/telemetry'
 
@@ -23,6 +33,11 @@ export interface OutboundChatApi {
     telemetry(params: TelemetryParams): void
     insertToCursorPosition(params: InsertToCursorPositionParams): void
     authFollowUpClicked(params: AuthFollowUpClickedParams): void
+    followUpClicked(params: FollowUpClickParams): void
+    sendFeedback(params: FeedbackParams): void
+    linkClick(params: LinkClickParams): void
+    sourceLinkClick(params: SourceLinkClickParams): void
+    infoLinkClick(params: InfoLinkClickParams): void
     uiReady(): void
 }
 
@@ -65,12 +80,32 @@ export class Messager {
         this.chatApi.telemetry(params)
     }
 
+    onFollowUpClicked = (params: FollowUpClickParams): void => {
+        this.chatApi.followUpClicked(params)
+    }
+
     onCopyCodeToClipboard = (params: CopyCodeToClipboardParams): void => {
         this.chatApi.telemetry(params)
     }
 
     onVote = (params: VoteParams): void => {
         this.chatApi.telemetry(params)
+    }
+
+    onSendFeedback = (params: FeedbackParams): void => {
+        this.chatApi.sendFeedback(params)
+    }
+
+    onLinkClick = (params: LinkClickParams): void => {
+        this.chatApi.linkClick(params)
+    }
+
+    onSourceLinkClick = (params: SourceLinkClickParams): void => {
+        this.chatApi.sourceLinkClick(params)
+    }
+
+    onInfoLinkClick = (params: InfoLinkClickParams): void => {
+        this.chatApi.infoLinkClick(params)
     }
 
     onError = (params: ErrorParams): void => {

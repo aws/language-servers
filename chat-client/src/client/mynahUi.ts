@@ -10,7 +10,14 @@ import {
     SendToPromptParams,
     isValidAuthFollowUpType,
 } from '@aws/chat-client-ui-types'
-import { ChatResult } from '@aws/language-server-runtimes-types'
+import {
+    ChatResult,
+    FeedbackParams,
+    FollowUpClickParams,
+    InfoLinkClickParams,
+    LinkClickParams,
+    SourceLinkClickParams,
+} from '@aws/language-server-runtimes-types'
 import { ChatItem, ChatItemType, ChatPrompt, MynahUI, NotificationType } from '@aws/mynah-ui'
 import { CopyCodeToClipboardParams, VoteParams } from '../contracts/telemetry'
 import { Messager } from './messager'
@@ -81,9 +88,14 @@ export const createMynahUi = (messager: Messager, tabFactory: TabFactory): [Myna
             } else {
                 const prompt = followUp.prompt ? followUp.prompt : followUp.pillText
                 handleChatPrompt(mynahUi, tabId, { prompt: prompt, escapedPrompt: prompt }, eventId)
-            }
 
-            // TODO, Use messager to send followUpClicked notification to server
+                const payload: FollowUpClickParams = {
+                    tabId,
+                    messageId,
+                    followUp,
+                }
+                messager.onFollowUpClicked(payload)
+            }
         },
         onChatPrompt(tabId, prompt, eventId) {
             handleChatPrompt(mynahUi, tabId, prompt, eventId)
@@ -130,6 +142,58 @@ export const createMynahUi = (messager: Messager, tabFactory: TabFactory): [Myna
                 eventId,
             }
             messager.onVote(payload)
+        },
+        onSendFeedback: (tabId, feedbackPayload, eventId) => {
+            const payload: FeedbackParams = {
+                tabId,
+                feedbackPayload,
+                eventId,
+            }
+            messager.onSendFeedback(payload)
+
+            mynahUi.notify({
+                type: NotificationType.INFO,
+                title: 'Your feedback is sent',
+                content: 'Thanks for your feedback.',
+            })
+        },
+        onLinkClick: (tabId, messageId, link, mouseEvent, eventId) => {
+            mouseEvent?.preventDefault()
+            mouseEvent?.stopPropagation()
+            mouseEvent?.stopImmediatePropagation()
+
+            const payload: LinkClickParams = {
+                tabId,
+                messageId,
+                link,
+                eventId,
+            }
+            messager.onLinkClick(payload)
+        },
+        onSourceLinkClick: (tabId, messageId, link, mouseEvent, eventId) => {
+            mouseEvent?.preventDefault()
+            mouseEvent?.stopPropagation()
+            mouseEvent?.stopImmediatePropagation()
+
+            const payload: SourceLinkClickParams = {
+                tabId,
+                messageId,
+                link,
+                eventId,
+            }
+            messager.onSourceLinkClick(payload)
+        },
+        onInfoLinkClick: (tabId, link, mouseEvent, eventId) => {
+            mouseEvent?.preventDefault()
+            mouseEvent?.stopPropagation()
+            mouseEvent?.stopImmediatePropagation()
+
+            const payload: InfoLinkClickParams = {
+                tabId,
+                link,
+                eventId,
+            }
+            messager.onInfoLinkClick(payload)
         },
         tabs: {
             'tab-1': {
