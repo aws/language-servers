@@ -22,7 +22,10 @@
             "path": "./core/aws-lsp-core"
         },
         {
-            "path": "./server/aws-lsp-yaml-json"
+            "path": "./server/aws-lsp-json"
+        },
+        {
+            "path": "./server/aws-lsp-yaml"
         },
         {
             "path": "./core/aws-lsp-fqn"
@@ -43,9 +46,6 @@
             "path": "./server/aws-lsp-s3"
         },
         {
-            "path": "./server/aws-lsp-yaml-json"
-        },
-        {
             "path": "./server/aws-lsp-partiql"
         },
         {
@@ -64,7 +64,10 @@
             "path": "./app/hello-world-lsp-runtimes"
         },
         {
-            "path": "./app/aws-lsp-yaml-json-binary"
+            "path": "./app/aws-lsp-json-binary"
+        },
+        {
+            "path": "./app/aws-lsp-yaml-binary"
         },
         {
             "path": "./app/aws-lsp-yaml-json-webworker"

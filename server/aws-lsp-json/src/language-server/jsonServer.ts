@@ -1,6 +1,6 @@
 import { Server } from '@aws/language-server-runtimes/server-interface'
 import { AwsLanguageService, textDocumentUtils } from '@aws/lsp-core/out/base'
-import { TextDocument, Range } from 'vscode-languageserver-textdocument'
+import { TextDocument } from 'vscode-languageserver-textdocument'
 import {
     Hover,
     HoverParams,
@@ -15,7 +15,7 @@ import {
     CompletionParams,
     DidChangeTextDocumentParams,
 } from '@aws/language-server-runtimes/server-interface'
-import { create } from '../language-service/yamlJsonService'
+import { create } from '../language-service/jsonLanguageService'
 
 /**
  * This is a demonstration language server that handles both JSON and YAML files according to the
@@ -25,7 +25,7 @@ import { create } from '../language-service/yamlJsonService'
  * In this case, the service is a composition of a JSON processor and a YAML processor.
  */
 
-export const YamlJsonServerFactory =
+export const JsonServerFactory =
     (service: AwsLanguageService): Server =>
     ({ credentialsProvider, lsp, workspace, telemetry, logging }) => {
         const onInitializeHandler = () => {
@@ -125,7 +125,7 @@ export const YamlJsonServerFactory =
         lsp.onDidFormatDocument(onFormatHandler)
         lsp.addInitializer(onInitializeHandler)
 
-        logging.log('The YAML JSON LSP Language Server has been initialised')
+        logging.log('The JSON LSP Language Server has been initialised')
 
         // disposable
         return () => {
@@ -140,15 +140,13 @@ async function getSchema(url: string) {
     return schema
 }
 
-export const CreateYamlJsonLanguageServer = (
-    displayName: string,
+export const CreateJsonLanguageServer = (
     defaultSchemaUri: string,
     allowComments: boolean = true,
     uriResolver: (url: string) => Promise<string> = getSchema
 ) =>
-    YamlJsonServerFactory(
+    JsonServerFactory(
         create({
-            displayName: displayName,
             defaultSchemaUri: defaultSchemaUri,
             allowComments: allowComments,
             uriResolver: uriResolver,

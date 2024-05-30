@@ -7,7 +7,7 @@ import {
     TextDocuments,
 } from 'vscode-languageserver'
 import { TextDocument } from 'vscode-languageserver-textdocument'
-import { JsonLanguageService } from '@aws/aws-lsp-yaml-json'
+import { JsonLanguageService } from '@aws/aws-lsp-json'
 
 export type JsonSchemaServerProps = {
     connection: Connection

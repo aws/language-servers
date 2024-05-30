@@ -21,11 +21,6 @@ const baseConfig = {
         },
     },
     plugins: [
-        // new webpack.optimize.LimitChunkCountPlugin({
-        //     maxChunks: 1, // disable chunks by default since web extensions must be a single bundle
-        // }),
-        // some modules are provided globally and dont require an explicit import,
-        // so we need to polyfill them using this method
         new webpack.ProvidePlugin({
             process: require.resolve('process/browser'),
         }),
@@ -53,7 +48,8 @@ const baseConfig = {
 const webConfig = {
     ...baseConfig,
     entry: {
-        yamlJsonWebWorkerRuntimeServer: path.join(__dirname, 'src/yamlJsonWebWorkerRuntimeServer.ts'),
+        jsonWebWorkerRuntimeServer: path.join(__dirname, 'src/jsonWebWorkerRuntimeServer.ts'),
+        yamlWebWorkerRuntimeServer: path.join(__dirname, 'src/yamlWebWorkerRuntimeServer.ts'),
     },
     target: 'webworker',
     devServer: {

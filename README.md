@@ -29,8 +29,10 @@ Monorepo
     └── aws-lsp-s3 - Example language server that provides S3 bucket names as completion items
                    - Shows a concept where credentials can be provided from an IDE extension
                      (See vscode and vs client readmes)
-    └── aws-lsp-yaml-json - Language Server that wraps a JSON Schema and provides support for JSON and YAML formats. 
-                            Includes reusable code related to YAML and JSON language service handling.
+    └── aws-lsp-json - Language Server that wraps a JSON Schema and provides support for JSON format. 
+                            Includes reusable code related to JSON language service handling.
+    └── aws-lsp-yaml - Language Server that wraps a JSON Schema and provides support for YAML format. 
+                            Includes reusable code related to YAML language service handling.
 ```
 
 ## How To Contribute
