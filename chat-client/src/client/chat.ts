@@ -14,10 +14,25 @@ import {
     TabIdReceivedParams,
     UiMessage,
 } from '@aws/chat-client-ui-types'
-import { ChatParams, TabAddParams, TabChangeParams, TabRemoveParams } from '@aws/language-server-runtimes-types'
+import {
+    ChatParams,
+    FeedbackParams,
+    FollowUpClickParams,
+    InfoLinkClickParams,
+    LinkClickParams,
+    SourceLinkClickParams,
+    TabAddParams,
+    TabChangeParams,
+    TabRemoveParams,
+} from '@aws/language-server-runtimes-types'
 import {
     CHAT_PROMPT,
+    FEEDBACK,
+    FOLLOW_UP_CLICKED,
+    INFO_LINK_CLICK,
+    LINK_CLICK,
     NEW_TAB_CREATED,
+    SOURCE_LINK_CLICK,
     ServerMessage,
     TAB_CHANGED,
     TAB_REMOVED,
@@ -92,6 +107,21 @@ export const createChat = (clientApi: { postMessage: (msg: UiMessage | ServerMes
         },
         authFollowUpClicked: (params: AuthFollowUpClickedParams) => {
             sendMessageToClient({ command: AUTH_FOLLOW_UP_CLICKED, params })
+        },
+        followUpClicked: (params: FollowUpClickParams) => {
+            sendMessageToClient({ command: FOLLOW_UP_CLICKED, params })
+        },
+        sendFeedback: (params: FeedbackParams) => {
+            sendMessageToClient({ command: FEEDBACK, params })
+        },
+        linkClick: (params: LinkClickParams) => {
+            sendMessageToClient({ command: LINK_CLICK, params })
+        },
+        sourceLinkClick: (params: SourceLinkClickParams) => {
+            sendMessageToClient({ command: SOURCE_LINK_CLICK, params })
+        },
+        infoLinkClick: (params: InfoLinkClickParams) => {
+            sendMessageToClient({ command: INFO_LINK_CLICK, params })
         },
         uiReady: () => {
             sendMessageToClient({
