@@ -62,10 +62,48 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri) 
 
     panel.webview.html = getWebviewContent(panel.webview, extensionUri)
 
-    commands.registerCommand('chat.sendCommandsFromUI', () => {
+    commands.registerCommand('aws.amazonq.explainCode', () => {
+        const selection = getSelectedText()
+
+        panel.webview.postMessage({
+            command: 'genericCommand',
+            params: { genericCommand: 'Explain', selection },
+        })
+    })
+
+    commands.registerCommand('aws.amazonq.refactorCode', () => {
+        const selection = getSelectedText()
+
+        panel.webview.postMessage({
+            command: 'genericCommand',
+            params: { genericCommand: 'Refactor', selection },
+        })
+    })
+
+    commands.registerCommand('aws.amazonq.fixCode', () => {
+        const selection = getSelectedText()
+
+        panel.webview.postMessage({
+            command: 'genericCommand',
+            params: { genericCommand: 'Fix', selection },
+        })
+    })
+
+    commands.registerCommand('aws.amazonq.optimizeCode', () => {
+        const selection = getSelectedText()
+
+        panel.webview.postMessage({
+            command: 'genericCommand',
+            params: { genericCommand: 'Optimize', selection },
+        })
+    })
+
+    commands.registerCommand('aws.amazonq.sendToPrompt', () => {
+        const selection = getSelectedText()
+
         panel.webview.postMessage({
             command: 'sendToPrompt',
-            params: { prompt: 'Hello from vscode!', triggerId: '1' },
+            params: { selection: selection },
         })
     })
 }
@@ -116,4 +154,15 @@ function generateJS(webView: Webview, extensionUri: Uri): string {
         }
     </script>
     `
+}
+
+function getSelectedText(): string {
+    const editor = window.activeTextEditor
+    if (editor) {
+        const selection = editor.selection
+        const selectedText = editor.document.getText(selection)
+        return selectedText
+    }
+
+    return ' '
 }

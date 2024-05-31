@@ -42,8 +42,65 @@
                 "title": "Hello World LSP - Log Command"
             },
             {
-                "command": "chat.sendCommandsFromUI",
-                "title": "Amazon Q Chat - Send test commands from UI"
+                "command": "aws.amazonq.explainCode",
+                "title": "Explain",
+                "category": "Amazon Q"
+            },
+            {
+                "command": "aws.amazonq.refactorCode",
+                "title": "Refactor",
+                "category": "Amazon Q"
+            },
+            {
+                "command": "aws.amazonq.fixCode",
+                "title": "Fix",
+                "category": "Amazon Q"
+            },
+            {
+                "command": "aws.amazonq.optimizeCode",
+                "title": "Optimize",
+                "category": "Amazon Q"
+            },
+            {
+                "command": "aws.amazonq.sendToPrompt",
+                "title": "Send to Prompt",
+                "category": "Amazon Q"
+            }
+        ],
+        "menus": {
+            "amazonqEditorContextSubmenu": [
+                {
+                    "command": "aws.amazonq.explainCode",
+                    "group": "cw_chat@1"
+                },
+                {
+                    "command": "aws.amazonq.refactorCode",
+                    "group": "cw_chat@2"
+                },
+                {
+                    "command": "aws.amazonq.fixCode",
+                    "group": "cw_chat@3"
+                },
+                {
+                    "command": "aws.amazonq.optimizeCode",
+                    "group": "cw_chat@4"
+                },
+                {
+                    "command": "aws.amazonq.sendToPrompt",
+                    "group": "cw_chat@5"
+                }
+            ],
+            "editor/context": [
+                {
+                    "submenu": "amazonqEditorContextSubmenu",
+                    "group": "cw_chat"
+                }
+            ]
+        },
+        "submenus": [
+            {
+                "label": "Send to Amazon Q",
+                "id": "amazonqEditorContextSubmenu"
             }
         ],
         "configuration": {

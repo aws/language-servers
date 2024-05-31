@@ -209,7 +209,9 @@ export const createMynahUi = (messager: Messager, tabFactory: TabFactory): [Myna
         const tabId = getOrCreateTabId()
         if (!tabId) return
 
-        mynahUi.addToUserPrompt(tabId, params.selection)
+        const markdownSelection = ['\n```\n', params.selection, '\n```'].join('')
+
+        mynahUi.addToUserPrompt(tabId, markdownSelection)
         messager.onSendToPrompt(params, tabId)
     }
 
@@ -224,11 +226,9 @@ export const createMynahUi = (messager: Messager, tabFactory: TabFactory): [Myna
             params.selection,
             '\n```',
         ].join('')
+        const chatPrompt: ChatPrompt = { prompt: body, escapedPrompt: body }
 
-        const chatItem: ChatItem = { body, type: ChatItemType.PROMPT }
-
-        mynahUi.addChatItem(tabId, chatItem)
-        // TODO, use messager to send the chatItem to server
+        handleChatPrompt(mynahUi, tabId, chatPrompt)
     }
 
     const showError = (params: ErrorParams) => {
