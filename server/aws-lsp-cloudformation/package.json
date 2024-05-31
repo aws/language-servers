@@ -7,8 +7,8 @@
         "compile": "tsc --build"
     },
     "dependencies": {
-        "@aws/lsp-core": "^0.0.1",
-        "@aws/aws-lsp-json": "^0.0.1",
+        "@aws/lsp-core": "*",
+        "@aws/aws-lsp-json": "*",
         "vscode-languageserver": "^9.0.1",
         "vscode-languageserver-textdocument": "^1.0.8"
     }

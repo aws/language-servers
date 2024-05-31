@@ -68,34 +68,6 @@ describe('Test YamlServer with CloudFormation schema', () => {
         client.exit()
     })
 
-    it('should return completion items for CloudFormation, YAML', async () => {
-        const docUri = 'completion.yml'
-        const emptyObject = ''
-        client.didOpen({
-            textDocument: {
-                uri: docUri,
-                text: emptyObject,
-                version: 1,
-                languageId: 'yaml',
-            },
-        })
-
-        const result = await endpoint.send('textDocument/completion', {
-            textDocument: {
-                uri: docUri,
-            },
-            position: {
-                line: 0,
-                character: 0,
-            },
-            context: {
-                triggerKind: 1,
-            },
-        })
-
-        expect(result).to.deep.equal(COMPLETIONS_EMPTY_OBJECT_YAML)
-    })
-
     it('should return hover item without header and footer, YAML', async () => {
         const docUri = 'hover.yml'
         client.didOpen({
@@ -158,5 +130,33 @@ describe('Test YamlServer with CloudFormation schema', () => {
         })
 
         expect(result).to.deep.equal(FORMAT_EDITS_YAML)
+    })
+
+    it('should return completion items for CloudFormation, YAML', async () => {
+        const docUri = 'completion.yml'
+        const emptyObject = ''
+        client.didOpen({
+            textDocument: {
+                uri: docUri,
+                text: emptyObject,
+                version: 1,
+                languageId: 'yaml',
+            },
+        })
+
+        const result = await endpoint.send('textDocument/completion', {
+            textDocument: {
+                uri: docUri,
+            },
+            position: {
+                line: 0,
+                character: 0,
+            },
+            context: {
+                triggerKind: 1,
+            },
+        })
+
+        expect(result).to.deep.equal(COMPLETIONS_EMPTY_OBJECT_YAML)
     })
 })
