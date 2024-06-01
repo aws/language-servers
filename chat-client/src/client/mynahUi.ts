@@ -30,6 +30,16 @@ export interface InboundChatApi {
     showError(params: ErrorParams): void
 }
 
+function createMarkdownCodeBlock(input: string) {
+    // Determine the number of backticks in the input
+    const backtickCount = (input.match(/`+/g) || []).map(ticks => ticks.length).sort((a, b) => b - a)[0] || 0
+
+    // Use a backtick delimiter that is 3 greater than the maximum found in the input
+    const delimiter = '`'.repeat(backtickCount + 3)
+
+    return `\n${delimiter}\n${input}\n${delimiter}\n`
+}
+
 export const createMynahUi = (messager: Messager, tabFactory: TabFactory): [MynahUI, InboundChatApi] => {
     const handleChatPrompt = (mynahUi: MynahUI, tabId: string, prompt: ChatPrompt, _eventId?: string) => {
         // Send chat prompt to server
@@ -273,7 +283,7 @@ export const createMynahUi = (messager: Messager, tabFactory: TabFactory): [Myna
         const tabId = getOrCreateTabId()
         if (!tabId) return
 
-        const markdownSelection = ['\n```\n', params.selection, '\n```'].join('')
+        const markdownSelection = createMarkdownCodeBlock(params.selection)
 
         mynahUi.addToUserPrompt(tabId, markdownSelection)
         messager.onSendToPrompt(params, tabId)
