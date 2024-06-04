@@ -2,6 +2,7 @@ import {
     ChatResult,
     chatRequestType,
     tabAddNotificationType,
+    tabChangeNotificationType,
     tabRemoveNotificationType,
     telemetryNotificationType,
 } from '@aws/language-server-runtimes/protocol'
@@ -53,6 +54,9 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri) 
                 break
             case tabRemoveNotificationType.method:
                 languageClient.sendNotification(tabRemoveNotificationType, message.params)
+                break
+            case tabChangeNotificationType.method:
+                languageClient.sendNotification(tabChangeNotificationType, message.params)
                 break
             case telemetryNotificationType.method:
                 languageClient.sendNotification(telemetryNotificationType, message.params)
