@@ -87,6 +87,7 @@ export class ChatController implements ChatHandlers {
             )
 
             response = await session.generateAssistantResponse(requestInput)
+            this.#log('Response to tab:', params.tabId, JSON.stringify(response.$metadata))
         } catch (err) {
             this.#log(`Q api request error ${err instanceof Error ? err.message : 'unknown'}`)
 
@@ -139,11 +140,6 @@ export class ChatController implements ChatHandlers {
     onTabAdd(params: TabAddParams) {
         this.#telemetryController.activeTabId = params.tabId
 
-        this.#telemetryController.emitConversationMetric({
-            name: ChatTelemetryEventName.EnterFocusConversation,
-            data: {},
-        })
-
         this.#chatSessionManagementService.createSession(params.tabId)
     }
 
@@ -160,7 +156,7 @@ export class ChatController implements ChatHandlers {
         if (this.#telemetryController.activeTabId === params.tabId) {
             this.#telemetryController.activeTabId = undefined
             this.#telemetryController.emitConversationMetric({
-                name: ChatTelemetryEventName.ExitFocusChat,
+                name: ChatTelemetryEventName.ExitFocusConversation,
                 data: {},
             })
         }
