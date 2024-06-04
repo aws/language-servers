@@ -8,7 +8,7 @@ import * as path from 'path'
 
 import { ExtensionContext, workspace } from 'vscode'
 
-import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind } from 'vscode-languageclient/node'
+import { LanguageClient, LanguageClientOptions, ServerOptions, State, TransportKind } from 'vscode-languageclient/node'
 import { registerChat } from './chatActivation'
 import {
     configureCredentialsCapabilities,
@@ -123,12 +123,31 @@ export async function activateDocumentsLanguageServer(extensionContext: Extensio
         await registerLogCommand(client, extensionContext)
     }
 
+    // Listen for Initialize handshake from LSP server to register quick actions dynamically
+    client.onDidChangeState(({ oldState, newState }) => {
+        if (oldState === State.Starting && newState === State.Running) {
+            console.log('Received initializeResult from server:', client.initializeResult)
+
+            // Activate chat
+            // const enableChat = process.env.ENABLE_CHAT === 'true'
+            // if (enableChat) {
+            //     registerChat(client, extensionContext.extensionUri)
+            // }
+
+            // panel.webview.postMessage({
+            //     command: 'updateConfig',
+            //     params: { config: { /* new config here */ } },
+            // })
+        }
+    })
+
+    await client.start()
+
+    // Activate chat server after LSP initialize handshake is done
     const enableChat = process.env.ENABLE_CHAT === 'true'
     if (enableChat) {
         registerChat(client, extensionContext.extensionUri)
     }
-
-    client.start()
 
     return client
 }

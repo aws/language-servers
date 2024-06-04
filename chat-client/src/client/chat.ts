@@ -20,11 +20,13 @@ import {
     FollowUpClickParams,
     InfoLinkClickParams,
     LinkClickParams,
+    QuickActionParams,
     SourceLinkClickParams,
     TabAddParams,
     TabChangeParams,
     TabRemoveParams,
 } from '@aws/language-server-runtimes-types'
+import { MynahUIDataModel } from '@aws/mynah-ui'
 import {
     CHAT_PROMPT,
     FEEDBACK,
@@ -32,6 +34,7 @@ import {
     INFO_LINK_CLICK,
     LINK_CLICK,
     NEW_TAB_CREATED,
+    QUICK_ACTION_COMMAND,
     SOURCE_LINK_CLICK,
     ServerMessage,
     TAB_CHANGED,
@@ -45,7 +48,19 @@ import { Messager, OutboundChatApi } from './messager'
 import { InboundChatApi, createMynahUi } from './mynahUi'
 import { TabFactory } from './tabs/tabFactory'
 
-export const createChat = (clientApi: { postMessage: (msg: UiMessage | ServerMessage) => void }) => {
+const DEFAULT_TAB_DATA = {
+    tabTitle: 'Chat',
+    promptInputInfo:
+        'Use of Amazon Q is subject to the [AWS Responsible AI Policy](https://aws.amazon.com/machine-learning/responsible-ai/policy/).',
+    promptInputPlaceholder: 'Ask a question or enter "/" for quick actions',
+}
+
+type chatClientConfig = Pick<MynahUIDataModel, 'quickActionCommands'>
+
+export const createChat = (
+    clientApi: { postMessage: (msg: UiMessage | ServerMessage) => void },
+    config?: chatClientConfig
+) => {
     // eslint-disable-next-line semi
     let mynahApi: InboundChatApi
 
@@ -86,6 +101,9 @@ export const createChat = (clientApi: { postMessage: (msg: UiMessage | ServerMes
     const chatApi: OutboundChatApi = {
         sendChatPrompt: (params: ChatParams) => {
             sendMessageToClient({ command: CHAT_PROMPT, params })
+        },
+        sendQuickActionCommand: (params: QuickActionParams) => {
+            sendMessageToClient({ command: QUICK_ACTION_COMMAND, params })
         },
         tabIdReceived: (params: TabIdReceivedParams) => {
             sendMessageToClient({ command: TAB_ID_RECEIVED, params })
@@ -135,7 +153,10 @@ export const createChat = (clientApi: { postMessage: (msg: UiMessage | ServerMes
     }
 
     const messager = new Messager(chatApi)
-    const tabFactory = new TabFactory()
+    const tabFactory = new TabFactory({
+        ...DEFAULT_TAB_DATA,
+        quickActionCommands: config?.quickActionCommands,
+    })
     const [mynahUi, api] = createMynahUi(messager, tabFactory)
 
     mynahApi = api

@@ -16,6 +16,7 @@ import {
     FollowUpClickParams,
     InfoLinkClickParams,
     LinkClickParams,
+    QuickActionParams,
     SourceLinkClickParams,
     TabAddParams,
     TabChangeParams,
@@ -26,6 +27,7 @@ import { CopyCodeToClipboardParams, VoteParams } from '../contracts/telemetry'
 
 export interface OutboundChatApi {
     sendChatPrompt(params: ChatParams): void
+    sendQuickActionCommand(params: QuickActionParams): void
     tabAdded(params: TabAddParams): void
     tabChanged(params: TabChangeParams): void
     tabRemoved(params: TabRemoveParams): void
@@ -69,6 +71,10 @@ export class Messager {
 
     onChatPrompt = (params: ChatParams): void => {
         this.chatApi.sendChatPrompt(params)
+    }
+
+    onQuickActionCommand = (params: QuickActionParams): void => {
+        this.chatApi.sendQuickActionCommand(params)
     }
 
     onInsertToCursorPosition = (params: InsertToCursorPositionParams): void => {

@@ -1,12 +1,13 @@
 import { ChatItemType, MynahUIDataModel } from '@aws/mynah-ui'
 
+export type DefaultTabData = Partial<MynahUIDataModel>
+
 export class TabFactory {
+    constructor(private defaultTabData: DefaultTabData) {}
+
     public createTab(needWelcomeMessages: boolean): MynahUIDataModel {
         const tabData: MynahUIDataModel = {
-            tabTitle: 'Chat',
-            promptInputInfo:
-                'Use of Amazon Q is subject to the [AWS Responsible AI Policy](https://aws.amazon.com/machine-learning/responsible-ai/policy/).',
-            promptInputPlaceholder: 'Ask a question or enter "/" for quick actions',
+            ...this.defaultTabData,
             chatItems: needWelcomeMessages
                 ? [
                       {

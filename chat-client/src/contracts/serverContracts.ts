@@ -20,6 +20,7 @@ export const FEEDBACK = 'aws/chat/feedback'
 export const LINK_CLICK = 'aws/chat/linkClick'
 export const SOURCE_LINK_CLICK = 'aws/chat/sourceLinkClick'
 export const INFO_LINK_CLICK = 'aws/chat/infoLinkClick'
+export const QUICK_ACTION_COMMAND = 'aws/chat/sendChatQuickAction'
 
 export const TELEMETRY = 'telemetry/event'
 
@@ -35,6 +36,7 @@ export type ServerMessageCommand =
     | typeof LINK_CLICK
     | typeof SOURCE_LINK_CLICK
     | typeof INFO_LINK_CLICK
+    | typeof QUICK_ACTION_COMMAND
 
 export interface Message {
     command: ServerMessageCommand

@@ -6,6 +6,7 @@ import {
     followUpClickNotificationType,
     infoLinkClickNotificationType,
     linkClickNotificationType,
+    quickActionRequestType,
     sourceLinkClickNotificationType,
     tabAddNotificationType,
     tabRemoveNotificationType,
@@ -54,6 +55,33 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri) 
                         })
                     })
                 break
+            case quickActionRequestType.method:
+                const quickaActionPartialResultToken = uuidv4()
+
+                languageClient.onProgress(quickActionRequestType, quickaActionPartialResultToken, partialResult => {
+                    if (partialResult.body) {
+                        panel.webview.postMessage({
+                            command: 'aws/chat/sendChatPrompt',
+                            params: partialResult,
+                            isPartialResult: true,
+                            tabId: message.params.tabId,
+                        })
+                    }
+                })
+
+                languageClient
+                    .sendRequest(
+                        quickActionRequestType,
+                        Object.assign(message.params, { partialResultToken: quickaActionPartialResultToken })
+                    )
+                    .then((chatResult: ChatResult) => {
+                        panel.webview.postMessage({
+                            command: 'aws/chat/sendChatPrompt',
+                            params: chatResult,
+                            tabId: message.params.tabId,
+                        })
+                    })
+                break
             case feedbackNotificationType.method:
                 languageClient.sendNotification(feedbackNotificationType, message.params)
                 break
@@ -82,7 +110,11 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri) 
         }
     }, undefined)
 
-    panel.webview.html = getWebviewContent(panel.webview, extensionUri)
+    const chatConfig = {
+        quickActionCommands:
+            languageClient.initializeResult?.awsServerCapabilities?.chatQuickActionsProvider?.quickActionsCommandGroups,
+    }
+    panel.webview.html = getWebviewContent(panel.webview, extensionUri, chatConfig)
 
     commands.registerCommand('aws.amazonq.explainCode', () => {
         const selection = getSelectedText()
@@ -130,7 +162,7 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri) 
     })
 }
 
-function getWebviewContent(webView: Webview, extensionUri: Uri) {
+function getWebviewContent(webView: Webview, extensionUri: Uri, chatClientConfig: object) {
     return `
     <!DOCTYPE html>
     <html lang="en">
@@ -141,7 +173,7 @@ function getWebviewContent(webView: Webview, extensionUri: Uri) {
         ${generateCss()}
     </head>
     <body>
-        ${generateJS(webView, extensionUri)}
+        ${generateJS(webView, extensionUri, chatClientConfig)}
     </body>
     </html>`
 }
@@ -162,7 +194,7 @@ function generateCss() {
     </style>`
 }
 
-function generateJS(webView: Webview, extensionUri: Uri): string {
+function generateJS(webView: Webview, extensionUri: Uri, chatClientConfig: object): string {
     const assetsPath = Uri.joinPath(extensionUri)
     const chatUri = Uri.joinPath(assetsPath, 'build', 'amazonq-ui.js')
 
@@ -172,7 +204,7 @@ function generateJS(webView: Webview, extensionUri: Uri): string {
     <script type="text/javascript" src="${entrypoint.toString()}" defer onload="init()"></script>
     <script type="text/javascript">
         const init = () => {
-            amazonQChat.createChat(acquireVsCodeApi());
+            amazonQChat.createChat(acquireVsCodeApi(), ${JSON.stringify(chatClientConfig)});
         }
     </script>
     `

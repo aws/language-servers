@@ -7,7 +7,7 @@
         "hello-world-lsp-binary": "./out/standalone.js"
     },
     "scripts": {
-        "bundle": "npm run compile && npm run webpack && npm run package-x64",
+        "bundle": "npm run compile && npm run webpack # && npm run package-x64",
         "clean": "rm -rf out/ bin/ tsconfig.tsbuildinfo",
         "compile": "tsc --build",
         "package-x64": "pkg --targets node18-linux-x64,node18-win-x64,node18-macos-x64 --output bin/hello-world-lsp-binary --compress GZip .",
