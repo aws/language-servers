@@ -3,9 +3,19 @@
     "version": "0.0.1",
     "description": "CodeBuild Language Server for JSON templates",
     "main": "out/index.js",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/aws/language-servers"
+    },
+    "author": "Amazon Web Services",
+    "license": "Apache-2.0",
+    "engines": {
+        "node": ">=18.0.0"
+    },
     "scripts": {
         "compile": "tsc --build",
-        "test": "ts-mocha -b 'src/**/*.test.ts'"
+        "test": "ts-mocha -b 'src/**/*.test.ts'",
+        "prepack": "../../script/link_bundled_dep.sh"
     },
     "dependencies": {
         "@aws/language-server-runtimes": "^0.2.5",
@@ -22,5 +32,8 @@
         "bracketSpacing": true,
         "arrowParens": "avoid",
         "endOfLine": "lf"
-    }
+    },
+    "bundleDependencies": [
+        "@aws/lsp-core"
+    ]
 }
