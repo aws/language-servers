@@ -1,5 +1,6 @@
 import {
     Chat,
+    ChatParams,
     CredentialsProvider,
     Logging,
     Lsp,
@@ -71,12 +72,6 @@ export const HelloWorldServerFactory =
             return
         }
 
-        const onQuickAction = async (params: QuickActionParams): Promise<QuickActionResult> => {
-            return {
-                body: `${params.quickAction} Quick Action response`,
-            }
-        }
-
         lsp.addInitializer(() => {
             logging.log('The Hello World Capability has been initialised')
 
@@ -122,6 +117,30 @@ export const HelloWorldServerFactory =
         lsp.onInitialized(onInitializedHandler)
         lsp.onCompletion(onCompletionHandler)
         lsp.onExecuteCommand(onExecuteCommandHandler)
+
+        chat.onChatPrompt((params: ChatParams) => {
+            return {
+                body: `User said: "${params.prompt.prompt}"`,
+            }
+        })
+
+        const onQuickAction = (params: QuickActionParams): QuickActionResult => {
+            switch (params.quickAction) {
+                case 'hello':
+                    return {
+                        body: 'Hello Quick Action response',
+                    }
+                case 'world':
+                    return {
+                        body: 'World of Actions response',
+                    }
+                default:
+                    logging.log(`[Hello world server] Unhandled quick action: ${params.quickAction}`)
+                    return {
+                        body: "I'm sorry, Dave. I'm afraid I can't do that",
+                    }
+            }
+        }
         chat.onQuickAction(onQuickAction)
 
         logging.log('The Hello World Capability has been initialised')

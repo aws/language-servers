@@ -56,9 +56,9 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri) 
                     })
                 break
             case quickActionRequestType.method:
-                const quickaActionPartialResultToken = uuidv4()
+                const quickActionPartialResultToken = uuidv4()
 
-                languageClient.onProgress(quickActionRequestType, quickaActionPartialResultToken, partialResult => {
+                languageClient.onProgress(quickActionRequestType, quickActionPartialResultToken, partialResult => {
                     if (partialResult.body) {
                         panel.webview.postMessage({
                             command: 'aws/chat/sendChatPrompt',
@@ -72,7 +72,7 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri) 
                 languageClient
                     .sendRequest(
                         quickActionRequestType,
-                        Object.assign(message.params, { partialResultToken: quickaActionPartialResultToken })
+                        Object.assign(message.params, { partialResultToken: quickActionPartialResultToken })
                     )
                     .then((chatResult: ChatResult) => {
                         panel.webview.postMessage({
