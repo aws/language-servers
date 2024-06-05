@@ -21,6 +21,7 @@ import { ChatEventParser } from './chatEventParser'
 import { ChatSessionManagementService } from './chatSessionManagementService'
 import { ChatTelemetryController } from './chatTelemetryController'
 import { QAPIInputConverter } from './qAPIInputConverter'
+import { HELP_MESSAGE, QuickAction } from './quickActions'
 
 type ChatHandlers = LspHandlers<Chat>
 
@@ -170,8 +171,23 @@ export class ChatController implements ChatHandlers {
         this.#telemetryController.removeConversationId(params.tabId)
     }
 
-    onQuickAction(_params: QuickActionParams, _cancellationToken: CancellationToken): never {
-        throw new Error('Not implemented')
+    onQuickAction(params: QuickActionParams, _cancellationToken: CancellationToken) {
+        switch (params.quickAction) {
+            case QuickAction.Clear: {
+                const sessionResult = this.#chatSessionManagementService.getSession(params.tabId)
+
+                sessionResult.data?.clear()
+
+                return {}
+            }
+
+            case QuickAction.Help:
+                return {
+                    body: HELP_MESSAGE,
+                }
+        }
+
+        return {}
     }
 
     async #processAssistantResponse(

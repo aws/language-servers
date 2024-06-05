@@ -53,6 +53,11 @@ export class ChatSessionService {
         return response
     }
 
+    public clear(): void {
+        this.#abortController?.abort()
+        this.#sessionId = undefined
+    }
+
     public dispose(): void {
         this.#abortController?.abort()
         this.#client.destroy()
