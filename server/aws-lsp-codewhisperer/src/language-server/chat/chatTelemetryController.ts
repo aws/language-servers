@@ -7,8 +7,8 @@ import { isObject } from '../utils'
 export const CONVERSATION_ID_METRIC_KEY = 'CWSPRChatConversationId'
 
 export enum ChatUIEventName {
-    EnterFocus = 'enterFocus',
-    ExitFocus = 'exitFocus',
+    EnterUIFocus = 'enterFocus',
+    ExitUIFocus = 'exitFocus',
 }
 
 interface ChatMetricEvent<TName extends ChatTelemetryEventName> extends MetricEvent {
@@ -72,13 +72,13 @@ export class ChatTelemetryController {
     #handleClientTelemetry(params: unknown) {
         if (isObject(params) && 'name' in params && typeof params.name === 'string') {
             switch (params.name) {
-                case ChatUIEventName.EnterFocus:
+                case ChatUIEventName.EnterUIFocus:
                     this.emitChatMetric({
                         name: ChatTelemetryEventName.EnterFocusChat,
                         data: {},
                     })
                     break
-                case ChatUIEventName.ExitFocus:
+                case ChatUIEventName.ExitUIFocus:
                     this.emitChatMetric({
                         name: ChatTelemetryEventName.ExitFocusChat,
                         data: {},

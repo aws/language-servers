@@ -159,11 +159,11 @@ export class ChatController implements ChatHandlers {
 
     onTabRemove(params: TabRemoveParams) {
         if (this.#telemetryController.activeTabId === params.tabId) {
-            this.#telemetryController.activeTabId = undefined
             this.#telemetryController.emitConversationMetric({
                 name: ChatTelemetryEventName.ExitFocusConversation,
                 data: {},
             })
+            this.#telemetryController.activeTabId = undefined
         }
 
         this.#chatSessionManagementService.deleteSession(params.tabId)

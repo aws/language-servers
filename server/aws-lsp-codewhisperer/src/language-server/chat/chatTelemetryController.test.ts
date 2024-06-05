@@ -46,7 +46,7 @@ describe('TelemetryController', () => {
         const telemetryHandler = testFeatures.telemetry.onClientTelemetry.firstCall.firstArg
 
         telemetryHandler({
-            name: ChatUIEventName.EnterFocus,
+            name: ChatUIEventName.EnterUIFocus,
         })
 
         sinon.assert.calledOnceWithExactly(testFeatures.telemetry.emitMetric, {
@@ -59,7 +59,7 @@ describe('TelemetryController', () => {
         const telemetryHandler = testFeatures.telemetry.onClientTelemetry.firstCall.firstArg
 
         telemetryHandler({
-            name: ChatUIEventName.ExitFocus,
+            name: ChatUIEventName.ExitUIFocus,
         })
 
         sinon.assert.calledOnceWithExactly(testFeatures.telemetry.emitMetric, {

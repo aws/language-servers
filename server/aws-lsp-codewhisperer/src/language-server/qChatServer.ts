@@ -11,22 +11,22 @@ export const QChatServer =
 
         const chatController = new ChatController(chatSessionManagementService, features)
 
-        chat.onTabAdd((...params) => {
-            logging.log(`Adding tab: ${params[0].tabId}`)
+        chat.onTabAdd(params => {
+            logging.log(`Adding tab: ${params.tabId}`)
 
-            return chatController.onTabAdd(...params)
+            return chatController.onTabAdd(params)
         })
 
-        chat.onTabChange((...params) => {
-            logging.log(`Changing to tab: ${params[0].tabId}`)
+        chat.onTabChange(params => {
+            logging.log(`Changing to tab: ${params.tabId}`)
 
-            return chatController.onTabChange(...params)
+            return chatController.onTabChange(params)
         })
 
-        chat.onTabRemove((...params) => {
-            logging.log(`Removing tab: ${params[0].tabId}`)
+        chat.onTabRemove(params => {
+            logging.log(`Removing tab: ${params.tabId}`)
 
-            return chatController.onTabRemove(...params)
+            return chatController.onTabRemove(params)
         })
 
         chat.onEndChat((...params) => {
