@@ -147,7 +147,7 @@ describe('ChatController', () => {
         chatController.onTabChange({ tabId: mockTabId })
 
         sinon.assert.calledWithExactly(activeTabSpy.set, mockTabId)
-        sinon.assert.calledOnce(emitConversationMetricStub)
+        sinon.assert.calledTwice(emitConversationMetricStub)
     })
 
     it('onTabRemove unsets tab id if current tab is removed and emits metrics', () => {

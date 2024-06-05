@@ -144,6 +144,11 @@ export class ChatController implements ChatHandlers {
     }
 
     onTabChange(params: TabChangeParams) {
+        this.#telemetryController.emitConversationMetric({
+            name: ChatTelemetryEventName.ExitFocusConversation,
+            data: {},
+        })
+
         this.#telemetryController.activeTabId = params.tabId
 
         this.#telemetryController.emitConversationMetric({
