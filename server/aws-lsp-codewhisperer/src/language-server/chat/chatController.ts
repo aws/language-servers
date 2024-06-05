@@ -15,6 +15,7 @@ import {
     TabAddParams,
     TabRemoveParams,
 } from '@aws/language-server-runtimes/server-interface'
+import { v4 as uuid } from 'uuid'
 import { ChatTelemetryEventName } from '../telemetry/types'
 import { Features, LspHandlers, Result } from '../types'
 import { ChatEventParser } from './chatEventParser'
@@ -183,6 +184,7 @@ export class ChatController implements ChatHandlers {
 
             case QuickAction.Help:
                 return {
+                    messageId: uuid(),
                     body: HELP_MESSAGE,
                 }
         }
