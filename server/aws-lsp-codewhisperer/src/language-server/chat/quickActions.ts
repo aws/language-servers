@@ -1,6 +1,6 @@
 export enum QuickAction {
-    Clear = 'clear',
-    Help = 'help',
+    Clear = '/clear',
+    Help = '/help',
 }
 
 export const HELP_QUICK_ACTION = {
