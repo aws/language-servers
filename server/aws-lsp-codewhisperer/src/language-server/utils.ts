@@ -19,6 +19,10 @@ function hasTime(error: Error): error is typeof error & { time: Date } {
     return (error as { time?: unknown }).time instanceof Date
 }
 
+export function isObject(value: unknown): value is { [key: number | string | symbol]: any } {
+    return Boolean(value) && typeof value === 'object'
+}
+
 export function getCompletionType(suggestion: Suggestion): CodewhispererCompletionType {
     const nonBlankLines = suggestion.content.split('\n').filter(line => line.trim() !== '').length
 

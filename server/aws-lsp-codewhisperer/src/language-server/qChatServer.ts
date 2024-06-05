@@ -11,14 +11,22 @@ export const QChatServer =
 
         const chatController = new ChatController(chatSessionManagementService, features)
 
-        chat.onTabAdd((...params) => {
-            logging.log('Received tab add request')
-            return chatController.onTabAdd(...params)
+        chat.onTabAdd(params => {
+            logging.log(`Adding tab: ${params.tabId}`)
+
+            return chatController.onTabAdd(params)
         })
 
-        chat.onTabRemove((...params) => {
-            logging.log('Received tab remove request')
-            return chatController.onTabRemove(...params)
+        chat.onTabChange(params => {
+            logging.log(`Changing to tab: ${params.tabId}`)
+
+            return chatController.onTabChange(params)
+        })
+
+        chat.onTabRemove(params => {
+            logging.log(`Removing tab: ${params.tabId}`)
+
+            return chatController.onTabRemove(params)
         })
 
         chat.onEndChat((...params) => {
@@ -29,6 +37,10 @@ export const QChatServer =
         chat.onChatPrompt((...params) => {
             logging.log('Received chat prompt')
             return chatController.onChatPrompt(...params)
+        })
+
+        chat.onQuickAction((...params) => {
+            return chatController.onQuickAction(...params)
         })
 
         logging.log('Q Chat server has been initialized')

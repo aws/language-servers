@@ -2,7 +2,7 @@ import {
     GenerateAssistantResponseCommandInput,
     GenerateAssistantResponseCommandOutput,
 } from '@amzn/codewhisperer-streaming'
-import { chatRequestType } from '@aws/language-server-runtimes/protocol'
+import { TabChangeParams, chatRequestType } from '@aws/language-server-runtimes/protocol'
 import {
     CancellationToken,
     Chat,
@@ -15,9 +15,11 @@ import {
     TabAddParams,
     TabRemoveParams,
 } from '@aws/language-server-runtimes/server-interface'
+import { ChatTelemetryEventName } from '../telemetry/types'
 import { Features, LspHandlers, Result } from '../types'
 import { ChatEventParser } from './chatEventParser'
 import { ChatSessionManagementService } from './chatSessionManagementService'
+import { ChatTelemetryController } from './chatTelemetryController'
 import { QAPIInputConverter } from './qAPIInputConverter'
 
 type ChatHandlers = LspHandlers<Chat>
@@ -26,11 +28,13 @@ export class ChatController implements ChatHandlers {
     #features: Features
     #chatSessionManagementService: ChatSessionManagementService
     #qAPIInputConverter: QAPIInputConverter
+    #telemetryController: ChatTelemetryController
 
     constructor(chatSessionManagementService: ChatSessionManagementService, features: Features) {
         this.#features = features
         this.#chatSessionManagementService = chatSessionManagementService
         this.#qAPIInputConverter = new QAPIInputConverter(features.workspace, features.logging)
+        this.#telemetryController = new ChatTelemetryController(features.telemetry)
     }
 
     dispose() {
@@ -93,6 +97,10 @@ export class ChatController implements ChatHandlers {
             )
         }
 
+        if (response.conversationId) {
+            this.#telemetryController.setConversationId(params.tabId, response.conversationId)
+        }
+
         try {
             const result = await this.#processAssistantResponse(response, params.partialResultToken)
             return result.success
@@ -130,13 +138,36 @@ export class ChatController implements ChatHandlers {
     onSourceLinkClick() {}
 
     onTabAdd(params: TabAddParams) {
+        this.#telemetryController.activeTabId = params.tabId
+
         this.#chatSessionManagementService.createSession(params.tabId)
     }
 
-    onTabChange() {}
+    onTabChange(params: TabChangeParams) {
+        this.#telemetryController.emitConversationMetric({
+            name: ChatTelemetryEventName.ExitFocusConversation,
+            data: {},
+        })
+
+        this.#telemetryController.activeTabId = params.tabId
+
+        this.#telemetryController.emitConversationMetric({
+            name: ChatTelemetryEventName.EnterFocusConversation,
+            data: {},
+        })
+    }
 
     onTabRemove(params: TabRemoveParams) {
+        if (this.#telemetryController.activeTabId === params.tabId) {
+            this.#telemetryController.emitConversationMetric({
+                name: ChatTelemetryEventName.ExitFocusConversation,
+                data: {},
+            })
+            this.#telemetryController.activeTabId = undefined
+        }
+
         this.#chatSessionManagementService.deleteSession(params.tabId)
+        this.#telemetryController.removeConversationId(params.tabId)
     }
 
     onQuickAction(_params: QuickActionParams, _cancellationToken: CancellationToken): never {

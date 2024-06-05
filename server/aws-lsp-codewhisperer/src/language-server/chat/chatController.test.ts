@@ -11,6 +11,7 @@ import { createIterableResponse } from '../testUtils'
 import { ChatController } from './chatController'
 import { ChatSessionManagementService } from './chatSessionManagementService'
 import { ChatSessionService } from './chatSessionService'
+import { ChatTelemetryController } from './chatTelemetryController'
 import { DocumentContextExtractor } from './contexts/documentContext'
 
 describe('ChatController', () => {
@@ -52,6 +53,12 @@ describe('ChatController', () => {
 
     let generateAssistantResponseStub: sinon.SinonStub
     let disposeStub: sinon.SinonStub
+    let activeTabSpy: {
+        get: sinon.SinonSpy<[], string | undefined>
+        set: sinon.SinonSpy<[string | undefined], void>
+    }
+    let removeConversationIdSpy: sinon.SinonSpy
+    let emitConversationMetricStub: sinon.SinonStub
 
     let testFeatures: TestFeatures
     let chatSessionManagementService: ChatSessionManagementService
@@ -76,6 +83,10 @@ describe('ChatController', () => {
 
         testFeatures = new TestFeatures()
 
+        activeTabSpy = sinon.spy(ChatTelemetryController.prototype, 'activeTabId', ['get', 'set'])
+        removeConversationIdSpy = sinon.spy(ChatTelemetryController.prototype, 'removeConversationId')
+        emitConversationMetricStub = sinon.stub(ChatTelemetryController.prototype, 'emitConversationMetric')
+
         disposeStub = sinon.stub(ChatSessionService.prototype, 'dispose')
 
         chatSessionManagementService = ChatSessionManagementService.getInstance().withCredentialsProvider(
@@ -86,8 +97,7 @@ describe('ChatController', () => {
     })
 
     afterEach(() => {
-        generateAssistantResponseStub.restore()
-        disposeStub.restore()
+        sinon.restore()
         ChatSessionManagementService.reset()
     })
 
@@ -125,6 +135,45 @@ describe('ChatController', () => {
         const hasSession = chatSessionManagementService.hasSession(mockTabId)
 
         assert.ok(!hasSession)
+    })
+
+    it('onTabAdd sets active tab id in telemetryController', () => {
+        chatController.onTabAdd({ tabId: mockTabId })
+
+        sinon.assert.calledWithExactly(activeTabSpy.set, mockTabId)
+    })
+
+    it('onTabChange sets active tab id in telemetryController and emits metrics', () => {
+        chatController.onTabChange({ tabId: mockTabId })
+
+        sinon.assert.calledWithExactly(activeTabSpy.set, mockTabId)
+        sinon.assert.calledTwice(emitConversationMetricStub)
+    })
+
+    it('onTabRemove unsets tab id if current tab is removed and emits metrics', () => {
+        chatController.onTabAdd({ tabId: mockTabId })
+
+        emitConversationMetricStub.resetHistory()
+        activeTabSpy.set.resetHistory()
+
+        chatController.onTabRemove({ tabId: mockTabId })
+
+        sinon.assert.calledWithExactly(removeConversationIdSpy, mockTabId)
+        sinon.assert.calledOnce(emitConversationMetricStub)
+    })
+
+    it('onTabRemove does not unset tabId if current tab is not being removed', () => {
+        chatController.onTabAdd({ tabId: mockTabId })
+        chatController.onTabAdd({ tabId: 'mockTabId-2' })
+
+        testFeatures.telemetry.emitMetric.resetHistory()
+        activeTabSpy.set.resetHistory()
+
+        chatController.onTabRemove({ tabId: mockTabId })
+
+        sinon.assert.notCalled(activeTabSpy.set)
+        sinon.assert.calledWithExactly(removeConversationIdSpy, mockTabId)
+        sinon.assert.notCalled(emitConversationMetricStub)
     })
 
     describe('onChatPrompt', () => {
