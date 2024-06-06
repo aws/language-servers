@@ -3,6 +3,7 @@ import {
     FeedbackParams,
     FollowUpClickParams,
     InfoLinkClickParams,
+    InsertToCursorPositionParams,
     LinkClickParams,
     SourceLinkClickParams,
     TabAddParams,
@@ -20,7 +21,7 @@ export const FEEDBACK = 'aws/chat/feedback'
 export const LINK_CLICK = 'aws/chat/linkClick'
 export const SOURCE_LINK_CLICK = 'aws/chat/sourceLinkClick'
 export const INFO_LINK_CLICK = 'aws/chat/infoLinkClick'
-
+export const INSERT_TO_CURSOR_POSITION = 'aws/chat/insertToCursorPosition'
 export const TELEMETRY = 'telemetry/event'
 
 export type ServerMessageCommand =
@@ -35,6 +36,7 @@ export type ServerMessageCommand =
     | typeof LINK_CLICK
     | typeof SOURCE_LINK_CLICK
     | typeof INFO_LINK_CLICK
+    | typeof INSERT_TO_CURSOR_POSITION
 
 export interface Message {
     command: ServerMessageCommand
@@ -57,3 +59,4 @@ export type ServerMessageParams =
     | InfoLinkClickParams
     | SourceLinkClickParams
     | FollowUpClickParams
+    | InsertToCursorPositionParams

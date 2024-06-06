@@ -6,7 +6,6 @@ import {
     AuthFollowUpClickedParams,
     ErrorParams,
     GenericCommandParams,
-    InsertToCursorPositionParams,
     SendToPromptParams,
     isValidAuthFollowUpType,
 } from '@aws/chat-client-ui-types'
@@ -15,6 +14,7 @@ import {
     FeedbackParams,
     FollowUpClickParams,
     InfoLinkClickParams,
+    InsertToCursorPositionParams,
     LinkClickParams,
     SourceLinkClickParams,
 } from '@aws/language-server-runtimes-types'

@@ -6,7 +6,6 @@
 import {
     AuthFollowUpClickedParams,
     ErrorParams,
-    InsertToCursorPositionParams,
     SendToPromptParams,
     TabIdReceivedParams,
 } from '@aws/chat-client-ui-types'
@@ -15,6 +14,7 @@ import {
     FeedbackParams,
     FollowUpClickParams,
     InfoLinkClickParams,
+    InsertToCursorPositionParams,
     LinkClickParams,
     SourceLinkClickParams,
     TabAddParams,
