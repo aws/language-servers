@@ -1,5 +1,6 @@
 {
     "typescript.preferences.quoteStyle": "single",
+    "typescript.format.insertSpaceAfterOpeningAndBeforeClosingEmptyBraces": false,
     "[typescript]": {
         "editor.insertSpaces": true,
         "editor.codeActionsOnSave": {

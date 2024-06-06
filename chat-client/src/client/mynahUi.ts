@@ -236,21 +236,20 @@ export const createMynahUi = (messager: Messager, tabFactory: TabFactory): [Myna
 
     const addChatResponse = (chatResult: ChatResult, tabId: string, isPartialResult: boolean) => {
         if (!chatResult.body) {
+            // No chat body on response means the /clear quick action
+            mynahUi.updateStore(tabId, {
+                chatItems: [],
+            })
+
+            mynahUi.updateStore(tabId, {
+                loadingChat: false,
+                promptInputDisabledState: false,
+            })
             return
         }
 
         if (isPartialResult) {
-            mynahUi.updateLastChatAnswer(tabId, {
-                body: chatResult.body,
-                messageId: chatResult.messageId,
-                followUp: chatResult.followUp,
-                relatedContent: chatResult.relatedContent,
-                canBeVoted: chatResult.canBeVoted,
-                // Currently there is a typo in the codeReference field in runtimes package leading to incompatibility between mynah and runtimes
-                // TODO, use spread syntax when https://github.com/aws/language-server-runtimes/pull/120 is released into a new version
-                // ...chatResult
-            })
-
+            mynahUi.updateLastChatAnswer(tabId, { ...chatResult })
             return
         }
 
@@ -294,9 +293,9 @@ export const createMynahUi = (messager: Messager, tabFactory: TabFactory): [Myna
         const body = [
             params.genericCommand,
             ' the following part of my code:',
-            '\n```\n',
+            '\n~~~~\n',
             params.selection,
-            '\n```',
+            '\n~~~~',
         ].join('')
         const chatPrompt: ChatPrompt = { prompt: body, escapedPrompt: body }
 

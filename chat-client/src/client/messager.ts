@@ -61,10 +61,7 @@ export class Messager {
     }
 
     onSendToPrompt = (params: SendToPromptParams, tabId: string): void => {
-        // this.chatApi.tabIdReceived({
-        //     eventId: params.eventId,
-        //     tabId: tabId,
-        // })
+        this.chatApi.telemetry({ ...params, tabId })
     }
 
     onChatPrompt = (params: ChatParams): void => {
@@ -113,9 +110,6 @@ export class Messager {
     }
 
     onError = (params: ErrorParams): void => {
-        // this.chatApi.tabIdReceived({
-        //     eventId: params.eventId || '',
-        //     tabId: params.tabId,
-        // })
+        this.chatApi.telemetry(params)
     }
 }
