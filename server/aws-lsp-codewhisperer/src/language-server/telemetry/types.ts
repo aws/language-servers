@@ -96,3 +96,29 @@ export interface SecurityScanEvent {
     codewhispererCodeScanIssuesWithFixes: number
     credentialStartUrl: string | undefined
 }
+
+export enum ChatTelemetryEventName {
+    EnterFocusChat = 'EnterFocusChat',
+    ExitFocusChat = 'ExitFocusChat',
+    EnterFocusConversation = 'EnterFocusConversation',
+    ExitFocusConversation = 'ExitFocusConversation',
+}
+
+export interface ChatTelemetryEventMap {
+    [ChatTelemetryEventName.EnterFocusChat]: EnterFocusChatEvent
+    [ChatTelemetryEventName.ExitFocusChat]: ExitFocusChatEvent
+    [ChatTelemetryEventName.EnterFocusConversation]: EnterFocusConversationEvent
+    [ChatTelemetryEventName.ExitFocusConversation]: ExitFocusConversationEvent
+}
+
+export interface EnterFocusChatEvent {}
+
+export interface ExitFocusChatEvent {}
+
+export interface EnterFocusConversationEvent {
+    CWSPRChatConversationId: string
+}
+
+export interface ExitFocusConversationEvent {
+    CWSPRChatConversationId: string
+}

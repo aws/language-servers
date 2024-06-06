@@ -86,7 +86,7 @@ describe('Chat Session Service', () => {
         })
     })
 
-    it('calling .abortRequest() aborts request with AbortController', async () => {
+    it('abortRequest() aborts request with AbortController', async () => {
         await chatSessionService.generateAssistantResponse(mockRequestParams)
 
         chatSessionService.abortRequest()
@@ -94,12 +94,23 @@ describe('Chat Session Service', () => {
         sinon.assert.calledOnce(abortStub)
     })
 
-    it('calling .dispose() calls client.destroy and aborts outgoing requests', async () => {
+    it('dispose() calls client.destroy and aborts outgoing requests', async () => {
         await chatSessionService.generateAssistantResponse(mockRequestParams)
 
         chatSessionService.dispose()
 
         sinon.assert.calledOnce(abortStub)
         sinon.assert.calledOnce(destroyClientStub)
+    })
+
+    it('clear() reset session id and aborts outgoing request', async () => {
+        await chatSessionService.generateAssistantResponse(mockRequestParams)
+
+        assert.strictEqual(chatSessionService.sessionId, mockConversationId)
+
+        chatSessionService.clear()
+
+        sinon.assert.calledOnce(abortStub)
+        assert.strictEqual(chatSessionService.sessionId, undefined)
     })
 })
