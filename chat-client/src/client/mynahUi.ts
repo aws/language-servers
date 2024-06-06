@@ -90,7 +90,6 @@ export const createMynahUi = (messager: Messager, tabFactory: TabFactory): [Myna
                 const payload: AuthFollowUpClickedParams = {
                     tabId,
                     messageId,
-                    eventId,
                     authFollowupType: followUp.type,
                 }
                 messager.onAuthFollowUpClicked(payload)

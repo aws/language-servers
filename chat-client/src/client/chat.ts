@@ -10,39 +10,33 @@ import {
     InsertToCursorPositionParams,
     SEND_TO_PROMPT,
     SendToPromptMessage,
-    TAB_ID_RECEIVED,
-    TabIdReceivedParams,
     UiMessage,
 } from '@aws/chat-client-ui-types'
 import {
+    CHAT_REQUEST_METHOD,
     ChatParams,
+    FEEDBACK_NOTIFICATION_METHOD,
+    FOLLOW_UP_CLICK_NOTIFICATION_METHOD,
     FeedbackParams,
     FollowUpClickParams,
+    INFO_LINK_CLICK_NOTIFICATION_METHOD,
     InfoLinkClickParams,
+    LINK_CLICK_NOTIFICATION_METHOD,
     LinkClickParams,
+    QUICK_ACTION_REQUEST_METHOD,
     QuickActionParams,
+    READY_NOTIFICATION_METHOD,
+    SOURCE_LINK_CLICK_NOTIFICATION_METHOD,
     SourceLinkClickParams,
+    TAB_ADD_NOTIFICATION_METHOD,
+    TAB_CHANGE_NOTIFICATION_METHOD,
+    TAB_REMOVE_NOTIFICATION_METHOD,
     TabAddParams,
     TabChangeParams,
     TabRemoveParams,
 } from '@aws/language-server-runtimes-types'
 import { MynahUIDataModel } from '@aws/mynah-ui'
-import {
-    CHAT_PROMPT,
-    FEEDBACK,
-    FOLLOW_UP_CLICKED,
-    INFO_LINK_CLICK,
-    LINK_CLICK,
-    NEW_TAB_CREATED,
-    QUICK_ACTION_COMMAND,
-    SOURCE_LINK_CLICK,
-    ServerMessage,
-    TAB_CHANGED,
-    TAB_REMOVED,
-    TELEMETRY,
-    TelemetryParams,
-    UI_IS_READY,
-} from '../contracts/serverContracts'
+import { ServerMessage, TELEMETRY, TelemetryParams } from '../contracts/serverContracts'
 import { ENTER_FOCUS, EXIT_FOCUS } from '../contracts/telemetry'
 import { Messager, OutboundChatApi } from './messager'
 import { InboundChatApi, createMynahUi } from './mynahUi'
@@ -75,7 +69,7 @@ export const createChat = (
         const message = event.data
 
         switch (message?.command) {
-            case CHAT_PROMPT:
+            case CHAT_REQUEST_METHOD:
                 mynahApi.addChatResponse(message.params, message.tabId, message.isPartialResult)
                 break
             case SEND_TO_PROMPT:
@@ -100,25 +94,22 @@ export const createChat = (
 
     const chatApi: OutboundChatApi = {
         sendChatPrompt: (params: ChatParams) => {
-            sendMessageToClient({ command: CHAT_PROMPT, params })
+            sendMessageToClient({ command: CHAT_REQUEST_METHOD, params })
         },
         sendQuickActionCommand: (params: QuickActionParams) => {
-            sendMessageToClient({ command: QUICK_ACTION_COMMAND, params })
-        },
-        tabIdReceived: (params: TabIdReceivedParams) => {
-            sendMessageToClient({ command: TAB_ID_RECEIVED, params })
+            sendMessageToClient({ command: QUICK_ACTION_REQUEST_METHOD, params })
         },
         telemetry: (params: TelemetryParams) => {
             sendMessageToClient({ command: TELEMETRY, params })
         },
         tabAdded: (params: TabAddParams) => {
-            sendMessageToClient({ command: NEW_TAB_CREATED, params })
+            sendMessageToClient({ command: TAB_ADD_NOTIFICATION_METHOD, params })
         },
         tabChanged: (params: TabChangeParams) => {
-            sendMessageToClient({ command: TAB_CHANGED, params })
+            sendMessageToClient({ command: TAB_CHANGE_NOTIFICATION_METHOD, params })
         },
         tabRemoved: (params: TabRemoveParams) => {
-            sendMessageToClient({ command: TAB_REMOVED, params })
+            sendMessageToClient({ command: TAB_REMOVE_NOTIFICATION_METHOD, params })
         },
         insertToCursorPosition: (params: InsertToCursorPositionParams) => {
             sendMessageToClient({ command: INSERT_TO_CURSOR_POSITION, params })
@@ -127,23 +118,23 @@ export const createChat = (
             sendMessageToClient({ command: AUTH_FOLLOW_UP_CLICKED, params })
         },
         followUpClicked: (params: FollowUpClickParams) => {
-            sendMessageToClient({ command: FOLLOW_UP_CLICKED, params })
+            sendMessageToClient({ command: FOLLOW_UP_CLICK_NOTIFICATION_METHOD, params })
         },
         sendFeedback: (params: FeedbackParams) => {
-            sendMessageToClient({ command: FEEDBACK, params })
+            sendMessageToClient({ command: FEEDBACK_NOTIFICATION_METHOD, params })
         },
         linkClick: (params: LinkClickParams) => {
-            sendMessageToClient({ command: LINK_CLICK, params })
+            sendMessageToClient({ command: LINK_CLICK_NOTIFICATION_METHOD, params })
         },
         sourceLinkClick: (params: SourceLinkClickParams) => {
-            sendMessageToClient({ command: SOURCE_LINK_CLICK, params })
+            sendMessageToClient({ command: SOURCE_LINK_CLICK_NOTIFICATION_METHOD, params })
         },
         infoLinkClick: (params: InfoLinkClickParams) => {
-            sendMessageToClient({ command: INFO_LINK_CLICK, params })
+            sendMessageToClient({ command: INFO_LINK_CLICK_NOTIFICATION_METHOD, params })
         },
         uiReady: () => {
             sendMessageToClient({
-                command: UI_IS_READY,
+                command: READY_NOTIFICATION_METHOD,
             })
 
             window.addEventListener('message', handleMessage)
