@@ -138,8 +138,8 @@ export const createChat = (
             })
 
             window.addEventListener('message', handleMessage)
-            window.addEventListener('focus', handleApplicationFocus)
-            window.addEventListener('blur', handleApplicationFocus)
+            // window.addEventListener('focus', handleApplicationFocus)
+            // window.addEventListener('blur', handleApplicationFocus)
         },
     }
 

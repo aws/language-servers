@@ -1,4 +1,4 @@
-import { CredentialsProvider, Server } from '@aws/language-server-runtimes/server-interface'
+import { CredentialsProvider, Server, TextDocument } from '@aws/language-server-runtimes/server-interface'
 import { ChatController } from './chat/chatController'
 import { ChatSessionManagementService } from './chat/chatSessionManagementService'
 import { CLEAR_QUICK_ACTION, HELP_QUICK_ACTION } from './chat/quickActions'
@@ -6,7 +6,7 @@ import { CLEAR_QUICK_ACTION, HELP_QUICK_ACTION } from './chat/quickActions'
 export const QChatServer =
     (service: (credentialsProvider: CredentialsProvider) => ChatSessionManagementService): Server =>
     features => {
-        const { chat, credentialsProvider, logging, lsp } = features
+        const { chat, credentialsProvider, logging, lsp, telemetry } = features
 
         const chatSessionManagementService: ChatSessionManagementService = service(credentialsProvider)
 
@@ -25,6 +25,37 @@ export const QChatServer =
                     },
                 },
             }
+        })
+
+        telemetry.onClientTelemetry(params => {
+            switch (params.name) {
+                case 'addMessage':
+                    // store the trigger interaction that added the message
+                    break
+                case 'sendToPrompt':
+                    break
+                case 'tabAdd':
+                    // store the trigger that started the conversation in given tab
+                    break
+                case 'copyToClipboard':
+                case 'vote':
+                case 'linkClick':
+                case 'infoLinkClick':
+                case 'sourceLinkClick':
+                    // record interactWithMessage metric
+                    break
+                default:
+                    break
+            }
+        })
+
+        chat.onFollowUpClicked(params => {
+            // report interactWithMessage metric
+        })
+
+        chat.onCodeInsertToCursorPosition(params => {
+            // report interactWithMessage metric
+            // Track for 5 minutes to track user modifications to suggested code
         })
 
         chat.onTabAdd(params => {
@@ -56,6 +87,7 @@ export const QChatServer =
         })
 
         chat.onQuickAction((...params) => {
+            // todo, track the RunCommand metric
             return chatController.onQuickAction(...params)
         })
 

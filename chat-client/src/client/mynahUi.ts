@@ -31,7 +31,13 @@ export interface InboundChatApi {
 }
 
 export const createMynahUi = (messager: Messager, tabFactory: TabFactory): [MynahUI, InboundChatApi] => {
-    const handleChatPrompt = (mynahUi: MynahUI, tabId: string, prompt: ChatPrompt, _eventId?: string) => {
+    const handleChatPrompt = (
+        mynahUi: MynahUI,
+        tabId: string,
+        prompt: ChatPrompt,
+        _eventId?: string,
+        triggerType?: string
+    ) => {
         if (prompt.command) {
             // Send prompt when quick action command attached
             messager.onQuickActionCommand({
@@ -41,7 +47,7 @@ export const createMynahUi = (messager: Messager, tabFactory: TabFactory): [Myna
             })
         } else {
             // Send chat prompt to server
-            messager.onChatPrompt({ prompt, tabId })
+            messager.onChatPrompt({ prompt, tabId }, triggerType)
         }
 
         // Add user prompt to UI
@@ -95,7 +101,7 @@ export const createMynahUi = (messager: Messager, tabFactory: TabFactory): [Myna
                 messager.onAuthFollowUpClicked(payload)
             } else {
                 const prompt = followUp.prompt ? followUp.prompt : followUp.pillText
-                handleChatPrompt(mynahUi, tabId, { prompt: prompt, escapedPrompt: prompt }, eventId)
+                handleChatPrompt(mynahUi, tabId, { prompt: prompt, escapedPrompt: prompt }, eventId, 'click')
 
                 const payload: FollowUpClickParams = {
                     tabId,
@@ -106,7 +112,7 @@ export const createMynahUi = (messager: Messager, tabFactory: TabFactory): [Myna
             }
         },
         onChatPrompt(tabId, prompt, eventId) {
-            handleChatPrompt(mynahUi, tabId, prompt, eventId)
+            handleChatPrompt(mynahUi, tabId, prompt, eventId, 'click')
         },
 
         onReady: messager.onUiReady,
@@ -295,11 +301,11 @@ export const createMynahUi = (messager: Messager, tabFactory: TabFactory): [Myna
             ' the following part of my code:',
             '\n~~~~\n',
             params.selection,
-            '\n~~~~',
+            '\n~~~~\n',
         ].join('')
         const chatPrompt: ChatPrompt = { prompt: body, escapedPrompt: body }
 
-        handleChatPrompt(mynahUi, tabId, chatPrompt)
+        handleChatPrompt(mynahUi, tabId, chatPrompt, '', params.triggerType)
     }
 
     const showError = (params: ErrorParams) => {

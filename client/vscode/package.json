@@ -97,9 +97,41 @@
                 }
             ]
         },
+        "keybindings": [
+            {
+                "command": "aws.amazonq.explainCode",
+                "win": "win+alt+e",
+                "mac": "cmd+alt+e",
+                "linux": "meta+alt+e"
+            },
+            {
+                "command": "aws.amazonq.refactorCode",
+                "win": "win+alt+u",
+                "mac": "cmd+alt+u",
+                "linux": "meta+alt+u"
+            },
+            {
+                "command": "aws.amazonq.fixCode",
+                "win": "win+alt+y",
+                "mac": "cmd+alt+y",
+                "linux": "meta+alt+y"
+            },
+            {
+                "command": "aws.amazonq.optimizeCode",
+                "win": "win+alt+a",
+                "mac": "cmd+alt+a",
+                "linux": "meta+alt+a"
+            },
+            {
+                "command": "aws.amazonq.sendToPrompt",
+                "key": "win+alt+q",
+                "mac": "cmd+alt+q",
+                "linux": "meta+alt+q"
+            }
+        ],
         "submenus": [
             {
-                "label": "Send to Amazon Q",
+                "label": "Amazon Q",
                 "id": "amazonqEditorContextSubmenu"
             }
         ],

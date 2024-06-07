@@ -8,6 +8,7 @@ import {
     ErrorParams,
     InsertToCursorPositionParams,
     SendToPromptParams,
+    TriggerType,
 } from '@aws/chat-client-ui-types'
 import {
     ChatParams,
@@ -44,7 +45,9 @@ export interface OutboundChatApi {
 export class Messager {
     constructor(private readonly chatApi: OutboundChatApi) {}
 
-    onTabAdd = (tabId: string): void => {
+    onTabAdd = (tabId: string, triggerType?: TriggerType): void => {
+        this.chatApi.telemetry({ triggerType: triggerType ?? 'click', tabId, name: 'tabAdd' })
+
         this.chatApi.tabAdded({ tabId })
     }
 
@@ -61,10 +64,17 @@ export class Messager {
     }
 
     onSendToPrompt = (params: SendToPromptParams, tabId: string): void => {
-        this.chatApi.telemetry({ ...params, tabId })
+        this.chatApi.telemetry({ ...params, tabId, name: 'sendToPrompt' })
     }
 
-    onChatPrompt = (params: ChatParams): void => {
+    onChatPrompt = (params: ChatParams, triggerType?: string): void => {
+        // Let the server know about the latest trigger interaction on the tabId
+        this.chatApi.telemetry({
+            triggerType: triggerType ?? 'click',
+            tabId: params.tabId,
+            name: 'addMessage',
+        })
+
         this.chatApi.sendChatPrompt(params)
     }
 
@@ -86,11 +96,11 @@ export class Messager {
     }
 
     onCopyCodeToClipboard = (params: CopyCodeToClipboardParams): void => {
-        this.chatApi.telemetry(params)
+        this.chatApi.telemetry({ ...params, name: 'copyToClipboard' })
     }
 
     onVote = (params: VoteParams): void => {
-        this.chatApi.telemetry(params)
+        this.chatApi.telemetry({ ...params, name: 'vote' })
     }
 
     onSendFeedback = (params: FeedbackParams): void => {
@@ -98,14 +108,17 @@ export class Messager {
     }
 
     onLinkClick = (params: LinkClickParams): void => {
+        this.chatApi.telemetry({ ...params, name: 'linkClick' })
         this.chatApi.linkClick(params)
     }
 
     onSourceLinkClick = (params: SourceLinkClickParams): void => {
+        this.chatApi.telemetry({ ...params, name: 'sourceLinkClick' })
         this.chatApi.sourceLinkClick(params)
     }
 
     onInfoLinkClick = (params: InfoLinkClickParams): void => {
+        this.chatApi.telemetry({ ...params, name: 'infoLinkClick' })
         this.chatApi.infoLinkClick(params)
     }
 
