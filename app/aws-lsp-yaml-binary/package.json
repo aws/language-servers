@@ -13,7 +13,7 @@
         "test-integ": "npm run package-x64 && mocha --timeout 8000 './out/**/*Integ.test.js' --retries 2"
     },
     "dependencies": {
-        "@aws/aws-lsp-yaml": "*",
+        "@aws/lsp-yaml": "*",
         "@aws/language-server-runtimes": "^0.2.5",
         "yaml-language-server": "1.13.0"
     },

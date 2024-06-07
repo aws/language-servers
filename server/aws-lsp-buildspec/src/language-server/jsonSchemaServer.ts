@@ -1,4 +1,5 @@
 import { AwsLanguageService, UriResolver, textDocumentUtils } from '@aws/lsp-core/out/base'
+import { JsonLanguageService } from '@aws/lsp-json'
 import {
     Connection,
     InitializeParams,
@@ -7,7 +8,6 @@ import {
     TextDocuments,
 } from 'vscode-languageserver'
 import { TextDocument } from 'vscode-languageserver-textdocument'
-import { JsonLanguageService } from '@aws/aws-lsp-json'
 
 export type JsonSchemaServerProps = {
     connection: Connection

@@ -5,8 +5,8 @@ import {
     completionItemUtils,
     textDocumentUtils,
 } from '@aws/lsp-core'
-import { JsonLanguageService } from '@aws/aws-lsp-json'
-import { YamlLanguageService } from '@aws/aws-lsp-yaml'
+import { JsonLanguageService } from '@aws/lsp-json'
+import { YamlLanguageService } from '@aws/lsp-yaml'
 import {
     Connection,
     InitializeParams,
