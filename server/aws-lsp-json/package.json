@@ -1,8 +1,17 @@
 {
     "name": "@aws/aws-lsp-json",
     "version": "0.0.1",
-    "description": "CodeBuild Language Server for JSON templates",
+    "description": "JSON Language Server",
     "main": "out/index.js",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/aws/language-servers"
+    },
+    "author": "Amazon Web Services",
+    "license": "Apache-2.0",
+    "engines": {
+        "node": ">=18.0.0"
+    },
     "files": [
         "out/**/*",
         "CHANGELOG.md",
