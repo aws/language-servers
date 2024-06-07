@@ -8,7 +8,7 @@
     },
     "dependencies": {
         "@aws/lsp-core": "*",
-        "@aws/aws-lsp-json": "*",
+        "@aws/lsp-json": "*",
         "vscode-languageserver": "^9.0.1",
         "vscode-languageserver-textdocument": "^1.0.8"
     }

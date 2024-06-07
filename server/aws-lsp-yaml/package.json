@@ -1,5 +1,5 @@
 {
-    "name": "@aws/aws-lsp-yaml",
+    "name": "@aws/lsp-yaml",
     "version": "0.0.1",
     "description": "YAML Language Server",
     "main": "out/index.js",
