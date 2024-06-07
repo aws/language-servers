@@ -3,9 +3,18 @@
     "version": "0.0.1",
     "description": "CodeBuild Language Server for YAML template",
     "main": "out/index.js",
+    "files": [
+        "out/**/*",
+        "patches/**/*",
+        "patchYamlPackage.js",
+        "CHANGELOG.md",
+        "SECURITY.md",
+        "NOTICE"
+    ],
     "scripts": {
         "compile": "tsc --build",
-        "postinstall": "node patchYamlPackage.js"
+        "postinstall": "node patchYamlPackage.js",
+        "prepack": "cp ../../LICENSE ../../NOTICE ../../SECURITY.md ."
     },
     "dependencies": {
         "@aws/language-server-runtimes": "^0.2.5",

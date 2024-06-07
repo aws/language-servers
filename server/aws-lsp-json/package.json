@@ -3,9 +3,16 @@
     "version": "0.0.1",
     "description": "CodeBuild Language Server for JSON templates",
     "main": "out/index.js",
+    "files": [
+        "out/**/*",
+        "CHANGELOG.md",
+        "SECURITY.md",
+        "NOTICE"
+    ],
     "scripts": {
         "compile": "tsc --build",
-        "test": "ts-mocha -b 'src/**/*.test.ts'"
+        "test": "ts-mocha -b 'src/**/*.test.ts'",
+        "prepack": "cp ../../LICENSE ../../NOTICE ../../SECURITY.md ."
     },
     "dependencies": {
         "@aws/language-server-runtimes": "^0.2.5",
