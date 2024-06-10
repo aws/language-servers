@@ -24,7 +24,7 @@
         "@aws-sdk/middleware-token": "3.425.0",
         "@aws-sdk/middleware-user-agent": "3.425.0",
         "@aws-sdk/region-config-resolver": "3.425.0",
-        "@aws-sdk/types": "3.425.0",
+        "@aws-sdk/types": "3.577.0",
         "@aws-sdk/util-retry": "^3.374.0",
         "@aws-sdk/util-user-agent-browser": "3.425.0",
         "@aws-sdk/util-user-agent-node": "3.425.0",
