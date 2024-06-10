@@ -1,0 +1,113 @@
+import { before, afterEach } from 'mocha'
+import sinon = require('sinon')
+import { assert } from 'sinon'
+import { createMynahUi, InboundChatApi } from './mynahUi'
+import { Messager, OutboundChatApi } from './messager'
+import { TabFactory } from './tabs/tabFactory'
+import { ChatItemType, MynahUI } from '@aws/mynah-ui'
+
+describe('MynahUI', () => {
+    let messager: Messager
+    let tabFactory
+    let mynahUi: MynahUI
+    let api: InboundChatApi
+    let chatApi: OutboundChatApi
+
+    let getSelectedTabIdStub: sinon.SinonStub
+    let createTabStub: sinon.SinonStub
+    let updateStoreSpy: sinon.SinonSpy
+    let addChatItemSpy: sinon.SinonSpy
+    let onChatPromptSpy: sinon.SinonSpy
+
+    before(() => {
+        chatApi = {
+            sendChatPrompt: sinon.stub(),
+            sendQuickActionCommand: sinon.stub(),
+            tabAdded: sinon.stub(),
+            tabChanged: sinon.stub(),
+            tabRemoved: sinon.stub(),
+            telemetry: sinon.stub(),
+            insertToCursorPosition: sinon.stub(),
+            authFollowUpClicked: sinon.stub(),
+            followUpClicked: sinon.stub(),
+            sendFeedback: sinon.stub(),
+            linkClick: sinon.stub(),
+            sourceLinkClick: sinon.stub(),
+            infoLinkClick: sinon.stub(),
+            uiReady: sinon.stub(),
+        }
+
+        messager = new Messager(chatApi)
+        onChatPromptSpy = sinon.spy(messager, 'onChatPrompt')
+
+        tabFactory = new TabFactory({})
+        createTabStub = sinon.stub(tabFactory, 'createTab')
+        createTabStub.returns({})
+        const mynahUiResult = createMynahUi(messager, tabFactory)
+        mynahUi = mynahUiResult[0]
+        api = mynahUiResult[1]
+        getSelectedTabIdStub = sinon.stub(mynahUi, 'getSelectedTabId')
+        updateStoreSpy = sinon.spy(mynahUi, 'updateStore')
+        addChatItemSpy = sinon.spy(mynahUi, 'addChatItem')
+    })
+
+    afterEach(() => {
+        sinon.resetHistory()
+    })
+
+    it('should create a new tab if none exits', () => {
+        const genericCommand = 'Explain'
+        const selection = 'const x = 5;'
+        const tabId = ''
+        const triggerType = 'click'
+        getSelectedTabIdStub.returns(undefined)
+        api.sendGenericCommand({ genericCommand, selection, tabId, triggerType })
+
+        sinon.assert.calledWithMatch(createTabStub.lastCall, false)
+        sinon.assert.calledTwice(updateStoreSpy)
+    })
+
+    it('should not create a new tab if one exits already', () => {
+        const genericCommand = 'Explain'
+        const selection = 'const x = 5;'
+        const tabId = 'tab-1'
+        const triggerType = 'click'
+        getSelectedTabIdStub.returns(tabId)
+        api.sendGenericCommand({ genericCommand, selection, tabId, triggerType })
+
+        sinon.assert.notCalled(createTabStub)
+        sinon.assert.calledOnce(updateStoreSpy)
+    })
+
+    it('should call handleChatPrompt when sendGenericCommand is called', () => {
+        const genericCommand = 'Explain'
+        const selection = 'const x = 5;'
+        const tabId = 'tab-1'
+        const triggerType = 'click'
+        const expectedPrompt = `${genericCommand} the following part of my code:\n~~~~\n${selection}\n~~~~`
+
+        getSelectedTabIdStub.returns(tabId)
+
+        api.sendGenericCommand({ genericCommand, selection, tabId, triggerType })
+
+        assert.calledOnceWithMatch(onChatPromptSpy, {
+            prompt: { prompt: expectedPrompt, escapedPrompt: expectedPrompt },
+        })
+
+        sinon.assert.calledTwice(addChatItemSpy)
+
+        sinon.assert.calledWithMatch(addChatItemSpy.firstCall, tabId, {
+            type: ChatItemType.PROMPT,
+            body: expectedPrompt,
+        })
+
+        sinon.assert.calledWithMatch(addChatItemSpy.secondCall, tabId, {
+            type: ChatItemType.ANSWER_STREAM,
+        })
+
+        sinon.assert.calledOnceWithMatch(updateStoreSpy, tabId, {
+            loadingChat: true,
+            promptInputDisabledState: true,
+        })
+    })
+})

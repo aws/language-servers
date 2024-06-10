@@ -33,6 +33,17 @@ export interface InboundChatApi {
 export const createMynahUi = (messager: Messager, tabFactory: TabFactory): [MynahUI, InboundChatApi] => {
     const handleChatPrompt = (mynahUi: MynahUI, tabId: string, prompt: ChatPrompt, _eventId?: string) => {
         if (prompt.command) {
+            // Temporary solution to handle clear quick actions on the client side
+            if (prompt.command === '/clear') {
+                mynahUi.updateStore(tabId, {
+                    chatItems: [],
+                })
+
+                mynahUi.updateStore(tabId, {
+                    loadingChat: false,
+                    promptInputDisabledState: false,
+                })
+            }
             // Send prompt when quick action command attached
             messager.onQuickActionCommand({
                 quickAction: prompt.command,
@@ -235,19 +246,6 @@ export const createMynahUi = (messager: Messager, tabFactory: TabFactory): [Myna
     }
 
     const addChatResponse = (chatResult: ChatResult, tabId: string, isPartialResult: boolean) => {
-        if (!chatResult.body) {
-            // No chat body on response means the /clear quick action
-            mynahUi.updateStore(tabId, {
-                chatItems: [],
-            })
-
-            mynahUi.updateStore(tabId, {
-                loadingChat: false,
-                promptInputDisabledState: false,
-            })
-            return
-        }
-
         if (isPartialResult) {
             mynahUi.updateLastChatAnswer(tabId, { ...chatResult })
             return

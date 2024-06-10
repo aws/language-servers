@@ -49,11 +49,11 @@ const DEFAULT_TAB_DATA = {
     promptInputPlaceholder: 'Ask a question or enter "/" for quick actions',
 }
 
-type chatClientConfig = Pick<MynahUIDataModel, 'quickActionCommands'>
+type ChatClientConfig = Pick<MynahUIDataModel, 'quickActionCommands'>
 
 export const createChat = (
     clientApi: { postMessage: (msg: UiMessage | ServerMessage) => void },
-    config?: chatClientConfig
+    config?: ChatClientConfig
 ) => {
     // eslint-disable-next-line semi
     let mynahApi: InboundChatApi

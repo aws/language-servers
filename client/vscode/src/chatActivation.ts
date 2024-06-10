@@ -35,10 +35,10 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri) 
             case chatRequestType.method:
                 const partialResultToken = uuidv4()
 
-                languageClient.onProgress(chatRequestType, partialResultToken, partialResult => {
+                const chatDisposable = languageClient.onProgress(chatRequestType, partialResultToken, partialResult => {
                     if (partialResult.body) {
                         panel.webview.postMessage({
-                            command: 'aws/chat/sendChatPrompt',
+                            command: chatRequestType.method,
                             params: partialResult,
                             isPartialResult: true,
                             tabId: message.params.tabId,
@@ -50,25 +50,30 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri) 
                     .sendRequest(chatRequestType, Object.assign(message.params, { partialResultToken }))
                     .then((chatResult: ChatResult) => {
                         panel.webview.postMessage({
-                            command: 'aws/chat/sendChatPrompt',
+                            command: chatRequestType.method,
                             params: chatResult,
                             tabId: message.params.tabId,
                         })
+                        chatDisposable.dispose()
                     })
                 break
             case quickActionRequestType.method:
                 const quickActionPartialResultToken = uuidv4()
 
-                languageClient.onProgress(quickActionRequestType, quickActionPartialResultToken, partialResult => {
-                    if (partialResult.body) {
-                        panel.webview.postMessage({
-                            command: 'aws/chat/sendChatPrompt',
-                            params: partialResult,
-                            isPartialResult: true,
-                            tabId: message.params.tabId,
-                        })
+                const quickActionDisposable = languageClient.onProgress(
+                    quickActionRequestType,
+                    quickActionPartialResultToken,
+                    partialResult => {
+                        if (partialResult.body) {
+                            panel.webview.postMessage({
+                                command: chatRequestType.method,
+                                params: partialResult,
+                                isPartialResult: true,
+                                tabId: message.params.tabId,
+                            })
+                        }
                     }
-                })
+                )
 
                 languageClient
                     .sendRequest(
@@ -77,10 +82,11 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri) 
                     )
                     .then((chatResult: ChatResult) => {
                         panel.webview.postMessage({
-                            command: 'aws/chat/sendChatPrompt',
+                            command: chatRequestType.method,
                             params: chatResult,
                             tabId: message.params.tabId,
                         })
+                        quickActionDisposable.dispose()
                     })
                 break
             case feedbackNotificationType.method:

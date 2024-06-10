@@ -132,7 +132,15 @@ export const HelloWorldServerFactory =
                     }
                 case 'world':
                     return {
-                        body: 'World of Actions response',
+                        body: 'World Quick Action response',
+                    }
+                case 'clear':
+                    return {
+                        body: 'Clear Quick Action response',
+                    }
+                case 'help':
+                    return {
+                        body: 'Help Quick Action response',
                     }
                 default:
                     logging.log(`[Hello world server] Unhandled quick action: ${params.quickAction}`)
