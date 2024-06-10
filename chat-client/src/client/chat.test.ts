@@ -13,6 +13,7 @@ import { afterEach } from 'mocha'
 import { assert } from 'sinon'
 import { createChat } from './chat'
 import sinon = require('sinon')
+import { TELEMETRY } from '../contracts/serverContracts'
 
 describe('Chat', () => {
     const sandbox = sinon.createSandbox()
@@ -36,19 +37,27 @@ describe('Chat', () => {
     it('publishes telemetry event, when send to prompt is triggered', () => {
         createChat(clientApi)
 
-        const sendToPromptEvent = createInboundEvent({ command: SEND_TO_PROMPT, params: { prompt: 'hey' } })
+        const eventParams = { command: SEND_TO_PROMPT, params: { prompt: 'hey' } }
+        const sendToPromptEvent = createInboundEvent(eventParams)
         window.dispatchEvent(sendToPromptEvent)
 
-        // assert.calledWithMatch(clientApi.postMessage, { command: TAB_ID_RECEIVED })
+        assert.calledWithMatch(clientApi.postMessage, {
+            command: TELEMETRY,
+            params: {
+                name: 'sendToPrompt',
+                tabId: 'tab-1',
+                ...eventParams.params,
+            },
+        })
     })
 
-    it('publishes tab id received event, when show error is triggered', () => {
+    it('publishes telemetry event, when show error is triggered', () => {
         createChat(clientApi)
 
         const errorEvent = createInboundEvent({ command: ERROR_MESSAGE, params: { tabId: '123' } })
         window.dispatchEvent(errorEvent)
 
-        // assert.calledWithMatch(clientApi.postMessage, { command: TAB_ID_RECEIVED, params: { tabId: '123' } })
+        // assert.calledWithMatch(clientApi.postMessage, { command: TELEMETRY, params: {} })
     })
 
     it('publishes tab added event, when UI tab is added', () => {
