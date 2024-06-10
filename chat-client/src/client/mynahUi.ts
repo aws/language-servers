@@ -30,49 +30,55 @@ export interface InboundChatApi {
     showError(params: ErrorParams): void
 }
 
-export const createMynahUi = (messager: Messager, tabFactory: TabFactory): [MynahUI, InboundChatApi] => {
-    const handleChatPrompt = (mynahUi: MynahUI, tabId: string, prompt: ChatPrompt, _eventId?: string) => {
-        if (prompt.command) {
-            // Temporary solution to handle clear quick actions on the client side
-            if (prompt.command === '/clear') {
-                mynahUi.updateStore(tabId, {
-                    chatItems: [],
-                })
-
-                mynahUi.updateStore(tabId, {
-                    loadingChat: false,
-                    promptInputDisabledState: false,
-                })
-            }
-            // Send prompt when quick action command attached
-            messager.onQuickActionCommand({
-                quickAction: prompt.command,
-                prompt: prompt.prompt,
-                tabId,
+export const handleChatPrompt = (
+    mynahUi: MynahUI,
+    tabId: string,
+    prompt: ChatPrompt,
+    messager: Messager,
+    _eventId?: string
+) => {
+    if (prompt.command) {
+        // Temporary solution to handle clear quick actions on the client side
+        if (prompt.command === '/clear') {
+            mynahUi.updateStore(tabId, {
+                chatItems: [],
             })
-        } else {
-            // Send chat prompt to server
-            messager.onChatPrompt({ prompt, tabId })
+
+            mynahUi.updateStore(tabId, {
+                loadingChat: false,
+                promptInputDisabledState: false,
+            })
         }
-
-        // Add user prompt to UI
-        mynahUi.addChatItem(tabId, {
-            type: ChatItemType.PROMPT,
-            body: prompt.escapedPrompt,
+        // Send prompt when quick action command attached
+        messager.onQuickActionCommand({
+            quickAction: prompt.command,
+            prompt: prompt.prompt,
+            tabId,
         })
-
-        // Set UI to loading state
-        mynahUi.updateStore(tabId, {
-            loadingChat: true,
-            promptInputDisabledState: true,
-        })
-
-        // Create initial empty response
-        mynahUi.addChatItem(tabId, {
-            type: ChatItemType.ANSWER_STREAM,
-        })
+    } else {
+        // Send chat prompt to server
+        messager.onChatPrompt({ prompt, tabId })
     }
 
+    // Add user prompt to UI
+    mynahUi.addChatItem(tabId, {
+        type: ChatItemType.PROMPT,
+        body: prompt.escapedPrompt,
+    })
+
+    // Set UI to loading state
+    mynahUi.updateStore(tabId, {
+        loadingChat: true,
+        promptInputDisabledState: true,
+    })
+
+    // Create initial empty response
+    mynahUi.addChatItem(tabId, {
+        type: ChatItemType.ANSWER_STREAM,
+    })
+}
+
+export const createMynahUi = (messager: Messager, tabFactory: TabFactory): [MynahUI, InboundChatApi] => {
     const mynahUi = new MynahUI({
         onCodeInsertToCursorPosition(
             tabId,
@@ -106,7 +112,7 @@ export const createMynahUi = (messager: Messager, tabFactory: TabFactory): [Myna
                 messager.onAuthFollowUpClicked(payload)
             } else {
                 const prompt = followUp.prompt ? followUp.prompt : followUp.pillText
-                handleChatPrompt(mynahUi, tabId, { prompt: prompt, escapedPrompt: prompt }, eventId)
+                handleChatPrompt(mynahUi, tabId, { prompt: prompt, escapedPrompt: prompt }, messager, eventId)
 
                 const payload: FollowUpClickParams = {
                     tabId,
@@ -117,7 +123,7 @@ export const createMynahUi = (messager: Messager, tabFactory: TabFactory): [Myna
             }
         },
         onChatPrompt(tabId, prompt, eventId) {
-            handleChatPrompt(mynahUi, tabId, prompt, eventId)
+            handleChatPrompt(mynahUi, tabId, prompt, messager, eventId)
         },
 
         onReady: messager.onUiReady,
@@ -297,7 +303,7 @@ export const createMynahUi = (messager: Messager, tabFactory: TabFactory): [Myna
         ].join('')
         const chatPrompt: ChatPrompt = { prompt: body, escapedPrompt: body }
 
-        handleChatPrompt(mynahUi, tabId, chatPrompt)
+        handleChatPrompt(mynahUi, tabId, chatPrompt, messager)
     }
 
     const showError = (params: ErrorParams) => {

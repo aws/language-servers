@@ -1,14 +1,13 @@
 import { before, afterEach } from 'mocha'
 import sinon = require('sinon')
 import { assert } from 'sinon'
-import { createMynahUi, InboundChatApi } from './mynahUi'
+import { createMynahUi, InboundChatApi, handleChatPrompt } from './mynahUi'
 import { Messager, OutboundChatApi } from './messager'
 import { TabFactory } from './tabs/tabFactory'
 import { ChatItemType, MynahUI } from '@aws/mynah-ui'
 
 describe('MynahUI', () => {
     let messager: Messager
-    let tabFactory
     let mynahUi: MynahUI
     let api: InboundChatApi
     let chatApi: OutboundChatApi
@@ -18,6 +17,7 @@ describe('MynahUI', () => {
     let updateStoreSpy: sinon.SinonSpy
     let addChatItemSpy: sinon.SinonSpy
     let onChatPromptSpy: sinon.SinonSpy
+    let onQuickActionSpy: sinon.SinonSpy
 
     before(() => {
         chatApi = {
@@ -39,8 +39,9 @@ describe('MynahUI', () => {
 
         messager = new Messager(chatApi)
         onChatPromptSpy = sinon.spy(messager, 'onChatPrompt')
+        onQuickActionSpy = sinon.spy(messager, 'onQuickActionCommand')
 
-        tabFactory = new TabFactory({})
+        const tabFactory = new TabFactory({})
         createTabStub = sinon.stub(tabFactory, 'createTab')
         createTabStub.returns({})
         const mynahUiResult = createMynahUi(messager, tabFactory)
@@ -53,6 +54,45 @@ describe('MynahUI', () => {
 
     afterEach(() => {
         sinon.resetHistory()
+    })
+
+    it('should handle normal chat prompt', () => {
+        const tabId = 'tab-1'
+        const prompt = { prompt: 'Test prompt', escapedPrompt: 'Test prompt' }
+
+        handleChatPrompt(mynahUi, tabId, prompt, messager)
+
+        assert.notCalled(onQuickActionSpy)
+        assert.calledWith(onChatPromptSpy, { prompt, tabId })
+        assert.calledWith(addChatItemSpy, tabId, { type: ChatItemType.PROMPT, body: prompt.escapedPrompt })
+        assert.calledWith(updateStoreSpy, tabId, { loadingChat: true, promptInputDisabledState: true })
+        assert.calledWith(addChatItemSpy, tabId, { type: ChatItemType.ANSWER_STREAM })
+    })
+
+    it('should handle clear quick action', () => {
+        const tabId = 'tab-1'
+        const prompt = { prompt: 'Test prompt', escapedPrompt: 'Test prompt', command: '/clear' }
+
+        handleChatPrompt(mynahUi, tabId, prompt, messager)
+
+        assert.notCalled(onChatPromptSpy)
+        assert.calledWith(onQuickActionSpy, { quickAction: prompt.command, prompt: prompt.prompt, tabId })
+        assert.calledThrice(updateStoreSpy)
+        assert.calledWith(updateStoreSpy.firstCall, tabId, { chatItems: [] })
+        assert.calledWith(updateStoreSpy.secondCall, tabId, { loadingChat: false, promptInputDisabledState: false })
+        assert.calledWith(updateStoreSpy.thirdCall, tabId, { loadingChat: true, promptInputDisabledState: true })
+    })
+
+    it('should handle quick actions', () => {
+        const tabId = 'tab-1'
+        const prompt = { prompt: 'Test prompt', escapedPrompt: 'Test prompt', command: '/help' }
+
+        handleChatPrompt(mynahUi, tabId, prompt, messager)
+
+        assert.notCalled(onChatPromptSpy)
+        assert.calledWith(onQuickActionSpy, { quickAction: prompt.command, prompt: prompt.prompt, tabId })
+        assert.calledOnce(updateStoreSpy)
+        assert.calledWith(updateStoreSpy, tabId, { loadingChat: true, promptInputDisabledState: true })
     })
 
     it('should create a new tab if none exits', () => {
