@@ -24,7 +24,7 @@ import { Messager } from './messager'
 import { TabFactory } from './tabs/tabFactory'
 
 export interface InboundChatApi {
-    addChatResponse(params: ChatResult, tabId: string, isFinalResult: boolean): void
+    addChatResponse(params: ChatResult, tabId: string, isPartialResult: boolean): void
     sendToPrompt(params: SendToPromptParams): void
     sendGenericCommand(params: GenericCommandParams): void
     showError(params: ErrorParams): void

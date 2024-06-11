@@ -2,8 +2,9 @@ import { injectJSDOM } from '../test/jsDomInjector'
 // This needs to be run before all other imports so that mynah ui gets loaded inside of jsdom
 injectJSDOM()
 
-import { ERROR_MESSAGE, SEND_TO_PROMPT } from '@aws/chat-client-ui-types'
+import { ERROR_MESSAGE, GENERIC_COMMAND, SEND_TO_PROMPT } from '@aws/chat-client-ui-types'
 import {
+    CHAT_REQUEST_METHOD,
     READY_NOTIFICATION_METHOD,
     TAB_ADD_NOTIFICATION_METHOD,
     TAB_CHANGE_NOTIFICATION_METHOD,
@@ -82,6 +83,78 @@ describe('Chat', () => {
             command: TAB_CHANGE_NOTIFICATION_METHOD,
             params: { tabId: tabId },
         })
+    })
+
+    it('generic command creates a chat request', () => {
+        createChat(clientApi)
+
+        const genericCommand = 'Fix'
+        const selection = 'some code'
+        const tabId = '123'
+        const triggerType = 'click'
+        const expectedPrompt = `${genericCommand} the following part of my code:\n~~~~\n${selection}\n~~~~`
+
+        const genericCommandEvent = createInboundEvent({
+            command: GENERIC_COMMAND,
+            params: { tabId, selection, triggerType, genericCommand },
+        })
+
+        window.dispatchEvent(genericCommandEvent)
+        assert.calledWithMatch(clientApi.postMessage, {
+            command: CHAT_REQUEST_METHOD,
+            params: {
+                prompt: {
+                    prompt: expectedPrompt,
+                    escapedPrompt: expectedPrompt,
+                },
+            },
+        })
+    })
+
+    it('complete chat response triggers ui events ', () => {
+        const chat = createChat(clientApi)
+        const endMessageStreamStub = sinon.stub(chat, 'endMessageStream')
+        const updateLastChatAnswerStub = sinon.stub(chat, 'updateLastChatAnswer')
+        const updateStoreStub = sinon.stub(chat, 'updateStore')
+
+        const tabId = '123'
+        const body = 'some response'
+
+        const chatEvent = createInboundEvent({
+            command: CHAT_REQUEST_METHOD,
+            tabId,
+            params: { body },
+        })
+        window.dispatchEvent(chatEvent)
+
+        assert.calledOnceWithExactly(endMessageStreamStub, tabId, '')
+        assert.calledOnceWithMatch(updateLastChatAnswerStub, tabId, { body })
+        assert.calledOnceWithExactly(updateStoreStub, tabId, {
+            loadingChat: false,
+            promptInputDisabledState: false,
+        })
+    })
+
+    it('partial chat response triggers ui events ', () => {
+        const chat = createChat(clientApi)
+        const endMessageStreamStub = sinon.stub(chat, 'endMessageStream')
+        const updateLastChatAnswerStub = sinon.stub(chat, 'updateLastChatAnswer')
+        const updateStoreStub = sinon.stub(chat, 'updateStore')
+
+        const tabId = '123'
+        const body = 'some response'
+
+        const chatEvent = createInboundEvent({
+            command: CHAT_REQUEST_METHOD,
+            tabId,
+            params: { body },
+            isPartialResult: true,
+        })
+        window.dispatchEvent(chatEvent)
+
+        assert.calledOnceWithExactly(updateLastChatAnswerStub, tabId, { body })
+        assert.notCalled(endMessageStreamStub)
+        assert.notCalled(updateStoreStub)
     })
 
     function createInboundEvent(params: any) {

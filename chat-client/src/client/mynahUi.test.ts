@@ -9,8 +9,8 @@ import { ChatItemType, MynahUI } from '@aws/mynah-ui'
 describe('MynahUI', () => {
     let messager: Messager
     let mynahUi: MynahUI
-    let api: InboundChatApi
-    let chatApi: OutboundChatApi
+    let inboundChatApi: InboundChatApi
+    let outboundChatApi: OutboundChatApi
 
     let getSelectedTabIdStub: sinon.SinonStub
     let createTabStub: sinon.SinonStub
@@ -20,7 +20,7 @@ describe('MynahUI', () => {
     let onQuickActionSpy: sinon.SinonSpy
 
     before(() => {
-        chatApi = {
+        outboundChatApi = {
             sendChatPrompt: sinon.stub(),
             sendQuickActionCommand: sinon.stub(),
             tabAdded: sinon.stub(),
@@ -37,7 +37,7 @@ describe('MynahUI', () => {
             uiReady: sinon.stub(),
         }
 
-        messager = new Messager(chatApi)
+        messager = new Messager(outboundChatApi)
         onChatPromptSpy = sinon.spy(messager, 'onChatPrompt')
         onQuickActionSpy = sinon.spy(messager, 'onQuickActionCommand')
 
@@ -46,7 +46,7 @@ describe('MynahUI', () => {
         createTabStub.returns({})
         const mynahUiResult = createMynahUi(messager, tabFactory)
         mynahUi = mynahUiResult[0]
-        api = mynahUiResult[1]
+        inboundChatApi = mynahUiResult[1]
         getSelectedTabIdStub = sinon.stub(mynahUi, 'getSelectedTabId')
         updateStoreSpy = sinon.spy(mynahUi, 'updateStore')
         addChatItemSpy = sinon.spy(mynahUi, 'addChatItem')
@@ -56,98 +56,102 @@ describe('MynahUI', () => {
         sinon.resetHistory()
     })
 
-    it('should handle normal chat prompt', () => {
-        const tabId = 'tab-1'
-        const prompt = { prompt: 'Test prompt', escapedPrompt: 'Test prompt' }
+    describe('handleChatPrompt', () => {
+        it('should handle normal chat prompt', () => {
+            const tabId = 'tab-1'
+            const prompt = { prompt: 'Test prompt', escapedPrompt: 'Test prompt' }
 
-        handleChatPrompt(mynahUi, tabId, prompt, messager)
+            handleChatPrompt(mynahUi, tabId, prompt, messager)
 
-        assert.notCalled(onQuickActionSpy)
-        assert.calledWith(onChatPromptSpy, { prompt, tabId })
-        assert.calledWith(addChatItemSpy, tabId, { type: ChatItemType.PROMPT, body: prompt.escapedPrompt })
-        assert.calledWith(updateStoreSpy, tabId, { loadingChat: true, promptInputDisabledState: true })
-        assert.calledWith(addChatItemSpy, tabId, { type: ChatItemType.ANSWER_STREAM })
-    })
-
-    it('should handle clear quick action', () => {
-        const tabId = 'tab-1'
-        const prompt = { prompt: 'Test prompt', escapedPrompt: 'Test prompt', command: '/clear' }
-
-        handleChatPrompt(mynahUi, tabId, prompt, messager)
-
-        assert.notCalled(onChatPromptSpy)
-        assert.calledWith(onQuickActionSpy, { quickAction: prompt.command, prompt: prompt.prompt, tabId })
-        assert.calledThrice(updateStoreSpy)
-        assert.calledWith(updateStoreSpy.firstCall, tabId, { chatItems: [] })
-        assert.calledWith(updateStoreSpy.secondCall, tabId, { loadingChat: false, promptInputDisabledState: false })
-        assert.calledWith(updateStoreSpy.thirdCall, tabId, { loadingChat: true, promptInputDisabledState: true })
-    })
-
-    it('should handle quick actions', () => {
-        const tabId = 'tab-1'
-        const prompt = { prompt: 'Test prompt', escapedPrompt: 'Test prompt', command: '/help' }
-
-        handleChatPrompt(mynahUi, tabId, prompt, messager)
-
-        assert.notCalled(onChatPromptSpy)
-        assert.calledWith(onQuickActionSpy, { quickAction: prompt.command, prompt: prompt.prompt, tabId })
-        assert.calledOnce(updateStoreSpy)
-        assert.calledWith(updateStoreSpy, tabId, { loadingChat: true, promptInputDisabledState: true })
-    })
-
-    it('should create a new tab if none exits', () => {
-        const genericCommand = 'Explain'
-        const selection = 'const x = 5;'
-        const tabId = ''
-        const triggerType = 'click'
-        getSelectedTabIdStub.returns(undefined)
-        api.sendGenericCommand({ genericCommand, selection, tabId, triggerType })
-
-        sinon.assert.calledWithMatch(createTabStub.lastCall, false)
-        sinon.assert.calledTwice(updateStoreSpy)
-    })
-
-    it('should not create a new tab if one exits already', () => {
-        const genericCommand = 'Explain'
-        const selection = 'const x = 5;'
-        const tabId = 'tab-1'
-        const triggerType = 'click'
-        getSelectedTabIdStub.returns(tabId)
-        api.sendGenericCommand({ genericCommand, selection, tabId, triggerType })
-
-        sinon.assert.notCalled(createTabStub)
-        sinon.assert.calledOnce(updateStoreSpy)
-    })
-
-    it('should call handleChatPrompt when sendGenericCommand is called', () => {
-        const genericCommand = 'Explain'
-        const selection = 'const x = 5;'
-        const tabId = 'tab-1'
-        const triggerType = 'click'
-        const expectedPrompt = `${genericCommand} the following part of my code:\n~~~~\n${selection}\n~~~~`
-
-        getSelectedTabIdStub.returns(tabId)
-
-        api.sendGenericCommand({ genericCommand, selection, tabId, triggerType })
-
-        assert.calledOnceWithMatch(onChatPromptSpy, {
-            prompt: { prompt: expectedPrompt, escapedPrompt: expectedPrompt },
+            assert.notCalled(onQuickActionSpy)
+            assert.calledWith(onChatPromptSpy, { prompt, tabId })
+            assert.calledWith(addChatItemSpy, tabId, { type: ChatItemType.PROMPT, body: prompt.escapedPrompt })
+            assert.calledWith(updateStoreSpy, tabId, { loadingChat: true, promptInputDisabledState: true })
+            assert.calledWith(addChatItemSpy, tabId, { type: ChatItemType.ANSWER_STREAM })
         })
 
-        sinon.assert.calledTwice(addChatItemSpy)
+        it('should handle clear quick action', () => {
+            const tabId = 'tab-1'
+            const prompt = { prompt: 'Test prompt', escapedPrompt: 'Test prompt', command: '/clear' }
 
-        sinon.assert.calledWithMatch(addChatItemSpy.firstCall, tabId, {
-            type: ChatItemType.PROMPT,
-            body: expectedPrompt,
+            handleChatPrompt(mynahUi, tabId, prompt, messager)
+
+            assert.notCalled(onChatPromptSpy)
+            assert.calledWith(onQuickActionSpy, { quickAction: prompt.command, prompt: prompt.prompt, tabId })
+            assert.calledThrice(updateStoreSpy)
+            assert.calledWith(updateStoreSpy.firstCall, tabId, { chatItems: [] })
+            assert.calledWith(updateStoreSpy.secondCall, tabId, { loadingChat: false, promptInputDisabledState: false })
+            assert.calledWith(updateStoreSpy.thirdCall, tabId, { loadingChat: true, promptInputDisabledState: true })
         })
 
-        sinon.assert.calledWithMatch(addChatItemSpy.secondCall, tabId, {
-            type: ChatItemType.ANSWER_STREAM,
+        it('should handle quick actions', () => {
+            const tabId = 'tab-1'
+            const prompt = { prompt: 'Test prompt', escapedPrompt: 'Test prompt', command: '/help' }
+
+            handleChatPrompt(mynahUi, tabId, prompt, messager)
+
+            assert.notCalled(onChatPromptSpy)
+            assert.calledWith(onQuickActionSpy, { quickAction: prompt.command, prompt: prompt.prompt, tabId })
+            assert.calledOnce(updateStoreSpy)
+            assert.calledWith(updateStoreSpy, tabId, { loadingChat: true, promptInputDisabledState: true })
+        })
+    })
+
+    describe('sendGenericCommand', () => {
+        it('should create a new tab if none exits', () => {
+            const genericCommand = 'Explain'
+            const selection = 'const x = 5;'
+            const tabId = ''
+            const triggerType = 'click'
+            getSelectedTabIdStub.returns(undefined)
+            inboundChatApi.sendGenericCommand({ genericCommand, selection, tabId, triggerType })
+
+            sinon.assert.calledWithMatch(createTabStub.lastCall, false)
+            sinon.assert.calledTwice(updateStoreSpy)
         })
 
-        sinon.assert.calledOnceWithMatch(updateStoreSpy, tabId, {
-            loadingChat: true,
-            promptInputDisabledState: true,
+        it('should not create a new tab if one exits already', () => {
+            const genericCommand = 'Explain'
+            const selection = 'const x = 5;'
+            const tabId = 'tab-1'
+            const triggerType = 'click'
+            getSelectedTabIdStub.returns(tabId)
+            inboundChatApi.sendGenericCommand({ genericCommand, selection, tabId, triggerType })
+
+            sinon.assert.notCalled(createTabStub)
+            sinon.assert.calledOnce(updateStoreSpy)
+        })
+
+        it('should call handleChatPrompt when sendGenericCommand is called', () => {
+            const genericCommand = 'Explain'
+            const selection = 'const x = 5;'
+            const tabId = 'tab-1'
+            const triggerType = 'click'
+            const expectedPrompt = `${genericCommand} the following part of my code:\n~~~~\n${selection}\n~~~~`
+
+            getSelectedTabIdStub.returns(tabId)
+
+            inboundChatApi.sendGenericCommand({ genericCommand, selection, tabId, triggerType })
+
+            assert.calledOnceWithMatch(onChatPromptSpy, {
+                prompt: { prompt: expectedPrompt, escapedPrompt: expectedPrompt },
+            })
+
+            sinon.assert.calledTwice(addChatItemSpy)
+
+            sinon.assert.calledWithMatch(addChatItemSpy.firstCall, tabId, {
+                type: ChatItemType.PROMPT,
+                body: expectedPrompt,
+            })
+
+            sinon.assert.calledWithMatch(addChatItemSpy.secondCall, tabId, {
+                type: ChatItemType.ANSWER_STREAM,
+            })
+
+            sinon.assert.calledOnceWithMatch(updateStoreSpy, tabId, {
+                loadingChat: true,
+                promptInputDisabledState: true,
+            })
         })
     })
 })
