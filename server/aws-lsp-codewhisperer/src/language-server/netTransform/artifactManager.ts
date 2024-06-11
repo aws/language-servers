@@ -46,6 +46,7 @@ export class ArtifactManager {
         const fileContent = await this.createRequirementJsonContent(request)
         const dir = this.getRequirementJsonPath()
         await this.writeRequirmentJsonAsync(dir, JSON.stringify(fileContent))
+        this.logging.log('generated requirement.json at: ' + dir)
     }
 
     async copyReferenceDlls(request: StartTransformRequest) {
@@ -60,12 +61,16 @@ export class ArtifactManager {
     }
 
     async copySoureFiles(request: StartTransformRequest) {
-        for (const configFilePath of request.SolutionConfigPaths) {
-            this.copySourceFile(request.SolutionRootPath, configFilePath)
+        if (request.SolutionConfigPaths && request.SolutionConfigPaths.length > 0) {
+            for (const configFilePath of request.SolutionConfigPaths) {
+                this.copySourceFile(request.SolutionRootPath, configFilePath)
+            }
         }
-        for (const metadata of request.ProjectMetadata) {
-            for (const filePath of metadata.SourceCodeFilePaths) {
-                this.copySourceFile(request.SolutionRootPath, filePath)
+        if (request.ProjectMetadata && request.ProjectMetadata.length > 0) {
+            for (const metadata of request.ProjectMetadata) {
+                for (const filePath of metadata.SourceCodeFilePaths) {
+                    this.copySourceFile(request.SolutionRootPath, filePath)
+                }
             }
         }
     }
