@@ -33,7 +33,7 @@
         "@smithy/eventstream-serde-config-resolver": "^2.0.10",
         "@smithy/eventstream-serde-node": "^2.0.10",
         "@smithy/fetch-http-handler": "^2.2.1",
-        "@smithy/hash-node": "^2.0.10",
+        "@smithy/hash-node": "^3.0.0",
         "@smithy/invalid-dependency": "^2.0.10",
         "@smithy/middleware-content-length": "^2.0.12",
         "@smithy/middleware-retry": "^2.0.13",
