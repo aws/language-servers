@@ -26,8 +26,18 @@ const baseConfig = {
 
 const nodeJsBearerTokenBundleConfig = {
     ...baseConfig,
+    experiments: {
+        asyncWebAssembly: true,
+    },
     entry: {
         'aws-lsp-codewhisperer-token-binary': path.join(__dirname, 'src/token-standalone.ts'),
+        'aws-lsp-fqn-worker': '@aws/lsp-fqn/out/node/aws-lsp-fqn-worker.js',
+    },
+    resolve: {
+        ...baseConfig.resolve,
+        alias: {
+            '@aws/fully-qualified-names$': '@aws/fully-qualified-names/node/aws_fully_qualified_names.js',
+        },
     },
     target: 'node',
 }
