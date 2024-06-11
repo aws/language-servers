@@ -7,7 +7,7 @@
         "aws-lsp-codewhisperer-binary": "./out/index.js"
     },
     "scripts": {
-        "bundle": "npm run compile && npm run copy && npm run webpack",
+        "bundle": "npm run compile && npm run copy && npm run webpack && npm run package-x64",
         "clean": "rm -rf out/ bin/ tsconfig.tsbuildinfo",
         "compile": "tsc --build",
         "package-x64": "npm run package-x64:iam && npm run package-x64:token",
