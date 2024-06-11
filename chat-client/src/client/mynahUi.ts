@@ -24,35 +24,61 @@ import { Messager } from './messager'
 import { TabFactory } from './tabs/tabFactory'
 
 export interface InboundChatApi {
-    addChatResponse(params: ChatResult, tabId: string, isFinalResult: boolean): void
+    addChatResponse(params: ChatResult, tabId: string, isPartialResult: boolean): void
     sendToPrompt(params: SendToPromptParams): void
     sendGenericCommand(params: GenericCommandParams): void
     showError(params: ErrorParams): void
 }
 
-export const createMynahUi = (messager: Messager, tabFactory: TabFactory): [MynahUI, InboundChatApi] => {
-    const handleChatPrompt = (mynahUi: MynahUI, tabId: string, prompt: ChatPrompt, _eventId?: string) => {
+export const handleChatPrompt = (
+    mynahUi: MynahUI,
+    tabId: string,
+    prompt: ChatPrompt,
+    messager: Messager,
+    _eventId?: string
+) => {
+    if (prompt.command) {
+        // Temporary solution to handle clear quick actions on the client side
+        if (prompt.command === '/clear') {
+            mynahUi.updateStore(tabId, {
+                chatItems: [],
+            })
+
+            mynahUi.updateStore(tabId, {
+                loadingChat: false,
+                promptInputDisabledState: false,
+            })
+        }
+        // Send prompt when quick action command attached
+        messager.onQuickActionCommand({
+            quickAction: prompt.command,
+            prompt: prompt.prompt,
+            tabId,
+        })
+    } else {
         // Send chat prompt to server
         messager.onChatPrompt({ prompt, tabId })
-
-        // Add user prompt to UI
-        mynahUi.addChatItem(tabId, {
-            type: ChatItemType.PROMPT,
-            body: prompt.escapedPrompt,
-        })
-
-        // Set UI to loading state
-        mynahUi.updateStore(tabId, {
-            loadingChat: true,
-            promptInputDisabledState: true,
-        })
-
-        // Create initial empty response
-        mynahUi.addChatItem(tabId, {
-            type: ChatItemType.ANSWER_STREAM,
-        })
     }
 
+    // Add user prompt to UI
+    mynahUi.addChatItem(tabId, {
+        type: ChatItemType.PROMPT,
+        body: prompt.escapedPrompt,
+    })
+
+    // Set UI to loading state
+    mynahUi.updateStore(tabId, {
+        loadingChat: true,
+        promptInputDisabledState: true,
+    })
+
+    // Create initial empty response
+    mynahUi.addChatItem(tabId, {
+        type: ChatItemType.ANSWER_STREAM,
+    })
+}
+
+export const createMynahUi = (messager: Messager, tabFactory: TabFactory): [MynahUI, InboundChatApi] => {
     const mynahUi = new MynahUI({
         onCodeInsertToCursorPosition(
             tabId,
@@ -81,13 +107,12 @@ export const createMynahUi = (messager: Messager, tabFactory: TabFactory): [Myna
                 const payload: AuthFollowUpClickedParams = {
                     tabId,
                     messageId,
-                    eventId,
                     authFollowupType: followUp.type,
                 }
                 messager.onAuthFollowUpClicked(payload)
             } else {
                 const prompt = followUp.prompt ? followUp.prompt : followUp.pillText
-                handleChatPrompt(mynahUi, tabId, { prompt: prompt, escapedPrompt: prompt }, eventId)
+                handleChatPrompt(mynahUi, tabId, { prompt: prompt, escapedPrompt: prompt }, messager, eventId)
 
                 const payload: FollowUpClickParams = {
                     tabId,
@@ -98,7 +123,7 @@ export const createMynahUi = (messager: Messager, tabFactory: TabFactory): [Myna
             }
         },
         onChatPrompt(tabId, prompt, eventId) {
-            handleChatPrompt(mynahUi, tabId, prompt, eventId)
+            handleChatPrompt(mynahUi, tabId, prompt, messager, eventId)
         },
 
         onReady: messager.onUiReady,
@@ -227,22 +252,8 @@ export const createMynahUi = (messager: Messager, tabFactory: TabFactory): [Myna
     }
 
     const addChatResponse = (chatResult: ChatResult, tabId: string, isPartialResult: boolean) => {
-        if (!chatResult.body) {
-            return
-        }
-
         if (isPartialResult) {
-            mynahUi.updateLastChatAnswer(tabId, {
-                body: chatResult.body,
-                messageId: chatResult.messageId,
-                followUp: chatResult.followUp,
-                relatedContent: chatResult.relatedContent,
-                canBeVoted: chatResult.canBeVoted,
-                // Currently there is a typo in the codeReference field in runtimes package leading to incompatibility between mynah and runtimes
-                // TODO, use spread syntax when https://github.com/aws/language-server-runtimes/pull/120 is released into a new version
-                // ...chatResult
-            })
-
+            mynahUi.updateLastChatAnswer(tabId, { ...chatResult })
             return
         }
 
@@ -286,13 +297,13 @@ export const createMynahUi = (messager: Messager, tabFactory: TabFactory): [Myna
         const body = [
             params.genericCommand,
             ' the following part of my code:',
-            '\n```\n',
+            '\n~~~~\n',
             params.selection,
-            '\n```',
+            '\n~~~~',
         ].join('')
         const chatPrompt: ChatPrompt = { prompt: body, escapedPrompt: body }
 
-        handleChatPrompt(mynahUi, tabId, chatPrompt)
+        handleChatPrompt(mynahUi, tabId, chatPrompt, messager)
     }
 
     const showError = (params: ErrorParams) => {

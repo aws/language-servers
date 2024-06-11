@@ -8,7 +8,6 @@ import {
     ErrorParams,
     InsertToCursorPositionParams,
     SendToPromptParams,
-    TabIdReceivedParams,
 } from '@aws/chat-client-ui-types'
 import {
     ChatParams,
@@ -16,6 +15,7 @@ import {
     FollowUpClickParams,
     InfoLinkClickParams,
     LinkClickParams,
+    QuickActionParams,
     SourceLinkClickParams,
     TabAddParams,
     TabChangeParams,
@@ -26,10 +26,10 @@ import { CopyCodeToClipboardParams, VoteParams } from '../contracts/telemetry'
 
 export interface OutboundChatApi {
     sendChatPrompt(params: ChatParams): void
+    sendQuickActionCommand(params: QuickActionParams): void
     tabAdded(params: TabAddParams): void
     tabChanged(params: TabChangeParams): void
     tabRemoved(params: TabRemoveParams): void
-    tabIdReceived(params: TabIdReceivedParams): void
     telemetry(params: TelemetryParams): void
     insertToCursorPosition(params: InsertToCursorPositionParams): void
     authFollowUpClicked(params: AuthFollowUpClickedParams): void
@@ -61,14 +61,15 @@ export class Messager {
     }
 
     onSendToPrompt = (params: SendToPromptParams, tabId: string): void => {
-        this.chatApi.tabIdReceived({
-            eventId: params.eventId,
-            tabId: tabId,
-        })
+        this.chatApi.telemetry({ ...params, tabId })
     }
 
     onChatPrompt = (params: ChatParams): void => {
         this.chatApi.sendChatPrompt(params)
+    }
+
+    onQuickActionCommand = (params: QuickActionParams): void => {
+        this.chatApi.sendQuickActionCommand(params)
     }
 
     onInsertToCursorPosition = (params: InsertToCursorPositionParams): void => {
@@ -109,9 +110,6 @@ export class Messager {
     }
 
     onError = (params: ErrorParams): void => {
-        this.chatApi.tabIdReceived({
-            eventId: params.eventId || '',
-            tabId: params.tabId,
-        })
+        this.chatApi.telemetry(params)
     }
 }

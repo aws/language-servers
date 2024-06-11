@@ -8,33 +8,34 @@ import {
     TabAddParams,
     TabChangeParams,
     TabRemoveParams,
+    CHAT_REQUEST_METHOD,
+    TAB_ADD_NOTIFICATION_METHOD,
+    TAB_CHANGE_NOTIFICATION_METHOD,
+    TAB_REMOVE_NOTIFICATION_METHOD,
+    READY_NOTIFICATION_METHOD,
+    FOLLOW_UP_CLICK_NOTIFICATION_METHOD,
+    FEEDBACK_NOTIFICATION_METHOD,
+    LINK_CLICK_NOTIFICATION_METHOD,
+    SOURCE_LINK_CLICK_NOTIFICATION_METHOD,
+    INFO_LINK_CLICK_NOTIFICATION_METHOD,
+    QUICK_ACTION_REQUEST_METHOD,
 } from '@aws/language-server-runtimes-types'
-
-export const CHAT_PROMPT = 'aws/chat/sendChatPrompt'
-export const NEW_TAB_CREATED = 'aws/chat/tabAdd'
-export const TAB_CHANGED = 'aws/chat/tabChange'
-export const TAB_REMOVED = 'aws/chat/tabRemove'
-export const UI_IS_READY = 'aws/chat/ready'
-export const FOLLOW_UP_CLICKED = 'aws/chat/followUpClick'
-export const FEEDBACK = 'aws/chat/feedback'
-export const LINK_CLICK = 'aws/chat/linkClick'
-export const SOURCE_LINK_CLICK = 'aws/chat/sourceLinkClick'
-export const INFO_LINK_CLICK = 'aws/chat/infoLinkClick'
 
 export const TELEMETRY = 'telemetry/event'
 
 export type ServerMessageCommand =
-    | typeof CHAT_PROMPT
-    | typeof NEW_TAB_CREATED
-    | typeof TAB_REMOVED
-    | typeof TAB_CHANGED
-    | typeof UI_IS_READY
+    | typeof CHAT_REQUEST_METHOD
+    | typeof TAB_ADD_NOTIFICATION_METHOD
+    | typeof TAB_REMOVE_NOTIFICATION_METHOD
+    | typeof TAB_CHANGE_NOTIFICATION_METHOD
+    | typeof READY_NOTIFICATION_METHOD
     | typeof TELEMETRY
-    | typeof FOLLOW_UP_CLICKED
-    | typeof FEEDBACK
-    | typeof LINK_CLICK
-    | typeof SOURCE_LINK_CLICK
-    | typeof INFO_LINK_CLICK
+    | typeof FOLLOW_UP_CLICK_NOTIFICATION_METHOD
+    | typeof FEEDBACK_NOTIFICATION_METHOD
+    | typeof LINK_CLICK_NOTIFICATION_METHOD
+    | typeof SOURCE_LINK_CLICK_NOTIFICATION_METHOD
+    | typeof INFO_LINK_CLICK_NOTIFICATION_METHOD
+    | typeof QUICK_ACTION_REQUEST_METHOD
 
 export interface Message {
     command: ServerMessageCommand

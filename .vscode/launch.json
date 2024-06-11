@@ -114,7 +114,8 @@
             "outFiles": ["${workspaceFolder}/client/vscode/out/**/*.js"],
             "env": {
                 "LSP_SERVER": "${workspaceFolder}/app/hello-world-lsp-runtimes/out/standalone.js",
-                "ENABLE_CUSTOM_COMMANDS": "true"
+                "ENABLE_CUSTOM_COMMANDS": "true",
+                "ENABLE_CHAT": "true"
             },
             "preLaunchTask": "npm: compile"
         },
