@@ -8,6 +8,7 @@ import {
     ErrorParams,
     InsertToCursorPositionParams,
     SendToPromptParams,
+    TriggerType,
 } from '@aws/chat-client-ui-types'
 import {
     ChatParams,
@@ -22,7 +23,20 @@ import {
     TabRemoveParams,
 } from '@aws/language-server-runtimes-types'
 import { TelemetryParams } from '../contracts/serverContracts'
-import { CopyCodeToClipboardParams, VoteParams } from '../contracts/telemetry'
+import {
+    ADD_MESSAGE_TELEMETRY_EVENT,
+    AUTH_FOLLOW_UP_CLICKED_TELEMETRY_EVENT,
+    COPY_TO_CLIPBOARD_TELEMETRY_EVENT,
+    CopyCodeToClipboardParams,
+    ERROR_MESSAGE_TELEMETRY_EVENT,
+    INFO_LINK_CLICK_TELEMETRY_EVENT,
+    LINK_CLICK_TELEMETRY_EVENT,
+    SEND_TO_PROMPT_TELEMETRY_EVENT,
+    SOURCE_LINK_CLICK_TELEMETRY_EVENT,
+    TAB_ADD_TELEMETRY_EVENT,
+    VOTE_TELEMETRY_EVENT,
+    VoteParams,
+} from '../contracts/telemetry'
 
 export interface OutboundChatApi {
     sendChatPrompt(params: ChatParams): void
@@ -44,7 +58,9 @@ export interface OutboundChatApi {
 export class Messager {
     constructor(private readonly chatApi: OutboundChatApi) {}
 
-    onTabAdd = (tabId: string): void => {
+    onTabAdd = (tabId: string, triggerType?: TriggerType): void => {
+        this.chatApi.telemetry({ triggerType: triggerType ?? 'click', tabId, name: TAB_ADD_TELEMETRY_EVENT })
+
         this.chatApi.tabAdded({ tabId })
     }
 
@@ -61,10 +77,17 @@ export class Messager {
     }
 
     onSendToPrompt = (params: SendToPromptParams, tabId: string): void => {
-        this.chatApi.telemetry({ ...params, tabId })
+        this.chatApi.telemetry({ ...params, tabId, name: SEND_TO_PROMPT_TELEMETRY_EVENT })
     }
 
-    onChatPrompt = (params: ChatParams): void => {
+    onChatPrompt = (params: ChatParams, triggerType?: string): void => {
+        // Let the server know about the latest trigger interaction on the tabId
+        this.chatApi.telemetry({
+            triggerType: triggerType ?? 'click',
+            tabId: params.tabId,
+            name: ADD_MESSAGE_TELEMETRY_EVENT,
+        })
+
         this.chatApi.sendChatPrompt(params)
     }
 
@@ -78,7 +101,7 @@ export class Messager {
 
     onAuthFollowUpClicked = (params: AuthFollowUpClickedParams): void => {
         this.chatApi.authFollowUpClicked(params)
-        this.chatApi.telemetry(params)
+        this.chatApi.telemetry({ ...params, name: AUTH_FOLLOW_UP_CLICKED_TELEMETRY_EVENT })
     }
 
     onFollowUpClicked = (params: FollowUpClickParams): void => {
@@ -86,11 +109,11 @@ export class Messager {
     }
 
     onCopyCodeToClipboard = (params: CopyCodeToClipboardParams): void => {
-        this.chatApi.telemetry(params)
+        this.chatApi.telemetry({ ...params, name: COPY_TO_CLIPBOARD_TELEMETRY_EVENT })
     }
 
     onVote = (params: VoteParams): void => {
-        this.chatApi.telemetry(params)
+        this.chatApi.telemetry({ ...params, name: VOTE_TELEMETRY_EVENT })
     }
 
     onSendFeedback = (params: FeedbackParams): void => {
@@ -98,18 +121,21 @@ export class Messager {
     }
 
     onLinkClick = (params: LinkClickParams): void => {
+        this.chatApi.telemetry({ ...params, name: LINK_CLICK_TELEMETRY_EVENT })
         this.chatApi.linkClick(params)
     }
 
     onSourceLinkClick = (params: SourceLinkClickParams): void => {
+        this.chatApi.telemetry({ ...params, name: SOURCE_LINK_CLICK_TELEMETRY_EVENT })
         this.chatApi.sourceLinkClick(params)
     }
 
     onInfoLinkClick = (params: InfoLinkClickParams): void => {
+        this.chatApi.telemetry({ ...params, name: INFO_LINK_CLICK_TELEMETRY_EVENT })
         this.chatApi.infoLinkClick(params)
     }
 
     onError = (params: ErrorParams): void => {
-        this.chatApi.telemetry(params)
+        this.chatApi.telemetry({ ...params, name: ERROR_MESSAGE_TELEMETRY_EVENT })
     }
 }

@@ -126,48 +126,53 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri) 
     }
     panel.webview.html = getWebviewContent(panel.webview, extensionUri, chatConfig)
 
-    commands.registerCommand('aws.amazonq.explainCode', () => {
+    commands.registerCommand('aws.amazonq.explainCode', data => {
+        const triggerType = getCommandTriggerType(data)
         const selection = getSelectedText()
 
         panel.webview.postMessage({
             command: 'genericCommand',
-            params: { genericCommand: 'Explain', selection },
+            params: { genericCommand: 'Explain', selection, triggerType },
         })
     })
 
-    commands.registerCommand('aws.amazonq.refactorCode', () => {
+    commands.registerCommand('aws.amazonq.refactorCode', data => {
+        const triggerType = getCommandTriggerType(data)
         const selection = getSelectedText()
 
         panel.webview.postMessage({
             command: 'genericCommand',
-            params: { genericCommand: 'Refactor', selection },
+            params: { genericCommand: 'Refactor', selection, triggerType },
         })
     })
 
-    commands.registerCommand('aws.amazonq.fixCode', () => {
+    commands.registerCommand('aws.amazonq.fixCode', data => {
+        const triggerType = getCommandTriggerType(data)
         const selection = getSelectedText()
 
         panel.webview.postMessage({
             command: 'genericCommand',
-            params: { genericCommand: 'Fix', selection },
+            params: { genericCommand: 'Fix', selection, triggerType },
         })
     })
 
-    commands.registerCommand('aws.amazonq.optimizeCode', () => {
+    commands.registerCommand('aws.amazonq.optimizeCode', data => {
+        const triggerType = getCommandTriggerType(data)
         const selection = getSelectedText()
 
         panel.webview.postMessage({
             command: 'genericCommand',
-            params: { genericCommand: 'Optimize', selection },
+            params: { genericCommand: 'Optimize', selection, triggerType },
         })
     })
 
-    commands.registerCommand('aws.amazonq.sendToPrompt', () => {
+    commands.registerCommand('aws.amazonq.sendToPrompt', data => {
+        const triggerType = getCommandTriggerType(data)
         const selection = getSelectedText()
 
         panel.webview.postMessage({
             command: 'sendToPrompt',
-            params: { selection: selection },
+            params: { selection: selection, triggerType },
         })
     })
 }
@@ -229,4 +234,10 @@ function getSelectedText(): string {
     }
 
     return ' '
+}
+
+function getCommandTriggerType(data: any): string {
+    // data is undefined when commands triggered from keybinding or command palette. Currently no
+    // way to differentiate keybinding and command palette, so both interactions are recorded as keybinding
+    return data === undefined ? 'hotkeys' : 'contextMenu'
 }
