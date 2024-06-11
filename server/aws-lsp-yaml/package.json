@@ -1,11 +1,29 @@
 {
-    "name": "@aws/aws-lsp-yaml",
+    "name": "@aws/lsp-yaml",
     "version": "0.0.1",
-    "description": "CodeBuild Language Server for YAML template",
+    "description": "YAML Language Server",
     "main": "out/index.js",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/aws/language-servers"
+    },
+    "author": "Amazon Web Services",
+    "license": "Apache-2.0",
+    "engines": {
+        "node": ">=18.0.0"
+    },
+    "files": [
+        "out/**/*",
+        "patches/**/*",
+        "patchYamlPackage.js",
+        "CHANGELOG.md",
+        "SECURITY.md",
+        "NOTICE"
+    ],
     "scripts": {
         "compile": "tsc --build",
-        "postinstall": "node patchYamlPackage.js"
+        "postinstall": "node patchYamlPackage.js",
+        "prepack": "cp ../../LICENSE ../../NOTICE ../../SECURITY.md ."
     },
     "dependencies": {
         "@aws/language-server-runtimes": "^0.2.5",

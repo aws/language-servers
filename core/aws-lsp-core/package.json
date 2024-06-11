@@ -3,10 +3,26 @@
     "version": "0.0.1",
     "description": "Core library, contains common code and utilities",
     "main": "out/index.js",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/aws/language-servers"
+    },
+    "author": "Amazon Web Services",
+    "license": "Apache-2.0",
+    "engines": {
+        "node": ">=18.0.0"
+    },
+    "files": [
+        "out/**/*",
+        "CHANGELOG.md",
+        "SECURITY.md",
+        "NOTICE"
+    ],
     "scripts": {
         "compile": "tsc --build",
         "test": "npm run test-unit",
-        "test-unit": "mocha './out/**/*.test.js'"
+        "test-unit": "mocha './out/**/*.test.js'",
+        "prepack": "cp ../../LICENSE ../../NOTICE ../../SECURITY.md ."
     },
     "dependencies": {
         "jose": "^5.2.4",

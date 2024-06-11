@@ -168,7 +168,7 @@
         "@aws/language-server-runtimes": "^0.2.6",
         "@aws/chat-client-ui-types": "0.x.x",
         "@aws-sdk/credential-providers": "^3.540.0",
-        "@aws-sdk/types": "^3.535.0",
+        "@aws-sdk/types": "^3.577.0",
         "@types/vscode": "^1.88.0",
         "jose": "^5.2.4",
         "typescript": "^5.4.5",

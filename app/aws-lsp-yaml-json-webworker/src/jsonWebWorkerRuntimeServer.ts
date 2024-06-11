@@ -1,6 +1,6 @@
-import { webworker } from '@aws/language-server-runtimes/runtimes/webworker'
 import { RuntimeProps } from '@aws/language-server-runtimes/runtimes/runtime'
-import { CreateJsonLanguageServer } from '@aws/aws-lsp-json'
+import { webworker } from '@aws/language-server-runtimes/runtimes/webworker'
+import { CreateJsonLanguageServer } from '@aws/lsp-json'
 
 const jsonSchemaUrl =
     'https://raw.githubusercontent.com/aws/serverless-application-model/main/samtranslator/schema/schema.json'

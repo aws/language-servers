@@ -2,7 +2,10 @@ import { BearerCredentials, CredentialsProvider } from '@aws/language-server-run
 import { AWSError, CredentialProviderChain, Credentials } from 'aws-sdk'
 import { PromiseResult } from 'aws-sdk/lib/request'
 import { v4 as uuidv4 } from 'uuid'
-import { createCodeWhispererSigv4Client } from '../client/sigv4/codewhisperer'
+import {
+    CodeWhispererSigv4ClientConfigurationOptions,
+    createCodeWhispererSigv4Client,
+} from '../client/sigv4/codewhisperer'
 import {
     CodeWhispererTokenClientConfigurationOptions,
     createCodeWhispererTokenClient,
@@ -71,21 +74,17 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
     constructor(credentialsProvider: CredentialsProvider, additionalAwsConfig: AWSConfig = {}) {
         super(credentialsProvider, additionalAwsConfig)
 
-        const options: CodeWhispererTokenClientConfigurationOptions = {
+        const options: CodeWhispererSigv4ClientConfigurationOptions = {
             region: this.codeWhispererRegion,
             endpoint: this.codeWhispererEndpoint,
             credentialProvider: new CredentialProviderChain([
                 () => credentialsProvider.getCredentials('iam') as Credentials,
             ]),
-            onRequestSetup: [
-                req => {
-                    req.on('build', ({ httpRequest }) => {
-                        httpRequest.headers['x-amzn-codewhisperer-optout'] = `${!this.shareCodeWhispererContentWithAWS}`
-                    })
-                },
-            ],
         }
         this.client = createCodeWhispererSigv4Client(options)
+        this.client.setupRequestListeners = ({ httpRequest }) => {
+            httpRequest.headers['x-amzn-codewhisperer-optout'] = `${!this.shareCodeWhispererContentWithAWS}`
+        }
     }
 
     async generateSuggestions(request: GenerateSuggestionsRequest): Promise<GenerateSuggestionsResponse> {
