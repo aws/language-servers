@@ -42,7 +42,7 @@ const GetTransformPlanCommand = 'aws/qNetTransform/getTransformPlan'
 const CancelTransformCommand = 'aws/qNetTransform/cancelTransform'
 const DownloadArtifactsCommand = 'aws/qNetTransform/downloadArtifacts'
 const dryRunEnv = process.env.DRY_RUN
-const dryRun = true //dryRunEnv !== undefined ? dryRunEnv.toLowerCase() === 'true' : false
+const dryRun = dryRunEnv !== undefined ? dryRunEnv.toLowerCase() === 'true' : false
 /**
  *
  * @param createService Inject service instance based on credentials provider.
@@ -63,7 +63,10 @@ export const NetTransformServerFactory: (
                 const transformHandler = new TransformHandler(client, workspace, logging, dryRun)
                 switch (params.command) {
                     case StartTransformCommand: {
+                        logging.log('here' + JSON.stringify(params))
+
                         const userInputrequest = params as StartTransformRequest
+                        logging.log('here2' + JSON.stringify(userInputrequest))
                         logging.log('prepare artifact for solution: ' + userInputrequest.SolutionRootPath)
                         const response = await transformHandler.startTransformation(userInputrequest)
                         emitTransformationJobStartedTelemetry(telemetry, response)

@@ -2,7 +2,7 @@ import { Logging, Workspace } from '@aws/language-server-runtimes/server-interfa
 import * as archiver from 'archiver'
 import * as crypto from 'crypto'
 import * as fs from 'fs'
-import { RequirementJson, StartTransformRequest } from './models'
+import { CodeFile, Project, References, RequirementJson, StartTransformRequest } from './models'
 import path = require('path')
 const requriementJsonFileName = 'requirement.json'
 const artifactFolderName = 'artifact'
@@ -50,49 +50,61 @@ export class ArtifactManager {
 
     async copyReferenceDlls(request: StartTransformRequest) {
         const filteredReferences = this.filterReferences(request)
-        filteredReferences.forEach(reference =>
-            this.copyFile(reference.AssemblyFullPath, this.getReferencePathFromRelativePath(reference.RelativePath))
-        )
+        filteredReferences.forEach(reference => {
+            const relativePath = this.normalizeReferenceFileRelativePath(
+                reference.RelativePath,
+                reference.IncludedInArtifact
+            )
+            this.copyFile(reference.AssemblyFullPath, this.getReferencePathFromRelativePath(relativePath))
+        })
     }
 
     async copySoureFiles(request: StartTransformRequest) {
-        request.ProjectMetadata.forEach(project => {
-            project.SourceCodeFilePaths.forEach(filePath => {
-                const relativePath = this.normalizeSourceFileRelativePath(request.SolutionRootPath, filePath)
-                this.copyFile(filePath, this.getSourceCodePathFromRelativePath(relativePath))
-            })
-        })
+        for (const configFilePath of request.SolutionConfigPaths) {
+            this.copySourceFile(request.SolutionRootPath, configFilePath)
+        }
+        for (const metadata of request.ProjectMetadata) {
+            for (const filePath of metadata.SourceCodeFilePaths) {
+                this.copySourceFile(request.SolutionRootPath, filePath)
+            }
+        }
+    }
+
+    copySourceFile(solutionRootPath: string, filePath: string): void {
+        const relativePath = this.normalizeSourceFileRelativePath(solutionRootPath, filePath)
+        this.copyFile(filePath, this.getSourceCodePathFromRelativePath(relativePath))
     }
 
     async createRequirementJsonContent(request: StartTransformRequest): Promise<RequirementJson> {
-        const entryPath =
-            request.SelectedProjectPath == ''
-                ? ''
-                : this.normalizeSourceFileRelativePath(request.SolutionRootPath, request.SelectedProjectPath)
-        const projects = request.ProjectMetadata.map(p => {
-            return {
-                projectFilePath: this.normalizeSourceFileRelativePath(request.SolutionRootPath, p.ProjectPath),
-                codeFiles: p.SourceCodeFilePaths.map(codeFilePath => {
-                    return {
-                        contentMd5Hash: this.calculateMD5Sync(codeFilePath),
-                        relativePath: this.normalizeSourceFileRelativePath(request.SolutionRootPath, codeFilePath),
-                    }
-                }),
+        const projects = request.ProjectMetadata.map(project => {
+            const codeFiles = project.SourceCodeFilePaths.filter(filePath => filePath).map(filePath => {
+                return {
+                    contentMd5Hash: this.calculateMD5Sync(filePath),
+                    relativePath: this.normalizeSourceFileRelativePath(request.SolutionRootPath, filePath),
+                } as CodeFile
+            })
 
-                references: p.ExternalReferences.map(r => {
-                    return {
-                        includedInArtifact: r.IncludedInArtifact,
-                        relativePath: this.normalizeReferenceFileRelativePath(r.RelativePath, r.IncludedInArtifact),
-                    }
-                }),
-            }
+            const references = project.ExternalReferences.map(reference => {
+                return {
+                    includedInArtifact: reference.IncludedInArtifact,
+                    relativePath: this.normalizeReferenceFileRelativePath(
+                        reference.RelativePath,
+                        reference.IncludedInArtifact
+                    ),
+                } as References
+            })
+
+            return {
+                projectFilePath: this.normalizeSourceFileRelativePath(request.SolutionRootPath, project.ProjectPath),
+                codeFiles: codeFiles,
+                references: references,
+            } as Project
         })
-        const fileContent: RequirementJson = {
-            EntryPath: entryPath,
-            Projects: projects,
-        }
         this.logging.log('total project reference:' + projects.length)
-        return fileContent
+        return {
+            EntryPath: this.normalizeSourceFileRelativePath(request.SolutionRootPath, request.SelectedProjectPath),
+            Projects: projects,
+        } as RequirementJson
     }
 
     filterReferences(request: StartTransformRequest) {
@@ -130,7 +142,7 @@ export class ArtifactManager {
     }
 
     getReferencePathFromRelativePath(relativePath: string): string {
-        return path.join(this.workspacePath, artifactFolderName, referencesFolderName, relativePath)
+        return path.join(this.workspacePath, artifactFolderName, relativePath)
     }
 
     getSourceCodePathFromRelativePath(relativePath: string): string {
@@ -138,10 +150,10 @@ export class ArtifactManager {
     }
 
     normalizeSourceFileRelativePath(solutionRootPath: string, fullPath: string): string {
-        if (fullPath.startsWith(solutionRootPath))
-            return path.join(sourceCodeFolderName, fullPath.replace(solutionRootPath, ''))
-        else {
-            const relativePath = fullPath.substring(fullPath.indexOf(':\\') + 2, fullPath.length)
+        if (fullPath.startsWith(solutionRootPath)) {
+            return path.join(sourceCodeFolderName, fullPath.replace(`${solutionRootPath}\\`, ''))
+        } else {
+            const relativePath = fullPath.substring(fullPath.indexOf(':\\') + 2)
             return path.join(sourceCodeFolderName, relativePath)
         }
     }

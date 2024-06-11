@@ -3,9 +3,10 @@ import { TransformationJob, TransformationPlan } from '../../client/token/codewh
 
 export interface StartTransformRequest extends ExecuteCommandParams {
     SolutionRootPath: string
-    TargetFramework: string
-    ProgramLanguage: string
     SelectedProjectPath: string
+    ProgramLanguage: string
+    TargetFramework: string
+    SolutionConfigPaths: string[]
     ProjectMetadata: TransformProjectMetadata[]
 }
 
@@ -65,32 +66,31 @@ export interface ExternalReference {
     ProjectPath: string
     RelativePath: string
     AssemblyFullPath: string
-    TargetFrameworkId: string
     IncludedInArtifact: boolean
 }
 
 interface TransformProjectMetadata {
     Name: string
-    ProjectPath: string
-    ProjectLanguage: string
     ProjectTargetFramework: string
-    ProjectType: string
+    ProjectPath: string
     SourceCodeFilePaths: string[]
+    ProjectLanguage: string
+    ProjectType: string
     ExternalReferences: ExternalReference[]
 }
 
-interface Project {
+export interface Project {
     projectFilePath: string
     codeFiles: CodeFile[]
     references: References[]
 }
 
-interface CodeFile {
+export interface CodeFile {
     contentMd5Hash: string
     relativePath: string
 }
 
-interface References {
+export interface References {
     includedInArtifact: boolean
     relativePath: string
 }
