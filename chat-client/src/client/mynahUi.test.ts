@@ -127,7 +127,7 @@ describe('MynahUI', () => {
             const selection = 'const x = 5;'
             const tabId = 'tab-1'
             const triggerType = 'click'
-            const expectedPrompt = `${genericCommand} the following part of my code:\n~~~~\n${selection}\n~~~~`
+            const expectedPrompt = `${genericCommand} the following part of my code:\n~~~~\n${selection}\n~~~~\n`
 
             getSelectedTabIdStub.returns(tabId)
 

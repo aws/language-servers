@@ -8,6 +8,7 @@ import {
     GenericCommandParams,
     InsertToCursorPositionParams,
     SendToPromptParams,
+    TriggerType,
     isValidAuthFollowUpType,
 } from '@aws/chat-client-ui-types'
 import {
@@ -35,7 +36,7 @@ export const handleChatPrompt = (
     tabId: string,
     prompt: ChatPrompt,
     messager: Messager,
-    triggerType?: string,
+    triggerType?: TriggerType,
     _eventId?: string
 ) => {
     if (prompt.command) {

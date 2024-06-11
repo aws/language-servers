@@ -55,10 +55,11 @@ describe('Chat', () => {
     it('publishes telemetry event, when show error is triggered', () => {
         createChat(clientApi)
 
-        const errorEvent = createInboundEvent({ command: ERROR_MESSAGE, params: { tabId: '123' } })
+        const params = { params: { tabId: '123' } }
+        const errorEvent = createInboundEvent({ command: ERROR_MESSAGE, params })
         window.dispatchEvent(errorEvent)
 
-        // assert.calledWithMatch(clientApi.postMessage, { command: TELEMETRY, params: {} })
+        assert.calledWithMatch(clientApi.postMessage, { command: TELEMETRY, params })
     })
 
     it('publishes tab added event, when UI tab is added', () => {
@@ -101,7 +102,7 @@ describe('Chat', () => {
         const selection = 'some code'
         const tabId = '123'
         const triggerType = 'click'
-        const expectedPrompt = `${genericCommand} the following part of my code:\n~~~~\n${selection}\n~~~~`
+        const expectedPrompt = `${genericCommand} the following part of my code:\n~~~~\n${selection}\n~~~~\n`
 
         const genericCommandEvent = createInboundEvent({
             command: GENERIC_COMMAND,

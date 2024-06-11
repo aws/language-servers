@@ -1,4 +1,4 @@
-import { CredentialsProvider, Server, TextDocument } from '@aws/language-server-runtimes/server-interface'
+import { CredentialsProvider, Server } from '@aws/language-server-runtimes/server-interface'
 import { ChatController } from './chat/chatController'
 import { ChatSessionManagementService } from './chat/chatSessionManagementService'
 import { CLEAR_QUICK_ACTION, HELP_QUICK_ACTION } from './chat/quickActions'
