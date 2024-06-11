@@ -56,6 +56,7 @@ describe('Test ArtifactManager ', () => {
                 TargetFramework: 'net8.0',
                 ProgramLanguage: 'csharp',
                 SelectedProjectPath: '',
+                SolutionConfigPaths: [],
                 ProjectMetadata: [],
 
                 command: 'aws/qNetTransform/startTransform',
