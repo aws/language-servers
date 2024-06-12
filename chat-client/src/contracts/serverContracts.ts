@@ -45,7 +45,10 @@ export interface ServerMessage extends Message {
     params?: ServerMessageParams
 }
 
-export type TelemetryParams = any
+export type TelemetryParams = {
+    name: string
+    [key: string]: any
+}
 
 export type ServerMessageParams =
     | TabAddParams
