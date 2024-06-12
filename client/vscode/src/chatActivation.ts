@@ -14,7 +14,7 @@ import {
     telemetryNotificationType,
 } from '@aws/language-server-runtimes/protocol'
 import { v4 as uuidv4 } from 'uuid'
-import { Uri, ViewColumn, Webview, commands, window } from 'vscode'
+import { Uri, ViewColumn, Webview, WebviewPanel, commands, window } from 'vscode'
 import { LanguageClient } from 'vscode-languageclient/node'
 
 export function registerChat(languageClient: LanguageClient, extensionUri: Uri) {
@@ -126,48 +126,18 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri) 
     }
     panel.webview.html = getWebviewContent(panel.webview, extensionUri, chatConfig)
 
-    commands.registerCommand('aws.amazonq.explainCode', () => {
-        const selection = getSelectedText()
+    registerCommand('aws.amazonq.explainCode', 'Explain', panel)
+    registerCommand('aws.amazonq.refactorCode', 'Refactor', panel)
+    registerCommand('aws.amazonq.fixCode', 'Fix', panel)
+    registerCommand('aws.amazonq.optimizeCode', 'Optimize', panel)
 
-        panel.webview.postMessage({
-            command: 'genericCommand',
-            params: { genericCommand: 'Explain', selection },
-        })
-    })
-
-    commands.registerCommand('aws.amazonq.refactorCode', () => {
-        const selection = getSelectedText()
-
-        panel.webview.postMessage({
-            command: 'genericCommand',
-            params: { genericCommand: 'Refactor', selection },
-        })
-    })
-
-    commands.registerCommand('aws.amazonq.fixCode', () => {
-        const selection = getSelectedText()
-
-        panel.webview.postMessage({
-            command: 'genericCommand',
-            params: { genericCommand: 'Fix', selection },
-        })
-    })
-
-    commands.registerCommand('aws.amazonq.optimizeCode', () => {
-        const selection = getSelectedText()
-
-        panel.webview.postMessage({
-            command: 'genericCommand',
-            params: { genericCommand: 'Optimize', selection },
-        })
-    })
-
-    commands.registerCommand('aws.amazonq.sendToPrompt', () => {
+    commands.registerCommand('aws.amazonq.sendToPrompt', data => {
+        const triggerType = getCommandTriggerType(data)
         const selection = getSelectedText()
 
         panel.webview.postMessage({
             command: 'sendToPrompt',
-            params: { selection: selection },
+            params: { selection: selection, triggerType },
         })
     })
 }
@@ -229,4 +199,22 @@ function getSelectedText(): string {
     }
 
     return ' '
+}
+
+function getCommandTriggerType(data: any): string {
+    // data is undefined when commands triggered from keybinding or command palette. Currently no
+    // way to differentiate keybinding and command palette, so both interactions are recorded as keybinding
+    return data === undefined ? 'hotkeys' : 'contextMenu'
+}
+
+function registerCommand(commandName: string, genericCommand: string, panel: WebviewPanel) {
+    commands.registerCommand(commandName, data => {
+        const triggerType = getCommandTriggerType(data)
+        const selection = getSelectedText()
+
+        panel.webview.postMessage({
+            command: 'genericCommand',
+            params: { genericCommand, selection, triggerType },
+        })
+    })
 }

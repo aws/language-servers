@@ -14,6 +14,8 @@ import { afterEach } from 'mocha'
 import { assert } from 'sinon'
 import { createChat } from './chat'
 import sinon = require('sinon')
+import { TELEMETRY } from '../contracts/serverContracts'
+import { ERROR_MESSAGE_TELEMETRY_EVENT, SEND_TO_PROMPT_TELEMETRY_EVENT } from '../contracts/telemetry'
 
 describe('Chat', () => {
     const sandbox = sinon.createSandbox()
@@ -37,19 +39,34 @@ describe('Chat', () => {
     it('publishes telemetry event, when send to prompt is triggered', () => {
         createChat(clientApi)
 
-        const sendToPromptEvent = createInboundEvent({ command: SEND_TO_PROMPT, params: { prompt: 'hey' } })
+        const eventParams = { command: SEND_TO_PROMPT, params: { prompt: 'hey' } }
+        const sendToPromptEvent = createInboundEvent(eventParams)
         window.dispatchEvent(sendToPromptEvent)
 
-        // assert.calledWithMatch(clientApi.postMessage, { command: TAB_ID_RECEIVED })
+        assert.calledWithExactly(clientApi.postMessage, {
+            command: TELEMETRY,
+            params: {
+                name: SEND_TO_PROMPT_TELEMETRY_EVENT,
+                tabId: 'tab-1',
+                ...eventParams.params,
+            },
+        })
     })
 
-    it('publishes tab id received event, when show error is triggered', () => {
+    it('publishes telemetry event, when show error is triggered', () => {
         createChat(clientApi)
 
-        const errorEvent = createInboundEvent({ command: ERROR_MESSAGE, params: { tabId: '123' } })
+        const eventParams = { command: ERROR_MESSAGE, params: { tabId: '123' } }
+        const errorEvent = createInboundEvent(eventParams)
         window.dispatchEvent(errorEvent)
 
-        // assert.calledWithMatch(clientApi.postMessage, { command: TAB_ID_RECEIVED, params: { tabId: '123' } })
+        assert.calledWithExactly(clientApi.postMessage, {
+            command: TELEMETRY,
+            params: {
+                name: ERROR_MESSAGE_TELEMETRY_EVENT,
+                ...eventParams.params,
+            },
+        })
     })
 
     it('publishes tab added event, when UI tab is added', () => {
@@ -92,7 +109,7 @@ describe('Chat', () => {
         const selection = 'some code'
         const tabId = '123'
         const triggerType = 'click'
-        const expectedPrompt = `${genericCommand} the following part of my code:\n~~~~\n${selection}\n~~~~`
+        const expectedPrompt = `${genericCommand} the following part of my code:\n~~~~\n${selection}\n~~~~\n`
 
         const genericCommandEvent = createInboundEvent({
             command: GENERIC_COMMAND,
