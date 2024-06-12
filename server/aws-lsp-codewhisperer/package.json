@@ -13,11 +13,12 @@
         "node": ">=18.0.0"
     },
     "workspaces": [
-        "src.gen/@amzn/codewhisperer-streaming"
+        "src.gen/@amzn/codewhisperer-streaming",
+        "src.gen/aws-lsp-fqn"
     ],
     "scripts": {
         "compile-streamingClient": "npm run build -w src.gen/@amzn/codewhisperer-streaming",
-        "precompile": "npm run compile-streamingClient",
+        "precompile": "npm run compile-streamingClient && npm run compile -w src.gen/aws-lsp-fqn",
         "compile": "tsc --build",
         "postcompile": "npm run copyServiceClient",
         "copyServiceClient": "copyfiles -u 1 --error ./src/client/sigv4/*.json out && copyfiles -u 1 --error ./src/client/token/*.json out",
@@ -29,7 +30,7 @@
     "dependencies": {
         "@amzn/codewhisperer-streaming": "file:./src.gen/@amzn/codewhisperer-streaming",
         "@aws/language-server-runtimes": "0.x.x",
-        "@aws/lsp-fqn": "^0.0.1",
+        "@aws/lsp-fqn": "file:./src.gen/aws-lsp-fqn",
         "@smithy/node-http-handler": "^2.5.0",
         "hpagent": "^1.2.0",
         "adm-zip": "^0.5.10",
