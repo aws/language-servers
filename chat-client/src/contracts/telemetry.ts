@@ -4,6 +4,7 @@ export const ENTER_FOCUS = 'enterFocus'
 export const EXIT_FOCUS = 'exitFocus'
 
 export const ADD_MESSAGE_TELEMETRY_EVENT = `addMessage`
+export const INSERT_TO_CURSOR_POSITION_TELEMETRY_EVENT = `insertToCursorPosition`
 export const SEND_TO_PROMPT_TELEMETRY_EVENT = 'sendToPrompt'
 export const TAB_ADD_TELEMETRY_EVENT = 'tabAdd'
 export const COPY_TO_CLIPBOARD_TELEMETRY_EVENT = 'copyToClipboard'
