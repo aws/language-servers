@@ -11,6 +11,8 @@ import {
     SEND_TO_PROMPT,
     SendToPromptMessage,
     UiMessage,
+    QUICK_ACTIONS_OPTIONS,
+    QuickActionsOptionsMessage,
 } from '@aws/chat-client-ui-types'
 import {
     CHAT_REQUEST_METHOD,
@@ -35,12 +37,13 @@ import {
     TabChangeParams,
     TabRemoveParams,
 } from '@aws/language-server-runtimes-types'
-import { MynahUIDataModel } from '@aws/mynah-ui'
+import { MynahUI, MynahUIDataModel } from '@aws/mynah-ui'
 import { ServerMessage, TELEMETRY, TelemetryParams } from '../contracts/serverContracts'
 import { ENTER_FOCUS, EXIT_FOCUS } from '../contracts/telemetry'
 import { Messager, OutboundChatApi } from './messager'
 import { InboundChatApi, createMynahUi } from './mynahUi'
 import { TabFactory } from './tabs/tabFactory'
+import { MynahUITabStoreModel } from '@aws/mynah-ui/dist/static'
 
 const DEFAULT_TAB_DATA = {
     tabTitle: 'Chat',
@@ -51,12 +54,10 @@ const DEFAULT_TAB_DATA = {
 
 type ChatClientConfig = Pick<MynahUIDataModel, 'quickActionCommands'>
 
-export const createChat = (
-    clientApi: { postMessage: (msg: UiMessage | ServerMessage) => void },
-    config?: ChatClientConfig
-) => {
+export const createChat = (clientApi: { postMessage: (msg: UiMessage | ServerMessage) => void }) => {
     // eslint-disable-next-line semi
     let mynahApi: InboundChatApi
+    let tabFactory: TabFactory
 
     const sendMessageToClient = (message: UiMessage | ServerMessage) => {
         clientApi.postMessage(message)
@@ -81,6 +82,17 @@ export const createChat = (
             case ERROR_MESSAGE:
                 mynahApi.showError((message as ErrorMessage).params)
                 break
+            case QUICK_ACTIONS_OPTIONS:
+                const params = (message as QuickActionsOptionsMessage).params
+                const chatConfig: ChatClientConfig = {
+                    quickActionCommands: params.quickActionsCommandGroups,
+                }
+                tabFactory.updateDefaultTabData(chatConfig)
+
+                const allExistingTabs: MynahUITabStoreModel = mynahUi.getAllTabs()
+                for (const tabId in allExistingTabs) {
+                    mynahUi.updateStore(tabId, chatConfig)
+                }
             default:
                 // TODO: Report error?
                 break
@@ -144,9 +156,8 @@ export const createChat = (
     }
 
     const messager = new Messager(chatApi)
-    const tabFactory = new TabFactory({
+    tabFactory = new TabFactory({
         ...DEFAULT_TAB_DATA,
-        quickActionCommands: config?.quickActionCommands,
     })
     const [mynahUi, api] = createMynahUi(messager, tabFactory)
 

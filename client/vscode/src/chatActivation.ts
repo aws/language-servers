@@ -1,4 +1,4 @@
-import { isValidAuthFollowUpType } from '@aws/chat-client-ui-types'
+import { isValidAuthFollowUpType, QuickActionsOptions, QUICK_ACTIONS_OPTIONS } from '@aws/chat-client-ui-types'
 import {
     ChatResult,
     chatRequestType,
@@ -15,7 +15,7 @@ import {
 } from '@aws/language-server-runtimes/protocol'
 import { v4 as uuidv4 } from 'uuid'
 import { Uri, ViewColumn, Webview, WebviewPanel, commands, window } from 'vscode'
-import { LanguageClient } from 'vscode-languageclient/node'
+import { LanguageClient, State } from 'vscode-languageclient/node'
 
 export function registerChat(languageClient: LanguageClient, extensionUri: Uri) {
     const panel = window.createWebviewPanel(
@@ -27,6 +27,23 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri) 
             localResourceRoots: [Uri.joinPath(extensionUri, 'build')],
         } // Webview options
     )
+
+    // Listen for Initialize handshake from LSP server to register quick actions dynamically
+    languageClient.onDidChangeState(({ oldState, newState }) => {
+        if (oldState === State.Starting && newState === State.Running) {
+            languageClient.info('Language client received initializeResult from server:', JSON.stringify(languageClient.initializeResult))
+
+            const chatConfig: QuickActionsOptions = {
+                quickActionsCommandGroups:
+                    languageClient.initializeResult?.awsServerCapabilities?.chatQuickActionsProvider?.quickActionsCommandGroups,
+            }
+
+            panel.webview.postMessage({
+                command: QUICK_ACTIONS_OPTIONS,
+                params: chatConfig,
+            })
+        }
+    })
 
     panel.webview.onDidReceiveMessage(message => {
         languageClient.info(`vscode client: Received ${JSON.stringify(message)} from chat`)

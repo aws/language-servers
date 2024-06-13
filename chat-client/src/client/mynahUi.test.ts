@@ -107,7 +107,7 @@ describe('MynahUI', () => {
             inboundChatApi.sendGenericCommand({ genericCommand, selection, tabId, triggerType })
 
             sinon.assert.calledWithMatch(createTabStub.lastCall, false)
-            sinon.assert.calledTwice(updateStoreSpy)
+            sinon.assert.calledThrice(updateStoreSpy)
         })
 
         it('should not create a new tab if one exits already', () => {
