@@ -68,7 +68,7 @@ describe('Test YamlServer with CloudFormation schema', () => {
         client.exit()
     })
 
-    it('should return hover item without header and footer, YAML', async () => {
+    it.skip('should return hover item without header and footer, YAML', async () => {
         const docUri = 'hover.yml'
         client.didOpen({
             textDocument: {

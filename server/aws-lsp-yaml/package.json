@@ -22,7 +22,6 @@
     ],
     "scripts": {
         "compile": "tsc --build",
-        "postinstall": "node patchYamlPackage.js",
         "prepack": "cp ../../LICENSE ../../NOTICE ../../SECURITY.md ."
     },
     "dependencies": {

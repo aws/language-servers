@@ -59,7 +59,6 @@ export class YamlLanguageService implements AwsLanguageService {
     private updateSchemaMapping(documentUri: string): void {
         this.yamlService.configure({
             hover: true,
-            hoverSettings: { showSource: false, showTitle: false },
             completion: true,
             format: true,
             validate: true,
