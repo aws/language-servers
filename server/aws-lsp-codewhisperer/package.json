@@ -21,9 +21,10 @@
         "compile": "tsc --build",
         "postcompile": "npm run copyServiceClient",
         "copyServiceClient": "copyfiles -u 1 --error ./src/client/sigv4/*.json out && copyfiles -u 1 --error ./src/client/token/*.json out",
+        "lint": "eslint src/ --ext .ts,.tsx",
         "test:unit": "ts-mocha -b 'src/**/*.test.ts'",
         "test:prettier": "prettier . --check",
-        "test": "npm run test:prettier && npm run test:unit",
+        "test": "npm run lint && npm run test:prettier && npm run test:unit",
         "fix:prettier": "prettier . --write"
     },
     "dependencies": {
