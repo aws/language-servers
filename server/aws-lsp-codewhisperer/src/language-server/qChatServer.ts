@@ -16,12 +16,14 @@ export const QChatServer =
             return {
                 capabilities: {},
                 awsServerCapabilities: {
-                    chatQuickActionsProvider: {
-                        quickActionsCommandGroups: [
-                            {
-                                commands: [HELP_QUICK_ACTION, CLEAR_QUICK_ACTION],
-                            },
-                        ],
+                    chatOptions: {
+                        quickActionsOptions: {
+                            quickActionsCommandGroups: [
+                                {
+                                    commands: [HELP_QUICK_ACTION, CLEAR_QUICK_ACTION],
+                                },
+                            ],
+                        },
                     },
                 },
             }

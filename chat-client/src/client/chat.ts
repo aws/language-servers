@@ -11,8 +11,8 @@ import {
     SEND_TO_PROMPT,
     SendToPromptMessage,
     UiMessage,
-    QUICK_ACTIONS_OPTIONS,
-    QuickActionsOptionsMessage,
+    CHAT_OPTIONS,
+    ChatOptionsMessage,
 } from '@aws/chat-client-ui-types'
 import {
     CHAT_REQUEST_METHOD,
@@ -37,13 +37,16 @@ import {
     TabChangeParams,
     TabRemoveParams,
 } from '@aws/language-server-runtimes-types'
-import { MynahUI, MynahUIDataModel } from '@aws/mynah-ui'
+import { MynahUIDataModel, MynahUIProps } from '@aws/mynah-ui'
 import { ServerMessage, TELEMETRY, TelemetryParams } from '../contracts/serverContracts'
 import { ENTER_FOCUS, EXIT_FOCUS } from '../contracts/telemetry'
 import { Messager, OutboundChatApi } from './messager'
 import { InboundChatApi, createMynahUi } from './mynahUi'
 import { TabFactory } from './tabs/tabFactory'
-import { MynahUITabStoreModel } from '@aws/mynah-ui/dist/static'
+
+// Workaround to import MynahUITabStoreModel until mynah exports it
+type FieldType<T, K extends keyof T> = T[K]
+type MynahUITabStoreModel = FieldType<MynahUIProps, 'tabs'>
 
 const DEFAULT_TAB_DATA = {
     tabTitle: 'Chat',
@@ -82,10 +85,10 @@ export const createChat = (clientApi: { postMessage: (msg: UiMessage | ServerMes
             case ERROR_MESSAGE:
                 mynahApi.showError((message as ErrorMessage).params)
                 break
-            case QUICK_ACTIONS_OPTIONS:
-                const params = (message as QuickActionsOptionsMessage).params
+            case CHAT_OPTIONS:
+                const params = (message as ChatOptionsMessage).params
                 const chatConfig: ChatClientConfig = {
-                    quickActionCommands: params.quickActionsCommandGroups,
+                    quickActionCommands: params.quickActionsOptions?.quickActionsCommandGroups,
                 }
                 tabFactory.updateDefaultTabData(chatConfig)
 

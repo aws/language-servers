@@ -1,4 +1,4 @@
-import { isValidAuthFollowUpType, QuickActionsOptions, QUICK_ACTIONS_OPTIONS } from '@aws/chat-client-ui-types'
+import { isValidAuthFollowUpType, CHAT_OPTIONS } from '@aws/chat-client-ui-types'
 import {
     ChatResult,
     chatRequestType,
@@ -31,16 +31,16 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri) 
     // Listen for Initialize handshake from LSP server to register quick actions dynamically
     languageClient.onDidChangeState(({ oldState, newState }) => {
         if (oldState === State.Starting && newState === State.Running) {
-            languageClient.info('Language client received initializeResult from server:', JSON.stringify(languageClient.initializeResult))
+            languageClient.info(
+                'Language client received initializeResult from server:',
+                JSON.stringify(languageClient.initializeResult)
+            )
 
-            const chatConfig: QuickActionsOptions = {
-                quickActionsCommandGroups:
-                    languageClient.initializeResult?.awsServerCapabilities?.chatQuickActionsProvider?.quickActionsCommandGroups,
-            }
+            const chatOptions = languageClient.initializeResult?.awsServerCapabilities?.chatOptions
 
             panel.webview.postMessage({
-                command: QUICK_ACTIONS_OPTIONS,
-                params: chatConfig,
+                command: CHAT_OPTIONS,
+                params: chatOptions,
             })
         }
     })
@@ -137,11 +137,7 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri) 
         }
     }, undefined)
 
-    const chatConfig = {
-        quickActionCommands:
-            languageClient.initializeResult?.awsServerCapabilities?.chatQuickActionsProvider?.quickActionsCommandGroups,
-    }
-    panel.webview.html = getWebviewContent(panel.webview, extensionUri, chatConfig)
+    panel.webview.html = getWebviewContent(panel.webview, extensionUri)
 
     registerCommand('aws.amazonq.explainCode', 'Explain', panel)
     registerCommand('aws.amazonq.refactorCode', 'Refactor', panel)
@@ -159,7 +155,7 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri) 
     })
 }
 
-function getWebviewContent(webView: Webview, extensionUri: Uri, chatClientConfig: object) {
+function getWebviewContent(webView: Webview, extensionUri: Uri) {
     return `
     <!DOCTYPE html>
     <html lang="en">
@@ -170,7 +166,7 @@ function getWebviewContent(webView: Webview, extensionUri: Uri, chatClientConfig
         ${generateCss()}
     </head>
     <body>
-        ${generateJS(webView, extensionUri, chatClientConfig)}
+        ${generateJS(webView, extensionUri)}
     </body>
     </html>`
 }
@@ -191,7 +187,7 @@ function generateCss() {
     </style>`
 }
 
-function generateJS(webView: Webview, extensionUri: Uri, chatClientConfig: object): string {
+function generateJS(webView: Webview, extensionUri: Uri): string {
     const assetsPath = Uri.joinPath(extensionUri)
     const chatUri = Uri.joinPath(assetsPath, 'build', 'amazonq-ui.js')
 
@@ -201,7 +197,7 @@ function generateJS(webView: Webview, extensionUri: Uri, chatClientConfig: objec
     <script type="text/javascript" src="${entrypoint.toString()}" defer onload="init()"></script>
     <script type="text/javascript">
         const init = () => {
-            amazonQChat.createChat(acquireVsCodeApi(), ${JSON.stringify(chatClientConfig)});
+            amazonQChat.createChat(acquireVsCodeApi());
         }
     </script>
     `
