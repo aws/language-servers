@@ -30,6 +30,7 @@ import {
     CopyCodeToClipboardParams,
     ERROR_MESSAGE_TELEMETRY_EVENT,
     INFO_LINK_CLICK_TELEMETRY_EVENT,
+    INSERT_TO_CURSOR_POSITION_TELEMETRY_EVENT,
     LINK_CLICK_TELEMETRY_EVENT,
     SEND_TO_PROMPT_TELEMETRY_EVENT,
     SOURCE_LINK_CLICK_TELEMETRY_EVENT,
@@ -97,6 +98,7 @@ export class Messager {
 
     onInsertToCursorPosition = (params: InsertToCursorPositionParams): void => {
         this.chatApi.insertToCursorPosition(params)
+        this.chatApi.telemetry({ ...params, name: INSERT_TO_CURSOR_POSITION_TELEMETRY_EVENT })
     }
 
     onAuthFollowUpClicked = (params: AuthFollowUpClickedParams): void => {

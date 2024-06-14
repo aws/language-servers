@@ -1,12 +1,18 @@
 const execFileSync = require('child_process').execFileSync
 const fs = require('node:fs')
+const path = require('path')
+
+const locale = path[process.platform === 'win32' ? 'win32' : 'posix']
 
 const pathToYamlPackage = require.resolve('yaml-language-server')
-const rootPackage = pathToYamlPackage.substring(
-    0,
-    pathToYamlPackage.indexOf('node_modules/yaml-language-server/out/server/src/index.js')
+
+const pathToIndex = 'node_modules/yaml-language-server/out/server/src/index.js'.split('/').join(locale.sep)
+const rootPackage = pathToYamlPackage.substring(0, pathToYamlPackage.indexOf(pathToIndex))
+
+const pathToFileHover = path.join(
+    rootPackage,
+    'node_modules/yaml-language-server/lib/esm/languageservice/services/yamlHover.js'
 )
-const pathToFileHover = rootPackage + 'node_modules/yaml-language-server/lib/esm/languageservice/services/yamlHover.js'
 
 const filePathToPatchPathMarkdown = {
     'node_modules/yaml-language-server/lib/esm/languageservice/services/yamlHover.js':
@@ -32,14 +38,25 @@ const filePathToPatchPathUnsafeEval = {
         'patches/unsafe-eval/yamlSchemaService.src.patch',
 }
 
-function applyPatch(filePathToPatchPath) {
-    for (var filePath in filePathToPatchPath) {
-        const pathToPatch = `${__dirname}/${filePathToPatchPath[filePath]}`
-        const patchProc = execFileSync('patch', [filePath, pathToPatch], {
+function getPatchProcCommand(filePath, pathToPatch) {
+    if (process.platform === 'win32') {
+        return execFileSync('git', ['apply', pathToPatch], {
             cwd: rootPackage,
             encoding: 'utf-8',
             timeout: 2000,
         })
+    }
+    return execFileSync('patch', [filePath, pathToPatch], {
+        cwd: rootPackage,
+        encoding: 'utf-8',
+        timeout: 2000,
+    })
+}
+
+function applyPatch(filePathToPatchPath) {
+    for (var filePath in filePathToPatchPath) {
+        const pathToPatch = `${__dirname}/${filePathToPatchPath[filePath]}`
+        const patchProc = getPatchProcCommand(filePath, pathToPatch)
 
         console.log({
             cmd: patchProc.spawnfile,

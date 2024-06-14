@@ -1,17 +1,9 @@
-import { isValidAuthFollowUpType, CHAT_OPTIONS } from '@aws/chat-client-ui-types'
+import { isValidAuthFollowUpType, INSERT_TO_CURSOR_POSITION, CHAT_OPTIONS } from '@aws/chat-client-ui-types'
 import {
     ChatResult,
     chatRequestType,
-    feedbackNotificationType,
     followUpClickNotificationType,
-    infoLinkClickNotificationType,
-    linkClickNotificationType,
     quickActionRequestType,
-    sourceLinkClickNotificationType,
-    tabAddNotificationType,
-    tabChangeNotificationType,
-    tabRemoveNotificationType,
-    telemetryNotificationType,
 } from '@aws/language-server-runtimes/protocol'
 import { v4 as uuidv4 } from 'uuid'
 import { Uri, ViewColumn, Webview, WebviewPanel, commands, window } from 'vscode'
@@ -49,6 +41,9 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri) 
         languageClient.info(`vscode client: Received ${JSON.stringify(message)} from chat`)
 
         switch (message.command) {
+            case INSERT_TO_CURSOR_POSITION:
+                insertTextAtCursorPosition(message.params.code)
+                break
             case chatRequestType.method:
                 const partialResultToken = uuidv4()
 
@@ -106,43 +101,22 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri) 
                         quickActionDisposable.dispose()
                     })
                 break
-            case feedbackNotificationType.method:
-                languageClient.sendNotification(feedbackNotificationType, message.params)
-                break
             case followUpClickNotificationType.method:
                 if (!isValidAuthFollowUpType(message.params.followUp.type))
                     languageClient.sendNotification(followUpClickNotificationType, message.params)
                 break
-            case linkClickNotificationType.method:
-                languageClient.sendNotification(linkClickNotificationType, message.params)
-                break
-            case sourceLinkClickNotificationType.method:
-                languageClient.sendNotification(sourceLinkClickNotificationType, message.params)
-                break
-            case infoLinkClickNotificationType.method:
-                languageClient.sendNotification(infoLinkClickNotificationType, message.params)
-                break
-            case tabAddNotificationType.method:
-                languageClient.sendNotification(tabAddNotificationType, message.params)
-                break
-            case tabRemoveNotificationType.method:
-                languageClient.sendNotification(tabRemoveNotificationType, message.params)
-                break
-            case tabChangeNotificationType.method:
-                languageClient.sendNotification(tabChangeNotificationType, message.params)
-                break
-            case telemetryNotificationType.method:
-                languageClient.sendNotification(telemetryNotificationType, message.params)
+            default:
+                if (isServerEvent(message.command)) languageClient.sendNotification(message.command, message.params)
                 break
         }
     }, undefined)
 
     panel.webview.html = getWebviewContent(panel.webview, extensionUri)
 
-    registerCommand('aws.amazonq.explainCode', 'Explain', panel)
-    registerCommand('aws.amazonq.refactorCode', 'Refactor', panel)
-    registerCommand('aws.amazonq.fixCode', 'Fix', panel)
-    registerCommand('aws.amazonq.optimizeCode', 'Optimize', panel)
+    registerGenericCommand('aws.amazonq.explainCode', 'Explain', panel)
+    registerGenericCommand('aws.amazonq.refactorCode', 'Refactor', panel)
+    registerGenericCommand('aws.amazonq.fixCode', 'Fix', panel)
+    registerGenericCommand('aws.amazonq.optimizeCode', 'Optimize', panel)
 
     commands.registerCommand('aws.amazonq.sendToPrompt', data => {
         const triggerType = getCommandTriggerType(data)
@@ -220,7 +194,7 @@ function getCommandTriggerType(data: any): string {
     return data === undefined ? 'hotkeys' : 'contextMenu'
 }
 
-function registerCommand(commandName: string, genericCommand: string, panel: WebviewPanel) {
+function registerGenericCommand(commandName: string, genericCommand: string, panel: WebviewPanel) {
     commands.registerCommand(commandName, data => {
         const triggerType = getCommandTriggerType(data)
         const selection = getSelectedText()
@@ -230,4 +204,19 @@ function registerCommand(commandName: string, genericCommand: string, panel: Web
             params: { genericCommand, selection, triggerType },
         })
     })
+}
+
+function insertTextAtCursorPosition(text: string) {
+    const editor = window.activeTextEditor
+    console.log({ editor })
+    if (editor) {
+        const cursorStart = editor.selection.active
+        editor.edit(editBuilder => {
+            editBuilder.insert(cursorStart, text)
+        })
+    }
+}
+
+function isServerEvent(command: string) {
+    return command.startsWith('aws/chat/') || command === 'telemetry/event'
 }
