@@ -1,5 +1,7 @@
 src/
 node_modules/
+bundle/
 package-lock.json
 .*
 tsconfig.*
+webpack.*.config.js
