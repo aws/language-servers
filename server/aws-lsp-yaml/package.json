@@ -22,7 +22,8 @@
     ],
     "scripts": {
         "compile": "tsc --build",
-        "prepack": "cp ../../LICENSE ../../NOTICE ../../SECURITY.md ."
+        "prepack": "cp ../../LICENSE ../../NOTICE ../../SECURITY.md .",
+        "postinstall": "node patchYamlPackage.js"
     },
     "dependencies": {
         "@aws/language-server-runtimes": "^0.2.5",
