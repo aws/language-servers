@@ -84,10 +84,12 @@ export function getCWStartTransformRequest(
 
 export function getCWStartTransformResponse(
     response: PromiseResult<CodeWhispererTokenUserClient.StartTransformationResponse, AWSError>,
-    uploadId: string
+    uploadId: string,
+    artifactPath: string
 ): StartTransformResponse {
     return {
         UploadId: uploadId,
         TransformationJobId: response.transformationJobId,
+        ArtifactPath: artifactPath,
     }
 }

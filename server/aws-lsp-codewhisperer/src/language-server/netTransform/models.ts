@@ -13,6 +13,7 @@ export interface StartTransformRequest extends ExecuteCommandParams {
 export interface StartTransformResponse {
     UploadId: string
     TransformationJobId: string
+    ArtifactPath: string
     Error?: string
 }
 

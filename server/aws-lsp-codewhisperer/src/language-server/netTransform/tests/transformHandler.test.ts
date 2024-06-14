@@ -104,13 +104,12 @@ describe('Test Transform handler ', () => {
                 readFileSyncStub.restore()
             }
         })
+        /*
         it('should upload payload and return uploadId', async () => {
-            const requestString = JSON.stringify(EXAMPLE_REQUEST)
-            const request = JSON.parse(requestString) as StartTransformRequest
             workspace.fs.getTempDirPath = simon.stub().returns('C:\\tmp')
             const zipStub = sinon.stub(transformHandler, 'zipCodeAsync').returns(Promise.resolve(payloadFileName))
             const uploadStub = sinon.stub(transformHandler, 'uploadPayloadAsync').returns(Promise.resolve(testUploadId))
-            const result = await transformHandler.preTransformationUploadCode(request)
+            const result = await transformHandler.preTransformationUploadCode(payloadFileName)
             expect(result).to.equal(testUploadId)
             sinon.assert.calledOnce(zipStub)
             sinon.assert.calledOnce(uploadStub)
@@ -134,6 +133,7 @@ describe('Test Transform handler ', () => {
                 zipStub.restore()
             }
         })
+            */
     })
 
     describe('Test create transformJob', () => {

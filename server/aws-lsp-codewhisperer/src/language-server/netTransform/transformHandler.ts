@@ -27,6 +27,8 @@ import {
 import path = require('path')
 import AdmZip = require('adm-zip')
 
+const workspaceFolderName = 'artifactWorkspace'
+
 export class TransformHandler {
     private client: CodeWhispererServiceToken
     private workspace: Workspace
@@ -40,27 +42,6 @@ export class TransformHandler {
     }
 
     async startTransformation(userInputrequest: StartTransformRequest): Promise<StartTransformResponse> {
-        try {
-            const uploadId = await this.preTransformationUploadCode(userInputrequest)
-            const request = getCWStartTransformRequest(userInputrequest, uploadId)
-            this.logging.log('send request to start transform api: ' + JSON.stringify(request))
-            if (this.dryRun) {
-                this.logging.log('activating dry run mode.')
-                return dryRunConstant.StartTransformationResponse
-            } else {
-                const response = await this.client.codeModernizerStartCodeTransformation(request)
-                this.logging.log('response start transform api: ' + JSON.stringify(response))
-                return getCWStartTransformResponse(response, uploadId)
-            }
-        } catch (error) {
-            const errorMessage = (error as Error).message ?? 'Error in StartTransformation API call'
-            this.logging.log(errorMessage)
-            throw new Error(errorMessage)
-        }
-    }
-
-    async preTransformationUploadCode(userInputrequest: StartTransformRequest): Promise<string> {
-        let uploadId = ''
         const artifactManager = new ArtifactManager(
             this.workspace,
             this.logging,
@@ -69,27 +50,46 @@ export class TransformHandler {
         try {
             const payloadFilePath = await this.zipCodeAsync(userInputrequest, artifactManager)
             this.logging.log('payload path: ' + payloadFilePath)
-            uploadId = await this.uploadPayloadAsync(payloadFilePath)
-            this.logging.log('artifact successfully uploaded. upload tracking id: ' + uploadId)
+            if (this.dryRun) {
+                this.logging.log('activating dry run mode.')
+                return {
+                    UploadId: dryRunConstant.uploadId,
+                    TransformationJobId: dryRunConstant.transformJobId,
+                    ArtifactPath: payloadFilePath,
+                } as StartTransformResponse
+            }
+            const uploadId = await this.preTransformationUploadCode(payloadFilePath)
+            const request = getCWStartTransformRequest(userInputrequest, uploadId)
+            this.logging.log('send request to start transform api: ' + JSON.stringify(request))
+            const response = await this.client.codeModernizerStartCodeTransformation(request)
+            this.logging.log('response start transform api: ' + JSON.stringify(response))
+            return getCWStartTransformResponse(response, uploadId, payloadFilePath)
         } catch (error) {
-            const errorMessage = (error as Error).message ?? 'Failed to upload zip file'
+            const errorMessage = (error as Error).message ?? 'Error in StartTransformation API call'
+            this.logging.log(errorMessage)
             throw new Error(errorMessage)
         } finally {
             if (!this.dryRun) {
                 artifactManager.cleanup()
             }
         }
-        return uploadId
+    }
+
+    async preTransformationUploadCode(payloadFilePath: string): Promise<string> {
+        try {
+            const uploadId = await this.uploadPayloadAsync(payloadFilePath)
+            this.logging.log('artifact successfully uploaded. upload tracking id: ' + uploadId)
+            return uploadId
+        } catch (error) {
+            const errorMessage = (error as Error).message ?? 'Failed to upload zip file'
+            throw new Error(errorMessage)
+        }
     }
 
     async uploadPayloadAsync(payloadFileName: string): Promise<string> {
-        if (this.dryRun) {
-            return dryRunConstant.uploadId
-        }
         const sha256 = ArtifactManager.getSha256(payloadFileName)
         let response: CreateUploadUrlResponse
         try {
-            const apiStartTime = Date.now()
             response = await this.client.codeModernizerCreateUploadUrl({
                 contentChecksum: sha256,
                 contentChecksumType: 'SHA_256',
@@ -343,15 +343,11 @@ export class TransformHandler {
     }
 
     getWorkspacePath(solutionRootPath: string): string {
-        if (this.dryRun) {
-            const workspacePath = path.join(solutionRootPath, dryRunConstant.workspaceFolderName)
-            if (!fs.existsSync(workspacePath)) {
-                fs.mkdirSync(workspacePath)
-            }
-            return workspacePath
-        } else {
-            const randomPath = uuidv4().substring(0, 8)
-            return path.join(this.workspace.fs.getTempDirPath(), randomPath)
+        const randomPath = uuidv4().substring(0, 8)
+        const workspacePath = path.join(solutionRootPath, workspaceFolderName, randomPath)
+        if (!fs.existsSync(workspacePath)) {
+            fs.mkdirSync(workspacePath, { recursive: true })
         }
+        return workspacePath
     }
 }
