@@ -237,20 +237,23 @@ export const createMynahUi = (messager: Messager, tabFactory: TabFactory): [Myna
         },
     })
 
-    const getOrCreateTabId = () => {
-        let tabId = mynahUi.getSelectedTabId()
-        if (!tabId) {
-            tabId = mynahUi.updateStore('', tabFactory.createTab(false))
-            if (tabId === undefined) {
-                mynahUi.notify({
-                    content: uiComponentsTexts.noMoreTabsTooltip,
-                    type: NotificationType.WARNING,
-                })
-                return undefined
-            }
+    const createTabId = () => {
+        const tabId = mynahUi.updateStore('', tabFactory.createTab(false))
+        if (tabId === undefined) {
+            mynahUi.notify({
+                content: uiComponentsTexts.noMoreTabsTooltip,
+                type: NotificationType.WARNING,
+            })
+            return undefined
         }
 
         return tabId
+    }
+
+    const getOrCreateTabId = () => {
+        const tabId = mynahUi.getSelectedTabId()
+
+        return tabId ?? createTabId()
     }
 
     const addChatResponse = (chatResult: ChatResult, tabId: string, isPartialResult: boolean) => {
@@ -293,8 +296,17 @@ export const createMynahUi = (messager: Messager, tabFactory: TabFactory): [Myna
     }
 
     const sendGenericCommand = (params: GenericCommandParams) => {
-        const tabId = getOrCreateTabId()
+        let tabId = mynahUi.getSelectedTabId()
+
         if (!tabId) return
+
+        // send to a new tab if the current tab is loading
+        const isCurrentTabLoading = mynahUi.getAllTabs()[tabId].store?.loadingChat
+
+        if (isCurrentTabLoading) {
+            tabId = createTabId()
+            if (!tabId) return
+        }
 
         const body = [
             params.genericCommand,
