@@ -14,6 +14,7 @@ server/aws-lsp-codewhisperer/src.gen/@amzn/codewhisperer-streaming/dist*
 # LSP Related
 **/dist
 **/out
+**/bundle
 **/node_modules
 **/.vscode-test
 !/bin
