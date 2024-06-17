@@ -19,7 +19,7 @@ import { ERROR_MESSAGE_TELEMETRY_EVENT, SEND_TO_PROMPT_TELEMETRY_EVENT } from '.
 
 describe('Chat', () => {
     const sandbox = sinon.createSandbox()
-    let clientApi: { postMessage: any }
+    let clientApi: { postMessage: sinon.SinonStub }
 
     beforeEach(() => {
         clientApi = {
@@ -94,9 +94,10 @@ describe('Chat', () => {
         const mynahUi = createChat(clientApi)
         const tabId = mynahUi.updateStore('', {})
         mynahUi.updateStore('', {})
+        clientApi.postMessage.resetHistory()
         mynahUi.selectTab(tabId!, (mynahUi as any).lastEventId)
 
-        assert.calledWithMatch(clientApi.postMessage, {
+        assert.calledOnceWithExactly(clientApi.postMessage, {
             command: TAB_CHANGE_NOTIFICATION_METHOD,
             params: { tabId: tabId },
         })
@@ -130,9 +131,9 @@ describe('Chat', () => {
 
     it('complete chat response triggers ui events ', () => {
         const chat = createChat(clientApi)
-        const endMessageStreamStub = sinon.stub(chat, 'endMessageStream')
-        const updateLastChatAnswerStub = sinon.stub(chat, 'updateLastChatAnswer')
-        const updateStoreStub = sinon.stub(chat, 'updateStore')
+        const endMessageStreamStub = sandbox.stub(chat, 'endMessageStream')
+        const updateLastChatAnswerStub = sandbox.stub(chat, 'updateLastChatAnswer')
+        const updateStoreStub = sandbox.stub(chat, 'updateStore')
 
         const tabId = '123'
         const body = 'some response'
@@ -154,9 +155,9 @@ describe('Chat', () => {
 
     it('partial chat response triggers ui events ', () => {
         const chat = createChat(clientApi)
-        const endMessageStreamStub = sinon.stub(chat, 'endMessageStream')
-        const updateLastChatAnswerStub = sinon.stub(chat, 'updateLastChatAnswer')
-        const updateStoreStub = sinon.stub(chat, 'updateStore')
+        const endMessageStreamStub = sandbox.stub(chat, 'endMessageStream')
+        const updateLastChatAnswerStub = sandbox.stub(chat, 'updateLastChatAnswer')
+        const updateStoreStub = sandbox.stub(chat, 'updateStore')
 
         const tabId = '123'
         const body = 'some response'

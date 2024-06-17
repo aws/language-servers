@@ -296,12 +296,12 @@ export const createMynahUi = (messager: Messager, tabFactory: TabFactory): [Myna
     }
 
     const sendGenericCommand = (params: GenericCommandParams) => {
-        let tabId = mynahUi.getSelectedTabId()
+        let tabId = getOrCreateTabId()
 
         if (!tabId) return
 
         // send to a new tab if the current tab is loading
-        const isCurrentTabLoading = mynahUi.getAllTabs()[tabId].store?.loadingChat
+        const isCurrentTabLoading = mynahUi.getAllTabs()[tabId]?.store?.loadingChat
 
         if (isCurrentTabLoading) {
             tabId = createTabId()
