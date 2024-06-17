@@ -79,8 +79,6 @@ describe('Chat', () => {
             command: TAB_ADD_NOTIFICATION_METHOD,
             params: { tabId: tabId },
         })
-
-        mynahUi.getAllTabs()
     })
 
     it('publishes tab removed event, when UI tab is removed', () => {
