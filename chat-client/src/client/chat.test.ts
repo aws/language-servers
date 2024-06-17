@@ -16,29 +16,34 @@ import { createChat } from './chat'
 import sinon = require('sinon')
 import { TELEMETRY } from '../contracts/serverContracts'
 import { ERROR_MESSAGE_TELEMETRY_EVENT, SEND_TO_PROMPT_TELEMETRY_EVENT } from '../contracts/telemetry'
+import { MynahUI } from '@aws/mynah-ui'
 
 describe('Chat', () => {
     const sandbox = sinon.createSandbox()
+    let mynahUi: MynahUI
     let clientApi: { postMessage: sinon.SinonStub }
 
     beforeEach(() => {
         clientApi = {
             postMessage: sandbox.stub(),
         }
+
+        mynahUi = createChat(clientApi)
     })
 
     afterEach(() => {
         sandbox.restore()
+
+        Object.keys(mynahUi.getAllTabs()).forEach(tabId => {
+            mynahUi.removeTab(tabId, (mynahUi as any).lastEventId)
+        })
     })
 
     it('publishes ready event, when initialized', () => {
-        createChat(clientApi)
         assert.calledOnceWithExactly(clientApi.postMessage, { command: READY_NOTIFICATION_METHOD })
     })
 
     it('publishes telemetry event, when send to prompt is triggered', () => {
-        createChat(clientApi)
-
         const eventParams = { command: SEND_TO_PROMPT, params: { prompt: 'hey' } }
         const sendToPromptEvent = createInboundEvent(eventParams)
         window.dispatchEvent(sendToPromptEvent)
@@ -47,15 +52,13 @@ describe('Chat', () => {
             command: TELEMETRY,
             params: {
                 name: SEND_TO_PROMPT_TELEMETRY_EVENT,
-                tabId: 'tab-1',
+                tabId: mynahUi.getSelectedTabId(),
                 ...eventParams.params,
             },
         })
     })
 
     it('publishes telemetry event, when show error is triggered', () => {
-        createChat(clientApi)
-
         const eventParams = { command: ERROR_MESSAGE, params: { tabId: '123' } }
         const errorEvent = createInboundEvent(eventParams)
         window.dispatchEvent(errorEvent)
@@ -70,17 +73,17 @@ describe('Chat', () => {
     })
 
     it('publishes tab added event, when UI tab is added', () => {
-        const mynahUi = createChat(clientApi)
         const tabId = mynahUi.updateStore('', {})
 
         assert.calledWithMatch(clientApi.postMessage, {
             command: TAB_ADD_NOTIFICATION_METHOD,
             params: { tabId: tabId },
         })
+
+        mynahUi.getAllTabs()
     })
 
     it('publishes tab removed event, when UI tab is removed', () => {
-        const mynahUi = createChat(clientApi)
         const tabId = mynahUi.updateStore('', {})
         mynahUi.removeTab(tabId!, (mynahUi as any).lastEventId)
 
@@ -91,7 +94,6 @@ describe('Chat', () => {
     })
 
     it('publishes tab changed event, when UI tab is changed ', () => {
-        const mynahUi = createChat(clientApi)
         const tabId = mynahUi.updateStore('', {})
         mynahUi.updateStore('', {})
         clientApi.postMessage.resetHistory()
@@ -104,8 +106,6 @@ describe('Chat', () => {
     })
 
     it('generic command creates a chat request', () => {
-        createChat(clientApi)
-
         const genericCommand = 'Fix'
         const selection = 'some code'
         const tabId = '123'
@@ -130,10 +130,9 @@ describe('Chat', () => {
     })
 
     it('complete chat response triggers ui events ', () => {
-        const chat = createChat(clientApi)
-        const endMessageStreamStub = sandbox.stub(chat, 'endMessageStream')
-        const updateLastChatAnswerStub = sandbox.stub(chat, 'updateLastChatAnswer')
-        const updateStoreStub = sandbox.stub(chat, 'updateStore')
+        const endMessageStreamStub = sandbox.stub(mynahUi, 'endMessageStream')
+        const updateLastChatAnswerStub = sandbox.stub(mynahUi, 'updateLastChatAnswer')
+        const updateStoreStub = sandbox.stub(mynahUi, 'updateStore')
 
         const tabId = '123'
         const body = 'some response'
@@ -154,10 +153,9 @@ describe('Chat', () => {
     })
 
     it('partial chat response triggers ui events ', () => {
-        const chat = createChat(clientApi)
-        const endMessageStreamStub = sandbox.stub(chat, 'endMessageStream')
-        const updateLastChatAnswerStub = sandbox.stub(chat, 'updateLastChatAnswer')
-        const updateStoreStub = sandbox.stub(chat, 'updateStore')
+        const endMessageStreamStub = sandbox.stub(mynahUi, 'endMessageStream')
+        const updateLastChatAnswerStub = sandbox.stub(mynahUi, 'updateLastChatAnswer')
+        const updateStoreStub = sandbox.stub(mynahUi, 'updateStore')
 
         const tabId = '123'
         const body = 'some response'

@@ -56,6 +56,10 @@ describe('MynahUI', () => {
 
     afterEach(() => {
         sinon.restore()
+
+        Object.keys(mynahUi.getAllTabs()).forEach(tabId => {
+            mynahUi.removeTab(tabId, (mynahUi as any).lastEventId)
+        })
     })
 
     describe('handleChatPrompt', () => {
