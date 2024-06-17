@@ -1,4 +1,4 @@
-import { before, afterEach } from 'mocha'
+import { afterEach } from 'mocha'
 import sinon = require('sinon')
 import { assert } from 'sinon'
 import { createMynahUi, InboundChatApi, handleChatPrompt } from './mynahUi'
@@ -14,12 +14,13 @@ describe('MynahUI', () => {
 
     let getSelectedTabIdStub: sinon.SinonStub
     let createTabStub: sinon.SinonStub
+    let getAllTabsStub: sinon.SinonStub
     let updateStoreSpy: sinon.SinonSpy
     let addChatItemSpy: sinon.SinonSpy
     let onChatPromptSpy: sinon.SinonSpy
     let onQuickActionSpy: sinon.SinonSpy
 
-    before(() => {
+    beforeEach(() => {
         outboundChatApi = {
             sendChatPrompt: sinon.stub(),
             sendQuickActionCommand: sinon.stub(),
@@ -48,12 +49,17 @@ describe('MynahUI', () => {
         mynahUi = mynahUiResult[0]
         inboundChatApi = mynahUiResult[1]
         getSelectedTabIdStub = sinon.stub(mynahUi, 'getSelectedTabId')
+        getAllTabsStub = sinon.stub(mynahUi, 'getAllTabs').returns({})
         updateStoreSpy = sinon.spy(mynahUi, 'updateStore')
         addChatItemSpy = sinon.spy(mynahUi, 'addChatItem')
     })
 
     afterEach(() => {
-        sinon.resetHistory()
+        sinon.restore()
+
+        Object.keys(mynahUi.getAllTabs()).forEach(tabId => {
+            mynahUi.removeTab(tabId, (mynahUi as any).lastEventId)
+        })
     })
 
     describe('handleChatPrompt', () => {
@@ -99,6 +105,8 @@ describe('MynahUI', () => {
 
     describe('sendGenericCommand', () => {
         it('should create a new tab if none exits', () => {
+            // clear create tab stub since set up process calls it twice
+            createTabStub.resetHistory()
             const genericCommand = 'Explain'
             const selection = 'const x = 5;'
             const tabId = ''
@@ -106,11 +114,28 @@ describe('MynahUI', () => {
             getSelectedTabIdStub.returns(undefined)
             inboundChatApi.sendGenericCommand({ genericCommand, selection, tabId, triggerType })
 
-            sinon.assert.calledWithMatch(createTabStub.lastCall, false)
+            sinon.assert.calledOnceWithExactly(createTabStub, false)
+            sinon.assert.calledTwice(updateStoreSpy)
+        })
+
+        it('should create a new tab if current tab is loading', () => {
+            // clear create tab stub since set up process calls it twice
+            createTabStub.resetHistory()
+            getAllTabsStub.returns({ 'tab-1': { store: { loadingChat: true } } })
+
+            const genericCommand = 'Explain'
+            const selection = 'const x = 5;'
+            const tabId = 'tab-1'
+            const triggerType = 'click'
+            getSelectedTabIdStub.returns(tabId)
+            inboundChatApi.sendGenericCommand({ genericCommand, selection, tabId, triggerType })
+
+            sinon.assert.calledOnceWithExactly(createTabStub, false)
             sinon.assert.calledTwice(updateStoreSpy)
         })
 
         it('should not create a new tab if one exits already', () => {
+            createTabStub.resetHistory()
             const genericCommand = 'Explain'
             const selection = 'const x = 5;'
             const tabId = 'tab-1'
