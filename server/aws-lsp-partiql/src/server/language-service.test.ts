@@ -24,12 +24,17 @@ describe('PartiQL validation parsing', () => {
     initSync(partiQlServerBinary)
 
     parserTestData.forEach(testData => {
-        it(`should correctly parse errors for ${testData.errorType}.`, async () => {
+        it(`should correctly parse errors for ${testData.errorType}.`, () => {
             const parsedQuery = JSON.parse(parse_as_json(normalizeQuery(testData.input)))
             const error = parsedQuery.errors[0]
             const diagnosticsMessage = convertObjectToParserError(error).message
             expect(diagnosticsMessage).toBe(testData.expectedOutput)
         })
+    })
+
+    it('should not give errors for quoted identifiers', () => {
+        const parsedQuery = JSON.parse(parse_as_json(normalizeQuery('SELECT "test" from "yay"')))
+        expect(parsedQuery.errors).toBeUndefined()
     })
 })
 
@@ -127,7 +132,7 @@ const edgeCaseParserTestData: edgeCaseParserDataType[] = [
 describe('error parsing edge-cases', () => {
     // These inputs should throw errors.
     edgeCaseParserTestData.forEach(testData => {
-        it(`should throw when ${testData.name}.`, async () => {
+        it(`should throw when ${testData.name}.`, () => {
             expect(() => {
                 convertObjectToParserError(testData.input)
             }).toThrowError(
@@ -169,7 +174,7 @@ describe('lexer error parsing edge-cases', () => {
     // These inputs should throw errors. These tests are to handle specific cases which will normally be caught
     // by the parsing before it reaches the lexer error parsing.
     edgeCaseLexerTestData.forEach(testData => {
-        it(`should throw when ${testData.name}.`, async () => {
+        it(`should throw when ${testData.name}.`, () => {
             expect(() => {
                 convertObjectToLexerError(testData.input)
             }).toThrowError(`${testData.specificErrorString}`)

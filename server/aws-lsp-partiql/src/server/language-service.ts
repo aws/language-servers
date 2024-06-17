@@ -5,7 +5,7 @@ import { initSync, parse_as_json } from '../partiql-parser-wasm/partiql_playgrou
 import { convertObjectToParserError } from './error-parsing/parser-errors'
 
 export function normalizeQuery(data: string): string {
-    return data != null ? data.replace(/\"/g, '\\"') : ''
+    return data != null ? data : ''
 }
 
 export function createPartiQLLanguageService() {
