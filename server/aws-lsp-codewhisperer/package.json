@@ -27,7 +27,8 @@
         "test:unit": "ts-mocha -b 'src/**/*.test.ts'",
         "test:prettier": "prettier . --check",
         "test": "npm run lint && npm run test:prettier && npm run test:unit",
-        "fix:prettier": "prettier . --write"
+        "fix:prettier": "prettier . --write",
+        "prepack": "ts-node ../../script/link_bundled_dependencies.ts"
     },
     "dependencies": {
         "@amzn/codewhisperer-streaming": "file:./src.gen/@amzn/codewhisperer-streaming",
@@ -64,5 +65,9 @@
         "bracketSpacing": true,
         "arrowParens": "avoid",
         "endOfLine": "lf"
-    }
+    },
+    "bundleDependencies": [
+        "@amzn/codewhisperer-streaming",
+        "@aws/lsp-fqn"
+    ]
 }
