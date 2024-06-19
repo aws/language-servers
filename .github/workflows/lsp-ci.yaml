@@ -59,7 +59,7 @@ jobs:
                   node-version: 18
             - name: Build
               run: |
-                  npm install
+                  npm ci
                   npm run compile
             - name: Test
               run: |
@@ -76,7 +76,7 @@ jobs:
                   node-version: 18
             - name: Build
               run: |
-                  npm install
+                  npm ci
                   npm run compile
             - name: Create binaries
               run: |
