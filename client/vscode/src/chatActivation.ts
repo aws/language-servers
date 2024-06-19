@@ -1,6 +1,7 @@
-import { isValidAuthFollowUpType, INSERT_TO_CURSOR_POSITION } from '@aws/chat-client-ui-types'
+import { isValidAuthFollowUpType, INSERT_TO_CURSOR_POSITION, AUTH_FOLLOW_UP_CLICKED } from '@aws/chat-client-ui-types'
 import {
     ChatResult,
+    QuickActionResult,
     chatRequestType,
     followUpClickNotificationType,
     quickActionRequestType,
@@ -8,8 +9,9 @@ import {
 import { v4 as uuidv4 } from 'uuid'
 import { Uri, ViewColumn, Webview, WebviewPanel, commands, window } from 'vscode'
 import { LanguageClient } from 'vscode-languageclient/node'
+import * as jose from 'jose'
 
-export function registerChat(languageClient: LanguageClient, extensionUri: Uri) {
+export function registerChat(languageClient: LanguageClient, extensionUri: Uri, encryptionKey: Buffer) {
     const panel = window.createWebviewPanel(
         'testChat', // Identifies the type of the webview. Used internally
         'Chat Test', // Title of the panel displayed to the user
@@ -27,42 +29,24 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri) 
             case INSERT_TO_CURSOR_POSITION:
                 insertTextAtCursorPosition(message.params.code)
                 break
+            case AUTH_FOLLOW_UP_CLICKED:
+                languageClient.info('AuthFollowUp clicked')
+                break
             case chatRequestType.method:
                 const partialResultToken = uuidv4()
 
-                const chatDisposable = languageClient.onProgress(chatRequestType, partialResultToken, partialResult => {
-                    if (partialResult.body) {
-                        panel.webview.postMessage({
-                            command: chatRequestType.method,
-                            params: partialResult,
-                            isPartialResult: true,
-                            tabId: message.params.tabId,
-                        })
-                    }
-                })
-
-                languageClient
-                    .sendRequest(chatRequestType, Object.assign(message.params, { partialResultToken }))
-                    .then((chatResult: ChatResult) => {
-                        panel.webview.postMessage({
-                            command: chatRequestType.method,
-                            params: chatResult,
-                            tabId: message.params.tabId,
-                        })
-                        chatDisposable.dispose()
-                    })
-                break
-            case quickActionRequestType.method:
-                const quickActionPartialResultToken = uuidv4()
-
-                const quickActionDisposable = languageClient.onProgress(
-                    quickActionRequestType,
-                    quickActionPartialResultToken,
-                    partialResult => {
-                        if (partialResult.body) {
+                const chatDisposable = languageClient.onProgress(
+                    chatRequestType,
+                    partialResultToken,
+                    async partialResult => {
+                        const decryptedMessage = (await decodeRequest(
+                            partialResult as string,
+                            encryptionKey
+                        )) as ChatResult
+                        if (decryptedMessage.body) {
                             panel.webview.postMessage({
                                 command: chatRequestType.method,
-                                params: partialResult,
+                                params: decryptedMessage,
                                 isPartialResult: true,
                                 tabId: message.params.tabId,
                             })
@@ -70,19 +54,75 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri) 
                     }
                 )
 
-                languageClient
-                    .sendRequest(
-                        quickActionRequestType,
-                        Object.assign(message.params, { partialResultToken: quickActionPartialResultToken })
-                    )
-                    .then((chatResult: ChatResult) => {
-                        panel.webview.postMessage({
-                            command: chatRequestType.method,
-                            params: chatResult,
-                            tabId: message.params.tabId,
+                const payload = new TextEncoder().encode(JSON.stringify(message.params))
+
+                const encryptedMessagePromise = new jose.CompactEncrypt(payload)
+                    .setProtectedHeader({ alg: 'dir', enc: 'A256GCM' })
+                    .encrypt(encryptionKey)
+
+                encryptedMessagePromise.then((encryptedMessage: string) => {
+                    languageClient
+                        .sendRequest(chatRequestType, { message: encryptedMessage, partialResultToken })
+                        .then(async (chatResult: ChatResult | string) => {
+                            const decryptedMessage = (await decodeRequest(
+                                chatResult as string,
+                                encryptionKey
+                            )) as ChatResult
+
+                            panel.webview.postMessage({
+                                command: chatRequestType.method,
+                                params: decryptedMessage,
+                                tabId: message.params.tabId,
+                            })
+                            chatDisposable.dispose()
                         })
-                        quickActionDisposable.dispose()
-                    })
+                })
+                break
+            case quickActionRequestType.method:
+                const quickActionPartialResultToken = uuidv4()
+
+                const quickActionDisposable = languageClient.onProgress(
+                    quickActionRequestType,
+                    quickActionPartialResultToken,
+                    async partialResult => {
+                        const decryptedMessage = (await decodeRequest(
+                            partialResult as string,
+                            encryptionKey
+                        )) as QuickActionResult
+                        if (decryptedMessage.body) {
+                            panel.webview.postMessage({
+                                command: chatRequestType.method,
+                                params: decryptedMessage,
+                                isPartialResult: true,
+                                tabId: message.params.tabId,
+                            })
+                        }
+                    }
+                )
+
+                const quickActionPayload = new TextEncoder().encode(JSON.stringify(message.params))
+
+                const encryptedQuickActionPromise = new jose.CompactEncrypt(quickActionPayload)
+                    .setProtectedHeader({ alg: 'dir', enc: 'A256GCM' })
+                    .encrypt(encryptionKey)
+
+                encryptedQuickActionPromise.then((encryptedQuickAction: string) => {
+                    languageClient
+                        .sendRequest(quickActionRequestType, { message: encryptedQuickAction, quickActionDisposable })
+                        .then(async (quickActionResult: QuickActionResult | string) => {
+                            const decryptedResult = (await decodeRequest(
+                                quickActionResult as string,
+                                encryptionKey
+                            )) as QuickActionResult
+
+                            panel.webview.postMessage({
+                                command: chatRequestType.method,
+                                params: decryptedResult,
+                                tabId: message.params.tabId,
+                            })
+                            quickActionDisposable.dispose()
+                        })
+                })
                 break
             case followUpClickNotificationType.method:
                 if (!isValidAuthFollowUpType(message.params.followUp.type))
@@ -206,4 +246,17 @@ function insertTextAtCursorPosition(text: string) {
 
 function isServerEvent(command: string) {
     return command.startsWith('aws/chat/') || command === 'telemetry/event'
+}
+
+async function decodeRequest<T>(request: string, key: Buffer): Promise<T> {
+    const result = await jose.jwtDecrypt(request, key, {
+        clockTolerance: 60, // Allow up to 60 seconds to account for clock differences
+        contentEncryptionAlgorithms: ['A256GCM'],
+        keyManagementAlgorithms: ['dir'],
+    })
+
+    if (!result.payload) {
+        throw new Error('JWT payload not found')
+    }
+    return result.payload as T
 }

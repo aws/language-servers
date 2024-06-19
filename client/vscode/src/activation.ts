@@ -15,6 +15,7 @@ import {
     registerBearerTokenProviderSupport,
     registerIamCredentialsProviderSupport,
     writeEncryptionInit,
+    encryptionKey,
 } from './credentialsActivation'
 import { registerInlineCompletion } from './inlineCompletionActivation'
 import { registerLogCommand } from './sampleCommandActivation'
@@ -146,7 +147,7 @@ export async function activateDocumentsLanguageServer(extensionContext: Extensio
     // Activate chat server after LSP initialize handshake is done
     const enableChat = process.env.ENABLE_CHAT === 'true'
     if (enableChat) {
-        registerChat(client, extensionContext.extensionUri)
+        registerChat(client, extensionContext.extensionUri, encryptionKey)
     }
 
     return client
