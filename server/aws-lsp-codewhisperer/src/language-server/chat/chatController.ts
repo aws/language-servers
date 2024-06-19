@@ -2,7 +2,7 @@ import {
     GenerateAssistantResponseCommandInput,
     GenerateAssistantResponseCommandOutput,
 } from '@amzn/codewhisperer-streaming'
-import { TabChangeParams, chatRequestType } from '@aws/language-server-runtimes/protocol'
+import { LSPErrorCodes, TabChangeParams, chatRequestType } from '@aws/language-server-runtimes/protocol'
 import {
     CancellationToken,
     Chat,
@@ -23,6 +23,8 @@ import { ChatSessionManagementService } from './chatSessionManagementService'
 import { ChatTelemetryController } from './chatTelemetryController'
 import { QAPIInputConverter } from './qAPIInputConverter'
 import { HELP_MESSAGE, QuickAction } from './quickActions'
+import { isAuthErrorMessage } from '../utils'
+import { AUTH_FOLLOW_UP_RESULT } from './constants'
 
 type ChatHandlers = LspHandlers<Chat>
 
@@ -81,21 +83,22 @@ export class ChatController implements ChatHandlers {
         let response: GenerateAssistantResponseCommandOutput
 
         try {
-            this.#log(
-                'Request from tab:',
-                params.tabId,
-                'conversation id:',
-                requestInput.conversationState?.conversationId ?? 'undefined'
-            )
+            this.#log('Request from tab:', params.tabId, 'conversation id:', session.sessionId ?? 'New session')
 
             response = await session.generateAssistantResponse(requestInput)
             this.#log('Response to tab:', params.tabId, JSON.stringify(response.$metadata))
         } catch (err) {
-            this.#log(`Q api request error ${err instanceof Error ? err.message : 'unknown'}`)
+            if (err instanceof Error && isAuthErrorMessage(err.message)) {
+                this.#log(`Q auth error: ${err.message}`)
 
+                return AUTH_FOLLOW_UP_RESULT
+            }
+
+            this.#log(`Q api request error ${err instanceof Error ? err.message : 'unknown'}`)
+            this.#log(`${err instanceof Error ? JSON.stringify(err) : ''}`)
             return new ResponseError<ChatResult>(
-                ErrorCodes.InternalError,
-                err instanceof Error ? err.message : 'Internal Server Error'
+                LSPErrorCodes.RequestFailed,
+                err instanceof Error ? err.message : 'Unknown request error'
             )
         }
 
@@ -107,13 +110,13 @@ export class ChatController implements ChatHandlers {
             const result = await this.#processAssistantResponse(response, params.partialResultToken)
             return result.success
                 ? result.data
-                : new ResponseError<ChatResult>(ErrorCodes.InternalError, result.error, result.data)
+                : new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, result.error, result.data)
         } catch (err) {
             this.#log('Error encountered during response streaming:', err instanceof Error ? err.message : 'unknown')
 
             return new ResponseError<ChatResult>(
-                ErrorCodes.InternalError,
-                err instanceof Error ? err.message : 'Internal Server Error'
+                LSPErrorCodes.RequestFailed,
+                err instanceof Error ? err.message : 'Unknown error occured during response stream'
             )
         }
     }
@@ -196,7 +199,8 @@ export class ChatController implements ChatHandlers {
         response: GenerateAssistantResponseCommandOutput,
         partialResultToken?: string | number
     ): Promise<Result<ChatResult, string>> {
-        const chatEventParser = new ChatEventParser(response.$metadata.requestId!)
+        const requestId = response.$metadata.requestId!
+        const chatEventParser = new ChatEventParser(requestId)
 
         for await (const chatEvent of response.generateAssistantResponseResponse!) {
             const chatResult = chatEventParser.processPartialEvent(chatEvent)
@@ -209,6 +213,10 @@ export class ChatController implements ChatHandlers {
             if (partialResultToken) {
                 this.#features.lsp.sendProgress(chatRequestType, partialResultToken, chatResult.data)
             }
+        }
+
+        if (partialResultToken) {
+            this.#log(`All events received, requestId=${requestId}: ${JSON.stringify(chatEventParser.totalEvents)}`)
         }
 
         return chatEventParser.getChatResult()

@@ -44,15 +44,23 @@ export function getErrorMessage(error: any): string {
     return String(error)
 }
 
+const MISSING_BEARER_TOKEN_ERROR = 'credentialsProvider does not have bearer token credentials'
+const TOKEN_EXPIRED_ERROR = 'credentials expired'
+const authErrors = [MISSING_BEARER_TOKEN_ERROR, TOKEN_EXPIRED_ERROR]
+
+export function isAuthErrorMessage(errorMessage: string) {
+    return authErrors.some(authError => errorMessage.startsWith(authError))
+}
+
 export function getBearerTokenFromProvider(credentialsProvider: CredentialsProvider) {
     if (!credentialsProvider.hasCredentials('bearer')) {
-        throw new Error('credentialsProvider does not have bearer token credentials')
+        throw new Error(MISSING_BEARER_TOKEN_ERROR)
     }
 
     const credentials = credentialsProvider.getCredentials('bearer') as BearerCredentials
 
     if (!credentials.token) {
-        throw new Error('credentialsProvider does not have bearer token credentials')
+        throw new Error(MISSING_BEARER_TOKEN_ERROR)
     }
 
     return credentials.token
