@@ -40,7 +40,7 @@ const filePathToPatchPathUnsafeEval = {
 
 function getPatchProcCommand(filePath, pathToPatch) {
     if (process.platform === 'win32') {
-        return execFileSync('git', ['apply', pathToPatch], {
+        return execFileSync('git', ['apply', '--ignore-whitespace', pathToPatch], {
             cwd: rootPackage,
             encoding: 'utf-8',
             timeout: 2000,

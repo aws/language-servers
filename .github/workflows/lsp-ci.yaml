@@ -47,3 +47,44 @@ jobs:
                   name: langauge-servers
                   # Make sure you don't include node_modules
                   path: app/**/bin/*
+    test-windows:
+        name: Test (Windows)
+        runs-on: windows-latest
+        steps:
+            - name: Sync Code
+              uses: actions/checkout@v3
+            - name: Set up Node
+              uses: actions/setup-node@v3
+              with:
+                  node-version: 18
+            - name: Build
+              run: |
+                  npm install
+                  npm run compile
+            - name: Test
+              run: |
+                  npm run test
+    build-windows:
+        name: Package (Windows)
+        runs-on: windows-latest
+        steps:
+            - name: Sync Code
+              uses: actions/checkout@v3
+            - name: Set up Node
+              uses: actions/setup-node@v3
+              with:
+                  node-version: 18
+            - name: Build
+              run: |
+                  npm install
+                  npm run compile
+            - name: Create binaries
+              run: |
+                  npm run package
+            # TODO : Can we easily create ARM binaries from GitHub?
+            - name: Attach binaries
+              uses: actions/upload-artifact@v3
+              with:
+                  name: langauge-servers
+                  # Make sure you don't include node_modules
+                  path: app/**/bin/*
