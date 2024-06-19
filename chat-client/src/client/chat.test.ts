@@ -15,8 +15,13 @@ import { assert } from 'sinon'
 import { createChat } from './chat'
 import sinon = require('sinon')
 import { TELEMETRY } from '../contracts/serverContracts'
-import { ERROR_MESSAGE_TELEMETRY_EVENT, SEND_TO_PROMPT_TELEMETRY_EVENT } from '../contracts/telemetry'
+import {
+    ERROR_MESSAGE_TELEMETRY_EVENT,
+    SEND_TO_PROMPT_TELEMETRY_EVENT,
+    TAB_ADD_TELEMETRY_EVENT,
+} from '../contracts/telemetry'
 import { MynahUI } from '@aws/mynah-ui'
+import { INITIAL_TAB_ID } from './mynahUi'
 
 describe('Chat', () => {
     const sandbox = sinon.createSandbox()
@@ -39,8 +44,23 @@ describe('Chat', () => {
         })
     })
 
-    it('publishes ready event, when initialized', () => {
-        assert.calledOnceWithExactly(clientApi.postMessage, { command: READY_NOTIFICATION_METHOD })
+    it('publishes ready event and initial tab add event, when initialized', () => {
+        sinon.assert.callCount(clientApi.postMessage, 3)
+
+        sinon.assert.calledWithExactly(clientApi.postMessage.getCall(0), { command: READY_NOTIFICATION_METHOD })
+
+        assert.calledWithExactly(clientApi.postMessage.getCall(1), {
+            command: TELEMETRY,
+            params: {
+                triggerType: 'click',
+                name: TAB_ADD_TELEMETRY_EVENT,
+                tabId: INITIAL_TAB_ID,
+            },
+        })
+        sinon.assert.calledWithExactly(clientApi.postMessage.getCall(2), {
+            command: TAB_ADD_NOTIFICATION_METHOD,
+            params: { tabId: INITIAL_TAB_ID },
+        })
     })
 
     it('publishes telemetry event, when send to prompt is triggered', () => {
