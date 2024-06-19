@@ -93,10 +93,38 @@ export class ChatController implements ChatHandlers {
         } catch (err) {
             this.#log(`Q api request error ${err instanceof Error ? err.message : 'unknown'}`)
 
-            return new ResponseError<ChatResult>(
-                ErrorCodes.InternalError,
-                err instanceof Error ? err.message : 'Internal Server Error'
-            )
+            if (err instanceof Error && err.message) {
+                if (err.message.startsWith('credentialsProvider does not have bearer token credentials')) {
+                    const chatResult: ChatResult = {
+                        body: 'Please authenticate',
+                        followUp: {
+                            text: '',
+                            options: [{ pillText: 'Authenticate', type: 'full-auth' }],
+                        },
+                    }
+                    return chatResult
+                }
+
+                if (err.message.startsWith('credentials expired')) {
+                    const chatResult: ChatResult = {
+                        body: 'Please authenticate',
+                        followUp: {
+                            text: '',
+                            options: [{ pillText: 'Authenticate', type: 're-auth' }],
+                        },
+                    }
+                    return chatResult
+                }
+            }
+
+            const chatResult: ChatResult = {
+                body: 'Please authenticate',
+                followUp: {
+                    text: '',
+                    options: [{ pillText: 'Authenticate', type: 're-auth' }],
+                },
+            }
+            return chatResult
         }
 
         if (response.conversationId) {
@@ -207,7 +235,7 @@ export class ChatController implements ChatHandlers {
             }
 
             if (partialResultToken) {
-                this.#features.lsp.sendProgress(chatRequestType, partialResultToken, chatResult.data)
+                this.#features.lsp.sendEncryptedProgress(chatRequestType, partialResultToken, chatResult.data)
             }
         }
 
