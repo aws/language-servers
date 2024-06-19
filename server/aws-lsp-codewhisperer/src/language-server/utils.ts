@@ -89,7 +89,7 @@ export function createAuthFollowUpResult(authType: AuthFollowUpType): ChatResult
     }
 
     return {
-        body: 'Please authenticate',
+        body: '',
         followUp: {
             text: '',
             options: [{ pillText, type: authType }],
