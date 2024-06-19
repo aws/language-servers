@@ -25,8 +25,7 @@
         "lint:bundle:webworker": "webpack --config webpack.lint.config.js && eslint bundle/aws-lsp-codewhisperer-webworker.js # Verify compatibility with web runtime target",
         "lint:src": "eslint src/ --ext .ts,.tsx",
         "test:unit": "ts-mocha -b 'src/**/*.test.ts'",
-        "test:prettier": "prettier . --check",
-        "test": "npm run lint && npm run test:prettier && npm run test:unit",
+        "test": "npm run lint && npm run test:unit",
         "fix:prettier": "prettier . --write",
         "prepack": "npm run compile && ts-node ../../script/link_bundled_dependencies.ts"
     },
