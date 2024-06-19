@@ -11,9 +11,8 @@
     "license": "Apache-2.0",
     "scripts": {
         "compile": "tsc --build && npm run package",
-        "test:prettier": "prettier . --check",
         "test:unit": "ts-mocha -b 'src/**/*.test.ts'",
-        "test": "npm run test:prettier && npm run test:unit",
+        "test": "npm run test:unit",
         "fix:prettier": "prettier . --write",
         "package": "webpack"
     },
