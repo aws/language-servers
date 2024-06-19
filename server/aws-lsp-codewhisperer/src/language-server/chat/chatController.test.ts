@@ -20,7 +20,6 @@ import { ChatSessionService } from './chatSessionService'
 import { ChatTelemetryController } from './chatTelemetryController'
 import { DocumentContextExtractor } from './contexts/documentContext'
 import * as utils from '../utils'
-import { AUTH_FOLLOW_UP_RESULT } from './constants'
 
 describe('ChatController', () => {
     const mockTabId = 'tab-1'
@@ -250,7 +249,7 @@ describe('ChatController', () => {
                 throw new Error('Error')
             })
 
-            sinon.stub(utils, 'isAuthErrorMessage').returns(true)
+            sinon.stub(utils, 'getAuthError').returns({ authFollowType: 'full-auth', message: '' })
             const chatResultPromise = chatController.onChatPrompt(
                 { tabId: mockTabId, prompt: { prompt: 'Hello' }, partialResultToken: 1 },
                 mockCancellationToken
@@ -259,7 +258,7 @@ describe('ChatController', () => {
             const chatResult = await chatResultPromise
 
             sinon.assert.callCount(testFeatures.lsp.sendProgress, 0)
-            assert.deepStrictEqual(chatResult, AUTH_FOLLOW_UP_RESULT)
+            assert.deepStrictEqual(chatResult, utils.createAuthFollowUpResult('full-auth'))
         })
 
         it('returns a ResponseError if response streams return an error event', async () => {

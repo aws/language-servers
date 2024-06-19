@@ -2,6 +2,7 @@ import { BearerCredentials, CredentialsProvider } from '@aws/language-server-run
 import { AWSError } from 'aws-sdk'
 import { Suggestion } from './codeWhispererService'
 import { CodewhispererCompletionType } from './telemetry/types'
+import { ChatResult } from '@aws/language-server-runtimes/protocol'
 
 export function isAwsError(error: unknown): error is AWSError {
     if (error === undefined) {
@@ -44,12 +45,56 @@ export function getErrorMessage(error: any): string {
     return String(error)
 }
 
+type AuthFollowUpType = 'full-auth' | 're-auth' | 'missing_scopes' | 'use-supported-auth'
+
+type AUTH_ERROR = { message: string; authFollowType: AuthFollowUpType }
+
 const MISSING_BEARER_TOKEN_ERROR = 'credentialsProvider does not have bearer token credentials'
 const TOKEN_EXPIRED_ERROR = 'credentials expired'
-const authErrors = [MISSING_BEARER_TOKEN_ERROR, TOKEN_EXPIRED_ERROR]
+// TODO: I am not sure if we should use general 403 error message for this
+const MISSING_SCOPE_ERROR = 'User is not authorized to make this call'
 
-export function isAuthErrorMessage(errorMessage: string) {
-    return authErrors.some(authError => errorMessage.startsWith(authError))
+const AUTH_ERRORS: AUTH_ERROR[] = [
+    {
+        message: MISSING_BEARER_TOKEN_ERROR,
+        authFollowType: 'full-auth',
+    },
+    {
+        message: TOKEN_EXPIRED_ERROR,
+        authFollowType: 're-auth',
+    },
+    {
+        message: MISSING_SCOPE_ERROR,
+        authFollowType: 'missing_scopes',
+    },
+]
+
+export function getAuthError(err: unknown): AUTH_ERROR | undefined {
+    return err instanceof Error ? AUTH_ERRORS.find(authError => err.message.startsWith(authError.message)) : undefined
+}
+
+export function createAuthFollowUpResult(authType: AuthFollowUpType): ChatResult {
+    let pillText
+    switch (authType) {
+        case 'full-auth':
+            pillText = 'Authenticate'
+            break
+        case 'use-supported-auth':
+        case 'missing_scopes':
+            pillText = 'Enable Amazon Q'
+            break
+        case 're-auth':
+            pillText = 'Re-authenticate'
+            break
+    }
+
+    return {
+        body: 'Please authenticate',
+        followUp: {
+            text: '',
+            options: [{ pillText, type: authType }],
+        },
+    }
 }
 
 export function getBearerTokenFromProvider(credentialsProvider: CredentialsProvider) {

@@ -23,9 +23,7 @@ import { ChatSessionManagementService } from './chatSessionManagementService'
 import { ChatTelemetryController } from './chatTelemetryController'
 import { QAPIInputConverter } from './qAPIInputConverter'
 import { HELP_MESSAGE, QuickAction } from './quickActions'
-import { isAuthErrorMessage } from '../utils'
-import { AUTH_FOLLOW_UP_RESULT } from './constants'
-
+import { createAuthFollowUpResult, getAuthError, getErrorMessage } from '../utils'
 type ChatHandlers = LspHandlers<Chat>
 
 export class ChatController implements ChatHandlers {
@@ -88,14 +86,15 @@ export class ChatController implements ChatHandlers {
             response = await session.generateAssistantResponse(requestInput)
             this.#log('Response to tab:', params.tabId, JSON.stringify(response.$metadata))
         } catch (err) {
-            if (err instanceof Error && isAuthErrorMessage(err.message)) {
-                this.#log(`Q auth error: ${err.message}`)
+            const authError = getAuthError(err)
 
-                return AUTH_FOLLOW_UP_RESULT
+            if (authError) {
+                this.#log(`Q auth error: ${getErrorMessage(err)}`)
+
+                return createAuthFollowUpResult(authError.authFollowType)
             }
 
             this.#log(`Q api request error ${err instanceof Error ? err.message : 'unknown'}`)
-            this.#log(`${err instanceof Error ? JSON.stringify(err) : ''}`)
             return new ResponseError<ChatResult>(
                 LSPErrorCodes.RequestFailed,
                 err instanceof Error ? err.message : 'Unknown request error'
