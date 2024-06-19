@@ -289,9 +289,7 @@ export const createMynahUi = (messager: Messager, tabFactory: TabFactory): [Myna
         const tabId = getOrCreateTabId()
         if (!tabId) return
 
-        const markdownSelection = ['\n```\n', params.selection, '\n```'].join('')
-
-        mynahUi.addToUserPrompt(tabId, markdownSelection)
+        mynahUi.addToUserPrompt(tabId, params.selection, 'code')
         messager.onSendToPrompt(params, tabId)
     }
 
