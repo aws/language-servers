@@ -23,7 +23,7 @@ import { ChatSessionManagementService } from './chatSessionManagementService'
 import { ChatTelemetryController } from './chatTelemetryController'
 import { QAPIInputConverter } from './qAPIInputConverter'
 import { HELP_MESSAGE, QuickAction } from './quickActions'
-import { createAuthFollowUpResult, getAuthError, getErrorMessage } from '../utils'
+import { createAuthFollowUpResult, getAuthFollowUpType, getErrorMessage } from '../utils'
 type ChatHandlers = LspHandlers<Chat>
 
 export class ChatController implements ChatHandlers {
@@ -86,12 +86,12 @@ export class ChatController implements ChatHandlers {
             response = await session.generateAssistantResponse(requestInput)
             this.#log('Response to tab:', params.tabId, JSON.stringify(response.$metadata))
         } catch (err) {
-            const authError = getAuthError(err)
+            const authFollowType = getAuthFollowUpType(err)
 
-            if (authError) {
+            if (authFollowType) {
                 this.#log(`Q auth error: ${getErrorMessage(err)}`)
 
-                return createAuthFollowUpResult(authError.authFollowType)
+                return createAuthFollowUpResult(authFollowType)
             }
 
             this.#log(`Q api request error ${err instanceof Error ? err.message : 'unknown'}`)

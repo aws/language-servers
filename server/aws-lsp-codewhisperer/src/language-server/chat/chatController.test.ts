@@ -249,7 +249,7 @@ describe('ChatController', () => {
                 throw new Error('Error')
             })
 
-            sinon.stub(utils, 'getAuthError').returns({ authFollowType: 'full-auth', message: '' })
+            sinon.stub(utils, 'getAuthFollowUpType').returns('full-auth')
             const chatResultPromise = chatController.onChatPrompt(
                 { tabId: mockTabId, prompt: { prompt: 'Hello' }, partialResultToken: 1 },
                 mockCancellationToken

@@ -47,30 +47,31 @@ export function getErrorMessage(error: any): string {
 
 type AuthFollowUpType = 'full-auth' | 're-auth' | 'missing_scopes' | 'use-supported-auth'
 
-type AUTH_ERROR = { message: string; authFollowType: AuthFollowUpType }
+type AuthErrorDefinition = { match: (err: Error) => boolean; authFollowType: AuthFollowUpType }
 
 const MISSING_BEARER_TOKEN_ERROR = 'credentialsProvider does not have bearer token credentials'
-const TOKEN_EXPIRED_ERROR = 'credentials expired'
-// TODO: I am not sure if we should use general 403 error message for this
+const INVALID_TOKEN = 'The bearer token included in the request is invalid.'
 const MISSING_SCOPE_ERROR = 'User is not authorized to make this call'
 
-const AUTH_ERRORS: AUTH_ERROR[] = [
+const AUTH_ERROR_DEFINITION_LIST: AuthErrorDefinition[] = [
     {
-        message: MISSING_BEARER_TOKEN_ERROR,
+        match: (err: Error) => err.message.startsWith(MISSING_BEARER_TOKEN_ERROR),
         authFollowType: 'full-auth',
     },
     {
-        message: TOKEN_EXPIRED_ERROR,
+        match: (err: Error) => err.message.startsWith(INVALID_TOKEN),
         authFollowType: 're-auth',
     },
     {
-        message: MISSING_SCOPE_ERROR,
+        match: (err: Error) => err.message.startsWith(MISSING_SCOPE_ERROR),
         authFollowType: 'missing_scopes',
     },
 ]
 
-export function getAuthError(err: unknown): AUTH_ERROR | undefined {
-    return err instanceof Error ? AUTH_ERRORS.find(authError => err.message.startsWith(authError.message)) : undefined
+export function getAuthFollowUpType(err: unknown): AuthFollowUpType | undefined {
+    return err instanceof Error
+        ? AUTH_ERROR_DEFINITION_LIST.find(definition => definition.match(err))?.authFollowType
+        : undefined
 }
 
 export function createAuthFollowUpResult(authType: AuthFollowUpType): ChatResult {
