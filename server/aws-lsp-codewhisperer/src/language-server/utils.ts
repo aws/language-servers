@@ -2,6 +2,7 @@ import { BearerCredentials, CredentialsProvider } from '@aws/language-server-run
 import { AWSError } from 'aws-sdk'
 import { Suggestion } from './codeWhispererService'
 import { CodewhispererCompletionType } from './telemetry/types'
+import { ChatResult } from '@aws/language-server-runtimes/protocol'
 
 export function isAwsError(error: unknown): error is AWSError {
     if (error === undefined) {
@@ -44,15 +45,68 @@ export function getErrorMessage(error: any): string {
     return String(error)
 }
 
+type AuthFollowUpType = 'full-auth' | 're-auth' | 'missing_scopes' | 'use-supported-auth'
+
+type AuthErrorDefinition = { match: (err: Error) => boolean; authFollowType: AuthFollowUpType }
+
+const MISSING_BEARER_TOKEN_ERROR = 'credentialsProvider does not have bearer token credentials'
+const INVALID_TOKEN = 'The bearer token included in the request is invalid.'
+const GENERIC_UNAUTHORIZED_ERROR = 'User is not authorized to make this call'
+
+const AUTH_ERROR_DEFINITION_LIST: AuthErrorDefinition[] = [
+    {
+        match: (err: Error) => err.message.startsWith(MISSING_BEARER_TOKEN_ERROR),
+        authFollowType: 'full-auth',
+    },
+    {
+        match: (err: Error) => err.message.startsWith(INVALID_TOKEN),
+        authFollowType: 're-auth',
+    },
+    {
+        match: (err: Error) => err.message.startsWith(GENERIC_UNAUTHORIZED_ERROR),
+        authFollowType: 'full-auth',
+    },
+]
+
+export function getAuthFollowUpType(err: unknown): AuthFollowUpType | undefined {
+    return err instanceof Error
+        ? AUTH_ERROR_DEFINITION_LIST.find(definition => definition.match(err))?.authFollowType
+        : undefined
+}
+
+export function createAuthFollowUpResult(authType: AuthFollowUpType): ChatResult {
+    let pillText
+    switch (authType) {
+        case 'full-auth':
+            pillText = 'Authenticate'
+            break
+        case 'use-supported-auth':
+        case 'missing_scopes':
+            pillText = 'Enable Amazon Q'
+            break
+        case 're-auth':
+            pillText = 'Re-authenticate'
+            break
+    }
+
+    return {
+        body: '',
+        followUp: {
+            text: '',
+            options: [{ pillText, type: authType }],
+        },
+    }
+}
+
 export function getBearerTokenFromProvider(credentialsProvider: CredentialsProvider) {
     if (!credentialsProvider.hasCredentials('bearer')) {
-        throw new Error('credentialsProvider does not have bearer token credentials')
+        throw new Error(MISSING_BEARER_TOKEN_ERROR)
     }
 
     const credentials = credentialsProvider.getCredentials('bearer') as BearerCredentials
 
     if (!credentials.token) {
-        throw new Error('credentialsProvider does not have bearer token credentials')
+        throw new Error(MISSING_BEARER_TOKEN_ERROR)
     }
 
     return credentials.token

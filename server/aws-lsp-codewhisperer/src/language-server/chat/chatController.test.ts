@@ -3,7 +3,13 @@ import {
     CodeWhispererStreaming,
     GenerateAssistantResponseCommandInput,
 } from '@amzn/codewhisperer-streaming'
-import { ChatResult, ErrorCodes, ResponseError, TextDocument } from '@aws/language-server-runtimes/server-interface'
+import {
+    ChatResult,
+    ErrorCodes,
+    LSPErrorCodes,
+    ResponseError,
+    TextDocument,
+} from '@aws/language-server-runtimes/server-interface'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import * as assert from 'assert'
 import sinon from 'ts-sinon'
@@ -13,6 +19,7 @@ import { ChatSessionManagementService } from './chatSessionManagementService'
 import { ChatSessionService } from './chatSessionService'
 import { ChatTelemetryController } from './chatTelemetryController'
 import { DocumentContextExtractor } from './contexts/documentContext'
+import * as utils from '../utils'
 
 describe('ChatController', () => {
     const mockTabId = 'tab-1'
@@ -237,6 +244,23 @@ describe('ChatController', () => {
             assert.ok(chatResult instanceof ResponseError)
         })
 
+        it('returns a auth follow up action if generateAssistantResponse returns an auth error', async () => {
+            generateAssistantResponseStub.callsFake(() => {
+                throw new Error('Error')
+            })
+
+            sinon.stub(utils, 'getAuthFollowUpType').returns('full-auth')
+            const chatResultPromise = chatController.onChatPrompt(
+                { tabId: mockTabId, prompt: { prompt: 'Hello' }, partialResultToken: 1 },
+                mockCancellationToken
+            )
+
+            const chatResult = await chatResultPromise
+
+            sinon.assert.callCount(testFeatures.lsp.sendProgress, 0)
+            assert.deepStrictEqual(chatResult, utils.createAuthFollowUpResult('full-auth'))
+        })
+
         it('returns a ResponseError if response streams return an error event', async () => {
             generateAssistantResponseStub.callsFake(() => {
                 return Promise.resolve({
@@ -261,7 +285,7 @@ describe('ChatController', () => {
 
             assert.deepStrictEqual(
                 chatResult,
-                new ResponseError(ErrorCodes.InternalError, 'some error', {
+                new ResponseError(LSPErrorCodes.RequestFailed, 'some error', {
                     ...expectedCompleteChatResult,
                     body: 'Hello World',
                 })
@@ -292,7 +316,7 @@ describe('ChatController', () => {
 
             assert.deepStrictEqual(
                 chatResult,
-                new ResponseError(ErrorCodes.InternalError, 'invalid state', {
+                new ResponseError(LSPErrorCodes.RequestFailed, 'invalid state', {
                     ...expectedCompleteChatResult,
                     body: 'Hello World',
                 })
