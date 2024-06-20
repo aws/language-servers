@@ -1,5 +1,11 @@
 src/
-node_modules/
+src.gen/
+
+node_modules/*
+# Do not ignore packaged included as bundleDependencies
+!node_modules/@amzn/codewhisperer-streaming
+!node_modules/@aws/lsp-fqn
+
 bundle/
 package-lock.json
 .*
