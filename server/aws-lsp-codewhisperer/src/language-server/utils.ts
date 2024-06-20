@@ -51,7 +51,7 @@ type AuthErrorDefinition = { match: (err: Error) => boolean; authFollowType: Aut
 
 const MISSING_BEARER_TOKEN_ERROR = 'credentialsProvider does not have bearer token credentials'
 const INVALID_TOKEN = 'The bearer token included in the request is invalid.'
-const MISSING_SCOPE_ERROR = 'User is not authorized to make this call'
+const GENERIC_UNAUTHORIZED_ERROR = 'User is not authorized to make this call'
 
 const AUTH_ERROR_DEFINITION_LIST: AuthErrorDefinition[] = [
     {
@@ -63,8 +63,8 @@ const AUTH_ERROR_DEFINITION_LIST: AuthErrorDefinition[] = [
         authFollowType: 're-auth',
     },
     {
-        match: (err: Error) => err.message.startsWith(MISSING_SCOPE_ERROR),
-        authFollowType: 'missing_scopes',
+        match: (err: Error) => err.message.startsWith(GENERIC_UNAUTHORIZED_ERROR),
+        authFollowType: 'full-auth',
     },
 ]
 
