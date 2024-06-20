@@ -14,6 +14,7 @@
     "scripts": {
         "prepare": "husky install .husky",
         "lint": "eslint app/ chat-client/ client/ core/ script/ server/ --ext .ts,.tsx --ignore-path .gitignore && prettier --check .",
+        "check:formatting": "prettier --check .",
         "format": "prettier --write .",
         "format-staged": "npx pretty-quick --staged",
         "clean": "ts-node ./script/clean.ts",

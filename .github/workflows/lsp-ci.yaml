@@ -19,6 +19,7 @@ jobs:
             - name: Build
               run: |
                   npm ci
+                  npm run check:formatting
                   npm run compile
             - name: Test
               run: |
