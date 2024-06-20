@@ -4,7 +4,7 @@ const tsPreset = require('ts-jest/jest-preset')
 module.exports = {
     transform: {
         ...tsPreset.transform,
-        [`/src/partiql-parser-wasm/partiql_playground.js`]: require.resolve('./test-utils/esm-transformer'),
+        [`partiql_playground.js`]: require.resolve('./test-utils/esm-transformer'),
     },
     transformIgnorePatterns: [...(tsPreset.transformIgnorePatterns || [])],
 
