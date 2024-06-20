@@ -24,6 +24,8 @@ import { CopyCodeToClipboardParams, VoteParams } from '../contracts/telemetry'
 import { Messager } from './messager'
 import { TabFactory } from './tabs/tabFactory'
 
+export const INITIAL_TAB_ID = 'tab-1'
+
 export interface InboundChatApi {
     addChatResponse(params: ChatResult, tabId: string, isPartialResult: boolean): void
     sendToPrompt(params: SendToPromptParams): void
@@ -127,8 +129,10 @@ export const createMynahUi = (messager: Messager, tabFactory: TabFactory): [Myna
         onChatPrompt(tabId, prompt, eventId) {
             handleChatPrompt(mynahUi, tabId, prompt, messager, 'click', eventId)
         },
-
-        onReady: messager.onUiReady,
+        onReady: () => {
+            messager.onUiReady()
+            messager.onTabAdd(INITIAL_TAB_ID)
+        },
         onTabAdd: (tabId: string) => {
             messager.onTabAdd(tabId)
         },
@@ -223,7 +227,7 @@ export const createMynahUi = (messager: Messager, tabFactory: TabFactory): [Myna
             messager.onInfoLinkClick(payload)
         },
         tabs: {
-            'tab-1': {
+            [INITIAL_TAB_ID]: {
                 isSelected: true,
                 store: tabFactory.createTab(true),
             },
@@ -236,6 +240,10 @@ export const createMynahUi = (messager: Messager, tabFactory: TabFactory): [Myna
             texts: uiComponentsTexts,
         },
     })
+
+    const getTabStore = (tabId = mynahUi.getSelectedTabId()) => {
+        return tabId ? mynahUi.getAllTabs()[tabId]?.store : undefined
+    }
 
     const createTabId = () => {
         const tabId = mynahUi.updateStore('', tabFactory.createTab(false))
@@ -299,9 +307,7 @@ export const createMynahUi = (messager: Messager, tabFactory: TabFactory): [Myna
         if (!tabId) return
 
         // send to a new tab if the current tab is loading
-        const isCurrentTabLoading = mynahUi.getAllTabs()[tabId]?.store?.loadingChat
-
-        if (isCurrentTabLoading) {
+        if (getTabStore(tabId)?.loadingChat) {
             tabId = createTabId()
             if (!tabId) return
         }
@@ -327,6 +333,11 @@ export const createMynahUi = (messager: Messager, tabFactory: TabFactory): [Myna
             body: `**${params.title}** 
 ${params.message}`,
         }
+
+        mynahUi.updateStore(tabId, {
+            loadingChat: false,
+            promptInputDisabledState: false,
+        })
 
         mynahUi.addChatItem(params.tabId, answer)
         messager.onError(params)
