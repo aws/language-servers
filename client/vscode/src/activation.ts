@@ -12,6 +12,7 @@ import { LanguageClient, LanguageClientOptions, ServerOptions, State, TransportK
 import { registerChat } from './chatActivation'
 import {
     configureCredentialsCapabilities,
+    encryptionKey,
     registerBearerTokenProviderSupport,
     registerIamCredentialsProviderSupport,
     writeEncryptionInit,
@@ -146,7 +147,7 @@ export async function activateDocumentsLanguageServer(extensionContext: Extensio
     // Activate chat server after LSP initialize handshake is done
     const enableChat = process.env.ENABLE_CHAT === 'true'
     if (enableChat) {
-        registerChat(client, extensionContext.extensionUri)
+        registerChat(client, extensionContext.extensionUri, encryptionKey)
     }
 
     return client
