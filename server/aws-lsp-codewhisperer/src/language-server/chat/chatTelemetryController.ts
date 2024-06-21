@@ -114,25 +114,6 @@ export class ChatTelemetryController {
         this.#telemetry.emitMetric(metric)
     }
 
-    public emitStartConversationMetric(
-        input: GenerateAssistantResponseCommandInput,
-        conversationType: ChatConversationType
-    ) {
-        const maybeConversationState = input.conversationState
-        const maybeUserInputMessage = maybeConversationState?.currentMessage?.userInputMessage
-        const maybeDocument = maybeUserInputMessage?.userInputMessageContext?.editorState?.document
-
-        this.emitConversationMetric({
-            name: ChatTelemetryEventName.StartConversation,
-            data: {
-                cwsprChatTriggerInteraction: maybeConversationState?.chatTriggerType,
-                cwsprChatUserIntent: maybeUserInputMessage?.userIntent,
-                cwsprChatHasCodeSnippet: Boolean(maybeDocument?.text),
-                cwsprChatProgrammingLanguage: maybeDocument?.programmingLanguage,
-                cwsprChatConversationType: conversationType,
-            },
-        })
-    }
     public emitConversationMetric<
         TName extends ConversationMetricName,
         TEvent extends ChatMetricEvent<TName, ChatTelemetryEventMap[TName]>,

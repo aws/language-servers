@@ -1,7 +1,14 @@
-import { ChatTriggerType, EditorState, GenerateAssistantResponseCommandInput } from '@amzn/codewhisperer-streaming'
+import {
+    ChatTriggerType,
+    EditorState,
+    GenerateAssistantResponseCommandInput,
+    UserIntent,
+} from '@amzn/codewhisperer-streaming'
 import { ChatParams } from '@aws/language-server-runtimes/server-interface'
 import { Features, Result } from '../types'
 import { DocumentContextExtractor } from './contexts/documentContext'
+import { StartConversationEvent } from '../telemetry/types'
+import { Metric } from '../telemetry/metric'
 
 export class QAPIInputConverter {
     #workspace: Features['workspace']
@@ -14,7 +21,10 @@ export class QAPIInputConverter {
         this.#documentContextExtractor = new DocumentContextExtractor({ logger })
     }
 
-    async convertChatParamsToInput(params: ChatParams): Promise<Result<GenerateAssistantResponseCommandInput, string>> {
+    async convertChatParamsToInput(
+        params: ChatParams,
+        metric?: Metric<StartConversationEvent>
+    ): Promise<Result<GenerateAssistantResponseCommandInput, string>> {
         const { prompt } = params
 
         let editorState: EditorState | undefined
@@ -29,23 +39,40 @@ export class QAPIInputConverter {
         }
 
         if (prompt.prompt || prompt.escapedPrompt) {
-            return {
-                success: true,
-                data: {
-                    conversationState: {
-                        chatTriggerType: ChatTriggerType.MANUAL,
-                        currentMessage: {
-                            userInputMessage: {
-                                content: prompt.escapedPrompt ?? prompt.prompt,
-                                userInputMessageContext: editorState
-                                    ? {
-                                          editorState,
-                                      }
-                                    : undefined,
-                            },
+            const data: GenerateAssistantResponseCommandInput = {
+                conversationState: {
+                    chatTriggerType: ChatTriggerType.MANUAL,
+                    currentMessage: {
+                        userInputMessage: {
+                            content: prompt.escapedPrompt ?? prompt.prompt,
+                            userInputMessageContext: editorState
+                                ? {
+                                      editorState,
+                                  }
+                                : undefined,
+                            userIntent: this.#guessIntentFromPrompt(prompt.prompt),
                         },
                     },
                 },
+            }
+
+            if (metric) {
+                const maybeConversationState = data.conversationState
+                const maybeUserInputMessage = maybeConversationState?.currentMessage?.userInputMessage
+                const maybeDocument = maybeUserInputMessage?.userInputMessageContext?.editorState?.document
+
+                metric.merge({
+                    cwsprChatTriggerInteraction: maybeConversationState?.chatTriggerType,
+                    cwsprChatUserIntent: maybeUserInputMessage?.userIntent,
+                    cwsprChatHasCodeSnippet: Boolean(maybeDocument?.text),
+                    cwsprChatProgrammingLanguage: maybeDocument?.programmingLanguage?.languageName,
+                    // cwsprChatConversationType: conversationType,
+                })
+            }
+
+            return {
+                success: true,
+                data,
             }
         }
 
@@ -71,5 +98,23 @@ export class QAPIInputConverter {
         const textDocument = await this.#workspace.getTextDocument(textDocumentIdentifier.uri)
 
         return textDocument && (await this.#documentContextExtractor.extractEditorState(textDocument, cursorState[0]))
+    }
+
+    #guessIntentFromPrompt(prompt?: string): UserIntent | undefined {
+        if (prompt === undefined) {
+            return undefined
+        }
+
+        if (prompt.startsWith('Explain')) {
+            return 'EXPLAIN_CODE_SELECTION'
+        } else if (prompt.startsWith('Refactor')) {
+            return 'SUGGEST_ALTERNATE_IMPLEMENTATION'
+        } else if (prompt.startsWith('Fix')) {
+            return 'APPLY_COMMON_BEST_PRACTICES'
+        } else if (prompt.startsWith('Optimize')) {
+            return 'IMPROVE_CODE'
+        }
+
+        return undefined
     }
 }
