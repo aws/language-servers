@@ -22,7 +22,7 @@ import { AddMessageEvent, ChatTelemetryEventName, StartConversationEvent } from 
 import { Features, LspHandlers, Result } from '../types'
 import { ChatEventParser } from './chatEventParser'
 import { ChatSessionManagementService } from './chatSessionManagementService'
-import { ChatTelemetryController } from './chatTelemetryController'
+import { ChatTelemetryController } from './telemetry/chatTelemetryController'
 import { QAPIInputConverter } from './qAPIInputConverter'
 import { HELP_MESSAGE, QuickAction } from './quickActions'
 import { createAuthFollowUpResult, getAuthFollowUpType, getErrorMessage } from '../utils'

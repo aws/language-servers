@@ -1,71 +1,10 @@
-import { MetricEvent } from '@aws/language-server-runtimes/server-interface'
-
-import { GenerateAssistantResponseCommandInput } from '@amzn/codewhisperer-streaming'
-import {
-    ChatConversationType,
-    ChatInteractionType,
-    ChatTelemetryEventMap,
-    ChatTelemetryEventName,
-} from '../telemetry/types'
-import { Features, KeysMatching } from '../types'
-import { isObject } from '../utils'
+import { MetricEvent } from '@aws/language-server-runtimes/server-interface/telemetry'
+import { ChatInteractionType, ChatTelemetryEventMap, ChatTelemetryEventName } from '../../telemetry/types'
+import { Features, KeysMatching } from '../../types'
+import { ChatUIEventName, RelevancyVoteType, isClientTelemetryEvent } from './clientTelemetry'
 
 export const CONVERSATION_ID_METRIC_KEY = 'cwsprChatConversationId'
 
-export enum ChatUIEventName {
-    EnterFocusChat = 'enterFocus',
-    ExitFocusChat = 'exitFocus',
-    AddMessage = 'addMessage',
-    SendToPrompt = 'sendToPrompt',
-    TabAdd = 'tabAdd',
-    CopyToClipboard = 'copyToClipboard',
-    InsertToCursorPosition = 'insertToCursorPosition',
-    Vote = 'vote',
-    LinkClick = 'linkClick',
-    InfoLinkClick = 'infoLinkClick',
-    SourceLinkClick = 'sourceLinkClick',
-}
-
-enum RelevancyVoteType {
-    UP = 'upvote',
-    DOWN = 'downvote',
-}
-
-export interface BaseClientTelemetryParams<TName extends ChatUIEventName> {
-    name: TName
-    tabId: string
-    eventId?: string
-}
-
-export interface VoteTelemetryParams extends BaseClientTelemetryParams<ChatUIEventName.Vote> {
-    vote: RelevancyVoteType
-    messageId: string
-}
-
-export interface LinkClickParams<
-    TName extends ChatUIEventName.LinkClick | ChatUIEventName.InfoLinkClick | ChatUIEventName.SourceLinkClick =
-        | ChatUIEventName.LinkClick
-        | ChatUIEventName.InfoLinkClick
-        | ChatUIEventName.SourceLinkClick,
-> extends BaseClientTelemetryParams<TName> {
-    messageId: string
-}
-
-export type ClientTelemetryEvent =
-    | VoteTelemetryParams
-    | BaseClientTelemetryParams<ChatUIEventName.EnterFocusChat>
-    | BaseClientTelemetryParams<ChatUIEventName.ExitFocusChat>
-    | BaseClientTelemetryParams<ChatUIEventName.TabAdd>
-    | LinkClickParams
-
-function isClientTelemetryEvent(event: unknown): event is ClientTelemetryEvent {
-    return (
-        isObject(event) &&
-        typeof event.name === 'string' &&
-        // unnecessary, also create a map
-        Object.values(ChatUIEventName).includes(event.name as ChatUIEventName)
-    )
-}
 export interface ChatMetricEvent<
     TName extends ChatTelemetryEventName,
     TData extends ChatTelemetryEventMap[TName] = ChatTelemetryEventMap[TName],

@@ -1,7 +1,11 @@
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import sinon from 'ts-sinon'
 import { ChatTelemetryEventName } from '../telemetry/types'
-import { CONVERSATION_ID_METRIC_KEY, ChatTelemetryController, ChatUIEventName } from './chatTelemetryController'
+import {
+    CONVERSATION_ID_METRIC_KEY,
+    ChatTelemetryController,
+    ChatUIEventName,
+} from './telemetry/chatTelemetryController'
 import assert = require('assert')
 
 describe('TelemetryController', () => {

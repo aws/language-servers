@@ -17,7 +17,7 @@ import { createIterableResponse } from '../testUtils'
 import { ChatController } from './chatController'
 import { ChatSessionManagementService } from './chatSessionManagementService'
 import { ChatSessionService } from './chatSessionService'
-import { ChatTelemetryController } from './chatTelemetryController'
+import { ChatTelemetryController } from './telemetry/chatTelemetryController'
 import { DocumentContextExtractor } from './contexts/documentContext'
 import * as utils from '../utils'
 
