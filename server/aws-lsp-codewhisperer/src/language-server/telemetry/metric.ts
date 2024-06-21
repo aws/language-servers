@@ -6,8 +6,8 @@ export class Metric<T extends { [key: string]: Data }> {
     #metric: Partial<T>
     #startTime?: number
 
-    constructor(metric: Partial<T>) {
-        this.#metric = metric
+    constructor(metric?: Partial<T>) {
+        this.#metric = metric ?? {}
     }
 
     get metric() {
