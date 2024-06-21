@@ -265,7 +265,7 @@ myStubbedFunc.returns()
 
 Language servers developed in this package can be built for different runtimes developed in [Language Server Runtimes](https://github.com/aws/language-server-runtimes) project.
 
-`Language Server Runtimes` provides a set of interfaces and constructs that can be used to inject cross-platform implementations of features, reused across language servers. Using runtime constructs, Language Servers could be built and packages into artifact of different formats: binary formats as explained earlier in this document, or packages as Javascript Webworker bundle.
+`Language Server Runtimes` provides a set of interfaces and constructs that can be used to inject cross-platform implementations of features, reused across language servers. Using runtime constructs, Language Servers could be built and packages into artifact of different formats: bundles formats as explained earlier in this document, or packages as Javascript Webworker bundle.
 
 This Language Servers repository includes set of packages, which demonstrate how to build Language server together with specific runtime. See [Building the Repo](#building-the-repo) section in this guide.
 
@@ -300,10 +300,10 @@ Sometimes there is a need to build and develop both Language Servers with Langua
     npm link @aws/language-server-runtimes
     ```
 
-5. Build server binaries:
+5. Build server bundles:
 
     ```bash
     npm run package
     ```
 
-Using local checkout of `language-server-runtimes` you can iterate or experiment with both projects and produce working language server builds locally. Built servers can be found in `./app/*/bin` folder.
+Using local checkout of `language-server-runtimes` you can iterate or experiment with both projects and produce working language server builds locally. Built servers can be found in `./app/**/build` folder.
