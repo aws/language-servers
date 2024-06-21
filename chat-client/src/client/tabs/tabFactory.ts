@@ -1,8 +1,13 @@
 import { ChatItemType, MynahUIDataModel } from '@aws/mynah-ui'
+import { nanoid } from 'nanoid'
 
 export type DefaultTabData = Partial<MynahUIDataModel>
 
 export class TabFactory {
+    public static generateUniqueId() {
+        return nanoid(6)
+    }
+
     constructor(private defaultTabData: DefaultTabData) {}
 
     public createTab(needWelcomeMessages: boolean): MynahUIDataModel {
