@@ -102,6 +102,9 @@ export enum ChatTelemetryEventName {
     ExitFocusChat = 'ExitFocusChat',
     EnterFocusConversation = 'EnterFocusConversation',
     ExitFocusConversation = 'ExitFocusConversation',
+    StartConversation = 'StartConversation',
+    InteractWithMessage = 'InteractWithMessage',
+    AddMessage = 'AddMessage',
 }
 
 export interface ChatTelemetryEventMap {
@@ -109,6 +112,32 @@ export interface ChatTelemetryEventMap {
     [ChatTelemetryEventName.ExitFocusChat]: ExitFocusChatEvent
     [ChatTelemetryEventName.EnterFocusConversation]: EnterFocusConversationEvent
     [ChatTelemetryEventName.ExitFocusConversation]: ExitFocusConversationEvent
+    [ChatTelemetryEventName.StartConversation]: StartConversationEvent
+    [ChatTelemetryEventName.InteractWithMessage]: InteractWithMessageEvent
+    [ChatTelemetryEventName.AddMessage]: AddMessageEvent
+}
+
+export interface AddMessageEvent {
+    cwsprChatConversationId: string
+    cwsprChatMessageId: string
+    cwsprChatTriggerInteraction: string
+    cwsprChatUserIntent?: string
+    cwsprChatHasCodeSnippet: boolean
+    cwsprChatProgrammingLanguage?: string
+    cwsprChatActiveEditorTotalCharacters?: number
+    cwsprChatActiveEditorImportCount?: number
+    cwsprChatResponseCodeSnippetCount?: number
+    cwsprChatResponseCode: string
+    cwsprChatSourceLinkCount?: number
+    cwsprChatReferencesCount?: number
+    cwsprChatFollowUpCount?: number
+    cwsprTimeToFirstChunk: number
+    cwsprChatFullResponseLatency: number
+    cwsprChatTimeBetweenChunks: number[]
+    cwsprChatResponseType?: string
+    cwsprChatRequestLength?: number
+    cwsprChatResponseLength?: number
+    cwsprChatConversationType: ChatConversationType
 }
 
 export interface EnterFocusChatEvent {}
@@ -116,9 +145,44 @@ export interface EnterFocusChatEvent {}
 export interface ExitFocusChatEvent {}
 
 export interface EnterFocusConversationEvent {
-    CWSPRChatConversationId: string
+    cwsprChatConversationId: string
 }
 
 export interface ExitFocusConversationEvent {
-    CWSPRChatConversationId: string
+    cwsprChatConversationId: string
+}
+
+export enum ChatInteractionType {
+    InsertAtCursor = 'insertAtCursor',
+    CopySnippet = 'copySnippet',
+    Copy = 'copy',
+    ClickLink = 'clickLink',
+    ClickFollowUp = 'clickFollowUp',
+    HoverReference = 'hoverReference',
+    Upvote = 'upvote',
+    downvote = 'downvote',
+    ClickBodyLink = 'clickBodyLink',
+}
+
+export type ChatConversationType = 'Chat' | 'Assign' | 'Transform'
+
+export interface InteractWithMessageEvent {
+    cwsprChatConversationId: string
+    cwsprChatMessageId: string
+    cwsprChatInteractionType: ChatInteractionType
+    cwsprChatInteractionTarget?: string
+    cwsprChatAcceptedCharactersLength?: number
+    cwsprChatAcceptedNumberOfLines?: number
+    cwsprChatHasReference?: boolean
+    cwsprChatCodeBlockIndex?: number
+    cwsprChatTotalCodeBlocks?: number
+}
+
+export interface StartConversationEvent {
+    cwsprChatConversationId: string
+    cwsprChatTriggerInteraction?: string
+    cwsprChatUserIntent?: string
+    cwsprChatHasCodeSnippet?: boolean
+    cwsprChatProgrammingLanguage?: string
+    cwsprChatConversationType: ChatConversationType
 }
