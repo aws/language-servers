@@ -7,19 +7,17 @@
         "aws-lsp-partiql-binary": "./out/aws-lsp-partiql-binary.js"
     },
     "scripts": {
-        "bundle": "npm run compile && npm run webpack && npm run package-x64",
         "clean": "rm -rf out/ bin/ tsconfig.tsbuildinfo",
-        "compile": "npm run compile:tsc && npm run compile:webpack",
         "compile:tsc": "tsc --build",
         "compile:webpack": "webpack",
-        "package-x64": "pkg --targets node18-linux-x64,node18-win-x64,node18-macos-x64 --output bin/aws-lsp-partiql-binary --compress GZip ."
+        "compile": "npm run compile:tsc && npm run compile:webpack",
+        "package": "npm run compile && npm run compile:webpack"
     },
     "dependencies": {
         "@aws/lsp-partiql": "^0.0.1",
         "@aws/language-server-runtimes": "^0.2.5"
     },
     "devDependencies": {
-        "pkg": "^5.8.1",
         "ts-lsp-client": "^1.0.3",
         "ts-loader": "^9.4.4",
         "webpack": "^5.88.2",

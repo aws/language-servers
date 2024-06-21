@@ -2,9 +2,9 @@
 
 This package provides example configuration to produce Amazon Q server implementation bundled with [Language Server Runtimes for AS](https://github.com/aws/language-server-runtimes).
 
-To create bundle run:
+To create compiled bundles run:
 ```bash
-npm run bundle
+npm run package
 ```
 
 This command will compile package and produce 2 bundled Javascript programs in `./out/` directory: 
