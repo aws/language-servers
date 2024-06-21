@@ -272,7 +272,7 @@ export const createMynahUi = (messager: Messager, tabFactory: TabFactory): [Myna
 
         const followUps = chatResult.followUp
             ? {
-                  text: chatResult.followUp.text || 'Suggested follow up questions:',
+                  text: chatResult.followUp.text ?? 'Suggested follow up questions:',
                   options: chatResult.followUp.options,
               }
             : {}
