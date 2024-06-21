@@ -117,7 +117,7 @@ export interface ChatTelemetryEventMap {
     [ChatTelemetryEventName.AddMessage]: AddMessageEvent
 }
 
-export interface AddMessageEvent {
+export type AddMessageEvent = {
     cwsprChatConversationId: string
     cwsprChatMessageId: string
     cwsprChatTriggerInteraction: string
@@ -140,15 +140,15 @@ export interface AddMessageEvent {
     cwsprChatConversationType: ChatConversationType
 }
 
-export interface EnterFocusChatEvent {}
+export type EnterFocusChatEvent = {}
 
-export interface ExitFocusChatEvent {}
+export type ExitFocusChatEvent = {}
 
-export interface EnterFocusConversationEvent {
+export type EnterFocusConversationEvent = {
     cwsprChatConversationId: string
 }
 
-export interface ExitFocusConversationEvent {
+export type ExitFocusConversationEvent = {
     cwsprChatConversationId: string
 }
 
@@ -166,7 +166,7 @@ export enum ChatInteractionType {
 
 export type ChatConversationType = 'Chat' | 'Assign' | 'Transform'
 
-export interface InteractWithMessageEvent {
+export type InteractWithMessageEvent = {
     cwsprChatConversationId: string
     cwsprChatMessageId: string
     cwsprChatInteractionType: ChatInteractionType
@@ -178,7 +178,7 @@ export interface InteractWithMessageEvent {
     cwsprChatTotalCodeBlocks?: number
 }
 
-export interface StartConversationEvent {
+export type StartConversationEvent = {
     cwsprChatConversationId: string
     cwsprChatTriggerInteraction?: string
     cwsprChatUserIntent?: string
