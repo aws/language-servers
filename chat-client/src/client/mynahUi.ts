@@ -19,7 +19,6 @@ import {
     LinkClickParams,
     SourceLinkClickParams,
 } from '@aws/language-server-runtimes-types'
-import { nanoid } from 'nanoid'
 import { ChatItem, ChatItemType, ChatPrompt, MynahUI, NotificationType } from '@aws/mynah-ui'
 import { CopyCodeToClipboardParams, VoteParams } from '../contracts/telemetry'
 import { Messager } from './messager'
@@ -82,7 +81,7 @@ export const handleChatPrompt = (
 }
 
 export const createMynahUi = (messager: Messager, tabFactory: TabFactory): [MynahUI, InboundChatApi] => {
-    const initialTabId = nanoid()
+    const initialTabId = TabFactory.generateUniqueId()
 
     const mynahUi = new MynahUI({
         onCodeInsertToCursorPosition(
