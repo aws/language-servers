@@ -6,8 +6,8 @@
         "compile": "tsc --build",
         "clean": "rm -rf dist && rm -rf node_modules && rm -rf build",
         "build": "tsc",
-        "prepublishOnly": "npm run build && npm run compile && npm run bundle",
-        "bundle": "webpack",
+        "prepublishOnly": "npm run build && npm run compile && npm run package",
+        "package": "webpack",
         "serve:webpack": "NODE_ENV=development webpack serve"
     },
     "dependencies": {

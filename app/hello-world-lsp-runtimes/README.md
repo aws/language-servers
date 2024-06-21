@@ -10,7 +10,7 @@ Source code examples of runtime bundle configuration in `/src` directory.
 
 ### Creating bundles
 
-We use `webpack` to create javascript bundles to run with NodeJS or as a webworker, and [`vercel/pkg`](https://github.com/vercel/pkg) to produce self-contained executable binary bundled with NodeJS.
+We use `webpack` to create javascript bundles to run with NodeJS or as a webworker.
 
 Before creating runtime bundle, make sure that Hello World Language Server package is compiled:
 ```bash
@@ -24,12 +24,7 @@ npm run bundle
 ```
 
 Bundling specific variants is also possible.
-* To create single file executable with `vercel/pkg`, run:
-    ```bash
-    npm run package-x64 
-    ```
-
-* To create only javascript bundled files with webpack, run:
+* To create javascript bundled files with webpack, run:
     ```bash
     npm run webpack
     ```
@@ -40,10 +35,6 @@ Result artifacts can be found in `/out` and `/bin` directories.
 
 ```
 .
-├── bin - binaries, packaged with `pkg` for different operating systems
-│   ├── hello-world-lsp-binary-linux
-│   ├── hello-world-lsp-binary-macos
-│   ├── hello-world-lsp-binary-win.exe
 ├── out - Compiled Javascipt and Javascript bundles
 │   ├── hello-world-lsp-standalone.js - standalone bundle
 │   ├── hello-world-lsp-webworker.js - webworker bundle
