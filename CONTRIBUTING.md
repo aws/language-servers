@@ -88,35 +88,12 @@ npm run compile
 
 Language servers are built into their own packages (under ./server).
 
-A separate set of packages (under ./app) then instantiate these language servers. These packages are packaged into standalone binary applications, with the intention of being integrated into IDEs. Packaging is performed using [vercel/pkg](https://github.com/vercel/pkg), which bundles both the project and nodejs into a binary. These binaries don't require nodejs to be installed on the system they are run on.
+A separate set of packages (under ./app) then instantiate these language servers. These packages are packaged into standalone javascript application servers, with the intention of being integrated into IDEs. Packaging is performed with Webpack. These bundles require nodejs to be installed on the system they are run on. By default, bundles are produced in `./app/**/build/*` directories can be started as node applications, for example:
 
-For details on how to configure bundling with pkg, see [pkg usage](https://github.com/vercel/pkg#usage).
-
-### pkg Examples
-
-If you want to create windows-x64, macos-x64, linux-x64 binaries you can use:
-
-```bash
-pkg .
+```
+node ./app/aws-lsp-codewhisperer-binary/aws-lsp-codewhisperer-token-binary.js --stdio
 ```
 
-if you have a different node version installed (eg: node19) from your target package (eg: node18) you can do:
-
-```bash
-pkg --targets node18 .
-```
-
-to create a standalone executable for node16 for windows on arm you can do
-
-```bash
-pkg --targets node16-windows-arm64 .
-```
-
-to ensure the standalone language server is compressed even more you can do:
-
-```bash
-pkg --compress GZip .
-```
 ## Running + Debugging
 
 > **NOTE**: Ensure your VSCode workspace is the root folder or else certain functionality may not work.
