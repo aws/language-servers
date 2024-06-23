@@ -62,11 +62,10 @@ export class QAPIInputConverter {
                 const maybeDocument = maybeUserInputMessage?.userInputMessageContext?.editorState?.document
 
                 metric.merge({
-                    cwsprChatTriggerInteraction: maybeConversationState?.chatTriggerType,
                     cwsprChatUserIntent: maybeUserInputMessage?.userIntent,
+                    // this one is incorrect
                     cwsprChatHasCodeSnippet: Boolean(maybeDocument?.text),
                     cwsprChatProgrammingLanguage: maybeDocument?.programmingLanguage?.languageName,
-                    // cwsprChatConversationType: conversationType,
                 })
             }
 
@@ -106,13 +105,13 @@ export class QAPIInputConverter {
         }
 
         if (prompt.startsWith('Explain')) {
-            return 'EXPLAIN_CODE_SELECTION'
+            return UserIntent.EXPLAIN_CODE_SELECTION
         } else if (prompt.startsWith('Refactor')) {
-            return 'SUGGEST_ALTERNATE_IMPLEMENTATION'
+            return UserIntent.SUGGEST_ALTERNATE_IMPLEMENTATION
         } else if (prompt.startsWith('Fix')) {
-            return 'APPLY_COMMON_BEST_PRACTICES'
+            return UserIntent.APPLY_COMMON_BEST_PRACTICES
         } else if (prompt.startsWith('Optimize')) {
-            return 'IMPROVE_CODE'
+            return UserIntent.IMPROVE_CODE
         }
 
         return undefined

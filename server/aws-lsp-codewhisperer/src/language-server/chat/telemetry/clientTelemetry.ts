@@ -2,7 +2,6 @@ import type * as ServerInterface from '@aws/language-server-runtimes/server-inte
 import type * as ChatClientType from '@aws/chat-client-ui-types'
 import { isObject } from '../../utils'
 
-// copy to
 export enum ChatUIEventName {
     EnterFocusChat = 'enterFocus',
     ExitFocusChat = 'exitFocus',
@@ -45,6 +44,10 @@ export interface BaseClientTelemetryParams<TName extends ChatUIEventName> {
     eventId?: string
 }
 
+export type TabAddParams = BaseClientTelemetryParams<ChatUIEventName.TabAdd> & {
+    triggerType: ChatClientType.TriggerType
+}
+
 export type AddMessageParams = {
     triggerType: ChatClientType.TriggerType
     tabId: string
@@ -75,7 +78,7 @@ export type InsertToCursorPositionParams = ServerInterface.InsertToCursorPositio
 export type ClientTelemetryEvent =
     | BaseClientTelemetryParams<ChatUIEventName.EnterFocusChat>
     | BaseClientTelemetryParams<ChatUIEventName.ExitFocusChat>
-    | BaseClientTelemetryParams<ChatUIEventName.TabAdd>
+    | TabAddParams
     | AddMessageParams
     | SendToPromptParams
     | VoteTelemetryParams

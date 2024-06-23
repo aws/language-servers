@@ -1,5 +1,11 @@
 import { MetricEvent } from '@aws/language-server-runtimes/server-interface/telemetry'
-import { ChatInteractionType, ChatTelemetryEventMap, ChatTelemetryEventName } from '../../telemetry/types'
+import { TriggerType } from '@aws/chat-client-ui-types'
+import {
+    ChatInteractionType,
+    ChatTelemetryEventMap,
+    ChatTelemetryEventName,
+    CombinedConversationEvent,
+} from '../../telemetry/types'
 import { Features, KeysMatching } from '../../types'
 import { ChatUIEventName, RelevancyVoteType, isClientTelemetryEvent } from './clientTelemetry'
 
@@ -15,13 +21,19 @@ export interface ChatMetricEvent<
 
 type ConversationMetricName = KeysMatching<ChatTelemetryEventMap, { [CONVERSATION_ID_METRIC_KEY]: string }>
 
+interface TabTelemetryInfo {
+    conversationId?: string
+    messageTriggerType?: TriggerType
+    startConversationTriggerType?: TriggerType
+}
+
 export class ChatTelemetryController {
     #activeTabId?: string
-    #conversationIdByTabId: { [tabId: string]: string }
+    #tabTelemetryInfoByTabId: { [tabId: string]: TabTelemetryInfo }
     #telemetry: Features['telemetry']
 
     constructor(telemetry: Features['telemetry']) {
-        this.#conversationIdByTabId = {}
+        this.#tabTelemetryInfoByTabId = {}
         this.#telemetry = telemetry
 
         this.#telemetry.onClientTelemetry(params => this.#handleClientTelemetry(params))
@@ -36,15 +48,17 @@ export class ChatTelemetryController {
     }
 
     public getConversationId(tabId?: string) {
-        return tabId && this.#conversationIdByTabId[tabId]
+        return tabId && this.#tabTelemetryInfoByTabId[tabId]?.conversationId
     }
 
     public removeConversationId(tabId: string) {
-        delete this.#conversationIdByTabId[tabId]
+        if (this.#tabTelemetryInfoByTabId[tabId]?.conversationId) {
+            this.#tabTelemetryInfoByTabId[tabId].conversationId = undefined
+        }
     }
 
     public setConversationId(tabId: string, conversationId: string) {
-        this.#conversationIdByTabId[tabId] = conversationId
+        this.#tabTelemetryInfoByTabId[tabId] = { ...this.#tabTelemetryInfoByTabId[tabId], conversationId }
     }
 
     public emitChatMetric<TName extends ChatTelemetryEventName>(
@@ -59,9 +73,10 @@ export class ChatTelemetryController {
     >(
         metric: Omit<TEvent, 'data'> & {
             data: Omit<TEvent['data'], typeof CONVERSATION_ID_METRIC_KEY>
-        }
+        },
+        tabId = this.activeTabId
     ) {
-        const conversationId = this.getConversationId(this.activeTabId)
+        const conversationId = this.getConversationId(tabId)
         if (conversationId) {
             this.#telemetry.emitMetric({
                 ...metric,
@@ -73,9 +88,97 @@ export class ChatTelemetryController {
         }
     }
 
+    public emitAddMessageMetric(tabId: string, metric: Partial<CombinedConversationEvent>) {
+        this.emitConversationMetric(
+            {
+                name: ChatTelemetryEventName.AddMessage,
+                data: {
+                    // good
+                    cwsprChatMessageId: metric.cwsprChatMessageId,
+                    cwsprChatUserIntent: metric.cwsprChatUserIntent,
+                    cwsprChatProgrammingLanguage: metric.cwsprChatProgrammingLanguage,
+                    cwsprChatResponseCodeSnippetCount: metric.cwsprChatResponseCodeSnippetCount,
+                    cwsprChatResponseCode: metric.cwsprChatResponseCode,
+                    cwsprChatSourceLinkCount: metric.cwsprChatSourceLinkCount,
+                    cwsprChatReferencesCount: metric.cwsprChatReferencesCount,
+                    cwsprChatFollowUpCount: metric.cwsprChatFollowUpCount,
+                    cwsprTimeToFirstChunk: metric.cwsprTimeToFirstChunk,
+                    cwsprChatFullResponseLatency: metric.cwsprChatFullResponseLatency,
+                    cwsprChatTimeBetweenChunks: metric.cwsprChatTimeBetweenChunks,
+                    cwsprChatRequestLength: metric.cwsprChatRequestLength,
+                    cwsprChatResponseLength: metric.cwsprChatResponseLength,
+                    cwsprChatConversationType: metric.cwsprChatConversationType,
+
+                    // confirm
+                    cwsprChatTriggerInteraction: this.#tabTelemetryInfoByTabId[tabId]?.startConversationTriggerType,
+
+                    // missing
+                    cwsprChatActiveEditorTotalCharacters: metric.cwsprChatActiveEditorTotalCharacters,
+                    cwsprChatActiveEditorImportCount: metric.cwsprChatActiveEditorImportCount,
+                    cwsprChatHasCodeSnippet: metric.cwsprChatHasCodeSnippet,
+
+                    // not possible: cwsprChatResponseType: metric.cwsprChatResponseType,
+                },
+            },
+            tabId
+        )
+    }
+
+    public emitStartConversationMetric(tabId: string, metric: Partial<CombinedConversationEvent>) {
+        this.emitConversationMetric(
+            {
+                name: ChatTelemetryEventName.StartConversation,
+                data: {
+                    cwsprChatUserIntent: metric.cwsprChatUserIntent,
+                    cwsprChatProgrammingLanguage: metric.cwsprChatProgrammingLanguage,
+                    cwsprChatConversationType: metric.cwsprChatConversationType,
+
+                    // missing
+                    cwsprChatHasCodeSnippet: metric.cwsprChatHasCodeSnippet,
+
+                    // confirm
+                    cwsprChatTriggerInteraction: this.#tabTelemetryInfoByTabId[tabId]?.messageTriggerType,
+                },
+            },
+            tabId
+        )
+    }
+
+    public emitMessageResponseError(tabId: string, metric: Partial<CombinedConversationEvent>) {
+        this.emitConversationMetric(
+            {
+                name: ChatTelemetryEventName.MessageResponseError,
+                data: {
+                    cwsprChatTriggerInteraction: this.#tabTelemetryInfoByTabId[tabId]?.startConversationTriggerType,
+                    cwsprChatUserIntent: metric.cwsprChatUserIntent,
+                    cwsprChatHasCodeSnippet: metric.cwsprChatHasCodeSnippet,
+                    cwsprChatProgrammingLanguage: metric.cwsprChatProgrammingLanguage,
+                    cwsprChatActiveEditorTotalCharacters: metric.cwsprChatActiveEditorTotalCharacters,
+                    cwsprChatActiveEditorImportCount: metric.cwsprChatActiveEditorImportCount,
+                    cwsprChatRepsonseCode: metric.cwsprChatRepsonseCode,
+                    cwsprChatRequestLength: metric.cwsprChatRequestLength,
+                    cwsprChatConversationType: metric.cwsprChatConversationType,
+                },
+            },
+            tabId
+        )
+    }
+
     #handleClientTelemetry(params: unknown) {
         if (isClientTelemetryEvent(params)) {
             switch (params.name) {
+                case ChatUIEventName.AddMessage:
+                    this.#tabTelemetryInfoByTabId[params.tabId] = {
+                        ...this.#tabTelemetryInfoByTabId[params.tabId],
+                        messageTriggerType: params.triggerType,
+                    }
+                    break
+                case ChatUIEventName.TabAdd:
+                    this.#tabTelemetryInfoByTabId[params.tabId] = {
+                        ...this.#tabTelemetryInfoByTabId[params.tabId],
+                        startConversationTriggerType: params.triggerType,
+                    }
+                    break
                 case ChatUIEventName.EnterFocusChat:
                     this.emitChatMetric({
                         name: ChatTelemetryEventName.EnterFocusChat,
@@ -99,6 +202,22 @@ export class ChatTelemetryController {
                                     : ChatInteractionType.downvote,
                         },
                     })
+                    break
+                case ChatUIEventName.InsertToCursorPosition:
+                case ChatUIEventName.CopyToClipboard:
+                    this.emitConversationMetric({
+                        name: ChatTelemetryEventName.InteractWithMessage,
+                        data: {
+                            cwsprChatMessageId: params.messageId,
+                            cwsprChatInteractionType:
+                                params.name === ChatUIEventName.InsertToCursorPosition
+                                    ? ChatInteractionType.InsertAtCursor
+                                    : ChatInteractionType.CopySnippet,
+                            cwsprChatAcceptedCharactersLength: params.code?.length ?? 0,
+                            cwsprChatHasReference: Boolean(params.referenceTrackerInformation?.length),
+                        },
+                    })
+                    break
                 case ChatUIEventName.LinkClick:
                 case ChatUIEventName.InfoLinkClick:
                 case ChatUIEventName.SourceLinkClick:
@@ -107,6 +226,7 @@ export class ChatTelemetryController {
                         data: {
                             cwsprChatMessageId: params.messageId,
                             cwsprChatInteractionType: ChatInteractionType.ClickLink,
+                            cwsprChatInteractionTarget: params.link,
                         },
                     })
                     break

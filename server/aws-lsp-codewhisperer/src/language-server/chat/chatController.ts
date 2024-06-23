@@ -18,14 +18,14 @@ import {
     TabChangeParams,
 } from '@aws/language-server-runtimes/server-interface'
 import { v4 as uuid } from 'uuid'
-import { AddMessageEvent, ChatTelemetryEventName, StartConversationEvent } from '../telemetry/types'
+import { AddMessageEvent, ChatTelemetryEventName, CombinedConversationEvent } from '../telemetry/types'
 import { Features, LspHandlers, Result } from '../types'
 import { ChatEventParser } from './chatEventParser'
 import { ChatSessionManagementService } from './chatSessionManagementService'
 import { ChatTelemetryController } from './telemetry/chatTelemetryController'
 import { QAPIInputConverter } from './qAPIInputConverter'
 import { HELP_MESSAGE, QuickAction } from './quickActions'
-import { createAuthFollowUpResult, getAuthFollowUpType, getErrorMessage } from '../utils'
+import { createAuthFollowUpResult, getAuthFollowUpType, getErrorMessage, isAwsError, isObject } from '../utils'
 import { Metric } from '../telemetry/metric'
 
 type ChatHandlers = LspHandlers<Chat>
@@ -49,7 +49,9 @@ export class ChatController implements ChatHandlers {
     }
 
     async onChatPrompt(params: ChatParams, token: CancellationToken): Promise<ChatResult | ResponseError<ChatResult>> {
-        const metric = new Metric<AddMessageEvent>()
+        const metric = new Metric<CombinedConversationEvent>({
+            cwsprChatConversationType: 'Chat',
+        })
 
         const sessionResult = this.#chatSessionManagementService.getSession(params.tabId)
 
@@ -63,22 +65,17 @@ export class ChatController implements ChatHandlers {
             )
         }
 
-        let aborted = false
+        const isNewConversation = !session.sessionId
 
         token.onCancellationRequested(() => {
             this.#log('cancellation requested')
             session.abortRequest()
-            aborted = true
         })
 
         let requestInput: GenerateAssistantResponseCommandInput
 
-        let newConversationMetric = !this.#telemetryController.getConversationId(params.tabId)
-            ? new Metric<StartConversationEvent>()
-            : undefined
-
         try {
-            const inputResult = await this.#qAPIInputConverter.convertChatParamsToInput(params, newConversationMetric)
+            const inputResult = await this.#qAPIInputConverter.convertChatParamsToInput(params, metric)
 
             if (!inputResult.success) {
                 throw new Error(inputResult.error)
@@ -115,8 +112,13 @@ export class ChatController implements ChatHandlers {
             response = await session.generateAssistantResponse(requestInput)
             this.#log('Response to tab:', params.tabId, JSON.stringify(response.$metadata))
         } catch (err) {
+            if (isAwsError(err) || (isObject(err) && 'statusCode' in err && typeof err.statusCode === 'number')) {
+                metric.setDimension('cwsprChatRepsonseCode', err.statusCode ?? 400)
+            }
+
             const authFollowType = getAuthFollowUpType(err)
 
+            // next is here
             if (authFollowType) {
                 this.#log(`Q auth error: ${getErrorMessage(err)}`)
 
@@ -130,32 +132,32 @@ export class ChatController implements ChatHandlers {
             )
         }
 
+        metric.merge({
+            cwsprChatResponseCode: response.$metadata.httpStatusCode,
+            cwsprChatMessageId: response.$metadata.requestId,
+        })
+
         if (response.conversationId) {
             this.#telemetryController.setConversationId(params.tabId, response.conversationId)
         }
 
-        if (newConversationMetric) {
-            this.#telemetryController.emitConversationMetric({
-                name: ChatTelemetryEventName.StartConversation,
-                data: metric.metric,
-            })
-        }
-
-        if (aborted) {
-            return new ResponseError<ChatResult>(LSPErrorCodes.RequestCancelled, 'Request cancelled')
+        if (isNewConversation) {
+            this.#telemetryController.emitStartConversationMetric(params.tabId, metric.metric)
         }
 
         try {
             const result = await this.#processAssistantResponse(response, metric, params.partialResultToken)
 
-            this.#telemetryController.emitConversationMetric({
-                name: ChatTelemetryEventName.AddMessage,
-                data: metric.metric,
-            })
-
-            if (aborted) {
-                return new ResponseError<ChatResult>(LSPErrorCodes.RequestCancelled, 'Request cancelled')
-            }
+            this.#telemetryController.emitAddMessageMetric(
+                params.tabId,
+                metric.merge({
+                    cwsprChatResponseLength: result.data?.body?.length ?? 0,
+                    cwsprChatResponseCodeSnippetCount: result.data?.codeReference?.length ?? 0,
+                    cwsprChatFullResponseLatency: metric.getTimeElapsed(),
+                    cwsprChatSourceLinkCount: result.data?.relatedContent?.content?.length ?? 0,
+                    cwsprChatFollowUpCount: result.data?.followUp?.options?.length,
+                })
+            )
 
             return result.success
                 ? result.data
@@ -229,6 +231,14 @@ export class ChatController implements ChatHandlers {
             case QuickAction.Clear: {
                 const sessionResult = this.#chatSessionManagementService.getSession(params.tabId)
 
+                this.#telemetryController.emitChatMetric({
+                    name: ChatTelemetryEventName.RunCommand,
+                    data: {
+                        // TODO verify
+                        cwsprChatCommandType: params.quickAction,
+                    },
+                })
+
                 this.#telemetryController.removeConversationId(params.tabId)
 
                 sessionResult.data?.clear()
@@ -237,13 +247,19 @@ export class ChatController implements ChatHandlers {
             }
 
             case QuickAction.Help:
+                this.#telemetryController.emitChatMetric({
+                    name: ChatTelemetryEventName.RunCommand,
+                    data: {
+                        cwsprChatCommandType: params.quickAction,
+                    },
+                })
                 return {
                     messageId: uuid(),
                     body: HELP_MESSAGE,
                 }
+            default:
+                return {}
         }
-
-        return {}
     }
 
     async #processAssistantResponse(

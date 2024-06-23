@@ -24,6 +24,8 @@ export class Metric<T extends { [key: string]: Data }> {
 
     public merge(otherMetric: Partial<T>, options?: deepmerge.Options) {
         this.#metric = deepmerge(this.#metric, otherMetric, options)
+
+        return this.#metric
     }
 
     public setDimension<TDimension extends keyof T>(
@@ -31,5 +33,7 @@ export class Metric<T extends { [key: string]: Data }> {
         value: T[TDimension] | ((value?: T[TDimension]) => T[TDimension])
     ) {
         this.#metric[name] = typeof value === 'function' ? value(this.#metric[name]) : value
+
+        return this.#metric
     }
 }

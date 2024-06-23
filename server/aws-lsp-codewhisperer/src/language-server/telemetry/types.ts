@@ -105,6 +105,8 @@ export enum ChatTelemetryEventName {
     StartConversation = 'StartConversation',
     InteractWithMessage = 'InteractWithMessage',
     AddMessage = 'AddMessage',
+    RunCommand = 'RunCommand',
+    MessageResponseError = 'MessageResponseError',
 }
 
 export interface ChatTelemetryEventMap {
@@ -115,6 +117,8 @@ export interface ChatTelemetryEventMap {
     [ChatTelemetryEventName.StartConversation]: StartConversationEvent
     [ChatTelemetryEventName.InteractWithMessage]: InteractWithMessageEvent
     [ChatTelemetryEventName.AddMessage]: AddMessageEvent
+    [ChatTelemetryEventName.RunCommand]: RunCommandEvent
+    [ChatTelemetryEventName.MessageResponseError]: MessageResponseErrorEvent
 }
 
 export type AddMessageEvent = {
@@ -127,7 +131,7 @@ export type AddMessageEvent = {
     cwsprChatActiveEditorTotalCharacters?: number
     cwsprChatActiveEditorImportCount?: number
     cwsprChatResponseCodeSnippetCount?: number
-    cwsprChatResponseCode: string
+    cwsprChatResponseCode: number
     cwsprChatSourceLinkCount?: number
     cwsprChatReferencesCount?: number
     cwsprChatFollowUpCount?: number
@@ -172,10 +176,7 @@ export type InteractWithMessageEvent = {
     cwsprChatInteractionType: ChatInteractionType
     cwsprChatInteractionTarget?: string
     cwsprChatAcceptedCharactersLength?: number
-    cwsprChatAcceptedNumberOfLines?: number
     cwsprChatHasReference?: boolean
-    cwsprChatCodeBlockIndex?: number
-    cwsprChatTotalCodeBlocks?: number
 }
 
 export type StartConversationEvent = {
@@ -186,3 +187,23 @@ export type StartConversationEvent = {
     cwsprChatProgrammingLanguage?: string
     cwsprChatConversationType: ChatConversationType
 }
+
+export type MessageResponseErrorEvent = {
+    cwsprChatConversationId: string
+    cwsprChatTriggerInteraction: string
+    cwsprChatUserIntent?: string
+    cwsprChatHasCodeSnippet?: boolean
+    cwsprChatProgrammingLanguage?: CodewhispererLanguage
+    cwsprChatActiveEditorTotalCharacters?: number
+    cwsprChatActiveEditorImportCount?: number
+    cwsprChatRepsonseCode: number
+    cwsprChatRequestLength?: number
+    cwsprChatConversationType: ChatConversationType
+}
+
+export type RunCommandEvent = {
+    cwsprChatCommandType: string
+    cwsprChatCommandName?: string
+}
+
+export type CombinedConversationEvent = AddMessageEvent & StartConversationEvent & MessageResponseErrorEvent
