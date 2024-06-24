@@ -47,8 +47,7 @@ Result artifacts can be found in `/out` and `/build` directories.
 
 ### Testing and running
 
-To test build bundles, you can run standalone bundles locally using NodeJs.
-To run standalone runtime as NodeJS process, call:
+To test build bundles, you can run standalone bundle locally using NodeJs:
 ```bash
 node ./out/hello-world-lsp-standalone.js --stdio
 ```

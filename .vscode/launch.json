@@ -21,7 +21,7 @@
             "args": ["--extensionDevelopmentPath=${workspaceFolder}/client/vscode"],
             "outFiles": ["${workspaceFolder}/client/vscode/out/**/*.js"],
             "env": {
-                "LSP_SERVER": "${workspaceFolder}/app/aws-lsp-buildspec-binary/out/index.js"
+                "LSP_SERVER": "${workspaceFolder}/app/aws-lsp-buildspec-runtimes/out/index.js"
             },
             "preLaunchTask": "npm: compile"
         },
@@ -33,7 +33,7 @@
             "args": ["--extensionDevelopmentPath=${workspaceFolder}/client/vscode"],
             "outFiles": ["${workspaceFolder}/client/vscode/out/**/*.js"],
             "env": {
-                "LSP_SERVER": "${workspaceFolder}/app/aws-lsp-cloudformation-binary/out/index.js"
+                "LSP_SERVER": "${workspaceFolder}/app/aws-lsp-cloudformation-runtimes/out/index.js"
             },
             "preLaunchTask": "npm: compile"
         },
@@ -45,7 +45,7 @@
             "args": ["--extensionDevelopmentPath=${workspaceFolder}/client/vscode"],
             "outFiles": ["${workspaceFolder}/client/vscode/out/**/*.js"],
             "env": {
-                "LSP_SERVER": "${workspaceFolder}/app/aws-lsp-yaml-json-binary/out/index.js"
+                "LSP_SERVER": "${workspaceFolder}/app/aws-lsp-yaml-json-runtimes/out/index.js"
             },
             "preLaunchTask": "npm: compile"
         },
@@ -57,7 +57,7 @@
             "args": ["--extensionDevelopmentPath=${workspaceFolder}/client/vscode"],
             "outFiles": ["${workspaceFolder}/client/vscode/out/**/*.js"],
             "env": {
-                "LSP_SERVER": "${workspaceFolder}/app/aws-lsp-partiql-binary/out/aws-lsp-partiql-binary.js"
+                "LSP_SERVER": "${workspaceFolder}/app/aws-lsp-partiql-runtimes/out/aws-lsp-partiql-runtimes.js"
             },
             "preLaunchTask": "npm: compile"
         },
@@ -69,7 +69,7 @@
             "args": ["--extensionDevelopmentPath=${workspaceFolder}/client/vscode"],
             "outFiles": ["${workspaceFolder}/client/vscode/out/**/*.js"],
             "env": {
-                "LSP_SERVER": "${workspaceFolder}/app/aws-lsp-codewhisperer-binary/out/token-standalone.js",
+                "LSP_SERVER": "${workspaceFolder}/app/aws-lsp-codewhisperer-runtimes/out/token-standalone.js",
                 "ENABLE_INLINE_COMPLETION": "true",
                 "ENABLE_TOKEN_PROVIDER": "true",
                 "ENABLE_CHAT": "true"
@@ -85,7 +85,7 @@
             "args": ["--extensionDevelopmentPath=${workspaceFolder}/client/vscode"],
             "outFiles": ["${workspaceFolder}/client/vscode/out/**/*.js"],
             "env": {
-                "LSP_SERVER": "${workspaceFolder}/app/aws-lsp-codewhisperer-binary/out/iam-standalone.js",
+                "LSP_SERVER": "${workspaceFolder}/app/aws-lsp-codewhisperer-runtimes/out/iam-standalone.js",
                 "ENABLE_INLINE_COMPLETION": "true",
                 "ENABLE_IAM_PROVIDER": "true"
                 // "HTTPS_PROXY": "http://127.0.0.1:8888",
@@ -100,7 +100,7 @@
             "args": ["--extensionDevelopmentPath=${workspaceFolder}/client/vscode"],
             "outFiles": ["${workspaceFolder}/client/vscode/out/**/*.js"],
             "env": {
-                "LSP_SERVER": "${workspaceFolder}/app/aws-lsp-s3-binary/out/index.js",
+                "LSP_SERVER": "${workspaceFolder}/app/aws-lsp-s3-runtimes/out/index.js",
                 "ENABLE_IAM_PROVIDER": "true"
             },
             "preLaunchTask": "npm: compile"

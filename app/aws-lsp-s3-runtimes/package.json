@@ -1,7 +1,7 @@
 {
-    "name": "@aws/lsp-s3-binary",
+    "name": "@aws/lsp-s3-runtimes",
     "version": "0.0.1",
-    "description": "S3 Language Server Binary",
+    "description": "S3 Language Server Runtimes",
     "main": "out/index.js",
     "bin": {
         "aws-lsp-s3-binary": "./out/index.js"

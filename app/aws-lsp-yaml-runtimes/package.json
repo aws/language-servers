@@ -1,7 +1,7 @@
 {
-    "name": "@aws/lsp-yaml-binary",
+    "name": "@aws/lsp-yaml-runtimes",
     "version": "0.0.1",
-    "description": "YAML Language Server Binary",
+    "description": "YAML Language Server Runtimes",
     "main": "out/index.js",
     "bin": {
         "aws-lsp-yaml-binary": "./out/index.js"

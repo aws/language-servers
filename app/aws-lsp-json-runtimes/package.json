@@ -1,7 +1,7 @@
 {
-    "name": "@aws/lsp-json-binary",
+    "name": "@aws/lsp-json-runtimes",
     "version": "0.0.1",
-    "description": "JSON Language Server Binary",
+    "description": "JSON Language Server Runtimes",
     "main": "out/index.js",
     "bin": {
         "aws-lsp-json-binary": "./out/index.js"

@@ -1,11 +1,8 @@
 {
-    "name": "@aws/lsp-partiql-binary",
+    "name": "@aws/lsp-partiql-runtimes",
     "version": "0.0.1",
     "description": "PartiQL Language Server Runtimes",
     "main": "out/index.js",
-    "bin": {
-        "aws-lsp-partiql-binary": "./out/aws-lsp-partiql-binary.js"
-    },
     "scripts": {
         "clean": "rm -rf out/ bin/ tsconfig.tsbuildinfo",
         "compile:tsc": "tsc --build",
