@@ -1,4 +1,9 @@
-import { isValidAuthFollowUpType, INSERT_TO_CURSOR_POSITION, AUTH_FOLLOW_UP_CLICKED } from '@aws/chat-client-ui-types'
+import {
+    isValidAuthFollowUpType,
+    INSERT_TO_CURSOR_POSITION,
+    AUTH_FOLLOW_UP_CLICKED,
+    CHAT_OPTIONS,
+} from '@aws/chat-client-ui-types'
 import {
     ChatResult,
     chatRequestType,
@@ -8,7 +13,7 @@ import {
 } from '@aws/language-server-runtimes/protocol'
 import { v4 as uuidv4 } from 'uuid'
 import { Uri, ViewColumn, Webview, WebviewPanel, commands, window } from 'vscode'
-import { LanguageClient } from 'vscode-languageclient/node'
+import { LanguageClient, State } from 'vscode-languageclient/node'
 import * as jose from 'jose'
 
 export function registerChat(languageClient: LanguageClient, extensionUri: Uri, encryptionKey: Buffer) {
@@ -21,6 +26,23 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri, 
             localResourceRoots: [Uri.joinPath(extensionUri, 'build')],
         } // Webview options
     )
+
+    // Listen for Initialize handshake from LSP server to register quick actions dynamically
+    languageClient.onDidChangeState(({ oldState, newState }) => {
+        if (oldState === State.Starting && newState === State.Running) {
+            languageClient.info(
+                'Language client received initializeResult from server:',
+                JSON.stringify(languageClient.initializeResult)
+            )
+
+            const chatOptions = languageClient.initializeResult?.awsServerCapabilities?.chatOptions
+
+            panel.webview.postMessage({
+                command: CHAT_OPTIONS,
+                params: chatOptions,
+            })
+        }
+    })
 
     panel.webview.onDidReceiveMessage(message => {
         languageClient.info(`vscode client: Received ${JSON.stringify(message)} from chat`)
@@ -39,6 +61,10 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri, 
                     chatRequestType,
                     partialResultToken,
                     async partialResult => {
+                        languageClient.info(
+                            `received partial result, is encrypted? ${isEncryptedMessage(partialResult as any, 'dir', 'A256GCM')}`
+                        )
+
                         const decryptedMessage = (await decodeRequest(
                             partialResult as string,
                             encryptionKey
@@ -137,11 +163,7 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri, 
         }
     }, undefined)
 
-    const chatConfig = {
-        quickActionCommands:
-            languageClient.initializeResult?.awsServerCapabilities?.chatQuickActionsProvider?.quickActionsCommandGroups,
-    }
-    panel.webview.html = getWebviewContent(panel.webview, extensionUri, chatConfig)
+    panel.webview.html = getWebviewContent(panel.webview, extensionUri)
 
     registerGenericCommand('aws.amazonq.explainCode', 'Explain', panel)
     registerGenericCommand('aws.amazonq.refactorCode', 'Refactor', panel)
@@ -159,7 +181,7 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri, 
     })
 }
 
-function getWebviewContent(webView: Webview, extensionUri: Uri, chatClientConfig: object) {
+function getWebviewContent(webView: Webview, extensionUri: Uri) {
     return `
     <!DOCTYPE html>
     <html lang="en">
@@ -170,7 +192,7 @@ function getWebviewContent(webView: Webview, extensionUri: Uri, chatClientConfig
         ${generateCss()}
     </head>
     <body>
-        ${generateJS(webView, extensionUri, chatClientConfig)}
+        ${generateJS(webView, extensionUri)}
     </body>
     </html>`
 }
@@ -191,7 +213,7 @@ function generateCss() {
     </style>`
 }
 
-function generateJS(webView: Webview, extensionUri: Uri, chatClientConfig: object): string {
+function generateJS(webView: Webview, extensionUri: Uri): string {
     const assetsPath = Uri.joinPath(extensionUri)
     const chatUri = Uri.joinPath(assetsPath, 'build', 'amazonq-ui.js')
 
@@ -201,7 +223,7 @@ function generateJS(webView: Webview, extensionUri: Uri, chatClientConfig: objec
     <script type="text/javascript" src="${entrypoint.toString()}" defer onload="init()"></script>
     <script type="text/javascript">
         const init = () => {
-            amazonQChat.createChat(acquireVsCodeApi(), ${JSON.stringify(chatClientConfig)});
+            amazonQChat.createChat(acquireVsCodeApi());
         }
     </script>
     `
@@ -262,4 +284,33 @@ async function decodeRequest<T>(request: string, key: Buffer): Promise<T> {
         throw new Error('JWT payload not found')
     }
     return result.payload as T
+}
+
+function isEncryptedMessage(message: string, algorithm: string, encoding: string) {
+    // Check if the message has five parts separated by periods
+    const parts = message.split('.')
+    if (parts.length !== 5) {
+        return false
+    }
+
+    try {
+        // Decode the protected header (first part of the message)
+        const protectedHeader = JSON.parse(Buffer.from(parts[0], 'base64url').toString('utf-8'))
+
+        console.log(JSON.stringify(protectedHeader))
+        // Check if the header contains the expected fields
+        if (
+            protectedHeader.alg &&
+            protectedHeader.enc &&
+            protectedHeader.alg == algorithm &&
+            protectedHeader.enc == encoding
+        ) {
+            return true
+        }
+    } catch (e) {
+        // If there's an error during decoding, the message is not a valid JWE
+        return false
+    }
+
+    return false
 }
