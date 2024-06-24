@@ -6,8 +6,8 @@
         "compile": "tsc --build",
         "clean": "rm -rf dist && rm -rf node_modules && rm -rf build",
         "build": "tsc",
-        "prepublishOnly": "npm run build && npm run compile && npm run bundle",
-        "bundle": "webpack",
+        "prepublishOnly": "npm run build && npm run compile && npm run package",
+        "package": "webpack",
         "serve:webpack": "NODE_ENV=development webpack serve"
     },
     "dependencies": {
@@ -23,7 +23,6 @@
         "os-browserify": "^0.3.0",
         "path": "^0.12.7",
         "path-browserify": "^1.0.1",
-        "pkg": "^5.8.1",
         "stream-browserify": "^3.0.0",
         "ts-loader": "^9.5.1",
         "ts-node": "^10.9.2",

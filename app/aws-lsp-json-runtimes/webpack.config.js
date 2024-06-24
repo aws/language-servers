@@ -28,26 +28,9 @@ const baseConfig = {
 const nodeConfig = {
     ...baseConfig,
     entry: {
-        'hello-world-lsp-standalone': path.join(__dirname, 'src/standalone.ts'),
+        'aws-lsp-json-standalone': path.join(__dirname, 'src/index.ts'),
     },
     target: 'node',
 }
 
-const webConfig = {
-    ...baseConfig,
-    entry: {
-        'hello-world-lsp-webworker': path.join(__dirname, 'src/webworker.ts'),
-    },
-    target: 'web',
-    plugins: [
-        new webpack.ProvidePlugin({
-            process: require.resolve('process/browser'),
-        }),
-        new webpack.EnvironmentPlugin({
-            NODE_DEBUG: 'development',
-            READABLE_STREAM: 'disable',
-        }),
-    ],
-}
-
-module.exports = [nodeConfig, webConfig]
+module.exports = [nodeConfig]

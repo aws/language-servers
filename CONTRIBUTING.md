@@ -88,35 +88,12 @@ npm run compile
 
 Language servers are built into their own packages (under ./server).
 
-A separate set of packages (under ./app) then instantiate these language servers. These packages are packaged into standalone binary applications, with the intention of being integrated into IDEs. Packaging is performed using [vercel/pkg](https://github.com/vercel/pkg), which bundles both the project and nodejs into a binary. These binaries don't require nodejs to be installed on the system they are run on.
+A separate set of packages (under ./app) then instantiate these language servers. These packages are packaged into standalone javascript application servers, with the intention of being integrated into IDEs. Packaging is performed with Webpack. These bundles require nodejs to be installed on the system they are run on. By default, bundles are produced in `./app/**/build/*` directories can be started as node applications, for example:
 
-For details on how to configure bundling with pkg, see [pkg usage](https://github.com/vercel/pkg#usage).
-
-### pkg Examples
-
-If you want to create windows-x64, macos-x64, linux-x64 binaries you can use:
-
-```bash
-pkg .
+```
+node ./app/aws-lsp-codewhisperer-binary/aws-lsp-codewhisperer-token-binary.js --stdio
 ```
 
-if you have a different node version installed (eg: node19) from your target package (eg: node18) you can do:
-
-```bash
-pkg --targets node18 .
-```
-
-to create a standalone executable for node16 for windows on arm you can do
-
-```bash
-pkg --targets node16-windows-arm64 .
-```
-
-to ensure the standalone language server is compressed even more you can do:
-
-```bash
-pkg --compress GZip .
-```
 ## Running + Debugging
 
 > **NOTE**: Ensure your VSCode workspace is the root folder or else certain functionality may not work.
@@ -288,7 +265,7 @@ myStubbedFunc.returns()
 
 Language servers developed in this package can be built for different runtimes developed in [Language Server Runtimes](https://github.com/aws/language-server-runtimes) project.
 
-`Language Server Runtimes` provides a set of interfaces and constructs that can be used to inject cross-platform implementations of features, reused across language servers. Using runtime constructs, Language Servers could be built and packages into artifact of different formats: binary formats as explained earlier in this document, or packages as Javascript Webworker bundle.
+`Language Server Runtimes` provides a set of interfaces and constructs that can be used to inject cross-platform implementations of features, reused across language servers. Using runtime constructs, Language Servers could be built and packages into artifact of different formats: standalone bundle formats as explained earlier in this document, or packages as Javascript Webworker bundle.
 
 This Language Servers repository includes set of packages, which demonstrate how to build Language server together with specific runtime. See [Building the Repo](#building-the-repo) section in this guide.
 
@@ -323,10 +300,10 @@ Sometimes there is a need to build and develop both Language Servers with Langua
     npm link @aws/language-server-runtimes
     ```
 
-5. Build server binaries:
+5. Build server bundles:
 
     ```bash
     npm run package
     ```
 
-Using local checkout of `language-server-runtimes` you can iterate or experiment with both projects and produce working language server builds locally. Built servers can be found in `./app/*/bin` folder.
+Using local checkout of `language-server-runtimes` you can iterate or experiment with both projects and produce working language server builds locally. Built servers can be found in `./app/**/build` folder.

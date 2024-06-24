@@ -20,7 +20,6 @@ jobs:
               run: |
                   npm ci
                   npm run check:formatting
-                  npm run compile
             - name: Test
               run: |
                   npm run test
@@ -37,17 +36,15 @@ jobs:
             - name: Build
               run: |
                   npm ci
-                  npm run compile
-            - name: Create binaries
+            - name: Create runtime bundles
               run: |
                   npm run package
-            # TODO : Can we easily create ARM binaries from GitHub?
-            - name: Attach binaries
+            - name: Attach bundles
               uses: actions/upload-artifact@v3
               with:
-                  name: langauge-servers
+                  name: language-servers
                   # Make sure you don't include node_modules
-                  path: app/**/bin/*
+                  path: app/**/build/*
     test-windows:
         name: Test (Windows)
         runs-on: windows-latest
@@ -61,7 +58,6 @@ jobs:
             - name: Build
               run: |
                   npm ci
-                  npm run compile
             - name: Test
               run: |
                   npm run test
@@ -78,14 +74,12 @@ jobs:
             - name: Build
               run: |
                   npm ci
-                  npm run compile
-            - name: Create binaries
+            - name: Create runtime bundles
               run: |
                   npm run package
-            # TODO : Can we easily create ARM binaries from GitHub?
-            - name: Attach binaries
+            - name: Attach bundles
               uses: actions/upload-artifact@v3
               with:
-                  name: langauge-servers
+                  name: language-servers
                   # Make sure you don't include node_modules
-                  path: app/**/bin/*
+                  path: app/**/build/*

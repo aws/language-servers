@@ -10,7 +10,7 @@ Source code examples of runtime bundle configuration in `/src` directory.
 
 ### Creating bundles
 
-We use `webpack` to create javascript bundles to run with NodeJS or as a webworker, and [`vercel/pkg`](https://github.com/vercel/pkg) to produce self-contained executable binary bundled with NodeJS.
+We use `webpack` to create javascript bundles to run with NodeJS or as a webworker.
 
 Before creating runtime bundle, make sure that Hello World Language Server package is compiled:
 ```bash
@@ -24,49 +24,34 @@ npm run bundle
 ```
 
 Bundling specific variants is also possible.
-* To create single file executable with `vercel/pkg`, run:
-    ```bash
-    npm run package-x64 
-    ```
-
-* To create only javascript bundled files with webpack, run:
+* To create javascript bundled files with webpack, run:
     ```bash
     npm run webpack
     ```
 
-Result artifacts can be found in `/out` and `/bin` directories.
+Result artifacts can be found in `/out` and `/build` directories.
 
 #### Package structure
 
 ```
 .
-├── bin - binaries, packaged with `pkg` for different operating systems
-│   ├── hello-world-lsp-binary-linux
-│   ├── hello-world-lsp-binary-macos
-│   ├── hello-world-lsp-binary-win.exe
-├── out - Compiled Javascipt and Javascript bundles
+├── build - Budled Javascript runtime programms
 │   ├── hello-world-lsp-standalone.js - standalone bundle
 │   ├── hello-world-lsp-webworker.js - webworker bundle
+├── out - Compiled Javascipt
 │   ├── standalone.js
 │   ├── webworker.js
-├── src - source code configuration for 
+├── src - source code configuration for bundling
 │   ├── standalone.ts
 └── └── webworker.ts
 ```
 
 ### Testing and running
 
-To test build bundles, you can run binary or standalone bundle locally using NodeJs.
-
-* To run standalone binary executable package, start a process, e.g.:
-    ```bash
-    ./bin/hello-world-lsp-binary-macos --stdio
-    ```
-
-* To run standalone runtime as NodeJS process, run:
-    ```bash
-    node ./out/hello-world-lsp-standalone.js --stdio
-    ```
+To test build bundles, you can run standalone bundle locally using NodeJs:
+```bash
+node ./out/hello-world-lsp-standalone.js --stdio
+```
 
 You should see process logging JSON-RPC messages, indicating Runtime and Language Server features were initialised:
 

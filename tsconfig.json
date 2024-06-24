@@ -49,31 +49,31 @@
             "path": "./server/aws-lsp-partiql"
         },
         {
-            "path": "./app/aws-lsp-buildspec-binary"
+            "path": "./app/aws-lsp-buildspec-runtimes"
         },
         {
-            "path": "./app/aws-lsp-cloudformation-binary"
+            "path": "./app/aws-lsp-cloudformation-runtimes"
         },
         {
-            "path": "./app/aws-lsp-codewhisperer-binary"
+            "path": "./app/aws-lsp-codewhisperer-runtimes"
         },
         {
-            "path": "./app/aws-lsp-s3-binary"
+            "path": "./app/aws-lsp-s3-runtimes"
         },
         {
             "path": "./app/hello-world-lsp-runtimes"
         },
         {
-            "path": "./app/aws-lsp-json-binary"
+            "path": "./app/aws-lsp-json-runtimes"
         },
         {
-            "path": "./app/aws-lsp-yaml-binary"
+            "path": "./app/aws-lsp-yaml-runtimes"
         },
         {
             "path": "./app/aws-lsp-yaml-json-webworker"
         },
         {
-            "path": "./app/aws-lsp-partiql-binary"
+            "path": "./app/aws-lsp-partiql-runtimes"
         }
     ]
 }

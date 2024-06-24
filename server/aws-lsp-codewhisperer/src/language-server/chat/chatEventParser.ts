@@ -40,6 +40,12 @@ export class ChatEventParser implements ChatResult {
     static mapReferenceData(reference: Reference): ReferenceTrackerInformation {
         return {
             ...reference,
+            recommendationContentSpan: reference.recommendationContentSpan
+                ? {
+                      start: reference.recommendationContentSpan.start ?? 0,
+                      end: reference.recommendationContentSpan.end ?? 0,
+                  }
+                : undefined,
             information: ChatEventParser.getReferencedInformation(reference),
         }
     }

@@ -82,34 +82,36 @@ export const HelloWorldServerFactory =
                     },
                 },
                 awsServerCapabilities: {
-                    chatQuickActionsProvider: {
-                        quickActionsCommandGroups: [
-                            {
-                                groupName: 'Hello World Actions',
-                                commands: [
-                                    {
-                                        command: 'hello',
-                                        description: 'Say Hello',
-                                    },
-                                    {
-                                        command: 'world',
-                                        description: 'World of Actions',
-                                    },
-                                ],
-                            },
-                            {
-                                commands: [
-                                    {
-                                        command: 'help',
-                                        description: 'Learn more about Amazon Q',
-                                    },
-                                    {
-                                        command: 'clear',
-                                        description: 'Clear this session',
-                                    },
-                                ],
-                            },
-                        ],
+                    chatOptions: {
+                        quickActions: {
+                            quickActionsCommandGroups: [
+                                {
+                                    groupName: 'Hello World Actions',
+                                    commands: [
+                                        {
+                                            command: 'hello',
+                                            description: 'Say Hello',
+                                        },
+                                        {
+                                            command: 'world',
+                                            description: 'World of Actions',
+                                        },
+                                    ],
+                                },
+                                {
+                                    commands: [
+                                        {
+                                            command: 'help',
+                                            description: 'Learn more about Amazon Q',
+                                        },
+                                        {
+                                            command: 'clear',
+                                            description: 'Clear this session',
+                                        },
+                                    ],
+                                },
+                            ],
+                        },
                     },
                 },
             }

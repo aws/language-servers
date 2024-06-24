@@ -4,7 +4,7 @@ const baseConfig = {
     mode: 'development',
     output: {
         path: __dirname,
-        filename: 'out/[name].js',
+        filename: 'build/[name].js',
         globalObject: 'this',
         library: {
             type: 'umd',
