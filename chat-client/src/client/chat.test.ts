@@ -30,12 +30,13 @@ describe('Chat', () => {
     let clientApi: { postMessage: sinon.SinonStub }
 
     beforeEach(() => {
+        sandbox.stub(TabFactory, 'generateUniqueId').returns(initialTabId)
+
         clientApi = {
             postMessage: sandbox.stub(),
         }
 
         mynahUi = createChat(clientApi)
-        sandbox.stub(TabFactory, 'generateUniqueId').returns(initialTabId)
     })
 
     afterEach(() => {
@@ -59,6 +60,7 @@ describe('Chat', () => {
                 tabId: initialTabId,
             },
         })
+
         sinon.assert.calledWithExactly(clientApi.postMessage.thirdCall, {
             command: TAB_ADD_NOTIFICATION_METHOD,
             params: { tabId: initialTabId },
