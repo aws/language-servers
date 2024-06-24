@@ -9,8 +9,5 @@
     },
     "keywords": [],
     "author": "",
-    "license": "ISC",
-    "dependencies": {
-        "@aws/hello-world-lsp": "file:../aws-hello-world-lsp-0.0.1.tgz"
-    }
+    "license": "ISC"
 }
