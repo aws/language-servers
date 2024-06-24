@@ -47,17 +47,10 @@ Result artifacts can be found in `/out` and `/bin` directories.
 
 ### Testing and running
 
-To test build bundles, you can run binary or standalone bundle locally using NodeJs.
-
-* To run standalone binary executable package, start a process, e.g.:
-    ```bash
-    ./bin/hello-world-lsp-binary-macos --stdio
-    ```
-
-* To run standalone runtime as NodeJS process, run:
-    ```bash
-    node ./out/hello-world-lsp-standalone.js --stdio
-    ```
+To test build bundles, you can run standalone bundle locally using NodeJs:
+```bash
+node ./out/hello-world-lsp-standalone.js --stdio
+```
 
 You should see process logging JSON-RPC messages, indicating Runtime and Language Server features were initialised:
 

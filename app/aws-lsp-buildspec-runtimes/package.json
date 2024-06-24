@@ -1,11 +1,8 @@
 {
-    "name": "@aws/lsp-buildspec-binary",
+    "name": "@aws/lsp-buildspec-runtimes",
     "version": "0.0.1",
-    "description": "CodeBuild BuildSpec Language Server Binary",
+    "description": "CodeBuild BuildSpec Language Server Runtimes",
     "main": "out/index.js",
-    "bin": {
-        "aws-lsp-buildspec-binary": "./out/index.js"
-    },
     "scripts": {
         "compile": "tsc --build"
     },
