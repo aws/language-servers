@@ -3,7 +3,6 @@ import { expect } from 'chai'
 import * as chaiAsPromised from 'chai-as-promised'
 import { ChildProcessWithoutNullStreams, spawn } from 'child_process'
 import { describe } from 'node:test'
-import { platform } from 'os'
 import * as path from 'path'
 import { JSONRPCEndpoint, LspClient } from 'ts-lsp-client'
 import { pathToFileURL } from 'url'
@@ -15,25 +14,10 @@ describe('Test HelloWorldServer', async () => {
     let process: ChildProcessWithoutNullStreams
     let endpoint: JSONRPCEndpoint
     let client: LspClient
-    let binaryFile = 'hello-world-lsp-binary'
+    const runtimeFile = path.join(__dirname, '../../', 'build', 'hello-world-lsp-standalone.js')
 
     before(async () => {
-        switch (platform()) {
-            case 'darwin':
-                binaryFile = binaryFile.concat('-', 'macos')
-                break
-            case 'linux':
-                binaryFile = binaryFile.concat('-', 'linux')
-                break
-            case 'win32':
-                binaryFile = binaryFile.concat('-', 'win.exe')
-                break
-            default:
-                throw new Error('Platform is not supported. Exiting...')
-        }
-
-        // start the LSP server
-        process = spawn(path.join(__dirname, '../../', 'bin', binaryFile), ['--stdio'], {
+        process = spawn('node', [runtimeFile, '--stdio'], {
             shell: true,
             stdio: 'pipe',
         })

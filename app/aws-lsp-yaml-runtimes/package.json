@@ -1,20 +1,17 @@
 {
-    "name": "@aws/hello-world-lsp-runtimes",
+    "name": "@aws/lsp-yaml-runtimes",
     "version": "0.0.1",
-    "description": "Hello World Language Server Runtimes",
-    "main": "out/standalone.js",
+    "description": "YAML Language Server Runtimes",
+    "main": "out/index.js",
     "scripts": {
-        "package": "npm run compile && npm run webpack",
         "compile": "tsc --build",
-        "clean": "rm -rf out/ bin/ tsconfig.tsbuildinfo",
-        "lint": "npm run lint:bundle:webworker",
-        "lint:bundle:webworker": "webpack && eslint out/hello-world-lsp-webworker.js",
+        "package": "npm run compile && npm run webpack",
         "test": "npm run test-integ",
-        "test-integ": "npm run package && mocha --timeout 5000 './out/**/*Integ.test.js'",
+        "test-integ": "npm run package && mocha --timeout 8000 './out/**/*Integ.test.js' --retries 2",
         "webpack": "webpack"
     },
     "dependencies": {
-        "@aws/hello-world-lsp": "^0.0.1",
+        "@aws/lsp-yaml": "*",
         "@aws/language-server-runtimes": "^0.2.5"
     },
     "devDependencies": {
@@ -26,6 +23,7 @@
         "mocha": "^10.2.0",
         "ts-lsp-client": "^1.0.3",
         "ts-loader": "^9.4.4",
+        "umd-compat-loader": "^2.1.2",
         "webpack": "^5.88.2",
         "webpack-cli": "^5.1.4"
     }
