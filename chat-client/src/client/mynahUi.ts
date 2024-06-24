@@ -50,6 +50,8 @@ export const handleChatPrompt = (
                 loadingChat: false,
                 promptInputDisabledState: false,
             })
+
+            return
         }
         // Send prompt when quick action command attached
         messager.onQuickActionCommand({
