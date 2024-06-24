@@ -50,15 +50,25 @@ export const handleChatPrompt = (
                 loadingChat: false,
                 promptInputDisabledState: false,
             })
-
-            return
         }
+
         // Send prompt when quick action command attached
         messager.onQuickActionCommand({
             quickAction: prompt.command,
             prompt: prompt.prompt,
             tabId,
         })
+
+        if (prompt.command === '/clear') {
+            return
+        } else if (prompt.command === '/help') {
+            mynahUi.addChatItem(tabId, {
+                type: ChatItemType.PROMPT,
+                body: 'What can Amazon Q help me with?',
+            })
+
+            return
+        }
     } else {
         // Send chat prompt to server
         messager.onChatPrompt({ prompt, tabId }, triggerType)
