@@ -19,7 +19,6 @@ describe('Test JsonServer with CloudFormation schema', () => {
     let process: ChildProcessWithoutNullStreams
     let endpoint: JSONRPCEndpoint
     let client: LspClient
-    // let runtimeFile = 'lsp-json-runtimes'
     const runtimeFile = path.join(__dirname, '../../', 'build', 'aws-lsp-json-standalone.js')
 
     before(async () => {
