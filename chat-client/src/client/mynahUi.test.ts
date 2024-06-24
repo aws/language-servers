@@ -84,10 +84,9 @@ describe('MynahUI', () => {
 
             assert.notCalled(onChatPromptSpy)
             assert.calledWith(onQuickActionSpy, { quickAction: prompt.command, prompt: prompt.prompt, tabId })
-            assert.calledThrice(updateStoreSpy)
+            assert.calledTwice(updateStoreSpy)
             assert.calledWith(updateStoreSpy.firstCall, tabId, { chatItems: [] })
             assert.calledWith(updateStoreSpy.secondCall, tabId, { loadingChat: false, promptInputDisabledState: false })
-            assert.calledWith(updateStoreSpy.thirdCall, tabId, { loadingChat: true, promptInputDisabledState: true })
         })
 
         it('should handle quick actions', () => {
@@ -97,7 +96,11 @@ describe('MynahUI', () => {
             handleChatPrompt(mynahUi, tabId, prompt, messager)
 
             assert.notCalled(onChatPromptSpy)
-            assert.calledWith(onQuickActionSpy, { quickAction: prompt.command, prompt: prompt.prompt, tabId })
+            assert.calledWith(onQuickActionSpy, {
+                quickAction: prompt.command,
+                prompt: 'What can Amazon Q help me with?',
+                tabId,
+            })
             assert.calledOnce(updateStoreSpy)
             assert.calledWith(updateStoreSpy, tabId, { loadingChat: true, promptInputDisabledState: true })
         })

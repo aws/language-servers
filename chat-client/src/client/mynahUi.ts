@@ -39,6 +39,7 @@ export const handleChatPrompt = (
     triggerType?: TriggerType,
     _eventId?: string
 ) => {
+    let userPrompt = prompt.escapedPrompt
     if (prompt.command) {
         // Temporary solution to handle clear quick actions on the client side
         if (prompt.command === '/clear') {
@@ -50,23 +51,18 @@ export const handleChatPrompt = (
                 loadingChat: false,
                 promptInputDisabledState: false,
             })
+        } else if (prompt.command === '/help') {
+            userPrompt = 'What can Amazon Q help me with?'
         }
 
         // Send prompt when quick action command attached
         messager.onQuickActionCommand({
             quickAction: prompt.command,
-            prompt: prompt.prompt,
+            prompt: userPrompt,
             tabId,
         })
 
         if (prompt.command === '/clear') {
-            return
-        } else if (prompt.command === '/help') {
-            mynahUi.addChatItem(tabId, {
-                type: ChatItemType.PROMPT,
-                body: 'What can Amazon Q help me with?',
-            })
-
             return
         }
     } else {
@@ -77,7 +73,7 @@ export const handleChatPrompt = (
     // Add user prompt to UI
     mynahUi.addChatItem(tabId, {
         type: ChatItemType.PROMPT,
-        body: prompt.escapedPrompt,
+        body: userPrompt,
     })
 
     // Set UI to loading state
