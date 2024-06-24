@@ -1,7 +1,7 @@
 import { afterEach } from 'mocha'
 import sinon = require('sinon')
 import { assert } from 'sinon'
-import { createMynahUi, InboundChatApi, handleChatPrompt } from './mynahUi'
+import { createMynahUi, InboundChatApi, handleChatPrompt, DEFAULT_HELP_PROMPT } from './mynahUi'
 import { Messager, OutboundChatApi } from './messager'
 import { TabFactory } from './tabs/tabFactory'
 import { ChatItemType, MynahUI } from '@aws/mynah-ui'
@@ -98,7 +98,7 @@ describe('MynahUI', () => {
             assert.notCalled(onChatPromptSpy)
             assert.calledWith(onQuickActionSpy, {
                 quickAction: prompt.command,
-                prompt: 'What can Amazon Q help me with?',
+                prompt: DEFAULT_HELP_PROMPT,
                 tabId,
             })
             assert.calledOnce(updateStoreSpy)

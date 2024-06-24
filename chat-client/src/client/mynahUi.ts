@@ -52,7 +52,7 @@ export const handleChatPrompt = (
                 promptInputDisabledState: false,
             })
         } else if (prompt.command === '/help') {
-            userPrompt = 'What can Amazon Q help me with?'
+            userPrompt = DEFAULT_HELP_PROMPT
         }
 
         // Send prompt when quick action command attached
@@ -365,6 +365,7 @@ ${params.message}`,
     return [mynahUi, api]
 }
 
+export const DEFAULT_HELP_PROMPT = 'What can Amazon Q help me with?'
 const uiComponentsTexts = {
     mainTitle: 'Amazon Q (Preview)',
     copy: 'Copy',
