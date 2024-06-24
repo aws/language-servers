@@ -52,7 +52,7 @@ class SecurityScanDiagnosticsProvider {
             `${issue.detectorName} - ${issue.description.text}`,
             DiagnosticSeverity.Warning,
             issue.relatedVulnerabilities.join(','),
-            'CodeWhisperer'
+            'Amazon Q'
         )
     }
 
