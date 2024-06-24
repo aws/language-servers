@@ -1,0 +1,24 @@
+{
+    "name": "@aws/lsp-codewhisperer-runtimes",
+    "version": "0.0.1",
+    "description": "CodeWhisperer Language Server Runtimes",
+    "main": "out/index.js",
+    "scripts": {
+        "clean": "rm -rf out/ bin/ tsconfig.tsbuildinfo",
+        "compile": "tsc --build",
+        "copy:wasm": "copyfiles -f --error ../../node_modules/@aws/fully-qualified-names/node/aws_fully_qualified_names_bg.wasm ../../node_modules/web-tree-sitter/tree-sitter.wasm out",
+        "copy": "npm run copy:wasm",
+        "package": "npm run compile && npm run copy && npm run webpack",
+        "webpack": "webpack"
+    },
+    "dependencies": {
+        "copyfiles": "^2.4.1",
+        "@aws/language-server-runtimes": "0.x.x",
+        "@aws/lsp-codewhisperer": "*"
+    },
+    "devDependencies": {
+        "ts-loader": "^9.4.4",
+        "webpack": "^5.88.2",
+        "webpack-cli": "^5.1.4"
+    }
+}
