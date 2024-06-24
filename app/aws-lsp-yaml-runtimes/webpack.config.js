@@ -21,6 +21,10 @@ const baseConfig = {
                 use: 'ts-loader',
                 exclude: /node_modules/,
             },
+            {
+                test: /node_modules[\\|/](vscode-json-languageservice)/,
+                use: { loader: 'umd-compat-loader' },
+            },
         ],
     },
 }
