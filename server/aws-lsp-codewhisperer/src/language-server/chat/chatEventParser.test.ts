@@ -194,6 +194,7 @@ describe('ChatEventParser', () => {
                 {
                     licenseName: 'MIT',
                     repository: 'langauge-servers',
+                    recommendationContentSpan: undefined,
                     information: ChatEventParser.getReferencedInformation({
                         licenseName: 'MIT',
                         repository: 'langauge-servers',
