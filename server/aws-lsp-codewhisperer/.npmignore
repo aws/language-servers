@@ -5,6 +5,7 @@ node_modules/*
 # Do not ignore packaged included as bundleDependencies
 !node_modules/@amzn/codewhisperer-streaming
 !node_modules/@aws/lsp-fqn
+!dist
 
 bundle/
 package-lock.json
