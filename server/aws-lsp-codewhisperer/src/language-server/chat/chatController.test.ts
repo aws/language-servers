@@ -3,13 +3,7 @@ import {
     CodeWhispererStreaming,
     GenerateAssistantResponseCommandInput,
 } from '@amzn/codewhisperer-streaming'
-import {
-    ChatResult,
-    ErrorCodes,
-    LSPErrorCodes,
-    ResponseError,
-    TextDocument,
-} from '@aws/language-server-runtimes/server-interface'
+import { ChatResult, LSPErrorCodes, ResponseError, TextDocument } from '@aws/language-server-runtimes/server-interface'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import * as assert from 'assert'
 import sinon from 'ts-sinon'
@@ -47,7 +41,7 @@ describe('ChatController', () => {
     const expectedCompleteChatResult: ChatResult = {
         messageId: mockMessageId,
         body: 'Hello World!',
-        canBeVoted: undefined,
+        canBeVoted: true,
         codeReference: undefined,
         followUp: undefined,
         relatedContent: undefined,
