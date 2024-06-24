@@ -3,14 +3,12 @@
     "version": "0.0.1",
     "description": "YAML Language Server Runtimes",
     "main": "out/index.js",
-    "bin": {
-        "aws-lsp-yaml-binary": "./out/index.js"
-    },
     "scripts": {
         "compile": "tsc --build",
-        "pkg": "pkg --targets node18-linux-x64,node18-win-x64,node18-macos-x64 --out-path bin --compress GZip .",
+        "package": "npm run compile && npm run webpack",
         "test": "npm run test-integ",
-        "test-integ": "npm run pkg && mocha --timeout 8000 './out/**/*Integ.test.js' --retries 2"
+        "test-integ": "npm run package && mocha --timeout 8000 './out/**/*Integ.test.js' --retries 2",
+        "webpack": "webpack"
     },
     "dependencies": {
         "@aws/lsp-yaml": "*",
@@ -24,7 +22,9 @@
         "chai": "^4.3.7",
         "chai-as-promised": "^7.1.1",
         "mocha": "^10.2.0",
-        "pkg": "^5.8.1",
-        "ts-lsp-client": "^1.0.3"
+        "ts-lsp-client": "^1.0.3",
+        "ts-loader": "^9.4.4",
+        "webpack": "^5.88.2",
+        "webpack-cli": "^5.1.4"
     }
 }

@@ -3,18 +3,14 @@
     "version": "0.0.1",
     "description": "Hello World Language Server Runtimes",
     "main": "out/standalone.js",
-    "bin": {
-        "hello-world-lsp-binary": "./out/standalone.js"
-    },
     "scripts": {
         "package": "npm run compile && npm run webpack",
         "compile": "tsc --build",
         "clean": "rm -rf out/ bin/ tsconfig.tsbuildinfo",
         "lint": "npm run lint:bundle:webworker",
         "lint:bundle:webworker": "webpack && eslint out/hello-world-lsp-webworker.js",
-        "pkg": "pkg --targets node18-linux-x64,node18-win-x64,node18-macos-x64 --output bin/hello-world-lsp-binary --compress GZip .",
         "test": "npm run test-integ",
-        "test-integ": "npm run pkg && mocha --timeout 5000 './out/**/*Integ.test.js'",
+        "test-integ": "npm run package && mocha --timeout 5000 './out/**/*Integ.test.js'",
         "webpack": "webpack"
     },
     "dependencies": {
@@ -28,7 +24,6 @@
         "chai": "^4.3.7",
         "chai-as-promised": "^7.1.1",
         "mocha": "^10.2.0",
-        "pkg": "^5.8.1",
         "ts-lsp-client": "^1.0.3",
         "ts-loader": "^9.4.4",
         "webpack": "^5.88.2",
