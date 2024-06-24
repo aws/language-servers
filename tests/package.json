@@ -1,0 +1,16 @@
+{
+    "name": "test-package",
+    "version": "1.0.0",
+    "description": "",
+    "main": "index.js",
+    "scripts": {
+        "test": "npm run test:aws-lsp-codewhisperer",
+        "test:aws-lsp-codewhisperer": "node aws-lsp-codewhisperer.js"
+    },
+    "keywords": [],
+    "author": "",
+    "license": "ISC",
+    "dependencies": {
+        "@aws/hello-world-lsp": "file:../aws-hello-world-lsp-0.0.1.tgz"
+    }
+}

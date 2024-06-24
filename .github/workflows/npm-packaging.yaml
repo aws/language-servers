@@ -1,0 +1,33 @@
+name: NPM Packaging
+on:
+    push:
+        branches: [main, dev, feature/*]
+    pull_request:
+        branches: [main, dev, feature/*]
+
+jobs:
+    build:
+        name: Test Codewhisperer Server Packaging
+        runs-on: ubuntu-latest
+        steps:
+            - name: Sync Code
+              uses: actions/checkout@v3
+            - name: Set up Node
+              uses: actions/setup-node@v3
+              with:
+                  node-version: 18
+            - name: Install dependencies
+              run: npm ci
+            - name: Build all monorepo packages
+              run: |
+                  npm run compile
+            - name: Pack AWS CodeWhisperer LSP server
+              run: npm pack -w server/aws-lsp-codewhisperer
+            - name: Create test package
+              run: |
+                  cd tests
+                  npm install ../aws-lsp-codewhisperer-*.tgz
+            - name: Test imports
+              run: |
+                  cd tests
+                  npm run test
