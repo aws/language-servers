@@ -31,6 +31,7 @@ export class ChatSessionService {
             endpoint: this.#codeWhispererEndpoint,
             token: () => Promise.resolve({ token: getBearerTokenFromProvider(credentialsProvider) }),
             retryStrategy: new ConfiguredRetryStrategy(0, (attempt: number) => 500 + attempt ** 10),
+            customUserAgent: '%Amazon-Q-For-LanguageServers%',
             ...config,
         })
     }
