@@ -24,8 +24,6 @@ import { CopyCodeToClipboardParams, VoteParams } from '../contracts/telemetry'
 import { Messager } from './messager'
 import { TabFactory } from './tabs/tabFactory'
 
-export const INITIAL_TAB_ID = 'tab-1'
-
 export interface InboundChatApi {
     addChatResponse(params: ChatResult, tabId: string, isPartialResult: boolean): void
     sendToPrompt(params: SendToPromptParams): void
@@ -83,6 +81,8 @@ export const handleChatPrompt = (
 }
 
 export const createMynahUi = (messager: Messager, tabFactory: TabFactory): [MynahUI, InboundChatApi] => {
+    const initialTabId = TabFactory.generateUniqueId()
+
     const mynahUi = new MynahUI({
         onCodeInsertToCursorPosition(
             tabId,
@@ -131,7 +131,7 @@ export const createMynahUi = (messager: Messager, tabFactory: TabFactory): [Myna
         },
         onReady: () => {
             messager.onUiReady()
-            messager.onTabAdd(INITIAL_TAB_ID)
+            messager.onTabAdd(initialTabId)
         },
         onTabAdd: (tabId: string) => {
             messager.onTabAdd(tabId)
@@ -231,7 +231,7 @@ export const createMynahUi = (messager: Messager, tabFactory: TabFactory): [Myna
             messager.onInfoLinkClick(payload)
         },
         tabs: {
-            [INITIAL_TAB_ID]: {
+            [initialTabId]: {
                 isSelected: true,
                 store: tabFactory.createTab(true),
             },
@@ -276,7 +276,7 @@ export const createMynahUi = (messager: Messager, tabFactory: TabFactory): [Myna
 
         const followUps = chatResult.followUp
             ? {
-                  text: chatResult.followUp.text || 'Suggested follow up questions:',
+                  text: chatResult.followUp.text ?? 'Suggested follow up questions:',
                   options: chatResult.followUp.options,
               }
             : {}

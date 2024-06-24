@@ -3,6 +3,13 @@ import { ChatItemType, MynahUIDataModel } from '@aws/mynah-ui'
 export type DefaultTabData = Partial<MynahUIDataModel>
 
 export class TabFactory {
+    public static generateUniqueId() {
+        // from https://github.com/aws/mynah-ui/blob/a3799f47ca4b7c02850264e328539a40709a6858/src/helper/guid.ts#L6
+        const firstPart: number = (Math.random() * 46656) | 0
+        const secondPart: number = (Math.random() * 46656) | 0
+        return `000${firstPart.toString(36)}`.slice(-3) + `000${secondPart.toString(36)}`.slice(-3)
+    }
+
     constructor(private defaultTabData: DefaultTabData) {}
 
     public createTab(needWelcomeMessages: boolean): MynahUIDataModel {

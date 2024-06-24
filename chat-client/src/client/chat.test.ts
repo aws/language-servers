@@ -21,14 +21,17 @@ import {
     TAB_ADD_TELEMETRY_EVENT,
 } from '../contracts/telemetry'
 import { MynahUI } from '@aws/mynah-ui'
-import { INITIAL_TAB_ID } from './mynahUi'
+import { TabFactory } from './tabs/tabFactory'
 
 describe('Chat', () => {
     const sandbox = sinon.createSandbox()
+    const initialTabId = 'tab-1'
     let mynahUi: MynahUI
     let clientApi: { postMessage: sinon.SinonStub }
 
     beforeEach(() => {
+        sandbox.stub(TabFactory, 'generateUniqueId').returns(initialTabId)
+
         clientApi = {
             postMessage: sandbox.stub(),
         }
@@ -54,12 +57,13 @@ describe('Chat', () => {
             params: {
                 triggerType: 'click',
                 name: TAB_ADD_TELEMETRY_EVENT,
-                tabId: INITIAL_TAB_ID,
+                tabId: initialTabId,
             },
         })
+
         sinon.assert.calledWithExactly(clientApi.postMessage.thirdCall, {
             command: TAB_ADD_NOTIFICATION_METHOD,
-            params: { tabId: INITIAL_TAB_ID },
+            params: { tabId: initialTabId },
         })
     })
 
