@@ -1,12 +1,18 @@
 import Parser from 'web-tree-sitter'
-import path = require('path')
+import parserBase64 from '../tree-sitter-parser/tree-sitter-parser-inline'
 
 // Initialize and prepare the parser
 async function initParser() {
-    await Parser.init()
+    const Module = {
+        locateFile: (pathURL: string, prefix: any) => {
+            console.log('locateFile', pathURL)
+            console.log('prefix', prefix)
+            return prefix + pathURL
+        },
+    }
+    await Parser.init(Module)
     const parser = new Parser()
-    const wasmPath = path.join(__dirname, 'tree-sitter-partiql.wasm')
-    const PartiQL = await Parser.Language.load(wasmPath)
+    const PartiQL = await Parser.Language.load(parserBase64)
     parser.setLanguage(PartiQL)
     return parser
 }
@@ -25,4 +31,4 @@ export async function findNodes(sourceCode: string | Parser.Input, node: string)
 }
 
 // Example usage
-// findNodes('SELECT * FROM my_table', 'keyword')
+findNodes('SELECT * FROM my_table', 'keyword')
