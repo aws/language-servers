@@ -74,8 +74,8 @@
                 "ENABLE_TOKEN_PROVIDER": "true",
                 "ENABLE_CHAT": "true"
                 // "HTTPS_PROXY": "http://127.0.0.1:8888",
-            }
-            // "preLaunchTask": "npm: compile"
+            },
+            "preLaunchTask": "npm: compile"
         },
         {
             "name": "CodeWhisperer Server IAM",

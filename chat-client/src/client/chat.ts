@@ -2,6 +2,8 @@
 import {
     AUTH_FOLLOW_UP_CLICKED,
     AuthFollowUpClickedParams,
+    CHAT_OPTIONS,
+    ChatOptionsMessage,
     ERROR_MESSAGE,
     ErrorMessage,
     GENERIC_COMMAND,
@@ -35,7 +37,7 @@ import {
     TabChangeParams,
     TabRemoveParams,
 } from '@aws/language-server-runtimes-types'
-import { MynahUIDataModel } from '@aws/mynah-ui'
+import { MynahUIDataModel, MynahUITabStoreModel } from '@aws/mynah-ui'
 import { ServerMessage, TELEMETRY, TelemetryParams } from '../contracts/serverContracts'
 import { ENTER_FOCUS, EXIT_FOCUS } from '../contracts/telemetry'
 import { Messager, OutboundChatApi } from './messager'
@@ -81,6 +83,17 @@ export const createChat = (
             case ERROR_MESSAGE:
                 mynahApi.showError((message as ErrorMessage).params)
                 break
+            case CHAT_OPTIONS:
+                const params = (message as ChatOptionsMessage).params
+                const chatConfig: ChatClientConfig = {
+                    quickActionCommands: params.quickActions?.quickActionsCommandGroups,
+                }
+                tabFactory.updateDefaultTabData(chatConfig)
+
+                const allExistingTabs: MynahUITabStoreModel = mynahUi.getAllTabs()
+                for (const tabId in allExistingTabs) {
+                    mynahUi.updateStore(tabId, chatConfig)
+                }
             default:
                 // TODO: Report error?
                 break

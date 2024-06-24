@@ -26,6 +26,14 @@ export class TabFactory {
         return tabData
     }
 
+    public updateDefaultTabData(defaultTabData: DefaultTabData) {
+        this.defaultTabData = { ...this.defaultTabData, ...defaultTabData }
+    }
+
+    public getDefaultTabData(): DefaultTabData {
+        return this.defaultTabData
+    }
+
     private getWelcomeBlock() {
         return {
             text: 'Try Examples:',

@@ -13,7 +13,7 @@
     },
     "dependencies": {
         "copyfiles": "^2.4.1",
-        "@aws/language-server-runtimes": "0.x.x",
+        "@aws/language-server-runtimes": "^0.2.7",
         "@aws/lsp-codewhisperer": "*"
     },
     "devDependencies": {

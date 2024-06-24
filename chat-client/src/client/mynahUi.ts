@@ -19,7 +19,7 @@ import {
     LinkClickParams,
     SourceLinkClickParams,
 } from '@aws/language-server-runtimes-types'
-import { ChatItem, ChatItemType, ChatPrompt, MynahUI, NotificationType } from '@aws/mynah-ui'
+import { ChatItem, ChatItemType, ChatPrompt, MynahUI, MynahUIDataModel, NotificationType } from '@aws/mynah-ui'
 import { CopyCodeToClipboardParams, VoteParams } from '../contracts/telemetry'
 import { Messager } from './messager'
 import { TabFactory } from './tabs/tabFactory'
@@ -135,6 +135,10 @@ export const createMynahUi = (messager: Messager, tabFactory: TabFactory): [Myna
         },
         onTabAdd: (tabId: string) => {
             messager.onTabAdd(tabId)
+            const defaultTabConfig: Partial<MynahUIDataModel> = {
+                quickActionCommands: tabFactory.getDefaultTabData().quickActionCommands,
+            }
+            mynahUi.updateStore(tabId, defaultTabConfig)
         },
         onTabRemove: (tabId: string) => {
             messager.onTabRemove(tabId)

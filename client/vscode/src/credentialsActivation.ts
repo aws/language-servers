@@ -42,7 +42,7 @@ export interface ConnectionMetadata {
     }
 }
 
-const encryptionKey = crypto.randomBytes(32)
+export const encryptionKey = crypto.randomBytes(32)
 
 /**
  * Cached builderId connection to setup getConnectionMetadata request handled in the client
