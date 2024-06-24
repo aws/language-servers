@@ -35,12 +35,13 @@ Result artifacts can be found in `/out` and `/build` directories.
 
 ```
 .
-├── out - Compiled Javascipt and Javascript bundles
+├── build - Budled Javascript runtime programms
 │   ├── hello-world-lsp-standalone.js - standalone bundle
 │   ├── hello-world-lsp-webworker.js - webworker bundle
+├── out - Compiled Javascipt
 │   ├── standalone.js
 │   ├── webworker.js
-├── src - source code configuration for 
+├── src - source code configuration for bundling
 │   ├── standalone.ts
 └── └── webworker.ts
 ```
