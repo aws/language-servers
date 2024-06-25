@@ -175,7 +175,6 @@ export class ChatController implements ChatHandlers {
     onReady() {}
 
     onSendFeedback({ tabId, feedbackPayload }: FeedbackParams) {
-        // this is not an actual telemetry, toolkit needs to intercept this
         this.#features.telemetry.emitMetric({
             name: 'amazonq_sendFeedback',
             data: {
