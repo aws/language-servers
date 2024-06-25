@@ -219,7 +219,6 @@ export class ChatController implements ChatHandlers {
                 this.#telemetryController.emitChatMetric({
                     name: ChatTelemetryEventName.RunCommand,
                     data: {
-                        // TODO verify
                         cwsprChatCommandType: params.quickAction,
                     },
                 })
