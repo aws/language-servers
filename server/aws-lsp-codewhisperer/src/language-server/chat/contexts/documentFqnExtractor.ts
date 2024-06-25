@@ -68,7 +68,7 @@ export class DocumentFqnExtractor {
         range: Range,
         languageId = document.languageId
     ): Promise<DocumentSymbol[]> {
-        return !this.#workerPool || DocumentFqnExtractor.FQN_SUPPORTED_LANGUAGE_SET.has(languageId)
+        return this.#workerPool && DocumentFqnExtractor.FQN_SUPPORTED_LANGUAGE_SET.has(languageId)
             ? this.#extractSymbols(document, range, languageId as FqnSupportedLanguages)
             : []
     }
