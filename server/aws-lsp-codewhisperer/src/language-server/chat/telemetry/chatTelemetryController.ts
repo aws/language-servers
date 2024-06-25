@@ -232,7 +232,7 @@ export class ChatTelemetryController {
                             cwsprChatInteractionType:
                                 params.vote === RelevancyVoteType.UP
                                     ? ChatInteractionType.Upvote
-                                    : ChatInteractionType.downvote,
+                                    : ChatInteractionType.Downvote,
                         },
                     })
                     break

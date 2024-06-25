@@ -164,7 +164,7 @@ export enum ChatInteractionType {
     ClickFollowUp = 'clickFollowUp',
     HoverReference = 'hoverReference',
     Upvote = 'upvote',
-    downvote = 'downvote',
+    Downvote = 'downvote',
     ClickBodyLink = 'clickBodyLink',
 }
 
