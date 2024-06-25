@@ -50,38 +50,6 @@ export class ChatController implements ChatHandlers {
         this.#triggerContext.dispose()
     }
 
-    async getTriggerContext(params: ChatParams, metric: Metric<CombinedConversationEvent>) {
-        const lastMessageTrigger = this.#telemetryController.getLastMessageTrigger(params.tabId)
-
-        let triggerContext: TriggerContext
-
-        // this is the only way we can detect a follow up action
-        // we can reuse previous trigger information
-        if (lastMessageTrigger?.followUpActions?.has(params.prompt?.prompt ?? '')) {
-            this.#telemetryController.emitInteractWithMessageMetric(params.tabId, {
-                cwsprChatMessageId: lastMessageTrigger.messageId!,
-                cwsprChatInteractionType: ChatInteractionType.ClickFollowUp,
-            })
-
-            triggerContext = lastMessageTrigger
-        } else {
-            triggerContext = await this.#triggerContext.getNewTriggerContext(params)
-            triggerContext.triggerType = this.#telemetryController.getCurrentTrigger(params.tabId) ?? 'click'
-        }
-
-        metric.mergeWith({
-            cwsprChatUserIntent: triggerContext?.userIntent,
-            cwsprChatProgrammingLanguage: triggerContext?.programmingLanguage?.languageName,
-            cwsprChatRequestLength: params.prompt?.prompt?.length ?? 0,
-            cwsprChatTriggerInteraction: triggerContext?.triggerType,
-            cwsprChatHasCodeSnippet: triggerContext.hasCodeSnippet ?? false,
-            cwsprChatActiveEditorImportCount: triggerContext.documentSymbols?.length ?? 0,
-            cwsprChatActiveEditorTotalCharacters: triggerContext.totalEditorCharacters ?? 0,
-        })
-
-        return triggerContext
-    }
-
     async onChatPrompt(params: ChatParams, token: CancellationToken): Promise<ChatResult | ResponseError<ChatResult>> {
         const sessionResult = this.#chatSessionManagementService.getSession(params.tabId)
 
@@ -99,7 +67,7 @@ export class ChatController implements ChatHandlers {
             cwsprChatConversationType: 'Chat',
         })
 
-        const triggerContext = await this.getTriggerContext(params, metric)
+        const triggerContext = await this.#getTriggerContext(params, metric)
         const isNewConversation = !session.sessionId
 
         token.onCancellationRequested(() => {
@@ -277,6 +245,38 @@ export class ChatController implements ChatHandlers {
             default:
                 return {}
         }
+    }
+
+    async #getTriggerContext(params: ChatParams, metric: Metric<CombinedConversationEvent>) {
+        const lastMessageTrigger = this.#telemetryController.getLastMessageTrigger(params.tabId)
+
+        let triggerContext: TriggerContext
+
+        // this is the only way we can detect a follow up action
+        // we can reuse previous trigger information
+        if (lastMessageTrigger?.followUpActions?.has(params.prompt?.prompt ?? '')) {
+            this.#telemetryController.emitInteractWithMessageMetric(params.tabId, {
+                cwsprChatMessageId: lastMessageTrigger.messageId!,
+                cwsprChatInteractionType: ChatInteractionType.ClickFollowUp,
+            })
+
+            triggerContext = lastMessageTrigger
+        } else {
+            triggerContext = await this.#triggerContext.getNewTriggerContext(params)
+            triggerContext.triggerType = this.#telemetryController.getCurrentTrigger(params.tabId) ?? 'click'
+        }
+
+        metric.mergeWith({
+            cwsprChatUserIntent: triggerContext?.userIntent,
+            cwsprChatProgrammingLanguage: triggerContext?.programmingLanguage?.languageName,
+            cwsprChatRequestLength: params.prompt?.prompt?.length ?? 0,
+            cwsprChatTriggerInteraction: triggerContext?.triggerType,
+            cwsprChatHasCodeSnippet: triggerContext.hasCodeSnippet ?? false,
+            cwsprChatActiveEditorImportCount: triggerContext.documentSymbols?.length ?? 0,
+            cwsprChatActiveEditorTotalCharacters: triggerContext.totalEditorCharacters ?? 0,
+        })
+
+        return triggerContext
     }
 
     async #processAssistantResponse(

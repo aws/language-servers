@@ -21,15 +21,14 @@ describe('DocumentContext', () => {
 
     describe('documentContextExtractor.extractEditorState', () => {
         it('extracts editor state for range selection', async () => {
-            const text = "console.log('test')"
             const documentContextExtractor = new DocumentContextExtractor({ characterLimits: 19 })
             const expected: DocumentContext = {
                 programmingLanguage: { languageName: 'typescript' },
                 relativeFilePath: 'file://test.ts',
                 documentSymbols: [],
-                text: text,
+                text: "console.log('test')",
                 hasCodeSnippet: true,
-                totalEditorCharacters: text.length,
+                totalEditorCharacters: mockTypescriptCodeBlock.length,
                 cursorState: {
                     range: {
                         start: {
@@ -63,14 +62,13 @@ describe('DocumentContext', () => {
 
         it('extracts editor state for collapsed position', async () => {
             const documentContextExtractor = new DocumentContextExtractor({ characterLimits: 19 })
-            const text = "console.log('test')"
             const expected: DocumentContext = {
                 programmingLanguage: { languageName: 'typescript' },
                 relativeFilePath: 'file://test.ts',
                 documentSymbols: [],
-                text: text,
+                text: "console.log('test')",
                 hasCodeSnippet: true,
-                totalEditorCharacters: text.length,
+                totalEditorCharacters: mockTypescriptCodeBlock.length,
                 cursorState: {
                     range: {
                         start: {
@@ -111,7 +109,7 @@ describe('DocumentContext', () => {
                 documentSymbols: [],
                 text: '',
                 hasCodeSnippet: false,
-                totalEditorCharacters: 0,
+                totalEditorCharacters: mockTypescriptCodeBlock.length,
                 cursorState: undefined,
             }
 
@@ -132,38 +130,27 @@ describe('DocumentContext', () => {
         })
     })
 
-    it.skip('extract document context with the code block range correctly', async () => {
-        const documentContextExtractor = new DocumentContextExtractor()
-
-        const expectedResult: EditorState['document'] = {
-            programmingLanguage: { languageName: 'typescript' },
-            relativeFilePath: 'file://test.ts',
-            documentSymbols: [],
-            text: "console.log('test')",
-        }
-        const result = await documentContextExtractor.extractDocumentContext(mockTSDocument, {
-            range: {
-                start: { line: 1, character: 4 },
-                end: { line: 1, character: 23 },
-            },
-        })
-
-        assert.deepStrictEqual(result, expectedResult)
-    })
-
-    it.skip('handles other languages correctly', async () => {
-        const documentContextExtractor = new DocumentContextExtractor()
+    it('handles other languages correctly', async () => {
+        const documentContextExtractor = new DocumentContextExtractor({ characterLimits: 19 })
 
         const mockGoCodeBLock = `func main() {
-fmt.Println("test")
+    fmt.Println("test")
 }`
         const mockDocument = TextDocument.create('file://test.go', 'go', 1, mockGoCodeBLock)
 
-        const expectedResult: EditorState['document'] = {
+        const expectedResult: DocumentContext = {
             programmingLanguage: { languageName: 'go' },
             relativeFilePath: 'file://test.go',
             documentSymbols: [],
             text: 'fmt.Println("test")',
+            totalEditorCharacters: mockGoCodeBLock.length,
+            hasCodeSnippet: true,
+            cursorState: {
+                range: {
+                    start: { line: 0, character: 0 },
+                    end: { line: 0, character: 19 },
+                },
+            },
         }
         const result = await documentContextExtractor.extractDocumentContext(mockDocument, {
             range: {

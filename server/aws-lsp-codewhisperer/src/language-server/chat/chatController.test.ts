@@ -221,16 +221,6 @@ describe('ChatController', () => {
             assert.deepStrictEqual(chatResult, expectedCompleteChatResult)
         })
 
-        it('returns a ResponseError if request input is not valid', async () => {
-            const chatResultPromise = chatController.onChatPrompt(
-                { tabId: mockTabId, prompt: {} },
-                mockCancellationToken
-            )
-
-            const chatResult = await chatResultPromise
-            assert.ok(chatResult instanceof ResponseError)
-        })
-
         it('returns a ResponseError if generateAssistantResponse returns an error', async () => {
             generateAssistantResponseStub.callsFake(() => {
                 throw new Error('Error')
@@ -323,10 +313,10 @@ describe('ChatController', () => {
             )
         })
 
-        describe('#extractEditorState', () => {
+        describe('#extractDocumentContext', () => {
             const typescriptDocument = TextDocument.create('file:///test.ts', 'typescript', 1, 'test')
             let extractDocumentContextStub: sinon.SinonStub
-            const editorStateObject = {}
+
             const mockCursorState = {
                 range: {
                     start: {
@@ -343,7 +333,6 @@ describe('ChatController', () => {
             beforeEach(() => {
                 extractDocumentContextStub = sinon.stub(DocumentContextExtractor.prototype, 'extractDocumentContext')
                 testFeatures.openDocument(typescriptDocument)
-                extractDocumentContextStub.resolves(editorStateObject)
             })
 
             afterEach(() => {
@@ -351,6 +340,13 @@ describe('ChatController', () => {
             })
 
             it('leaves editor state as undefined if cursorState is not passed', async () => {
+                const documentContextObject = {
+                    programmingLanguage: 'typescript',
+                    cursorState: undefined,
+                    relativeFilePath: 'file:///test.ts',
+                }
+                extractDocumentContextStub.resolves(documentContextObject)
+
                 await chatController.onChatPrompt(
                     {
                         tabId: mockTabId,
@@ -371,7 +367,14 @@ describe('ChatController', () => {
                 )
             })
 
-            it('leaves editor state as undefined if document identified is not passed', async () => {
+            it('leaves editor state as undefined if relative file path is undefined', async () => {
+                const documentContextObject = {
+                    programmingLanguage: 'typescript',
+                    cursorState: [],
+                    relativeFilePath: undefined,
+                }
+                extractDocumentContextStub.resolves(documentContextObject)
+
                 await chatController.onChatPrompt(
                     {
                         tabId: mockTabId,
@@ -392,6 +395,13 @@ describe('ChatController', () => {
             })
 
             it('parses editor state context and includes as requestInput if both cursor state and text document are found', async () => {
+                const documentContextObject = {
+                    programmingLanguage: 'typescript',
+                    cursorState: [],
+                    relativeFilePath: typescriptDocument.uri,
+                }
+                extractDocumentContextStub.resolves(documentContextObject)
+
                 await chatController.onChatPrompt(
                     {
                         tabId: mockTabId,
@@ -405,11 +415,18 @@ describe('ChatController', () => {
                 const calledRequestInput: GenerateAssistantResponseCommandInput =
                     generateAssistantResponseStub.firstCall.firstArg
 
-                // asserting object reference equality
-                assert.strictEqual(
+                assert.deepStrictEqual(
                     calledRequestInput.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext
                         ?.editorState,
-                    editorStateObject
+                    {
+                        cursorState: [],
+                        document: {
+                            documentSymbols: undefined,
+                            programmingLanguage: 'typescript',
+                            relativeFilePath: 'file:///test.ts',
+                            text: undefined,
+                        },
+                    }
                 )
             })
         })

@@ -41,7 +41,7 @@ interface ConversationTriggerInfo {
 }
 
 export class ChatTelemetryController {
-    activeTabId?: string
+    #activeTabId?: string
     #tabTelemetryInfoByTabId: { [tabId: string]: ConversationTriggerInfo }
     #currentTriggerByTabId: { [tabId: string]: TriggerType } = {}
     #telemetry: Features['telemetry']
@@ -52,6 +52,14 @@ export class ChatTelemetryController {
         this.#telemetry = telemetry
 
         this.#telemetry.onClientTelemetry(params => this.#handleClientTelemetry(params))
+    }
+
+    public get activeTabId(): string | undefined {
+        return this.#activeTabId
+    }
+
+    public set activeTabId(activeTabId: string | undefined) {
+        this.#activeTabId = activeTabId
     }
 
     public getCurrentTrigger(tabId: string) {
