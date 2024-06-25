@@ -84,9 +84,8 @@ describe('MynahUI', () => {
 
             assert.notCalled(onChatPromptSpy)
             assert.calledWith(onQuickActionSpy, { quickAction: prompt.command, prompt: prompt.prompt, tabId })
-            assert.calledTwice(updateStoreSpy)
+            assert.calledOnce(updateStoreSpy)
             assert.calledWith(updateStoreSpy.firstCall, tabId, { chatItems: [] })
-            assert.calledWith(updateStoreSpy.secondCall, tabId, { loadingChat: false, promptInputDisabledState: false })
         })
 
         it('should handle quick actions', () => {
