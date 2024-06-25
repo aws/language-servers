@@ -1,8 +1,9 @@
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import sinon from 'ts-sinon'
 import { ChatTelemetryEventName } from '../telemetry/types'
-import { CONVERSATION_ID_METRIC_KEY, ChatTelemetryController, ChatUIEventName } from './chatTelemetryController'
+import { CONVERSATION_ID_METRIC_KEY, ChatTelemetryController } from './chatTelemetryController'
 import assert = require('assert')
+import { ChatUIEventName } from './telemetry/clientTelemetry'
 
 describe('TelemetryController', () => {
     const mockTabId = 'mockTabId'
@@ -46,7 +47,7 @@ describe('TelemetryController', () => {
         const telemetryHandler = testFeatures.telemetry.onClientTelemetry.firstCall.firstArg
 
         telemetryHandler({
-            name: ChatUIEventName.EnterUIFocus,
+            name: ChatUIEventName.EnterFocusChat,
         })
 
         sinon.assert.calledOnceWithExactly(testFeatures.telemetry.emitMetric, {
@@ -59,7 +60,7 @@ describe('TelemetryController', () => {
         const telemetryHandler = testFeatures.telemetry.onClientTelemetry.firstCall.firstArg
 
         telemetryHandler({
-            name: ChatUIEventName.ExitUIFocus,
+            name: ChatUIEventName.ExitFocusChat,
         })
 
         sinon.assert.calledOnceWithExactly(testFeatures.telemetry.emitMetric, {

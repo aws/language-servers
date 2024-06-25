@@ -102,6 +102,11 @@ export enum ChatTelemetryEventName {
     ExitFocusChat = 'ExitFocusChat',
     EnterFocusConversation = 'EnterFocusConversation',
     ExitFocusConversation = 'ExitFocusConversation',
+    StartConversation = 'StartConversation',
+    InteractWithMessage = 'InteractWithMessage',
+    AddMessage = 'AddMessage',
+    RunCommand = 'RunCommand',
+    MessageResponseError = 'MessageResponseError',
 }
 
 export interface ChatTelemetryEventMap {
@@ -109,16 +114,98 @@ export interface ChatTelemetryEventMap {
     [ChatTelemetryEventName.ExitFocusChat]: ExitFocusChatEvent
     [ChatTelemetryEventName.EnterFocusConversation]: EnterFocusConversationEvent
     [ChatTelemetryEventName.ExitFocusConversation]: ExitFocusConversationEvent
+    [ChatTelemetryEventName.StartConversation]: StartConversationEvent
+    [ChatTelemetryEventName.InteractWithMessage]: InteractWithMessageEvent
+    [ChatTelemetryEventName.AddMessage]: AddMessageEvent
+    [ChatTelemetryEventName.RunCommand]: RunCommandEvent
+    [ChatTelemetryEventName.MessageResponseError]: MessageResponseErrorEvent
 }
 
-export interface EnterFocusChatEvent {}
-
-export interface ExitFocusChatEvent {}
-
-export interface EnterFocusConversationEvent {
-    CWSPRChatConversationId: string
+export type AddMessageEvent = {
+    cwsprChatConversationId: string
+    cwsprChatMessageId: string
+    cwsprChatTriggerInteraction: string
+    cwsprChatUserIntent?: string
+    cwsprChatHasCodeSnippet: boolean
+    cwsprChatProgrammingLanguage?: string
+    cwsprChatActiveEditorTotalCharacters?: number
+    cwsprChatActiveEditorImportCount?: number
+    cwsprChatResponseCodeSnippetCount?: number
+    cwsprChatResponseCode: number
+    cwsprChatSourceLinkCount?: number
+    cwsprChatReferencesCount?: number
+    cwsprChatFollowUpCount?: number
+    cwsprTimeToFirstChunk: number
+    cwsprChatFullResponseLatency: number
+    cwsprChatTimeBetweenChunks: number[]
+    cwsprChatResponseType?: string
+    cwsprChatRequestLength?: number
+    cwsprChatResponseLength?: number
+    cwsprChatConversationType: ChatConversationType
 }
 
-export interface ExitFocusConversationEvent {
-    CWSPRChatConversationId: string
+export type EnterFocusChatEvent = {}
+
+export type ExitFocusChatEvent = {}
+
+export type EnterFocusConversationEvent = {
+    cwsprChatConversationId: string
 }
+
+export type ExitFocusConversationEvent = {
+    cwsprChatConversationId: string
+}
+
+export enum ChatInteractionType {
+    InsertAtCursor = 'insertAtCursor',
+    CopySnippet = 'copySnippet',
+    Copy = 'copy',
+    ClickLink = 'clickLink',
+    ClickFollowUp = 'clickFollowUp',
+    HoverReference = 'hoverReference',
+    Upvote = 'upvote',
+    Downvote = 'downvote',
+    ClickBodyLink = 'clickBodyLink',
+}
+
+export type ChatConversationType = 'Chat' | 'Assign' | 'Transform'
+
+export type InteractWithMessageEvent = {
+    cwsprChatConversationId: string
+    cwsprChatMessageId: string
+    cwsprChatInteractionType: ChatInteractionType
+    cwsprChatInteractionTarget?: string
+    cwsprChatAcceptedCharactersLength?: number
+    cwsprChatHasReference?: boolean
+    cwsprChatCodeBlockIndex?: number
+    cwsprChatTotalCodeBlocks?: number
+}
+
+export type StartConversationEvent = {
+    cwsprChatConversationId: string
+    cwsprChatTriggerInteraction?: string
+    cwsprChatUserIntent?: string
+    cwsprChatHasCodeSnippet?: boolean
+    cwsprChatProgrammingLanguage?: string
+    cwsprChatConversationType: ChatConversationType
+}
+
+export type MessageResponseErrorEvent = {
+    cwsprChatConversationId: string
+    cwsprChatTriggerInteraction: string
+    cwsprChatUserIntent?: string
+    cwsprChatHasCodeSnippet?: boolean
+    cwsprChatProgrammingLanguage?: string
+    cwsprChatActiveEditorTotalCharacters?: number
+    cwsprChatActiveEditorImportCount?: number
+    cwsprChatRepsonseCode: number
+    cwsprChatRequestLength?: number
+    cwsprChatConversationType: ChatConversationType
+}
+
+export type RunCommandEvent = {
+    cwsprChatCommandType: string
+    cwsprChatCommandName?: string
+}
+
+export type CombinedConversationEvent = AddMessageEvent & StartConversationEvent & MessageResponseErrorEvent

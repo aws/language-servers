@@ -16,3 +16,7 @@ export type Result<TData, TError> =
 export type LspHandlers<THandlerMap> = {
     [K in keyof THandlerMap]: THandlerMap[K] extends (...args: any[]) => any ? Parameters<THandlerMap[K]>[0] : never
 }
+
+export type KeysMatching<TMap extends object, TCriteria> = {
+    [TKey in keyof TMap]: TMap[TKey] extends TCriteria ? TKey : never
+}[keyof TMap]

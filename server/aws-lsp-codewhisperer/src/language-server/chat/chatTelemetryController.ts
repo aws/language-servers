@@ -1,20 +1,21 @@
 import { MetricEvent } from '@aws/language-server-runtimes/server-interface'
 
 import { ChatTelemetryEventMap, ChatTelemetryEventName } from '../telemetry/types'
-import { Features } from '../types'
+import { Features, KeysMatching } from '../types'
 import { isObject } from '../utils'
+import { ChatUIEventName } from './telemetry/clientTelemetry'
 
-export const CONVERSATION_ID_METRIC_KEY = 'CWSPRChatConversationId'
+export const CONVERSATION_ID_METRIC_KEY = 'cwsprChatConversationId'
 
-export enum ChatUIEventName {
-    EnterUIFocus = 'enterFocus',
-    ExitUIFocus = 'exitFocus',
-}
-
-interface ChatMetricEvent<TName extends ChatTelemetryEventName> extends MetricEvent {
+export interface ChatMetricEvent<
+    TName extends ChatTelemetryEventName,
+    TData extends ChatTelemetryEventMap[TName] = ChatTelemetryEventMap[TName],
+> extends MetricEvent {
     name: TName
-    data: ChatTelemetryEventMap[TName]
+    data: TData
 }
+
+type ConversationMetricName = KeysMatching<ChatTelemetryEventMap, { [CONVERSATION_ID_METRIC_KEY]: string }>
 
 export class ChatTelemetryController {
     #activeTabId?: string
@@ -52,14 +53,18 @@ export class ChatTelemetryController {
         this.#telemetry.emitMetric(metric)
     }
 
-    public emitConversationMetric<TName extends ChatTelemetryEventName>(
-        metric: Omit<ChatMetricEvent<TName>, 'data'> & {
-            data: Omit<ChatMetricEvent<TName>['data'], typeof CONVERSATION_ID_METRIC_KEY>
-        }
+    public emitConversationMetric<
+        TName extends ConversationMetricName,
+        TEvent extends ChatMetricEvent<TName, ChatTelemetryEventMap[TName]>,
+    >(
+        metric: Omit<TEvent, 'data'> & {
+            data: Omit<TEvent['data'], typeof CONVERSATION_ID_METRIC_KEY>
+        },
+        tabId = this.activeTabId
     ) {
-        const conversationId = this.getConversationId(this.activeTabId)
+        const conversationId = this.getConversationId(tabId)
         if (conversationId) {
-            this.emitChatMetric({
+            this.#telemetry.emitMetric({
                 ...metric,
                 data: {
                     ...metric.data,
@@ -72,13 +77,13 @@ export class ChatTelemetryController {
     #handleClientTelemetry(params: unknown) {
         if (isObject(params) && 'name' in params && typeof params.name === 'string') {
             switch (params.name) {
-                case ChatUIEventName.EnterUIFocus:
+                case ChatUIEventName.EnterFocusChat:
                     this.emitChatMetric({
                         name: ChatTelemetryEventName.EnterFocusChat,
                         data: {},
                     })
                     break
-                case ChatUIEventName.ExitUIFocus:
+                case ChatUIEventName.ExitFocusChat:
                     this.emitChatMetric({
                         name: ChatTelemetryEventName.ExitFocusChat,
                         data: {},
