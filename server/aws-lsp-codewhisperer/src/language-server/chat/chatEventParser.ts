@@ -131,7 +131,7 @@ export class ChatEventParser implements ChatResult {
         const chatResult: ChatResult = {
             messageId: this.messageId,
             body: this.body,
-            canBeVoted: this.canBeVoted,
+            canBeVoted: this.canBeVoted ?? true,
             relatedContent: this.relatedContent,
             followUp: this.followUp,
             codeReference: this.codeReference,

@@ -24,7 +24,7 @@ describe('ChatEventParser', () => {
                 data: {
                     messageId: mockMessageId,
                     body: undefined,
-                    canBeVoted: undefined,
+                    canBeVoted: true,
                     codeReference: undefined,
                     followUp: undefined,
                     relatedContent: undefined,
@@ -52,7 +52,7 @@ describe('ChatEventParser', () => {
                 data: {
                     messageId: mockMessageId,
                     body: undefined,
-                    canBeVoted: undefined,
+                    canBeVoted: true,
                     codeReference: undefined,
                     followUp: undefined,
                     relatedContent: undefined,
@@ -78,7 +78,7 @@ describe('ChatEventParser', () => {
                 data: {
                     messageId: mockMessageId,
                     body: 'This is an ',
-                    canBeVoted: undefined,
+                    canBeVoted: true,
                     codeReference: undefined,
                     followUp: undefined,
                     relatedContent: undefined,
@@ -97,7 +97,7 @@ describe('ChatEventParser', () => {
                 data: {
                     messageId: mockMessageId,
                     body: 'This is an assistant response.',
-                    canBeVoted: undefined,
+                    canBeVoted: true,
                     codeReference: undefined,
                     followUp: undefined,
                     relatedContent: undefined,
@@ -137,7 +137,7 @@ describe('ChatEventParser', () => {
                         },
                     ],
                 },
-                canBeVoted: undefined,
+                canBeVoted: true,
                 codeReference: undefined,
                 relatedContent: undefined,
             },
@@ -182,7 +182,7 @@ describe('ChatEventParser', () => {
         const expectedData: ChatResult = {
             messageId: mockMessageId,
             body: 'This is an assistant response.',
-            canBeVoted: undefined,
+            canBeVoted: true,
             relatedContent: {
                 content: [
                     {
