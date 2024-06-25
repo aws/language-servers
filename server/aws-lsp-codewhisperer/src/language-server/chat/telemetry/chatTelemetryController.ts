@@ -121,10 +121,9 @@ export class ChatTelemetryController {
                 name: ChatTelemetryEventName.AddMessage,
                 data: {
                     // why is this start trigger? doesn't make sense
-                    // CWSPRChatHasCodeSnippet*	Boolean. True if the first chat message is triggered with a selected code snippet.
+                    // "CWSPRChatHasCodeSnippet*	Boolean. True if the first chat message is triggered with a selected code snippet."
                     cwsprChatHasCodeSnippet: startTrigger?.hasUserSnippet,
 
-                    // These should be good
                     cwsprChatTriggerInteraction: metric.cwsprChatTriggerInteraction,
                     cwsprChatMessageId: metric.cwsprChatMessageId,
                     cwsprChatUserIntent: metric.cwsprChatUserIntent,
@@ -141,8 +140,6 @@ export class ChatTelemetryController {
                     cwsprChatResponseLength: metric.cwsprChatResponseLength,
                     cwsprChatConversationType: metric.cwsprChatConversationType,
                     cwsprChatActiveEditorTotalCharacters: metric.cwsprChatActiveEditorTotalCharacters,
-
-                    // this is not total count though, just how many symbols we are passing to Q. This is the same in vscode (I think?)
                     cwsprChatActiveEditorImportCount: metric.cwsprChatActiveEditorImportCount,
                     // not possible: cwsprChatResponseType: metric.cwsprChatResponseType,
                 },
@@ -190,7 +187,6 @@ export class ChatTelemetryController {
                     // again why start trigger?
                     cwsprChatHasCodeSnippet: startTrigger?.hasUserSnippet,
 
-                    // the following are good
                     cwsprChatTriggerInteraction: metric.cwsprChatTriggerInteraction,
                     cwsprChatUserIntent: metric.cwsprChatUserIntent,
                     cwsprChatProgrammingLanguage: metric.cwsprChatProgrammingLanguage,
