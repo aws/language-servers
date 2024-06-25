@@ -5,9 +5,12 @@ import {
     ChatTelemetryEventMap,
     ChatTelemetryEventName,
     CombinedConversationEvent,
+    InteractWithMessageEvent,
 } from '../../telemetry/types'
 import { Features, KeysMatching } from '../../types'
 import { ChatUIEventName, RelevancyVoteType, isClientTelemetryEvent } from './clientTelemetry'
+import { UserIntent } from '@amzn/codewhisperer-streaming'
+import { TriggerContext } from '../contexts/triggerContext'
 
 export const CONVERSATION_ID_METRIC_KEY = 'cwsprChatConversationId'
 
@@ -21,44 +24,58 @@ export interface ChatMetricEvent<
 
 type ConversationMetricName = KeysMatching<ChatTelemetryEventMap, { [CONVERSATION_ID_METRIC_KEY]: string }>
 
-interface TabTelemetryInfo {
-    conversationId?: string
-    messageTriggerType?: TriggerType
-    startConversationTriggerType?: TriggerType
+interface MessageTrigger extends TriggerContext {
+    messageId?: string
+    followUpActions?: Set<string>
+}
+
+interface StartTrigger {
+    triggerType?: TriggerType
+    hasUserSnippet?: boolean
+}
+
+interface ConversationTriggerInfo {
+    conversationId: string
+    startTrigger?: StartTrigger
+    lastMessageTrigger?: MessageTrigger
 }
 
 export class ChatTelemetryController {
-    #activeTabId?: string
-    #tabTelemetryInfoByTabId: { [tabId: string]: TabTelemetryInfo }
+    activeTabId?: string
+    #tabTelemetryInfoByTabId: { [tabId: string]: ConversationTriggerInfo }
+    #currentTriggerByTabId: { [tabId: string]: TriggerType } = {}
     #telemetry: Features['telemetry']
 
     constructor(telemetry: Features['telemetry']) {
         this.#tabTelemetryInfoByTabId = {}
+        this.#currentTriggerByTabId = {}
         this.#telemetry = telemetry
 
         this.#telemetry.onClientTelemetry(params => this.#handleClientTelemetry(params))
     }
 
-    public set activeTabId(tabId: string | undefined) {
-        this.#activeTabId = tabId
-    }
-
-    public get activeTabId(): string | undefined {
-        return this.#activeTabId
+    public getCurrentTrigger(tabId: string) {
+        return this.#currentTriggerByTabId[tabId]
     }
 
     public getConversationId(tabId?: string) {
         return tabId && this.#tabTelemetryInfoByTabId[tabId]?.conversationId
     }
 
-    public removeConversationId(tabId: string) {
-        if (this.#tabTelemetryInfoByTabId[tabId]?.conversationId) {
-            this.#tabTelemetryInfoByTabId[tabId].conversationId = undefined
-        }
+    public removeConversation(tabId: string) {
+        delete this.#tabTelemetryInfoByTabId[tabId]
     }
 
     public setConversationId(tabId: string, conversationId: string) {
-        this.#tabTelemetryInfoByTabId[tabId] = { ...this.#tabTelemetryInfoByTabId[tabId], conversationId }
+        this.updateTriggerInfo(tabId, { conversationId })
+    }
+
+    public updateTriggerInfo(tabId: string, info: Partial<ConversationTriggerInfo>) {
+        this.#tabTelemetryInfoByTabId[tabId] = { ...this.#tabTelemetryInfoByTabId[tabId], ...info }
+    }
+
+    public getLastMessageTrigger(tabId: string) {
+        return this.#tabTelemetryInfoByTabId[tabId]?.lastMessageTrigger
     }
 
     public emitChatMetric<TName extends ChatTelemetryEventName>(
@@ -89,11 +106,18 @@ export class ChatTelemetryController {
     }
 
     public emitAddMessageMetric(tabId: string, metric: Partial<CombinedConversationEvent>) {
+        const { startTrigger } = this.#tabTelemetryInfoByTabId[tabId] ?? {}
+
         this.emitConversationMetric(
             {
                 name: ChatTelemetryEventName.AddMessage,
                 data: {
-                    // good
+                    // why is this start trigger? doesn't make sense
+                    // CWSPRChatHasCodeSnippet*	Boolean. True if the first chat message is triggered with a selected code snippet.
+                    cwsprChatHasCodeSnippet: startTrigger?.hasUserSnippet,
+
+                    // These should be good
+                    cwsprChatTriggerInteraction: metric.cwsprChatTriggerInteraction,
                     cwsprChatMessageId: metric.cwsprChatMessageId,
                     cwsprChatUserIntent: metric.cwsprChatUserIntent,
                     cwsprChatProgrammingLanguage: metric.cwsprChatProgrammingLanguage,
@@ -108,15 +132,10 @@ export class ChatTelemetryController {
                     cwsprChatRequestLength: metric.cwsprChatRequestLength,
                     cwsprChatResponseLength: metric.cwsprChatResponseLength,
                     cwsprChatConversationType: metric.cwsprChatConversationType,
-
-                    // confirm
-                    cwsprChatTriggerInteraction: this.#tabTelemetryInfoByTabId[tabId]?.startConversationTriggerType,
-
-                    // missing
                     cwsprChatActiveEditorTotalCharacters: metric.cwsprChatActiveEditorTotalCharacters,
-                    cwsprChatActiveEditorImportCount: metric.cwsprChatActiveEditorImportCount,
-                    cwsprChatHasCodeSnippet: metric.cwsprChatHasCodeSnippet,
 
+                    // this is not total count though, just how many symbols we are passing to Q. This is the same in vscode (I think?)
+                    cwsprChatActiveEditorImportCount: metric.cwsprChatActiveEditorImportCount,
                     // not possible: cwsprChatResponseType: metric.cwsprChatResponseType,
                 },
             },
@@ -129,29 +148,43 @@ export class ChatTelemetryController {
             {
                 name: ChatTelemetryEventName.StartConversation,
                 data: {
+                    cwsprChatHasCodeSnippet: metric.cwsprChatHasCodeSnippet,
+                    cwsprChatTriggerInteraction: metric.cwsprChatTriggerInteraction,
                     cwsprChatUserIntent: metric.cwsprChatUserIntent,
                     cwsprChatProgrammingLanguage: metric.cwsprChatProgrammingLanguage,
                     cwsprChatConversationType: metric.cwsprChatConversationType,
-
-                    // missing
-                    cwsprChatHasCodeSnippet: metric.cwsprChatHasCodeSnippet,
-
-                    // confirm
-                    cwsprChatTriggerInteraction: this.#tabTelemetryInfoByTabId[tabId]?.messageTriggerType,
                 },
             },
             tabId
         )
     }
 
+    public emitInteractWithMessageMetric(
+        tabId: string,
+        metric: Omit<InteractWithMessageEvent, 'cwsprChatConversationId'>
+    ) {
+        this.emitConversationMetric(
+            {
+                name: ChatTelemetryEventName.InteractWithMessage,
+                data: metric,
+            },
+            tabId
+        )
+    }
+
     public emitMessageResponseError(tabId: string, metric: Partial<CombinedConversationEvent>) {
+        const { startTrigger } = this.#tabTelemetryInfoByTabId[tabId] ?? {}
+
         this.emitConversationMetric(
             {
                 name: ChatTelemetryEventName.MessageResponseError,
                 data: {
-                    cwsprChatTriggerInteraction: this.#tabTelemetryInfoByTabId[tabId]?.startConversationTriggerType,
+                    // again why start trigger?
+                    cwsprChatHasCodeSnippet: startTrigger?.hasUserSnippet,
+
+                    // the following are good
+                    cwsprChatTriggerInteraction: metric.cwsprChatTriggerInteraction,
                     cwsprChatUserIntent: metric.cwsprChatUserIntent,
-                    cwsprChatHasCodeSnippet: metric.cwsprChatHasCodeSnippet,
                     cwsprChatProgrammingLanguage: metric.cwsprChatProgrammingLanguage,
                     cwsprChatActiveEditorTotalCharacters: metric.cwsprChatActiveEditorTotalCharacters,
                     cwsprChatActiveEditorImportCount: metric.cwsprChatActiveEditorImportCount,
@@ -168,15 +201,15 @@ export class ChatTelemetryController {
         if (isClientTelemetryEvent(params)) {
             switch (params.name) {
                 case ChatUIEventName.AddMessage:
-                    this.#tabTelemetryInfoByTabId[params.tabId] = {
-                        ...this.#tabTelemetryInfoByTabId[params.tabId],
-                        messageTriggerType: params.triggerType,
-                    }
+                    // we are trusting that the notification comes just right before the request
+                    this.#currentTriggerByTabId[params.tabId] = params.triggerType
                     break
                 case ChatUIEventName.TabAdd:
                     this.#tabTelemetryInfoByTabId[params.tabId] = {
                         ...this.#tabTelemetryInfoByTabId[params.tabId],
-                        startConversationTriggerType: params.triggerType,
+                        startTrigger: {
+                            triggerType: params.triggerType,
+                        },
                     }
                     break
                 case ChatUIEventName.EnterFocusChat:
@@ -215,22 +248,48 @@ export class ChatTelemetryController {
                                     : ChatInteractionType.CopySnippet,
                             cwsprChatAcceptedCharactersLength: params.code?.length ?? 0,
                             cwsprChatHasReference: Boolean(params.referenceTrackerInformation?.length),
+                            cwsprChatCodeBlockIndex: params.codeBlockIndex,
+                            cwsprChatTotalCodeBlocks: params.totalCodeBlocks,
                         },
                     })
                     break
                 case ChatUIEventName.LinkClick:
                 case ChatUIEventName.InfoLinkClick:
+                    this.emitInteractWithMessageMetric(params.tabId, {
+                        cwsprChatMessageId: params.messageId,
+                        cwsprChatInteractionType: ChatInteractionType.ClickBodyLink,
+                        cwsprChatInteractionTarget: params.link,
+                    })
+                    break
                 case ChatUIEventName.SourceLinkClick:
-                    this.emitConversationMetric({
-                        name: ChatTelemetryEventName.InteractWithMessage,
-                        data: {
-                            cwsprChatMessageId: params.messageId,
-                            cwsprChatInteractionType: ChatInteractionType.ClickLink,
-                            cwsprChatInteractionTarget: params.link,
-                        },
+                    this.emitInteractWithMessageMetric(params.tabId, {
+                        cwsprChatMessageId: params.messageId,
+                        cwsprChatInteractionType: ChatInteractionType.ClickLink,
+                        cwsprChatInteractionTarget: params.link,
                     })
                     break
             }
         }
+    }
+}
+
+export function convertToTelemetryUserIntent(userIntent?: UserIntent) {
+    switch (userIntent) {
+        case UserIntent.EXPLAIN_CODE_SELECTION:
+            return 'explainCodeSelection'
+        case UserIntent.SUGGEST_ALTERNATE_IMPLEMENTATION:
+            return 'suggestAlternateImplementation'
+        case UserIntent.APPLY_COMMON_BEST_PRACTICES:
+            return 'applyCommonBestPractices'
+        case UserIntent.IMPROVE_CODE:
+            return 'improveCode'
+        case UserIntent.CITE_SOURCES:
+            return 'citeSources'
+        case UserIntent.EXPLAIN_LINE_BY_LINE:
+            return 'explainLineByLine'
+        case UserIntent.SHOW_EXAMPLES:
+            return 'showExamples'
+        default:
+            return ''
     }
 }

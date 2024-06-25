@@ -22,18 +22,18 @@ export class Metric<T extends { [key: string]: Data }> {
         return Date.now() - this.#startTime!
     }
 
-    public merge(otherMetric: Partial<T>, options?: deepmerge.Options) {
+    public mergeWith(otherMetric: Partial<T>, options?: deepmerge.Options): Metric<T> {
         this.#metric = deepmerge(this.#metric, otherMetric, options)
 
-        return this.#metric
+        return this
     }
 
     public setDimension<TDimension extends keyof T>(
         name: TDimension,
         value: T[TDimension] | ((value?: T[TDimension]) => T[TDimension])
-    ) {
+    ): Metric<T> {
         this.#metric[name] = typeof value === 'function' ? value(this.#metric[name]) : value
 
-        return this.#metric
+        return this
     }
 }

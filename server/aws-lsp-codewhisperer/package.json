@@ -38,6 +38,7 @@
         "@smithy/node-http-handler": "^2.5.0",
         "adm-zip": "^0.5.10",
         "aws-sdk": "^2.1403.0",
+        "deepmerge": "^4.3.1",
         "got": "^11.8.5",
         "hpagent": "^1.2.0",
         "js-md5": "^0.8.3",

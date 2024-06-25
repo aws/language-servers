@@ -88,11 +88,8 @@ export type ClientTelemetryEvent =
     | SourceLinkClickParams
     | InsertToCursorPositionParams
 
+const chatUIEventNameSet = new Set<string>(Object.values(ChatUIEventName))
+
 export function isClientTelemetryEvent(event: unknown): event is ClientTelemetryEvent {
-    return (
-        isObject(event) &&
-        typeof event.name === 'string' &&
-        // unnecessary, also create a map
-        Object.values(ChatUIEventName).includes(event.name as ChatUIEventName)
-    )
+    return isObject(event) && typeof event.name === 'string' && chatUIEventNameSet.has(event.name)
 }

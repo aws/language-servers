@@ -177,6 +177,8 @@ export type InteractWithMessageEvent = {
     cwsprChatInteractionTarget?: string
     cwsprChatAcceptedCharactersLength?: number
     cwsprChatHasReference?: boolean
+    cwsprChatCodeBlockIndex?: number
+    cwsprChatTotalCodeBlocks?: number
 }
 
 export type StartConversationEvent = {
@@ -193,7 +195,7 @@ export type MessageResponseErrorEvent = {
     cwsprChatTriggerInteraction: string
     cwsprChatUserIntent?: string
     cwsprChatHasCodeSnippet?: boolean
-    cwsprChatProgrammingLanguage?: CodewhispererLanguage
+    cwsprChatProgrammingLanguage?: string
     cwsprChatActiveEditorTotalCharacters?: number
     cwsprChatActiveEditorImportCount?: number
     cwsprChatRepsonseCode: number
