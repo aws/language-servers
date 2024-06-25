@@ -71,6 +71,11 @@ export interface FqnExtractorInput {
     selection: Range
 }
 
+export type CanExecuteResult = {
+    success: boolean
+    error?: string
+}
+
 export interface IFqnWorkerPool {
     exec(input: FqnExtractorInput): Promise<ExtractorResult>
     dispose(): void

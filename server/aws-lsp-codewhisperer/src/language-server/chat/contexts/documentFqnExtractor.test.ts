@@ -8,6 +8,7 @@ import { expectedExtractedNames, mockExtractedSymbols } from './mockData'
 
 describe('DocumentFQNExtractor', () => {
     let extractorStub: sinon.SinonStub
+    let canExecuteStub: sinon.SinonStub
 
     const typescriptDocument = TextDocument.create('file:///test.ts', 'typescript', 1, 'test')
     const mockRange: Range = { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } }
@@ -15,11 +16,12 @@ describe('DocumentFQNExtractor', () => {
 
     beforeEach(() => {
         extractorStub = sinon.stub(FqnWorkerPool.prototype, 'exec')
+        canExecuteStub = sinon.stub(FqnWorkerPool, 'canExecute').returns({ success: true })
         documentFqnExtractor = new DocumentFqnExtractor()
     })
 
     afterEach(() => {
-        extractorStub.restore()
+        sinon.restore()
     })
 
     it('returns symbols in the right shape', async () => {
@@ -34,6 +36,17 @@ describe('DocumentFQNExtractor', () => {
             selection: mockRange,
             languageId: typescriptDocument.languageId,
         })
+    })
+
+    it('returns empty array if canExecuteStub is false', async () => {
+        canExecuteStub.returns({ success: false })
+        const documentFqnExtractor = new DocumentFqnExtractor()
+
+        extractorStub.returns(Promise.resolve({ success: true, data: { fullyQualified: [] } }))
+        const documentSymbols = await documentFqnExtractor.extractDocumentSymbols(typescriptDocument, mockRange)
+
+        sinon.assert.notCalled(extractorStub)
+        assert.deepStrictEqual(documentSymbols, [])
     })
 
     it('returns empty array if language id is not supported', async () => {

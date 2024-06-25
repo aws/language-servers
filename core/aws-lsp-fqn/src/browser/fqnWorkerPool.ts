@@ -1,7 +1,13 @@
-import { ExtractorResult, FqnExtractorInput, IFqnWorkerPool } from '../common/types'
+import { CanExecuteResult, ExtractorResult, FqnExtractorInput, IFqnWorkerPool } from '../common/types'
 
 // TODO: implement logic for browser/webworker environment
 export class FqnWorkerPool implements IFqnWorkerPool {
+    static canExecute(): CanExecuteResult {
+        return {
+            success: true,
+        }
+    }
+
     public async exec(_input: FqnExtractorInput): Promise<ExtractorResult> {
         return Promise.resolve({
             success: true,

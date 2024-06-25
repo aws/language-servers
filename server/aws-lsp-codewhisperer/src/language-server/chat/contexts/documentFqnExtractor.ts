@@ -31,27 +31,36 @@ export class DocumentFqnExtractor {
     #nameMaxLength: number
     #maxSymbols: number
 
-    #workerPool: IFqnWorkerPool
+    #workerPool?: IFqnWorkerPool
 
     constructor(config?: DocumentFqnExtractorConfig) {
         const { nameMaxLength, nameMinLength, maxSymbols, timeout, logger } = config ?? {}
         this.#nameMinLength = nameMinLength ?? DocumentFqnExtractor.DEFAULT_CONFIG.nameMinLength
         this.#nameMaxLength = nameMaxLength ?? DocumentFqnExtractor.DEFAULT_CONFIG.nameMaxLength
         this.#maxSymbols = maxSymbols ?? DocumentFqnExtractor.DEFAULT_CONFIG.maxSymbols
-        this.#workerPool = new FqnWorkerPool({
-            timeout,
-            logger: logger
-                ? {
-                      // binding for log function (e.g. winston) that relies on "this"
-                      log: logger.log.bind(logger),
-                      error: logger.log.bind(logger),
-                  }
-                : undefined,
-        })
+
+        const canWorkerPoolExecute = FqnWorkerPool.canExecute()
+
+        if (canWorkerPoolExecute.error) {
+            logger?.log(`FqnWorkerPool cannot be used: ${canWorkerPoolExecute.error}`)
+        }
+
+        this.#workerPool = canWorkerPoolExecute.success
+            ? new FqnWorkerPool({
+                  timeout,
+                  logger: logger
+                      ? {
+                            // binding for log function (e.g. winston) that relies on "this"
+                            log: logger.log.bind(logger),
+                            error: logger.log.bind(logger),
+                        }
+                      : undefined,
+              })
+            : undefined
     }
 
     public dispose() {
-        this.#workerPool.dispose()
+        this.#workerPool?.dispose()
     }
 
     public async extractDocumentSymbols(
@@ -59,7 +68,7 @@ export class DocumentFqnExtractor {
         range: Range,
         languageId = document.languageId
     ): Promise<DocumentSymbol[]> {
-        return DocumentFqnExtractor.FQN_SUPPORTED_LANGUAGE_SET.has(languageId)
+        return !this.#workerPool || DocumentFqnExtractor.FQN_SUPPORTED_LANGUAGE_SET.has(languageId)
             ? this.#extractSymbols(document, range, languageId as FqnSupportedLanguages)
             : []
     }
@@ -118,7 +127,7 @@ export class DocumentFqnExtractor {
     }
 
     #findNamesInRange(fileText: string, selection: Range, languageId: FqnSupportedLanguages): Promise<ExtractorResult> {
-        return this.#workerPool.exec({
+        return this.#workerPool!.exec({
             /**
              * [\ue000-\uf8ff]: Private Use Area in Unicode
              * \ud83c[\udf00-\udfff]: Presentation Symbols
