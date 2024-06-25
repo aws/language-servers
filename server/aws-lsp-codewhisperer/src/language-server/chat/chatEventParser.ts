@@ -74,12 +74,12 @@ export class ChatEventParser implements ChatResult {
         } = chatEvent
 
         if (!this.#metric.metric.cwsprTimeToFirstChunk) {
-            this.#metric.merge({
+            this.#metric.mergeWith({
                 cwsprTimeToFirstChunk: this.#metric.getTimeElapsed(),
                 cwsprChatTimeBetweenChunks: [],
             })
         } else {
-            this.#metric.merge({
+            this.#metric.mergeWith({
                 cwsprChatTimeBetweenChunks: [Date.now() - this.#lastChunkTime],
             })
         }

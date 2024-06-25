@@ -64,7 +64,7 @@ describe('ChatController', () => {
         get: sinon.SinonSpy<[], string | undefined>
         set: sinon.SinonSpy<[string | undefined], void>
     }
-    let removeConversationIdSpy: sinon.SinonSpy
+    let removeConversationSpy: sinon.SinonSpy
     let emitConversationMetricStub: sinon.SinonStub
 
     let testFeatures: TestFeatures
@@ -91,7 +91,7 @@ describe('ChatController', () => {
         testFeatures = new TestFeatures()
 
         activeTabSpy = sinon.spy(ChatTelemetryController.prototype, 'activeTabId', ['get', 'set'])
-        removeConversationIdSpy = sinon.spy(ChatTelemetryController.prototype, 'removeConversationId')
+        removeConversationSpy = sinon.spy(ChatTelemetryController.prototype, 'removeConversation')
         emitConversationMetricStub = sinon.stub(ChatTelemetryController.prototype, 'emitConversationMetric')
 
         disposeStub = sinon.stub(ChatSessionService.prototype, 'dispose')
@@ -165,7 +165,7 @@ describe('ChatController', () => {
 
         chatController.onTabRemove({ tabId: mockTabId })
 
-        sinon.assert.calledWithExactly(removeConversationIdSpy, mockTabId)
+        sinon.assert.calledWithExactly(removeConversationSpy, mockTabId)
         sinon.assert.calledOnce(emitConversationMetricStub)
     })
 
@@ -179,7 +179,7 @@ describe('ChatController', () => {
         chatController.onTabRemove({ tabId: mockTabId })
 
         sinon.assert.notCalled(activeTabSpy.set)
-        sinon.assert.calledWithExactly(removeConversationIdSpy, mockTabId)
+        sinon.assert.calledWithExactly(removeConversationSpy, mockTabId)
         sinon.assert.notCalled(emitConversationMetricStub)
     })
 
@@ -325,7 +325,7 @@ describe('ChatController', () => {
 
         describe('#extractEditorState', () => {
             const typescriptDocument = TextDocument.create('file:///test.ts', 'typescript', 1, 'test')
-            let extractEditorStateStub: sinon.SinonStub
+            let extractDocumentContextStub: sinon.SinonStub
             const editorStateObject = {}
             const mockCursorState = {
                 range: {
@@ -341,13 +341,13 @@ describe('ChatController', () => {
             }
 
             beforeEach(() => {
-                extractEditorStateStub = sinon.stub(DocumentContextExtractor.prototype, 'extractEditorState')
+                extractDocumentContextStub = sinon.stub(DocumentContextExtractor.prototype, 'extractDocumentContext')
                 testFeatures.openDocument(typescriptDocument)
-                extractEditorStateStub.resolves(editorStateObject)
+                extractDocumentContextStub.resolves(editorStateObject)
             })
 
             afterEach(() => {
-                extractEditorStateStub.restore()
+                extractDocumentContextStub.restore()
             })
 
             it('leaves editor state as undefined if cursorState is not passed', async () => {
