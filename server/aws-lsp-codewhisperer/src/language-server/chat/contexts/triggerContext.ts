@@ -1,4 +1,3 @@
-import { EditorState } from '@amzn/codewhisperer-streaming'
 import { TriggerType } from '@aws/chat-client-ui-types'
 import { ChatTriggerType, GenerateAssistantResponseCommandInput, UserIntent } from '@amzn/codewhisperer-streaming'
 import { ChatParams } from '@aws/language-server-runtimes/server-interface'
@@ -13,32 +12,17 @@ export interface TriggerContext extends Partial<DocumentContext> {
 export class QChatTriggerContext {
     #workspace: Features['workspace']
     #documentContextExtractor: DocumentContextExtractor
-    #logger: Features['logging']
 
     constructor(workspace: Features['workspace'], logger: Features['logging']) {
         this.#workspace = workspace
-        this.#logger = logger
         this.#documentContextExtractor = new DocumentContextExtractor({ logger })
     }
 
     async getNewTriggerContext(params: ChatParams): Promise<TriggerContext> {
-        let documentContext: DocumentContext | undefined
-
-        try {
-            // best effort to extract state
-            documentContext = await this.#extractDocumentContext(params)
-
-            return {
-                ...documentContext,
-                userIntent: this.#guessIntentFromPrompt(params.prompt.prompt),
-            }
-        } catch (e) {
-            this.#logger.log(
-                `Error extracting editorState but continuing on. ${e instanceof Error ? e.message : 'Unknown error'}`
-            )
-        }
+        const documentContext: DocumentContext | undefined = await this.#extractDocumentContext(params)
 
         return {
+            ...documentContext,
             userIntent: this.#guessIntentFromPrompt(params.prompt.prompt),
         }
     }
@@ -87,15 +71,12 @@ export class QChatTriggerContext {
     ): Promise<DocumentContext | undefined> {
         const { textDocument: textDocumentIdentifier, cursorState = [] } = input
 
-        if (!textDocumentIdentifier?.uri || cursorState.length === 0) {
-            return undefined
-        }
+        const textDocument =
+            textDocumentIdentifier?.uri && (await this.#workspace.getTextDocument(textDocumentIdentifier.uri))
 
-        const textDocument = await this.#workspace.getTextDocument(textDocumentIdentifier.uri)
-
-        return (
-            textDocument && (await this.#documentContextExtractor.extractDocumentContext(textDocument, cursorState[0]))
-        )
+        return textDocument
+            ? this.#documentContextExtractor.extractDocumentContext(textDocument, cursorState[0])
+            : undefined
     }
 
     #guessIntentFromPrompt(prompt?: string): UserIntent | undefined {
