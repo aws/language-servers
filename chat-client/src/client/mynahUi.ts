@@ -282,6 +282,25 @@ export const createMynahUi = (messager: Messager, tabFactory: TabFactory): [Myna
             return
         }
 
+        // If the response is auth follow-up show it as a system prompt
+        const followUpOptions = chatResult.followUp?.options
+        const isValidAuthFollowUp =
+            followUpOptions &&
+            followUpOptions.length > 0 &&
+            followUpOptions[0].type &&
+            isValidAuthFollowUpType(followUpOptions[0].type)
+        if (chatResult.body === '' && isValidAuthFollowUp) {
+            mynahUi.addChatItem(tabId, {
+                type: ChatItemType.SYSTEM_PROMPT,
+                ...chatResult,
+            })
+
+            // TODO, prompt should be disabled until user is authenticated
+            // Currently we don't have a mechanism to notify chat-client about auth changes
+            // mynahUi.updateStore(tabId, { promptInputDisabledState: true })
+            return
+        }
+
         const followUps = chatResult.followUp
             ? {
                   text: chatResult.followUp.text ?? 'Suggested follow up questions:',
