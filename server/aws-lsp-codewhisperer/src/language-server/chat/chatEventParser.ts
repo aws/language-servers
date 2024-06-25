@@ -6,6 +6,8 @@ import {
     SourceLink,
 } from '@aws/language-server-runtimes/protocol'
 import { Result } from '../types'
+import { AddMessageEvent } from '../telemetry/types'
+import { Metric } from '../telemetry/metric'
 
 export class ChatEventParser implements ChatResult {
     static readonly FOLLOW_UP_TEXT = 'Suggested follow up questions:'
@@ -18,7 +20,9 @@ export class ChatEventParser implements ChatResult {
     followUp?: { text?: string; options?: ChatItemAction[] }
     codeReference?: ReferenceTrackerInformation[]
 
-    totalEvents = {
+    #metric: Metric<AddMessageEvent>
+    #lastChunkTime: number = 0
+    #totalEvents = {
         followupPromptEvent: 0,
         supplementaryWebLinksEvent: 0,
         codeReferenceEvent: 0,
@@ -50,8 +54,13 @@ export class ChatEventParser implements ChatResult {
         }
     }
 
-    constructor(messageId: string) {
+    constructor(messageId: string, metric: Metric<AddMessageEvent>) {
         this.messageId = messageId
+        this.#metric = metric
+    }
+
+    public get totalEvents() {
+        return this.#totalEvents
     }
 
     public processPartialEvent(chatEvent: ChatResponseStream): Result<ChatResult, string> {
@@ -64,15 +73,28 @@ export class ChatEventParser implements ChatResult {
             invalidStateEvent,
         } = chatEvent
 
+        if (!this.#metric.metric.cwsprTimeToFirstChunk) {
+            this.#metric.mergeWith({
+                cwsprTimeToFirstChunk: this.#metric.getTimeElapsed(),
+                cwsprChatTimeBetweenChunks: [],
+            })
+        } else {
+            this.#metric.mergeWith({
+                cwsprChatTimeBetweenChunks: [Date.now() - this.#lastChunkTime],
+            })
+        }
+
+        this.#lastChunkTime = Date.now()
+
         if (error) {
             this.error = error.message
         } else if (invalidStateEvent) {
             this.error = invalidStateEvent.message ?? invalidStateEvent.reason ?? 'Invalid state'
         } else if (assistantResponseEvent?.content) {
-            this.totalEvents.assistantResponseEvent += 1
+            this.#totalEvents.assistantResponseEvent += 1
             this.body = (this.body ?? '') + assistantResponseEvent.content
         } else if (followupPromptEvent?.followupPrompt) {
-            this.totalEvents.followupPromptEvent += 1
+            this.#totalEvents.followupPromptEvent += 1
             const { content } = followupPromptEvent.followupPrompt
 
             this.followUp = {
@@ -89,7 +111,7 @@ export class ChatEventParser implements ChatResult {
             supplementaryWebLinksEvent?.supplementaryWebLinks &&
             supplementaryWebLinksEvent.supplementaryWebLinks.length > 0
         ) {
-            this.totalEvents.supplementaryWebLinksEvent += 1
+            this.#totalEvents.supplementaryWebLinksEvent += 1
             const sourceLinks = supplementaryWebLinksEvent.supplementaryWebLinks.map(ChatEventParser.mapRelatedData)
 
             this.relatedContent = {
@@ -97,7 +119,7 @@ export class ChatEventParser implements ChatResult {
                 content: [...(this.relatedContent?.content ?? []), ...sourceLinks],
             }
         } else if (codeReferenceEvent?.references && codeReferenceEvent.references.length > 0) {
-            this.totalEvents.codeReferenceEvent += 1
+            this.#totalEvents.codeReferenceEvent += 1
             const references = codeReferenceEvent.references.map(ChatEventParser.mapReferenceData)
             this.codeReference = [...(this.codeReference ?? []), ...references]
         }

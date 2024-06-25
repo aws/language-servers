@@ -44,6 +44,10 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri, 
         }
     })
 
+    languageClient.onTelemetry(e => {
+        languageClient.info(`vscode client: Received telemetry event from server ${JSON.stringify(e)}`)
+    })
+
     panel.webview.onDidReceiveMessage(message => {
         languageClient.info(`vscode client: Received ${JSON.stringify(message)} from chat`)
 

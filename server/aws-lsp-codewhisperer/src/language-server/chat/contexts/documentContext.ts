@@ -1,10 +1,16 @@
-import { EditorState } from '@amzn/codewhisperer-streaming'
+import { EditorState, TextDocument as CwsprTextDocument, DocumentSymbol } from '@amzn/codewhisperer-streaming'
 import { CursorState } from '@aws/language-server-runtimes/server-interface'
 import { Range, TextDocument } from 'vscode-languageserver-textdocument'
 import { getLanguageId } from '../../languageDetection'
 import { Features } from '../../types'
 import { DocumentFqnExtractor, DocumentFqnExtractorConfig } from './documentFqnExtractor'
 import { getExtendedCodeBlockRange, getSelectionWithinExtendedRange } from './utils'
+
+export type DocumentContext = CwsprTextDocument & {
+    cursorState?: EditorState['cursorState']
+    hasCodeSnippet: boolean
+    totalEditorCharacters: number
+}
 
 export interface DocumentContextExtractorConfig extends DocumentFqnExtractorConfig {
     config?: DocumentFqnExtractorConfig
@@ -16,11 +22,13 @@ export class DocumentContextExtractor {
     private static readonly DEFAULT_CHARACTER_LIMIT = 9000
 
     #characterLimits: number
+    #logger?: Features['logging']
     #documentSymbolExtractor: DocumentFqnExtractor
 
     constructor(config?: DocumentContextExtractorConfig) {
         const { characterLimits, ...fqnConfig } = config ?? {}
 
+        this.#logger = config?.logger
         this.#characterLimits = characterLimits ?? DocumentContextExtractor.DEFAULT_CHARACTER_LIMIT
         this.#documentSymbolExtractor = new DocumentFqnExtractor(fqnConfig)
     }
@@ -33,7 +41,7 @@ export class DocumentContextExtractor {
      * From the given the cursor state, we want to give Q context up to the characters limit
      * on both sides of the cursor.
      */
-    public async extractEditorState(document: TextDocument, cursorState: CursorState): Promise<EditorState> {
+    public async extractDocumentContext(document: TextDocument, cursorState: CursorState): Promise<DocumentContext> {
         const targetRange: Range =
             'position' in cursorState
                 ? {
@@ -46,32 +54,31 @@ export class DocumentContextExtractor {
 
         const rangeWithinCodeBlock = getSelectionWithinExtendedRange(targetRange, codeBlockRange)
 
-        return {
-            document: await this.extractDocumentContext(document, codeBlockRange),
-            cursorState: rangeWithinCodeBlock ? { range: rangeWithinCodeBlock } : undefined,
-        }
-    }
-
-    /**
-     * Extract document context from the given range inside a document
-     */
-    public async extractDocumentContext(
-        document: TextDocument,
-        codeBlockRange: Range
-    ): Promise<EditorState['document']> {
-        const text = document.getText(codeBlockRange)
         const languageId = getLanguageId(document)
-        const relativeFilePath = document.uri
 
-        return {
-            text,
-            programmingLanguage: languageId ? { languageName: languageId } : undefined,
-            relativeFilePath,
-            documentSymbols: await this.#documentSymbolExtractor.extractDocumentSymbols(
+        let documentSymbols: DocumentSymbol[] = []
+
+        try {
+            // best effort to extract symbols
+            documentSymbols = await this.#documentSymbolExtractor.extractDocumentSymbols(
                 document,
                 codeBlockRange,
                 languageId
-            ),
+            )
+        } catch (e) {
+            this.#logger?.log(
+                `Error extracting document symbols but continuing on. ${e instanceof Error ? e.message : 'Unknown error'}`
+            )
+        }
+
+        return {
+            cursorState: rangeWithinCodeBlock ? { range: rangeWithinCodeBlock } : undefined,
+            text: document.getText(codeBlockRange),
+            programmingLanguage: languageId ? { languageName: languageId } : undefined,
+            relativeFilePath: document.uri,
+            documentSymbols,
+            hasCodeSnippet: Boolean(rangeWithinCodeBlock),
+            totalEditorCharacters: document.getText().length,
         }
     }
 }

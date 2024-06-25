@@ -1,9 +1,9 @@
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import sinon from 'ts-sinon'
-import { ChatTelemetryEventName } from '../telemetry/types'
+import { ChatTelemetryEventName } from '../../telemetry/types'
 import { CONVERSATION_ID_METRIC_KEY, ChatTelemetryController } from './chatTelemetryController'
 import assert = require('assert')
-import { ChatUIEventName } from './telemetry/clientTelemetry'
+import { ChatUIEventName } from './clientTelemetry'
 
 describe('TelemetryController', () => {
     const mockTabId = 'mockTabId'
@@ -38,7 +38,7 @@ describe('TelemetryController', () => {
 
         assert.strictEqual(telemetryController.getConversationId(mockTabId), mockConversationId)
 
-        telemetryController.removeConversationId(mockTabId)
+        telemetryController.removeConversation(mockTabId)
 
         assert.strictEqual(telemetryController.getConversationId(mockTabId), undefined)
     })

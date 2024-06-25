@@ -11,7 +11,7 @@ import { createIterableResponse } from '../testUtils'
 import { ChatController } from './chatController'
 import { ChatSessionManagementService } from './chatSessionManagementService'
 import { ChatSessionService } from './chatSessionService'
-import { ChatTelemetryController } from './chatTelemetryController'
+import { ChatTelemetryController } from './telemetry/chatTelemetryController'
 import { DocumentContextExtractor } from './contexts/documentContext'
 import * as utils from '../utils'
 
@@ -58,7 +58,7 @@ describe('ChatController', () => {
         get: sinon.SinonSpy<[], string | undefined>
         set: sinon.SinonSpy<[string | undefined], void>
     }
-    let removeConversationIdSpy: sinon.SinonSpy
+    let removeConversationSpy: sinon.SinonSpy
     let emitConversationMetricStub: sinon.SinonStub
 
     let testFeatures: TestFeatures
@@ -85,7 +85,7 @@ describe('ChatController', () => {
         testFeatures = new TestFeatures()
 
         activeTabSpy = sinon.spy(ChatTelemetryController.prototype, 'activeTabId', ['get', 'set'])
-        removeConversationIdSpy = sinon.spy(ChatTelemetryController.prototype, 'removeConversationId')
+        removeConversationSpy = sinon.spy(ChatTelemetryController.prototype, 'removeConversation')
         emitConversationMetricStub = sinon.stub(ChatTelemetryController.prototype, 'emitConversationMetric')
 
         disposeStub = sinon.stub(ChatSessionService.prototype, 'dispose')
@@ -159,7 +159,7 @@ describe('ChatController', () => {
 
         chatController.onTabRemove({ tabId: mockTabId })
 
-        sinon.assert.calledWithExactly(removeConversationIdSpy, mockTabId)
+        sinon.assert.calledWithExactly(removeConversationSpy, mockTabId)
         sinon.assert.calledOnce(emitConversationMetricStub)
     })
 
@@ -173,7 +173,7 @@ describe('ChatController', () => {
         chatController.onTabRemove({ tabId: mockTabId })
 
         sinon.assert.notCalled(activeTabSpy.set)
-        sinon.assert.calledWithExactly(removeConversationIdSpy, mockTabId)
+        sinon.assert.calledWithExactly(removeConversationSpy, mockTabId)
         sinon.assert.notCalled(emitConversationMetricStub)
     })
 
@@ -213,16 +213,6 @@ describe('ChatController', () => {
 
             sinon.assert.callCount(testFeatures.lsp.sendProgress, mockAssistantResponseList.length)
             assert.deepStrictEqual(chatResult, expectedCompleteChatResult)
-        })
-
-        it('returns a ResponseError if request input is not valid', async () => {
-            const chatResultPromise = chatController.onChatPrompt(
-                { tabId: mockTabId, prompt: {} },
-                mockCancellationToken
-            )
-
-            const chatResult = await chatResultPromise
-            assert.ok(chatResult instanceof ResponseError)
         })
 
         it('returns a ResponseError if generateAssistantResponse returns an error', async () => {
@@ -317,10 +307,10 @@ describe('ChatController', () => {
             )
         })
 
-        describe('#extractEditorState', () => {
+        describe('#extractDocumentContext', () => {
             const typescriptDocument = TextDocument.create('file:///test.ts', 'typescript', 1, 'test')
-            let extractEditorStateStub: sinon.SinonStub
-            const editorStateObject = {}
+            let extractDocumentContextStub: sinon.SinonStub
+
             const mockCursorState = {
                 range: {
                     start: {
@@ -335,16 +325,22 @@ describe('ChatController', () => {
             }
 
             beforeEach(() => {
-                extractEditorStateStub = sinon.stub(DocumentContextExtractor.prototype, 'extractEditorState')
+                extractDocumentContextStub = sinon.stub(DocumentContextExtractor.prototype, 'extractDocumentContext')
                 testFeatures.openDocument(typescriptDocument)
-                extractEditorStateStub.resolves(editorStateObject)
             })
 
             afterEach(() => {
-                extractEditorStateStub.restore()
+                extractDocumentContextStub.restore()
             })
 
             it('leaves editor state as undefined if cursorState is not passed', async () => {
+                const documentContextObject = {
+                    programmingLanguage: 'typescript',
+                    cursorState: undefined,
+                    relativeFilePath: 'file:///test.ts',
+                }
+                extractDocumentContextStub.resolves(documentContextObject)
+
                 await chatController.onChatPrompt(
                     {
                         tabId: mockTabId,
@@ -365,7 +361,14 @@ describe('ChatController', () => {
                 )
             })
 
-            it('leaves editor state as undefined if document identified is not passed', async () => {
+            it('leaves editor state as undefined if relative file path is undefined', async () => {
+                const documentContextObject = {
+                    programmingLanguage: 'typescript',
+                    cursorState: [],
+                    relativeFilePath: undefined,
+                }
+                extractDocumentContextStub.resolves(documentContextObject)
+
                 await chatController.onChatPrompt(
                     {
                         tabId: mockTabId,
@@ -386,6 +389,13 @@ describe('ChatController', () => {
             })
 
             it('parses editor state context and includes as requestInput if both cursor state and text document are found', async () => {
+                const documentContextObject = {
+                    programmingLanguage: 'typescript',
+                    cursorState: [],
+                    relativeFilePath: typescriptDocument.uri,
+                }
+                extractDocumentContextStub.resolves(documentContextObject)
+
                 await chatController.onChatPrompt(
                     {
                         tabId: mockTabId,
@@ -399,11 +409,18 @@ describe('ChatController', () => {
                 const calledRequestInput: GenerateAssistantResponseCommandInput =
                     generateAssistantResponseStub.firstCall.firstArg
 
-                // asserting object reference equality
-                assert.strictEqual(
+                assert.deepStrictEqual(
                     calledRequestInput.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext
                         ?.editorState,
-                    editorStateObject
+                    {
+                        cursorState: [],
+                        document: {
+                            documentSymbols: undefined,
+                            programmingLanguage: 'typescript',
+                            relativeFilePath: 'file:///test.ts',
+                            text: undefined,
+                        },
+                    }
                 )
             })
         })

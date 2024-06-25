@@ -3,12 +3,14 @@ import * as assert from 'assert'
 import sinon from 'ts-sinon'
 
 import { ChatEventParser } from './chatEventParser'
+import { Metric } from '../telemetry/metric'
+import { AddMessageEvent } from '../telemetry/types'
 
 describe('ChatEventParser', () => {
     const mockMessageId = 'mock-message-id'
 
     it('set error if invalidState event is received', () => {
-        const chatEventParser = new ChatEventParser(mockMessageId)
+        const chatEventParser = new ChatEventParser(mockMessageId, new Metric<AddMessageEvent>())
 
         sinon.assert.match(
             chatEventParser.processPartialEvent({
@@ -33,7 +35,7 @@ describe('ChatEventParser', () => {
     })
 
     it('set error if error event is received', () => {
-        const chatEventParser = new ChatEventParser(mockMessageId)
+        const chatEventParser = new ChatEventParser(mockMessageId, new Metric<AddMessageEvent>())
 
         sinon.assert.match(
             chatEventParser.processPartialEvent({
@@ -63,7 +65,7 @@ describe('ChatEventParser', () => {
     })
 
     it('processPartialEvent appends new event on top of the previous result', () => {
-        const chatEventParser = new ChatEventParser(mockMessageId)
+        const chatEventParser = new ChatEventParser(mockMessageId, new Metric<AddMessageEvent>())
 
         assert.deepStrictEqual(
             chatEventParser.processPartialEvent({
@@ -105,7 +107,7 @@ describe('ChatEventParser', () => {
     })
 
     it('getChatResult returns the accumulated result', () => {
-        const chatEventParser = new ChatEventParser(mockMessageId)
+        const chatEventParser = new ChatEventParser(mockMessageId, new Metric<AddMessageEvent>())
 
         chatEventParser.processPartialEvent({
             assistantResponseEvent: {
