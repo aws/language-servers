@@ -119,6 +119,7 @@ export class ChatController implements ChatHandlers {
         } catch (err) {
             if (isAwsError(err) || (isObject(err) && 'statusCode' in err && typeof err.statusCode === 'number')) {
                 metric.setDimension('cwsprChatRepsonseCode', err.statusCode ?? 400)
+                this.#telemetryController.emitMessageResponseError(params.tabId, metric.metric)
             }
 
             const authFollowType = getAuthFollowUpType(err)
