@@ -114,16 +114,11 @@ export class ChatTelemetryController {
     }
 
     public emitAddMessageMetric(tabId: string, metric: Partial<CombinedConversationEvent>) {
-        const { startTrigger } = this.#tabTelemetryInfoByTabId[tabId] ?? {}
-
         this.emitConversationMetric(
             {
                 name: ChatTelemetryEventName.AddMessage,
                 data: {
-                    // why is this start trigger? doesn't make sense
-                    // "CWSPRChatHasCodeSnippet*	Boolean. True if the first chat message is triggered with a selected code snippet."
-                    cwsprChatHasCodeSnippet: startTrigger?.hasUserSnippet,
-
+                    cwsprChatHasCodeSnippet: metric.cwsprChatHasCodeSnippet,
                     cwsprChatTriggerInteraction: metric.cwsprChatTriggerInteraction,
                     cwsprChatMessageId: metric.cwsprChatMessageId,
                     cwsprChatUserIntent: metric.cwsprChatUserIntent,
@@ -178,15 +173,11 @@ export class ChatTelemetryController {
     }
 
     public emitMessageResponseError(tabId: string, metric: Partial<CombinedConversationEvent>) {
-        const { startTrigger } = this.#tabTelemetryInfoByTabId[tabId] ?? {}
-
         this.emitConversationMetric(
             {
                 name: ChatTelemetryEventName.MessageResponseError,
                 data: {
-                    // again why start trigger?
-                    cwsprChatHasCodeSnippet: startTrigger?.hasUserSnippet,
-
+                    cwsprChatHasCodeSnippet: metric.cwsprChatHasCodeSnippet,
                     cwsprChatTriggerInteraction: metric.cwsprChatTriggerInteraction,
                     cwsprChatUserIntent: metric.cwsprChatUserIntent,
                     cwsprChatProgrammingLanguage: metric.cwsprChatProgrammingLanguage,
