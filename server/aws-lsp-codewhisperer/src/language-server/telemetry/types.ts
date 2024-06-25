@@ -98,15 +98,15 @@ export interface SecurityScanEvent {
 }
 
 export enum ChatTelemetryEventName {
-    EnterFocusChat = 'EnterFocusChat',
-    ExitFocusChat = 'ExitFocusChat',
-    EnterFocusConversation = 'EnterFocusConversation',
-    ExitFocusConversation = 'ExitFocusConversation',
-    StartConversation = 'StartConversation',
-    InteractWithMessage = 'InteractWithMessage',
-    AddMessage = 'AddMessage',
-    RunCommand = 'RunCommand',
-    MessageResponseError = 'MessageResponseError',
+    EnterFocusChat = 'amazonq_enterFocusChat',
+    ExitFocusChat = 'amazonq_exitFocusChat',
+    EnterFocusConversation = 'amazonq_enterFocusConversation',
+    ExitFocusConversation = 'amazonq_exitFocusConversation',
+    StartConversation = 'amazonq_startConversation',
+    InteractWithMessage = 'amazonq_interactWithMessage',
+    AddMessage = 'amazonq_addMessage',
+    RunCommand = 'amazonq_runCommand',
+    MessageResponseError = 'amazonq_messageResponseError',
 }
 
 export interface ChatTelemetryEventMap {
