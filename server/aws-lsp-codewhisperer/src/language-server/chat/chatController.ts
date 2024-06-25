@@ -1,5 +1,5 @@
 import { GenerateAssistantResponseCommandOutput } from '@amzn/codewhisperer-streaming'
-import { FollowUpClickParams, chatRequestType } from '@aws/language-server-runtimes/protocol'
+import { FeedbackParams, chatRequestType } from '@aws/language-server-runtimes/protocol'
 import {
     CancellationToken,
     Chat,
@@ -174,7 +174,21 @@ export class ChatController implements ChatHandlers {
 
     onReady() {}
 
-    onSendFeedback() {}
+    onSendFeedback({ tabId, feedbackPayload }: FeedbackParams) {
+        this.#features.telemetry.emitMetric({
+            name: 'amazonq_sendFeedback',
+            data: {
+                comment: JSON.stringify({
+                    type: 'codewhisperer-chat-answer-feedback',
+                    conversationId: this.#telemetryController.getConversationId(tabId) ?? '',
+                    messageId: feedbackPayload.messageId,
+                    reason: feedbackPayload.selectedOption,
+                    userComment: feedbackPayload.comment,
+                }),
+                sentiment: 'Negative',
+            },
+        })
+    }
 
     onSourceLinkClick() {}
 
