@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.0.8] - 2024-06-26
+- Create new streaming client on each request
+
 ## [0.0.7] - 2024-06-26
 - Implemented chat server logic
 - fix: send 'x-amzn-codewhisperer-optout' header with IAM server
