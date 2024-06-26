@@ -1,6 +1,8 @@
 import {
     TextDocument,
     TextDocumentSyncKind,
+    SemanticTokensParams,
+    SemanticTokens,
     type DidChangeTextDocumentParams,
     type DidOpenTextDocumentParams,
     type Server,
@@ -40,7 +42,6 @@ export const PartiQLServerFactory =
             }
 
             const diagnostics = await service.doValidation(textDocument)
-            service.doSemanticTokens(textDocument)
 
             await lsp.publishDiagnostics({
                 uri: params.textDocument.uri,
@@ -61,7 +62,6 @@ export const PartiQLServerFactory =
             }
 
             const diagnostics = await service.doValidation(textDocument)
-            service.doSemanticTokens(textDocument)
 
             await lsp.publishDiagnostics({
                 uri: params.textDocument.uri,
@@ -70,10 +70,23 @@ export const PartiQLServerFactory =
             })
         }
 
+        const onSemanticTokensHandler = async (params: SemanticTokensParams): Promise<SemanticTokens | null> => {
+            const textDocument = await workspace.getTextDocument(params.textDocument.uri)
+            if (!textDocument) {
+                logging.log(`textDocument [${params.textDocument.uri}] not found`)
+                return null
+            }
+
+            const tokens = await service.doSemanticTokens(textDocument)
+
+            return tokens
+        }
+
         lsp.onInitialized(onInitializedHandler)
         lsp.onDidChangeTextDocument(onDidChangeTextDocumentHandler)
         lsp.onDidOpenTextDocument(onDidOpenTextDocumentHandler)
         lsp.addInitializer(onInitializeHandler)
+        lsp.onSemanticTokens(onSemanticTokensHandler)
 
         logging.log('The PartiQL LSP Language Server has been initialised')
 

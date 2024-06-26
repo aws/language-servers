@@ -3,7 +3,7 @@ import {
     DiagnosticSeverity,
     TextDocument,
     SemanticTokenTypes,
-    // SemanticTokens,
+    SemanticTokens,
 } from '@aws/language-server-runtimes/server-interface'
 import partiQlServerBinary from '../partiql-parser-wasm/partiql-wasm-parser-inline'
 import { initSync, parse_as_json } from '../partiql-parser-wasm/partiql_playground'
@@ -52,18 +52,13 @@ class PartiQLLanguageService {
         return diagnostics
     }
 
-    // public async doSemanticTokens(textDocument: TextDocument): Promise<SemanticTokens | null> {
-    //     console.log('doSemanticTokens')
-    //     const keywords = await findNodes(textDocument.getText(), SemanticTokenTypes.keyword)
-    //     return keywords
-    // }
-
-    public async doSemanticTokens(textDocument: TextDocument) {
+    public async doSemanticTokens(textDocument: TextDocument): Promise<SemanticTokens | null> {
         const tokens = await findNodes(textDocument.getText(), SemanticTokenTypes.keyword)
         if (tokens) {
             console.log('Returned tokens:', tokens)
         } else {
             console.log('No tokens found.')
         }
+        return tokens
     }
 }
