@@ -61,6 +61,10 @@ export const QChatServer =
             return chatController.onQuickAction(...params)
         })
 
+        chat.onSendFeedback(params => {
+            return chatController.onSendFeedback(params)
+        })
+
         logging.log('Q Chat server has been initialized')
 
         return () => {
