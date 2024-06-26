@@ -10,18 +10,21 @@
         "bundle": "npm run compile && npm run webpack && npm run package-x64",
         "clean": "rm -rf out/ bin/ tsconfig.tsbuildinfo",
         "compile": "npm run compile:tsc && npm run compile:webpack",
+        "postcompile": "npm run copy-tree-sitter",
+        "copy-tree-sitter": "tsx copyTreesitter.mts",
         "compile:tsc": "tsc --build",
         "compile:webpack": "webpack",
         "package-x64": "pkg --targets node18-linux-x64,node18-win-x64,node18-macos-x64 --output bin/aws-lsp-partiql-binary --compress GZip ."
     },
     "dependencies": {
+        "@aws/language-server-runtimes": "^0.2.5",
         "@aws/lsp-partiql": "^0.0.1",
-        "@aws/language-server-runtimes": "^0.2.5"
+        "web-tree-sitter": "^0.22.6"
     },
     "devDependencies": {
         "pkg": "^5.8.1",
-        "ts-lsp-client": "^1.0.3",
         "ts-loader": "^9.4.4",
+        "ts-lsp-client": "^1.0.3",
         "webpack": "^5.88.2",
         "webpack-cli": "^5.1.4"
     }
