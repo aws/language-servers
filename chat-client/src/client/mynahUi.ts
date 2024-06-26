@@ -46,11 +46,6 @@ export const handleChatPrompt = (
             mynahUi.updateStore(tabId, {
                 chatItems: [],
             })
-
-            mynahUi.updateStore(tabId, {
-                loadingChat: false,
-                promptInputDisabledState: false,
-            })
         } else if (prompt.command === '/help') {
             userPrompt = DEFAULT_HELP_PROMPT
         }
@@ -69,7 +64,6 @@ export const handleChatPrompt = (
         // Send chat prompt to server
         messager.onChatPrompt({ prompt, tabId }, triggerType)
     }
-
     // Add user prompt to UI
     mynahUi.addChatItem(tabId, {
         type: ChatItemType.PROMPT,
@@ -279,6 +273,11 @@ export const createMynahUi = (messager: Messager, tabFactory: TabFactory): [Myna
     const addChatResponse = (chatResult: ChatResult, tabId: string, isPartialResult: boolean) => {
         if (isPartialResult) {
             mynahUi.updateLastChatAnswer(tabId, { ...chatResult })
+            return
+        }
+
+        // If chat response from server is an empty object don't do anything
+        if (Object.keys(chatResult).length === 0) {
             return
         }
 
