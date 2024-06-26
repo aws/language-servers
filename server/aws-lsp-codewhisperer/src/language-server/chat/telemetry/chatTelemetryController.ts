@@ -114,6 +114,7 @@ export class ChatTelemetryController {
                 ...metric,
                 data: {
                     ...metric.data,
+                    credentialStartUrl: this.#credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
                     [CONVERSATION_ID_METRIC_KEY]: conversationId,
                 },
             })

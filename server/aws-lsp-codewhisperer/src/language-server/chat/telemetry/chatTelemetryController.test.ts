@@ -52,7 +52,7 @@ describe('TelemetryController', () => {
 
         sinon.assert.calledOnceWithExactly(testFeatures.telemetry.emitMetric, {
             name: ChatTelemetryEventName.EnterFocusChat,
-            data: {},
+            data: { credentialStartUrl: undefined },
         })
     })
 
@@ -65,7 +65,7 @@ describe('TelemetryController', () => {
 
         sinon.assert.calledOnceWithExactly(testFeatures.telemetry.emitMetric, {
             name: ChatTelemetryEventName.ExitFocusChat,
-            data: {},
+            data: { credentialStartUrl: undefined },
         })
     })
 
@@ -82,7 +82,7 @@ describe('TelemetryController', () => {
     it('does not emit metrics if conversation id is not present', () => {
         telemetryController.emitConversationMetric({
             name: ChatTelemetryEventName.EnterFocusConversation,
-            data: {},
+            data: { credentialStartUrl: undefined },
         })
 
         sinon.assert.notCalled(testFeatures.telemetry.emitMetric)
@@ -94,13 +94,14 @@ describe('TelemetryController', () => {
 
         telemetryController.emitConversationMetric({
             name: ChatTelemetryEventName.EnterFocusConversation,
-            data: {},
+            data: { cwsprChatConversationId: 'mockConversationId' },
         })
 
         sinon.assert.calledOnceWithExactly(testFeatures.telemetry.emitMetric, {
             name: ChatTelemetryEventName.EnterFocusConversation,
             data: {
                 [CONVERSATION_ID_METRIC_KEY]: mockConversationId,
+                credentialStartUrl: undefined,
             },
         })
     })
