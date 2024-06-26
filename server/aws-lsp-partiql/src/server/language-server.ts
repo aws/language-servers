@@ -5,7 +5,7 @@ import {
     type DidOpenTextDocumentParams,
     type Server,
 } from '@aws/language-server-runtimes/server-interface'
-import { createPartiQLLanguageService } from './language-service'
+import { createPartiQLLanguageService, partiqltokensTypes } from './language-service'
 
 export const PartiQLServerFactory =
     (service: any): Server =>
@@ -18,6 +18,14 @@ export const PartiQLServerFactory =
                         openClose: true,
                         change: TextDocumentSyncKind.Incremental,
                     },
+                },
+                semanticTokensProvider: {
+                    legend: {
+                        tokenTypes: partiqltokensTypes,
+                        tokenModifiers: [],
+                    },
+                    range: false,
+                    full: true,
                 },
             }
         }
@@ -32,6 +40,7 @@ export const PartiQLServerFactory =
             }
 
             const diagnostics = await service.doValidation(textDocument)
+            service.doSemanticTokens(textDocument)
 
             await lsp.publishDiagnostics({
                 uri: params.textDocument.uri,
@@ -52,6 +61,7 @@ export const PartiQLServerFactory =
             }
 
             const diagnostics = await service.doValidation(textDocument)
+            service.doSemanticTokens(textDocument)
 
             await lsp.publishDiagnostics({
                 uri: params.textDocument.uri,
