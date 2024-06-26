@@ -65,10 +65,6 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri, 
                     chatRequestType,
                     partialResultToken,
                     async partialResult => {
-                        languageClient.info(
-                            `received partial result, is encrypted? ${isEncryptedMessage(partialResult as any, 'dir', 'A256GCM')}`
-                        )
-
                         const decryptedMessage = (await decodeRequest(
                             partialResult as string,
                             encryptionKey
