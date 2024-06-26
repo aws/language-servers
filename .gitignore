@@ -20,3 +20,6 @@ server/aws-lsp-codewhisperer/src.gen/@amzn/codewhisperer-streaming/dist*
 !/bin
 *.tsbuildinfo
 app/aws-lsp-partiql-runtimes
+
+# Mynah
+!mynah-ui/dist
