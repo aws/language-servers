@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.0.7] - 2024-06-26
+- Implemented chat server logic
+- fix: send 'x-amzn-codewhisperer-optout' header with IAM server
+- Update the streaming client
+
 ## [0.0.6] - 2024-05-23
 - Send telemetry for vote, copyCodeToClipboard and authFollowUpClicked events
 - Rename CodeWhisperer to Amazon Q
