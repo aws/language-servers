@@ -14,7 +14,7 @@ describe('TelemetryController', () => {
 
     beforeEach(() => {
         testFeatures = new TestFeatures()
-        telemetryController = new ChatTelemetryController(testFeatures.telemetry)
+        telemetryController = new ChatTelemetryController(testFeatures.credentialsProvider, testFeatures.telemetry)
     })
 
     it('able to set and get activeTabId', () => {
@@ -52,7 +52,7 @@ describe('TelemetryController', () => {
 
         sinon.assert.calledOnceWithExactly(testFeatures.telemetry.emitMetric, {
             name: ChatTelemetryEventName.EnterFocusChat,
-            data: {},
+            data: { credentialStartUrl: undefined },
         })
     })
 
@@ -65,7 +65,7 @@ describe('TelemetryController', () => {
 
         sinon.assert.calledOnceWithExactly(testFeatures.telemetry.emitMetric, {
             name: ChatTelemetryEventName.ExitFocusChat,
-            data: {},
+            data: { credentialStartUrl: undefined },
         })
     })
 
@@ -82,7 +82,7 @@ describe('TelemetryController', () => {
     it('does not emit metrics if conversation id is not present', () => {
         telemetryController.emitConversationMetric({
             name: ChatTelemetryEventName.EnterFocusConversation,
-            data: {},
+            data: { credentialStartUrl: undefined },
         })
 
         sinon.assert.notCalled(testFeatures.telemetry.emitMetric)
@@ -101,6 +101,7 @@ describe('TelemetryController', () => {
             name: ChatTelemetryEventName.EnterFocusConversation,
             data: {
                 [CONVERSATION_ID_METRIC_KEY]: mockConversationId,
+                credentialStartUrl: undefined,
             },
         })
     })

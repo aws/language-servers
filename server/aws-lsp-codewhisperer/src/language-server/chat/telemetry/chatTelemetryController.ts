@@ -44,13 +44,14 @@ export class ChatTelemetryController {
     #activeTabId?: string
     #tabTelemetryInfoByTabId: { [tabId: string]: ConversationTriggerInfo }
     #currentTriggerByTabId: { [tabId: string]: TriggerType } = {}
+    #credentialsProvider: Features['credentialsProvider']
     #telemetry: Features['telemetry']
 
-    constructor(telemetry: Features['telemetry']) {
+    constructor(credentialsProvider: Features['credentialsProvider'], telemetry: Features['telemetry']) {
         this.#tabTelemetryInfoByTabId = {}
         this.#currentTriggerByTabId = {}
         this.#telemetry = telemetry
-
+        this.#credentialsProvider = credentialsProvider
         this.#telemetry.onClientTelemetry(params => this.#handleClientTelemetry(params))
     }
 
@@ -89,7 +90,13 @@ export class ChatTelemetryController {
     public emitChatMetric<TName extends ChatTelemetryEventName>(
         metric: ChatMetricEvent<TName, ChatTelemetryEventMap[TName]>
     ) {
-        this.#telemetry.emitMetric(metric)
+        this.#telemetry.emitMetric({
+            ...metric,
+            data: {
+                ...metric.data,
+                credentialStartUrl: this.#credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
+            },
+        })
     }
 
     public emitConversationMetric<
@@ -97,7 +104,7 @@ export class ChatTelemetryController {
         TEvent extends ChatMetricEvent<TName, ChatTelemetryEventMap[TName]>,
     >(
         metric: Omit<TEvent, 'data'> & {
-            data: Omit<TEvent['data'], typeof CONVERSATION_ID_METRIC_KEY>
+            data: Omit<TEvent['data'], typeof CONVERSATION_ID_METRIC_KEY | 'credentialStartUrl'>
         },
         tabId = this.activeTabId
     ) {
@@ -107,6 +114,7 @@ export class ChatTelemetryController {
                 ...metric,
                 data: {
                     ...metric.data,
+                    credentialStartUrl: this.#credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
                     [CONVERSATION_ID_METRIC_KEY]: conversationId,
                 },
             })

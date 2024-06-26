@@ -122,6 +122,7 @@ export interface ChatTelemetryEventMap {
 }
 
 export type AddMessageEvent = {
+    credentialStartUrl?: string
     cwsprChatConversationId: string
     cwsprChatMessageId: string
     cwsprChatTriggerInteraction: string
@@ -144,15 +145,21 @@ export type AddMessageEvent = {
     cwsprChatConversationType: ChatConversationType
 }
 
-export type EnterFocusChatEvent = {}
+export type EnterFocusChatEvent = {
+    credentialStartUrl?: string
+}
 
-export type ExitFocusChatEvent = {}
+export type ExitFocusChatEvent = {
+    credentialStartUrl?: string
+}
 
 export type EnterFocusConversationEvent = {
+    credentialStartUrl?: string
     cwsprChatConversationId: string
 }
 
 export type ExitFocusConversationEvent = {
+    credentialStartUrl?: string
     cwsprChatConversationId: string
 }
 
@@ -171,6 +178,7 @@ export enum ChatInteractionType {
 export type ChatConversationType = 'Chat' | 'Assign' | 'Transform'
 
 export type InteractWithMessageEvent = {
+    credentialStartUrl?: string
     cwsprChatConversationId: string
     cwsprChatMessageId: string
     cwsprChatInteractionType: ChatInteractionType
@@ -182,6 +190,7 @@ export type InteractWithMessageEvent = {
 }
 
 export type StartConversationEvent = {
+    credentialStartUrl?: string
     cwsprChatConversationId: string
     cwsprChatTriggerInteraction?: string
     cwsprChatUserIntent?: string
@@ -191,6 +200,7 @@ export type StartConversationEvent = {
 }
 
 export type MessageResponseErrorEvent = {
+    credentialStartUrl?: string
     cwsprChatConversationId: string
     cwsprChatTriggerInteraction: string
     cwsprChatUserIntent?: string
@@ -204,6 +214,7 @@ export type MessageResponseErrorEvent = {
 }
 
 export type RunCommandEvent = {
+    credentialStartUrl?: string
     cwsprChatCommandType: string
     cwsprChatCommandName?: string
 }
