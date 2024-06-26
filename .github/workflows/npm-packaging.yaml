@@ -21,12 +21,13 @@ jobs:
             - name: Build all monorepo packages
               run: |
                   npm run compile
-            - name: Pack AWS CodeWhisperer LSP server
-              run: npm pack -w server/aws-lsp-codewhisperer
+            - name: Pack public npm packages
+              run: |
+                  npm pack -w server/aws-lsp-codewhisperer -w server/aws-lsp-partiql -w server/aws-lsp-json -w server/aws-lsp-yaml
             - name: Create test package
               run: |
                   cd tests
-                  npm install ../aws-lsp-codewhisperer-*.tgz
+                  npm install ../aws-lsp-codewhisperer-*.tgz ../aws-lsp-partiql-*.tgz ../aws-lsp-json-*.tgz ../aws-lsp-yaml-*.tgz
             - name: Test imports
               run: |
                   cd tests
