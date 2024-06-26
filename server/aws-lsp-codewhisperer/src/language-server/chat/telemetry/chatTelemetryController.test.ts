@@ -94,7 +94,7 @@ describe('TelemetryController', () => {
 
         telemetryController.emitConversationMetric({
             name: ChatTelemetryEventName.EnterFocusConversation,
-            data: { cwsprChatConversationId: 'mockConversationId' },
+            data: {},
         })
 
         sinon.assert.calledOnceWithExactly(testFeatures.telemetry.emitMetric, {

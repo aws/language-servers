@@ -104,7 +104,7 @@ export class ChatTelemetryController {
         TEvent extends ChatMetricEvent<TName, ChatTelemetryEventMap[TName]>,
     >(
         metric: Omit<TEvent, 'data'> & {
-            data: Omit<TEvent['data'], typeof CONVERSATION_ID_METRIC_KEY>
+            data: Omit<TEvent['data'], typeof CONVERSATION_ID_METRIC_KEY | 'credentialStartUrl'>
         },
         tabId = this.activeTabId
     ) {
