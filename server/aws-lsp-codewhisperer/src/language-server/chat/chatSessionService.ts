@@ -13,8 +13,9 @@ export class ChatSessionService {
     public shareCodeWhispererContentWithAWS = false
     readonly #codeWhispererRegion = 'us-east-1'
     readonly #codeWhispererEndpoint = 'https://codewhisperer.us-east-1.amazonaws.com/'
-    #client: CodeWhispererStreaming
     #abortController?: AbortController
+    #credentialsProvider: CredentialsProvider
+    #config?: CodeWhispererStreamingClientConfig
     #sessionId?: string
 
     public get sessionId(): string | undefined {
@@ -26,14 +27,8 @@ export class ChatSessionService {
     }
 
     constructor(credentialsProvider: CredentialsProvider, config?: CodeWhispererStreamingClientConfig) {
-        this.#client = new CodeWhispererStreaming({
-            region: this.#codeWhispererRegion,
-            endpoint: this.#codeWhispererEndpoint,
-            token: () => Promise.resolve({ token: getBearerTokenFromProvider(credentialsProvider) }),
-            retryStrategy: new ConfiguredRetryStrategy(0, (attempt: number) => 500 + attempt ** 10),
-            customUserAgent: '%Amazon-Q-For-LanguageServers%',
-            ...config,
-        })
+        this.#credentialsProvider = credentialsProvider
+        this.#config = config
     }
 
     public async generateAssistantResponse(
@@ -45,7 +40,16 @@ export class ChatSessionService {
             request.conversationState.conversationId = this.#sessionId
         }
 
-        const response = await this.#client.generateAssistantResponse(request, {
+        const client = new CodeWhispererStreaming({
+            region: this.#codeWhispererRegion,
+            endpoint: this.#codeWhispererEndpoint,
+            token: () => Promise.resolve({ token: getBearerTokenFromProvider(this.#credentialsProvider) }),
+            retryStrategy: new ConfiguredRetryStrategy(0, (attempt: number) => 500 + attempt ** 10),
+            customUserAgent: '%Amazon-Q-For-LanguageServers%',
+            ...this.#config,
+        })
+
+        const response = await client.generateAssistantResponse(request, {
             abortSignal: this.#abortController?.signal,
         })
 
@@ -61,7 +65,6 @@ export class ChatSessionService {
 
     public dispose(): void {
         this.#abortController?.abort()
-        this.#client.destroy()
     }
 
     public abortRequest(): void {

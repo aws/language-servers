@@ -11,7 +11,6 @@ import { ChatSessionService } from './chatSessionService'
 describe('Chat Session Service', () => {
     let generateAssistantResponseStub: sinon.SinonStub<any, any>
     let abortStub: sinon.SinonStub<any, any>
-    let destroyClientStub: sinon.SinonStub<any, any>
     let chatSessionService: ChatSessionService
     const mockCredentialsProvider: CredentialsProvider = {
         hasCredentials: sinon.stub().returns(true),
@@ -45,14 +44,11 @@ describe('Chat Session Service', () => {
             .stub(CodeWhispererStreaming.prototype, 'generateAssistantResponse')
             .callsFake(() => Promise.resolve(mockRequestResponse))
 
-        destroyClientStub = sinon.stub(CodeWhispererStreaming.prototype, 'destroy')
-
         chatSessionService = new ChatSessionService(mockCredentialsProvider)
     })
 
     afterEach(() => {
         generateAssistantResponseStub.restore()
-        destroyClientStub.restore()
         abortStub.restore()
     })
 
@@ -94,13 +90,12 @@ describe('Chat Session Service', () => {
         sinon.assert.calledOnce(abortStub)
     })
 
-    it('dispose() calls client.destroy and aborts outgoing requests', async () => {
+    it('dispose() calls aborts outgoing requests', async () => {
         await chatSessionService.generateAssistantResponse(mockRequestParams)
 
         chatSessionService.dispose()
 
         sinon.assert.calledOnce(abortStub)
-        sinon.assert.calledOnce(destroyClientStub)
     })
 
     it('clear() reset session id and aborts outgoing request', async () => {
