@@ -116,6 +116,7 @@ export const createMynahUi = (messager: Messager, tabFactory: TabFactory): [Myna
                     authFollowupType: followUp.type,
                 }
                 messager.onAuthFollowUpClicked(payload)
+                mynahUi.updateStore(tabId, { promptInputDisabledState: false })
             } else {
                 const prompt = followUp.prompt ? followUp.prompt : followUp.pillText
                 handleChatPrompt(mynahUi, tabId, { prompt: prompt, escapedPrompt: prompt }, messager, 'click', eventId)
