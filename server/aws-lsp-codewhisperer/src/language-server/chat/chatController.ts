@@ -42,7 +42,7 @@ export class ChatController implements ChatHandlers {
         this.#features = features
         this.#chatSessionManagementService = chatSessionManagementService
         this.#triggerContext = new QChatTriggerContext(features.workspace, features.logging)
-        this.#telemetryController = new ChatTelemetryController(features.telemetry)
+        this.#telemetryController = new ChatTelemetryController(features.credentialsProvider, features.telemetry)
     }
 
     dispose() {

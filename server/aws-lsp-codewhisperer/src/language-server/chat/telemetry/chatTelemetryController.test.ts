@@ -14,7 +14,7 @@ describe('TelemetryController', () => {
 
     beforeEach(() => {
         testFeatures = new TestFeatures()
-        telemetryController = new ChatTelemetryController(testFeatures.telemetry)
+        telemetryController = new ChatTelemetryController(testFeatures.credentialsProvider, testFeatures.telemetry)
     })
 
     it('able to set and get activeTabId', () => {
