@@ -42,7 +42,7 @@ export class ChatController implements ChatHandlers {
         this.#features = features
         this.#chatSessionManagementService = chatSessionManagementService
         this.#triggerContext = new QChatTriggerContext(features.workspace, features.logging)
-        this.#telemetryController = new ChatTelemetryController(features.credentialsProvider, features.telemetry)
+        this.#telemetryController = new ChatTelemetryController(features)
     }
 
     dispose() {
@@ -58,7 +58,7 @@ export class ChatController implements ChatHandlers {
         if (!session) {
             this.#log('Get session error', params.tabId)
             return new ResponseError<ChatResult>(
-                ErrorCodes.InvalidParams,
+                LSPErrorCodes.RequestFailed,
                 'error' in sessionResult ? sessionResult.error : 'Unknown error'
             )
         }

@@ -11,11 +11,17 @@ export interface AcceptedSuggestionEntry {
     endPosition: Position
 }
 
+export interface CodeDiffTrackerOptions {
+    flushInterval?: number
+    timeElapsedThreshold?: number
+    maxQueueSize?: number
+}
+
 /**
  * This class calculates the percentage of user modification after a time threshold and emits metric
  * The current calculation method is (Levenshtein edit distance / acceptedSuggestion.length).
  */
-export class CodeDiffTracker<T extends AcceptedSuggestionEntry> {
+export class CodeDiffTracker<T extends AcceptedSuggestionEntry = AcceptedSuggestionEntry> {
     #eventQueue: T[]
     #interval?: NodeJS.Timeout
     #workspace: Features['workspace']
@@ -31,6 +37,10 @@ export class CodeDiffTracker<T extends AcceptedSuggestionEntry> {
      */
     private static readonly TIME_ELAPSED_THRESHOLD = 1000 * 60 * 5 // 5 minutes
     private static readonly DEFAULT_MAX_QUEUE_SIZE = 10000
+
+    #flushInterval: number
+    #timeElapsedThreshold: number
+    #maxQueueSize: number
 
     /**
      * This function calculates the Levenshtein edit distance of currString from original accepted String
@@ -50,21 +60,25 @@ export class CodeDiffTracker<T extends AcceptedSuggestionEntry> {
     constructor(
         workspace: Features['workspace'],
         logging: Features['logging'],
-        recordMetric: (entry: T, codeModificationPercentage: number) => void
+        recordMetric: (entry: T, codeModificationPercentage: number) => void,
+        options?: CodeDiffTrackerOptions
     ) {
         this.#eventQueue = []
         this.#workspace = workspace
         this.#logging = logging
         this.#recordMetric = recordMetric
+        this.#flushInterval = options?.flushInterval ?? CodeDiffTracker.FLUSH_INTERVAL
+        this.#timeElapsedThreshold = options?.timeElapsedThreshold ?? CodeDiffTracker.TIME_ELAPSED_THRESHOLD
+        this.#maxQueueSize = options?.maxQueueSize ?? CodeDiffTracker.DEFAULT_MAX_QUEUE_SIZE
     }
 
     public enqueue(suggestion: T) {
-        // remove the oldest entries
-        while (this.#eventQueue.length >= CodeDiffTracker.DEFAULT_MAX_QUEUE_SIZE) {
+        this.#eventQueue.push(suggestion)
+
+        // remove the oldest entries if the queue if full
+        while (this.#eventQueue.length > this.#maxQueueSize) {
             this.#eventQueue.shift()
         }
-
-        this.#eventQueue.push(suggestion)
 
         // ensure there is an active interval
         this.#startInterval()
@@ -85,7 +99,7 @@ export class CodeDiffTracker<T extends AcceptedSuggestionEntry> {
 
         // emit the ones that reach the time limit and start a new queue with remaining
         for (const suggestion of this.#eventQueue) {
-            if (Date.now() - suggestion.time > CodeDiffTracker.TIME_ELAPSED_THRESHOLD) {
+            if (Date.now() - suggestion.time >= this.#timeElapsedThreshold) {
                 await this.#emitTelemetryOnSuggestion(suggestion as T)
             } else {
                 newEventQueue.push(suggestion as T)
@@ -103,6 +117,7 @@ export class CodeDiffTracker<T extends AcceptedSuggestionEntry> {
     async #emitTelemetryOnSuggestion(suggestion: T) {
         try {
             const document = suggestion.fileUrl && (await this.#workspace.getTextDocument(suggestion.fileUrl))
+
             if (document) {
                 const currString = document.getText({
                     start: suggestion.startPosition,
@@ -127,7 +142,7 @@ export class CodeDiffTracker<T extends AcceptedSuggestionEntry> {
                 } finally {
                     this.#interval?.refresh()
                 }
-            }, CodeDiffTracker.FLUSH_INTERVAL)
+            }, this.#flushInterval)
         }
     }
 
