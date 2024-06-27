@@ -3,11 +3,13 @@ import {
     TextDocumentSyncKind,
     SemanticTokensParams,
     SemanticTokens,
+    CancellationToken,
     type DidChangeTextDocumentParams,
     type DidOpenTextDocumentParams,
     type Server,
 } from '@aws/language-server-runtimes/server-interface'
-import { createPartiQLLanguageService, partiqltokensTypes } from './language-service'
+import { createPartiQLLanguageService } from './language-service'
+import { semanticTokensLegend } from './syntax-highlighting/util'
 
 export const PartiQLServerFactory =
     (service: any): Server =>
@@ -20,14 +22,10 @@ export const PartiQLServerFactory =
                         openClose: true,
                         change: TextDocumentSyncKind.Incremental,
                     },
-                },
-                semanticTokensProvider: {
-                    legend: {
-                        tokenTypes: partiqltokensTypes,
-                        tokenModifiers: [],
+                    semanticTokensProvider: {
+                        legend: semanticTokensLegend,
+                        full: true,
                     },
-                    range: false,
-                    full: true,
                 },
             }
         }
@@ -70,7 +68,10 @@ export const PartiQLServerFactory =
             })
         }
 
-        const onSemanticTokensHandler = async (params: SemanticTokensParams): Promise<SemanticTokens | null> => {
+        const onSemanticTokensHandler = async (
+            params: SemanticTokensParams,
+            _token: CancellationToken
+        ): Promise<SemanticTokens | null> => {
             const textDocument = await workspace.getTextDocument(params.textDocument.uri)
             if (!textDocument) {
                 logging.log(`textDocument [${params.textDocument.uri}] not found`)
@@ -78,7 +79,6 @@ export const PartiQLServerFactory =
             }
 
             const tokens = await service.doSemanticTokens(textDocument)
-
             return tokens
         }
 

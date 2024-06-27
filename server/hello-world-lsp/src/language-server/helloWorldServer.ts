@@ -9,9 +9,9 @@ import {
     Server,
     Telemetry,
     Workspace,
+    CancellationToken,
 } from '@aws/language-server-runtimes/server-interface'
 import {
-    CancellationToken,
     CompletionItem,
     CompletionItemKind,
     CompletionList,

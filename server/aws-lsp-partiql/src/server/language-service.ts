@@ -8,17 +8,9 @@ import {
 import partiQlServerBinary from '../partiql-parser-wasm/partiql-wasm-parser-inline'
 import { initSync, parse_as_json } from '../partiql-parser-wasm/partiql_playground'
 import { convertObjectToParserError } from './error-parsing/parser-errors'
-import { findNodes } from './syntax-highlighting/treesitter'
-
-export const partiqltokensTypes: SemanticTokenTypes[] = [
-    SemanticTokenTypes.keyword,
-    SemanticTokenTypes.type,
-    SemanticTokenTypes.number,
-    SemanticTokenTypes.string,
-    SemanticTokenTypes.variable,
-    SemanticTokenTypes.comment,
-    SemanticTokenTypes.operator,
-]
+import { findNodes, sortSemanticTokens, encodeSemanticTokens } from './syntax-highlighting/treesitter'
+import { semanticTokensLegend, SemanticToken } from './syntax-highlighting/util'
+import { string2TokenTypes } from './syntax-highlighting/util'
 
 export function normalizeQuery(data: string): string {
     return data != null ? data : ''
@@ -53,12 +45,28 @@ class PartiQLLanguageService {
     }
 
     public async doSemanticTokens(textDocument: TextDocument): Promise<SemanticTokens | null> {
-        const tokens = await findNodes(textDocument.getText(), SemanticTokenTypes.keyword)
-        if (tokens) {
-            console.log('Returned tokens:', tokens)
+        const text = textDocument.getText()
+        console.log('Text:', text)
+        const data: SemanticToken[] = []
+        for (const nodeType of semanticTokensLegend.tokenTypes) {
+            const tokens = await findNodes(text, nodeType as SemanticTokenTypes)
+            data.push(...tokens)
+        }
+        for (const nodeType in string2TokenTypes) {
+            const tokens = await findNodes(text, nodeType)
+            data.push(...tokens)
+        }
+        console.log('Found tokens:', data)
+        console.log('Sorting tokens...')
+        const sortedTokens = sortSemanticTokens(data)
+        console.log('Sorted tokens:', sortedTokens)
+        console.log('Encoding tokens...')
+        const encodedTokens = encodeSemanticTokens(sortedTokens)
+        if (encodedTokens) {
+            console.log('Returned tokens:', encodedTokens)
         } else {
             console.log('No tokens found.')
         }
-        return tokens
+        return encodedTokens
     }
 }
