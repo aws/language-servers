@@ -305,7 +305,6 @@ export class ChatTelemetryController {
                         },
                     })
                     break
-
                 case ChatUIEventName.LinkClick:
                 case ChatUIEventName.InfoLinkClick:
                     this.emitInteractWithMessageMetric(params.tabId, {

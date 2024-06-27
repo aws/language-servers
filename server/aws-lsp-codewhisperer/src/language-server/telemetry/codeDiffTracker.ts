@@ -16,7 +16,6 @@ export interface AcceptedSuggestionEntry {
  * The current calculation method is (Levenshtein edit distance / acceptedSuggestion.length).
  */
 export class CodeDiffTracker<T extends AcceptedSuggestionEntry> {
-    // This should be a union if there are other types
     #eventQueue: T[]
     #interval?: NodeJS.Timeout
     #workspace: Features['workspace']
@@ -35,17 +34,17 @@ export class CodeDiffTracker<T extends AcceptedSuggestionEntry> {
 
     /**
      * This function calculates the Levenshtein edit distance of currString from original accepted String
-     * then return a percentage against the length of accepted string (capped by 1,0)
+     * then return a percentage against the length of accepted string (capped by 1)
      * @param currString the current string in the same location as the previously accepted suggestion
      * @param acceptedString the accepted suggestion that was inserted into the editor
      */
     public static checkDiff(currString?: string, acceptedString?: string): number {
-        if (!currString || !acceptedString || currString.length === 0 || acceptedString.length === 0) {
-            return 1.0
+        if (!currString || !acceptedString) {
+            return 1
         }
 
         const diff = distance(currString, acceptedString)
-        return Math.min(1.0, diff / acceptedString.length)
+        return Math.min(1, diff / acceptedString.length)
     }
 
     constructor(
@@ -76,8 +75,8 @@ export class CodeDiffTracker<T extends AcceptedSuggestionEntry> {
 
         try {
             await this.flush()
-        } finally {
-            this.#eventQueue = []
+        } catch (e) {
+            this.#logging.log(`Error encountered while performing the final flush: ${e}`)
         }
     }
 
