@@ -107,6 +107,7 @@ export enum ChatTelemetryEventName {
     AddMessage = 'amazonq_addMessage',
     RunCommand = 'amazonq_runCommand',
     MessageResponseError = 'amazonq_messageResponseError',
+    ModifyCode = 'amazonq_modifyCode',
 }
 
 export interface ChatTelemetryEventMap {
@@ -119,6 +120,13 @@ export interface ChatTelemetryEventMap {
     [ChatTelemetryEventName.AddMessage]: AddMessageEvent
     [ChatTelemetryEventName.RunCommand]: RunCommandEvent
     [ChatTelemetryEventName.MessageResponseError]: MessageResponseErrorEvent
+    [ChatTelemetryEventName.ModifyCode]: ModifyCodeEvent
+}
+
+export type ModifyCodeEvent = {
+    cwsprChatConversationId: string
+    cwsprChatMessageId: string
+    cwsprChatModificationPercentage: number
 }
 
 export type AddMessageEvent = {

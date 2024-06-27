@@ -1,0 +1,139 @@
+import { distance } from 'fastest-levenshtein'
+import { Position } from 'vscode-languageserver-textdocument'
+import { Features } from '../types'
+import { getErrorMessage } from '../utils'
+
+export interface AcceptedSuggestionEntry {
+    fileUrl: string
+    time: number
+    originalString: string
+    startPosition: Position
+    endPosition: Position
+}
+
+/**
+ * This class calculates the percentage of user modification after a time threshold and emits metric
+ * The current calculation method is (Levenshtein edit distance / acceptedSuggestion.length).
+ */
+export class CodeDiffTracker<T extends AcceptedSuggestionEntry> {
+    // This should be a union if there are other types
+    #eventQueue: T[]
+    #interval?: NodeJS.Timeout
+    #workspace: Features['workspace']
+    #logging: Features['logging']
+    #recordMetric: (entry: T, codeModificationPercentage: number) => void
+
+    /**
+     * time indication the flush frequency of which the checks are
+     */
+    private static readonly FLUSH_INTERVAL = 1000 * 60 // 1 minute
+    /**
+     * time threshold before measuring the modification after accepted into the editor
+     */
+    private static readonly TIME_ELAPSED_THRESHOLD = 1000 * 60 * 5 // 5 minutes
+    private static readonly DEFAULT_MAX_QUEUE_SIZE = 10000
+
+    /**
+     * This function calculates the Levenshtein edit distance of currString from original accepted String
+     * then return a percentage against the length of accepted string (capped by 1,0)
+     * @param currString the current string in the same location as the previously accepted suggestion
+     * @param acceptedString the accepted suggestion that was inserted into the editor
+     */
+    public static checkDiff(currString?: string, acceptedString?: string): number {
+        if (!currString || !acceptedString || currString.length === 0 || acceptedString.length === 0) {
+            return 1.0
+        }
+
+        const diff = distance(currString, acceptedString)
+        return Math.min(1.0, diff / acceptedString.length)
+    }
+
+    constructor(
+        workspace: Features['workspace'],
+        logging: Features['logging'],
+        recordMetric: (entry: T, codeModificationPercentage: number) => void
+    ) {
+        this.#eventQueue = []
+        this.#workspace = workspace
+        this.#logging = logging
+        this.#recordMetric = recordMetric
+    }
+
+    public enqueue(suggestion: T) {
+        // remove the oldest entries
+        while (this.#eventQueue.length >= CodeDiffTracker.DEFAULT_MAX_QUEUE_SIZE) {
+            this.#eventQueue.shift()
+        }
+
+        this.#eventQueue.push(suggestion)
+
+        // ensure there is an active interval
+        this.#startInterval()
+    }
+
+    public async shutdown() {
+        this.#clearInterval()
+
+        try {
+            await this.flush()
+        } finally {
+            this.#eventQueue = []
+        }
+    }
+
+    private async flush() {
+        const newEventQueue: T[] = []
+
+        // emit the ones that reach the time limit and start a new queue with remaining
+        for (const suggestion of this.#eventQueue) {
+            if (Date.now() - suggestion.time > CodeDiffTracker.TIME_ELAPSED_THRESHOLD) {
+                await this.#emitTelemetryOnSuggestion(suggestion as T)
+            } else {
+                newEventQueue.push(suggestion as T)
+            }
+        }
+
+        this.#eventQueue = newEventQueue
+
+        // shutdown the interval when queue is empty
+        if (this.#eventQueue.length === 0) {
+            this.#clearInterval()
+        }
+    }
+
+    async #emitTelemetryOnSuggestion(suggestion: T) {
+        try {
+            const document = suggestion.fileUrl && (await this.#workspace.getTextDocument(suggestion.fileUrl))
+            if (document) {
+                const currString = document.getText({
+                    start: suggestion.startPosition,
+                    end: suggestion.endPosition,
+                })
+                const percentage = CodeDiffTracker.checkDiff(currString, suggestion.originalString)
+
+                this.#recordMetric(suggestion, percentage)
+            }
+        } catch (e) {
+            this.#logging.log(`Exception Thrown from CodeDiffTracker: ${e}`)
+        }
+    }
+
+    #startInterval() {
+        if (!this.#interval) {
+            this.#interval = setInterval(async () => {
+                try {
+                    await this.flush()
+                } catch (e) {
+                    this.#logging.log(`flush failed: ${getErrorMessage(e)}`)
+                } finally {
+                    this.#interval?.refresh()
+                }
+            }, CodeDiffTracker.FLUSH_INTERVAL)
+        }
+    }
+
+    #clearInterval() {
+        clearInterval(this.#interval)
+        this.#interval = undefined
+    }
+}

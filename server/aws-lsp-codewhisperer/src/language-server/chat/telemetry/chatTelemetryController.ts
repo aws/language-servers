@@ -8,9 +8,15 @@ import {
     InteractWithMessageEvent,
 } from '../../telemetry/types'
 import { Features, KeysMatching } from '../../types'
-import { ChatUIEventName, RelevancyVoteType, isClientTelemetryEvent } from './clientTelemetry'
+import {
+    ChatUIEventName,
+    InsertToCursorPositionParams,
+    RelevancyVoteType,
+    isClientTelemetryEvent,
+} from './clientTelemetry'
 import { UserIntent } from '@amzn/codewhisperer-streaming'
 import { TriggerContext } from '../contexts/triggerContext'
+import { AcceptedSuggestionEntry, CodeDiffTracker } from '../../telemetry/codeDiffTracker'
 
 export const CONVERSATION_ID_METRIC_KEY = 'cwsprChatConversationId'
 
@@ -40,19 +46,27 @@ interface ConversationTriggerInfo {
     lastMessageTrigger?: MessageTrigger
 }
 
+interface AcceptedSuggestionChatEntry extends AcceptedSuggestionEntry {
+    messageId: string
+}
+
 export class ChatTelemetryController {
     #activeTabId?: string
     #tabTelemetryInfoByTabId: { [tabId: string]: ConversationTriggerInfo }
     #currentTriggerByTabId: { [tabId: string]: TriggerType } = {}
     #credentialsProvider: Features['credentialsProvider']
     #telemetry: Features['telemetry']
+    #codeDiffTracker: CodeDiffTracker<AcceptedSuggestionChatEntry>
 
-    constructor(credentialsProvider: Features['credentialsProvider'], telemetry: Features['telemetry']) {
+    constructor(features: Features) {
         this.#tabTelemetryInfoByTabId = {}
         this.#currentTriggerByTabId = {}
-        this.#telemetry = telemetry
-        this.#credentialsProvider = credentialsProvider
+        this.#telemetry = features.telemetry
+        this.#credentialsProvider = features.credentialsProvider
         this.#telemetry.onClientTelemetry(params => this.#handleClientTelemetry(params))
+        this.#codeDiffTracker = new CodeDiffTracker(features.workspace, features.logging, (entry, percentage) =>
+            this.emitModifyCodeMetric(entry, percentage)
+        )
     }
 
     public get activeTabId(): string | undefined {
@@ -85,6 +99,16 @@ export class ChatTelemetryController {
 
     public getLastMessageTrigger(tabId: string) {
         return this.#tabTelemetryInfoByTabId[tabId]?.lastMessageTrigger
+    }
+
+    public emitModifyCodeMetric(entry: AcceptedSuggestionChatEntry, percentage: number) {
+        this.emitConversationMetric({
+            name: ChatTelemetryEventName.ModifyCode,
+            data: {
+                cwsprChatMessageId: entry.messageId,
+                cwsprChatModificationPercentage: percentage ? percentage : 0,
+            },
+        })
     }
 
     public emitChatMetric<TName extends ChatTelemetryEventName>(
@@ -200,6 +224,27 @@ export class ChatTelemetryController {
         )
     }
 
+    #enqueueCodeDiffEntry(params: InsertToCursorPositionParams) {
+        const documentUri = params.textDocument?.uri
+        const cursorRangeOrPosition = params.cursorState?.[0]
+
+        if (params.code && documentUri && cursorRangeOrPosition) {
+            const startPosition =
+                'position' in cursorRangeOrPosition ? cursorRangeOrPosition.position : cursorRangeOrPosition.range.start
+            const endPosition =
+                'position' in cursorRangeOrPosition ? cursorRangeOrPosition.position : cursorRangeOrPosition.range.end
+
+            this.#codeDiffTracker.enqueue({
+                messageId: params.messageId,
+                fileUrl: documentUri,
+                time: Date.now(),
+                originalString: params.code,
+                startPosition,
+                endPosition,
+            })
+        }
+    }
+
     #handleClientTelemetry(params: unknown) {
         if (isClientTelemetryEvent(params)) {
             switch (params.name) {
@@ -241,6 +286,10 @@ export class ChatTelemetryController {
                     break
                 case ChatUIEventName.InsertToCursorPosition:
                 case ChatUIEventName.CopyToClipboard:
+                    if (params.name === ChatUIEventName.InsertToCursorPosition) {
+                        this.#enqueueCodeDiffEntry(params)
+                    }
+
                     this.emitConversationMetric({
                         name: ChatTelemetryEventName.InteractWithMessage,
                         data: {
@@ -256,6 +305,7 @@ export class ChatTelemetryController {
                         },
                     })
                     break
+
                 case ChatUIEventName.LinkClick:
                 case ChatUIEventName.InfoLinkClick:
                     this.emitInteractWithMessageMetric(params.tabId, {
