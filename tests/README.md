@@ -1,0 +1,1 @@
+This is test package, used in [NPM packaging testing](../.github/workflows/npm-packaging.yaml) workflow.
