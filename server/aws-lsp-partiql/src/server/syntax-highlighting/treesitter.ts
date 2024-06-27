@@ -1,12 +1,35 @@
 import Parser from 'web-tree-sitter'
 import parserBase64 from '../tree-sitter-parser/tree-sitter-parser-inline'
+import wasmBinaryArray from '../tree-sitter-parser/tree-sitter-inline'
 import { SemanticTokenTypes, SemanticTokens } from '@aws/language-server-runtimes/server-interface'
 import { SemanticToken, semanticTokensLegend, string2TokenTypes } from './util'
 import { SemanticTokensBuilder } from 'vscode-languageserver/node'
 
 // Initialize and prepare the parser
 async function initParser() {
-    await Parser.init()
+    let wasmModuleUrl: string | null = null
+    if (typeof window !== 'undefined' && typeof window.URL.createObjectURL === 'function') {
+        // Browser
+        const wasmBlob = new Blob([wasmBinaryArray], { type: 'application/wasm' })
+        wasmModuleUrl = URL.createObjectURL(wasmBlob)
+    } else if (typeof process !== 'undefined' && typeof process.versions.node !== 'undefined') {
+        // Node.js
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const fs = require('fs')
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const path = require('path')
+        const tempWasmPath = path.join(__dirname, 'temp-tree-sitter.wasm')
+        fs.writeFileSync(tempWasmPath, Buffer.from(wasmBinaryArray))
+        wasmModuleUrl = tempWasmPath
+    }
+    await Parser.init({
+        locateFile(path: string, _prefix: string) {
+            if (path.endsWith('.wasm')) {
+                return wasmModuleUrl
+            }
+            return path
+        },
+    })
     const parser = new Parser()
     const PartiQL = await Parser.Language.load(parserBase64)
     parser.setLanguage(PartiQL)
@@ -29,9 +52,9 @@ export async function findNodes(
     const data: SemanticToken[] = []
 
     for (const { node, name } of captures) {
-        console.log(
-            `Found ${name}: '${node.text}' at line:${node.startPosition.row} startChar:${node.startPosition.column} length:${node.text.length} `
-        )
+        // console.log(
+        //     `Found ${name}: '${node.text}' at line:${node.startPosition.row} startChar:${node.startPosition.column} length:${node.text.length} `
+        // )
         const tokenType =
             nodeTypeString in string2TokenTypes ? string2TokenTypes[nodeTypeString] : (nodeType as SemanticTokenTypes)
         const startLine = node.startPosition.row
