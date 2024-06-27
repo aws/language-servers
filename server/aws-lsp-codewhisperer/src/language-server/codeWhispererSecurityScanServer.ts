@@ -47,21 +47,25 @@ export const SecurityScanServerToken =
             }
             try {
                 if (!credentialsProvider.hasCredentials('bearer')) {
-                    throw new Error('credentialsProvider does not have bearer token credentials')
+                    throw new Error('Credentials provider does not have bearer token credentials')
                 }
                 if (!params.arguments || params.arguments.length === 0) {
-                    throw new Error(`Incorrect params provided. Params: ${params}`)
+                    throw new Error(`Error: Incorrect parameters parameters provided`)
                 }
                 const [arg] = params.arguments
                 const { ActiveFilePath: activeFilePath, ProjectPath: projectPath } = parseJson(arg)
-                if (!activeFilePath || !projectPath) {
-                    throw new Error(`Error: file path or project path not provided. Params: ${params}`)
+                if (!activeFilePath) {
+                    throw new Error('Error: File to scan is missing')
+                }
+
+                if (!projectPath) {
+                    throw new Error('Error: Project is missing')
                 }
                 const activeFilePathUri = pathToFileURL(activeFilePath).href
                 const document = await workspace.getTextDocument(activeFilePathUri)
                 securityScanTelemetryEntry.codewhispererLanguage = getSupportedLanguageId(document)
                 if (!document) {
-                    throw new Error('Text document for given activeFilePath is undefined.')
+                    throw new Error('Text document for given file is missing.')
                 }
                 /**
                  * Step 1: Generate context truncations
@@ -120,7 +124,7 @@ export const SecurityScanServerToken =
                  */
                 jobStatus = await scanHandler.pollScanJobStatus(scanJob.jobId)
                 if (jobStatus === 'Failed') {
-                    throw new Error('security scan job failed.')
+                    throw new Error('Security scan job failed.')
                 }
                 scanHandler.throwIfCancelled(token)
 
