@@ -7,7 +7,7 @@ on:
 
 jobs:
     build:
-        name: Test Codewhisperer Server Packaging
+        name: Test public NPM packages
         runs-on: ubuntu-latest
         steps:
             - name: Sync Code
