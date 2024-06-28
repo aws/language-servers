@@ -1,4 +1,8 @@
+import { Workspace } from '@aws/language-server-runtimes/server-interface'
+import * as path from 'path'
 import { GitIgnoreAcceptor } from '@gerhobbelt/gitignore-parser'
+import * as parser from '@gerhobbelt/gitignore-parser'
+import * as pathUtils from '../pathUtils'
 
 type GitIgnoreRelativeAcceptor = {
     folderPath: string
@@ -12,34 +16,31 @@ export class GitIgnoreFilter {
         this.acceptors = acceptors
     }
 
-    public static async build(gitIgnoreFiles: vscode.Uri[]): Promise<GitIgnoreFilter> {
+    public static async build(rootPath: string, gitIgnorePath: string, workspace: Workspace): Promise<GitIgnoreFilter> {
         const acceptors: GitIgnoreRelativeAcceptor[] = []
-        for (const file of gitIgnoreFiles) {
-            const fileContent = await SystemUtilities.readFile(file)
 
-            const folderPath = getWorkspaceParentDirectory(file.fsPath)
-            if (folderPath === undefined) {
-                continue
-            }
-            const gitIgnoreAcceptor = parser.compile(fileContent)
-            acceptors.push({
-                folderPath: folderPath,
-                acceptor: gitIgnoreAcceptor,
-            })
-        }
+        const fileContent = await workspace.fs.readFile(gitIgnorePath)
+
+        const gitIgnoreAcceptor = parser.compile(fileContent)
+
+        acceptors.push({
+            folderPath: rootPath,
+            acceptor: gitIgnoreAcceptor,
+        })
+
         return new GitIgnoreFilter(acceptors)
     }
 
-    public filterFiles(files: vscode.Uri[]) {
+    public filterFiles(files: string[]) {
         return files.filter(file =>
             this.acceptors.every(acceptor => {
-                if (!isInDirectory(acceptor.folderPath, file.fsPath)) {
+                if (!pathUtils.isInDirectory(acceptor.folderPath, file)) {
                     // .gitignore file is responsible only for it's subfolders
                     return true
                 }
                 // careful with Windows, if ignore pattern is `build`
                 // the library accepts `build\file.js`, but does not accept `build/file.js`
-                const systemDependantRelativePath = path.relative(acceptor.folderPath, file.fsPath)
+                const systemDependantRelativePath = path.relative(acceptor.folderPath, file)
                 const posixPath = systemDependantRelativePath.split(path.sep).join(path.posix.sep)
                 return acceptor.acceptor.accepts(posixPath)
             })

@@ -1,4 +1,5 @@
 import { Logging, Workspace } from '@aws/language-server-runtimes/server-interface'
+import { GitIgnoreFilter } from './gitIgnoreFilter'
 import * as admZip from 'adm-zip'
 import * as path from 'path'
 import * as CodeWhispererConstants from './constants'
@@ -114,6 +115,24 @@ export abstract class DependencyGraph {
             })
         )
         return files.reduce((a, f) => a.concat(f), [])
+    }
+
+    /**
+     * @param rootPath root folder to look for .gitignore files
+     * @returns list of glob patterns extracted from .gitignore
+     * These patterns are compatible with vscode exclude patterns
+     */
+    async filterOutGitIgnoredFiles(rootPath: string, files: string[]): Promise<string[]> {
+        // do we need to consider more paths besides root level gitignore?
+        const gitIgnorePath = path.join(rootPath, '.gitignore')
+
+        if (!(await this.workspace.fs.exists(gitIgnorePath)) || !(await this.workspace.fs.isFile(gitIgnorePath))) {
+            return files
+        }
+
+        const gitIgnoreFilter = await GitIgnoreFilter.build(rootPath, gitIgnorePath, this.workspace)
+
+        return gitIgnoreFilter.filterFiles(files)
     }
 
     /**

@@ -133,7 +133,10 @@ export class CsharpDependencyGraph extends DependencyGraph {
         if (this.exceedsSizeLimit(this._totalSize)) {
             return
         }
-        const files = await this.getFiles(dirPath)
+        const allFiles = await this.getFiles(dirPath)
+
+        const files = await this.filterOutGitIgnoredFiles(dirPath, allFiles)
+
         const csharpFiles = files.filter(f => f.match(/.*.cs$/gi))
         for (const file of csharpFiles) {
             const fileSize = (await this.workspace.fs.getFileSize(file)).size
