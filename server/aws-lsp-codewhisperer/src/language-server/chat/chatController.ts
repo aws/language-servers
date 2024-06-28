@@ -1,12 +1,11 @@
 import { GenerateAssistantResponseCommandOutput } from '@amzn/codewhisperer-streaming'
-import { FeedbackParams, chatRequestType } from '@aws/language-server-runtimes/protocol'
+import { ErrorCodes, FeedbackParams, chatRequestType } from '@aws/language-server-runtimes/protocol'
 import {
     CancellationToken,
     Chat,
     ChatParams,
     ChatResult,
     EndChatParams,
-    ErrorCodes,
     LSPErrorCodes,
     QuickActionParams,
     ResponseError,
@@ -54,14 +53,10 @@ export class ChatController implements ChatHandlers {
     async onChatPrompt(params: ChatParams, token: CancellationToken): Promise<ChatResult | ResponseError<ChatResult>> {
         const sessionResult = this.#chatSessionManagementService.getSession(params.tabId)
 
-        const { data: session } = sessionResult
+        const { data: session, success } = sessionResult
 
-        if (!session) {
-            this.#log('Get session error', params.tabId)
-            return new ResponseError<ChatResult>(
-                LSPErrorCodes.RequestFailed,
-                'error' in sessionResult ? sessionResult.error : 'Unknown error'
-            )
+        if (!success) {
+            return new ResponseError<ChatResult>(ErrorCodes.InternalError, sessionResult.error)
         }
 
         const metric = new Metric<CombinedConversationEvent>({
@@ -78,13 +73,14 @@ export class ChatController implements ChatHandlers {
 
         let response: GenerateAssistantResponseCommandOutput
 
+        const conversationIdentifier = session?.sessionId ?? 'New session'
         try {
-            this.#log('Request from tab:', params.tabId, 'conversation id:', session?.sessionId ?? 'New session')
+            this.#log('Request for conversation id:', conversationIdentifier)
             const requestInput = this.#triggerContext.getChatParamsFromTrigger(params, triggerContext)
 
             metric.recordStart()
             response = await session.generateAssistantResponse(requestInput)
-            this.#log('Response to tab:', params.tabId, JSON.stringify(response.$metadata))
+            this.#log('Response for conversationId:', conversationIdentifier, JSON.stringify(response.$metadata))
         } catch (err) {
             if (isAwsError(err) || (isObject(err) && 'statusCode' in err && typeof err.statusCode === 'number')) {
                 metric.setDimension('cwsprChatRepsonseCode', err.statusCode ?? 400)
@@ -147,7 +143,7 @@ export class ChatController implements ChatHandlers {
 
             return result.success
                 ? result.data
-                : new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, result.error, result.data)
+                : new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, result.error)
         } catch (err) {
             this.#log('Error encountered during response streaming:', err instanceof Error ? err.message : 'unknown')
 
@@ -312,10 +308,6 @@ export class ChatController implements ChatHandlers {
             if (partialResultToken) {
                 this.#features.lsp.sendProgress(chatRequestType, partialResultToken, chatResult.data)
             }
-        }
-
-        if (partialResultToken) {
-            this.#log(`All events received, requestId=${requestId}: ${JSON.stringify(chatEventParser.totalEvents)}`)
         }
 
         metric.mergeWith({
