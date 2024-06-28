@@ -1,5 +1,5 @@
 import { distance } from 'fastest-levenshtein'
-import { Position } from 'vscode-languageserver-textdocument'
+import { Position } from '@aws/language-server-runtimes/server-interface'
 import { Features } from '../types'
 import { getErrorMessage } from '../utils'
 
