@@ -4,13 +4,27 @@ import {
     TextDocument,
     SemanticTokenTypes,
     SemanticTokens,
+    SemanticTokensLegend,
 } from '@aws/language-server-runtimes/server-interface'
 import partiQlServerBinary from '../partiql-parser-wasm/partiql-wasm-parser-inline'
 import { initSync, parse_as_json } from '../partiql-parser-wasm/partiql_playground'
 import { convertObjectToParserError } from './error-parsing/parser-errors'
-import { findNodes, sortSemanticTokens, encodeSemanticTokens } from './syntax-highlighting/treesitter'
-import { semanticTokensLegend, SemanticToken } from './syntax-highlighting/util'
-import { string2TokenTypes } from './syntax-highlighting/util'
+import { findNodes, sortSemanticTokens, encodeSemanticTokens } from './syntax-highlighting/parser-tokens'
+import { SemanticToken, string2TokenTypes } from './syntax-highlighting/parser-tokens'
+
+export const semanticTokensLegend = {
+    tokenTypes: [
+        SemanticTokenTypes.keyword,
+        SemanticTokenTypes.type,
+        SemanticTokenTypes.number,
+        SemanticTokenTypes.string,
+        SemanticTokenTypes.function,
+        SemanticTokenTypes.variable,
+        SemanticTokenTypes.comment,
+        SemanticTokenTypes.operator,
+    ],
+    tokenModifiers: [],
+} as SemanticTokensLegend
 
 export function normalizeQuery(data: string): string {
     return data != null ? data : ''

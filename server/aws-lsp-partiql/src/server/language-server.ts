@@ -8,8 +8,7 @@ import {
     type DidOpenTextDocumentParams,
     type Server,
 } from '@aws/language-server-runtimes/server-interface'
-import { createPartiQLLanguageService } from './language-service'
-import { semanticTokensLegend } from './syntax-highlighting/util'
+import { createPartiQLLanguageService, semanticTokensLegend } from './language-service'
 
 export const PartiQLServerFactory =
     (service: any): Server =>

@@ -1,9 +1,37 @@
 import Parser from 'web-tree-sitter'
 import parserBase64 from '../tree-sitter-parser/tree-sitter-parser-inline'
 import wasmBinaryArray from '../tree-sitter-parser/tree-sitter-inline'
-import { SemanticTokenTypes, SemanticTokens } from '@aws/language-server-runtimes/server-interface'
-import { SemanticToken, semanticTokensLegend, string2TokenTypes } from './util'
+import {
+    SemanticTokenTypes,
+    SemanticTokens,
+    SemanticTokenModifiers,
+    Range,
+} from '@aws/language-server-runtimes/server-interface'
 import { SemanticTokensBuilder } from 'vscode-languageserver/node'
+import { semanticTokensLegend } from '../language-service'
+
+export interface SemanticToken {
+    range: Range
+    tokenType: SemanticTokenTypes
+    /**
+     * An optional array of modifiers for this token
+     */
+    tokenModifiers?: SemanticTokenModifiers[]
+}
+
+export const string2TokenTypes: { [key: string]: SemanticTokenTypes } = {
+    tuple_punc_start: SemanticTokenTypes.operator,
+    tuple_punc_end: SemanticTokenTypes.operator,
+    tuple_punc_separator: SemanticTokenTypes.operator,
+    pair_punc_separator: SemanticTokenTypes.operator,
+    array_punc_start: SemanticTokenTypes.operator,
+    array_punc_end: SemanticTokenTypes.operator,
+    array_punc_separator: SemanticTokenTypes.operator,
+    bag_punc_start: SemanticTokenTypes.operator,
+    bag_punc_end: SemanticTokenTypes.operator,
+    bag_punc_separator: SemanticTokenTypes.operator,
+    ion: SemanticTokenTypes.string,
+}
 
 // Initialize and prepare the parser
 async function initParser() {
