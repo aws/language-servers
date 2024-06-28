@@ -30,7 +30,7 @@ export const HELP_MESSAGE = `I'm Amazon Q, a generative AI assistant. Learn more
 \n\n### Examples of questions I can answer:
 \n\n- When should I use ElastiCache?
 \n\n- How do I create an Application Load Balancer?
-\n\n- Explain the <selected code> and ask clarifying questions about it.
+\n\n- Explain selected code and ask clarifying questions about it.
 \n\n- What is the syntax of declaring a variable in TypeScript?
 \n\n### Special Commands
 \n\n- /clear - Clear the conversation.
