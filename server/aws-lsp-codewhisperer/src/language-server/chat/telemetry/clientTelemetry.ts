@@ -73,7 +73,10 @@ export type SourceLinkClickParams = ServerInterface.SourceLinkClickParams &
     BaseClientTelemetryParams<ChatUIEventName.SourceLinkClick>
 
 export type InsertToCursorPositionParams = ServerInterface.InsertToCursorPositionParams &
-    BaseClientTelemetryParams<ChatUIEventName.InsertToCursorPosition>
+    BaseClientTelemetryParams<ChatUIEventName.InsertToCursorPosition> & {
+        cursorState?: ServerInterface.CursorState[]
+        textDocument?: ServerInterface.TextDocumentIdentifier
+    }
 
 export type ClientTelemetryEvent =
     | BaseClientTelemetryParams<ChatUIEventName.EnterFocusChat>
