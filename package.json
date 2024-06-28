@@ -28,6 +28,7 @@
         "package": "npm run compile && npm run package --workspaces --if-present"
     },
     "dependencies": {
+        "@gerhobbelt/gitignore-parser": "^0.2.0-9",
         "typescript": "^5.4.5"
     },
     "devDependencies": {
