@@ -47,21 +47,31 @@ export const SecurityScanServerToken =
             }
             try {
                 if (!credentialsProvider.hasCredentials('bearer')) {
-                    throw new Error('credentialsProvider does not have bearer token credentials')
+                    throw new Error('Credentials provider does not have bearer token credentials')
                 }
+
+                logging.log(`Parameters provided: ${JSON.stringify(params)}`)
+
                 if (!params.arguments || params.arguments.length === 0) {
-                    throw new Error(`Incorrect params provided. Params: ${params}`)
+                    throw new Error(`Error: Invalid data.`)
                 }
                 const [arg] = params.arguments
+
+                logging.log(`Arguments provided: ${JSON.stringify(arg)}`)
+
                 const { ActiveFilePath: activeFilePath, ProjectPath: projectPath } = parseJson(arg)
-                if (!activeFilePath || !projectPath) {
-                    throw new Error(`Error: file path or project path not provided. Params: ${params}`)
+                if (!activeFilePath) {
+                    throw new Error('Error: File to scan is missing.')
+                }
+
+                if (!projectPath) {
+                    throw new Error('Error: Project is missing.')
                 }
                 const activeFilePathUri = pathToFileURL(activeFilePath).href
                 const document = await workspace.getTextDocument(activeFilePathUri)
                 securityScanTelemetryEntry.codewhispererLanguage = getSupportedLanguageId(document)
                 if (!document) {
-                    throw new Error('Text document for given activeFilePath is undefined.')
+                    throw new Error('Error: Text document for given file is missing.')
                 }
                 /**
                  * Step 1: Generate context truncations
@@ -77,7 +87,7 @@ export const SecurityScanServerToken =
                 }
                 if (dependencyGraph.exceedsSizeLimit((await workspace.fs.getFileSize(activeFilePath)).size)) {
                     throw new Error(
-                        `Selected file larger than ${dependencyGraph.getReadableSizeLimit()}. Try a different file.`
+                        `Error: Selected file larger than ${dependencyGraph.getReadableSizeLimit()}. Try a different file.`
                     )
                 }
                 const contextTruncationStartTime = performance.now()
@@ -120,7 +130,7 @@ export const SecurityScanServerToken =
                  */
                 jobStatus = await scanHandler.pollScanJobStatus(scanJob.jobId)
                 if (jobStatus === 'Failed') {
-                    throw new Error('security scan job failed.')
+                    throw new Error('Error: Security scan job failed.')
                 }
                 scanHandler.throwIfCancelled(token)
 
