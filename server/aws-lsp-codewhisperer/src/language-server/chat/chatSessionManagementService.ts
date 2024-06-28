@@ -46,9 +46,8 @@ export class ChatSessionManagementService {
             }
         } else if (this.#sessionByTab.has(tabId)) {
             return {
-                success: false,
-                data: this.#sessionByTab.get(tabId),
-                error: 'Session already exists',
+                success: true,
+                data: this.#sessionByTab.get(tabId)!,
             }
         }
 
