@@ -22,12 +22,6 @@ export interface CodeDiffTrackerOptions {
  * The current calculation method is (Levenshtein edit distance / acceptedSuggestion.length).
  */
 export class CodeDiffTracker<T extends AcceptedSuggestionEntry = AcceptedSuggestionEntry> {
-    #eventQueue: T[]
-    #interval?: NodeJS.Timeout
-    #workspace: Features['workspace']
-    #logging: Features['logging']
-    #recordMetric: (entry: T, codeModificationPercentage: number) => void
-
     /**
      * time indication the flush frequency of which the checks are
      */
@@ -38,6 +32,11 @@ export class CodeDiffTracker<T extends AcceptedSuggestionEntry = AcceptedSuggest
     private static readonly TIME_ELAPSED_THRESHOLD = 1000 * 60 * 5 // 5 minutes
     private static readonly DEFAULT_MAX_QUEUE_SIZE = 10000
 
+    #eventQueue: T[]
+    #interval?: NodeJS.Timeout
+    #workspace: Features['workspace']
+    #logging: Features['logging']
+    #recordMetric: (entry: T, codeModificationPercentage: number) => void
     #flushInterval: number
     #timeElapsedThreshold: number
     #maxQueueSize: number

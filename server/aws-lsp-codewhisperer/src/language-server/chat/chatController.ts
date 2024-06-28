@@ -48,6 +48,7 @@ export class ChatController implements ChatHandlers {
     dispose() {
         this.#chatSessionManagementService.dispose()
         this.#triggerContext.dispose()
+        this.#telemetryController.dispose()
     }
 
     async onChatPrompt(params: ChatParams, token: CancellationToken): Promise<ChatResult | ResponseError<ChatResult>> {

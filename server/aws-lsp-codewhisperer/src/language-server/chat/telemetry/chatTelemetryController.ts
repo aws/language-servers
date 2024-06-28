@@ -323,6 +323,10 @@ export class ChatTelemetryController {
             }
         }
     }
+
+    public dispose() {
+        this.#codeDiffTracker.shutdown()
+    }
 }
 
 export function convertToTelemetryUserIntent(userIntent?: UserIntent) {
