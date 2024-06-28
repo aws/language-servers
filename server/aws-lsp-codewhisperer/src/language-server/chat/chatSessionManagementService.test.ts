@@ -57,13 +57,10 @@ describe('ChatSessionManagementService', () => {
             assert.strictEqual(chatSessionManagementService.getSession(mockSessionId).data, result.data)
         })
 
-        it('creating a session with an existing id should return an error', () => {
-            chatSessionManagementService.createSession(mockSessionId)
+        it('creating a session with an existing id should return existing session', () => {
+            const createdSession = chatSessionManagementService.createSession(mockSessionId)
 
-            sinon.assert.match(chatSessionManagementService.createSession(mockSessionId), {
-                success: false,
-                error: sinon.match.string,
-            })
+            assert.deepStrictEqual(chatSessionManagementService.createSession(mockSessionId), createdSession)
         })
 
         it('deleting session should dispose the chat session service and delete from map', () => {

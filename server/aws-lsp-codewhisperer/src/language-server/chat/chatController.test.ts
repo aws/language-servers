@@ -267,13 +267,7 @@ describe('ChatController', () => {
                 mockCancellationToken
             )
 
-            assert.deepStrictEqual(
-                chatResult,
-                new ResponseError(LSPErrorCodes.RequestFailed, 'some error', {
-                    ...expectedCompleteChatResult,
-                    body: 'Hello World',
-                })
-            )
+            assert.deepStrictEqual(chatResult, new ResponseError(LSPErrorCodes.RequestFailed, 'some error'))
         })
 
         it('returns a ResponseError if response streams return an invalid state event', async () => {
@@ -298,13 +292,7 @@ describe('ChatController', () => {
                 mockCancellationToken
             )
 
-            assert.deepStrictEqual(
-                chatResult,
-                new ResponseError(LSPErrorCodes.RequestFailed, 'invalid state', {
-                    ...expectedCompleteChatResult,
-                    body: 'Hello World',
-                })
-            )
+            assert.deepStrictEqual(chatResult, new ResponseError(LSPErrorCodes.RequestFailed, 'invalid state'))
         })
 
         describe('#extractDocumentContext', () => {
