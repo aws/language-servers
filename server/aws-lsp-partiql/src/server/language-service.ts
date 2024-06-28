@@ -9,8 +9,11 @@ import {
 import partiQlServerBinary from '../partiql-parser-wasm/partiql-wasm-parser-inline'
 import { initSync, parse_as_json } from '../partiql-parser-wasm/partiql_playground'
 import { convertObjectToParserError } from './error-parsing/parser-errors'
-import { findNodes, sortSemanticTokens, encodeSemanticTokens } from './syntax-highlighting/parser-tokens'
+import { findNodes, encodeSemanticTokens } from './syntax-highlighting/parser-tokens'
 import { SemanticToken, string2TokenTypes } from './syntax-highlighting/parser-tokens'
+
+// This is a constant that is used to determine if the language server supports multi-line tokens.
+const MULTILINETOKENSUPPORT = true
 
 export const semanticTokensLegend = {
     tokenTypes: [
@@ -71,16 +74,13 @@ class PartiQLLanguageService {
             data.push(...tokens)
         }
         // console.log('Found tokens:', data)
-        // console.log('Sorting tokens...')
-        const sortedTokens = sortSemanticTokens(data)
-        // console.log('Sorted tokens:', sortedTokens)
-        // console.log('Encoding tokens...')
-        const encodedTokens = encodeSemanticTokens(sortedTokens)
-        // if (encodedTokens) {
-        //     console.log('Returned tokens:', encodedTokens)
-        // } else {
-        //     console.log('No tokens found.')
-        // }
+        console.log('Encoding tokens...')
+        const encodedTokens = encodeSemanticTokens(data, MULTILINETOKENSUPPORT)
+        if (encodedTokens) {
+            console.log('Returned tokens:', encodedTokens)
+        } else {
+            console.log('No tokens found.')
+        }
         return encodedTokens
     }
 }

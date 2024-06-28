@@ -13,6 +13,7 @@ import { semanticTokensLegend } from '../language-service'
 export interface SemanticToken {
     range: Range
     tokenType: SemanticTokenTypes
+    tokenLength: number
     /**
      * An optional array of modifiers for this token
      */
@@ -80,9 +81,9 @@ export async function findNodes(
     const data: SemanticToken[] = []
 
     for (const { node, name } of captures) {
-        // console.log(
-        //     `Found ${name}: '${node.text}' at line:${node.startPosition.row} startChar:${node.startPosition.column} length:${node.text.length} `
-        // )
+        console.log(
+            `Found ${name}: '${node.text}' at line:${node.startPosition.row} startChar:${node.startPosition.column} length:${node.text.length} endLine:${node.endPosition.row} endChar:${node.endPosition.column}`
+        )
         const tokenType =
             nodeTypeString in string2TokenTypes ? string2TokenTypes[nodeTypeString] : (nodeType as SemanticTokenTypes)
         const startLine = node.startPosition.row
@@ -95,13 +96,14 @@ export async function findNodes(
                 end: { line: endLine, character: endCharacter },
             },
             tokenType: tokenType,
+            tokenLength: node.text.length,
         }
         data.push(token)
     }
     return data
 }
 
-export function sortSemanticTokens(tokens: SemanticToken[]): SemanticToken[] {
+function _sortSemanticTokens(tokens: SemanticToken[]): SemanticToken[] {
     return tokens.sort((a, b) => {
         // Compare start line
         if (a.range.start.line !== b.range.start.line) {
@@ -123,18 +125,69 @@ export function sortSemanticTokens(tokens: SemanticToken[]): SemanticToken[] {
     })
 }
 
-export function encodeSemanticTokens(tokens: SemanticToken[]): Promise<SemanticTokens | null> {
+function _breakMultilineTokens(tokens: SemanticToken[]): SemanticToken[] {
+    const breakDownTokens: SemanticToken[] = []
+    for (const token of tokens) {
+        const startLine = token.range.start.line
+        const endLine = token.range.end.line
+        const startCharacter = token.range.start.character
+        const endCharacter = token.range.end.character
+        const originalLength = token.tokenLength
+        if (startLine === endLine) {
+            breakDownTokens.push(token)
+        } else {
+            const FirstToken: SemanticToken = {
+                range: {
+                    start: { line: startLine, character: startCharacter },
+                    end: { line: startLine, character: startCharacter + originalLength },
+                },
+                tokenType: token.tokenType,
+                tokenLength: originalLength,
+            }
+            breakDownTokens.push(FirstToken)
+            for (let i = startLine + 1; i < endLine; i++) {
+                const innerToken: SemanticToken = {
+                    range: {
+                        start: { line: i, character: 0 },
+                        end: { line: i, character: originalLength },
+                    },
+                    tokenType: token.tokenType,
+                    tokenLength: originalLength,
+                }
+                breakDownTokens.push(innerToken)
+            }
+            const lastToken: SemanticToken = {
+                range: {
+                    start: { line: endLine, character: 0 },
+                    end: { line: endLine, character: endCharacter },
+                },
+                tokenType: token.tokenType,
+                tokenLength: endCharacter,
+            }
+            breakDownTokens.push(lastToken)
+        }
+    }
+    return breakDownTokens
+}
+
+export function encodeSemanticTokens(
+    tokens: SemanticToken[],
+    multilineTokenSupport: boolean
+): Promise<SemanticTokens | null> {
     if (!tokens || tokens.length === 0) {
         return Promise.resolve(null)
     }
-    const sortedTokens = sortSemanticTokens(tokens)
+    let sortedTokens = _sortSemanticTokens(tokens)
+    if (multilineTokenSupport) {
+        sortedTokens = _breakMultilineTokens(sortedTokens)
+    }
     const builder = new SemanticTokensBuilder()
     for (const token of sortedTokens) {
         builder.push(
             token.range.start.line,
             token.range.start.character,
             // Token length
-            token.range.end.character - token.range.start.character,
+            token.tokenLength,
             // Token Type Index
             semanticTokensLegend.tokenTypes.indexOf(token.tokenType),
             // Token Modifier: Currently not supported
