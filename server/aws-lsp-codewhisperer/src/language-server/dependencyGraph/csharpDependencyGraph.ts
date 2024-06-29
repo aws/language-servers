@@ -20,7 +20,8 @@ export class CsharpDependencyGraph extends DependencyGraph {
      * @param workspacePath provides absolute path for workspace
      */
     async createNamespaceFilenameMapper(workspacePath: string) {
-        const files = await this.getFiles(workspacePath)
+        const allFiles = await this.getFiles(workspacePath)
+        const files = await this.filterOutGitIgnoredFiles(workspacePath, allFiles)
         const csharpFiles = files.filter(f => f.match(/.*.cs$/gi))
         const searchRegEx = new RegExp('namespace ([A-Z]\\w*(.[A-Z]\\w*)*)', 'g')
         for (const filePath of csharpFiles) {
@@ -133,11 +134,11 @@ export class CsharpDependencyGraph extends DependencyGraph {
         if (this.exceedsSizeLimit(this._totalSize)) {
             return
         }
+
         const allFiles = await this.getFiles(dirPath)
-
         const files = await this.filterOutGitIgnoredFiles(dirPath, allFiles)
-
         const csharpFiles = files.filter(f => f.match(/.*.cs$/gi))
+
         for (const file of csharpFiles) {
             const fileSize = (await this.workspace.fs.getFileSize(file)).size
             const doesExceedsSize = this.exceedsSizeLimit(this._totalSize + fileSize)

@@ -1,14 +1,9 @@
-/*!
- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import * as assert from 'assert'
 import * as path from 'path'
 import * as vscode from 'vscode'
-import { GitIgnoreFilter } from '../../dependencyGraph/gitIgnoreFilter'
+import { GitIgnoreFilter } from '../dependencyGraph/gitIgnoreFilter'
 import { createTestWorkspace, toFile } from '../testUtils'
-import sinon from 'sinon'
+import * as sinon from 'sinon'
 
 describe('filterGitIgnore', function () {
     it('returns all files in the workspace not excluded by gitignore', async function () {

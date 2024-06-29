@@ -233,3 +233,10 @@ export const makeTemporaryFolder = async (...relativePathParts: string[]) => {
     await fs.promises.mkdir(tmpPath, { recursive: true })
     return tmpPath
 }
+
+/**
+ * Asserts that filepaths are equal, after normalizing for platform differences.
+ */
+export function assertEqualPaths(actual: string, expected: string, message?: string | Error) {
+    assert.strictEqual(pathutil.normalize(actual), pathutil.normalize(expected), message)
+}
