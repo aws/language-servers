@@ -124,6 +124,7 @@ export abstract class DependencyGraph {
      */
     async filterOutGitIgnoredFiles(rootPath: string, files: string[]): Promise<string[]> {
         // do we need to consider more paths besides root level gitignore?
+        // probs need to fetch all .gitignores under dir path
         const gitIgnorePath = path.join(rootPath, '.gitignore')
 
         if (!(await this.workspace.fs.exists(gitIgnorePath)) || !(await this.workspace.fs.isFile(gitIgnorePath))) {
