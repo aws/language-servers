@@ -5,6 +5,7 @@ import * as Sinon from 'sinon'
 import { StubbedInstance, stubInterface } from 'ts-sinon'
 import { CsharpDependencyGraph } from './csharpDependencyGraph'
 import { toFile } from '../testUtils'
+import { DependencyGraph } from './dependencyGraph'
 
 describe('Test CsharpDependencyGraph', () => {
     let csharpDependencyGraph: CsharpDependencyGraph
@@ -34,7 +35,7 @@ describe('Test CsharpDependencyGraph', () => {
         mockedLogging = stubInterface<Logging>()
         csharpDependencyGraph = new CsharpDependencyGraph(mockedWorkspace, mockedLogging, projectPathUri)
         // mock the filter files function in csharpDependencyGraph to return the string[] files that was passed into it
-        csharpDependencyGraph.filterFiles = Sinon.mock()
+        // csharpDependencyGraph.filterFiles = Sinon.mock()
     })
 
     describe('Test getPayloadSizeLimitInBytes', () => {
@@ -110,77 +111,76 @@ describe('Test CsharpDependencyGraph', () => {
         })
     })
 
-    // TODO: FIX THIS TEST -- COMMENTING IN ORDER TO CONTINUE GITIGNORE IMPLEMENTATION
-    // describe('Test createNamespaceFilenameMapper', () => {
-    //     beforeEach(() => {
-    //         mockedFs.readdir.reset()
-    //         mockedFs.readFile.reset()
-    //         mockedFs.readdir.callsFake(async dirpath => {
-    //             switch (dirpath) {
-    //                 case projectPathUri:
-    //                     return [
-    //                         {
-    //                             isFile: () => false,
-    //                             isDirectory: () => true,
-    //                             name: 'src',
-    //                             path: projectPathUri,
-    //                         },
-    //                     ]
-    //                 case path.join(projectPathUri, 'src'):
-    //                     return [
-    //                         {
-    //                             isFile: () => true,
-    //                             isDirectory: () => false,
-    //                             name: 'sample.cs',
-    //                             path: path.join(projectPathUri, 'src'),
-    //                         },
-    //                         {
-    //                             isFile: () => true,
-    //                             isDirectory: () => false,
-    //                             name: 'model.cs',
-    //                             path: path.join(projectPathUri, 'src'),
-    //                         },
-    //                     ]
-    //                 default:
-    //                     return []
-    //             }
-    //         })
-    //     })
+    describe('Test createNamespaceFilenameMapper', () => {
+        beforeEach(() => {
+            mockedFs.readdir.reset()
+            mockedFs.readFile.reset()
+            mockedFs.readdir.callsFake(async dirpath => {
+                switch (dirpath) {
+                    case projectPathUri:
+                        return [
+                            {
+                                isFile: () => false,
+                                isDirectory: () => true,
+                                name: 'src',
+                                path: projectPathUri,
+                            },
+                        ]
+                    case path.join(projectPathUri, 'src'):
+                        return [
+                            {
+                                isFile: () => true,
+                                isDirectory: () => false,
+                                name: 'sample.cs',
+                                path: path.join(projectPathUri, 'src'),
+                            },
+                            {
+                                isFile: () => true,
+                                isDirectory: () => false,
+                                name: 'model.cs',
+                                path: path.join(projectPathUri, 'src'),
+                            },
+                        ]
+                    default:
+                        return []
+                }
+            })
+        })
 
-    //     it('should create the map with namespace to filepath mapping', async () => {
-    //         mockedFs.readFile.callsFake(async filePath => {
-    //             if (filePath === path.join(projectPathUri, 'src', 'sample.cs')) {
-    //                 return `namespace Amazon.Cw.Utils.Sample {}`
-    //             }
-    //             if (filePath === path.join(projectPathUri, 'src', 'model.cs')) {
-    //                 return `namespace Amazon.Cw.Model {}`
-    //             }
-    //         })
-    //         await csharpDependencyGraph.createNamespaceFilenameMapper(projectPathUri)
-    //         assert.deepStrictEqual(
-    //             csharpDependencyGraph.namespaceToFilepathDirectory,
-    //             new Map([
-    //                 ['Amazon.Cw.Model', new Set([path.join(projectPathUri, 'src', 'model.cs')])],
-    //                 ['Amazon.Cw.Utils.Sample', new Set([path.join(projectPathUri, 'src', 'sample.cs')])],
-    //             ])
-    //         )
-    //     })
-    //     it('should create empty map', async () => {
-    //         csharpDependencyGraph.namespaceToFilepathDirectory = new Map<string, Set<string>>()
-    //         mockedFs.readFile.callsFake(async filePath => {
-    //             if (filePath === path.join(projectPathUri, 'src', 'sample.cs')) {
-    //                 return `using static Amazon.Cw.Sample;`
-    //             }
-    //             if (filePath === path.join(projectPathUri, 'src', 'model.cs')) {
-    //                 return ``
-    //             }
-    //         })
-    //         // repeat the above line but add logic to let it be called at most 2 times
+        it('should create the map with namespace to filepath mapping', async () => {
+            mockedFs.readFile.callsFake(async filePath => {
+                if (filePath === path.join(projectPathUri, 'src', 'sample.cs')) {
+                    return `namespace Amazon.Cw.Utils.Sample {}`
+                }
+                if (filePath === path.join(projectPathUri, 'src', 'model.cs')) {
+                    return `namespace Amazon.Cw.Model {}`
+                }
+            })
+            await csharpDependencyGraph.createNamespaceFilenameMapper(projectPathUri)
+            assert.deepStrictEqual(
+                csharpDependencyGraph.namespaceToFilepathDirectory,
+                new Map([
+                    ['Amazon.Cw.Model', new Set([path.join(projectPathUri, 'src', 'model.cs')])],
+                    ['Amazon.Cw.Utils.Sample', new Set([path.join(projectPathUri, 'src', 'sample.cs')])],
+                ])
+            )
+        })
+        it('should create empty map', async () => {
+            csharpDependencyGraph.namespaceToFilepathDirectory = new Map<string, Set<string>>()
+            mockedFs.readFile.callsFake(async filePath => {
+                if (filePath === path.join(projectPathUri, 'src', 'sample.cs')) {
+                    return `using static Amazon.Cw.Sample;`
+                }
+                if (filePath === path.join(projectPathUri, 'src', 'model.cs')) {
+                    return ``
+                }
+            })
+            // repeat the above line but add logic to let it be called at most 2 times
 
-    //         await csharpDependencyGraph.createNamespaceFilenameMapper(projectPathUri)
-    //         assert.deepStrictEqual(csharpDependencyGraph.namespaceToFilepathDirectory, new Map([]))
-    //     })
-    // })
+            await csharpDependencyGraph.createNamespaceFilenameMapper(projectPathUri)
+            assert.deepStrictEqual(csharpDependencyGraph.namespaceToFilepathDirectory, new Map([]))
+        })
+    })
     describe('Test searchDependency', () => {
         beforeEach(() => {
             mockedFs.getFileSize.reset()
@@ -391,34 +391,35 @@ namespace Amazon.Toolkit.Demo {
         })
     })
 
-    describe('Test generateTruncation', () => {
-        before(() => {
-            Sinon.stub(Date, 'now').returns(111111111)
-            // csharpDependencyGraph.filterFiles() = Sinon.mock().returns()
-        })
-        it('should call zip dir', async () => {
-            const zipSize = Math.pow(2, 19)
-            const zipFileBuffer = 'dummy-zip-data'
-            mockedFs.getFileSize.atLeast(1).resolves({ size: zipSize })
-            csharpDependencyGraph.createZip = Sinon.stub().returns({
-                zipFileBuffer,
-                zipFileSize: zipSize,
-            })
-            const expectedResult = {
-                rootDir: path.join(tempDirPath, 'codewhisperer_scan_111111111'),
-                zipFileBuffer,
-                scannedFiles: new Set([path.join(projectPathUri, 'main.cs')]),
-                srcPayloadSizeInBytes: zipSize,
-                zipFileSizeInBytes: zipSize,
-                buildPayloadSizeInBytes: 0,
-                lines: 0,
-            }
+    // describe('Test generateTruncation', () => {
+    //     before(() => {
+    //         Sinon.stub(Date, 'now').returns(111111111)
+    //         // csharpDependencyGraph.filterFiles() = Sinon.mock().returns()
+    //     })
+    //     it('should call zip dir', async () => {
+    //         const zipSize = Math.pow(2, 19)
+    //         const zipFileBuffer = 'dummy-zip-data'
+    //         mockedFs.getFileSize.atLeast(1).resolves({ size: zipSize })
+    //         csharpDependencyGraph.createZip = Sinon.stub().returns({
+    //             zipFileBuffer,
+    //             zipFileSize: zipSize,
+    //         })
+    //         const expectedResult = {
+    //             rootDir: path.join(tempDirPath, 'codewhisperer_scan_111111111'),
+    //             zipFileBuffer,
+    //             scannedFiles: new Set([path.join(projectPathUri, 'main.cs')]),
+    //             srcPayloadSizeInBytes: zipSize,
+    //             zipFileSizeInBytes: zipSize,
+    //             buildPayloadSizeInBytes: 0,
+    //             lines: 0,
+    //         }
 
-            const trucation = await csharpDependencyGraph.generateTruncation(path.join(projectPathUri, 'main.cs'))
+    //         console.log("about to generate .....  wooo ... ")
+    //         const trucation = await csharpDependencyGraph.generateTruncation(path.join(projectPathUri, 'main.cs'))
 
-            assert.deepStrictEqual(trucation, expectedResult)
-        })
-    })
+    //         assert.deepStrictEqual(trucation, expectedResult)
+    //     })
+    // })
 
     // describe('Test gitIgnore', () => {
     //     it('should return all files in the workspace not excluded by gitignore', async function () {

@@ -20,13 +20,14 @@ export class CsharpDependencyGraph extends DependencyGraph {
      * @param workspacePath provides absolute path for workspace
      */
     async createNamespaceFilenameMapper(workspacePath: string) {
+        console.log('getting files')
         const files = await this.getFiles(workspacePath)
-        this.logging.log('Creating Namespace Filename Mapper')
-        this.logging.log(`Total files in the workspace: ${files.length}`)
-        this.logging.log('Here is the list of all files in workspace')
+        console.log('Creating Namespace Filename Mapper')
+        console.log(`Total files in the workspace: ${files.length}`)
+        console.log('Here is the list of all files in workspace')
 
         // log all strings in allFiles
-        files.forEach(file => this.logging.log(file))
+        files.forEach(file => console.log(file))
 
         const csharpFiles = await this.filterFiles(workspacePath, files)
 
@@ -55,7 +56,10 @@ export class CsharpDependencyGraph extends DependencyGraph {
 
     async generateTruncation(filePath: string): Promise<Truncation> {
         try {
+            console.log('just entered truncation')
             const dirName = path.dirname(filePath)
+            console.log(`dirname: ${dirName}`)
+
             await this.createNamespaceFilenameMapper(dirName)
 
             if (!dirName) {
@@ -171,8 +175,9 @@ export class CsharpDependencyGraph extends DependencyGraph {
 
     // filters out gitIgnored and non-c# files
     async filterFiles(rootPath: string, files: string[]): Promise<string[]> {
+        console.log('entered filterFiles')
         const gitAllowedFiles = await this.filterOutGitIgnoredFiles(rootPath, files)
-
+        console.log('exited filterGitIgnore')
         return gitAllowedFiles.filter(f => f.match(/.*.cs$/gi))
     }
 
