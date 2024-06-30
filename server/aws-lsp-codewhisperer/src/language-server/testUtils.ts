@@ -1,9 +1,7 @@
 import { TextDocument } from 'vscode-languageserver-textdocument'
 import { ResponseContext, Suggestion } from './codeWhispererService'
-// import * as os from 'os'
 import * as fs from 'fs'
 import * as path from 'path'
-// import * as crypto from 'crypto'
 
 export const HELLO_WORLD_IN_CSHARP = `class HelloWorld
 {
@@ -147,95 +145,3 @@ export async function toFile(o: any, ...filePathParts: string[]) {
         return
     })
 }
-// /**
-//  * Creates a temporary workspace with test files in it.
-//  *
-//  * @param n number of temporary test files to create in the workspace
-//  * @param opts allows to pass options to have a custom fileName and/or file content and also to add a file with an exclusion pattern from src/shared/fs/watchedFiles.ts
-//  * @returns the path to the workspace folder
-//  */
-// export async function createTestWorkspace(
-//     n: number,
-//     opts: {
-//         /**
-//          * optional filename prefix for all created files
-//          */
-//         fileNamePrefix?: string
-//         /**
-//          * optional file content
-//          */
-//         fileContent?: string
-//         /**
-//          * name of the workspace folder
-//          */
-//         workspaceName?: string
-//         /**
-//          * the subDir where the workspace folder will point to within the temp folder
-//          */
-//         subDir?: string
-//     }
-// ): Promise<vscode.WorkspaceFolder> {
-//     const workspace = await createTestWorkspaceFolder(opts.workspaceName, opts.subDir)
-
-//     if (n <= 0) {
-//         throw new Error('test file numbers cannot be less or equal to zero')
-//     }
-
-//     const fileNamePrefix = opts?.fileNamePrefix ?? 'test-file-'
-//     const fileContent = opts?.fileContent ?? ''
-
-//     do {
-//         const tempFilePath = path.join(workspace.uri.fsPath, `${fileNamePrefix}${n}`)
-//         // write file without a callback
-//         await fs.writeFile(tempFilePath, fileContent, () => {
-//             return
-//         })
-//     } while (--n > 0)
-
-//     return workspace
-// }
-
-// const testTempDirs: string[] = []
-
-// /**
-//  * Creates a random, temporary workspace folder on the filesystem and returns a `WorkspaceFolder`
-//  * object. The folder will be automatically deleted after tests complete.
-//  *
-//  * @param name  Folder name (default: "test-workspace-folder").
-//  * @param subDir Subdirectory created in the workspace folder and returned in the result.
-//  */
-// export async function createTestWorkspaceFolder(name?: string, subDir?: string): Promise<vscode.WorkspaceFolder> {
-//     const tempFolder = await makeTemporaryFolder()
-//     testTempDirs.push(tempFolder)
-//     const finalWsFolder = subDir === undefined ? tempFolder : path.join(tempFolder, subDir)
-//     if (subDir !== undefined && subDir.length > 0) {
-//         await fs.promises.mkdir(finalWsFolder, { recursive: true })
-//     }
-//     return {
-//         uri: vscode.Uri.file(finalWsFolder),
-//         name: name ?? 'test-workspace-folder',
-//         index: 0,
-//     }
-// }
-
-// /** Note: In tests use `createTestWorkspaceFolder` instead. */
-// export const makeTemporaryFolder = async (...relativePathParts: string[]) => {
-//     if (relativePathParts.length === 0) {
-//         relativePathParts.push('testfolder')
-//     }
-
-//     // Add random characters to the leaf folder to ensure it is unique
-//     relativePathParts[relativePathParts.length - 1] =
-//         relativePathParts[relativePathParts.length - 1] + crypto.randomBytes(4).toString('hex')
-
-//     const tmpPath = path.join(os.tmpdir(), ...relativePathParts)
-//     await fs.promises.mkdir(tmpPath, { recursive: true })
-//     return tmpPath
-// }
-
-/**
- * Asserts that filepaths are equal, after normalizing for platform differences.
- */
-// export function assertEqualPaths(actual: string, expected: string, message?: string | Error) {
-//     assert.strictEqual(pathutil.normalize(actual), pathutil.normalize(expected), message)
-// }
