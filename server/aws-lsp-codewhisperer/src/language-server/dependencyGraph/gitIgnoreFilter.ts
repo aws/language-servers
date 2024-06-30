@@ -1,8 +1,8 @@
 import { Logging, Workspace } from '@aws/language-server-runtimes/server-interface'
-import * as path from 'path'
 import { GitIgnoreAcceptor } from '@gerhobbelt/gitignore-parser'
 import * as parser from '@gerhobbelt/gitignore-parser'
 import * as pathUtils from '../pathUtils'
+import path = require('path')
 
 type GitIgnoreRelativeAcceptor = {
     folderPath: string

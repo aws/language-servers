@@ -1,8 +1,8 @@
 import { Logging, Workspace } from '@aws/language-server-runtimes/server-interface'
-import * as path from 'path'
 import { sleep } from './commonUtil'
 import * as CodeWhispererConstants from './constants'
 import { DependencyGraph, Truncation } from './dependencyGraph'
+import path = require('path')
 
 export const importRegex = /((global\s+)?using\s+(static\s+)?)([A-Z]\w*\s*?=\s*)?([A-Z]\w*(.[A-Z]\w*)*);/gm
 

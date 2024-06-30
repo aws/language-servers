@@ -33,6 +33,8 @@ describe('Test CsharpDependencyGraph', () => {
         mockedGetWorkspaceFolder.returns(undefined)
         mockedLogging = stubInterface<Logging>()
         csharpDependencyGraph = new CsharpDependencyGraph(mockedWorkspace, mockedLogging, projectPathUri)
+        // mock the filter files function in csharpDependencyGraph to return the string[] files that was passed into it
+        csharpDependencyGraph.filterFiles = Sinon.mock()
     })
 
     describe('Test getPayloadSizeLimitInBytes', () => {
@@ -389,35 +391,34 @@ namespace Amazon.Toolkit.Demo {
         })
     })
 
-    // TODO: FIX THIS TEST -- COMMENTING IN ORDER TO CONTINUE GITIGNORE IMPLEMENTATION
-    // TODO: need to determine if gitignore logic belongs in filename mapper
-    // describe('Test generateTruncation', () => {
-    //     before(() => {
-    //         Sinon.stub(Date, 'now').returns(111111111)
-    //     })
-    //     it('should call zip dir', async () => {
-    //         const zipSize = Math.pow(2, 19)
-    //         const zipFileBuffer = 'dummy-zip-data'
-    //         mockedFs.getFileSize.atLeast(1).resolves({ size: zipSize })
-    //         csharpDependencyGraph.createZip = Sinon.stub().returns({
-    //             zipFileBuffer,
-    //             zipFileSize: zipSize,
-    //         })
-    //         const expectedResult = {
-    //             rootDir: path.join(tempDirPath, 'codewhisperer_scan_111111111'),
-    //             zipFileBuffer,
-    //             scannedFiles: new Set([path.join(projectPathUri, 'main.cs')]),
-    //             srcPayloadSizeInBytes: zipSize,
-    //             zipFileSizeInBytes: zipSize,
-    //             buildPayloadSizeInBytes: 0,
-    //             lines: 0,
-    //         }
+    describe('Test generateTruncation', () => {
+        before(() => {
+            Sinon.stub(Date, 'now').returns(111111111)
+            // csharpDependencyGraph.filterFiles() = Sinon.mock().returns()
+        })
+        it('should call zip dir', async () => {
+            const zipSize = Math.pow(2, 19)
+            const zipFileBuffer = 'dummy-zip-data'
+            mockedFs.getFileSize.atLeast(1).resolves({ size: zipSize })
+            csharpDependencyGraph.createZip = Sinon.stub().returns({
+                zipFileBuffer,
+                zipFileSize: zipSize,
+            })
+            const expectedResult = {
+                rootDir: path.join(tempDirPath, 'codewhisperer_scan_111111111'),
+                zipFileBuffer,
+                scannedFiles: new Set([path.join(projectPathUri, 'main.cs')]),
+                srcPayloadSizeInBytes: zipSize,
+                zipFileSizeInBytes: zipSize,
+                buildPayloadSizeInBytes: 0,
+                lines: 0,
+            }
 
-    //         const trucation = await csharpDependencyGraph.generateTruncation(path.join(projectPathUri, 'main.cs'))
+            const trucation = await csharpDependencyGraph.generateTruncation(path.join(projectPathUri, 'main.cs'))
 
-    //         assert.deepStrictEqual(trucation, expectedResult)
-    //     })
-    // })
+            assert.deepStrictEqual(trucation, expectedResult)
+        })
+    })
 
     // describe('Test gitIgnore', () => {
     //     it('should return all files in the workspace not excluded by gitignore', async function () {

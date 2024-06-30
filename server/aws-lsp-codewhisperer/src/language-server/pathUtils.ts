@@ -1,4 +1,4 @@
-import * as os from 'os'
+import os = require('os')
 
 /**
  * Returns `true` if path `p` is a descendant of directory `d` (or if they are

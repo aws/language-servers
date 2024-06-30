@@ -1,7 +1,7 @@
 import { TextDocument } from 'vscode-languageserver-textdocument'
 import { ResponseContext, Suggestion } from './codeWhispererService'
-import * as fs from 'fs'
-import * as path from 'path'
+import path = require('path')
+import fs = require('fs')
 
 export const HELLO_WORLD_IN_CSHARP = `class HelloWorld
 {
