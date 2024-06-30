@@ -124,14 +124,24 @@ export abstract class DependencyGraph {
      */
     async filterOutGitIgnoredFiles(rootPath: string, files: string[]): Promise<string[]> {
         // TODO: Filter out all .gitignores that exist under rootDir
+        this.logging.log(`entered filter Git Ignored Files method`)
+
         const gitIgnorePath = path.join(rootPath, '.gitignore')
 
-        if (!(await this.workspace.fs.exists(gitIgnorePath)) || !(await this.workspace.fs.isFile(gitIgnorePath))) {
+        this.logging.log(`gitIgnorePath: ${gitIgnorePath}`)
+
+        if (!(await this.workspace.fs.exists(gitIgnorePath))) {
+            this.logging.log(`No .gitignore file found at ${gitIgnorePath}. Proceeding with all files.`)
             return files
         }
 
-        const gitIgnoreFilter = await GitIgnoreFilter.build(rootPath, gitIgnorePath, this.workspace)
+        this.logging.log('Entering GitIgnoreFilter.build')
 
+        const gitIgnoreFilter = await GitIgnoreFilter.build(rootPath, gitIgnorePath, this.workspace, this.logging)
+
+        this.logging.log('Exited GitIgnoreFilter.build')
+
+        this.logging.log('Filtering files using GitIgnoreFilter')
         return gitIgnoreFilter.filterFiles(files)
     }
 

@@ -21,8 +21,15 @@ export class CsharpDependencyGraph extends DependencyGraph {
      */
     async createNamespaceFilenameMapper(workspacePath: string) {
         const allFiles = await this.getFiles(workspacePath)
-        const files = await this.filterOutGitIgnoredFiles(workspacePath, allFiles)
-        const csharpFiles = files.filter(f => f.match(/.*.cs$/gi))
+        this.logging.log('Creating Namespace Filename Mapper')
+        this.logging.log(`Total files in the workspace: ${allFiles.length}`)
+        this.logging.log('Here is the list of all files in workspace')
+
+        // log all strings in allFiles
+        allFiles.forEach(file => this.logging.log(file))
+
+        // const files = await this.filterOutGitIgnoredFiles(workspacePath, allFiles)
+        const csharpFiles = allFiles.filter(f => f.match(/.*.cs$/gi))
         const searchRegEx = new RegExp('namespace ([A-Z]\\w*(.[A-Z]\\w*)*)', 'g')
         for (const filePath of csharpFiles) {
             const content = await this.workspace.fs.readFile(filePath)
@@ -37,6 +44,13 @@ export class CsharpDependencyGraph extends DependencyGraph {
                 }
             }
         }
+
+        // log everything in namespaceToFilepathDirectory
+        this.namespaceToFilepathDirectory.forEach((value, key) => {
+            this.logging.log(`Namespace: ${key}`)
+            // value is a set of strings, log all the strings
+            this.logging.log(`Filenames: ${[...value].join(', ')}`)
+        })
     }
 
     async generateTruncation(filePath: string): Promise<Truncation> {
@@ -131,12 +145,23 @@ export class CsharpDependencyGraph extends DependencyGraph {
     }
 
     override async traverseDir(dirPath: string) {
+        this.logging.log('Traversing Directory')
+
         if (this.exceedsSizeLimit(this._totalSize)) {
             return
         }
 
         const allFiles = await this.getFiles(dirPath)
         const files = await this.filterOutGitIgnoredFiles(dirPath, allFiles)
+
+        this.logging.log('List of files after filterOutGitIgnoredFiles')
+
+        files.forEach(file => this.logging.log(file))
+
+        // log all strings in allFiles
+        this.logging.log('List of files without gitignored')
+        files.forEach(file => this.logging.log(file))
+
         const csharpFiles = files.filter(f => f.match(/.*.cs$/gi))
 
         for (const file of csharpFiles) {

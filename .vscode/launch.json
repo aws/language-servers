@@ -134,7 +134,7 @@
             "preLaunchTask": "watch",
             "name": "Unit Tests (Current File)",
             "program": "${workspaceRoot}/node_modules/mocha/bin/_mocha",
-            "args": ["${workspaceRoot}/out/test/unit/**/${fileBasenameNoExtension}.js"],
+            "args": ["${workspaceRoot}\\out\\test\\unit\\**\\${fileBasenameNoExtension}.js"],
             "cwd": "${workspaceRoot}"
         }
     ],
