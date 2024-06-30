@@ -1,7 +1,5 @@
 import { TextDocument } from 'vscode-languageserver-textdocument'
 import { ResponseContext, Suggestion } from './codeWhispererService'
-import path = require('path')
-import fs = require('fs')
 
 export const HELLO_WORLD_IN_CSHARP = `class HelloWorld
 {
@@ -129,19 +127,4 @@ export const createIterableResponse = <T>(data: T[]): AsyncIterable<T> => {
             }
         },
     }
-}
-
-/**
- * Writes the string form of `o` to `filePathParts` as UTF-8 text.
- *
- * Creates parent directories in `filePathParts`, if necessary.
- */
-export async function toFile(o: any, ...filePathParts: string[]) {
-    const text = o ? o.toString() : ''
-    const filePath = path.join(...filePathParts)
-    const dir = path.dirname(filePath)
-    await fs.promises.mkdir(dir, { recursive: true })
-    await fs.writeFile(filePath, text, () => {
-        return
-    })
 }

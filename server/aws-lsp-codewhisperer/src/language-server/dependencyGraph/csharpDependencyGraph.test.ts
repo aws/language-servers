@@ -4,8 +4,6 @@ import * as path from 'path'
 import * as Sinon from 'sinon'
 import { StubbedInstance, stubInterface } from 'ts-sinon'
 import { CsharpDependencyGraph } from './csharpDependencyGraph'
-import { toFile } from '../testUtils'
-import { DependencyGraph } from './dependencyGraph'
 
 describe('Test CsharpDependencyGraph', () => {
     let csharpDependencyGraph: CsharpDependencyGraph
@@ -34,8 +32,6 @@ describe('Test CsharpDependencyGraph', () => {
         mockedGetWorkspaceFolder.returns(undefined)
         mockedLogging = stubInterface<Logging>()
         csharpDependencyGraph = new CsharpDependencyGraph(mockedWorkspace, mockedLogging, projectPathUri)
-        // mock the filter files function in csharpDependencyGraph to return the string[] files that was passed into it
-        // csharpDependencyGraph.filterFiles = Sinon.mock()
     })
 
     describe('Test getPayloadSizeLimitInBytes', () => {
@@ -393,7 +389,6 @@ namespace Amazon.Toolkit.Demo {
     describe('Test generateTruncation', () => {
         before(() => {
             Sinon.stub(Date, 'now').returns(111111111)
-            // csharpDependencyGraph.filterFiles() = Sinon.mock().returns()
         })
         it('should call zip dir', async () => {
             const zipSize = Math.pow(2, 19)
@@ -413,118 +408,133 @@ namespace Amazon.Toolkit.Demo {
                 lines: 0,
             }
 
-            console.log('about to generate .....  wooo ... ')
             const trucation = await csharpDependencyGraph.generateTruncation(path.join(projectPathUri, 'main.cs'))
 
             assert.deepStrictEqual(trucation, expectedResult)
         })
     })
 
-    // describe('Test gitIgnore', () => {
-    //     it('should return all files in the workspace not excluded by gitignore', async function () {
-    //         // these variables are a manual selection of settings for the test in order to test the collectFiles function
-    //         // const fileAmount = 3
-    //         // const fileNamePrefix = 'file'
-    //         const fileContent = 'test content'
+    describe('Test gitIgnore', () => {
+        beforeEach(() => {
+            mockedFs.isFile.reset()
+            mockedFs.isFile.resolves(false)
+            mockedFs.readdir.reset()
+            mockedFs.readFile.reset()
+            // setup sample directory structure
+            mockedFs.readdir.callsFake(async dirpath => {
+                switch (dirpath) {
+                    case projectPathUri:
+                        return [
+                            {
+                                isFile: () => false,
+                                isDirectory: () => true,
+                                name: 'src',
+                                path: projectPathUri,
+                            },
+                        ]
+                    case path.join(projectPathUri, 'src'):
+                        return [
+                            {
+                                isFile: () => true,
+                                isDirectory: () => false,
+                                name: '.gitignore',
+                                path: path.join(projectPathUri, 'src'),
+                            },
+                            {
+                                isFile: () => true,
+                                isDirectory: () => false,
+                                name: 'sample.cs',
+                                path: path.join(projectPathUri, 'src'),
+                            },
+                            {
+                                isFile: () => true,
+                                isDirectory: () => false,
+                                name: 'model.cs',
+                                path: path.join(projectPathUri, 'src'),
+                            },
+                            {
+                                isFile: () => false,
+                                isDirectory: () => true,
+                                name: 'bin',
+                                path: path.join(projectPathUri, 'src'),
+                            },
+                            {
+                                isFile: () => false,
+                                isDirectory: () => true,
+                                name: 'Obj',
+                                path: path.join(projectPathUri, 'src'),
+                            },
+                            {
+                                isFile: () => true,
+                                isDirectory: () => false,
+                                name: 'ignoredFile1.cs',
+                                path: path.join(projectPathUri, 'src'),
+                            },
+                        ]
+                    case path.join(projectPathUri, 'src', 'bin'):
+                        return [
+                            {
+                                isFile: () => true,
+                                isDirectory: () => false,
+                                name: 'bin-file.cs',
+                                path: path.join(projectPathUri, 'src', 'bin'),
+                            },
+                        ]
+                    case path.join(projectPathUri, 'src', 'Obj'):
+                        return [
+                            {
+                                isFile: () => true,
+                                isDirectory: () => false,
+                                name: 'obj-file.cs',
+                                path: path.join(projectPathUri, 'src', 'Obj'),
+                            },
+                        ]
+                    default:
+                        return []
+                }
+            })
+        })
 
-    //         // const workspaceFolder = await createTestWorkspace(fileAmount, { fileNamePrefix, fileContent })
+        it('should return all files in the workspace not excluded by gitignore', async function () {
+            const gitignoreContent = `
+ignoredFile1.cs
 
-    //         const writeFile = (pathParts: string[], fileContent: string) => {
-    //             return toFile(fileContent, tempDirPath, ...pathParts)
-    //         }
+# Build results
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+x64/
+x86/
+[Ww][Ii][Nn]32/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Bb]in/
+[Oo]bj/
+`
+            mockedFs.readFile.callsFake(async filePath => {
+                if (filePath.endsWith('.gitignore')) {
+                    return gitignoreContent
+                }
+                return ''
+            })
 
-    //         // Sinon.stub(vscode.workspace, 'workspaceFolders').value([workspaceFolder])
+            const allFiles = await csharpDependencyGraph.getFiles(projectPathUri)
 
-    //         const gitignoreContent = `file2
-    //             # different formats of prefixes
-    //             /build
-    //             node_modules
+            console.log('all files: ', allFiles)
 
-    //             #some comment
+            const csharpFiles = await csharpDependencyGraph.filterFiles(projectPathUri, allFiles)
 
-    //             range_file[0-5]
-    //             `
-    //         // await writeFile(['.gitignore'], gitignoreContent)
+            console.log('filtered files: ', csharpFiles)
 
-    //         // await writeFile(['build', `ignored1`], fileContent)
-    //         // await writeFile(['build', `ignored2`], fileContent)
+            assert.strictEqual(csharpFiles.length, 2)
 
-    //         // await writeFile(['node_modules', `ignored1`], fileContent)
-    //         // await writeFile(['node_modules', `ignored2`], fileContent)
-
-    //         // await writeFile([`range_file0`], fileContent)
-    //         // await writeFile([`range_file9`], fileContent)
-
-    //         // const gitignore2 = 'folder1\n'
-    //         // await writeFile(['src', '.gitignore'], gitignore2)
-    //         // await writeFile(['src', 'folder2', 'a.js'], fileContent)
-
-    //         // const gitignore3 = `negate_test*
-    //         //     !negate_test[0-5]`
-    //         // await writeFile(['src', 'folder3', '.gitignore'], gitignore3)
-    //         // await writeFile(['src', 'folder3', 'negate_test1'], fileContent)
-    //         // await writeFile(['src', 'folder3', 'negate_test6'], fileContent)
-
-    //         const allFiles = await csharpDependencyGraph.getFiles(tempDirPath)
-
-    //         console.log('all files: ', allFiles)
-
-    //         // const files = await csharpDependencyGraph.filterOutGitIgnoredFiles(tempDirPath, allFiles)
-
-    //         // console.log('filtered files: ', files)
-
-    //         // const result = (await collectFiles([workspaceFolder.uri.fsPath], [workspaceFolder], true))
-    //         //     // for some reason, uri created inline differ in subfields, so skipping them from assertion
-    //         //     .map(({ fileUri, zipFilePath, ...r }) => ({ ...r }))
-
-    //         // result.sort((l, r) => l.relativeFilePath.localeCompare(r.relativeFilePath))
-
-    //         // non-posix filePath check here is important.
-    //         // assert.deepStrictEqual(
-    //         //     [
-    //         //         {
-    //         //             workspaceFolder,
-    //         //             relativeFilePath: '.gitignore',
-    //         //             fileContent: gitignoreContent,
-    //         //         },
-    //         //         {
-    //         //             workspaceFolder,
-    //         //             relativeFilePath: 'file1',
-    //         //             fileContent: 'test content',
-    //         //         },
-    //         //         {
-    //         //             workspaceFolder,
-    //         //             relativeFilePath: 'file3',
-    //         //             fileContent: 'test content',
-    //         //         },
-    //         //         {
-    //         //             workspaceFolder,
-    //         //             relativeFilePath: 'range_file9',
-    //         //             fileContent: 'test content',
-    //         //         },
-    //         //         // {
-    //         //         //     workspaceFolder,
-    //         //         //     relativeFilePath: path.join('src', '.gitignore'),
-    //         //         //     fileContent: gitignore2,
-    //         //         // },
-    //         //         {
-    //         //             workspaceFolder,
-    //         //             relativeFilePath: path.join('src', 'folder2', 'a.js'),
-    //         //             fileContent: fileContent,
-    //         //         },
-    //         //         // {
-    //         //         //     workspaceFolder,
-    //         //         //     relativeFilePath: path.join('src', 'folder3', '.gitignore'),
-    //         //         //     fileContent: gitignore3,
-    //         //         // },
-    //         //         {
-    //         //             workspaceFolder,
-    //         //             relativeFilePath: path.join('src', 'folder3', 'negate_test1'),
-    //         //             fileContent: fileContent,
-    //         //         },
-    //         //     ] satisfies typeof result,
-    //         //     result
-    //         // )
-    //     })
-    // })
+            // returns git allowed c# files
+            assert.deepStrictEqual(csharpFiles, [
+                path.join(projectPathUri, 'src', 'sample.cs'),
+                path.join(projectPathUri, 'src', 'model.cs'),
+            ])
+        })
+    })
 })
