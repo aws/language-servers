@@ -123,21 +123,21 @@ export abstract class DependencyGraph {
      * These patterns are compatible with vscode exclude patterns
      */
     async filterOutGitIgnoredFiles(rootPath: string, files: string[]): Promise<string[]> {
-        // TODO: Filter out all .gitignores that exist under rootDir
         this.logging.log(`entered filter Git Ignored Files method`)
 
-        const gitIgnorePath = path.join(rootPath, '.gitignore')
+        const gitIgnorePattern = /.*[\/\\]\.gitignore$/
+        const gitIgnoreFiles = files.filter(file => gitIgnorePattern.test(file))
 
-        this.logging.log(`gitIgnorePath: ${gitIgnorePath}`)
-
-        if (!(await this.workspace.fs.exists(gitIgnorePath))) {
-            this.logging.log(`No .gitignore file found at ${gitIgnorePath}. Proceeding with all files.`)
+        if (gitIgnoreFiles.length === 0) {
+            this.logging.log(`No .gitignore files found. Proceeding with all files.`)
             return files
         }
 
+        gitIgnoreFiles.forEach(path => this.logging.log(`gitIgnorePath: ${path}`))
+
         this.logging.log('Entering GitIgnoreFilter.build')
 
-        const gitIgnoreFilter = await GitIgnoreFilter.build(rootPath, gitIgnorePath, this.workspace, this.logging)
+        const gitIgnoreFilter = await GitIgnoreFilter.build(rootPath, gitIgnoreFiles, this.workspace, this.logging)
 
         this.logging.log('Exited GitIgnoreFilter.build')
 

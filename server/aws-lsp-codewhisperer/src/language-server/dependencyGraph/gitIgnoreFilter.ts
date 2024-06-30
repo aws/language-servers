@@ -18,24 +18,26 @@ export class GitIgnoreFilter {
 
     public static async build(
         rootPath: string,
-        gitIgnorePath: string,
+        gitIgnoreFiles: string[],
         workspace: Workspace,
         logging: Logging
     ): Promise<GitIgnoreFilter> {
         const acceptors: GitIgnoreRelativeAcceptor[] = []
 
-        logging.log('Attempting to read gitIgnoreFile')
+        for (const file of gitIgnoreFiles) {
+            logging.log('Attempting to read gitIgnoreFile')
 
-        const fileContent = await workspace.fs.readFile(gitIgnorePath)
+            const fileContent = await workspace.fs.readFile(file)
 
-        logging.log(`GitIgnore File Content: ${fileContent}`)
+            logging.log(`GitIgnore File Content: ${fileContent}`)
 
-        const gitIgnoreAcceptor = parser.compile(fileContent)
+            const gitIgnoreAcceptor = parser.compile(fileContent)
 
-        acceptors.push({
-            folderPath: rootPath,
-            acceptor: gitIgnoreAcceptor,
-        })
+            acceptors.push({
+                folderPath: rootPath,
+                acceptor: gitIgnoreAcceptor,
+            })
+        }
 
         return new GitIgnoreFilter(acceptors)
     }
