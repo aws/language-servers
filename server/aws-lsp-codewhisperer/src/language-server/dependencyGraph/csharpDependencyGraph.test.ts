@@ -171,8 +171,6 @@ describe('Test CsharpDependencyGraph', () => {
                     return ``
                 }
             })
-            // repeat the above line but add logic to let it be called at most 2 times
-
             await csharpDependencyGraph.createNamespaceFilenameMapper(projectPathUri)
             assert.deepStrictEqual(csharpDependencyGraph.namespaceToFilepathDirectory, new Map([]))
         })
@@ -240,7 +238,6 @@ describe('Test CsharpDependencyGraph', () => {
             )
         })
     })
-
     describe('Test traverseDir', () => {
         beforeEach(() => {
             mockedFs.getFileSize.reset()
@@ -385,7 +382,6 @@ namespace Amazon.Toolkit.Demo {
             assert.deepStrictEqual(response, [])
         })
     })
-
     describe('Test generateTruncation', () => {
         before(() => {
             Sinon.stub(Date, 'now').returns(111111111)
@@ -414,7 +410,7 @@ namespace Amazon.Toolkit.Demo {
         })
     })
 
-    describe('Test gitIgnore', () => {
+    describe('Test filterFiles', () => {
         beforeEach(() => {
             mockedFs.isFile.reset()
             mockedFs.isFile.resolves(false)
@@ -522,11 +518,7 @@ bld/
 
             const allFiles = await csharpDependencyGraph.getFiles(projectPathUri)
 
-            console.log('all files: ', allFiles)
-
             const csharpFiles = await csharpDependencyGraph.filterFiles(projectPathUri, allFiles)
-
-            console.log('filtered files: ', csharpFiles)
 
             assert.strictEqual(csharpFiles.length, 2)
 

@@ -119,32 +119,20 @@ export abstract class DependencyGraph {
 
     /**
      * @param rootPath root folder to look for .gitignore files
-     * @returns list of glob patterns extracted from .gitignore
-     * These patterns are compatible with vscode exclude patterns
+     * @returns list of files without those that are git ignored
      */
     async filterOutGitIgnoredFiles(rootPath: string, files: string[]): Promise<string[]> {
-        console.log(`entered filter Git Ignored Files method`)
-
-        // Regex to find .gitignore file for both windows and unix path styles
+        // Pattern to find .gitignore files with either windows or unix path styles
         const gitIgnorePattern = /.*[\/\\]\.gitignore$/
 
         const gitIgnoreFiles = files.filter(file => gitIgnorePattern.test(file))
 
         if (gitIgnoreFiles.length === 0) {
-            // TODO: REMOVE ALL LOGGING STATEMENTS
-            console.log(`No .gitignore files found. Proceeding with all files.`)
             return files
         }
 
-        gitIgnoreFiles.forEach(path => console.log(`gitIgnorePath: ${path}`))
+        const gitIgnoreFilter = await GitIgnoreFilter.build(rootPath, gitIgnoreFiles, this.workspace)
 
-        console.log('Entering GitIgnoreFilter.build')
-
-        const gitIgnoreFilter = await GitIgnoreFilter.build(rootPath, gitIgnoreFiles, this.workspace, this.logging)
-
-        console.log('Exited GitIgnoreFilter.build')
-
-        console.log('Filtering files using GitIgnoreFilter')
         return gitIgnoreFilter.filterFiles(files)
     }
 

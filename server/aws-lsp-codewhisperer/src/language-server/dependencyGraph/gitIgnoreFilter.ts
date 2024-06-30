@@ -1,4 +1,4 @@
-import { Logging, Workspace } from '@aws/language-server-runtimes/server-interface'
+import { Workspace } from '@aws/language-server-runtimes/server-interface'
 import { GitIgnoreAcceptor } from '@gerhobbelt/gitignore-parser'
 import * as parser from '@gerhobbelt/gitignore-parser'
 import * as pathUtils from '../pathUtils'
@@ -19,17 +19,12 @@ export class GitIgnoreFilter {
     public static async build(
         rootPath: string,
         gitIgnoreFiles: string[],
-        workspace: Workspace,
-        logging: Logging
+        workspace: Workspace
     ): Promise<GitIgnoreFilter> {
         const acceptors: GitIgnoreRelativeAcceptor[] = []
 
         for (const file of gitIgnoreFiles) {
-            logging.log('Attempting to read gitIgnoreFile')
-
             const fileContent = await workspace.fs.readFile(file)
-
-            logging.log(`GitIgnore File Content: ${fileContent}`)
 
             const gitIgnoreAcceptor = parser.compile(fileContent)
 
