@@ -125,10 +125,13 @@ export abstract class DependencyGraph {
     async filterOutGitIgnoredFiles(rootPath: string, files: string[]): Promise<string[]> {
         this.logging.log(`entered filter Git Ignored Files method`)
 
+        // Regex to find .gitignore file for both windows and unix path styles
         const gitIgnorePattern = /.*[\/\\]\.gitignore$/
+
         const gitIgnoreFiles = files.filter(file => gitIgnorePattern.test(file))
 
         if (gitIgnoreFiles.length === 0) {
+            // TODO: REMOVE ALL LOGGING STATEMENTS
             this.logging.log(`No .gitignore files found. Proceeding with all files.`)
             return files
         }

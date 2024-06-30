@@ -20,16 +20,16 @@ export class CsharpDependencyGraph extends DependencyGraph {
      * @param workspacePath provides absolute path for workspace
      */
     async createNamespaceFilenameMapper(workspacePath: string) {
-        const allFiles = await this.getFiles(workspacePath)
+        const files = await this.getFiles(workspacePath)
         this.logging.log('Creating Namespace Filename Mapper')
-        this.logging.log(`Total files in the workspace: ${allFiles.length}`)
+        this.logging.log(`Total files in the workspace: ${files.length}`)
         this.logging.log('Here is the list of all files in workspace')
 
         // log all strings in allFiles
-        allFiles.forEach(file => this.logging.log(file))
+        files.forEach(file => this.logging.log(file))
 
-        // const files = await this.filterOutGitIgnoredFiles(workspacePath, allFiles)
-        const csharpFiles = allFiles.filter(f => f.match(/.*.cs$/gi))
+        const csharpFiles = await this.filterFiles(workspacePath, files)
+
         const searchRegEx = new RegExp('namespace ([A-Z]\\w*(.[A-Z]\\w*)*)', 'g')
         for (const filePath of csharpFiles) {
             const content = await this.workspace.fs.readFile(filePath)
@@ -151,18 +151,9 @@ export class CsharpDependencyGraph extends DependencyGraph {
             return
         }
 
-        const allFiles = await this.getFiles(dirPath)
-        const files = await this.filterOutGitIgnoredFiles(dirPath, allFiles)
+        const files = await this.getFiles(dirPath)
 
-        this.logging.log('List of files after filterOutGitIgnoredFiles')
-
-        files.forEach(file => this.logging.log(file))
-
-        // log all strings in allFiles
-        this.logging.log('List of files without gitignored')
-        files.forEach(file => this.logging.log(file))
-
-        const csharpFiles = files.filter(f => f.match(/.*.cs$/gi))
+        const csharpFiles = await this.filterFiles(dirPath, files)
 
         for (const file of csharpFiles) {
             const fileSize = (await this.workspace.fs.getFileSize(file)).size
@@ -176,6 +167,13 @@ export class CsharpDependencyGraph extends DependencyGraph {
                 await this.searchDependency(file)
             }
         }
+    }
+
+    // filters out gitIgnored and non-c# files
+    async filterFiles(rootPath: string, files: string[]): Promise<string[]> {
+        const gitAllowedFiles = await this.filterOutGitIgnoredFiles(rootPath, files)
+
+        return gitAllowedFiles.filter(f => f.match(/.*.cs$/gi))
     }
 
     // Payload Size for C#: 1MB
