@@ -245,92 +245,91 @@ describe('Test CsharpDependencyGraph', () => {
         })
     })
 
-    // TODO: FIX THIS TEST -- COMMENTING IN ORDER TO CONTINUE GITIGNORE IMPLEMENTATION
-    // describe('Test traverseDir', () => {
-    //     beforeEach(() => {
-    //         mockedFs.getFileSize.reset()
-    //         mockedFs.readFile.reset()
-    //         mockedFs.readdir.reset()
-    //         csharpDependencyGraph.namespaceToFilepathDirectory = new Map([
-    //             ['Amazon.Cw.Model', new Set([path.join(projectPathUri, 'src', 'model.cs')])],
-    //             ['Amazon.Cw.Utils.Sample', new Set([path.join(projectPathUri, 'src', 'sample.cs')])],
-    //             [
-    //                 'Amazon.Cw.Props',
-    //                 new Set([
-    //                     path.join(projectPathUri, 'src', 'interface', 'scan.cs'),
-    //                     path.join(projectPathUri, 'src', 'interface', 'recommendations.cs'),
-    //                 ]),
-    //             ],
-    //         ])
-    //         mockedFs.readdir.callsFake(async dirpath => {
-    //             switch (dirpath) {
-    //                 case projectPathUri:
-    //                     return [
-    //                         {
-    //                             isFile: () => false,
-    //                             isDirectory: () => true,
-    //                             name: 'src',
-    //                             path: projectPathUri,
-    //                         },
-    //                     ]
-    //                 case path.join(projectPathUri, 'src'):
-    //                     return [
-    //                         {
-    //                             isFile: () => true,
-    //                             isDirectory: () => false,
-    //                             name: 'sample.cs',
-    //                             path: path.join(projectPathUri, 'src'),
-    //                         },
-    //                         {
-    //                             isFile: () => true,
-    //                             isDirectory: () => false,
-    //                             name: 'model.cs',
-    //                             path: path.join(projectPathUri, 'src'),
-    //                         },
-    //                         {
-    //                             isFile: () => false,
-    //                             isDirectory: () => true,
-    //                             name: 'props',
-    //                             path: path.join(projectPathUri, 'src'),
-    //                         },
-    //                     ]
-    //                 case path.join(projectPathUri, 'src', 'props'):
-    //                     return [
-    //                         {
-    //                             isFile: () => true,
-    //                             isDirectory: () => false,
-    //                             name: 'scan.cs',
-    //                             path: path.join(projectPathUri, 'src', 'props'),
-    //                         },
-    //                         {
-    //                             isFile: () => true,
-    //                             isDirectory: () => false,
-    //                             name: 'recommendation.cs',
-    //                             path: path.join(projectPathUri, 'src', 'props'),
-    //                         },
-    //                     ]
-    //                 default:
-    //                     return []
-    //             }
-    //         })
-    //     })
-    //     it('should return without traversing due to payload size limit reached', async () => {
-    //         mockedFs.getFileSize.resolves({ size: Math.pow(2, 20) })
-    //         await csharpDependencyGraph.searchDependency(path.join(projectPathUri, 'main.cs'))
-    //         await csharpDependencyGraph.traverseDir(projectPathUri)
-    //         assert.strictEqual(mockedFs.readFile.calledWith(projectPathUri), false)
-    //     })
-    //     it('should traverse through files until it reaches payload size limit', async () => {
-    //         mockedFs.getFileSize.atLeast(1).resolves({ size: Math.pow(2, 19) })
-    //         await csharpDependencyGraph.traverseDir(projectPathUri)
-    //         assert.strictEqual(csharpDependencyGraph.isProjectTruncated, true)
-    //     })
-    //     it('should traverse through all files', async () => {
-    //         mockedFs.getFileSize.atLeast(1).resolves({ size: Math.pow(2, 10) })
-    //         await csharpDependencyGraph.traverseDir(projectPathUri)
-    //         assert.strictEqual(csharpDependencyGraph.isProjectTruncated, false)
-    //     })
-    // })
+    describe('Test traverseDir', () => {
+        beforeEach(() => {
+            mockedFs.getFileSize.reset()
+            mockedFs.readFile.reset()
+            mockedFs.readdir.reset()
+            csharpDependencyGraph.namespaceToFilepathDirectory = new Map([
+                ['Amazon.Cw.Model', new Set([path.join(projectPathUri, 'src', 'model.cs')])],
+                ['Amazon.Cw.Utils.Sample', new Set([path.join(projectPathUri, 'src', 'sample.cs')])],
+                [
+                    'Amazon.Cw.Props',
+                    new Set([
+                        path.join(projectPathUri, 'src', 'interface', 'scan.cs'),
+                        path.join(projectPathUri, 'src', 'interface', 'recommendations.cs'),
+                    ]),
+                ],
+            ])
+            mockedFs.readdir.callsFake(async dirpath => {
+                switch (dirpath) {
+                    case projectPathUri:
+                        return [
+                            {
+                                isFile: () => false,
+                                isDirectory: () => true,
+                                name: 'src',
+                                path: projectPathUri,
+                            },
+                        ]
+                    case path.join(projectPathUri, 'src'):
+                        return [
+                            {
+                                isFile: () => true,
+                                isDirectory: () => false,
+                                name: 'sample.cs',
+                                path: path.join(projectPathUri, 'src'),
+                            },
+                            {
+                                isFile: () => true,
+                                isDirectory: () => false,
+                                name: 'model.cs',
+                                path: path.join(projectPathUri, 'src'),
+                            },
+                            {
+                                isFile: () => false,
+                                isDirectory: () => true,
+                                name: 'props',
+                                path: path.join(projectPathUri, 'src'),
+                            },
+                        ]
+                    case path.join(projectPathUri, 'src', 'props'):
+                        return [
+                            {
+                                isFile: () => true,
+                                isDirectory: () => false,
+                                name: 'scan.cs',
+                                path: path.join(projectPathUri, 'src', 'props'),
+                            },
+                            {
+                                isFile: () => true,
+                                isDirectory: () => false,
+                                name: 'recommendation.cs',
+                                path: path.join(projectPathUri, 'src', 'props'),
+                            },
+                        ]
+                    default:
+                        return []
+                }
+            })
+        })
+        it('should return without traversing due to payload size limit reached', async () => {
+            mockedFs.getFileSize.resolves({ size: Math.pow(2, 20) })
+            await csharpDependencyGraph.searchDependency(path.join(projectPathUri, 'main.cs'))
+            await csharpDependencyGraph.traverseDir(projectPathUri)
+            assert.strictEqual(mockedFs.readFile.calledWith(projectPathUri), false)
+        })
+        it('should traverse through files until it reaches payload size limit', async () => {
+            mockedFs.getFileSize.atLeast(1).resolves({ size: Math.pow(2, 19) })
+            await csharpDependencyGraph.traverseDir(projectPathUri)
+            assert.strictEqual(csharpDependencyGraph.isProjectTruncated, true)
+        })
+        it('should traverse through all files', async () => {
+            mockedFs.getFileSize.atLeast(1).resolves({ size: Math.pow(2, 10) })
+            await csharpDependencyGraph.traverseDir(projectPathUri)
+            assert.strictEqual(csharpDependencyGraph.isProjectTruncated, false)
+        })
+    })
     describe('Test getDependencies', () => {
         beforeEach(() => {
             csharpDependencyGraph.namespaceToFilepathDirectory = new Map([
@@ -391,35 +390,35 @@ namespace Amazon.Toolkit.Demo {
         })
     })
 
-    // describe('Test generateTruncation', () => {
-    //     before(() => {
-    //         Sinon.stub(Date, 'now').returns(111111111)
-    //         // csharpDependencyGraph.filterFiles() = Sinon.mock().returns()
-    //     })
-    //     it('should call zip dir', async () => {
-    //         const zipSize = Math.pow(2, 19)
-    //         const zipFileBuffer = 'dummy-zip-data'
-    //         mockedFs.getFileSize.atLeast(1).resolves({ size: zipSize })
-    //         csharpDependencyGraph.createZip = Sinon.stub().returns({
-    //             zipFileBuffer,
-    //             zipFileSize: zipSize,
-    //         })
-    //         const expectedResult = {
-    //             rootDir: path.join(tempDirPath, 'codewhisperer_scan_111111111'),
-    //             zipFileBuffer,
-    //             scannedFiles: new Set([path.join(projectPathUri, 'main.cs')]),
-    //             srcPayloadSizeInBytes: zipSize,
-    //             zipFileSizeInBytes: zipSize,
-    //             buildPayloadSizeInBytes: 0,
-    //             lines: 0,
-    //         }
+    describe('Test generateTruncation', () => {
+        before(() => {
+            Sinon.stub(Date, 'now').returns(111111111)
+            // csharpDependencyGraph.filterFiles() = Sinon.mock().returns()
+        })
+        it('should call zip dir', async () => {
+            const zipSize = Math.pow(2, 19)
+            const zipFileBuffer = 'dummy-zip-data'
+            mockedFs.getFileSize.atLeast(1).resolves({ size: zipSize })
+            csharpDependencyGraph.createZip = Sinon.stub().returns({
+                zipFileBuffer,
+                zipFileSize: zipSize,
+            })
+            const expectedResult = {
+                rootDir: path.join(tempDirPath, 'codewhisperer_scan_111111111'),
+                zipFileBuffer,
+                scannedFiles: new Set([path.join(projectPathUri, 'main.cs')]),
+                srcPayloadSizeInBytes: zipSize,
+                zipFileSizeInBytes: zipSize,
+                buildPayloadSizeInBytes: 0,
+                lines: 0,
+            }
 
-    //         console.log("about to generate .....  wooo ... ")
-    //         const trucation = await csharpDependencyGraph.generateTruncation(path.join(projectPathUri, 'main.cs'))
+            console.log('about to generate .....  wooo ... ')
+            const trucation = await csharpDependencyGraph.generateTruncation(path.join(projectPathUri, 'main.cs'))
 
-    //         assert.deepStrictEqual(trucation, expectedResult)
-    //     })
-    // })
+            assert.deepStrictEqual(trucation, expectedResult)
+        })
+    })
 
     // describe('Test gitIgnore', () => {
     //     it('should return all files in the workspace not excluded by gitignore', async function () {
