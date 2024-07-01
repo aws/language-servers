@@ -13,16 +13,17 @@
     "scripts": {
         "compile": "tsc --build",
         "test": "jest",
-        "postcompile": "npm run copy-empty-binary",
+        "postcompile": "npm run copy-empty-binary && npm run update-treesitter-wasm",
         "copy-empty-binary": "tsx build-scripts/create-empty-wasm-file.mts",
-        "update-parser-binary": "tsx build-scripts/compile-inline-partiql-wasm.mts"
+        "update-parser-binary": "tsx build-scripts/compile-inline-partiql-wasm.mts",
+        "compile-treesitter-parser-wasm": "tsx build-scripts/compile-inline-tree-sitter-parser-wasm.mts",
+        "update-treesitter-wasm": "tsx build-scripts/compile-inline-tree-sitter-wasm.mts"
     },
     "files": [
         "out"
     ],
     "dependencies": {
-        "@aws/language-server-runtimes": "^0.2.4",
-        "web-tree-sitter": "^0.22.6"
+        "@aws/language-server-runtimes": "^0.2.4"
     },
     "devDependencies": {
         "@babel/plugin-transform-modules-commonjs": "^7.24.1",

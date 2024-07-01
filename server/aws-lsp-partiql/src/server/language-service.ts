@@ -63,7 +63,6 @@ class PartiQLLanguageService {
 
     public async doSemanticTokens(textDocument: TextDocument): Promise<SemanticTokens | null> {
         const text = textDocument.getText()
-        // console.log('Text:', text)
         const data: SemanticToken[] = []
         for (const nodeType of semanticTokensLegend.tokenTypes) {
             const tokens = await findNodes(text, nodeType as SemanticTokenTypes)
@@ -73,14 +72,7 @@ class PartiQLLanguageService {
             const tokens = await findNodes(text, nodeType)
             data.push(...tokens)
         }
-        // console.log('Found tokens:', data)
-        console.log('Encoding tokens...')
         const encodedTokens = encodeSemanticTokens(data, MULTILINETOKENSUPPORT)
-        if (encodedTokens) {
-            console.log('Returned tokens:', encodedTokens)
-        } else {
-            console.log('No tokens found.')
-        }
         return encodedTokens
     }
 }

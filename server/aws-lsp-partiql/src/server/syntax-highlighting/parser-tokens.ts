@@ -81,9 +81,6 @@ export async function findNodes(
     const data: SemanticToken[] = []
 
     for (const { node, name } of captures) {
-        console.log(
-            `Found ${name}: '${node.text}' at line:${node.startPosition.row} startChar:${node.startPosition.column} length:${node.text.length} endLine:${node.endPosition.row} endChar:${node.endPosition.column}`
-        )
         const tokenType =
             nodeTypeString in string2TokenTypes ? string2TokenTypes[nodeTypeString] : (nodeType as SemanticTokenTypes)
         const startLine = node.startPosition.row
