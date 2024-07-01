@@ -21,7 +21,7 @@
     },
     "dependencies": {
         "@aws/fully-qualified-names": "^2.1.4",
-        "web-tree-sitter": "^0.20.8",
+        "web-tree-sitter": "^0.22.6",
         "workerpool": "^9.1.1"
     },
     "devDependencies": {
