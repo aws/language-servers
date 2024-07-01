@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.0.9] - 2024-07-01
+- Update security scans to exclude gitignored files
+
 ## [0.0.8] - 2024-06-26
 - Create new streaming client on each request
 
