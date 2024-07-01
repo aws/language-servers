@@ -1,4 +1,5 @@
 import { Logging, Workspace } from '@aws/language-server-runtimes/server-interface'
+import { GitIgnoreFilter } from './gitIgnoreFilter'
 import * as admZip from 'adm-zip'
 import * as path from 'path'
 import * as CodeWhispererConstants from './constants'
@@ -114,6 +115,25 @@ export abstract class DependencyGraph {
             })
         )
         return files.reduce((a, f) => a.concat(f), [])
+    }
+
+    /**
+     * @param rootPath root folder to look for .gitignore files
+     * @returns list of files without those that are git ignored
+     */
+    async filterOutGitIgnoredFiles(rootPath: string, files: string[]): Promise<string[]> {
+        // Pattern to find .gitignore files with either windows or unix path styles
+        const gitIgnorePattern = /.*[\/\\]\.gitignore$/
+
+        const gitIgnoreFiles = files.filter(file => gitIgnorePattern.test(file))
+
+        if (gitIgnoreFiles.length === 0) {
+            return files
+        }
+
+        const gitIgnoreFilter = await GitIgnoreFilter.build(rootPath, gitIgnoreFiles, this.workspace)
+
+        return gitIgnoreFilter.filterFiles(files)
     }
 
     /**
