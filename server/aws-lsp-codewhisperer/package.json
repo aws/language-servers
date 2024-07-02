@@ -72,7 +72,6 @@
         "endOfLine": "lf"
     },
     "bundleDependencies": [
-        "@amzn/codewhisperer-streaming",
-        "@aws/lsp-fqn"
+        "@amzn/codewhisperer-streaming"
     ]
 }
