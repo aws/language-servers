@@ -19,7 +19,7 @@
     "dependencies": {
         "@aws/chat-client-ui-types": "^0.0.6",
         "@aws/language-server-runtimes-types": "^0.0.6",
-        "@aws/mynah-ui": "file:../mynah-ui"
+        "@aws/mynah-ui": "^4.15.0"
     },
     "devDependencies": {
         "@types/jsdom": "^21.1.6",
