@@ -1,7 +1,7 @@
 ## Exports
-── index
-    └── CreateYamlLanguageServer - a function that creates and returns a new instance of DEXP Language Server
-    └── YamlLanguageService - YAML language service. Provides language features like hover, completion, diagnostics and formatting
+
+    ── CreateYamlLanguageServer - a function that creates and returns a new instance of DEXP Language Server
+    ── YamlLanguageService - YAML language service. Provides language features like hover, completion, diagnostics and formatting
 
 ## Temporary Patch for yaml-language-server Dependency
 
