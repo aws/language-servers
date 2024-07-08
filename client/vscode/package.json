@@ -167,7 +167,7 @@
     "devDependencies": {
         "@aws/language-server-runtimes": "^0.2.8",
         "@aws/chat-client-ui-types": "^0.0.6",
-        "@aws-sdk/credential-providers": "^3.598.0",
+        "@aws-sdk/credential-providers": "^3.609.0",
         "@aws-sdk/types": "^3.535.0",
         "@types/uuid": "^9.0.8",
         "@types/vscode": "^1.88.0",
