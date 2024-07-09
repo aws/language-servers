@@ -23,7 +23,8 @@
         "out"
     ],
     "dependencies": {
-        "@aws/language-server-runtimes": "^0.2.4"
+        "@aws/language-server-runtimes": "^0.2.10",
+        "web-tree-sitter": "^0.22.6"
     },
     "devDependencies": {
         "@babel/plugin-transform-modules-commonjs": "^7.24.1",
