@@ -1,0 +1,13 @@
+name: Publish Codewhisperer Language Server to npmjs
+
+on:
+    push:
+        tags:
+            - 'lsp-codewhisperer/v**'
+
+jobs:
+    publish:
+        uses: ./.github/workflows/publish-to-npm.yaml
+        with:
+            workspace: 'server/aws-lsp-codewhisperer'
+        secrets: inherit

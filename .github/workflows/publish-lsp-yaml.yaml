@@ -1,0 +1,13 @@
+name: Publish JSON Language Server to npmjs
+
+on:
+    push:
+        tags:
+            - 'lsp-yaml/v**'
+
+jobs:
+    publish:
+        uses: ./.github/workflows/publish-to-npm.yaml
+        with:
+            workspace: 'server/aws-lsp-yaml'
+        secrets: inherit
