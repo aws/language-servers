@@ -164,7 +164,9 @@ export class ArtifactManager {
     }
 
     normalizeReferenceFileRelativePath(relativePath: string, includedInArtifact: boolean): string {
-        return includedInArtifact ? path.join(referencesFolderName, relativePath) : relativePath
+        return includedInArtifact
+            ? path.join(referencesFolderName, relativePath).toLowerCase()
+            : relativePath.toLowerCase()
     }
 
     zipDirectory(sourceDir: string, outPath: string) {
