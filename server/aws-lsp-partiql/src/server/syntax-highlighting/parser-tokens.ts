@@ -34,11 +34,26 @@ export const string2TokenTypes: { [key: string]: SemanticTokenTypes } = {
     ion: SemanticTokenTypes.string,
 }
 
+// Global or service-level variables
+let parserInitialized = false
+let globalParser: Parser | null = null
+
+async function ensureParserInitialized() {
+    if (!parserInitialized) {
+        globalParser = await initParser()
+        parserInitialized = true
+    }
+}
+
 // Initialize and prepare the parser
 async function initParser() {
     let wasmModuleUrl: string | null = null
     if (typeof window !== 'undefined' && typeof window.URL.createObjectURL === 'function') {
         // Browser
+        const wasmBlob = new Blob([wasmBinaryArray], { type: 'application/wasm' })
+        wasmModuleUrl = URL.createObjectURL(wasmBlob)
+    } else if (typeof self !== 'undefined' && self.constructor.name === 'DedicatedWorkerGlobalScope') {
+        // Webworker
         const wasmBlob = new Blob([wasmBinaryArray], { type: 'application/wasm' })
         wasmModuleUrl = URL.createObjectURL(wasmBlob)
     } else if (typeof process !== 'undefined' && typeof process.versions.node !== 'undefined') {
@@ -69,10 +84,10 @@ export async function findNodes(
     sourceCode: string | Parser.Input,
     nodeType: SemanticTokenTypes | string
 ): Promise<SemanticToken[]> {
-    const parser = await initParser()
-    const tree = parser.parse(sourceCode)
+    await ensureParserInitialized()
+    const tree = globalParser!.parse(sourceCode)
     const nodeTypeString: string = nodeType
-    const query = parser.getLanguage().query(`
+    const query = globalParser!.getLanguage().query(`
         (${nodeTypeString}) @${nodeTypeString}
     `)
 
