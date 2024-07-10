@@ -1,0 +1,29 @@
+{
+    "name": "@aws/lsp-json-runtimes",
+    "version": "0.0.1",
+    "description": "JSON Language Server Runtimes",
+    "main": "out/index.js",
+    "scripts": {
+        "compile": "tsc --build",
+        "package": "npm run compile && npm run webpack",
+        "test": "npm run test-integ",
+        "test-integ": "npm run package && mocha --timeout 5000 './out/**/*Integ.test.js' --retries 2",
+        "webpack": "webpack"
+    },
+    "dependencies": {
+        "@aws/lsp-json": "*",
+        "@aws/language-server-runtimes": "^0.2.5"
+    },
+    "devDependencies": {
+        "@types/chai": "^4.3.5",
+        "@types/chai-as-promised": "^7.1.5",
+        "@types/mocha": "^10.0.1",
+        "chai": "^4.3.7",
+        "chai-as-promised": "^7.1.1",
+        "mocha": "^10.2.0",
+        "ts-lsp-client": "^1.0.3",
+        "ts-loader": "^9.4.4",
+        "webpack": "^5.88.2",
+        "webpack-cli": "^5.1.4"
+    }
+}

@@ -1,0 +1,45 @@
+{
+    "name": "@aws/lsp-partiql",
+    "author": "Amazon Web Services",
+    "license": "Apache-2.0",
+    "description": "PartiQL language server",
+    "version": "0.0.2",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/aws/language-servers"
+    },
+    "main": "out/index.js",
+    "types": "out/index.d.ts",
+    "scripts": {
+        "compile": "tsc --build",
+        "test": "jest",
+        "postcompile": "npm run copy-empty-binary",
+        "copy-empty-binary": "tsx build-scripts/create-empty-wasm-file.mts",
+        "update-parser-binary": "tsx build-scripts/compile-inline-partiql-wasm.mts"
+    },
+    "files": [
+        "out"
+    ],
+    "dependencies": {
+        "@aws/language-server-runtimes": "^0.2.4"
+    },
+    "devDependencies": {
+        "babel-plugin-transform-import-meta": "^2.2.1",
+        "@babel/plugin-transform-modules-commonjs": "^7.24.1",
+        "jest": "^29.7.0",
+        "@types/jest": "29.5.12",
+        "ts-jest": "^29.1.2",
+        "tsx": "^4.7.2",
+        "zx": "^8.1.0"
+    },
+    "prettier": {
+        "printWidth": 120,
+        "trailingComma": "es5",
+        "tabWidth": 4,
+        "singleQuote": true,
+        "semi": false,
+        "bracketSpacing": true,
+        "arrowParens": "avoid",
+        "endOfLine": "lf"
+    }
+}

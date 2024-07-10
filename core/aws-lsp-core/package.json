@@ -3,13 +3,29 @@
     "version": "0.0.1",
     "description": "Core library, contains common code and utilities",
     "main": "out/index.js",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/aws/language-servers"
+    },
+    "author": "Amazon Web Services",
+    "license": "Apache-2.0",
+    "engines": {
+        "node": ">=18.0.0"
+    },
+    "files": [
+        "out/**/*",
+        "CHANGELOG.md",
+        "SECURITY.md",
+        "NOTICE"
+    ],
     "scripts": {
         "compile": "tsc --build",
         "test": "npm run test-unit",
-        "test-unit": "mocha './out/**/*.test.js'"
+        "test-unit": "mocha './out/**/*.test.js'",
+        "prepack": "shx cp ../../LICENSE ../../NOTICE ../../SECURITY.md ."
     },
     "dependencies": {
-        "jose": "^4.15.5",
+        "jose": "^5.2.4",
         "vscode-languageserver-textdocument": "^1.0.8",
         "vscode-languageserver-types": "^3.17.3",
         "vscode-uri": "^3.0.7",
@@ -24,7 +40,7 @@
         "chai-as-promised": "^7.1.1",
         "mocha": "^10.2.0",
         "mock-fs": "^5.2.0",
-        "sinon": "^17.0.1",
+        "sinon": "^18.0.0",
         "ts-sinon": "^2.0.2"
     }
 }

@@ -140,3 +140,135 @@ export interface TransformationFailureEvent {
     category: string
     transformationJobId?: string
 }
+
+export enum ChatTelemetryEventName {
+    EnterFocusChat = 'amazonq_enterFocusChat',
+    ExitFocusChat = 'amazonq_exitFocusChat',
+    EnterFocusConversation = 'amazonq_enterFocusConversation',
+    ExitFocusConversation = 'amazonq_exitFocusConversation',
+    StartConversation = 'amazonq_startConversation',
+    InteractWithMessage = 'amazonq_interactWithMessage',
+    AddMessage = 'amazonq_addMessage',
+    RunCommand = 'amazonq_runCommand',
+    MessageResponseError = 'amazonq_messageResponseError',
+    ModifyCode = 'amazonq_modifyCode',
+}
+
+export interface ChatTelemetryEventMap {
+    [ChatTelemetryEventName.EnterFocusChat]: EnterFocusChatEvent
+    [ChatTelemetryEventName.ExitFocusChat]: ExitFocusChatEvent
+    [ChatTelemetryEventName.EnterFocusConversation]: EnterFocusConversationEvent
+    [ChatTelemetryEventName.ExitFocusConversation]: ExitFocusConversationEvent
+    [ChatTelemetryEventName.StartConversation]: StartConversationEvent
+    [ChatTelemetryEventName.InteractWithMessage]: InteractWithMessageEvent
+    [ChatTelemetryEventName.AddMessage]: AddMessageEvent
+    [ChatTelemetryEventName.RunCommand]: RunCommandEvent
+    [ChatTelemetryEventName.MessageResponseError]: MessageResponseErrorEvent
+    [ChatTelemetryEventName.ModifyCode]: ModifyCodeEvent
+}
+
+export type ModifyCodeEvent = {
+    cwsprChatConversationId: string
+    cwsprChatMessageId: string
+    cwsprChatModificationPercentage: number
+}
+
+export type AddMessageEvent = {
+    credentialStartUrl?: string
+    cwsprChatConversationId: string
+    cwsprChatMessageId: string
+    cwsprChatTriggerInteraction: string
+    cwsprChatUserIntent?: string
+    cwsprChatHasCodeSnippet: boolean
+    cwsprChatProgrammingLanguage?: string
+    cwsprChatActiveEditorTotalCharacters?: number
+    cwsprChatActiveEditorImportCount?: number
+    cwsprChatResponseCodeSnippetCount?: number
+    cwsprChatResponseCode: number
+    cwsprChatSourceLinkCount?: number
+    cwsprChatReferencesCount?: number
+    cwsprChatFollowUpCount?: number
+    cwsprTimeToFirstChunk: number
+    cwsprChatFullResponseLatency: number
+    cwsprChatTimeBetweenChunks: number[]
+    cwsprChatResponseType?: string
+    cwsprChatRequestLength?: number
+    cwsprChatResponseLength?: number
+    cwsprChatConversationType: ChatConversationType
+}
+
+export type EnterFocusChatEvent = {
+    credentialStartUrl?: string
+}
+
+export type ExitFocusChatEvent = {
+    credentialStartUrl?: string
+}
+
+export type EnterFocusConversationEvent = {
+    credentialStartUrl?: string
+    cwsprChatConversationId: string
+}
+
+export type ExitFocusConversationEvent = {
+    credentialStartUrl?: string
+    cwsprChatConversationId: string
+}
+
+export enum ChatInteractionType {
+    InsertAtCursor = 'insertAtCursor',
+    CopySnippet = 'copySnippet',
+    Copy = 'copy',
+    ClickLink = 'clickLink',
+    ClickFollowUp = 'clickFollowUp',
+    HoverReference = 'hoverReference',
+    Upvote = 'upvote',
+    Downvote = 'downvote',
+    ClickBodyLink = 'clickBodyLink',
+}
+
+export type ChatConversationType = 'Chat' | 'Assign' | 'Transform'
+
+export type InteractWithMessageEvent = {
+    credentialStartUrl?: string
+    cwsprChatConversationId: string
+    cwsprChatMessageId: string
+    cwsprChatInteractionType: ChatInteractionType
+    cwsprChatInteractionTarget?: string
+    cwsprChatAcceptedCharactersLength?: number
+    cwsprChatHasReference?: boolean
+    cwsprChatCodeBlockIndex?: number
+    cwsprChatTotalCodeBlocks?: number
+}
+
+export type StartConversationEvent = {
+    credentialStartUrl?: string
+    cwsprChatConversationId: string
+    cwsprChatTriggerInteraction?: string
+    cwsprChatUserIntent?: string
+    cwsprChatHasCodeSnippet?: boolean
+    cwsprChatProgrammingLanguage?: string
+    cwsprChatConversationType: ChatConversationType
+}
+
+export type MessageResponseErrorEvent = {
+    credentialStartUrl?: string
+    cwsprChatConversationId: string
+    cwsprChatTriggerInteraction: string
+    cwsprChatUserIntent?: string
+    cwsprChatHasCodeSnippet?: boolean
+    cwsprChatProgrammingLanguage?: string
+    cwsprChatActiveEditorTotalCharacters?: number
+    cwsprChatActiveEditorImportCount?: number
+    cwsprChatRepsonseCode: number
+    cwsprChatRequestLength?: number
+    cwsprChatConversationType: ChatConversationType
+}
+
+export type RunCommandEvent = {
+    credentialStartUrl?: string
+    cwsprChatCommandType: string
+    cwsprChatCommandName?: string
+}
+
+export type CombinedConversationEvent = AddMessageEvent & StartConversationEvent & MessageResponseErrorEvent

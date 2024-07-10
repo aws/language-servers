@@ -1,0 +1,45 @@
+{
+    "name": "@aws/chat-client",
+    "version": "0.0.1",
+    "description": "AWS Chat Client",
+    "main": "out/index.js",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/aws/language-servers"
+    },
+    "author": "Amazon Web Services",
+    "license": "Apache-2.0",
+    "scripts": {
+        "compile": "tsc --build && npm run package",
+        "test:unit": "ts-mocha -b 'src/**/*.test.ts'",
+        "test": "npm run test:unit",
+        "fix:prettier": "prettier . --write",
+        "package": "webpack"
+    },
+    "dependencies": {
+        "@aws/chat-client-ui-types": "^0.0.6",
+        "@aws/language-server-runtimes-types": "^0.0.6",
+        "@aws/mynah-ui": "^4.15.0"
+    },
+    "devDependencies": {
+        "@types/jsdom": "^21.1.6",
+        "@types/mocha": "^10.0.1",
+        "assert": "^2.0.0",
+        "jsdom": "^24.0.0",
+        "sinon": "^18.0.0",
+        "ts-mocha": "^10.0.0",
+        "ts-sinon": "^2.0.2",
+        "webpack": "^5.38.1",
+        "webpack-cli": "^5.1.4"
+    },
+    "prettier": {
+        "printWidth": 120,
+        "trailingComma": "es5",
+        "tabWidth": 4,
+        "singleQuote": true,
+        "semi": false,
+        "bracketSpacing": true,
+        "arrowParens": "avoid",
+        "endOfLine": "lf"
+    }
+}

@@ -8,9 +8,11 @@ import * as path from 'path'
 
 import { ExtensionContext, workspace } from 'vscode'
 
-import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind } from 'vscode-languageclient/node'
+import { LanguageClient, LanguageClientOptions, ServerOptions, State, TransportKind } from 'vscode-languageclient/node'
+import { registerChat } from './chatActivation'
 import {
     configureCredentialsCapabilities,
+    encryptionKey,
     registerBearerTokenProviderSupport,
     registerIamCredentialsProviderSupport,
     writeEncryptionInit,
@@ -90,10 +92,13 @@ export async function activateDocumentsLanguageServer(extensionContext: Extensio
             // typescript is illustrative of code-handling language servers
             { scheme: 'file', language: 'typescript' },
             { scheme: 'untitled', language: 'typescript' },
+            // java is illustrative of code-handling language servers
+            { scheme: 'file', language: 'java' },
+            { scheme: 'untitled', language: 'java' },
         ],
         initializationOptions: {},
         synchronize: {
-            fileEvents: workspace.createFileSystemWatcher('**/*.{json,yml,yaml,ts}'),
+            fileEvents: workspace.createFileSystemWatcher('**/*.{json,java,yml,yaml,ts}'),
         },
     }
 
@@ -120,7 +125,11 @@ export async function activateDocumentsLanguageServer(extensionContext: Extensio
         await registerTransformCommand(client, extensionContext)
     }
 
-    client.start()
+    // Activate chat server after LSP initialize handshake is done
+    const enableChat = process.env.ENABLE_CHAT === 'true'
+    if (enableChat) {
+        registerChat(client, extensionContext.extensionUri, encryptionKey)
+    }
 
     return client
 }

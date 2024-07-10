@@ -1,0 +1,12 @@
+{
+    "name": "@aws/lsp-cloudformation-runtimes",
+    "version": "0.0.1",
+    "description": "CodeBuild CloudFormation Language Server Runtimes",
+    "main": "out/index.js",
+    "scripts": {
+        "compile": "tsc --build"
+    },
+    "dependencies": {
+        "@aws/lsp-cloudformation": "^0.0.1"
+    }
+}

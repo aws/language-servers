@@ -409,4 +409,124 @@ namespace Amazon.Toolkit.Demo {
             assert.deepStrictEqual(trucation, expectedResult)
         })
     })
+
+    describe('Test filterFiles', () => {
+        beforeEach(() => {
+            mockedFs.isFile.reset()
+            mockedFs.isFile.resolves(false)
+            mockedFs.readdir.reset()
+            mockedFs.readFile.reset()
+            // setup sample directory structure
+            mockedFs.readdir.callsFake(async dirpath => {
+                switch (dirpath) {
+                    case projectPathUri:
+                        return [
+                            {
+                                isFile: () => false,
+                                isDirectory: () => true,
+                                name: 'src',
+                                path: projectPathUri,
+                            },
+                        ]
+                    case path.join(projectPathUri, 'src'):
+                        return [
+                            {
+                                isFile: () => true,
+                                isDirectory: () => false,
+                                name: '.gitignore',
+                                path: path.join(projectPathUri, 'src'),
+                            },
+                            {
+                                isFile: () => true,
+                                isDirectory: () => false,
+                                name: 'sample.cs',
+                                path: path.join(projectPathUri, 'src'),
+                            },
+                            {
+                                isFile: () => true,
+                                isDirectory: () => false,
+                                name: 'model.cs',
+                                path: path.join(projectPathUri, 'src'),
+                            },
+                            {
+                                isFile: () => false,
+                                isDirectory: () => true,
+                                name: 'bin',
+                                path: path.join(projectPathUri, 'src'),
+                            },
+                            {
+                                isFile: () => false,
+                                isDirectory: () => true,
+                                name: 'Obj',
+                                path: path.join(projectPathUri, 'src'),
+                            },
+                            {
+                                isFile: () => true,
+                                isDirectory: () => false,
+                                name: 'ignoredFile1.cs',
+                                path: path.join(projectPathUri, 'src'),
+                            },
+                        ]
+                    case path.join(projectPathUri, 'src', 'bin'):
+                        return [
+                            {
+                                isFile: () => true,
+                                isDirectory: () => false,
+                                name: 'bin-file.cs',
+                                path: path.join(projectPathUri, 'src', 'bin'),
+                            },
+                        ]
+                    case path.join(projectPathUri, 'src', 'Obj'):
+                        return [
+                            {
+                                isFile: () => true,
+                                isDirectory: () => false,
+                                name: 'obj-file.cs',
+                                path: path.join(projectPathUri, 'src', 'Obj'),
+                            },
+                        ]
+                    default:
+                        return []
+                }
+            })
+        })
+
+        it('should return all files in the workspace not excluded by gitignore', async function () {
+            const gitignoreContent = `
+ignoredFile1.cs
+
+# Build results
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+x64/
+x86/
+[Ww][Ii][Nn]32/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Bb]in/
+[Oo]bj/
+`
+            mockedFs.readFile.callsFake(async filePath => {
+                if (filePath.endsWith('.gitignore')) {
+                    return gitignoreContent
+                }
+                return ''
+            })
+
+            const allFiles = await csharpDependencyGraph.getFiles(projectPathUri)
+
+            const csharpFiles = await csharpDependencyGraph.filterFiles(projectPathUri, allFiles)
+
+            assert.strictEqual(csharpFiles.length, 2)
+
+            // returns git allowed c# files
+            assert.deepStrictEqual(csharpFiles, [
+                path.join(projectPathUri, 'src', 'sample.cs'),
+                path.join(projectPathUri, 'src', 'model.cs'),
+            ])
+        })
+    })
 })

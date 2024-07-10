@@ -1,8 +1,8 @@
 import { Logging, Workspace } from '@aws/language-server-runtimes/server-interface'
-import * as path from 'path'
 import { sleep } from './commonUtil'
 import * as CodeWhispererConstants from './constants'
 import { DependencyGraph, Truncation } from './dependencyGraph'
+import path = require('path')
 
 export const importRegex = /((global\s+)?using\s+(static\s+)?)([A-Z]\w*\s*?=\s*)?([A-Z]\w*(.[A-Z]\w*)*);/gm
 
@@ -21,7 +21,9 @@ export class CsharpDependencyGraph extends DependencyGraph {
      */
     async createNamespaceFilenameMapper(workspacePath: string) {
         const files = await this.getFiles(workspacePath)
-        const csharpFiles = files.filter(f => f.match(/.*.cs$/gi))
+
+        const csharpFiles = await this.filterFiles(workspacePath, files)
+
         const searchRegEx = new RegExp('namespace ([A-Z]\\w*(.[A-Z]\\w*)*)', 'g')
         for (const filePath of csharpFiles) {
             const content = await this.workspace.fs.readFile(filePath)
@@ -41,6 +43,7 @@ export class CsharpDependencyGraph extends DependencyGraph {
     async generateTruncation(filePath: string): Promise<Truncation> {
         try {
             const dirName = path.dirname(filePath)
+
             await this.createNamespaceFilenameMapper(dirName)
 
             if (!dirName) {
@@ -133,8 +136,11 @@ export class CsharpDependencyGraph extends DependencyGraph {
         if (this.exceedsSizeLimit(this._totalSize)) {
             return
         }
+
         const files = await this.getFiles(dirPath)
-        const csharpFiles = files.filter(f => f.match(/.*.cs$/gi))
+
+        const csharpFiles = await this.filterFiles(dirPath, files)
+
         for (const file of csharpFiles) {
             const fileSize = (await this.workspace.fs.getFileSize(file)).size
             const doesExceedsSize = this.exceedsSizeLimit(this._totalSize + fileSize)
@@ -147,6 +153,12 @@ export class CsharpDependencyGraph extends DependencyGraph {
                 await this.searchDependency(file)
             }
         }
+    }
+
+    // filters out gitIgnored and non-c# files
+    async filterFiles(rootPath: string, files: string[]): Promise<string[]> {
+        const gitAllowedFiles = await this.filterOutGitIgnoredFiles(rootPath, files)
+        return gitAllowedFiles.filter(f => f.match(/.*.cs$/gi))
     }
 
     // Payload Size for C#: 1MB

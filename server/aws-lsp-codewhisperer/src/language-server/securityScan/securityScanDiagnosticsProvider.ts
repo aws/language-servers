@@ -1,6 +1,6 @@
 import {
     Diagnostic,
-    Hover,
+    DiagnosticSeverity,
     Logging,
     Lsp,
     Position,
@@ -23,11 +23,13 @@ class SecurityScanDiagnosticsProvider {
         this.findings = []
     }
 
-    resetDiagnostics() {
-        this.findings.forEach(finding => {
-            this.logging.log(finding.filePath)
-            this.publishDiagnostics(finding.filePath, [])
-        })
+    async resetDiagnostics() {
+        await Promise.all(
+            this.findings.map(finding => {
+                this.logging.log(`reset diagnostics for: ${finding.filePath}`)
+                this.publishDiagnostics(finding.filePath, [])
+            })
+        )
         this.diagnostics = new Map()
     }
 
@@ -47,10 +49,10 @@ class SecurityScanDiagnosticsProvider {
     mapScanIssueToDiagnostics(issue: CodeScanIssue): Diagnostic {
         return Diagnostic.create(
             this.createDiagnosticsRange(issue.startLine, issue.endLine),
-            `${issue.title} - ${issue.description.text}`,
-            2,
+            `${issue.detectorName} - ${issue.description.text}`,
+            DiagnosticSeverity.Warning,
             issue.relatedVulnerabilities.join(','),
-            'CodeWhisperer'
+            'Amazon Q'
         )
     }
 
@@ -108,25 +110,6 @@ class SecurityScanDiagnosticsProvider {
             return false
         }
         return true
-    }
-
-    handleHover = () => {
-        this.lsp.onHover(({ position, textDocument }) => {
-            for (let [uri, diagnostics] of this.diagnostics) {
-                if (uri !== URI.parse(textDocument.uri).path) {
-                    continue
-                }
-                for (const diagnostic of diagnostics) {
-                    if (this.isPositionInRange(position, diagnostic.range)) {
-                        const hover: Hover = {
-                            contents: diagnostic.message,
-                            range: diagnostic.range,
-                        }
-                        return hover
-                    }
-                }
-            }
-        })
     }
 
     getLineOffset(range: Range, text: string) {

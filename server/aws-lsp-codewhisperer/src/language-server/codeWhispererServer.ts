@@ -1,15 +1,15 @@
 import {
-    Server,
-    CredentialsProvider,
-    Telemetry,
     CancellationToken,
+    CredentialsProvider,
     InlineCompletionItemWithReferences,
     InlineCompletionListWithReferences,
+    InlineCompletionTriggerKind,
     InlineCompletionWithReferencesParams,
     LogInlineCompletionSessionResultsParams,
-    InlineCompletionTriggerKind,
     Position,
     Range,
+    Server,
+    Telemetry,
     TextDocument,
 } from '@aws/language-server-runtimes/server-interface'
 import { AWSError } from 'aws-sdk'
@@ -359,7 +359,7 @@ export const CodewhispererServerFactory =
                     triggerCharacter: triggerCharacter,
                     classifierResult: autoTriggerResult?.classifierResult,
                     classifierThreshold: autoTriggerResult?.classifierThreshold,
-                    credentialStartUrl: credentialsProvider.getConnectionMetadata()?.sso?.startUrl ?? undefined,
+                    credentialStartUrl: credentialsProvider.getConnectionMetadata?.()?.sso?.startUrl ?? undefined,
                 })
 
                 codePercentageTracker.countInvocation(inferredLanguageId)
@@ -524,10 +524,10 @@ export const CodewhispererServerFactory =
                     }
                     if (config && config['shareCodeWhispererContentWithAWS'] === true) {
                         codeWhispererService.shareCodeWhispererContentWithAWS = true
-                        logging.log('Configuration updated to share code whisperer content with AWS')
+                        logging.log('Configuration updated to share Amazon Q content with AWS')
                     } else {
                         codeWhispererService.shareCodeWhispererContentWithAWS = false
-                        logging.log('Configuration updated to not share code whisperer content with AWS')
+                        logging.log('Configuration updated to not share Amazon Q content with AWS')
                     }
                 })
                 .catch(reason => logging.log(`Error in GetConfiguration: ${reason}`))
@@ -556,7 +556,7 @@ export const CodewhispererServerFactory =
             lastUserModificationTime = new Date().getTime()
         })
 
-        logging.log('Codewhisperer server has been initialised')
+        logging.log('Amazon Q Inline Suggestion server has been initialised')
 
         return () => {
             codePercentageTracker.dispose()
@@ -567,5 +567,5 @@ export const CodeWhispererServerIAM = CodewhispererServerFactory(
     credentialsProvider => new CodeWhispererServiceIAM(credentialsProvider)
 )
 export const CodeWhispererServerToken = CodewhispererServerFactory(
-    credentialsProvider => new CodeWhispererServiceToken(credentialsProvider, {})
+    credentialsProvider => new CodeWhispererServiceToken(credentialsProvider)
 )
