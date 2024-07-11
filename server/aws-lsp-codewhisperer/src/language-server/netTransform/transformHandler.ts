@@ -26,6 +26,8 @@ import {
 } from './models'
 import path = require('path')
 import AdmZip = require('adm-zip')
+import { Console } from 'console'
+import { supportedProjects } from './resources/SupportedProjects'
 
 const workspaceFolderName = 'artifactWorkspace'
 
@@ -42,6 +44,21 @@ export class TransformHandler {
     }
 
     async startTransformation(userInputrequest: StartTransformRequest): Promise<StartTransformResponse> {
+        var unsupportedProjects: string[] = []
+        if (this.isProject(userInputrequest)) {
+            let isValid = this.validateProject(userInputrequest)
+            if (!isValid) {
+                return {
+                    UploadId: dryRunConstant.uploadId,
+                    TransformationJobId: dryRunConstant.transformJobId,
+                    IsSupported: false,
+                } as StartTransformResponse
+            }
+        } else if (this.isSolution(userInputrequest)) {
+            unsupportedProjects = this.validateSolution(userInputrequest)
+            unsupportedProjects.forEach(x => console.log(x))
+        }
+
         const artifactManager = new ArtifactManager(
             this.workspace,
             this.logging,
@@ -56,6 +73,7 @@ export class TransformHandler {
                     UploadId: dryRunConstant.uploadId,
                     TransformationJobId: dryRunConstant.transformJobId,
                     ArtifactPath: payloadFilePath,
+                    UnSupportedProjects: unsupportedProjects,
                 } as StartTransformResponse
             }
             const uploadId = await this.preTransformationUploadCode(payloadFilePath)
@@ -63,7 +81,7 @@ export class TransformHandler {
             this.logging.log('send request to start transform api: ' + JSON.stringify(request))
             const response = await this.client.codeModernizerStartCodeTransformation(request)
             this.logging.log('response start transform api: ' + JSON.stringify(response))
-            return getCWStartTransformResponse(response, uploadId, payloadFilePath)
+            return getCWStartTransformResponse(response, uploadId, payloadFilePath, unsupportedProjects)
         } catch (error) {
             const errorMessage = (error as Error).message ?? 'Error in StartTransformation API call'
             this.logging.log(errorMessage)
@@ -349,5 +367,27 @@ export class TransformHandler {
             fs.mkdirSync(workspacePath, { recursive: true })
         }
         return workspacePath
+    }
+
+    isProject(userInputrequest: StartTransformRequest): boolean {
+        return userInputrequest.SelectedProjectPath.endsWith('.csproj')
+    }
+
+    isSolution(userInputrequest: StartTransformRequest): boolean {
+        return userInputrequest.SelectedProjectPath.endsWith('.sln')
+    }
+
+    validateProject(userInputrequest: StartTransformRequest): boolean {
+        var selectedProject = userInputrequest.ProjectMetadata.find(
+            project => project.ProjectPath == userInputrequest.SelectedProjectPath
+        )
+        if (selectedProject) return supportedProjects.Projects.includes(selectedProject.ProjectType)
+        return false
+    }
+
+    validateSolution(userInputrequest: StartTransformRequest): string[] {
+        return userInputrequest.ProjectMetadata.filter(
+            project => !supportedProjects.Projects.includes(project.ProjectType)
+        ).map(project => project.ProjectPath)
     }
 }

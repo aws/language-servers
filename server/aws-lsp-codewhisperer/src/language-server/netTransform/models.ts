@@ -15,6 +15,8 @@ export interface StartTransformResponse {
     TransformationJobId: string
     ArtifactPath: string
     Error?: string
+    IsSupported?: boolean
+    UnSupportedProjects?: string[]
 }
 
 export interface GetTransformRequest extends ExecuteCommandParams {
