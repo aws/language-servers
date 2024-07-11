@@ -9,8 +9,7 @@ import {
 import partiQlServerBinary from '../partiql-parser-wasm/partiql-wasm-parser-inline'
 import { initSync, parse_as_json } from '../partiql-parser-wasm/partiql_playground'
 import { convertObjectToParserError } from './error-parsing/parser-errors'
-import { findNodes, encodeSemanticTokens } from './syntax-highlighting/parser-tokens'
-import { SemanticToken, string2TokenTypes } from './syntax-highlighting/parser-tokens'
+import { findNodes, encodeSemanticTokens, SemanticToken, string2TokenTypes } from './syntax-highlighting/parser-tokens'
 
 // This is a constant that is used to determine if the language server supports multi-line tokens.
 const MULTILINETOKENSUPPORT = true
