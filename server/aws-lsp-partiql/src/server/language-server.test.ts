@@ -80,3 +80,45 @@ const unknownValidationFile = TextDocument.create(
     1,
     validationContent
 )
+
+// Describes a test suite for testing the PartiQL Language Service's
+// ability to respond semantic tokens request.
+describe('PartiQL Language Service - Semantic Tokens', () => {
+    // Declare variables for the service and a mock document.
+    let service: ReturnType<typeof createPartiQLLanguageService>
+    let mockDocument: TextDocument
+
+    beforeEach(() => {
+        // Initializes the PartiQL language service.
+        service = createPartiQLLanguageService()
+
+        // Creates a mock TextDocument representing a PartiQL script.
+        // This is to simulate a user editing a document in an IDE.
+        mockDocument = TextDocument.create(
+            'file:///example.partiql', // URI of the document
+            'partiql', // Language identifier
+            1, // Version number of the document
+            "SELECT * FROM my_table WHERE column = 'value'" // Content of the document
+        )
+
+        // Mocks the getText method of the TextDocument to always return a specific query.
+        // This ensures consistent results when the document's content is retrieved in the tests.
+        jest.spyOn(mockDocument, 'getText').mockReturnValue("SELECT * FROM my_table WHERE column = 'value'")
+    })
+
+    // Defines a test case to verify if semantic tokens are generated correctly when a request is received.
+    it('should generate semantic tokens when receive request', async () => {
+        // Calls the doSemanticTokens method which should analyze the text document and produce semantic tokens.
+        const tokens = await service.doSemanticTokens(mockDocument)
+
+        // Checks that tokens are defined after the function call, ensuring the method produces an output.
+        expect(tokens).toBeDefined()
+
+        // Confirm the document's text was accessed during token generation.
+        expect(mockDocument.getText).toHaveBeenCalled()
+    })
+
+    afterEach(() => {
+        jest.restoreAllMocks()
+    })
+})
