@@ -1,10 +1,10 @@
 import { standalone } from '@aws/language-server-runtimes/runtimes'
 import { RuntimeProps } from '@aws/language-server-runtimes/runtimes/runtime'
-import { NetTransformServer } from '@aws/lsp-codewhisperer/out/language-server/netTransformServer'
 import {
     CodeWhispererSecurityScanServerTokenProxy,
     CodeWhispererServerTokenProxy,
     QChatServerProxy,
+    QNetTransformServerTokenProxy,
 } from '@aws/lsp-codewhisperer/out/language-server/proxy-server'
 
 const MAJOR = 0
@@ -17,7 +17,7 @@ const props: RuntimeProps = {
     servers: [
         CodeWhispererServerTokenProxy,
         CodeWhispererSecurityScanServerTokenProxy,
-        NetTransformServer,
+        QNetTransformServerTokenProxy,
         QChatServerProxy,
     ],
     name: 'AWS CodeWhisperer',

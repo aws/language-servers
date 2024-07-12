@@ -21,7 +21,7 @@ import {
     emitTransformationJobStartedTelemetry,
     emitTransformationPlanReceivedFailure,
     emitTransformationPlanReceivedTelemetry,
-} from './metrics'
+} from './netTransform/metrics'
 import {
     CancelTransformRequest,
     DownloadArtifactsRequest,
@@ -48,24 +48,19 @@ const dryRun = dryRunEnv !== undefined ? dryRunEnv.toLowerCase() === 'true' : fa
  * @param createService Inject service instance based on credentials provider.
  * @returns  NetTransform server
  */
-export const NetTransformServerFactory: (
-    createService: (credentialsProvider: CredentialsProvider) => CodeWhispererServiceToken
-) => Server =
-    createService =>
-    ({ credentialsProvider, lsp, workspace, telemetry, logging }) => {
-        const service = createService(credentialsProvider)
-        const onExecuteCommandHandler = async (
-            params: ExecuteCommandParams,
-            _token: CancellationToken
-        ): Promise<any> => {
+export const QNetTransformServerToken =
+    (service: (credentialsProvider: CredentialsProvider) => CodeWhispererServiceToken): Server =>
+    ({ credentialsProvider, workspace, logging, lsp, telemetry }) => {
+        const codewhispererclient = service(credentialsProvider)
+        const transformHandler = new TransformHandler(codewhispererclient, workspace, logging, dryRun)
+        const runTransformCommand = async (params: ExecuteCommandParams, _token: CancellationToken) => {
+            logging.log('received command: ' + params.command)
             try {
-                const client = createService(credentialsProvider)
-                const transformHandler = new TransformHandler(client, workspace, logging, dryRun)
                 switch (params.command) {
                     case StartTransformCommand: {
-                        const userInputrequest = params as StartTransformRequest
-                        logging.log('prepare artifact for solution: ' + userInputrequest.SolutionRootPath)
-                        const response = await transformHandler.startTransformation(userInputrequest)
+                        const request = params as StartTransformRequest
+                        logging.log('Calling startTransformRequest: ' + request.SolutionRootPath)
+                        const response = await transformHandler.startTransformation(request)
                         emitTransformationJobStartedTelemetry(telemetry, response)
                         return response
                     }
@@ -191,6 +186,11 @@ export const NetTransformServerFactory: (
                 }
             }
         }
+
+        const onExecuteCommandHandler = async (
+            params: ExecuteCommandParams,
+            _token: CancellationToken
+        ): Promise<any> => {}
         const onInitializeHandler = () => {
             return {
                 capabilities: {
@@ -209,19 +209,7 @@ export const NetTransformServerFactory: (
             }
         }
         lsp.addInitializer(onInitializeHandler)
-
-        // Do the thing
         lsp.onExecuteCommand(onExecuteCommandHandler)
 
-        // Disposable
-        return () => {
-            // Do nothing
-        }
+        return () => {}
     }
-
-/**
- * Default NetTransformServer using Token authentication.
- */
-export const NetTransformServer = NetTransformServerFactory(
-    credentialsProvider => new CodeWhispererServiceToken(credentialsProvider, {})
-)

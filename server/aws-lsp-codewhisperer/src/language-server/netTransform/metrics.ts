@@ -1,5 +1,5 @@
-import { Telemetry } from '@aws/language-server-runtimes/server-interface'
-import { TransformationSpec } from '../client/token/codewhispererbearertokenclient'
+import { Logging, Telemetry } from '@aws/language-server-runtimes/server-interface'
+import { TransformationSpec } from '../../client/token/codewhispererbearertokenclient'
 import {
     CancelTransformRequest,
     CancelTransformResponse,
@@ -11,7 +11,7 @@ import {
     GetTransformResponse,
     StartTransformRequest,
     StartTransformResponse,
-} from './netTransform/models'
+} from './models'
 import {
     TransformationFailureEvent,
     TransformationJobArtifactsDownloadedEvent,
@@ -19,8 +19,8 @@ import {
     TransformationJobReceivedEvent,
     TransformationJobStartedEvent,
     TransformationPlanReceivedEvent,
-} from './telemetry/types'
-import { flattenMetric } from './utils'
+} from '../telemetry/types'
+import { flattenMetric } from '../utils'
 
 export const CODETRANSFORM_CATEGORY = 'codeTransform'
 
@@ -44,20 +44,22 @@ export const emitTransformationJobStartedFailure = (
     request: StartTransformRequest,
     error: Error
 ) => {
-    const data: TransformationFailureEvent = {
-        category: CODETRANSFORM_CATEGORY,
-        programLanguage: request.ProgramLanguage,
-        selectedProjectPath: request.SelectedProjectPath,
-        targetFramework: request.TargetFramework,
-    }
+    try {
+        const data: TransformationFailureEvent = {
+            category: CODETRANSFORM_CATEGORY,
+            programLanguage: request.ProgramLanguage,
+            selectedProjectPath: request.SelectedProjectPath,
+            targetFramework: request.TargetFramework,
+        }
 
-    telemetry.emitMetric({
-        name: 'codeTransform_jobIsStartedByUser',
-        result: 'Failed',
-        errorData: {
-            reason: error.message || 'UnknownError',
-        },
-    })
+        telemetry.emitMetric({
+            name: 'codeTransform_jobIsStartedByUser',
+            result: 'Failed',
+            errorData: {
+                reason: error.message || 'UnknownError',
+            },
+        })
+    } catch (e: any) {}
 }
 
 export const emitTransformationJobReceivedTelemetry = (telemetry: Telemetry, response: GetTransformResponse) => {
