@@ -23,11 +23,17 @@ import {
     GetTransformResponse,
     StartTransformRequest,
     StartTransformResponse,
+    TransformProjectMetadata,
 } from './models'
+import * as validation from './validation'
 import path = require('path')
 import AdmZip = require('adm-zip')
 import { Console } from 'console'
-import { supportedProjects } from './resources/SupportedProjects'
+import { supportedProjects, unsupportedViewComponents } from './resources/SupportedProjects'
+import { String } from 'aws-sdk/clients/codebuild'
+import { file } from 'mock-fs'
+import { ProjectMetadata } from 'aws-sdk/clients/lookoutvision'
+import { httpstatus } from 'aws-sdk/clients/glacier'
 
 const workspaceFolderName = 'artifactWorkspace'
 
@@ -45,17 +51,20 @@ export class TransformHandler {
 
     async startTransformation(userInputrequest: StartTransformRequest): Promise<StartTransformResponse> {
         var unsupportedProjects: string[] = []
-        if (this.isProject(userInputrequest)) {
-            let isValid = this.validateProject(userInputrequest)
+        const isProject = validation.isProject(userInputrequest)
+        const containsUnsupportedViews = await validation.checkForUnsupportedViews(userInputrequest, isProject)
+        if (isProject) {
+            let isValid = validation.validateProject(userInputrequest)
             if (!isValid) {
                 return {
                     UploadId: dryRunConstant.uploadId,
                     TransformationJobId: dryRunConstant.transformJobId,
                     IsSupported: false,
+                    ContainsUnsupportedViews: containsUnsupportedViews,
                 } as StartTransformResponse
             }
-        } else if (this.isSolution(userInputrequest)) {
-            unsupportedProjects = this.validateSolution(userInputrequest)
+        } else {
+            unsupportedProjects = validation.validateSolution(userInputrequest)
             unsupportedProjects.forEach(x => console.log(x))
         }
 
@@ -74,6 +83,7 @@ export class TransformHandler {
                     TransformationJobId: dryRunConstant.transformJobId,
                     ArtifactPath: payloadFilePath,
                     UnSupportedProjects: unsupportedProjects,
+                    ContainsUnsupportedViews: containsUnsupportedViews,
                 } as StartTransformResponse
             }
             const uploadId = await this.preTransformationUploadCode(payloadFilePath)
@@ -81,7 +91,13 @@ export class TransformHandler {
             this.logging.log('send request to start transform api: ' + JSON.stringify(request))
             const response = await this.client.codeModernizerStartCodeTransformation(request)
             this.logging.log('response start transform api: ' + JSON.stringify(response))
-            return getCWStartTransformResponse(response, uploadId, payloadFilePath, unsupportedProjects)
+            return getCWStartTransformResponse(
+                response,
+                uploadId,
+                payloadFilePath,
+                unsupportedProjects,
+                containsUnsupportedViews
+            )
         } catch (error) {
             const errorMessage = (error as Error).message ?? 'Error in StartTransformation API call'
             this.logging.log(errorMessage)
@@ -367,27 +383,5 @@ export class TransformHandler {
             fs.mkdirSync(workspacePath, { recursive: true })
         }
         return workspacePath
-    }
-
-    isProject(userInputrequest: StartTransformRequest): boolean {
-        return userInputrequest.SelectedProjectPath.endsWith('.csproj')
-    }
-
-    isSolution(userInputrequest: StartTransformRequest): boolean {
-        return userInputrequest.SelectedProjectPath.endsWith('.sln')
-    }
-
-    validateProject(userInputrequest: StartTransformRequest): boolean {
-        var selectedProject = userInputrequest.ProjectMetadata.find(
-            project => project.ProjectPath == userInputrequest.SelectedProjectPath
-        )
-        if (selectedProject) return supportedProjects.Projects.includes(selectedProject.ProjectType)
-        return false
-    }
-
-    validateSolution(userInputrequest: StartTransformRequest): string[] {
-        return userInputrequest.ProjectMetadata.filter(
-            project => !supportedProjects.Projects.includes(project.ProjectType)
-        ).map(project => project.ProjectPath)
     }
 }
