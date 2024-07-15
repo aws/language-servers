@@ -23,9 +23,17 @@ import {
     GetTransformResponse,
     StartTransformRequest,
     StartTransformResponse,
+    TransformProjectMetadata,
 } from './models'
+import * as validation from './validation'
 import path = require('path')
 import AdmZip = require('adm-zip')
+import { Console } from 'console'
+import { supportedProjects, unsupportedViewComponents } from './resources/SupportedProjects'
+import { String } from 'aws-sdk/clients/codebuild'
+import { file } from 'mock-fs'
+import { ProjectMetadata } from 'aws-sdk/clients/lookoutvision'
+import { httpstatus } from 'aws-sdk/clients/glacier'
 
 const workspaceFolderName = 'artifactWorkspace'
 
@@ -42,6 +50,24 @@ export class TransformHandler {
     }
 
     async startTransformation(userInputrequest: StartTransformRequest): Promise<StartTransformResponse> {
+        var unsupportedProjects: string[] = []
+        const isProject = validation.isProject(userInputrequest)
+        const containsUnsupportedViews = await validation.checkForUnsupportedViews(userInputrequest, isProject)
+        if (isProject) {
+            let isValid = validation.validateProject(userInputrequest)
+            if (!isValid) {
+                return {
+                    UploadId: dryRunConstant.uploadId,
+                    TransformationJobId: dryRunConstant.transformJobId,
+                    IsSupported: false,
+                    ContainsUnsupportedViews: containsUnsupportedViews,
+                } as StartTransformResponse
+            }
+        } else {
+            unsupportedProjects = validation.validateSolution(userInputrequest)
+            unsupportedProjects.forEach(x => console.log(x))
+        }
+
         const artifactManager = new ArtifactManager(
             this.workspace,
             this.logging,
@@ -56,6 +82,8 @@ export class TransformHandler {
                     UploadId: dryRunConstant.uploadId,
                     TransformationJobId: dryRunConstant.transformJobId,
                     ArtifactPath: payloadFilePath,
+                    UnSupportedProjects: unsupportedProjects,
+                    ContainsUnsupportedViews: containsUnsupportedViews,
                 } as StartTransformResponse
             }
             const uploadId = await this.preTransformationUploadCode(payloadFilePath)
@@ -63,7 +91,13 @@ export class TransformHandler {
             this.logging.log('send request to start transform api: ' + JSON.stringify(request))
             const response = await this.client.codeModernizerStartCodeTransformation(request)
             this.logging.log('response start transform api: ' + JSON.stringify(response))
-            return getCWStartTransformResponse(response, uploadId, payloadFilePath)
+            return getCWStartTransformResponse(
+                response,
+                uploadId,
+                payloadFilePath,
+                unsupportedProjects,
+                containsUnsupportedViews
+            )
         } catch (error) {
             const errorMessage = (error as Error).message ?? 'Error in StartTransformation API call'
             this.logging.log(errorMessage)

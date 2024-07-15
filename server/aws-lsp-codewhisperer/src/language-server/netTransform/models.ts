@@ -15,6 +15,9 @@ export interface StartTransformResponse {
     TransformationJobId: string
     ArtifactPath: string
     Error?: string
+    IsSupported?: boolean
+    UnSupportedProjects?: string[]
+    ContainsUnsupportedViews?: boolean
 }
 
 export interface GetTransformRequest extends ExecuteCommandParams {
@@ -70,7 +73,7 @@ export interface ExternalReference {
     IncludedInArtifact: boolean
 }
 
-interface TransformProjectMetadata {
+export interface TransformProjectMetadata {
     Name: string
     ProjectTargetFramework: string
     ProjectPath: string
