@@ -41,8 +41,7 @@ const PollTransformForPlanCommand = 'aws/qNetTransform/pollTransformForPlan'
 const GetTransformPlanCommand = 'aws/qNetTransform/getTransformPlan'
 const CancelTransformCommand = 'aws/qNetTransform/cancelTransform'
 const DownloadArtifactsCommand = 'aws/qNetTransform/downloadArtifacts'
-const dryRunEnv = process.env.DRY_RUN
-const dryRun = dryRunEnv !== undefined ? dryRunEnv.toLowerCase() === 'true' : false
+const dryRun = false
 /**
  *
  * @param createService Inject service instance based on credentials provider.
