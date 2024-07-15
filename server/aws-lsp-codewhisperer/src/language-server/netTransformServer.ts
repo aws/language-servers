@@ -54,7 +54,6 @@ export const QNetTransformServerToken =
         const codewhispererclient = service(credentialsProvider)
         const transformHandler = new TransformHandler(codewhispererclient, workspace, logging, dryRun)
         const runTransformCommand = async (params: ExecuteCommandParams, _token: CancellationToken) => {
-            logging.log('received command: ' + params.command)
             try {
                 switch (params.command) {
                     case StartTransformCommand: {
@@ -190,7 +189,10 @@ export const QNetTransformServerToken =
         const onExecuteCommandHandler = async (
             params: ExecuteCommandParams,
             _token: CancellationToken
-        ): Promise<any> => {}
+        ): Promise<any> => {
+            logging.log(params.command)
+            runTransformCommand(params, _token)
+        }
         const onInitializeHandler = () => {
             return {
                 capabilities: {
