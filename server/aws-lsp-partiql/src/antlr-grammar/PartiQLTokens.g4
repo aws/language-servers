@@ -1,5 +1,15 @@
 /*
- * From https://partiql.org/syntax/antlr.html
+ * Copyright 2022 Amazon.com, Inc. or its affiliates.  All rights reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License").
+ *  You may not use this file except in compliance with the License.
+ * A copy of the License is located at:
+ *
+ *      http://aws.amazon.com/apache2.0/
+ *
+ *  or in the "license" file accompanying this file. This file is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific
+ *  language governing permissions and limitations under the License.
  */
 
 lexer grammar PartiQLTokens;
@@ -88,8 +98,10 @@ ELSE: 'ELSE';
 END: 'END';
 END_EXEC: 'END-EXEC';
 ESCAPE: 'ESCAPE';
+EVERY: 'EVERY';
 EXCEPT: 'EXCEPT';
 EXCEPTION: 'EXCEPTION';
+EXCLUDE: 'EXCLUDE';
 EXCLUDED: 'EXCLUDED';
 EXEC: 'EXEC';
 EXECUTE: 'EXECUTE';
@@ -246,6 +258,8 @@ ZONE: 'ZONE';
 /**
  * window related
  */
+ // TODO: Move the keywords to the corresponding section once https://github.com/partiql/partiql-docs/issues/31 is resolved and a RFC is approved
+ // i.e. Move OVER/PARTITION to KEYWORDS.
 LAG: 'LAG';
 LEAD: 'LEAD';
 OVER: 'OVER';
@@ -313,6 +327,9 @@ PERCENT: '%';
 AT_SIGN: '@';
 TILDE: '~';
 ASTERISK: '*';
+VERTBAR: '|';
+AMPERSAND: '&';
+BANG: '!';
 LT_EQ: '<=';
 GT_EQ: '>=';
 EQ: '=';

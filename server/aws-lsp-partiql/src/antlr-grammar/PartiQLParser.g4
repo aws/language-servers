@@ -1,5 +1,15 @@
 /*
- * From https://partiql.org/syntax/antlr.html
+ * Copyright 2022 Amazon.com, Inc. or its affiliates.  All rights reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License").
+ *  You may not use this file except in compliance with the License.
+ * A copy of the License is located at:
+ *
+ *      http://aws.amazon.com/apache2.0/
+ *
+ *  or in the "license" file accompanying this file. This file is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific
+ *  language governing permissions and limitations under the License.
  */
 
 parser grammar PartiQLParser;
@@ -62,14 +72,26 @@ dql
  *
  */
 
+// FIXME #002: This is a slight deviation from SqlParser, as the old parser allows ANY token after EXEC. Realistically,
+//  we probably need to determine the formal rule for this. I'm assuming we shouldn't allow any token, but I've
+//  left it as an expression (which allows strings). See https://github.com/partiql/partiql-lang-kotlin/issues/707
 execCommand
     : EXEC name=expr ( args+=expr ( COMMA args+=expr )* )?;
 
 /**
  *
  * DATA DEFINITION LANGUAGE (DDL)
- *
+ * Experimental, towards #36 https://github.com/partiql/partiql-docs/issues/36
+ * Currently, this is a small subset of SQL DDL that is likely to make sense for PartiQL as well.
  */
+
+// <qualified name> ::= [ <schema name> <period> ] <qualified identifier>
+qualifiedName : (qualifier+=symbolPrimitive PERIOD)* name=symbolPrimitive;
+
+tableName : symbolPrimitive;
+tableConstraintName : symbolPrimitive;
+columnName : symbolPrimitive;
+columnConstraintName : symbolPrimitive;
 
 ddl
     : createCommand
@@ -77,13 +99,30 @@ ddl
     ;
 
 createCommand
-    : CREATE TABLE symbolPrimitive                                                              # CreateTable
+    : CREATE TABLE qualifiedName ( PAREN_LEFT tableDef PAREN_RIGHT )?                           # CreateTable
     | CREATE INDEX ON symbolPrimitive PAREN_LEFT pathSimple ( COMMA pathSimple )* PAREN_RIGHT   # CreateIndex
     ;
 
 dropCommand
-    : DROP TABLE target=symbolPrimitive                         # DropTable
+    : DROP TABLE qualifiedName                                  # DropTable
     | DROP INDEX target=symbolPrimitive ON on=symbolPrimitive   # DropIndex
+    ;
+
+tableDef
+    : tableDefPart ( COMMA tableDefPart )*
+    ;
+
+tableDefPart
+    : columnName type columnConstraint*                             # ColumnDeclaration
+    ;
+
+columnConstraint
+    : ( CONSTRAINT columnConstraintName )?  columnConstraintDef
+    ;
+
+columnConstraintDef
+    : NOT NULL                                  # ColConstrNotNull
+    | NULL                                      # ColConstrNull
     ;
 
 /**
@@ -101,7 +140,8 @@ dml
     ;
 
 dmlBaseCommand
-    : insertCommand
+    : insertStatement
+    | insertStatementLegacy
     | setCommand
     | replaceCommand
     | removeCommand
@@ -117,29 +157,43 @@ pathSimpleSteps
     | PERIOD key=symbolPrimitive                         # PathSimpleDotSymbol
     ;
 
-// Based on https://github.com/partiql/partiql-lang/blob/main/RFCs/0011-partiql-insert.md
+// Based on https://github.com/partiql/partiql-docs/blob/main/RFCs/0011-partiql-insert.md
+// TODO add parsing of target attributes: https://github.com/partiql/partiql-lang-kotlin/issues/841
 replaceCommand
     : REPLACE INTO symbolPrimitive asIdent? value=expr;
 
-// Based on https://github.com/partiql/partiql-lang/blob/main/RFCs/0011-partiql-insert.md
+// Based on https://github.com/partiql/partiql-docs/blob/main/RFCs/0011-partiql-insert.md
+// TODO add parsing of target attributes: https://github.com/partiql/partiql-lang-kotlin/issues/841
 upsertCommand
     : UPSERT INTO symbolPrimitive asIdent? value=expr;
 
 removeCommand
     : REMOVE pathSimple;
 
+// FIXME #001
+//  There is a bug in the old SqlParser that needed to be replicated to the PartiQLParser for the sake of ...
+//  ... same functionality. Using 2 returning clauses always uses the second clause. This should be fixed.
+//  See GH Issue: https://github.com/partiql/partiql-lang-kotlin/issues/698
+//  We essentially use the returning clause, because we currently support this with the SqlParser.
+//  See https://github.com/partiql/partiql-lang-kotlin/issues/708
 insertCommandReturning
-    : INSERT INTO pathSimple VALUE value=expr ( AT pos=expr )? onConflictClause? returningClause?;
+    : INSERT INTO pathSimple VALUE value=expr ( AT pos=expr )? onConflictLegacy? returningClause?;
 
-insertCommand
-    : INSERT INTO pathSimple VALUE value=expr ( AT pos=expr )? onConflictClause?  # InsertLegacy
-    // See the Grammar at https://github.com/partiql/partiql-lang/blob/main/RFCs/0011-partiql-insert.md#2-proposed-grammar-and-semantics
-    | INSERT INTO symbolPrimitive asIdent? value=expr onConflictClause?           # Insert
+// See the Grammar at https://github.com/partiql/partiql-docs/blob/main/RFCs/0011-partiql-insert.md#2-proposed-grammar-and-semantics
+insertStatement
+    : INSERT INTO symbolPrimitive asIdent? value=expr onConflict?
     ;
 
-onConflictClause
-    : ON CONFLICT WHERE expr DO NOTHING                                           # OnConflictLegacy
-    | ON CONFLICT conflictTarget? conflictAction                                  # OnConflict
+onConflict
+    : ON CONFLICT conflictTarget? conflictAction
+    ;
+
+insertStatementLegacy
+    : INSERT INTO pathSimple VALUE value=expr ( AT pos=expr )? onConflictLegacy?
+    ;
+
+onConflictLegacy
+    : ON CONFLICT WHERE expr DO NOTHING
     ;
 
 /**
@@ -167,7 +221,7 @@ conflictAction
    [ WHERE <condition> ]
 */
 doReplace
-    : EXCLUDED;
+    : EXCLUDED ( WHERE condition=expr )?;
     // :TODO add the rest of the grammar
 
 /*
@@ -177,7 +231,7 @@ doReplace
    [ WHERE <condition> ]
 */
 doUpdate
-    : EXCLUDED;
+    : EXCLUDED ( WHERE condition=expr )?;
     // :TODO add the rest of the grammar
 
 updateClause
@@ -272,6 +326,8 @@ groupKey
 /**
  *
  * Window Function
+ * TODO: Remove from experimental once https://github.com/partiql/partiql-docs/issues/31 is resolved and a RFC is approved
+ *
  */
 
 over
@@ -294,6 +350,23 @@ windowSortSpecList
 
 havingClause
     : HAVING arg=exprSelect;
+
+excludeClause
+    : EXCLUDE excludeExpr (COMMA excludeExpr)*;
+
+// Require 1 more `excludeExprSteps` (disallow `EXCLUDE a`).
+// There's not a clear use case in which a user would exclude a previously introdced binding variable. If a use case
+// arises, we can always change the requirement to 0 or more steps.
+excludeExpr
+    : symbolPrimitive excludeExprSteps+;
+
+excludeExprSteps
+    : PERIOD symbolPrimitive                            # ExcludeExprTupleAttr
+    | BRACKET_LEFT attr=LITERAL_STRING BRACKET_RIGHT    # ExcludeExprCollectionAttr
+    | BRACKET_LEFT index=LITERAL_INTEGER BRACKET_RIGHT  # ExcludeExprCollectionIndex
+    | BRACKET_LEFT ASTERISK BRACKET_RIGHT               # ExcludeExprCollectionWildcard
+    | PERIOD ASTERISK                                   # ExcludeExprTupleWildcard
+    ;
 
 fromClause
     : FROM tableReference;
@@ -341,7 +414,7 @@ patternRestrictor    // Should be TRAIL / ACYCLIC / SIMPLE
     : restrictor=IDENTIFIER;
 
 node
-    : PAREN_LEFT symbolPrimitive? patternPartLabel? whereClause? PAREN_RIGHT;
+    : PAREN_LEFT symbolPrimitive? ( COLON labelSpec )? whereClause? PAREN_RIGHT;
 
 edge
     : edgeWSpec quantifier=patternQuantifier?    # EdgeWithSpec
@@ -369,10 +442,28 @@ edgeWSpec
     ;
 
 edgeSpec
-    : BRACKET_LEFT symbolPrimitive? patternPartLabel? whereClause? BRACKET_RIGHT;
+    : BRACKET_LEFT symbolPrimitive? ( COLON labelSpec )? whereClause? BRACKET_RIGHT;
 
-patternPartLabel
-    : COLON symbolPrimitive;
+labelSpec
+    : labelSpec VERTBAR labelTerm        # LabelSpecOr
+    | labelTerm                          # LabelSpecTerm
+    ;
+
+labelTerm
+    : labelTerm AMPERSAND labelFactor    # LabelTermAnd
+    | labelFactor                        # LabelTermFactor
+    ;
+
+labelFactor
+    : BANG labelPrimary                  # LabelFactorNot
+    | labelPrimary                       # LabelFactorPrimary
+    ;
+
+labelPrimary
+    : symbolPrimitive                    # LabelPrimaryName
+    | PERCENT                            # LabelPrimaryWild
+    | PAREN_LEFT labelSpec PAREN_RIGHT   # LabelPrimaryParen
+    ;
 
 edgeAbbrev
     : TILDE
@@ -429,12 +520,12 @@ joinType
  *
  * EXPRESSIONS & PRECEDENCE
  *
- * Precedence Table:
+ * Precedence Table (from highest to lowest precedence)
  * 1. Primary Expressions: Functions, Literals, Paths, Identifiers, etc (ex: a, f(a), 1, a.b, "a")
  * 2. Unary plus, minus (ex: -a, +a)
  * 3. Multiplication, Division, Modulo (ex: a * b)
  * 4. Addition, Subtraction (ex: a + b)
- * 5. Other operators (ex: a || b)
+ * 5. Other operators (ex: a || b, a & b)
  * 6. Predicates (ex: a LIKE b, a < b, a IN b, a = b)
  * 7. IS true/false. Not yet implemented in PartiQL, but defined in SQL-92. (ex: a IS TRUE)
  * 8. NOT (ex: NOT a)
@@ -456,6 +547,7 @@ exprBagOp
 
 exprSelect
     : select=selectClause
+        exclude=excludeClause?
         from=fromClause
         let=letClause?
         where=whereClauseSelect?
@@ -492,8 +584,10 @@ exprPredicate
     | parent=mathOp00                                                                # PredicateBase
     ;
 
+// TODO : Opreator precedence of BITWISE_AND (&) may change in the future.
+//  SEE: https://github.com/partiql/partiql-docs/issues/50
 mathOp00
-    : lhs=mathOp00 op=CONCAT rhs=mathOp01
+    : lhs=mathOp00 op=(AMPERSAND|CONCAT) rhs=mathOp01
     | parent=mathOp01
     ;
 
@@ -517,6 +611,8 @@ exprPrimary
     | cast                       # ExprPrimaryBase
     | sequenceConstructor        # ExprPrimaryBase
     | substring                  # ExprPrimaryBase
+    | position                   # ExprPrimaryBase
+    | overlay                    # ExprPrimaryBase
     | canCast                    # ExprPrimaryBase
     | canLosslessCast            # ExprPrimaryBase
     | extract                    # ExprPrimaryBase
@@ -542,6 +638,8 @@ exprPrimary
 
 exprTerm
     : PAREN_LEFT expr PAREN_RIGHT    # ExprTermWrappedQuery
+    | CURRENT_USER                   # ExprTermCurrentUser
+    | CURRENT_DATE                   # ExprTermCurrentDate
     | parameter                      # ExprTermBase
     | varRefExpr                     # ExprTermBase
     | literal                        # ExprTermBase
@@ -575,11 +673,30 @@ substring
     | SUBSTRING PAREN_LEFT expr ( FROM expr ( FOR expr )? )? PAREN_RIGHT
     ;
 
-aggregate
-    : func=COUNT PAREN_LEFT ASTERISK PAREN_RIGHT                                        # CountAll
-    | func=(COUNT|MAX|MIN|SUM|AVG) PAREN_LEFT setQuantifierStrategy? expr PAREN_RIGHT   # AggregateBase
+/**
+* POSITION(<str>, <str>)
+* POSITION(<str> IN <str>)
+*/
+position
+    : POSITION PAREN_LEFT expr COMMA expr PAREN_RIGHT
+    | POSITION PAREN_LEFT expr IN expr PAREN_RIGHT
     ;
 
+/**
+* OVERLAY(<str>, <str>, <int> [, <int>])
+* OVERLAY(<str> PLACING <str> FROM <int> [FOR <int>])
+*/
+overlay
+    : OVERLAY PAREN_LEFT expr COMMA expr COMMA expr (COMMA expr)? PAREN_RIGHT
+    | OVERLAY PAREN_LEFT expr PLACING expr FROM expr (FOR expr)? PAREN_RIGHT
+    ;
+
+aggregate
+    : func=COUNT PAREN_LEFT ASTERISK PAREN_RIGHT                                        # CountAll
+    | func=(COUNT|MAX|MIN|SUM|AVG|EVERY|ANY|SOME) PAREN_LEFT setQuantifierStrategy? expr PAREN_RIGHT   # AggregateBase
+    ;
+
+// TODO: Remove from experimental once https://github.com/partiql/partiql-docs/issues/31 is resolved and a RFC is approved
 /**
 *
 * Supported Window Functions:
@@ -609,11 +726,15 @@ trimFunction
 dateFunction
     : func=(DATE_ADD|DATE_DIFF) PAREN_LEFT dt=IDENTIFIER COMMA expr COMMA expr PAREN_RIGHT;
 
+// SQL-99 10.4 — <routine invocation> ::= <routine name> <SQL argument list>
 functionCall
-    : name=( CHAR_LENGTH | CHARACTER_LENGTH | OCTET_LENGTH |
-        BIT_LENGTH | UPPER | LOWER | SIZE | EXISTS | COUNT )
-        PAREN_LEFT ( expr ( COMMA expr )* )? PAREN_RIGHT                         # FunctionCallReserved
-    | name=symbolPrimitive PAREN_LEFT ( expr ( COMMA expr )* )? PAREN_RIGHT      # FunctionCallIdent
+    : functionName PAREN_LEFT ( expr ( COMMA expr )* )? PAREN_RIGHT
+    ;
+
+// SQL-99 10.4 — <routine name> ::= [ <schema name> <period> ] <qualified identifier>
+functionName
+    : (qualifier+=symbolPrimitive PERIOD)* name=( CHAR_LENGTH | CHARACTER_LENGTH | OCTET_LENGTH | BIT_LENGTH | UPPER | LOWER | SIZE | EXISTS | COUNT )  # FunctionNameReserved
+    | (qualifier+=symbolPrimitive PERIOD)* name=symbolPrimitive                                                                                         # FunctionNameSymbol
     ;
 
 pathStep
@@ -634,7 +755,13 @@ parameter
     : QUESTION_MARK;
 
 varRefExpr
-    : qualifier=AT_SIGN? ident=(IDENTIFIER|IDENTIFIER_QUOTED);
+    : qualifier=AT_SIGN? ident=(IDENTIFIER|IDENTIFIER_QUOTED)   # VariableIdentifier
+    | qualifier=AT_SIGN? key=nonReservedKeywords                # VariableKeyword
+    ;
+
+nonReservedKeywords
+    : EXCLUDED
+    ;
 
 /**
  *
@@ -670,18 +797,19 @@ literal
     | ION_CLOSURE                                                                         # LiteralIon
     | DATE LITERAL_STRING                                                                 # LiteralDate
     | TIME ( PAREN_LEFT LITERAL_INTEGER PAREN_RIGHT )? (WITH TIME ZONE)? LITERAL_STRING   # LiteralTime
+    | TIMESTAMP ( PAREN_LEFT LITERAL_INTEGER PAREN_RIGHT )? (WITH TIME ZONE)? LITERAL_STRING   # LiteralTimestamp
     ;
 
 type
     : datatype=(
         NULL | BOOL | BOOLEAN | SMALLINT | INTEGER2 | INT2 | INTEGER | INT | INTEGER4 | INT4
-        | INTEGER8 | INT8 | BIGINT | REAL | TIMESTAMP | CHAR | CHARACTER | MISSING
+        | INTEGER8 | INT8 | BIGINT | REAL | CHAR | CHARACTER | MISSING
         | STRING | SYMBOL | BLOB | CLOB | DATE | STRUCT | TUPLE | LIST | SEXP | BAG | ANY
       )                                                                                                                # TypeAtomic
     | datatype=DOUBLE PRECISION                                                                                        # TypeAtomic
     | datatype=(CHARACTER|CHAR|FLOAT|VARCHAR) ( PAREN_LEFT arg0=LITERAL_INTEGER PAREN_RIGHT )?                         # TypeArgSingle
     | CHARACTER VARYING ( PAREN_LEFT arg0=LITERAL_INTEGER PAREN_RIGHT )?                                               # TypeVarChar
     | datatype=(DECIMAL|DEC|NUMERIC) ( PAREN_LEFT arg0=LITERAL_INTEGER ( COMMA arg1=LITERAL_INTEGER )? PAREN_RIGHT )?  # TypeArgDouble
-    | TIME ( PAREN_LEFT precision=LITERAL_INTEGER PAREN_RIGHT )? (WITH TIME ZONE)?                                     # TypeTimeZone
+    | datatype=(TIME|TIMESTAMP) ( PAREN_LEFT precision=LITERAL_INTEGER PAREN_RIGHT )? (WITH TIME ZONE)?                # TypeTimeZone
     | symbolPrimitive                                                                                                  # TypeCustom
     ;
