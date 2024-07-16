@@ -1,5 +1,10 @@
 import type { Diagnostic } from '@aws/language-server-runtimes/server-interface'
 import { DiagnosticSeverity, TextDocument } from '@aws/language-server-runtimes/server-interface'
+// Commented out code is to use the PartiQL Rust parser, should be used again after
+// https://github.com/partiql/partiql-lang-rust/issues/472 is resolved.
+// import partiQlServerBinary from '../partiql-parser-wasm/partiql-wasm-parser-inline'
+// import { initSync, parse_as_json } from '../partiql-parser-wasm/partiql_playground'
+// import { convertObjectToParserError } from './error-parsing/parser-errors'
 import { CommonTokenStream, Token, ANTLRErrorListener, CharStream, ATNSimulator, Recognizer } from 'antlr4ng'
 import { PartiQLParser } from '../antlr-generated/PartiQLParser'
 import { PartiQLTokens } from '../antlr-generated/PartiQLTokens'
