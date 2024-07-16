@@ -13,6 +13,7 @@
     "scripts": {
         "compile": "tsc --build",
         "test": "jest",
+        "precompile": "antlr4ng -Dlanguage=TypeScript -no-visitor -no-listener -Xexact-output-dir -o src/antlr-generated  src/antlr-grammar/PartiQLTokens.g4 src/antlr-grammar/PartiQLParser.g4",
         "postcompile": "npm run copy-empty-binary",
         "copy-empty-binary": "tsx build-scripts/create-empty-wasm-file.mts",
         "update-parser-binary": "tsx build-scripts/compile-inline-partiql-wasm.mts"
@@ -21,7 +22,8 @@
         "out"
     ],
     "dependencies": {
-        "@aws/language-server-runtimes": "^0.2.4"
+        "@aws/language-server-runtimes": "^0.2.4",
+        "antlr4ng": "^3.0.4"
     },
     "devDependencies": {
         "babel-plugin-transform-import-meta": "^2.2.1",
@@ -30,7 +32,8 @@
         "@types/jest": "29.5.12",
         "ts-jest": "^29.1.2",
         "tsx": "^4.7.2",
-        "zx": "^8.1.0"
+        "zx": "^8.1.0",
+        "antlr4ng-cli": "^2.0.0"
     },
     "prettier": {
         "printWidth": 120,
