@@ -11,7 +11,6 @@ import {
 import { CodeWhispererServiceToken } from '../codeWhispererService'
 import { ArtifactManager } from './artifactManager'
 import { getCWStartTransformRequest, getCWStartTransformResponse } from './converter'
-import * as dryRunConstant from './dryRunConstant'
 import {
     CancelTransformRequest,
     CancelTransformResponse,
@@ -31,7 +30,6 @@ import AdmZip = require('adm-zip')
 import { Console } from 'console'
 import { supportedProjects, unsupportedViewComponents } from './resources/SupportedProjects'
 import { String } from 'aws-sdk/clients/codebuild'
-import { file } from 'mock-fs'
 import { ProjectMetadata } from 'aws-sdk/clients/lookoutvision'
 import { httpstatus } from 'aws-sdk/clients/glacier'
 
@@ -41,18 +39,17 @@ export class TransformHandler {
     private client: CodeWhispererServiceToken
     private workspace: Workspace
     private logging: Logging
-    private dryRun: boolean
-    constructor(client: CodeWhispererServiceToken, workspace: Workspace, logging: Logging, dryRun: boolean = false) {
+    constructor(client: CodeWhispererServiceToken, workspace: Workspace, logging: Logging) {
         this.client = client
         this.workspace = workspace
         this.logging = logging
-        this.dryRun = dryRun
     }
 
     async startTransformation(userInputrequest: StartTransformRequest): Promise<StartTransformResponse> {
         var unsupportedProjects: string[] = []
         const isProject = validation.isProject(userInputrequest)
         const containsUnsupportedViews = await validation.checkForUnsupportedViews(userInputrequest, isProject)
+        /*
         if (isProject) {
             let isValid = validation.validateProject(userInputrequest)
             if (!isValid) {
@@ -67,7 +64,7 @@ export class TransformHandler {
             unsupportedProjects = validation.validateSolution(userInputrequest)
             unsupportedProjects.forEach(x => console.log(x))
         }
-
+*/
         const artifactManager = new ArtifactManager(
             this.workspace,
             this.logging,
@@ -76,16 +73,7 @@ export class TransformHandler {
         try {
             const payloadFilePath = await this.zipCodeAsync(userInputrequest, artifactManager)
             this.logging.log('payload path: ' + payloadFilePath)
-            if (this.dryRun) {
-                this.logging.log('activating dry run mode.')
-                return {
-                    UploadId: dryRunConstant.uploadId,
-                    TransformationJobId: dryRunConstant.transformJobId,
-                    ArtifactPath: payloadFilePath,
-                    UnSupportedProjects: unsupportedProjects,
-                    ContainsUnsupportedViews: containsUnsupportedViews,
-                } as StartTransformResponse
-            }
+
             const uploadId = await this.preTransformationUploadCode(payloadFilePath)
             const request = getCWStartTransformRequest(userInputrequest, uploadId)
             this.logging.log('send request to start transform api: ' + JSON.stringify(request))
@@ -103,9 +91,7 @@ export class TransformHandler {
             this.logging.log(errorMessage)
             throw new Error(errorMessage)
         } finally {
-            if (!this.dryRun) {
-                artifactManager.cleanup()
-            }
+            artifactManager.cleanup()
         }
     }
 
@@ -188,9 +174,6 @@ export class TransformHandler {
         return headersObj
     }
     async getTransformation(request: GetTransformRequest) {
-        if (this.dryRun) {
-            return dryRunConstant.GetTransformationResponse
-        }
         try {
             const getCodeTransformationRequest = {
                 transformationJobId: request.TransformationJobId,
@@ -319,7 +302,7 @@ export class TransformHandler {
         } as GetTransformResponse
     }
 
-    async downloadExportResultArchive(cwStreamingClient: CodeWhispererStreaming, exportId: string) {
+    async downloadExportResultArchive(cwStreamingClient: CodeWhispererStreaming, exportId: string, saveToDir: string) {
         let result
         try {
             result = await cwStreamingClient.exportResultArchive({
@@ -341,7 +324,7 @@ export class TransformHandler {
                     }
                 }
             }
-            const pathContainingArchive = await this.archivePathGenerator(exportId, buffer)
+            const pathContainingArchive = await this.archivePathGenerator(exportId, buffer, saveToDir)
             this.logging.log('pathContainingArchive :' + pathContainingArchive)
             return {
                 PathTosave: pathContainingArchive,
@@ -354,8 +337,8 @@ export class TransformHandler {
         }
     }
 
-    async archivePathGenerator(exportId: string, buffer: Uint8Array[]) {
-        const tempDir = path.join(this.workspace.fs.getTempDirPath(), exportId)
+    async archivePathGenerator(exportId: string, buffer: Uint8Array[], saveToDir: string) {
+        const tempDir = path.join(saveToDir, exportId)
         const pathToArchive = path.join(tempDir, 'ExportResultsArchive.zip')
         await this.directoryExists(tempDir)
         await fs.writeFileSync(pathToArchive, Buffer.concat(buffer))
@@ -363,7 +346,6 @@ export class TransformHandler {
         pathContainingArchive = path.dirname(pathToArchive)
         const zip = new AdmZip(pathToArchive)
         zip.extractAllTo(pathContainingArchive)
-        pathContainingArchive = path.join(pathContainingArchive, 'sourceCode')
         return pathContainingArchive
     }
 

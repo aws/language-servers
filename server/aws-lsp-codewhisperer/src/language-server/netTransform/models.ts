@@ -42,6 +42,7 @@ export interface CancelTransformRequest extends ExecuteCommandParams {
 
 export interface DownloadArtifactsRequest extends ExecuteCommandParams {
     TransformationJobId: string
+    SolutionRootPath: string
 }
 
 export enum CancellationJobStatus {
