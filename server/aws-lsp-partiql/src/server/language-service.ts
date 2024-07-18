@@ -5,7 +5,7 @@ import { DiagnosticSeverity, TextDocument } from '@aws/language-server-runtimes/
 // import partiQlServerBinary from '../partiql-parser-wasm/partiql-wasm-parser-inline'
 // import { initSync, parse_as_json } from '../partiql-parser-wasm/partiql_playground'
 // import { convertObjectToParserError } from './error-parsing/parser-errors'
-import { CommonTokenStream, Token, ANTLRErrorListener, CharStream, ATNSimulator, Recognizer } from 'antlr4ng'
+import { CommonTokenStream, Token, CharStream, ATNSimulator, Recognizer, BaseErrorListener } from 'antlr4ng'
 import { PartiQLParser } from '../antlr-generated/PartiQLParser'
 import { PartiQLTokens } from '../antlr-generated/PartiQLTokens'
 
@@ -18,11 +18,12 @@ export function createPartiQLLanguageService() {
 }
 
 // Collector used to give to the ANTLR parser and lexer to store the diagnostics.
-class DiagnosticsCollector implements ANTLRErrorListener {
+class DiagnosticsCollector extends BaseErrorListener {
     private _diagnostics: Diagnostic[] = []
     private _document: TextDocument
 
     constructor(textDocumnt: TextDocument) {
+        super()
         this._document = textDocumnt
     }
 
@@ -38,42 +39,29 @@ class DiagnosticsCollector implements ANTLRErrorListener {
         })
     }
 
-    reportAmbiguity(): void {
-        // Unhandled
-    }
-
-    reportAttemptingFullContext(): void {
-        // Unhandled
-    }
-
-    reportContextSensitivity(): void {
-        // Unhandled
-    }
-
     get errors() {
         return this._diagnostics
     }
 }
 
 export function doAntlrValidation(textDocument: TextDocument): Diagnostic[] {
-    const diagnostics: Diagnostic[] = []
-    const collector = new DiagnosticsCollector(textDocument)
+    const diagnosticsCollector = new DiagnosticsCollector(textDocument)
 
     // Set up ANTLR lexer
     const inputStream = CharStream.fromString(normalizeQuery(textDocument.getText()))
     const lexer = new PartiQLTokens(inputStream)
     lexer.removeErrorListeners()
-    lexer.addErrorListener(collector)
+    lexer.addErrorListener(diagnosticsCollector)
 
     // Set up ANTLR parser
     const tokenStream = new CommonTokenStream(lexer)
     const parser = new PartiQLParser(tokenStream)
     parser.removeErrorListeners()
-    parser.addErrorListener(collector)
+    parser.addErrorListener(diagnosticsCollector)
 
     // Try to create the parser tree, will report errors to collector if not possible.
     parser.root()
-    return collector.errors
+    return diagnosticsCollector.errors
 }
 
 class PartiQLLanguageService {
