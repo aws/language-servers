@@ -311,6 +311,7 @@ export class TransformHandler {
             })
 
             const buffer = []
+            this.logging.log('artifact downloaded successfully.')
 
             if (result.body === undefined) {
                 throw new Error('Empty response from CodeWhisperer Streaming service.')
