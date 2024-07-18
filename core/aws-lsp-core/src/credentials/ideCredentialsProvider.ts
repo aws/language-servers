@@ -17,7 +17,11 @@ export class IdeCredentialsProvider implements CredentialsProvider {
     private pushedCredentials: IamCredentials | undefined
     private pushedToken: BearerToken | undefined
 
-    constructor(private readonly connection: Connection, key?: string, credentialsEncoding?: CredentialsEncoding) {
+    constructor(
+        private readonly connection: Connection,
+        key?: string,
+        credentialsEncoding?: CredentialsEncoding
+    ) {
         this.connection.console.info(`Server: I was initialized with credentials encoding: ${credentialsEncoding}`)
         this.credentialsEncoding = credentialsEncoding
         if (key) {

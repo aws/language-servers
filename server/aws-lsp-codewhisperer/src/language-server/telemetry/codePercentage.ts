@@ -1,4 +1,4 @@
-import { Telemetry } from '@aws/language-server-runtimes/out/features'
+import { Telemetry } from '@aws/language-server-runtimes/server-interface'
 import { CodeWhispererCodePercentageEvent } from './types'
 
 const CODE_PERCENTAGE_INTERVAL = 5 * 60 * 1000
@@ -15,7 +15,7 @@ type TelemetryBuckets = {
 
 export class CodePercentageTracker {
     private buckets: TelemetryBuckets
-    private intervalId: NodeJS.Timer
+    private intervalId: NodeJS.Timeout
     private telemetry: Telemetry
 
     constructor(telemetry: Telemetry) {

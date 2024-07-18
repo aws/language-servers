@@ -21,7 +21,7 @@
             "args": ["--extensionDevelopmentPath=${workspaceFolder}/client/vscode"],
             "outFiles": ["${workspaceFolder}/client/vscode/out/**/*.js"],
             "env": {
-                "LSP_SERVER": "${workspaceFolder}/app/aws-lsp-buildspec-binary/out/index.js"
+                "LSP_SERVER": "${workspaceFolder}/app/aws-lsp-buildspec-runtimes/out/index.js"
             },
             "preLaunchTask": "npm: compile"
         },
@@ -33,24 +33,76 @@
             "args": ["--extensionDevelopmentPath=${workspaceFolder}/client/vscode"],
             "outFiles": ["${workspaceFolder}/client/vscode/out/**/*.js"],
             "env": {
-                "LSP_SERVER": "${workspaceFolder}/app/aws-lsp-cloudformation-binary/out/index.js"
+                "LSP_SERVER": "${workspaceFolder}/app/aws-lsp-cloudformation-runtimes/out/index.js"
             },
             "preLaunchTask": "npm: compile"
         },
         {
-            "name": "CodeWhisperer Server",
+            "name": "YAML Server",
             "type": "extensionHost",
             "request": "launch",
             "runtimeExecutable": "${execPath}",
             "args": ["--extensionDevelopmentPath=${workspaceFolder}/client/vscode"],
             "outFiles": ["${workspaceFolder}/client/vscode/out/**/*.js"],
             "env": {
-                "LSP_SERVER": "${workspaceFolder}/app/aws-lsp-codewhisperer-binary/out/index.js",
+                "LSP_SERVER": "${workspaceFolder}/app/aws-lsp-yaml-runtimes/out/index.js"
+            },
+            "preLaunchTask": "npm: compile"
+        },
+        {
+            "name": "JSON Server",
+            "type": "extensionHost",
+            "request": "launch",
+            "runtimeExecutable": "${execPath}",
+            "args": ["--extensionDevelopmentPath=${workspaceFolder}/client/vscode"],
+            "outFiles": ["${workspaceFolder}/client/vscode/out/**/*.js"],
+            "env": {
+                "LSP_SERVER": "${workspaceFolder}/app/aws-lsp-json-runtimes/out/index.js"
+            },
+            "preLaunchTask": "npm: compile"
+        },
+        {
+            "name": "PartiQL Server",
+            "type": "extensionHost",
+            "request": "launch",
+            "runtimeExecutable": "${execPath}",
+            "args": ["--extensionDevelopmentPath=${workspaceFolder}/client/vscode"],
+            "outFiles": ["${workspaceFolder}/client/vscode/out/**/*.js"],
+            "env": {
+                "LSP_SERVER": "${workspaceFolder}/app/aws-lsp-partiql-runtimes/build/aws-lsp-partiql-binary.js"
+            },
+            "preLaunchTask": "npm: compile"
+        },
+        {
+            "name": "CodeWhisperer Server Token",
+            "type": "extensionHost",
+            "request": "launch",
+            "runtimeExecutable": "${execPath}",
+            "args": ["--extensionDevelopmentPath=${workspaceFolder}/client/vscode"],
+            "outFiles": ["${workspaceFolder}/client/vscode/out/**/*.js"],
+            "env": {
+                "LSP_SERVER": "${workspaceFolder}/app/aws-lsp-codewhisperer-runtimes/out/token-standalone.js",
                 "ENABLE_INLINE_COMPLETION": "true",
-                "ENABLE_TOKEN_PROVIDER": "true"
+                "ENABLE_TOKEN_PROVIDER": "true",
+                "ENABLE_CHAT": "true"
                 // "HTTPS_PROXY": "http://127.0.0.1:8888",
             },
             "preLaunchTask": "npm: compile"
+        },
+        {
+            "name": "CodeWhisperer Server IAM",
+            "type": "extensionHost",
+            "request": "launch",
+            "runtimeExecutable": "${execPath}",
+            "args": ["--extensionDevelopmentPath=${workspaceFolder}/client/vscode"],
+            "outFiles": ["${workspaceFolder}/client/vscode/out/**/*.js"],
+            "env": {
+                "LSP_SERVER": "${workspaceFolder}/app/aws-lsp-codewhisperer-runtimes/out/iam-standalone.js",
+                "ENABLE_INLINE_COMPLETION": "true",
+                "ENABLE_IAM_PROVIDER": "true"
+                // "HTTPS_PROXY": "http://127.0.0.1:8888",
+            }
+            // "preLaunchTask": "npm: compile"
         },
         {
             "name": "S3 Server (with Credentials support)",
@@ -60,7 +112,7 @@
             "args": ["--extensionDevelopmentPath=${workspaceFolder}/client/vscode"],
             "outFiles": ["${workspaceFolder}/client/vscode/out/**/*.js"],
             "env": {
-                "LSP_SERVER": "${workspaceFolder}/app/aws-lsp-s3-binary/out/index.js",
+                "LSP_SERVER": "${workspaceFolder}/app/aws-lsp-s3-runtimes/out/index.js",
                 "ENABLE_IAM_PROVIDER": "true"
             },
             "preLaunchTask": "npm: compile"
@@ -73,8 +125,9 @@
             "args": ["--extensionDevelopmentPath=${workspaceFolder}/client/vscode"],
             "outFiles": ["${workspaceFolder}/client/vscode/out/**/*.js"],
             "env": {
-                "LSP_SERVER": "${workspaceFolder}/app/hello-world-lsp-binary/out/index.js",
-                "ENABLE_CUSTOM_COMMANDS": "true"
+                "LSP_SERVER": "${workspaceFolder}/app/hello-world-lsp-runtimes/out/standalone.js",
+                "ENABLE_CUSTOM_COMMANDS": "true",
+                "ENABLE_CHAT": "true"
             },
             "preLaunchTask": "npm: compile"
         },
@@ -100,7 +153,7 @@
     "compounds": [
         {
             "name": "Launch as VSCode Extension + Debugging",
-            "configurations": ["CodeWhisperer Server", "Attach to AWS Documents Language Server"]
+            "configurations": ["CodeWhisperer Server IAM", "Attach to AWS Documents Language Server"]
         }
     ]
 }

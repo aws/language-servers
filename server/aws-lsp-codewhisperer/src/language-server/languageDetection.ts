@@ -1,57 +1,125 @@
-import { TextDocument } from 'vscode-languageserver-textdocument'
+import { TextDocument } from '@aws/language-server-runtimes/server-interface'
 
 export type CodewhispererLanguage =
-    | 'java'
-    | 'python'
-    | 'jsx'
-    | 'javascript'
-    | 'typescript'
-    | 'tsx'
-    | 'csharp'
     | 'c'
     | 'cpp'
-    | 'cpp'
+    | 'csharp'
     | 'go'
+    | 'java'
+    | 'javascript'
+    | 'json'
+    | 'jsx'
     | 'kotlin'
     | 'php'
+    | 'plaintext'
+    | 'python'
     | 'ruby'
     | 'rust'
     | 'scala'
     | 'shell'
-    | 'shell'
     | 'sql'
-    | 'plaintext'
+    | 'tf'
+    | 'tsx'
+    | 'typescript'
+    | 'vue'
+    | 'yaml'
 
 // This will be extended as more language features
 // are integrated into the language server and clients.
 // See: https://microsoft.github.io/language-server-protocol/specifications/lsp/3.18/specification/#textDocumentItem
-const supportedFileTypes: CodewhispererLanguage[] = ['c', 'cpp', 'csharp', 'javascript', 'python', 'typescript']
-const supportedExtensions: { [key: string]: CodewhispererLanguage } = {
+const supportedFileTypes: CodewhispererLanguage[] = [
+    'c',
+    'cpp',
+    'csharp',
+    'java',
+    'javascript',
+    'jsx',
+    'python',
+    'typescript',
+    'json',
+    'yaml',
+]
+
+export const supportedSecurityScanLanguages: CodewhispererLanguage[] = ['csharp']
+
+export const languageByExtension: { [key: string]: CodewhispererLanguage } = {
     '.c': 'c',
-    '.h': 'c',
     '.cpp': 'cpp',
-    '.hpp': 'cpp',
     '.cs': 'csharp',
+    '.h': 'c',
+    '.hpp': 'cpp',
+    '.go': 'go',
+    '.kt': 'kotlin',
+    '.kts': 'kotlin',
+    '.java': 'java',
     '.js': 'javascript',
+    '.json': 'json',
+    '.jsx': 'jsx',
+    '.php': 'php',
     '.py': 'python',
+    '.rb': 'ruby',
+    '.rs': 'rust',
+    '.sc': 'scala',
+    '.scala': 'scala',
+    '.sh': 'shell',
+    '.sql': 'sql',
+    '.tf': 'tf',
     '.ts': 'typescript',
+    '.tsx': 'tsx',
+    '.vue': 'vue',
+    '.yaml': 'yaml',
+    '.yml': 'yaml',
 }
 
-export const getSupportedLanguageId = (textDocument: TextDocument | undefined): CodewhispererLanguage | undefined => {
+// some are exact match and some like javascriptreact and shellscript are not
+export const qLanguageIdByDocumentLanguageId: { [key: string]: CodewhispererLanguage } = {
+    c: 'c',
+    cpp: 'cpp',
+    csharp: 'csharp',
+    go: 'go',
+    java: 'java',
+    javascript: 'javascript',
+    javascriptreact: 'jsx',
+    json: 'json',
+    jsx: 'jsx',
+    kotlin: 'kotlin',
+    php: 'php',
+    python: 'python',
+    ruby: 'ruby',
+    rust: 'rust',
+    scala: 'scala',
+    shell: 'shell',
+    shellscript: 'shell',
+    sql: 'sql',
+    tf: 'tf',
+    typescript: 'typescript',
+    typescriptreact: 'tsx',
+    vue: 'vue',
+    yaml: 'yaml',
+}
+
+export const getSupportedLanguageId = (
+    textDocument: TextDocument | undefined,
+    supportedLanguageIds: CodewhispererLanguage[] = supportedFileTypes
+): CodewhispererLanguage | undefined => {
     if (!textDocument) {
         return
     }
 
-    const languageId = getCodeWhispererLanguageIdByTextDocumentLanguageId(textDocument.languageId)
-    if (languageId !== undefined) {
-        return languageId
+    const languageId = getLanguageId(textDocument)
+
+    return languageId && supportedLanguageIds.includes(languageId) ? languageId : undefined
+}
+
+export const getLanguageId = (textDocument: TextDocument | undefined): CodewhispererLanguage | undefined => {
+    if (!textDocument) {
+        return undefined
     }
 
-    for (const extension in supportedExtensions) {
-        if (textDocument.uri.endsWith(extension)) {
-            return supportedExtensions[extension]
-        }
-    }
+    return (
+        getCodeWhispererLanguageIdByTextDocumentLanguageId(textDocument.languageId) ||
+        getCodeWhispererLanguageIdByExtension(textDocument)
+    )
 }
 
 /**
@@ -65,18 +133,26 @@ function getCodeWhispererLanguageIdByTextDocumentLanguageId(
 ): CodewhispererLanguage | undefined {
     if (textDocumentLanguageId === undefined) {
         return undefined
-    }
-
-    if (supportedFileTypes.includes(textDocumentLanguageId as CodewhispererLanguage)) {
-        return textDocumentLanguageId as CodewhispererLanguage
+    } else if (qLanguageIdByDocumentLanguageId[textDocumentLanguageId]) {
+        return qLanguageIdByDocumentLanguageId[textDocumentLanguageId]
     }
 
     // IDEs can identify a file's languageId using non-standardized values
     // Eg: 'CSHARP', 'CSharp' => 'csharp'
     // Try to map case-insensitive matches to increase the likelihood of supporting the file in an IDE.
-    for (const supportedFileType of supportedFileTypes) {
-        if (textDocumentLanguageId.toLowerCase() === supportedFileType.toLowerCase()) {
-            return supportedFileType as CodewhispererLanguage
+    for (const [languageId, cwprLanguageId] of Object.entries(qLanguageIdByDocumentLanguageId)) {
+        if (textDocumentLanguageId.toLowerCase() === languageId.toLowerCase()) {
+            return cwprLanguageId
+        }
+    }
+
+    return undefined
+}
+
+function getCodeWhispererLanguageIdByExtension(textDocument: TextDocument) {
+    for (const [extension, languageId] of Object.entries(languageByExtension)) {
+        if (textDocument.uri.endsWith(extension)) {
+            return languageId
         }
     }
 

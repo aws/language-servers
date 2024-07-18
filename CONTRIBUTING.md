@@ -61,12 +61,17 @@ See the [LICENSE](LICENSE) file for our project's licensing. We will ask you to 
 Run:
 
 ```
-git clone git@github.com:aws/aws-language-servers.git
+git clone git@github.com:aws/language-servers.git
 
-cd aws-language-servers
+cd language-servers
 
 npm install
 ```
+
+## Package naming
+When creating new sub-packages, take into account the following naming guidelines: 
+* If package is intended for publishing and distribution on NPM JS, use `@aws/` prefix. E.g. `@aws/<name>`.
+* If package is not intended to be published, use the `@amzn/` prefix. E.g. `@amzn/<name>`
 
 ## Building the Repo
 
@@ -83,34 +88,10 @@ npm run compile
 
 Language servers are built into their own packages (under ./server).
 
-A separate set of packages (under ./app) then instantiate these language servers. These packages are packaged into standalone binary applications, with the intention of being integrated into IDEs. Packaging is performed using [vercel/pkg](https://github.com/vercel/pkg), which bundles both the project and nodejs into a binary. These binaries don't require nodejs to be installed on the system they are run on.
+A separate set of packages (under ./app) then instantiate these language servers. These packages are packaged into standalone javascript application servers, with the intention of being integrated into IDEs. Packaging is performed with Webpack. These bundles require nodejs to be installed on the system they are run on. By default, bundles are produced in `./app/**/build/*` directories can be started as node applications, for example:
 
-For details on how to configure bundling with pkg, see [pkg usage](https://github.com/vercel/pkg#usage).
-
-### pkg Examples
-
-If you want to create windows-x64, macos-x64, linux-x64 binaries you can use:
-
-```bash
-pkg .
 ```
-
-if you have a different node version installed (eg: node19) from your target package (eg: node18) you can do:
-
-```bash
-pkg --targets node18 .
-```
-
-to create a standalone executable for node16 for windows on arm you can do
-
-```bash
-pkg --targets node16-windows-arm64 .
-```
-
-to ensure the standalone language server is compressed even more you can do:
-
-```bash
-pkg --compress GZip .
+node ./app/aws-lsp-codewhisperer-binary/aws-lsp-codewhisperer-token-binary.js --stdio
 ```
 
 ## Running + Debugging
@@ -131,12 +112,12 @@ The VSCode Toolkit Extension can start the AWS Documents Language Server itself.
 This will explain how to setup the extension to run with the language server
 and be able to debug it all.
 
-1. Clone the [`aws-language-servers`](https://github.com/aws/aws-language-servers) repo:
+1. Clone the [`language-servers`](https://github.com/aws/language-servers) repo:
 
     ```
-    git clone git@github.com:aws/aws-language-servers.git
+    git clone git@github.com:aws/language-servers.git
 
-    cd aws-language-servers
+    cd language-servers
     ```
 
 2. Run:
@@ -280,47 +261,49 @@ myStubbedFunc.returns()
 
 ## Developer Notes
 
--   The `bin/aws-language-server-runtimes-0.1.0.tgz` file is a temporary solution to use the `language-server-runtimes` package without publishing to NPM before the first release. Tracking ID: `AWS-Cloud9-25329`
-
 ### Develop and test Language servers with Language Server Runtimes locally
 
-Language servers developed in this package can be built for different runtimes developed in [Language Server Runtimes](https://github.com/aws/aws-language-server-runtimes) project.
+Language servers developed in this package can be built for different runtimes developed in [Language Server Runtimes](https://github.com/aws/language-server-runtimes) project.
 
-`Language Server Runtimes` provides a set of interfaces and constructs that can be used to inject cross-platform implementations of features, reused across language servers. Using runtime constructs, Language Servers could be built and packages into artifact of different formats: binary formats as explained earlier in this document, or packages as Javascript Webworker bundle.
+`Language Server Runtimes` provides a set of interfaces and constructs that can be used to inject cross-platform implementations of features, reused across language servers. Using runtime constructs, Language Servers could be built and packages into artifact of different formats: standalone bundle formats as explained earlier in this document, or packages as Javascript Webworker bundle.
 
-To build and test Language Servers with AWS Runtime, follow these steps:
+This Language Servers repository includes set of packages, which demonstrate how to build Language server together with specific runtime. See [Building the Repo](#building-the-repo) section in this guide.
 
-1. Clone the [`aws-language-servers`](https://github.com/aws/aws-language-servers) and the [`language-server-runtimes`](https://github.com/aws/language-server-runtimes) repos:
+#### Developing both Language Servers and Runtimes projects
 
-    ```
-    git clone git@github.com:aws/aws-language-servers.git
-    git clone git@github.com:aws/aws-language-server-runtimes.git
-    ```
+Sometimes there is a need to build and develop both Language Servers with Language Server Runtimes projects. Since [`language-server-runtimes`](https://github.com/aws/language-server-runtimes) is used as an nmp dependency, it can be developed using `npm link` in this repo.
 
-2. Install dependencies in `aws-language-server-runtimes` folder. Create `npm link` for it, if you plan to modify it for development and testing purposes:
+1. Clone the [`language-servers`](https://github.com/aws/language-servers) and the [`language-server-runtimes`](https://github.com/aws/language-server-runtimes) repos:
 
-    ```
-    cd aws-language-server-runtimes && npm install && npm run compile && npm link
+    ```bash
+    git clone git@github.com:aws/language-servers.git
+    git clone git@github.com:aws/language-server-runtimes.git
     ```
 
-3. Install dependencies in `aws-language-servers` folder:
+2. Install dependencies in `language-server-runtimes` folder. Create `npm link` for it, if you plan to modify it for development and testing purposes.
 
-    **Note:** We are temporarily commiting a snapshot of `language-server-runtimes` package as zip archive and use it as npm dependency for some servers. To develop and build language servers with local checkout of `language-server-runtimes`, for servers develped in ./server directory change `"@aws/language-server-runtimes"` dependency to point to `"*"` instead of file path before running `npm install`.
+**Note**: Since v0.2.3, we need to create a link to `/language-server-runtimes/runtimes/out` directory, due to monorepo structure of `language-server-runtimes` project.
 
+    ```bash
+    cd language-server-runtimes && npm install && cd ./runtimes && npm run prepub && cd ./out && npm link
     ```
-    cd ../aws-language-servers && npm install
+
+3. Install dependencies in `language-servers` folder:
+
+    ```bash
+    cd ../language-servers && npm install
     ```
 
-4. (Optional) Use npm link to `language-server-runtimes`, if you're developing locally and want to use local copy to produce build artifacts:
+4. Use npm link to `language-server-runtimes`:
 
-    ```
+    ```bash
     npm link @aws/language-server-runtimes
     ```
 
-5. Build server binaries:
+5. Build server bundles:
 
-    ```
+    ```bash
     npm run package
     ```
 
-Using local checkout of `language-server-runtimes` you can iterate or experiment with both projects and produce working language server builds locally. Built servers can be found in `./app/*/bin` folder.
+Using local checkout of `language-server-runtimes` you can iterate or experiment with both projects and produce working language server builds locally. Built servers can be found in `./app/**/build` folder.

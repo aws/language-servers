@@ -1,0 +1,23 @@
+{
+    "name": "@aws/lsp-partiql-runtimes",
+    "version": "0.0.1",
+    "description": "PartiQL Language Server Runtimes",
+    "main": "out/index.js",
+    "scripts": {
+        "clean": "rm -rf out/ bin/ tsconfig.tsbuildinfo",
+        "compile:tsc": "tsc --build",
+        "compile:webpack": "webpack",
+        "compile": "npm run compile:tsc && npm run compile:webpack",
+        "package": "npm run compile && npm run compile:webpack"
+    },
+    "dependencies": {
+        "@aws/lsp-partiql": "^0.0.2",
+        "@aws/language-server-runtimes": "^0.2.5"
+    },
+    "devDependencies": {
+        "ts-lsp-client": "^1.0.3",
+        "ts-loader": "^9.4.4",
+        "webpack": "^5.88.2",
+        "webpack-cli": "^5.1.4"
+    }
+}

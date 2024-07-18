@@ -8,10 +8,10 @@ Monorepo
 
 ```
 .
-── app - binaries for distribution and integration into IDEs
-    └── aws-lsp-buildspec-binary - application binaries (win/mac/linux) containing the buildspec language server
-    └── aws-lsp-cloudformation-binary - application binaries (win/mac/linux) containing the CloudFormation language server
-    └── aws-lsp-s3-binary - application binaries (win/mac/linux) containing the S3 language server
+── app - bundled javascriot runtime applications for distribution and integration into IDEs
+    └── aws-lsp-buildspec-runtimes - application containing the buildspec language server
+    └── aws-lsp-cloudformation-runtimes - application containing the CloudFormation language server
+    └── aws-lsp-s3-runtimes - application containing the S3 language server
 ── client - Sample LSP integrations for various IDEs.
             Used to test out the Language Servers
     └── jetbrains/ - Minimal JetBrains extension to test the language server
@@ -19,8 +19,6 @@ Monorepo
     └── vscode/ - Minimal vscode extension to test the language server
 ── core - contains supporting libraries used by app and server packages
     └── aws-lsp-core - core support code
-    └── aws-lsp-json-common - reusable code related to JSON language service handling
-    └── aws-lsp-yaml-common - reusable code related to YAML language service handling
 ── script - loose scripts used to create `npm foo` commands in the root folder
 ── server - packages that contain Language Server implementations
     └── aws-lsp-buildspec - Language Server that wraps a JSON Schema for CodeBuild buildspec
@@ -31,6 +29,10 @@ Monorepo
     └── aws-lsp-s3 - Example language server that provides S3 bucket names as completion items
                    - Shows a concept where credentials can be provided from an IDE extension
                      (See vscode and vs client readmes)
+    └── aws-lsp-json - Language Server that wraps a JSON Schema and provides support for JSON format. 
+                            Includes reusable code related to JSON language service handling.
+    └── aws-lsp-yaml - Language Server that wraps a JSON Schema and provides support for YAML format. 
+                            Includes reusable code related to YAML language service handling.
 ```
 
 ## How To Contribute

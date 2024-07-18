@@ -1,40 +1,65 @@
 {
     "name": "@aws/lsp-codewhisperer",
-    "version": "0.0.3",
+    "version": "0.0.9",
     "description": "CodeWhisperer Language Server",
     "main": "out/index.js",
     "repository": {
         "type": "git",
-        "url": "https://github.com/aws/aws-language-servers"
+        "url": "https://github.com/aws/language-servers"
     },
     "author": "Amazon Web Services",
     "license": "Apache-2.0",
     "engines": {
         "node": ">=18.0.0"
     },
+    "workspaces": [
+        "src.gen/@amzn/codewhisperer-streaming"
+    ],
     "scripts": {
+        "compile-streamingClient": "npm run build -w src.gen/@amzn/codewhisperer-streaming",
+        "precompile": "npm run compile-streamingClient",
         "compile": "tsc --build",
         "postcompile": "npm run copyServiceClient",
         "copyServiceClient": "copyfiles -u 1 --error ./src/client/sigv4/*.json out && copyfiles -u 1 --error ./src/client/token/*.json out",
+        "lint": "npm run lint:src",
+        "lint:bundle:webworker": "webpack --config webpack.lint.config.js && eslint bundle/aws-lsp-codewhisperer-webworker.js # Verify compatibility with web runtime target",
+        "lint:src": "eslint src/ --ext .ts,.tsx",
         "test:unit": "ts-mocha -b 'src/**/*.test.ts'",
-        "test:prettier": "prettier . --check",
-        "test": "npm run test:prettier && npm run test:unit",
-        "fix:prettier": "prettier . --write"
+        "test": "npm run lint && npm run test:unit",
+        "fix:prettier": "prettier . --write",
+        "prepack": "npm run compile && ts-node ../../script/link_bundled_dependencies.ts",
+        "postinstall": "node ./script/install_transitive_dep.js"
     },
     "dependencies": {
-        "@aws/language-server-runtimes": "file:../../bin/aws-language-server-runtimes-0.1.1.tgz",
+        "@amzn/codewhisperer-streaming": "*",
+        "@aws-sdk/util-retry": "^3.374.0",
+        "@aws/language-server-runtimes": "^0.2.9",
+        "@aws/chat-client-ui-types": "^0.0.6",
+        "@aws/lsp-fqn": "^0.0.1",
+        "@gerhobbelt/gitignore-parser": "^0.2.0-9",
+        "@smithy/node-http-handler": "^2.5.0",
+        "adm-zip": "^0.5.10",
         "aws-sdk": "^2.1403.0",
+        "deepmerge": "^4.3.1",
+        "got": "^11.8.5",
+        "hpagent": "^1.2.0",
+        "js-md5": "^0.8.3",
+        "fastest-levenshtein": "^1.0.16",
         "proxy-http-agent": "^1.0.1",
         "uuid": "^9.0.1",
-        "vscode-languageserver": "^9.0.1",
-        "vscode-languageserver-textdocument": "^1.0.8"
+        "vscode-uri": "^3.0.8"
     },
     "devDependencies": {
-        "@types/uuid": "^9.0.6",
+        "@types/adm-zip": "^0.5.5",
+        "@types/uuid": "^9.0.8",
         "assert": "^2.1.0",
         "copyfiles": "^2.4.1",
+        "ts-loader": "^9.4.4",
         "ts-mocha": "^10.0.0",
-        "ts-sinon": "^2.0.2"
+        "ts-sinon": "^2.0.2",
+        "vscode-languageserver-textdocument": "^1.0.11",
+        "webpack": "^5.88.2",
+        "webpack-cli": "^5.1.4"
     },
     "prettier": {
         "printWidth": 120,
@@ -45,5 +70,9 @@
         "bracketSpacing": true,
         "arrowParens": "avoid",
         "endOfLine": "lf"
-    }
+    },
+    "bundleDependencies": [
+        "@amzn/codewhisperer-streaming",
+        "@aws/lsp-fqn"
+    ]
 }

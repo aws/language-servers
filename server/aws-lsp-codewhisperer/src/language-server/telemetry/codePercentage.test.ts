@@ -1,4 +1,4 @@
-import { Telemetry } from '@aws/language-server-runtimes/out/features'
+import { Telemetry } from '@aws/language-server-runtimes/server-interface'
 import sinon, { StubbedInstance, stubInterface } from 'ts-sinon'
 import { CodePercentageTracker } from './codePercentage'
 import assert = require('assert')

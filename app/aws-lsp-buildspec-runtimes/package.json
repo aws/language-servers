@@ -1,0 +1,12 @@
+{
+    "name": "@aws/lsp-buildspec-runtimes",
+    "version": "0.0.1",
+    "description": "CodeBuild BuildSpec Language Server Runtimes",
+    "main": "out/index.js",
+    "scripts": {
+        "compile": "tsc --build"
+    },
+    "dependencies": {
+        "@aws/lsp-buildspec": "^0.0.1"
+    }
+}

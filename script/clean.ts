@@ -61,7 +61,7 @@ function exists(p: string): boolean {
 }
 
 function getPathsToDelete(): string[] {
-    const subfolders = ['app', 'client', 'core', 'server']
+    const subfolders = ['app', 'client', 'chat-client', 'core', 'server']
 
     const paths: string[] = []
 
@@ -70,6 +70,7 @@ function getPathsToDelete(): string[] {
         paths.push(...rFileFind(fullPath, 'tsconfig.tsbuildinfo'))
         paths.push(...rDirectoryFind(fullPath, 'out'))
         paths.push(...rDirectoryFind(fullPath, 'bin'))
+        paths.push(...rDirectoryFind(fullPath, 'build'))
     }
 
     return paths
@@ -119,8 +120,6 @@ function rDirectoryFind(parentPath: string, directoryName: string): string[] {
     }
     return directories
 }
-
-const subfolders = ['app', 'client', 'core', 'server']
 
 ;(async () => {
     const pathsToDelete = getPathsToDelete()

@@ -1,0 +1,45 @@
+{
+    "name": "@aws/lsp-yaml",
+    "version": "0.0.1",
+    "description": "YAML Language Server",
+    "main": "out/index.js",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/aws/language-servers"
+    },
+    "author": "Amazon Web Services",
+    "license": "Apache-2.0",
+    "engines": {
+        "node": ">=18.0.0"
+    },
+    "files": [
+        "out/**/*",
+        "patches/**/*",
+        "patchYamlPackage.js",
+        "CHANGELOG.md",
+        "SECURITY.md",
+        "NOTICE"
+    ],
+    "scripts": {
+        "compile": "tsc --build",
+        "prepack": "shx cp ../../LICENSE ../../NOTICE ../../SECURITY.md .",
+        "postinstall": "node patchYamlPackage.js"
+    },
+    "dependencies": {
+        "@aws/language-server-runtimes": "^0.2.5",
+        "@aws/lsp-core": "^0.0.1",
+        "vscode-languageserver": "^9.0.1",
+        "vscode-languageserver-textdocument": "^1.0.8",
+        "yaml-language-server": "1.13.0"
+    },
+    "prettier": {
+        "printWidth": 120,
+        "trailingComma": "es5",
+        "tabWidth": 4,
+        "singleQuote": true,
+        "semi": false,
+        "bracketSpacing": true,
+        "arrowParens": "avoid",
+        "endOfLine": "lf"
+    }
+}
