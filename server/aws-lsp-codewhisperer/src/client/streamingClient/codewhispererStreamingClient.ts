@@ -2,7 +2,7 @@ import { CodeWhispererStreaming } from '@amzn/codewhisperer-streaming'
 import { ConfiguredRetryStrategy } from '@aws-sdk/util-retry'
 const codeWhispererRegion = 'us-east-1'
 
-const codeWhispererEndpoint = 'https://rts.gamma-us-east-1.codewhisperer.ai.aws.dev/'
+const codeWhispererEndpoint = 'https://codewhisperer.us-east-1.amazonaws.com/'
 
 export class StreamingClient {
     public async getStreamingClient(credentialsProvider: any) {
