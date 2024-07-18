@@ -12,6 +12,11 @@ To update the binary used by the server, run `npm run update-parser-binary`. Thi
 
 To update the binary used in package `web-tree-sitter`, run `npm run update-treesitter-wasm`. This update is forced to make everytime upgrading the version of `web-tree-sitter`. This will compile the `tree-sitter.wasm` file inside the package into a base64 string in a TypeScript file to the `src/tree-sitter-parser` folder as `tree-sitter-inline.ts`. 
 
+### Updating the ANTLR lexer and parser
+
+The ANTLR lexer and parser grammars are defined in `src/antlr-grammar`, the files in `src/antlr-generated` are automatically generated from the grammar files. To 
+update these files, run `npm run update-antlr`.
+
 ### Tests
 
 Tests for this package are run using [Jest](https://jestjs.io/), to run the tests in this package run `-npm run test`. 
