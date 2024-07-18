@@ -1,8 +1,32 @@
 import type { Diagnostic } from '@aws/language-server-runtimes/server-interface'
-import { DiagnosticSeverity, TextDocument } from '@aws/language-server-runtimes/server-interface'
+import {
+    DiagnosticSeverity,
+    TextDocument,
+    SemanticTokenTypes,
+    SemanticTokens,
+    SemanticTokensLegend,
+} from '@aws/language-server-runtimes/server-interface'
 import partiQlServerBinary from '../partiql-parser-wasm/partiql-wasm-parser-inline'
 import { initSync, parse_as_json } from '../partiql-parser-wasm/partiql_playground'
 import { convertObjectToParserError } from './error-parsing/parser-errors'
+import { findNodes, encodeSemanticTokens, SemanticToken, string2TokenTypes } from './syntax-highlighting/parser-tokens'
+
+// This is a constant that is used to determine if the language server supports multi-line tokens.
+const MULTILINETOKENSUPPORT = true
+
+export const semanticTokensLegend = {
+    tokenTypes: [
+        SemanticTokenTypes.keyword,
+        SemanticTokenTypes.type,
+        SemanticTokenTypes.number,
+        SemanticTokenTypes.string,
+        SemanticTokenTypes.function,
+        SemanticTokenTypes.variable,
+        SemanticTokenTypes.comment,
+        SemanticTokenTypes.operator,
+    ],
+    tokenModifiers: [],
+} as SemanticTokensLegend
 
 export function normalizeQuery(data: string): string {
     return data != null ? data : ''
@@ -34,5 +58,20 @@ class PartiQLLanguageService {
             })
         }
         return diagnostics
+    }
+
+    public async doSemanticTokens(textDocument: TextDocument): Promise<SemanticTokens | null> {
+        const text = textDocument.getText()
+        const data: SemanticToken[] = []
+        for (const nodeType of semanticTokensLegend.tokenTypes) {
+            const tokens = await findNodes(text, nodeType as SemanticTokenTypes)
+            data.push(...tokens)
+        }
+        for (const nodeType in string2TokenTypes) {
+            const tokens = await findNodes(text, nodeType)
+            data.push(...tokens)
+        }
+        const encodedTokens = encodeSemanticTokens(data, MULTILINETOKENSUPPORT)
+        return encodedTokens
     }
 }

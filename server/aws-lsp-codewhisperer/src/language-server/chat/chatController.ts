@@ -25,7 +25,14 @@ import { ChatEventParser } from './chatEventParser'
 import { ChatSessionManagementService } from './chatSessionManagementService'
 import { ChatTelemetryController } from './telemetry/chatTelemetryController'
 import { HELP_MESSAGE, QuickAction } from './quickActions'
-import { createAuthFollowUpResult, getAuthFollowUpType, getErrorMessage, isAwsError, isObject } from '../utils'
+import {
+    createAuthFollowUpResult,
+    getAuthFollowUpType,
+    getErrorMessage,
+    isAwsError,
+    isNullish,
+    isObject,
+} from '../utils'
 import { Metric } from '../telemetry/metric'
 import { QChatTriggerContext, TriggerContext } from './contexts/triggerContext'
 
@@ -305,7 +312,7 @@ export class ChatController implements ChatHandlers {
                 return chatResult
             }
 
-            if (partialResultToken) {
+            if (!isNullish(partialResultToken)) {
                 this.#features.lsp.sendProgress(chatRequestType, partialResultToken, chatResult.data)
             }
         }
