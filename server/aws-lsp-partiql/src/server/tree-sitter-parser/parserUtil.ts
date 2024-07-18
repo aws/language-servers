@@ -1,9 +1,12 @@
 import Parser from 'web-tree-sitter'
-import parserBase64 from '../tree-sitter-parser/tree-sitter-parser-inline'
-import wasmBinaryArray from '../tree-sitter-parser/tree-sitter-inline'
+import parserBase64 from '../../tree-sitter-wasm/tree-sitter-parser-inline'
+import wasmBinaryArray from '../../tree-sitter-wasm/tree-sitter-inline'
 
 // Initialize and prepare the parser
 export async function initParser() {
+    // Configure the loading path for the wasm file.
+    // Read from the base64 encoded string instead of the default path.
+    // This works for both webworker and Node.js environment.
     await Parser.init({
         instantiateWasm(imports: any, succesCallback: any) {
             WebAssembly.instantiate(wasmBinaryArray, imports).then(arg => succesCallback(arg.instance, arg.module))

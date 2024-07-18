@@ -146,12 +146,9 @@ function _breakMultilineTokens(tokens: SemanticToken[]): SemanticToken[] {
     return breakDownTokens
 }
 
-export function encodeSemanticTokens(
-    tokens: SemanticToken[],
-    multilineTokenSupport: boolean
-): Promise<SemanticTokens | null> {
+export function encodeSemanticTokens(tokens: SemanticToken[], multilineTokenSupport: boolean): SemanticTokens | null {
     if (!tokens || tokens.length === 0) {
-        return Promise.resolve(null)
+        return null
     }
     let sortedTokens = _sortSemanticTokens(tokens)
     if (multilineTokenSupport) {
@@ -170,5 +167,5 @@ export function encodeSemanticTokens(
             0
         )
     }
-    return Promise.resolve(builder.build())
+    return builder.build()
 }

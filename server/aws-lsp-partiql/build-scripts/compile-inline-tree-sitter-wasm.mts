@@ -12,4 +12,4 @@ const modifications =
 
 // Copy the encoded binary into a .ts file.
 const encodedPartiQLServer = `/*\n${modifications}\n*/\n\nconst base64String = atob("${base64EncodedBinary}");\nconst base64Buffer = new Uint8Array(base64String.length);\nfor (var i = 0; i < base64String.length; i++) base64Buffer[i] = base64String.charCodeAt(i);\nexport default base64Buffer;`
-writeFileSync('./src/server/tree-sitter-parser/tree-sitter-inline.ts', encodedPartiQLServer)
+writeFileSync('./src/tree-sitter-wasm/tree-sitter-inline.ts', encodedPartiQLServer)
