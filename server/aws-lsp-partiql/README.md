@@ -15,7 +15,7 @@ To update the binary used in package `web-tree-sitter`, run `npm run update-tree
 ### Updating the ANTLR lexer and parser
 
 The ANTLR lexer and parser grammars are defined in `src/antlr-grammar`, the files in `src/antlr-generated` are automatically generated from the grammar files. To 
-update these files, run `npm run update-antlr`.
+update these files, run `npm run update-antlr`. The current grammar files can be found at https://github.com/partiql/partiql-lang-kotlin/tree/main/partiql-parser/src/main/antlr.
 
 ### Tests
 

@@ -12,6 +12,10 @@
  *  language governing permissions and limitations under the License.
  */
 
+/*
+ * https://github.com/partiql/partiql-lang-kotlin/blob/main/partiql-parser/src/main/antlr/PartiQLTokens.g4
+ */
+
 lexer grammar PartiQLTokens;
 
 options {

@@ -12,6 +12,10 @@
  *  language governing permissions and limitations under the License.
  */
 
+/*
+ * https://github.com/partiql/partiql-lang-kotlin/blob/main/partiql-parser/src/main/antlr/PartiQLParser.g4
+ */
+
 parser grammar PartiQLParser;
 
 options {
