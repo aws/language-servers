@@ -215,6 +215,18 @@ describe('ChatController', () => {
             assert.deepStrictEqual(chatResult, expectedCompleteChatResult)
         })
 
+        it('can use 0 as progress token', async () => {
+            const chatResultPromise = chatController.onChatPrompt(
+                { tabId: mockTabId, prompt: { prompt: 'Hello' }, partialResultToken: 0 },
+                mockCancellationToken
+            )
+
+            const chatResult = await chatResultPromise
+
+            sinon.assert.callCount(testFeatures.lsp.sendProgress, mockAssistantResponseList.length)
+            assert.deepStrictEqual(chatResult, expectedCompleteChatResult)
+        })
+
         it('returns a ResponseError if generateAssistantResponse returns an error', async () => {
             generateAssistantResponseStub.callsFake(() => {
                 throw new Error('Error')

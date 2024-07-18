@@ -1,5 +1,11 @@
 import type { Diagnostic } from '@aws/language-server-runtimes/server-interface'
-import { DiagnosticSeverity, TextDocument } from '@aws/language-server-runtimes/server-interface'
+import {
+    DiagnosticSeverity,
+    TextDocument,
+    SemanticTokenTypes,
+    SemanticTokens,
+    SemanticTokensLegend,
+} from '@aws/language-server-runtimes/server-interface'
 // Commented out code is to use the PartiQL Rust parser, should be used again after
 // https://github.com/partiql/partiql-lang-rust/issues/472 is resolved.
 // import partiQlServerBinary from '../partiql-parser-wasm/partiql-wasm-parser-inline'
@@ -8,6 +14,24 @@ import { DiagnosticSeverity, TextDocument } from '@aws/language-server-runtimes/
 import { CommonTokenStream, Token, CharStream, ATNSimulator, Recognizer, BaseErrorListener } from 'antlr4ng'
 import { PartiQLParser } from '../antlr-generated/PartiQLParser'
 import { PartiQLTokens } from '../antlr-generated/PartiQLTokens'
+import { findNodes, encodeSemanticTokens, SemanticToken, string2TokenTypes } from './syntax-highlighting/parser-tokens'
+
+// This is a constant that is used to determine if the language server supports multi-line tokens.
+const MULTILINETOKENSUPPORT = true
+
+export const semanticTokensLegend = {
+    tokenTypes: [
+        SemanticTokenTypes.keyword,
+        SemanticTokenTypes.type,
+        SemanticTokenTypes.number,
+        SemanticTokenTypes.string,
+        SemanticTokenTypes.function,
+        SemanticTokenTypes.variable,
+        SemanticTokenTypes.comment,
+        SemanticTokenTypes.operator,
+    ],
+    tokenModifiers: [],
+} as SemanticTokensLegend
 
 export function normalizeQuery(data: string): string {
     return data != null ? data : ''
@@ -94,5 +118,20 @@ class PartiQLLanguageService {
         // }
 
         return diagnostics
+    }
+
+    public async doSemanticTokens(textDocument: TextDocument): Promise<SemanticTokens | null> {
+        const text = textDocument.getText()
+        const data: SemanticToken[] = []
+        for (const nodeType of semanticTokensLegend.tokenTypes) {
+            const tokens = await findNodes(text, nodeType as SemanticTokenTypes)
+            data.push(...tokens)
+        }
+        for (const nodeType in string2TokenTypes) {
+            const tokens = await findNodes(text, nodeType)
+            data.push(...tokens)
+        }
+        const encodedTokens = encodeSemanticTokens(data, MULTILINETOKENSUPPORT)
+        return encodedTokens
     }
 }

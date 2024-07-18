@@ -16,14 +16,17 @@
         "precompile": "antlr4ng -Dlanguage=TypeScript -no-visitor -no-listener -Xexact-output-dir -o src/antlr-generated  src/antlr-grammar/PartiQLTokens.g4 src/antlr-grammar/PartiQLParser.g4",
         "postcompile": "npm run copy-empty-binary",
         "copy-empty-binary": "tsx build-scripts/create-empty-wasm-file.mts",
-        "update-parser-binary": "tsx build-scripts/compile-inline-partiql-wasm.mts"
+        "update-parser-binary": "tsx build-scripts/compile-inline-partiql-wasm.mts",
+        "compile-treesitter-parser-wasm": "tsx build-scripts/compile-inline-tree-sitter-parser-wasm.mts",
+        "update-treesitter-wasm": "tsx build-scripts/compile-inline-tree-sitter-wasm.mts"
     },
     "files": [
         "out"
     ],
     "dependencies": {
-        "@aws/language-server-runtimes": "^0.2.4",
-        "antlr4ng": "^3.0.4"
+        "antlr4ng": "^3.0.4",
+        "@aws/language-server-runtimes": "^0.2.10",
+        "web-tree-sitter": "0.22.6"
     },
     "devDependencies": {
         "babel-plugin-transform-import-meta": "^2.2.1",
