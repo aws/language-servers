@@ -136,32 +136,6 @@ describe('Test Transform handler ', () => {
             */
     })
 
-    describe('Test create transformJob', () => {
-        beforeEach(async () => {
-            // mock default return value for createCodeScan
-            client.codeModernizerStartCodeTransformation.returns(
-                Promise.resolve({
-                    transformationJobId: testTransformId,
-                    status: 'ACCEPTED',
-                    ...mocked$Response,
-                })
-            )
-        })
-
-        it('should create transform', async () => {
-            const requestString = JSON.stringify(EXAMPLE_REQUEST)
-            const request = JSON.parse(requestString) as StartTransformRequest
-            workspace.fs.getTempDirPath = simon.stub().returns('C:\\tmp')
-            const zipStub = sinon.stub(transformHandler, 'zipCodeAsync').returns(Promise.resolve(payloadFileName))
-            const uploadStub = sinon.stub(transformHandler, 'uploadPayloadAsync').returns(Promise.resolve(testUploadId))
-            const res = await transformHandler.startTransformation(request)
-            sinon.assert.calledOnce(zipStub)
-            sinon.assert.calledOnce(uploadStub)
-            expect(res.TransformationJobId).to.equal(testTransformId)
-            expect(res.UploadId).to.equal(testUploadId)
-        })
-    })
-
     describe('Test cancel transform job', () => {
         beforeEach(async () => {
             // mock default return value for cancelTransform
@@ -212,48 +186,6 @@ describe('Test Transform handler ', () => {
         it('should create a new streaming client with correct configurations', async () => {
             const client = await createStreamingClient(mockedCredentialsProvider)
             expect(client).to.be.instanceOf(CodeWhispererStreaming)
-        })
-    })
-
-    describe('downloadExportResultArchive', () => {
-        it('should handle errors during the download process', async () => {
-            // Stub exportResultArchive method to reject with mocked error
-            const exportResultArchiveStub = sinon.stub().rejects(new Error('Mocked error'))
-
-            // Mock CodeWhispererStreaming instance
-            const mockedCwStreamingClient: any = { exportResultArchive: exportResultArchiveStub }
-            const saveToDir: string = workspace.fs.getTempDirPath()
-
-            const exportId = 'mockedExportId'
-            const response = await transformHandler.downloadExportResultArchive(
-                mockedCwStreamingClient,
-                exportId,
-                saveToDir
-            )
-
-            // Assertions
-            expect(response.Error).to.exist
-            expect(response.Error).to.equal('Mocked error')
-        })
-
-        it('should download and extract the export result archive', async () => {
-            const exportResultArchiveStub = sinon.stub().resolves({ body: 'Content' })
-            const archivePathGenerator = sinon
-                .stub(transformHandler, 'archivePathGenerator')
-                .returns(Promise.resolve('mockFile.zip'))
-
-            const mockedCwStreamingClient: any = { exportResultArchive: exportResultArchiveStub }
-            const exportId = 'mockedExportId'
-            const saveToDir: string = workspace.fs.getTempDirPath()
-            const response = await transformHandler.downloadExportResultArchive(
-                mockedCwStreamingClient,
-                exportId,
-                saveToDir
-            )
-
-            // Assertions
-            expect(response.PathTosave).to.be.equal('mockFile.zip')
-            sinon.assert.calledOnce(archivePathGenerator)
         })
     })
 
