@@ -22,19 +22,14 @@ import {
 } from '../telemetry/types'
 import { Features, LspHandlers, Result } from '../types'
 import { ChatEventParser } from './chatEventParser'
+import { createAuthFollowUpResult, getAuthFollowUpType, getDefaultChatResponse } from './utils'
 import { ChatSessionManagementService } from './chatSessionManagementService'
 import { ChatTelemetryController } from './telemetry/chatTelemetryController'
-import { HELP_MESSAGE, QuickAction } from './quickActions'
-import {
-    createAuthFollowUpResult,
-    getAuthFollowUpType,
-    getErrorMessage,
-    isAwsError,
-    isNullish,
-    isObject,
-} from '../utils'
+import { QuickAction } from './quickActions'
+import { getErrorMessage, isAwsError, isNullish, isObject } from '../utils'
 import { Metric } from '../telemetry/metric'
 import { QChatTriggerContext, TriggerContext } from './contexts/triggerContext'
+import { HELP_MESSAGE } from './constants'
 
 type ChatHandlers = LspHandlers<Chat>
 
@@ -58,6 +53,12 @@ export class ChatController implements ChatHandlers {
     }
 
     async onChatPrompt(params: ChatParams, token: CancellationToken): Promise<ChatResult | ResponseError<ChatResult>> {
+        const maybeDefaultResponse = getDefaultChatResponse(params.prompt.prompt)
+
+        if (maybeDefaultResponse) {
+            return maybeDefaultResponse
+        }
+
         const sessionResult = this.#chatSessionManagementService.getSession(params.tabId)
 
         const { data: session, success } = sessionResult
@@ -189,6 +190,7 @@ export class ChatController implements ChatHandlers {
                     reason: feedbackPayload.selectedOption,
                     userComment: feedbackPayload.comment,
                 }),
+                // this is always Negative because only thumbs down has a form
                 sentiment: 'Negative',
             },
         })
