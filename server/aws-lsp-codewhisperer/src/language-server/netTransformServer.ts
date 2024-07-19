@@ -41,7 +41,6 @@ const PollTransformForPlanCommand = 'aws/qNetTransform/pollTransformForPlan'
 const GetTransformPlanCommand = 'aws/qNetTransform/getTransformPlan'
 const CancelTransformCommand = 'aws/qNetTransform/cancelTransform'
 const DownloadArtifactsCommand = 'aws/qNetTransform/downloadArtifacts'
-const dryRun = false
 /**
  *
  * @param createService Inject service instance based on credentials provider.
@@ -51,7 +50,7 @@ export const QNetTransformServerToken =
     (service: (credentialsProvider: CredentialsProvider) => CodeWhispererServiceToken): Server =>
     ({ credentialsProvider, workspace, logging, lsp, telemetry }) => {
         const codewhispererclient = service(credentialsProvider)
-        const transformHandler = new TransformHandler(codewhispererclient, workspace, logging, dryRun)
+        const transformHandler = new TransformHandler(codewhispererclient, workspace, logging)
         const runTransformCommand = async (params: ExecuteCommandParams, _token: CancellationToken) => {
             try {
                 switch (params.command) {
@@ -131,7 +130,8 @@ export const QNetTransformServerToken =
                         logging.log('Calling Download Archive  with job Id: ' + request.TransformationJobId)
                         const response = await transformHandler.downloadExportResultArchive(
                             cwStreamingClient,
-                            request.TransformationJobId
+                            request.TransformationJobId,
+                            request.SolutionRootPath
                         )
                         emitTransformationJobArtifactsDownloadedTelemetry(
                             telemetry,

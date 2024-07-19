@@ -222,9 +222,14 @@ describe('Test Transform handler ', () => {
 
             // Mock CodeWhispererStreaming instance
             const mockedCwStreamingClient: any = { exportResultArchive: exportResultArchiveStub }
+            const saveToDir: string = workspace.fs.getTempDirPath()
 
             const exportId = 'mockedExportId'
-            const response = await transformHandler.downloadExportResultArchive(mockedCwStreamingClient, exportId)
+            const response = await transformHandler.downloadExportResultArchive(
+                mockedCwStreamingClient,
+                exportId,
+                saveToDir
+            )
 
             // Assertions
             expect(response.Error).to.exist
@@ -239,7 +244,12 @@ describe('Test Transform handler ', () => {
 
             const mockedCwStreamingClient: any = { exportResultArchive: exportResultArchiveStub }
             const exportId = 'mockedExportId'
-            const response = await transformHandler.downloadExportResultArchive(mockedCwStreamingClient, exportId)
+            const saveToDir: string = workspace.fs.getTempDirPath()
+            const response = await transformHandler.downloadExportResultArchive(
+                mockedCwStreamingClient,
+                exportId,
+                saveToDir
+            )
 
             // Assertions
             expect(response.PathTosave).to.be.equal('mockFile.zip')
