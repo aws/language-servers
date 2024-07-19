@@ -190,7 +190,7 @@ export const QNetTransformServerToken =
             _token: CancellationToken
         ): Promise<any> => {
             logging.log(params.command)
-            runTransformCommand(params, _token)
+            return runTransformCommand(params, _token)
         }
         const onInitializeHandler = () => {
             return {

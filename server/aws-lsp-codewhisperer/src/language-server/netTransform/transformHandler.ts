@@ -57,15 +57,13 @@ export class TransformHandler {
             let isValid = validation.validateProject(userInputrequest)
             if (!isValid) {
                 return {
-                    UploadId: dryRunConstant.uploadId,
-                    TransformationJobId: dryRunConstant.transformJobId,
+                    Error: 'NotSupported',
                     IsSupported: false,
                     ContainsUnsupportedViews: containsUnsupportedViews,
                 } as StartTransformResponse
             }
         } else {
             unsupportedProjects = validation.validateSolution(userInputrequest)
-            unsupportedProjects.forEach(x => console.log(x))
         }
 
         const artifactManager = new ArtifactManager(
