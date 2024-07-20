@@ -22,7 +22,7 @@ export function logCommand(languageClient: LanguageClient) {
 export function qNetCommand(languageClient: LanguageClient) {
     return async () => {
         const request = {
-            command: 'aws/qNetTransform/startTransform'
+            command: 'aws/qNetTransform/startTransform',
         }
         await languageClient.sendRequest(ExecuteCommandRequest.method, request)
         languageClient.info(`Client: The qNet command has been executed`)
