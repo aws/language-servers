@@ -11,6 +11,7 @@ export const supportedProjects = [
     'WCFService',
     'ConsoleApp',
     'ClassLibrary',
+    'Unknown',
 ]
 
 export const unsupportedViewComponents = [
