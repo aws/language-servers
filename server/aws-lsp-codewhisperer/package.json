@@ -33,12 +33,13 @@
     "dependencies": {
         "@amzn/codewhisperer-streaming": "*",
         "@aws-sdk/util-retry": "^3.374.0",
-        "@aws/language-server-runtimes": "^0.2.9",
+        "@aws/language-server-runtimes": "^0.2.11",
         "@aws/chat-client-ui-types": "^0.0.6",
         "@aws/lsp-fqn": "^0.0.1",
         "@gerhobbelt/gitignore-parser": "^0.2.0-9",
         "@smithy/node-http-handler": "^2.5.0",
         "adm-zip": "^0.5.10",
+        "archiver": "^6.0.1",
         "aws-sdk": "^2.1403.0",
         "deepmerge": "^4.3.1",
         "got": "^11.8.5",
@@ -50,6 +51,8 @@
         "vscode-uri": "^3.0.8"
     },
     "devDependencies": {
+        "@types/archiver": "^6.0.2",
+        "mock-fs": "^5.2.0",
         "@types/adm-zip": "^0.5.5",
         "@types/uuid": "^9.0.8",
         "assert": "^2.1.0",
