@@ -20,8 +20,8 @@ import {
     TransformationJobReceivedEvent,
     TransformationJobStartedEvent,
     TransformationPlanReceivedEvent,
-    TransformationSpec,
 } from '../../telemetry/types'
+import { TransformationSpec } from '../../../client/token/codewhispererbearertokenclient'
 import sinon = require('sinon')
 import {
     emitTransformationJobStartedTelemetry,
