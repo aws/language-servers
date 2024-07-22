@@ -5,7 +5,8 @@ import { convertObjectToParserError, createStringFromParserError } from './error
 import { normalizeQuery, doAntlrValidation } from './language-service'
 import { TextDocument } from 'vscode-languageserver-textdocument'
 import { SemanticToken, findNodes, encodeSemanticTokens } from './syntax-highlighting/parser-tokens'
-import { SemanticTokenTypes, uinteger } from '@aws/language-server-runtimes/server-interface'
+import { SemanticTokenTypes, uinteger, Hover, MarkupKind } from '@aws/language-server-runtimes/server-interface'
+import { type2Hover } from './hover-info/parser-type'
 
 // Test error-parsing
 type parserTestDataType = { input: string; expectedOutput: string; expectedAntlrOutput: string; errorType: string }
@@ -622,6 +623,107 @@ describe('PartiQL Token Type parsing', () => {
             const tokenList = await findNodes(testData.input, testData.tokenType)
             const encodedTokens = await encodeSemanticTokens(tokenList, true)
             expect(encodedTokens?.data).toEqual(testData.expectedOutput)
+        })
+    })
+})
+
+// Test Hover Help detection and info returns
+type parserTestDataHoverHelp = {
+    input: string
+    position: { line: number; character: number }
+    expectedOutput: Hover | null
+}
+
+const parserTestDataHover: parserTestDataHoverHelp[] = [
+    // Test hover help for keyword -> `SELECT`
+    {
+        input: `SELECT VALUE {v.a: v.b, v.c: v.d}
+        FROM <<{'a':'same', 'b':1, 'c':'same'}>> AS v
+        WHERE v.b`,
+        position: { line: 0, character: 2 },
+        expectedOutput: {
+            contents: {
+                kind: MarkupKind.Markdown,
+                value: [
+                    '### SELECT',
+                    'The SELECT keyword is used to select data from a database.',
+                    '',
+                    'Visit [PartiQL Documentation](https://partiql.org/dql/select.html)',
+                ].join('\n'),
+            },
+            range: {
+                start: { line: 0, character: 0 },
+                end: { line: 0, character: 6 },
+            },
+        },
+    },
+    // Test hover help for constant -> `NULL`
+    {
+        input: `SELECT NULL
+        FROM <<{'a':'same', 'b':1, 'c':'same'}>> AS v
+        WHERE v.b`,
+        position: { line: 0, character: 9 },
+        expectedOutput: {
+            contents: {
+                kind: MarkupKind.Markdown,
+                value: [
+                    '### NULL',
+                    'The NULL constant represents a null value for an existing attribute.',
+                    '',
+                    'Visit [PartiQL Documentation](https://partiql.org/assets/PartiQL-Specification.pdf)',
+                ].join('\n'),
+            },
+            range: {
+                start: { line: 0, character: 7 },
+                end: { line: 0, character: 11 },
+            },
+        },
+    },
+    // Test for edge cases
+    // Test hovering out of text range
+    {
+        input: `SELECT VALUE {v.a: v.b, v.c: v.d}
+        FROM <<{'a':'same', 'b':1, 'c':'same'}>> AS v
+        WHERE v.b`,
+        position: { line: 3, character: 2 },
+        expectedOutput: null,
+    },
+    // Test hover help at range edge
+    {
+        input: `SELECT VALUE {v.a: v.b, v.c: v.d}
+        FROM <<{'a':'same', 'b':1, 'c':'same'}>> AS v
+        WHERE v.b`,
+        position: { line: 0, character: 0 },
+        expectedOutput: {
+            contents: {
+                kind: MarkupKind.Markdown,
+                value: [
+                    '### SELECT',
+                    'The SELECT keyword is used to select data from a database.',
+                    '',
+                    'Visit [PartiQL Documentation](https://partiql.org/dql/select.html)',
+                ].join('\n'),
+            },
+            range: {
+                start: { line: 0, character: 0 },
+                end: { line: 0, character: 6 },
+            },
+        },
+    },
+    {
+        input: `SELECT VALUE {v.a: v.b, v.c: v.d}
+        FROM <<{'a':'same', 'b':1, 'c':'same'}>> AS v
+        WHERE v.b`,
+        position: { line: 0, character: 6 },
+        expectedOutput: null,
+    },
+]
+
+describe('PartiQL Hover Help testing', () => {
+    parserTestDataHover.forEach(testData => {
+        it(`should correctly detect token range and its hover info from dictionary.`, async () => {
+            const hoverInfo = await type2Hover(testData.input, testData.position)
+            expect(hoverInfo).toEqual(testData.expectedOutput)
         })
     })
 })

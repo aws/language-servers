@@ -4,6 +4,12 @@ import {
     SemanticTokensParams,
     SemanticTokens,
     CancellationToken,
+    HoverParams,
+    Hover,
+    SignatureHelpParams,
+    SignatureHelp,
+    CompletionParams,
+    CompletionList,
     type DidChangeTextDocumentParams,
     type DidOpenTextDocumentParams,
     type Server,
@@ -16,7 +22,7 @@ export const PartiQLServerFactory =
         const onInitializeHandler = () => {
             return {
                 capabilities: {
-                    hoverProvider: false,
+                    hoverProvider: true,
                     textDocumentSync: {
                         openClose: true,
                         change: TextDocumentSyncKind.Incremental,
@@ -24,6 +30,12 @@ export const PartiQLServerFactory =
                     semanticTokensProvider: {
                         legend: semanticTokensLegend,
                         full: true,
+                    },
+                    signatureHelpProvider: {
+                        triggerCharacters: ['('],
+                    },
+                    completionProvider: {
+                        resolveProvider: false,
                     },
                 },
             }
@@ -81,11 +93,53 @@ export const PartiQLServerFactory =
             return tokens
         }
 
+        const onHoverHandler = async (params: HoverParams, _token: CancellationToken): Promise<Hover | null> => {
+            const textDocument = await workspace.getTextDocument(params.textDocument.uri)
+            if (!textDocument) {
+                logging.log(`textDocument [${params.textDocument.uri}] not found`)
+                return null
+            }
+            const hover = await service.doHover(textDocument, params.position)
+            return hover
+        }
+
+        const onSignatureHelpHandler = async (
+            params: SignatureHelpParams,
+            _token: CancellationToken
+        ): Promise<SignatureHelp | null> => {
+            const textDocument = await workspace.getTextDocument(params.textDocument.uri)
+            if (!textDocument) {
+                logging.log(`textDocument [${params.textDocument.uri}] not found`)
+                return null
+            }
+
+            const signatureHelp = await service.doSignatureHelp(textDocument, params.position)
+            return signatureHelp
+        }
+
+        const onCompletionHandler = async (
+            params: CompletionParams,
+            _token: CancellationToken
+        ): Promise<CompletionList | null> => {
+            const emptyCompletionList = CompletionList.create([])
+
+            const textDocument = await workspace.getTextDocument(params.textDocument.uri)
+            if (!textDocument) {
+                logging.log(`textDocument [${params.textDocument.uri}] not found`)
+                return emptyCompletionList
+            }
+            const completions = await service.doComplete(textDocument, params.position)
+            return completions ?? emptyCompletionList
+        }
+
         lsp.onInitialized(onInitializedHandler)
         lsp.onDidChangeTextDocument(onDidChangeTextDocumentHandler)
         lsp.onDidOpenTextDocument(onDidOpenTextDocumentHandler)
         lsp.addInitializer(onInitializeHandler)
         lsp.onSemanticTokens(onSemanticTokensHandler)
+        lsp.onHover(onHoverHandler)
+        lsp.onSignatureHelp(onSignatureHelpHandler)
+        lsp.onCompletion(onCompletionHandler)
 
         logging.log('The PartiQL LSP Language Server has been initialised')
 
