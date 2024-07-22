@@ -2,24 +2,50 @@ import partiQlServerBinary from '../partiql-parser-wasm/partiql-wasm-parser-inli
 import { initSync, parse_as_json } from '../partiql-parser-wasm/partiql_playground'
 import { convertObjectToLexerError, createStringFromLexerError } from './error-parsing/lexer-errors'
 import { convertObjectToParserError, createStringFromParserError } from './error-parsing/parser-errors'
-import { normalizeQuery } from './language-service'
+import { normalizeQuery, doAntlrValidation } from './language-service'
+import { TextDocument } from 'vscode-languageserver-textdocument'
 import { SemanticToken, findNodes, encodeSemanticTokens } from './syntax-highlighting/parser-tokens'
 import { SemanticTokenTypes, uinteger } from '@aws/language-server-runtimes/server-interface'
 
 // Test error-parsing
-type parserTestDataType = { input: string; expectedOutput: string; errorType: string }
+type parserTestDataType = { input: string; expectedOutput: string; expectedAntlrOutput: string; errorType: string }
 
 const parserTestData: parserTestDataType[] = [
     // Parser errors
     // SyntaxError - Couldn't find input to trigger these errors.
-    { input: 'SELECT', expectedOutput: 'Unexpected end of input.', errorType: 'UnexpectedEndOfInput' },
-    { input: 'SELECT FROM', expectedOutput: "Unexpected token 'FROM'.", errorType: 'UnexpectedToken' },
+    {
+        input: 'SELECT',
+        expectedOutput: 'Unexpected end of input.',
+        expectedAntlrOutput: 'Unexpected token: <EOF>',
+        errorType: 'UnexpectedEndOfInput',
+    },
+    {
+        input: 'SELECT FROM',
+        expectedOutput: "Unexpected token 'FROM'.",
+        expectedAntlrOutput: 'Unexpected token: FROM',
+        errorType: 'UnexpectedToken',
+    },
     // IllegalState - Couldn't find input to trigger these errors.
 
     // Lexer errors
-    { input: '🥝', expectedOutput: 'Lexing error: invalid input: 🥝.', errorType: 'InvalidInput' },
-    { input: '`', expectedOutput: 'Lexing error: unterminated ion literal.', errorType: 'UnterminatedIonLiteral' },
-    { input: '/*', expectedOutput: 'Lexing error: unterminated comment.', errorType: 'UnterminatedComment' },
+    {
+        input: '🥝',
+        expectedOutput: 'Lexing error: invalid input: 🥝.',
+        expectedAntlrOutput: 'Unexpected token: 🥝',
+        errorType: 'InvalidInput',
+    },
+    {
+        input: '`',
+        expectedOutput: 'Lexing error: unterminated ion literal.',
+        expectedAntlrOutput: 'Unexpected token: `',
+        errorType: 'UnterminatedIonLiteral',
+    },
+    {
+        input: '/*',
+        expectedOutput: 'Lexing error: unterminated comment.',
+        expectedAntlrOutput: 'Unexpected token: /',
+        errorType: 'UnterminatedComment',
+    },
 ]
 
 describe('PartiQL validation parsing', () => {
@@ -38,6 +64,57 @@ describe('PartiQL validation parsing', () => {
     it('should not give errors for quoted identifiers', () => {
         const parsedQuery = JSON.parse(parse_as_json(normalizeQuery('SELECT "test" from "yay"')))
         expect(parsedQuery.errors).toBeUndefined()
+    })
+})
+
+describe('PartiQL validation parsing using ANTLR', () => {
+    parserTestData.forEach(testData => {
+        it(`should correctly parse errors for ${testData.errorType}.`, () => {
+            const validationFile = TextDocument.create(
+                'file:///testPartiQLvalidation.json',
+                'partiql',
+                1,
+                testData.input
+            )
+            const diagnosticsMessage = doAntlrValidation(validationFile)[0].message
+            expect(diagnosticsMessage).toBe(testData.expectedAntlrOutput)
+        })
+    })
+
+    it('should not give errors for quoted identifiers', () => {
+        const validationFile = TextDocument.create(
+            'file:///testPartiQLvalidation.json',
+            'partiql',
+            1,
+            'SELECT "test" from "yay"'
+        )
+        const diagnosticsMessages = doAntlrValidation(validationFile)
+        expect(diagnosticsMessages).toHaveLength(0)
+    })
+
+    it('should not give errors for DML statements', () => {
+        const validationFile = TextDocument.create(
+            'file:///testPartiQLvalidation.json',
+            'partiql',
+            1,
+            `UPDATE "Music" 
+            SET AwardsWon=1 
+            SET AwardDetail={'Grammys':[2020, 2018]}  
+            WHERE Artist='Acme Band' AND SongTitle='PartiQL Rocks'`
+        )
+        const diagnosticsMessages = doAntlrValidation(validationFile)
+        expect(diagnosticsMessages).toHaveLength(0)
+    })
+
+    it('should not give errors for DML statements', () => {
+        const validationFile = TextDocument.create(
+            'file:///testPartiQLvalidation.json',
+            'partiql',
+            1,
+            `CREATE TABLE VehicleRegistration`
+        )
+        const diagnosticsMessages = doAntlrValidation(validationFile)
+        expect(diagnosticsMessages).toHaveLength(0)
     })
 })
 
