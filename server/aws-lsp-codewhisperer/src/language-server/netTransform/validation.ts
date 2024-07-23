@@ -19,7 +19,7 @@ export function validateProject(userInputrequest: StartTransformRequest): boolea
 }
 
 export function validateSolution(userInputrequest: StartTransformRequest): string[] {
-    return userInputrequest.ProjectMetadata.filter(project => !supportedProjects.includes(project.ProjectType)).map(
+    return userInputrequest.ProjectMetadata.filter(project => supportedProjects.includes(project.ProjectType)).map(
         project => project.ProjectPath
     )
 }
