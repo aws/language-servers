@@ -95,6 +95,9 @@ export async function activateDocumentsLanguageServer(extensionContext: Extensio
             // java is illustrative of code-handling language servers
             { scheme: 'file', language: 'java' },
             { scheme: 'untitled', language: 'java' },
+            // partiql is illustrative of query-handling language servers
+            { scheme: 'file', pattern: '**/*.pql' },
+            { scheme: 'untitled', pattern: '**/*.pql' },
         ],
         initializationOptions: {},
         synchronize: {
