@@ -95,10 +95,13 @@ export async function activateDocumentsLanguageServer(extensionContext: Extensio
             // java is illustrative of code-handling language servers
             { scheme: 'file', language: 'java' },
             { scheme: 'untitled', language: 'java' },
+            // partiql is illustrative of query-handling language servers
+            { scheme: 'file', language: 'partiql' },
+            { scheme: 'untitled', language: 'partiql' },
         ],
         initializationOptions: {},
         synchronize: {
-            fileEvents: workspace.createFileSystemWatcher('**/*.{json,java,yml,yaml,ts}'),
+            fileEvents: workspace.createFileSystemWatcher('**/*.{json,java,yml,yaml,ts,pql}'),
         },
     }
 

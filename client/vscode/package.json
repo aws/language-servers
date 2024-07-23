@@ -17,7 +17,8 @@
     "main": "./out/extension.js",
     "activationEvents": [
         "onLanguage:yaml",
-        "onLanguage:typescript"
+        "onLanguage:typescript",
+        "onLanguage:partiql"
     ],
     "contributes": {
         "commands": [
@@ -157,7 +158,19 @@
                     "description": "Traces the communication between VS Code and the language server."
                 }
             }
-        }
+        },
+        "languages": [
+            {
+                "id": "partiql",
+                "extensions": [
+                    ".pql"
+                ],
+                "aliases": [
+                    "PartiQL",
+                    "partiql"
+                ]
+            }
+        ]
     },
     "scripts": {
         "vscode:prepublish": "npm run compile",
