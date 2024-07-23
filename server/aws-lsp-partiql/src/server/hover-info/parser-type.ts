@@ -1,18 +1,7 @@
-import Parser, { SyntaxNode } from 'web-tree-sitter'
-import { initParser } from '../tree-sitter-parser/parserUtil'
+import { SyntaxNode } from 'web-tree-sitter'
 import { Hover, MarkupKind } from '@aws/language-server-runtimes/server-interface'
 import { hoverDictionary } from './hoverDictionary'
-
-// Global or service-level variables
-let parserInitialized = false
-let globalParser: Parser | null = null
-
-async function ensureParserInitialized() {
-    if (!parserInitialized) {
-        globalParser = await initParser()
-        parserInitialized = true
-    }
-}
+import { globalParser, ensureParserInitialized } from '../tree-sitter-parser/parserUtil'
 
 async function detectNodes(sourceCode: string, position: { line: number; character: number }): Promise<SyntaxNode> {
     await ensureParserInitialized()

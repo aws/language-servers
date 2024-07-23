@@ -1,7 +1,7 @@
 import { Server } from '@aws/language-server-runtimes/server-interface'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import { TextDocument } from 'vscode-languageserver-textdocument'
-import { TextDocumentItem, Hover } from 'vscode-languageserver-types'
+import { TextDocumentItem, Hover, SignatureHelp } from 'vscode-languageserver-types'
 import { PartiQLServerFactory } from './language-server'
 import { createPartiQLLanguageService } from './language-service'
 import { CancellationTokenSource } from 'vscode-languageserver'
@@ -189,6 +189,82 @@ describe('PartiQL Server - Hover Functionality', () => {
         const result = await features.doHover(hoverParams, cancellationToken)
 
         expect(hoverSpy).toHaveBeenCalledWith(testDocument, { line: 1, character: 0 })
+        expect(result).toBeNull()
+    })
+})
+
+describe('PartiQL Server - SignatureHelp Functionality', () => {
+    let service: ReturnType<typeof createPartiQLLanguageService>
+    let server: Server
+    let features: TestFeatures
+    let signatureHelpSpy: jest.SpyInstance
+
+    const testContent = `SELECT BIT_LENGTH(test1, test2)
+                         FROM my_table`
+    const testDocument = TextDocument.create('file:///signatureHelpTest.partiql', 'partiql', 1, testContent)
+
+    beforeEach(async () => {
+        service = createPartiQLLanguageService()
+        server = PartiQLServerFactory(service)
+        features = new TestFeatures()
+
+        await features.start(server)
+        features.openDocument(testDocument)
+
+        signatureHelpSpy = jest.spyOn(service, 'doSignatureHelp').mockImplementation((doc, position) => {
+            if (position.line === 0 && position.character === 20) {
+                return {
+                    signatures: [
+                        {
+                            label: 'BIT_LENGTH',
+                            documentation: 'Returns the length of the bit string.',
+                        },
+                    ],
+                } as SignatureHelp
+            } else if (position.line === 1 && position.character === 2) {
+                return null
+            }
+            return null
+        })
+    })
+
+    afterEach(() => {
+        jest.clearAllMocks()
+        features.dispose()
+    })
+
+    it('should provide correct signatureHelp for BIT_LENGTH function', async () => {
+        const signatureHelpParams = {
+            textDocument: testDocument,
+            position: { line: 0, character: 20 },
+        }
+        const cancellationToken = new CancellationTokenSource().token
+
+        const result = await features.doSignatureHelp(signatureHelpParams, cancellationToken)
+
+        expect(signatureHelpSpy).toHaveBeenCalledWith(testDocument, { line: 0, character: 20 })
+        expect(result).toEqual(
+            expect.objectContaining({
+                signatures: [
+                    {
+                        label: 'BIT_LENGTH',
+                        documentation: 'Returns the length of the bit string.',
+                    },
+                ],
+            })
+        )
+    })
+
+    it('should not provide signatureHelp out of function scope', async () => {
+        const signatureHelpParams = {
+            textDocument: testDocument,
+            position: { line: 1, character: 2 },
+        }
+        const cancellationToken = new CancellationTokenSource().token
+
+        const result = await features.doSignatureHelp(signatureHelpParams, cancellationToken)
+
+        expect(signatureHelpSpy).toHaveBeenCalledWith(testDocument, { line: 1, character: 2 })
         expect(result).toBeNull()
     })
 })
