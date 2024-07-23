@@ -122,73 +122,73 @@ describe('PartiQL Language Service - Semantic Tokens', () => {
     afterEach(() => {
         jest.restoreAllMocks()
     })
+})
 
-    describe('PartiQL Server - Hover Functionality', () => {
-        let service: ReturnType<typeof createPartiQLLanguageService>
-        let server: Server
-        let features: TestFeatures
-        let hoverSpy: jest.SpyInstance
+describe('PartiQL Server - Hover Functionality', () => {
+    let service: ReturnType<typeof createPartiQLLanguageService>
+    let server: Server
+    let features: TestFeatures
+    let hoverSpy: jest.SpyInstance
 
-        const testContent = `SELECT * FROM my_table WHERE id = 1;\n `
-        const testDocument = TextDocument.create('file:///hoverTest.partiql', 'partiql', 1, testContent)
+    const testContent = `SELECT * FROM my_table WHERE id = 1;\n `
+    const testDocument = TextDocument.create('file:///hoverTest.partiql', 'partiql', 1, testContent)
 
-        beforeEach(async () => {
-            service = createPartiQLLanguageService()
-            server = PartiQLServerFactory(service)
-            features = new TestFeatures()
+    beforeEach(async () => {
+        service = createPartiQLLanguageService()
+        server = PartiQLServerFactory(service)
+        features = new TestFeatures()
 
-            await features.start(server)
-            features.openDocument(testDocument)
+        await features.start(server)
+        features.openDocument(testDocument)
 
-            // Adjust the hover handler mocking
-            hoverSpy = jest.spyOn(service, 'doHover').mockImplementation((doc, position) => {
-                if (position.line === 1 && position.character === 0) {
-                    // Explicitly returning a promise that resolves to null
-                    return Promise.resolve(null)
-                }
-                // Default hover info for other positions
-                return Promise.resolve({
-                    contents: { kind: 'markdown', value: 'Details about keyword `SELECT`' },
-                } as Hover)
+        // Adjust the hover handler mocking
+        hoverSpy = jest.spyOn(service, 'doHover').mockImplementation((doc, position) => {
+            if (position.line === 1 && position.character === 0) {
+                // Explicitly returning a promise that resolves to null
+                return Promise.resolve(null)
+            }
+            // Default hover info for other positions
+            return Promise.resolve({
+                contents: { kind: 'markdown', value: 'Details about keyword `SELECT`' },
+            } as Hover)
+        })
+    })
+
+    afterEach(() => {
+        jest.clearAllMocks()
+        features.dispose()
+    })
+
+    it('should provide correct hover information for the SELECT keyword', async () => {
+        const hoverParams = {
+            textDocument: testDocument,
+            position: { line: 0, character: 1 }, // Position within 'SELECT'
+        }
+        const cancellationToken = new CancellationTokenSource().token
+
+        const result = await features.doHover(hoverParams, cancellationToken)
+
+        expect(hoverSpy).toHaveBeenCalledWith(testDocument, { line: 0, character: 1 })
+        expect(result).toEqual(
+            expect.objectContaining({
+                contents: expect.objectContaining({
+                    kind: 'markdown',
+                    value: 'Details about keyword `SELECT`',
+                }),
             })
-        })
+        )
+    })
 
-        afterEach(() => {
-            jest.clearAllMocks()
-            features.dispose()
-        })
+    it('should not provide hover information for whitespace', async () => {
+        const hoverParams = {
+            textDocument: testDocument,
+            position: { line: 1, character: 0 }, // New line
+        }
+        const cancellationToken = new CancellationTokenSource().token
 
-        it('should provide correct hover information for the SELECT keyword', async () => {
-            const hoverParams = {
-                textDocument: testDocument,
-                position: { line: 0, character: 1 }, // Position within 'SELECT'
-            }
-            const cancellationToken = new CancellationTokenSource().token
+        const result = await features.doHover(hoverParams, cancellationToken)
 
-            const result = await features.doHover(hoverParams, cancellationToken)
-
-            expect(hoverSpy).toHaveBeenCalledWith(testDocument, { line: 0, character: 1 })
-            expect(result).toEqual(
-                expect.objectContaining({
-                    contents: expect.objectContaining({
-                        kind: 'markdown',
-                        value: 'Details about keyword `SELECT`',
-                    }),
-                })
-            )
-        })
-
-        it('should not provide hover information for whitespace', async () => {
-            const hoverParams = {
-                textDocument: testDocument,
-                position: { line: 1, character: 0 }, // New line
-            }
-            const cancellationToken = new CancellationTokenSource().token
-
-            const result = await features.doHover(hoverParams, cancellationToken)
-
-            expect(hoverSpy).toHaveBeenCalledWith(testDocument, { line: 1, character: 0 })
-            expect(result).toBeNull()
-        })
+        expect(hoverSpy).toHaveBeenCalledWith(testDocument, { line: 1, character: 0 })
+        expect(result).toBeNull()
     })
 })

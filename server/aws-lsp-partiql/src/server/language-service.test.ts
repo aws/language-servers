@@ -5,8 +5,15 @@ import { convertObjectToParserError, createStringFromParserError } from './error
 import { normalizeQuery, doAntlrValidation } from './language-service'
 import { TextDocument } from 'vscode-languageserver-textdocument'
 import { SemanticToken, findNodes, encodeSemanticTokens } from './syntax-highlighting/parser-tokens'
-import { SemanticTokenTypes, uinteger, Hover, MarkupKind } from '@aws/language-server-runtimes/server-interface'
+import {
+    SemanticTokenTypes,
+    uinteger,
+    Hover,
+    MarkupKind,
+    SignatureHelp,
+} from '@aws/language-server-runtimes/server-interface'
 import { type2Hover } from './hover-info/parser-type'
+import { findSignatureInfo } from './signature-help/signature-info'
 
 // Test error-parsing
 type parserTestDataType = { input: string; expectedOutput: string; expectedAntlrOutput: string; errorType: string }
@@ -724,6 +731,78 @@ describe('PartiQL Hover Help testing', () => {
         it(`should correctly detect token range and its hover info from dictionary.`, async () => {
             const hoverInfo = await type2Hover(testData.input, testData.position)
             expect(hoverInfo).toEqual(testData.expectedOutput)
+        })
+    })
+})
+
+// Test Function SignatureHelp detection and info returns
+type parserTestDataSignatureHelp = {
+    input: string
+    expectedOutput: SignatureHelp | null
+}
+
+const parserTestDataSignature: parserTestDataSignatureHelp[] = [
+    // Test signature help for built-in function -> `bit_length`
+    // With no content following '('
+    {
+        input: 'SELECT BIT_LENGTH(',
+        expectedOutput: {
+            signatures: [
+                {
+                    label: 'BIT_LENGTH: String -> Int',
+                    documentation: {
+                        kind: MarkupKind.Markdown,
+                        value: [
+                            'Returns the number of bits in the input string.',
+                            '#### Header',
+                            '`BIT_LENGTH(str)`',
+                            '#### Examples',
+                            '```sql',
+                            "bit_length('jose');      -- 32",
+                            '```',
+                        ].join('\n'),
+                    },
+                },
+            ],
+        },
+    },
+    // Test signature help for built-in function -> `bit_length`
+    // With content following '('
+    {
+        input: 'SELECT BIT_LENGTH(test1, test2',
+        expectedOutput: {
+            signatures: [
+                {
+                    label: 'BIT_LENGTH: String -> Int',
+                    documentation: {
+                        kind: MarkupKind.Markdown,
+                        value: [
+                            'Returns the number of bits in the input string.',
+                            '#### Header',
+                            '`BIT_LENGTH(str)`',
+                            '#### Examples',
+                            '```sql',
+                            "bit_length('jose');      -- 32",
+                            '```',
+                        ].join('\n'),
+                    },
+                },
+            ],
+        },
+    },
+    // Test signature help for built-in function -> `bit_length`
+    // With dismiss notation ')'
+    {
+        input: 'SELECT BIT_LENGTH(test1, test2)',
+        expectedOutput: null,
+    },
+]
+
+describe('PartiQL SignatureHelp testing', () => {
+    parserTestDataSignature.forEach(testData => {
+        it(`should correctly detect the request for signatureHelp and return corresponding function signatureHelp from dictionary.`, async () => {
+            const signatureHelp = findSignatureInfo(testData.input)
+            expect(signatureHelp).toEqual(testData.expectedOutput)
         })
     })
 })
