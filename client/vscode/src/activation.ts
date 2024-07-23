@@ -18,7 +18,7 @@ import {
     writeEncryptionInit,
 } from './credentialsActivation'
 import { registerInlineCompletion } from './inlineCompletionActivation'
-import { registerLogCommand } from './sampleCommandActivation'
+import { registerLogCommand, registerTransformCommand } from './sampleCommandActivation'
 
 export async function activateDocumentsLanguageServer(extensionContext: ExtensionContext) {
     /**
@@ -95,10 +95,13 @@ export async function activateDocumentsLanguageServer(extensionContext: Extensio
             // java is illustrative of code-handling language servers
             { scheme: 'file', language: 'java' },
             { scheme: 'untitled', language: 'java' },
+            // partiql is illustrative of query-handling language servers
+            { scheme: 'file', language: 'partiql' },
+            { scheme: 'untitled', language: 'partiql' },
         ],
         initializationOptions: {},
         synchronize: {
-            fileEvents: workspace.createFileSystemWatcher('**/*.{json,java,yml,yaml,ts}'),
+            fileEvents: workspace.createFileSystemWatcher('**/*.{json,java,yml,yaml,ts,pql}'),
         },
     }
 
@@ -122,6 +125,7 @@ export async function activateDocumentsLanguageServer(extensionContext: Extensio
     const enableCustomCommands = process.env.ENABLE_CUSTOM_COMMANDS === 'true'
     if (enableCustomCommands) {
         await registerLogCommand(client, extensionContext)
+        await registerTransformCommand(client, extensionContext)
     }
 
     // Activate chat server after LSP initialize handshake is done
