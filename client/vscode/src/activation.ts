@@ -96,12 +96,12 @@ export async function activateDocumentsLanguageServer(extensionContext: Extensio
             { scheme: 'file', language: 'java' },
             { scheme: 'untitled', language: 'java' },
             // partiql is illustrative of query-handling language servers
-            { scheme: 'file', pattern: '**/*.pql' },
-            { scheme: 'untitled', pattern: '**/*.pql' },
+            { scheme: 'file', language: 'partiql' },
+            { scheme: 'untitled', language: 'partiql' },
         ],
         initializationOptions: {},
         synchronize: {
-            fileEvents: workspace.createFileSystemWatcher('**/*.{json,java,yml,yaml,ts}'),
+            fileEvents: workspace.createFileSystemWatcher('**/*.{json,java,yml,yaml,ts,pql}'),
         },
     }
 
