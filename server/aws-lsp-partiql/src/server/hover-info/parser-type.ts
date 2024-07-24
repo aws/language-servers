@@ -13,16 +13,17 @@ async function detectNodes(sourceCode: string, position: { line: number; charact
 
 export async function type2Hover(
     sourceCode: string,
-    position: { line: number; character: number }
+    position: { line: number; character: number },
+    supportHoverMarkdown: boolean
 ): Promise<Hover | null> {
     const node = await detectNodes(sourceCode, position)
     const nodeType = node.type.toLowerCase() as keyof typeof hoverDictionary
     const nodeText = node.text.toLowerCase() as keyof (typeof hoverDictionary)[keyof typeof hoverDictionary]
     if (nodeType in hoverDictionary && nodeText in hoverDictionary[nodeType]) {
-        const hoverInfo = hoverDictionary[nodeType][nodeText]
+        const hoverInfo = hoverDictionary[nodeType][nodeText][supportHoverMarkdown ? 'markdown' : 'plaintext']
         return {
             contents: {
-                kind: MarkupKind.Markdown,
+                kind: supportHoverMarkdown ? MarkupKind.Markdown : MarkupKind.PlainText,
                 value: hoverInfo,
             },
             range: {

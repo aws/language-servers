@@ -168,7 +168,7 @@ describe('PartiQL Server - Hover Functionality', () => {
 
         const result = await features.doHover(hoverParams, cancellationToken)
 
-        expect(hoverSpy).toHaveBeenCalledWith(testDocument, { line: 0, character: 1 })
+        expect(hoverSpy).toHaveBeenCalledWith(testDocument, { line: 0, character: 1 }, false)
         expect(result).toEqual(
             expect.objectContaining({
                 contents: expect.objectContaining({
@@ -188,7 +188,7 @@ describe('PartiQL Server - Hover Functionality', () => {
 
         const result = await features.doHover(hoverParams, cancellationToken)
 
-        expect(hoverSpy).toHaveBeenCalledWith(testDocument, { line: 1, character: 0 })
+        expect(hoverSpy).toHaveBeenCalledWith(testDocument, { line: 1, character: 0 }, false)
         expect(result).toBeNull()
     })
 })

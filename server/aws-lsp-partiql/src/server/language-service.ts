@@ -141,9 +141,10 @@ class PartiQLLanguageService {
 
     public async doHover(
         textDocument: TextDocument,
-        position: { line: number; character: number }
+        position: { line: number; character: number },
+        supportHoverMarkdown: boolean
     ): Promise<Hover | null> {
-        return type2Hover(textDocument.getText(), position)
+        return type2Hover(textDocument.getText(), position, supportHoverMarkdown)
     }
 
     public doSignatureHelp(

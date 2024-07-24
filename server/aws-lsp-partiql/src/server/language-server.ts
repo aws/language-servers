@@ -1,4 +1,5 @@
 import {
+    InitializeParams,
     TextDocument,
     TextDocumentSyncKind,
     SemanticTokensParams,
@@ -17,7 +18,11 @@ import { createPartiQLLanguageService, semanticTokensLegend } from './language-s
 export const PartiQLServerFactory =
     (service: any): Server =>
     ({ lsp, workspace, telemetry, logging }) => {
-        const onInitializeHandler = () => {
+        // This variable is used to determine whether the hover content should be markdown or plain text
+        let supportHoverMarkdown = false
+        const onInitializeHandler = (initParams: InitializeParams) => {
+            supportHoverMarkdown =
+                initParams.capabilities.textDocument?.hover?.contentFormat?.includes('markdown') ?? false
             return {
                 capabilities: {
                     hoverProvider: true,
@@ -94,7 +99,7 @@ export const PartiQLServerFactory =
                 logging.log(`textDocument [${params.textDocument.uri}] not found`)
                 return null
             }
-            const hover = await service.doHover(textDocument, params.position)
+            const hover = await service.doHover(textDocument, params.position, supportHoverMarkdown)
             return hover
         }
 
