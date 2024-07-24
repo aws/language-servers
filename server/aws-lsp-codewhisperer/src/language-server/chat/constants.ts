@@ -27,4 +27,4 @@ export const HELP_MESSAGE = `I'm Amazon Q, a generative AI assistant. Learn more
 \n\n- Do not enter any confidential, sensitive, or personal information.
 \n\n*For additional help, visit the [Amazon Q User Guide](${userGuideURL}).*`
 
-export const DEFAULT_HELP_PROMPT_TEXT = 'How can Amazon Q help me?'
+export const DEFAULT_HELP_FOLLOW_UP_PROMPT = 'How can Amazon Q help me?'

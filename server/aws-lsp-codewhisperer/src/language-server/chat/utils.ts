@@ -1,6 +1,6 @@
 import { ChatResult } from '@aws/language-server-runtimes/server-interface'
 import { GENERIC_UNAUTHORIZED_ERROR, INVALID_TOKEN, MISSING_BEARER_TOKEN_ERROR } from '../constants'
-import { DEFAULT_HELP_PROMPT_TEXT, HELP_MESSAGE } from './constants'
+import { DEFAULT_HELP_FOLLOW_UP_PROMPT, HELP_MESSAGE } from './constants'
 import { v4 as uuid } from 'uuid'
 
 type AuthFollowUpType = 'full-auth' | 're-auth' | 'missing_scopes' | 'use-supported-auth'
@@ -53,7 +53,7 @@ export function createAuthFollowUpResult(authType: AuthFollowUpType): ChatResult
 }
 
 export function getDefaultChatResponse(prompt?: string): ChatResult | undefined {
-    if (prompt === DEFAULT_HELP_PROMPT_TEXT) {
+    if (prompt === DEFAULT_HELP_FOLLOW_UP_PROMPT) {
         return {
             messageId: uuid(),
             body: HELP_MESSAGE,
