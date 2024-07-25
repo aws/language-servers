@@ -556,6 +556,35 @@ export const CodewhispererServerFactory =
             lastUserModificationTime = new Date().getTime()
         })
 
+        const TriggerEmptySuggestionsRequestCommand = 'aws/codewhisperer/triggerEmptySuggestionsRequest'
+
+        lsp.onExecuteCommand(async (params, _token) => {
+            logging.log(`Trying to execute command: ${params.command}`)
+            if (params.command === TriggerEmptySuggestionsRequestCommand) {
+                return await codeWhispererService.generateSuggestions({
+                    fileContext: {
+                        leftFileContent: '',
+                        rightFileContent: '',
+                        filename: '',
+                        programmingLanguage: { languageName: 'typescript' },
+                    },
+                    maxResults: 1,
+                })
+            } else {
+                logging.log(`Unknown command: ${params.command}`)
+            }
+        })
+
+        lsp.addInitializer(() => {
+            return {
+                capabilities: {
+                    executeCommandProvider: {
+                        commands: [TriggerEmptySuggestionsRequestCommand],
+                    },
+                },
+            }
+        })
+
         logging.log('Amazon Q Inline Suggestion server has been initialised')
 
         return () => {
