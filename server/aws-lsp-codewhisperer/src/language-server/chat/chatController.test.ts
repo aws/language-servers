@@ -13,7 +13,8 @@ import { ChatSessionManagementService } from './chatSessionManagementService'
 import { ChatSessionService } from './chatSessionService'
 import { ChatTelemetryController } from './telemetry/chatTelemetryController'
 import { DocumentContextExtractor } from './contexts/documentContext'
-import * as utils from '../utils'
+import * as utils from './utils'
+import { DEFAULT_HELP_FOLLOW_UP_PROMPT, HELP_MESSAGE } from './constants'
 
 describe('ChatController', () => {
     const mockTabId = 'tab-1'
@@ -201,6 +202,20 @@ describe('ChatController', () => {
 
             sinon.assert.callCount(testFeatures.lsp.sendProgress, 0)
             assert.deepStrictEqual(chatResult, expectedCompleteChatResult)
+        })
+
+        it('returns help message if it is a help follow up action', async () => {
+            const chatResultPromise = chatController.onChatPrompt(
+                { tabId: mockTabId, prompt: { prompt: DEFAULT_HELP_FOLLOW_UP_PROMPT } },
+                mockCancellationToken
+            )
+
+            const chatResult = await chatResultPromise
+
+            sinon.assert.match(chatResult, {
+                messageId: sinon.match.string,
+                body: HELP_MESSAGE,
+            })
         })
 
         it('read all the response streams and send progress as partial result is received', async () => {
