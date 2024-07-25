@@ -558,18 +558,37 @@ export const CodewhispererServerFactory =
 
         const TriggerEmptySuggestionsRequestCommand = 'aws/codewhisperer/triggerEmptySuggestionsRequest'
 
-        lsp.onExecuteCommand(async (params, _token) => {
+        lsp.onExecuteCommand((params, _token) => {
             logging.log(`Trying to execute command: ${params.command}`)
             if (params.command === TriggerEmptySuggestionsRequestCommand) {
-                return await codeWhispererService.generateSuggestions({
-                    fileContext: {
-                        leftFileContent: '',
-                        rightFileContent: '',
-                        filename: '',
-                        programmingLanguage: { languageName: 'typescript' },
+                const fileContext = {
+                    leftFileContent: '',
+                    rightFileContent: '',
+                    filename: 'x', // service definition requires a minimum length of 1
+                    programmingLanguage: { languageName: 'typescript' },
+                }
+                const maxResults = 1
+                // We don't use the session manager so that we don't interfere with ongoing sessions
+                const dummySession = new CodeWhispererSession({
+                    startPosition: { line: 0, character: 0 },
+                    triggerType: 'AutoTrigger',
+                    language: 'typescript',
+                    requestContext: {
+                        fileContext,
+                        maxResults,
                     },
-                    maxResults: 1,
                 })
+                codeWhispererService
+                    .generateSuggestions({
+                        fileContext,
+                        maxResults,
+                    })
+                    .then(() => {
+                        emitServiceInvocationTelemetry(telemetry, dummySession)
+                    })
+                    .catch(error => {
+                        emitServiceInvocationFailure(telemetry, dummySession, error)
+                    })
             } else {
                 logging.log(`Unknown command: ${params.command}`)
             }
