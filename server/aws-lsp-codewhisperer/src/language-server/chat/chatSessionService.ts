@@ -18,7 +18,6 @@ export class ChatSessionService {
     #credentialsProvider: CredentialsProvider
     #config?: CodeWhispererStreamingClientConfig
     #sessionId?: string
-    #disposables: Dispose[] = []
 
     public get sessionId(): string | undefined {
         return this.#sessionId
@@ -60,26 +59,13 @@ export class ChatSessionService {
         return response
     }
 
-    public registerDisposable(dispose: Dispose): void {
-        this.#disposables.push(dispose)
-    }
-
-    public removeDisposable(dispose: Dispose): void {
-        const index = this.#disposables.indexOf(dispose)
-        if (index > -1) {
-            this.#disposables.splice(index, 1)
-        }
-    }
-
     public clear(): void {
         this.#abortController?.abort()
-        this.#disposables.forEach(dipose => dipose())
         this.#sessionId = undefined
     }
 
     public dispose(): void {
         this.#abortController?.abort()
-        this.#disposables.forEach(dipose => dipose())
     }
 
     public abortRequest(): void {
