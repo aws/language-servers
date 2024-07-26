@@ -29,15 +29,33 @@ options {
  *
  */
 
-root
-    : (EXPLAIN (PAREN_LEFT explainOption (COMMA explainOption)* PAREN_RIGHT)? )? statement;
+/** This file is taken from https://github.com/partiql/partiql-lang-kotlin/blob/d660231f2e59ceae0a8306ce880491d8f710708b/partiql-parser/src/main/antlr/PartiQLParser.g4,
+ * however it is modified to allow for multiple queries separated by semi colon here.
+ */
+ 
+// root
+//     : (EXPLAIN (PAREN_LEFT explainOption (COMMA explainOption)* PAREN_RIGHT)? )? statement;
 
-statement
-    : dql COLON_SEMI? EOF          # QueryDql
-    | dml COLON_SEMI? EOF          # QueryDml
-    | ddl COLON_SEMI? EOF          # QueryDdl
-    | execCommand COLON_SEMI? EOF  # QueryExec
+// statement
+//     : dql COLON_SEMI? EOF          # QueryDql
+//     | dml COLON_SEMI? EOF          # QueryDml
+//     | ddl COLON_SEMI? EOF          # QueryDdl
+//     | execCommand COLON_SEMI? EOF  # QueryExec
+//     ;
+
+root
+    : (statement COLON_SEMI?)+ EOF
     ;
+statement
+    : (EXPLAIN (PAREN_LEFT explainOption (COMMA explainOption)* PAREN_RIGHT)? )? query
+    ;
+query
+    : dql                          # QueryDql
+    | dml                          # QueryDml
+    | ddl                          # QueryDdl
+    | execCommand                  # QueryExec
+    ;
+
 
 /**
  *

@@ -5,6 +5,8 @@ import {
     SemanticTokenTypes,
     SemanticTokens,
     SemanticTokensLegend,
+    Hover,
+    SignatureHelp,
 } from '@aws/language-server-runtimes/server-interface'
 // Commented out code is to use the PartiQL Rust parser, should be used again after
 // https://github.com/partiql/partiql-lang-rust/issues/472 is resolved.
@@ -15,6 +17,8 @@ import { CommonTokenStream, Token, CharStream, ATNSimulator, Recognizer, BaseErr
 import { PartiQLParser } from '../antlr-generated/PartiQLParser'
 import { PartiQLTokens } from '../antlr-generated/PartiQLTokens'
 import { findNodes, encodeSemanticTokens, SemanticToken, string2TokenTypes } from './syntax-highlighting/parser-tokens'
+import { type2Hover } from './hover-info/parser-type'
+import { findSignatureInfo } from './signature-help/signature-info'
 
 // This is a constant that is used to determine if the language server supports multi-line tokens.
 const MULTILINETOKENSUPPORT = true
@@ -133,5 +137,25 @@ class PartiQLLanguageService {
         }
         const encodedTokens = encodeSemanticTokens(data, MULTILINETOKENSUPPORT)
         return encodedTokens
+    }
+
+    public async doHover(
+        textDocument: TextDocument,
+        position: { line: number; character: number },
+        supportHoverMarkdown: boolean
+    ): Promise<Hover | null> {
+        return type2Hover(textDocument.getText(), position, supportHoverMarkdown)
+    }
+
+    public doSignatureHelp(
+        textDocument: TextDocument,
+        position: { line: number; character: number }
+    ): SignatureHelp | null {
+        const lineText = textDocument.getText({
+            start: { line: position.line, character: 0 },
+            end: { line: position.line, character: position.character },
+        })
+        const signatureHelp = findSignatureInfo(lineText)
+        return signatureHelp
     }
 }

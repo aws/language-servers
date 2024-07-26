@@ -1,4 +1,3 @@
-import Parser from 'web-tree-sitter'
 import {
     SemanticTokenTypes,
     SemanticTokens,
@@ -7,7 +6,7 @@ import {
 } from '@aws/language-server-runtimes/server-interface'
 import { SemanticTokensBuilder } from 'vscode-languageserver/node'
 import { semanticTokensLegend } from '../language-service'
-import { initParser } from '../tree-sitter-parser/parserUtil'
+import { globalParser, ensureParserInitialized } from '../tree-sitter-parser/parserUtil'
 
 export interface SemanticToken {
     range: Range
@@ -33,21 +32,7 @@ export const string2TokenTypes: { [key: string]: SemanticTokenTypes } = {
     ion: SemanticTokenTypes.string,
 }
 
-// Global or service-level variables
-let parserInitialized = false
-let globalParser: Parser | null = null
-
-async function ensureParserInitialized() {
-    if (!parserInitialized) {
-        globalParser = await initParser()
-        parserInitialized = true
-    }
-}
-
-export async function findNodes(
-    sourceCode: string | Parser.Input,
-    nodeType: SemanticTokenTypes | string
-): Promise<SemanticToken[]> {
+export async function findNodes(sourceCode: string, nodeType: SemanticTokenTypes | string): Promise<SemanticToken[]> {
     await ensureParserInitialized()
     const tree = globalParser!.parse(sourceCode)
     const nodeTypeString: string = nodeType

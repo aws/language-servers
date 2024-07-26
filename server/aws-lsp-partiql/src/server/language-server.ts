@@ -1,9 +1,14 @@
 import {
+    InitializeParams,
     TextDocument,
     TextDocumentSyncKind,
     SemanticTokensParams,
     SemanticTokens,
     CancellationToken,
+    HoverParams,
+    Hover,
+    SignatureHelpParams,
+    SignatureHelp,
     type DidChangeTextDocumentParams,
     type DidOpenTextDocumentParams,
     type Server,
@@ -13,10 +18,14 @@ import { createPartiQLLanguageService, semanticTokensLegend } from './language-s
 export const PartiQLServerFactory =
     (service: any): Server =>
     ({ lsp, workspace, telemetry, logging }) => {
-        const onInitializeHandler = () => {
+        // This variable is used to determine whether the hover content should be markdown or plain text
+        let supportHoverMarkdown = false
+        const onInitializeHandler = (initParams: InitializeParams) => {
+            supportHoverMarkdown =
+                initParams.capabilities.textDocument?.hover?.contentFormat?.includes('markdown') ?? false
             return {
                 capabilities: {
-                    hoverProvider: false,
+                    hoverProvider: true,
                     textDocumentSync: {
                         openClose: true,
                         change: TextDocumentSyncKind.Incremental,
@@ -24,6 +33,9 @@ export const PartiQLServerFactory =
                     semanticTokensProvider: {
                         legend: semanticTokensLegend,
                         full: true,
+                    },
+                    signatureHelpProvider: {
+                        triggerCharacters: ['('],
                     },
                 },
             }
@@ -81,11 +93,37 @@ export const PartiQLServerFactory =
             return tokens
         }
 
+        const onHoverHandler = async (params: HoverParams, _token: CancellationToken): Promise<Hover | null> => {
+            const textDocument = await workspace.getTextDocument(params.textDocument.uri)
+            if (!textDocument) {
+                logging.log(`textDocument [${params.textDocument.uri}] not found`)
+                return null
+            }
+            const hover = await service.doHover(textDocument, params.position, supportHoverMarkdown)
+            return hover
+        }
+
+        const onSignatureHelpHandler = async (
+            params: SignatureHelpParams,
+            _token: CancellationToken
+        ): Promise<SignatureHelp | null> => {
+            const textDocument = await workspace.getTextDocument(params.textDocument.uri)
+            if (!textDocument) {
+                logging.log(`textDocument [${params.textDocument.uri}] not found`)
+                return null
+            }
+
+            const signatureHelp = await service.doSignatureHelp(textDocument, params.position)
+            return signatureHelp
+        }
+
         lsp.onInitialized(onInitializedHandler)
         lsp.onDidChangeTextDocument(onDidChangeTextDocumentHandler)
         lsp.onDidOpenTextDocument(onDidOpenTextDocumentHandler)
         lsp.addInitializer(onInitializeHandler)
         lsp.onSemanticTokens(onSemanticTokensHandler)
+        lsp.onHover(onHoverHandler)
+        lsp.onSignatureHelp(onSignatureHelpHandler)
 
         logging.log('The PartiQL LSP Language Server has been initialised')
 

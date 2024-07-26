@@ -5,7 +5,15 @@ import { convertObjectToParserError, createStringFromParserError } from './error
 import { normalizeQuery, doAntlrValidation } from './language-service'
 import { TextDocument } from 'vscode-languageserver-textdocument'
 import { SemanticToken, findNodes, encodeSemanticTokens } from './syntax-highlighting/parser-tokens'
-import { SemanticTokenTypes, uinteger } from '@aws/language-server-runtimes/server-interface'
+import {
+    SemanticTokenTypes,
+    uinteger,
+    Hover,
+    MarkupKind,
+    SignatureHelp,
+} from '@aws/language-server-runtimes/server-interface'
+import { type2Hover } from './hover-info/parser-type'
+import { findSignatureInfo } from './signature-help/signature-info'
 
 // Test error-parsing
 type parserTestDataType = { input: string; expectedOutput: string; expectedAntlrOutput: string; errorType: string }
@@ -622,6 +630,234 @@ describe('PartiQL Token Type parsing', () => {
             const tokenList = await findNodes(testData.input, testData.tokenType)
             const encodedTokens = await encodeSemanticTokens(tokenList, true)
             expect(encodedTokens?.data).toEqual(testData.expectedOutput)
+        })
+    })
+})
+
+// Test Hover Help detection and info returns
+type parserTestDataHoverHelp = {
+    input: string
+    position: { line: number; character: number }
+    expectedOutput: Hover | null
+}
+
+// Tests Hover Help when markdown is supported
+const parserTestDataHover: parserTestDataHoverHelp[] = [
+    // Test hover help for keyword -> `SELECT`
+    {
+        input: `SELECT VALUE {v.a: v.b, v.c: v.d}
+        FROM <<{'a':'same', 'b':1, 'c':'same'}>> AS v
+        WHERE v.b`,
+        position: { line: 0, character: 2 },
+        expectedOutput: {
+            contents: {
+                kind: MarkupKind.Markdown,
+                value: ['```typescript', '(keyword) SELECT: select data from a database', '```'].join('\n'),
+            },
+            range: {
+                start: { line: 0, character: 0 },
+                end: { line: 0, character: 6 },
+            },
+        },
+    },
+    // Test hover help for constant -> `NULL`
+    {
+        input: `SELECT NULL
+        FROM <<{'a':'same', 'b':1, 'c':'same'}>> AS v
+        WHERE v.b`,
+        position: { line: 0, character: 9 },
+        expectedOutput: {
+            contents: {
+                kind: MarkupKind.Markdown,
+                value: [
+                    '```typescript',
+                    '(keyword) NULL: represents a null value for an existing attribute',
+                    '```',
+                ].join('\n'),
+            },
+            range: {
+                start: { line: 0, character: 7 },
+                end: { line: 0, character: 11 },
+            },
+        },
+    },
+    // Test for edge cases
+    // Test hovering out of text range
+    {
+        input: `SELECT VALUE {v.a: v.b, v.c: v.d}
+        FROM <<{'a':'same', 'b':1, 'c':'same'}>> AS v
+        WHERE v.b`,
+        position: { line: 3, character: 2 },
+        expectedOutput: null,
+    },
+    // Test hover help at range edge
+    {
+        input: `SELECT VALUE {v.a: v.b, v.c: v.d}
+        FROM <<{'a':'same', 'b':1, 'c':'same'}>> AS v
+        WHERE v.b`,
+        position: { line: 0, character: 0 },
+        expectedOutput: {
+            contents: {
+                kind: MarkupKind.Markdown,
+                value: ['```typescript', '(keyword) SELECT: select data from a database', '```'].join('\n'),
+            },
+            range: {
+                start: { line: 0, character: 0 },
+                end: { line: 0, character: 6 },
+            },
+        },
+    },
+    {
+        input: `SELECT VALUE {v.a: v.b, v.c: v.d}
+        FROM <<{'a':'same', 'b':1, 'c':'same'}>> AS v
+        WHERE v.b`,
+        position: { line: 0, character: 6 },
+        expectedOutput: null,
+    },
+]
+
+describe('PartiQL Hover Help testing', () => {
+    parserTestDataHover.forEach(testData => {
+        it(`should correctly detect token range and its hover info from dictionary.`, async () => {
+            const hoverInfo = await type2Hover(testData.input, testData.position, true)
+            expect(hoverInfo).toEqual(testData.expectedOutput)
+        })
+    })
+})
+
+// Tests Hover Help when markdown is not supported
+const parserTestDataHoverText: parserTestDataHoverHelp[] = [
+    // Test hover help for keyword -> `SELECT`
+    {
+        input: `SELECT VALUE {v.a: v.b, v.c: v.d}
+        FROM <<{'a':'same', 'b':1, 'c':'same'}>> AS v
+        WHERE v.b`,
+        position: { line: 0, character: 2 },
+        expectedOutput: {
+            contents: {
+                kind: MarkupKind.PlainText,
+                value: '(keyword) SELECT: select data from a database',
+            },
+            range: {
+                start: { line: 0, character: 0 },
+                end: { line: 0, character: 6 },
+            },
+        },
+    },
+    // Test hover help for constant -> `NULL`
+    {
+        input: `SELECT NULL
+        FROM <<{'a':'same', 'b':1, 'c':'same'}>> AS v
+        WHERE v.b`,
+        position: { line: 0, character: 9 },
+        expectedOutput: {
+            contents: {
+                kind: MarkupKind.PlainText,
+                value: '(keyword) NULL: represents a null value for an existing attribute',
+            },
+            range: {
+                start: { line: 0, character: 7 },
+                end: { line: 0, character: 11 },
+            },
+        },
+    },
+    // Test for edge cases
+    // Test hover help at range edge
+    {
+        input: `SELECT VALUE {v.a: v.b, v.c: v.d}
+        FROM <<{'a':'same', 'b':1, 'c':'same'}>> AS v
+        WHERE v.b`,
+        position: { line: 0, character: 0 },
+        expectedOutput: {
+            contents: {
+                kind: MarkupKind.PlainText,
+                value: '(keyword) SELECT: select data from a database',
+            },
+            range: {
+                start: { line: 0, character: 0 },
+                end: { line: 0, character: 6 },
+            },
+        },
+    },
+]
+
+describe('PartiQL Hover Help testing', () => {
+    parserTestDataHoverText.forEach(testData => {
+        it(`should correctly detect token range and its hover info from dictionary.`, async () => {
+            const hoverInfo = await type2Hover(testData.input, testData.position, false)
+            expect(hoverInfo).toEqual(testData.expectedOutput)
+        })
+    })
+})
+
+// Test Function SignatureHelp detection and info returns
+type parserTestDataSignatureHelp = {
+    input: string
+    expectedOutput: SignatureHelp | null
+}
+
+const parserTestDataSignature: parserTestDataSignatureHelp[] = [
+    // Test signature help for built-in function -> `bit_length`
+    // With no content following '('
+    {
+        input: 'SELECT BIT_LENGTH(',
+        expectedOutput: {
+            signatures: [
+                {
+                    label: 'BIT_LENGTH: String -> Int',
+                    documentation: {
+                        kind: MarkupKind.Markdown,
+                        value: [
+                            'Returns the number of bits in the input string.',
+                            '#### Header',
+                            '`BIT_LENGTH(str)`',
+                            '#### Examples',
+                            '```sql',
+                            "bit_length('jose');      -- 32",
+                            '```',
+                        ].join('\n'),
+                    },
+                },
+            ],
+        },
+    },
+    // Test signature help for built-in function -> `bit_length`
+    // With content following '('
+    {
+        input: 'SELECT BIT_LENGTH(test1, test2',
+        expectedOutput: {
+            signatures: [
+                {
+                    label: 'BIT_LENGTH: String -> Int',
+                    documentation: {
+                        kind: MarkupKind.Markdown,
+                        value: [
+                            'Returns the number of bits in the input string.',
+                            '#### Header',
+                            '`BIT_LENGTH(str)`',
+                            '#### Examples',
+                            '```sql',
+                            "bit_length('jose');      -- 32",
+                            '```',
+                        ].join('\n'),
+                    },
+                },
+            ],
+        },
+    },
+    // Test signature help for built-in function -> `bit_length`
+    // With dismiss notation ')'
+    {
+        input: 'SELECT BIT_LENGTH(test1, test2)',
+        expectedOutput: null,
+    },
+]
+
+describe('PartiQL SignatureHelp testing', () => {
+    parserTestDataSignature.forEach(testData => {
+        it(`should correctly detect the request for signatureHelp and return corresponding function signatureHelp from dictionary.`, async () => {
+            const signatureHelp = findSignatureInfo(testData.input)
+            expect(signatureHelp).toEqual(testData.expectedOutput)
         })
     })
 })

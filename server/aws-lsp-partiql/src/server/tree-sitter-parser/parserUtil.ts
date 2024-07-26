@@ -2,6 +2,17 @@ import Parser from 'web-tree-sitter'
 import parserBase64 from '../../tree-sitter-wasm/tree-sitter-parser-inline'
 import wasmBinaryArray from '../../tree-sitter-wasm/tree-sitter-inline'
 
+// Global or service-level variables
+let parserInitialized = false
+export let globalParser: Parser | null = null
+
+export async function ensureParserInitialized() {
+    if (!parserInitialized) {
+        globalParser = await initParser()
+        parserInitialized = true
+    }
+}
+
 // Initialize and prepare the parser
 export async function initParser() {
     // Configure the loading path for the wasm file.
