@@ -1,325 +1,324 @@
 // Generated from src/antlr-grammar/PartiQLTokens.g4 by ANTLR 4.13.1
 
-import * as antlr from "antlr4ng";
-import { Token } from "antlr4ng";
+import * as antlr from "antlr4ng"
 
 
 export class PartiQLTokens extends antlr.Lexer {
-    public static readonly ABSOLUTE = 1;
-    public static readonly ACTION = 2;
-    public static readonly ADD = 3;
-    public static readonly ALL = 4;
-    public static readonly ALLOCATE = 5;
-    public static readonly ALTER = 6;
-    public static readonly AND = 7;
-    public static readonly ANY = 8;
-    public static readonly ARE = 9;
-    public static readonly AS = 10;
-    public static readonly ASC = 11;
-    public static readonly ASSERTION = 12;
-    public static readonly AT = 13;
-    public static readonly AUTHORIZATION = 14;
-    public static readonly AVG = 15;
-    public static readonly BEGIN = 16;
-    public static readonly BETWEEN = 17;
-    public static readonly BIT = 18;
-    public static readonly BIT_LENGTH = 19;
-    public static readonly BY = 20;
-    public static readonly CASCADE = 21;
-    public static readonly CASCADED = 22;
-    public static readonly CASE = 23;
-    public static readonly CAST = 24;
-    public static readonly CATALOG = 25;
-    public static readonly CHAR = 26;
-    public static readonly CHARACTER = 27;
-    public static readonly CHARACTER_LENGTH = 28;
-    public static readonly CHAR_LENGTH = 29;
-    public static readonly CHECK = 30;
-    public static readonly CLOSE = 31;
-    public static readonly COALESCE = 32;
-    public static readonly COLLATE = 33;
-    public static readonly COLLATION = 34;
-    public static readonly COLUMN = 35;
-    public static readonly COMMIT = 36;
-    public static readonly CONNECT = 37;
-    public static readonly CONNECTION = 38;
-    public static readonly CONSTRAINT = 39;
-    public static readonly CONSTRAINTS = 40;
-    public static readonly CONTINUE = 41;
-    public static readonly CONVERT = 42;
-    public static readonly CORRESPONDING = 43;
-    public static readonly COUNT = 44;
-    public static readonly CREATE = 45;
-    public static readonly CROSS = 46;
-    public static readonly CURRENT = 47;
-    public static readonly CURRENT_DATE = 48;
-    public static readonly CURRENT_TIME = 49;
-    public static readonly CURRENT_TIMESTAMP = 50;
-    public static readonly CURRENT_USER = 51;
-    public static readonly CURSOR = 52;
-    public static readonly DATE = 53;
-    public static readonly DEALLOCATE = 54;
-    public static readonly DEC = 55;
-    public static readonly DECIMAL = 56;
-    public static readonly DECLARE = 57;
-    public static readonly DEFAULT = 58;
-    public static readonly DEFERRABLE = 59;
-    public static readonly DEFERRED = 60;
-    public static readonly DELETE = 61;
-    public static readonly DESC = 62;
-    public static readonly DESCRIBE = 63;
-    public static readonly DESCRIPTOR = 64;
-    public static readonly DIAGNOSTICS = 65;
-    public static readonly DISCONNECT = 66;
-    public static readonly DISTINCT = 67;
-    public static readonly DOMAIN = 68;
-    public static readonly DOUBLE = 69;
-    public static readonly DROP = 70;
-    public static readonly ELSE = 71;
-    public static readonly END = 72;
-    public static readonly END_EXEC = 73;
-    public static readonly ESCAPE = 74;
-    public static readonly EVERY = 75;
-    public static readonly EXCEPT = 76;
-    public static readonly EXCEPTION = 77;
-    public static readonly EXCLUDE = 78;
-    public static readonly EXCLUDED = 79;
-    public static readonly EXEC = 80;
-    public static readonly EXECUTE = 81;
-    public static readonly EXISTS = 82;
-    public static readonly EXPLAIN = 83;
-    public static readonly EXTERNAL = 84;
-    public static readonly EXTRACT = 85;
-    public static readonly DATE_ADD = 86;
-    public static readonly DATE_DIFF = 87;
-    public static readonly FALSE = 88;
-    public static readonly FETCH = 89;
-    public static readonly FIRST = 90;
-    public static readonly FLOAT = 91;
-    public static readonly FOR = 92;
-    public static readonly FOREIGN = 93;
-    public static readonly FOUND = 94;
-    public static readonly FROM = 95;
-    public static readonly FULL = 96;
-    public static readonly GET = 97;
-    public static readonly GLOBAL = 98;
-    public static readonly GO = 99;
-    public static readonly GOTO = 100;
-    public static readonly GRANT = 101;
-    public static readonly GROUP = 102;
-    public static readonly HAVING = 103;
-    public static readonly IDENTITY = 104;
-    public static readonly IMMEDIATE = 105;
-    public static readonly IN = 106;
-    public static readonly INDICATOR = 107;
-    public static readonly INITIALLY = 108;
-    public static readonly INNER = 109;
-    public static readonly INPUT = 110;
-    public static readonly INSENSITIVE = 111;
-    public static readonly INSERT = 112;
-    public static readonly INT = 113;
-    public static readonly INTEGER = 114;
-    public static readonly INTERSECT = 115;
-    public static readonly INTERVAL = 116;
-    public static readonly INTO = 117;
-    public static readonly IS = 118;
-    public static readonly ISOLATION = 119;
-    public static readonly JOIN = 120;
-    public static readonly KEY = 121;
-    public static readonly LANGUAGE = 122;
-    public static readonly LAST = 123;
-    public static readonly LATERAL = 124;
-    public static readonly LEFT = 125;
-    public static readonly LEVEL = 126;
-    public static readonly LIKE = 127;
-    public static readonly LOCAL = 128;
-    public static readonly LOWER = 129;
-    public static readonly MATCH = 130;
-    public static readonly MAX = 131;
-    public static readonly MIN = 132;
-    public static readonly MODULE = 133;
-    public static readonly NAMES = 134;
-    public static readonly NATIONAL = 135;
-    public static readonly NATURAL = 136;
-    public static readonly NCHAR = 137;
-    public static readonly NEXT = 138;
-    public static readonly NO = 139;
-    public static readonly NOT = 140;
-    public static readonly NULL = 141;
-    public static readonly NULLS = 142;
-    public static readonly NULLIF = 143;
-    public static readonly NUMERIC = 144;
-    public static readonly OCTET_LENGTH = 145;
-    public static readonly OF = 146;
-    public static readonly ON = 147;
-    public static readonly ONLY = 148;
-    public static readonly OPEN = 149;
-    public static readonly OPTION = 150;
-    public static readonly OR = 151;
-    public static readonly ORDER = 152;
-    public static readonly OUTER = 153;
-    public static readonly OUTPUT = 154;
-    public static readonly OVERLAPS = 155;
-    public static readonly OVERLAY = 156;
-    public static readonly PAD = 157;
-    public static readonly PARTIAL = 158;
-    public static readonly PLACING = 159;
-    public static readonly POSITION = 160;
-    public static readonly PRECISION = 161;
-    public static readonly PREPARE = 162;
-    public static readonly PRESERVE = 163;
-    public static readonly PRIMARY = 164;
-    public static readonly PRIOR = 165;
-    public static readonly PRIVILEGES = 166;
-    public static readonly PROCEDURE = 167;
-    public static readonly PUBLIC = 168;
-    public static readonly READ = 169;
-    public static readonly REAL = 170;
-    public static readonly REFERENCES = 171;
-    public static readonly RELATIVE = 172;
-    public static readonly REPLACE = 173;
-    public static readonly RESTRICT = 174;
-    public static readonly REVOKE = 175;
-    public static readonly RIGHT = 176;
-    public static readonly ROLLBACK = 177;
-    public static readonly ROWS = 178;
-    public static readonly SCHEMA = 179;
-    public static readonly SCROLL = 180;
-    public static readonly SECTION = 181;
-    public static readonly SELECT = 182;
-    public static readonly SESSION = 183;
-    public static readonly SESSION_USER = 184;
-    public static readonly SET = 185;
-    public static readonly SHORTEST = 186;
-    public static readonly SIZE = 187;
-    public static readonly SMALLINT = 188;
-    public static readonly SOME = 189;
-    public static readonly SPACE = 190;
-    public static readonly SQL = 191;
-    public static readonly SQLCODE = 192;
-    public static readonly SQLERROR = 193;
-    public static readonly SQLSTATE = 194;
-    public static readonly SUBSTRING = 195;
-    public static readonly SUM = 196;
-    public static readonly SYSTEM_USER = 197;
-    public static readonly TABLE = 198;
-    public static readonly TEMPORARY = 199;
-    public static readonly THEN = 200;
-    public static readonly TIME = 201;
-    public static readonly TIMESTAMP = 202;
-    public static readonly TO = 203;
-    public static readonly TRANSACTION = 204;
-    public static readonly TRANSLATE = 205;
-    public static readonly TRANSLATION = 206;
-    public static readonly TRIM = 207;
-    public static readonly TRUE = 208;
-    public static readonly UNION = 209;
-    public static readonly UNIQUE = 210;
-    public static readonly UNKNOWN = 211;
-    public static readonly UPDATE = 212;
-    public static readonly UPPER = 213;
-    public static readonly UPSERT = 214;
-    public static readonly USAGE = 215;
-    public static readonly USER = 216;
-    public static readonly USING = 217;
-    public static readonly VALUE = 218;
-    public static readonly VALUES = 219;
-    public static readonly VARCHAR = 220;
-    public static readonly VARYING = 221;
-    public static readonly VIEW = 222;
-    public static readonly WHEN = 223;
-    public static readonly WHENEVER = 224;
-    public static readonly WHERE = 225;
-    public static readonly WITH = 226;
-    public static readonly WORK = 227;
-    public static readonly WRITE = 228;
-    public static readonly ZONE = 229;
-    public static readonly LAG = 230;
-    public static readonly LEAD = 231;
-    public static readonly OVER = 232;
-    public static readonly PARTITION = 233;
-    public static readonly CAN_CAST = 234;
-    public static readonly CAN_LOSSLESS_CAST = 235;
-    public static readonly MISSING = 236;
-    public static readonly PIVOT = 237;
-    public static readonly UNPIVOT = 238;
-    public static readonly LIMIT = 239;
-    public static readonly OFFSET = 240;
-    public static readonly REMOVE = 241;
-    public static readonly INDEX = 242;
-    public static readonly LET = 243;
-    public static readonly CONFLICT = 244;
-    public static readonly DO = 245;
-    public static readonly RETURNING = 246;
-    public static readonly MODIFIED = 247;
-    public static readonly NEW = 248;
-    public static readonly OLD = 249;
-    public static readonly NOTHING = 250;
-    public static readonly TUPLE = 251;
-    public static readonly INTEGER2 = 252;
-    public static readonly INT2 = 253;
-    public static readonly INTEGER4 = 254;
-    public static readonly INT4 = 255;
-    public static readonly INTEGER8 = 256;
-    public static readonly INT8 = 257;
-    public static readonly BIGINT = 258;
-    public static readonly BOOL = 259;
-    public static readonly BOOLEAN = 260;
-    public static readonly STRING = 261;
-    public static readonly SYMBOL = 262;
-    public static readonly CLOB = 263;
-    public static readonly BLOB = 264;
-    public static readonly STRUCT = 265;
-    public static readonly LIST = 266;
-    public static readonly SEXP = 267;
-    public static readonly BAG = 268;
-    public static readonly CARET = 269;
-    public static readonly COMMA = 270;
-    public static readonly PLUS = 271;
-    public static readonly MINUS = 272;
-    public static readonly SLASH_FORWARD = 273;
-    public static readonly PERCENT = 274;
-    public static readonly AT_SIGN = 275;
-    public static readonly TILDE = 276;
-    public static readonly ASTERISK = 277;
-    public static readonly VERTBAR = 278;
-    public static readonly AMPERSAND = 279;
-    public static readonly BANG = 280;
-    public static readonly LT_EQ = 281;
-    public static readonly GT_EQ = 282;
-    public static readonly EQ = 283;
-    public static readonly NEQ = 284;
-    public static readonly CONCAT = 285;
-    public static readonly ANGLE_LEFT = 286;
-    public static readonly ANGLE_RIGHT = 287;
-    public static readonly ANGLE_DOUBLE_LEFT = 288;
-    public static readonly ANGLE_DOUBLE_RIGHT = 289;
-    public static readonly BRACKET_LEFT = 290;
-    public static readonly BRACKET_RIGHT = 291;
-    public static readonly BRACE_LEFT = 292;
-    public static readonly BRACE_RIGHT = 293;
-    public static readonly PAREN_LEFT = 294;
-    public static readonly PAREN_RIGHT = 295;
-    public static readonly COLON = 296;
-    public static readonly COLON_SEMI = 297;
-    public static readonly QUESTION_MARK = 298;
-    public static readonly PERIOD = 299;
-    public static readonly LITERAL_STRING = 300;
-    public static readonly LITERAL_INTEGER = 301;
-    public static readonly LITERAL_DECIMAL = 302;
-    public static readonly IDENTIFIER = 303;
-    public static readonly IDENTIFIER_QUOTED = 304;
-    public static readonly WS = 305;
-    public static readonly COMMENT_SINGLE = 306;
-    public static readonly COMMENT_BLOCK = 307;
-    public static readonly UNRECOGNIZED = 308;
-    public static readonly ION_CLOSURE = 309;
-    public static readonly BACKTICK = 310;
-    public static readonly ION = 1;
+    public static readonly ABSOLUTE = 1
+    public static readonly ACTION = 2
+    public static readonly ADD = 3
+    public static readonly ALL = 4
+    public static readonly ALLOCATE = 5
+    public static readonly ALTER = 6
+    public static readonly AND = 7
+    public static readonly ANY = 8
+    public static readonly ARE = 9
+    public static readonly AS = 10
+    public static readonly ASC = 11
+    public static readonly ASSERTION = 12
+    public static readonly AT = 13
+    public static readonly AUTHORIZATION = 14
+    public static readonly AVG = 15
+    public static readonly BEGIN = 16
+    public static readonly BETWEEN = 17
+    public static readonly BIT = 18
+    public static readonly BIT_LENGTH = 19
+    public static readonly BY = 20
+    public static readonly CASCADE = 21
+    public static readonly CASCADED = 22
+    public static readonly CASE = 23
+    public static readonly CAST = 24
+    public static readonly CATALOG = 25
+    public static readonly CHAR = 26
+    public static readonly CHARACTER = 27
+    public static readonly CHARACTER_LENGTH = 28
+    public static readonly CHAR_LENGTH = 29
+    public static readonly CHECK = 30
+    public static readonly CLOSE = 31
+    public static readonly COALESCE = 32
+    public static readonly COLLATE = 33
+    public static readonly COLLATION = 34
+    public static readonly COLUMN = 35
+    public static readonly COMMIT = 36
+    public static readonly CONNECT = 37
+    public static readonly CONNECTION = 38
+    public static readonly CONSTRAINT = 39
+    public static readonly CONSTRAINTS = 40
+    public static readonly CONTINUE = 41
+    public static readonly CONVERT = 42
+    public static readonly CORRESPONDING = 43
+    public static readonly COUNT = 44
+    public static readonly CREATE = 45
+    public static readonly CROSS = 46
+    public static readonly CURRENT = 47
+    public static readonly CURRENT_DATE = 48
+    public static readonly CURRENT_TIME = 49
+    public static readonly CURRENT_TIMESTAMP = 50
+    public static readonly CURRENT_USER = 51
+    public static readonly CURSOR = 52
+    public static readonly DATE = 53
+    public static readonly DEALLOCATE = 54
+    public static readonly DEC = 55
+    public static readonly DECIMAL = 56
+    public static readonly DECLARE = 57
+    public static readonly DEFAULT = 58
+    public static readonly DEFERRABLE = 59
+    public static readonly DEFERRED = 60
+    public static readonly DELETE = 61
+    public static readonly DESC = 62
+    public static readonly DESCRIBE = 63
+    public static readonly DESCRIPTOR = 64
+    public static readonly DIAGNOSTICS = 65
+    public static readonly DISCONNECT = 66
+    public static readonly DISTINCT = 67
+    public static readonly DOMAIN = 68
+    public static readonly DOUBLE = 69
+    public static readonly DROP = 70
+    public static readonly ELSE = 71
+    public static readonly END = 72
+    public static readonly END_EXEC = 73
+    public static readonly ESCAPE = 74
+    public static readonly EVERY = 75
+    public static readonly EXCEPT = 76
+    public static readonly EXCEPTION = 77
+    public static readonly EXCLUDE = 78
+    public static readonly EXCLUDED = 79
+    public static readonly EXEC = 80
+    public static readonly EXECUTE = 81
+    public static readonly EXISTS = 82
+    public static readonly EXPLAIN = 83
+    public static readonly EXTERNAL = 84
+    public static readonly EXTRACT = 85
+    public static readonly DATE_ADD = 86
+    public static readonly DATE_DIFF = 87
+    public static readonly FALSE = 88
+    public static readonly FETCH = 89
+    public static readonly FIRST = 90
+    public static readonly FLOAT = 91
+    public static readonly FOR = 92
+    public static readonly FOREIGN = 93
+    public static readonly FOUND = 94
+    public static readonly FROM = 95
+    public static readonly FULL = 96
+    public static readonly GET = 97
+    public static readonly GLOBAL = 98
+    public static readonly GO = 99
+    public static readonly GOTO = 100
+    public static readonly GRANT = 101
+    public static readonly GROUP = 102
+    public static readonly HAVING = 103
+    public static readonly IDENTITY = 104
+    public static readonly IMMEDIATE = 105
+    public static readonly IN = 106
+    public static readonly INDICATOR = 107
+    public static readonly INITIALLY = 108
+    public static readonly INNER = 109
+    public static readonly INPUT = 110
+    public static readonly INSENSITIVE = 111
+    public static readonly INSERT = 112
+    public static readonly INT = 113
+    public static readonly INTEGER = 114
+    public static readonly INTERSECT = 115
+    public static readonly INTERVAL = 116
+    public static readonly INTO = 117
+    public static readonly IS = 118
+    public static readonly ISOLATION = 119
+    public static readonly JOIN = 120
+    public static readonly KEY = 121
+    public static readonly LANGUAGE = 122
+    public static readonly LAST = 123
+    public static readonly LATERAL = 124
+    public static readonly LEFT = 125
+    public static readonly LEVEL = 126
+    public static readonly LIKE = 127
+    public static readonly LOCAL = 128
+    public static readonly LOWER = 129
+    public static readonly MATCH = 130
+    public static readonly MAX = 131
+    public static readonly MIN = 132
+    public static readonly MODULE = 133
+    public static readonly NAMES = 134
+    public static readonly NATIONAL = 135
+    public static readonly NATURAL = 136
+    public static readonly NCHAR = 137
+    public static readonly NEXT = 138
+    public static readonly NO = 139
+    public static readonly NOT = 140
+    public static readonly NULL = 141
+    public static readonly NULLS = 142
+    public static readonly NULLIF = 143
+    public static readonly NUMERIC = 144
+    public static readonly OCTET_LENGTH = 145
+    public static readonly OF = 146
+    public static readonly ON = 147
+    public static readonly ONLY = 148
+    public static readonly OPEN = 149
+    public static readonly OPTION = 150
+    public static readonly OR = 151
+    public static readonly ORDER = 152
+    public static readonly OUTER = 153
+    public static readonly OUTPUT = 154
+    public static readonly OVERLAPS = 155
+    public static readonly OVERLAY = 156
+    public static readonly PAD = 157
+    public static readonly PARTIAL = 158
+    public static readonly PLACING = 159
+    public static readonly POSITION = 160
+    public static readonly PRECISION = 161
+    public static readonly PREPARE = 162
+    public static readonly PRESERVE = 163
+    public static readonly PRIMARY = 164
+    public static readonly PRIOR = 165
+    public static readonly PRIVILEGES = 166
+    public static readonly PROCEDURE = 167
+    public static readonly PUBLIC = 168
+    public static readonly READ = 169
+    public static readonly REAL = 170
+    public static readonly REFERENCES = 171
+    public static readonly RELATIVE = 172
+    public static readonly REPLACE = 173
+    public static readonly RESTRICT = 174
+    public static readonly REVOKE = 175
+    public static readonly RIGHT = 176
+    public static readonly ROLLBACK = 177
+    public static readonly ROWS = 178
+    public static readonly SCHEMA = 179
+    public static readonly SCROLL = 180
+    public static readonly SECTION = 181
+    public static readonly SELECT = 182
+    public static readonly SESSION = 183
+    public static readonly SESSION_USER = 184
+    public static readonly SET = 185
+    public static readonly SHORTEST = 186
+    public static readonly SIZE = 187
+    public static readonly SMALLINT = 188
+    public static readonly SOME = 189
+    public static readonly SPACE = 190
+    public static readonly SQL = 191
+    public static readonly SQLCODE = 192
+    public static readonly SQLERROR = 193
+    public static readonly SQLSTATE = 194
+    public static readonly SUBSTRING = 195
+    public static readonly SUM = 196
+    public static readonly SYSTEM_USER = 197
+    public static readonly TABLE = 198
+    public static readonly TEMPORARY = 199
+    public static readonly THEN = 200
+    public static readonly TIME = 201
+    public static readonly TIMESTAMP = 202
+    public static readonly TO = 203
+    public static readonly TRANSACTION = 204
+    public static readonly TRANSLATE = 205
+    public static readonly TRANSLATION = 206
+    public static readonly TRIM = 207
+    public static readonly TRUE = 208
+    public static readonly UNION = 209
+    public static readonly UNIQUE = 210
+    public static readonly UNKNOWN = 211
+    public static readonly UPDATE = 212
+    public static readonly UPPER = 213
+    public static readonly UPSERT = 214
+    public static readonly USAGE = 215
+    public static readonly USER = 216
+    public static readonly USING = 217
+    public static readonly VALUE = 218
+    public static readonly VALUES = 219
+    public static readonly VARCHAR = 220
+    public static readonly VARYING = 221
+    public static readonly VIEW = 222
+    public static readonly WHEN = 223
+    public static readonly WHENEVER = 224
+    public static readonly WHERE = 225
+    public static readonly WITH = 226
+    public static readonly WORK = 227
+    public static readonly WRITE = 228
+    public static readonly ZONE = 229
+    public static readonly LAG = 230
+    public static readonly LEAD = 231
+    public static readonly OVER = 232
+    public static readonly PARTITION = 233
+    public static readonly CAN_CAST = 234
+    public static readonly CAN_LOSSLESS_CAST = 235
+    public static readonly MISSING = 236
+    public static readonly PIVOT = 237
+    public static readonly UNPIVOT = 238
+    public static readonly LIMIT = 239
+    public static readonly OFFSET = 240
+    public static readonly REMOVE = 241
+    public static readonly INDEX = 242
+    public static readonly LET = 243
+    public static readonly CONFLICT = 244
+    public static readonly DO = 245
+    public static readonly RETURNING = 246
+    public static readonly MODIFIED = 247
+    public static readonly NEW = 248
+    public static readonly OLD = 249
+    public static readonly NOTHING = 250
+    public static readonly TUPLE = 251
+    public static readonly INTEGER2 = 252
+    public static readonly INT2 = 253
+    public static readonly INTEGER4 = 254
+    public static readonly INT4 = 255
+    public static readonly INTEGER8 = 256
+    public static readonly INT8 = 257
+    public static readonly BIGINT = 258
+    public static readonly BOOL = 259
+    public static readonly BOOLEAN = 260
+    public static readonly STRING = 261
+    public static readonly SYMBOL = 262
+    public static readonly CLOB = 263
+    public static readonly BLOB = 264
+    public static readonly STRUCT = 265
+    public static readonly LIST = 266
+    public static readonly SEXP = 267
+    public static readonly BAG = 268
+    public static readonly CARET = 269
+    public static readonly COMMA = 270
+    public static readonly PLUS = 271
+    public static readonly MINUS = 272
+    public static readonly SLASH_FORWARD = 273
+    public static readonly PERCENT = 274
+    public static readonly AT_SIGN = 275
+    public static readonly TILDE = 276
+    public static readonly ASTERISK = 277
+    public static readonly VERTBAR = 278
+    public static readonly AMPERSAND = 279
+    public static readonly BANG = 280
+    public static readonly LT_EQ = 281
+    public static readonly GT_EQ = 282
+    public static readonly EQ = 283
+    public static readonly NEQ = 284
+    public static readonly CONCAT = 285
+    public static readonly ANGLE_LEFT = 286
+    public static readonly ANGLE_RIGHT = 287
+    public static readonly ANGLE_DOUBLE_LEFT = 288
+    public static readonly ANGLE_DOUBLE_RIGHT = 289
+    public static readonly BRACKET_LEFT = 290
+    public static readonly BRACKET_RIGHT = 291
+    public static readonly BRACE_LEFT = 292
+    public static readonly BRACE_RIGHT = 293
+    public static readonly PAREN_LEFT = 294
+    public static readonly PAREN_RIGHT = 295
+    public static readonly COLON = 296
+    public static readonly COLON_SEMI = 297
+    public static readonly QUESTION_MARK = 298
+    public static readonly PERIOD = 299
+    public static readonly LITERAL_STRING = 300
+    public static readonly LITERAL_INTEGER = 301
+    public static readonly LITERAL_DECIMAL = 302
+    public static readonly IDENTIFIER = 303
+    public static readonly IDENTIFIER_QUOTED = 304
+    public static readonly WS = 305
+    public static readonly COMMENT_SINGLE = 306
+    public static readonly COMMENT_BLOCK = 307
+    public static readonly UNRECOGNIZED = 308
+    public static readonly ION_CLOSURE = 309
+    public static readonly BACKTICK = 310
+    public static readonly ION = 1
 
     public static readonly channelNames = [
         "DEFAULT_TOKEN_CHANNEL", "HIDDEN"
-    ];
+    ]
 
     public static readonly literalNames = [
         null, "'ABSOLUTE'", "'ACTION'", "'ADD'", "'ALL'", "'ALLOCATE'", 
@@ -373,7 +372,7 @@ export class PartiQLTokens extends antlr.Lexer {
         "'~'", "'*'", "'|'", "'&'", "'!'", "'<='", "'>='", "'='", null, 
         "'||'", "'<'", "'>'", "'<<'", "'>>'", "'['", "']'", "'{'", "'}'", 
         "'('", "')'", "':'", "';'", "'?'", "'.'"
-    ];
+    ]
 
     public static readonly symbolicNames = [
         null, "ABSOLUTE", "ACTION", "ADD", "ALL", "ALLOCATE", "ALTER", "AND", 
@@ -424,11 +423,11 @@ export class PartiQLTokens extends antlr.Lexer {
         "QUESTION_MARK", "PERIOD", "LITERAL_STRING", "LITERAL_INTEGER", 
         "LITERAL_DECIMAL", "IDENTIFIER", "IDENTIFIER_QUOTED", "WS", "COMMENT_SINGLE", 
         "COMMENT_BLOCK", "UNRECOGNIZED", "ION_CLOSURE", "BACKTICK"
-    ];
+    ]
 
     public static readonly modeNames = [
         "DEFAULT_MODE", "ION",
-    ];
+    ]
 
     public static readonly ruleNames = [
         "ABSOLUTE", "ACTION", "ADD", "ALL", "ALLOCATE", "ALTER", "AND", 
@@ -487,25 +486,25 @@ export class PartiQLTokens extends antlr.Lexer {
         "BASE_64_PAD1", "BASE_64_PAD2", "BASE_64_CHAR", "SYMBOL_TEXT", "SYMBOL_TEXT_ALLOWED", 
         "COMMON_ESCAPE", "COMMON_ESCAPE_CODE", "HEX_ESCAPE", "UNICODE_ESCAPE", 
         "HEX_DIGIT_QUARTET", "HEX_DIGIT", "WS_NOT_NL", "SYMBOL_QUOTE",
-    ];
+    ]
 
 
     public constructor(input: antlr.CharStream) {
-        super(input);
-        this.interpreter = new antlr.LexerATNSimulator(this, PartiQLTokens._ATN, PartiQLTokens.decisionsToDFA, new antlr.PredictionContextCache());
+        super(input)
+        this.interpreter = new antlr.LexerATNSimulator(this, PartiQLTokens._ATN, PartiQLTokens.decisionsToDFA, new antlr.PredictionContextCache())
     }
 
-    public get grammarFileName(): string { return "PartiQLTokens.g4"; }
+    public get grammarFileName(): string { return "PartiQLTokens.g4" }
 
-    public get literalNames(): (string | null)[] { return PartiQLTokens.literalNames; }
-    public get symbolicNames(): (string | null)[] { return PartiQLTokens.symbolicNames; }
-    public get ruleNames(): string[] { return PartiQLTokens.ruleNames; }
+    public get literalNames(): (string | null)[] { return PartiQLTokens.literalNames }
+    public get symbolicNames(): (string | null)[] { return PartiQLTokens.symbolicNames }
+    public get ruleNames(): string[] { return PartiQLTokens.ruleNames }
 
-    public get serializedATN(): number[] { return PartiQLTokens._serializedATN; }
+    public get serializedATN(): number[] { return PartiQLTokens._serializedATN }
 
-    public get channelNames(): string[] { return PartiQLTokens.channelNames; }
+    public get channelNames(): string[] { return PartiQLTokens.channelNames }
 
-    public get modeNames(): string[] { return PartiQLTokens.modeNames; }
+    public get modeNames(): string[] { return PartiQLTokens.modeNames }
 
     public static readonly _serializedATN: number[] = [
         4,0,310,3091,6,-1,6,-1,2,0,7,0,2,1,7,1,2,2,7,2,2,3,7,3,2,4,7,4,2,
@@ -1671,23 +1670,23 @@ export class PartiQLTokens extends antlr.Lexer {
         2927,2929,2934,2936,2941,2945,2950,2960,2966,2973,2980,2989,2996,
         3003,3012,3019,3026,3035,3037,3042,3049,3078,4,3,0,0,5,1,0,0,1,0,
         4,0,0
-    ];
+    ]
 
-    private static __ATN: antlr.ATN;
+    private static __ATN: antlr.ATN
     public static get _ATN(): antlr.ATN {
         if (!PartiQLTokens.__ATN) {
-            PartiQLTokens.__ATN = new antlr.ATNDeserializer().deserialize(PartiQLTokens._serializedATN);
+            PartiQLTokens.__ATN = new antlr.ATNDeserializer().deserialize(PartiQLTokens._serializedATN)
         }
 
-        return PartiQLTokens.__ATN;
+        return PartiQLTokens.__ATN
     }
 
 
-    private static readonly vocabulary = new antlr.Vocabulary(PartiQLTokens.literalNames, PartiQLTokens.symbolicNames, []);
+    private static readonly vocabulary = new antlr.Vocabulary(PartiQLTokens.literalNames, PartiQLTokens.symbolicNames, [])
 
     public override get vocabulary(): antlr.Vocabulary {
-        return PartiQLTokens.vocabulary;
+        return PartiQLTokens.vocabulary
     }
 
-    private static readonly decisionsToDFA = PartiQLTokens._ATN.decisionToState.map( (ds: antlr.DecisionState, index: number) => new antlr.DFA(ds, index) );
+    private static readonly decisionsToDFA = PartiQLTokens._ATN.decisionToState.map( (ds: antlr.DecisionState, index: number) => new antlr.DFA(ds, index) )
 }
