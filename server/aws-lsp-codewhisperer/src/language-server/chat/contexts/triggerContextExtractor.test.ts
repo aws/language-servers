@@ -11,6 +11,7 @@ describe('DocumentContext', () => {
     console.log('test')
 }`
     const mockTSDocument = TextDocument.create('file://test.ts', 'typescript', 1, mockTypescriptCodeBlock)
+    const mockTabId = 'tab-1'
 
     beforeEach(() => {
         features = new TestFeatures()
@@ -51,7 +52,7 @@ describe('DocumentContext', () => {
                 },
             }
 
-            const result = await documentContextExtractor.extractDocumentContext(mockTSDocument, {
+            const result = await documentContextExtractor.extractDocumentContext(mockTabId, mockTSDocument, {
                 // highlighting "log"
                 range: {
                     start: {
@@ -91,7 +92,7 @@ describe('DocumentContext', () => {
                 },
             }
 
-            const result = await documentContextExtractor.extractDocumentContext(mockTSDocument, {
+            const result = await documentContextExtractor.extractDocumentContext(mockTabId, mockTSDocument, {
                 // highlighting "o" in "log"
                 range: {
                     start: {
@@ -121,7 +122,7 @@ describe('DocumentContext', () => {
                 cursorState: undefined,
             }
 
-            const result = await documentContextExtractor.extractDocumentContext(mockTSDocument, {
+            const result = await documentContextExtractor.extractDocumentContext(mockTabId, mockTSDocument, {
                 range: {
                     start: {
                         line: 1,
@@ -160,7 +161,7 @@ describe('DocumentContext', () => {
                 },
             },
         }
-        const result = await documentContextExtractor.extractDocumentContext(mockDocument, {
+        const result = await documentContextExtractor.extractDocumentContext(mockTabId, mockDocument, {
             range: {
                 start: { line: 1, character: 4 },
                 end: { line: 1, character: 23 },
