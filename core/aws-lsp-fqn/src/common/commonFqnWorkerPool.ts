@@ -1,6 +1,6 @@
 import { pool, Pool } from 'workerpool'
 import { DEFAULT_MAX_QUEUE_SIZE, DEFAULT_MAX_WORKERS, DEFAULT_TIMEOUT, FQN_WORKER_ID } from './defaults'
-import { ExtractorResult, FqnExtractorInput, IFqnWorkerPool, Logger, WorkerPoolConfig } from './types'
+import { ExtractorResult, FqnExtractorInput, IFqnWorkerPool, Logger, WorkerPoolConfig, Cancellable } from './types'
 
 export class CommonFqnWorkerPool implements IFqnWorkerPool {
     #workerPool: Pool
@@ -17,25 +17,32 @@ export class CommonFqnWorkerPool implements IFqnWorkerPool {
         })
     }
 
-    public async exec(input: FqnExtractorInput): Promise<ExtractorResult> {
+    public exec(input: FqnExtractorInput): Cancellable<Promise<ExtractorResult>> {
         this.#logger?.log(`Extracting fully qualified names for ${input.languageId}`)
 
-        return this.#workerPool
-            .exec(FQN_WORKER_ID, [input])
-            .timeout(this.#timeout)
-            .then(data => data as ExtractorResult)
-            .catch(error => {
-                const errorMessage = `Encountered error while extracting fully qualified names: ${
-                    error instanceof Error ? error.message : 'Unknown'
-                }`
+        const execPromise = this.#workerPool.exec(FQN_WORKER_ID, [input]).timeout(this.#timeout)
 
-                this.#logger?.error(errorMessage)
+        return [
+            // have to wrap this in promise since exec promise is not a true promise
+            new Promise<ExtractorResult>(resolve => {
+                execPromise
+                    .then(data => resolve(data as ExtractorResult))
+                    .catch(error => {
+                        const errorMessage = `Encountered error while extracting fully qualified names: ${
+                            error instanceof Error ? error.message : 'Unknown'
+                        }`
 
-                return {
-                    success: false,
-                    error: errorMessage,
-                }
-            })
+                        this.#logger?.error(errorMessage)
+
+                        // using result pattern, so we will resolve with success: false
+                        return resolve({
+                            success: false,
+                            error: errorMessage,
+                        })
+                    })
+            }),
+            () => execPromise.cancel(),
+        ]
     }
 
     public dispose() {

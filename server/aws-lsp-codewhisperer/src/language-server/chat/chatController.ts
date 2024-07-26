@@ -28,7 +28,7 @@ import { ChatTelemetryController } from './telemetry/chatTelemetryController'
 import { QuickAction } from './quickActions'
 import { getErrorMessage, isAwsError, isNullish, isObject } from '../utils'
 import { Metric } from '../telemetry/metric'
-import { QChatTriggerContext, TriggerContext } from './contexts/triggerContext'
+import { TriggerContext, TriggerContextExtractor } from './contexts/triggerContextExtractor'
 import { HELP_MESSAGE } from './constants'
 
 type ChatHandlers = LspHandlers<Chat>
@@ -37,12 +37,12 @@ export class ChatController implements ChatHandlers {
     #features: Features
     #chatSessionManagementService: ChatSessionManagementService
     #telemetryController: ChatTelemetryController
-    #triggerContext: QChatTriggerContext
+    #triggerContext: TriggerContextExtractor
 
     constructor(chatSessionManagementService: ChatSessionManagementService, features: Features) {
         this.#features = features
         this.#chatSessionManagementService = chatSessionManagementService
-        this.#triggerContext = new QChatTriggerContext(features.workspace, features.logging)
+        this.#triggerContext = new TriggerContextExtractor(features.workspace, { logger: features.logging })
         this.#telemetryController = new ChatTelemetryController(features)
     }
 
@@ -67,108 +67,113 @@ export class ChatController implements ChatHandlers {
             return new ResponseError<ChatResult>(ErrorCodes.InternalError, sessionResult.error)
         }
 
-        const metric = new Metric<CombinedConversationEvent>({
-            cwsprChatConversationType: 'Chat',
-        })
+        return this.#withLspCancellation<ChatResult>(params.tabId, token, async checkIsCancelled => {
+            const metric = new Metric<CombinedConversationEvent>({
+                cwsprChatConversationType: 'Chat',
+            })
 
-        const triggerContext = await this.#getTriggerContext(params, metric)
-        const isNewConversation = !session.sessionId
+            const triggerContext = await this.#getTriggerContext(params, metric)
 
-        token.onCancellationRequested(() => {
-            this.#log('cancellation requested')
-            session.abortRequest()
-        })
-
-        let response: GenerateAssistantResponseCommandOutput
-
-        const conversationIdentifier = session?.sessionId ?? 'New session'
-        try {
-            this.#log('Request for conversation id:', conversationIdentifier)
-            const requestInput = this.#triggerContext.getChatParamsFromTrigger(params, triggerContext)
-
-            metric.recordStart()
-            response = await session.generateAssistantResponse(requestInput)
-            this.#log('Response for conversationId:', conversationIdentifier, JSON.stringify(response.$metadata))
-        } catch (err) {
-            if (isAwsError(err) || (isObject(err) && 'statusCode' in err && typeof err.statusCode === 'number')) {
-                metric.setDimension('cwsprChatRepsonseCode', err.statusCode ?? 400)
-                this.#telemetryController.emitMessageResponseError(params.tabId, metric.metric)
+            // return empty result since the other promise will have been resolved
+            if (checkIsCancelled()) {
+                return {}
             }
 
-            const authFollowType = getAuthFollowUpType(err)
+            const isNewConversation = !session.sessionId
 
-            if (authFollowType) {
-                this.#log(`Q auth error: ${getErrorMessage(err)}`)
+            let response: GenerateAssistantResponseCommandOutput
 
-                return createAuthFollowUpResult(authFollowType)
+            const conversationIdentifier = session?.sessionId ?? 'New session'
+            try {
+                this.#log('Request for conversation id:', conversationIdentifier)
+                const requestInput = TriggerContextExtractor.getChatParamsFromTrigger(params, triggerContext)
+
+                metric.recordStart()
+                response = await session.generateAssistantResponse(requestInput)
+                this.#log('Response for conversationId:', conversationIdentifier, JSON.stringify(response.$metadata))
+            } catch (err) {
+                if (isAwsError(err) || (isObject(err) && 'statusCode' in err && typeof err.statusCode === 'number')) {
+                    metric.setDimension('cwsprChatRepsonseCode', err.statusCode ?? 400)
+                    this.#telemetryController.emitMessageResponseError(params.tabId, metric.metric)
+                }
+
+                const authFollowType = getAuthFollowUpType(err)
+
+                if (authFollowType) {
+                    this.#log(`Q auth error: ${getErrorMessage(err)}`)
+
+                    return createAuthFollowUpResult(authFollowType)
+                }
+
+                this.#log(`Q api request error ${err instanceof Error ? err.message : 'unknown'}`)
+                return new ResponseError<ChatResult>(
+                    LSPErrorCodes.RequestFailed,
+                    err instanceof Error ? err.message : 'Unknown request error'
+                )
             }
 
-            this.#log(`Q api request error ${err instanceof Error ? err.message : 'unknown'}`)
-            return new ResponseError<ChatResult>(
-                LSPErrorCodes.RequestFailed,
-                err instanceof Error ? err.message : 'Unknown request error'
-            )
-        }
+            if (response.conversationId) {
+                this.#telemetryController.setConversationId(params.tabId, response.conversationId)
 
-        if (response.conversationId) {
-            this.#telemetryController.setConversationId(params.tabId, response.conversationId)
+                if (isNewConversation) {
+                    this.#telemetryController.emitStartConversationMetric(params.tabId, metric.metric)
+                }
+            }
 
-            if (isNewConversation) {
+            // return empty result since the other promise will have been resolved
+            if (checkIsCancelled()) {
+                return {}
+            }
+
+            try {
+                const result = await this.#processAssistantResponse(
+                    response,
+                    metric.mergeWith({
+                        cwsprChatResponseCode: response.$metadata.httpStatusCode,
+                        cwsprChatMessageId: response.$metadata.requestId,
+                    }),
+                    params.partialResultToken
+                )
+
+                this.#telemetryController.emitAddMessageMetric(params.tabId, metric.metric)
+
                 this.#telemetryController.updateTriggerInfo(params.tabId, {
-                    startTrigger: {
-                        hasUserSnippet: metric.metric.cwsprChatHasCodeSnippet ?? false,
-                        triggerType: triggerContext.triggerType,
+                    lastMessageTrigger: {
+                        ...triggerContext,
+                        messageId: response.$metadata.requestId,
+                        followUpActions: new Set(
+                            result.data?.followUp?.options
+                                ?.map(option => option.prompt ?? '')
+                                .filter(prompt => prompt.length > 0)
+                        ),
                     },
                 })
 
-                this.#telemetryController.emitStartConversationMetric(params.tabId, metric.metric)
+                return result.success
+                    ? result.data
+                    : new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, result.error)
+            } catch (err) {
+                this.#log(
+                    'Error encountered during response streaming:',
+                    err instanceof Error ? err.message : 'unknown'
+                )
+
+                return new ResponseError<ChatResult>(
+                    LSPErrorCodes.RequestFailed,
+                    err instanceof Error ? err.message : 'Unknown error occured during response stream'
+                )
             }
-        }
-
-        try {
-            const result = await this.#processAssistantResponse(
-                response,
-                metric.mergeWith({
-                    cwsprChatResponseCode: response.$metadata.httpStatusCode,
-                    cwsprChatMessageId: response.$metadata.requestId,
-                }),
-                params.partialResultToken
-            )
-
-            this.#telemetryController.emitAddMessageMetric(params.tabId, metric.metric)
-
-            this.#telemetryController.updateTriggerInfo(params.tabId, {
-                lastMessageTrigger: {
-                    ...triggerContext,
-                    messageId: response.$metadata.requestId,
-                    followUpActions: new Set(
-                        result.data?.followUp?.options
-                            ?.map(option => option.prompt ?? '')
-                            .filter(prompt => prompt.length > 0)
-                    ),
-                },
-            })
-
-            return result.success
-                ? result.data
-                : new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, result.error)
-        } catch (err) {
-            this.#log('Error encountered during response streaming:', err instanceof Error ? err.message : 'unknown')
-
-            return new ResponseError<ChatResult>(
-                LSPErrorCodes.RequestFailed,
-                err instanceof Error ? err.message : 'Unknown error occured during response stream'
-            )
-        }
+        })
     }
 
     onCodeInsertToCursorPosition() {}
     onCopyCodeToClipboard() {}
 
     onEndChat(params: EndChatParams, _token: CancellationToken): boolean {
-        const { success } = this.#chatSessionManagementService.deleteSession(params.tabId)
+        this.#triggerContext.cancel(params.tabId)
+        this.#chatSessionManagementService.getSession(params.tabId).data?.abortRequest()
 
-        return success
+        return true
     }
 
     onFollowUpClicked() {}
@@ -281,7 +286,7 @@ export class ChatController implements ChatHandlers {
 
             triggerContext = lastMessageTrigger
         } else {
-            triggerContext = await this.#triggerContext.getNewTriggerContext(params)
+            triggerContext = await this.#triggerContext.getTriggerContext(params)
             triggerContext.triggerType = this.#telemetryController.getCurrentTrigger(params.tabId) ?? 'click'
         }
 
@@ -332,5 +337,29 @@ export class ChatController implements ChatHandlers {
 
     #log(...messages: string[]) {
         this.#features.logging.log(messages.join(' '))
+    }
+
+    #withLspCancellation<TReturnValue>(
+        tabId: string,
+        token: CancellationToken,
+        action: (checkIsCancelled: () => boolean) => Promise<TReturnValue | ResponseError<TReturnValue>>
+    ): Promise<TReturnValue | ResponseError<TReturnValue>> {
+        let isCancelled = false
+
+        return Promise.race([
+            new Promise<ResponseError<TReturnValue>>(resolve => {
+                token.onCancellationRequested(() => {
+                    this.#log('cancellation requested')
+
+                    this.#triggerContext.cancel(tabId)
+                    this.#chatSessionManagementService.getSession(tabId).data?.abortRequest()
+                    isCancelled = true
+
+                    resolve(new ResponseError<TReturnValue>(LSPErrorCodes.RequestCancelled, 'Request cancelled'))
+                })
+            }),
+            // .race doesn't stop the "losing" promise from executing so we need to provide this boolean for early termination
+            action(() => isCancelled),
+        ])
     }
 }

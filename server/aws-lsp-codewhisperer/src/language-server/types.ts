@@ -20,3 +20,6 @@ export type LspHandlers<THandlerMap> = {
 export type KeysMatching<TMap extends object, TCriteria> = {
     [TKey in keyof TMap]: TMap[TKey] extends TCriteria ? TKey : never
 }[keyof TMap]
+
+export type Cancel = () => void
+export type Cancellable<T> = [T, Cancel]

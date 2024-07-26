@@ -1,7 +1,7 @@
 import { DocumentSymbol, SymbolType } from '@amzn/codewhisperer-streaming'
 import { ExtractorResult, FqnSupportedLanguages, FqnWorkerPool, FullyQualifiedName, IFqnWorkerPool } from '@aws/lsp-fqn'
 import { Range, TextDocument } from 'vscode-languageserver-textdocument'
-import { Features } from '../../types'
+import { Cancellable, Features } from '../../types'
 
 export interface DocumentFqnExtractorConfig {
     nameMinLength?: number
@@ -54,70 +54,90 @@ export class DocumentFqnExtractor {
         this.#workerPool.dispose()
     }
 
-    public async extractDocumentSymbols(
+    public extractDocumentSymbols(
         document: TextDocument,
         range: Range,
         languageId = document.languageId
-    ): Promise<DocumentSymbol[]> {
+    ): Cancellable<Promise<DocumentSymbol[]>> {
         return DocumentFqnExtractor.FQN_SUPPORTED_LANGUAGE_SET.has(languageId)
             ? this.#extractSymbols(document, range, languageId as FqnSupportedLanguages)
-            : []
+            : [Promise.resolve([]), () => {}]
     }
 
-    async #extractSymbols(document: TextDocument, range: Range, languageId: FqnSupportedLanguages) {
-        const names = await this.#extractNames(document, range, languageId)
-
-        const documentSymbols: DocumentSymbol[] = []
-
-        for (const name of names) {
-            if (documentSymbols.length >= this.#maxSymbols) {
-                break
-            }
-
-            const sourceSymbolString = name.source.join('.')
-            const symbolFqn = {
-                name: name.symbol.join('.') ?? '',
-                type: SymbolType.USAGE,
-                source: sourceSymbolString ? sourceSymbolString : undefined,
-            }
-
-            if (
-                symbolFqn.name.length >= this.#nameMinLength &&
-                symbolFqn.name.length < this.#nameMaxLength &&
-                (symbolFqn.source === undefined ||
-                    (symbolFqn.source.length >= this.#nameMinLength && symbolFqn.source.length < this.#nameMaxLength))
-            ) {
-                documentSymbols.push(symbolFqn)
-            }
-        }
-
-        return documentSymbols
-    }
-
-    async #extractNames(
+    #extractSymbols(
         document: TextDocument,
         range: Range,
         languageId: FqnSupportedLanguages
-    ): Promise<FullyQualifiedName[]> {
-        const result = await this.#findNamesInRange(document.getText(), range, languageId)
+    ): Cancellable<Promise<DocumentSymbol[]>> {
+        const [extractPromise, cancel] = this.#extractNames(document, range, languageId)
 
-        if (!result.success || !result.data.fullyQualified) {
-            return []
-        }
+        return [
+            extractPromise.then(names => {
+                const documentSymbols: DocumentSymbol[] = []
 
-        const dedupedUsedFullyQualifiedNames: { [key: string]: FullyQualifiedName } = Object.fromEntries(
-            result.data.fullyQualified.usedSymbols.map((name: FullyQualifiedName) => [
-                JSON.stringify([name.source, name.symbol]),
-                { source: name.source, symbol: name.symbol },
-            ])
-        )
+                for (const name of names) {
+                    if (documentSymbols.length >= this.#maxSymbols) {
+                        break
+                    }
 
-        return Object.values(dedupedUsedFullyQualifiedNames).sort(
-            (name, other) => name.source.length + name.symbol.length - (other.source.length + other.symbol.length)
-        )
+                    const sourceSymbolString = name.source.join('.')
+                    const symbolFqn = {
+                        name: name.symbol.join('.') ?? '',
+                        type: SymbolType.USAGE,
+                        source: sourceSymbolString ? sourceSymbolString : undefined,
+                    }
+
+                    if (
+                        symbolFqn.name.length >= this.#nameMinLength &&
+                        symbolFqn.name.length < this.#nameMaxLength &&
+                        (symbolFqn.source === undefined ||
+                            (symbolFqn.source.length >= this.#nameMinLength &&
+                                symbolFqn.source.length < this.#nameMaxLength))
+                    ) {
+                        documentSymbols.push(symbolFqn)
+                    }
+                }
+
+                return documentSymbols
+            }),
+            cancel,
+        ]
     }
 
-    #findNamesInRange(fileText: string, selection: Range, languageId: FqnSupportedLanguages): Promise<ExtractorResult> {
+    #extractNames(
+        document: TextDocument,
+        range: Range,
+        languageId: FqnSupportedLanguages
+    ): Cancellable<Promise<FullyQualifiedName[]>> {
+        const [extractPromise, cancel] = this.#findNamesInRange(document.getText(), range, languageId)
+
+        return [
+            extractPromise.then(result => {
+                if (!result.success || !result.data.fullyQualified) {
+                    return []
+                }
+
+                const dedupedUsedFullyQualifiedNames: { [key: string]: FullyQualifiedName } = Object.fromEntries(
+                    result.data.fullyQualified.usedSymbols.map((name: FullyQualifiedName) => [
+                        JSON.stringify([name.source, name.symbol]),
+                        { source: name.source, symbol: name.symbol },
+                    ])
+                )
+
+                return Object.values(dedupedUsedFullyQualifiedNames).sort(
+                    (name, other) =>
+                        name.source.length + name.symbol.length - (other.source.length + other.symbol.length)
+                )
+            }),
+            cancel,
+        ]
+    }
+
+    #findNamesInRange(
+        fileText: string,
+        selection: Range,
+        languageId: FqnSupportedLanguages
+    ): Cancellable<Promise<ExtractorResult>> {
         return this.#workerPool.exec({
             /**
              * [\ue000-\uf8ff]: Private Use Area in Unicode
