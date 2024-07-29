@@ -50,20 +50,26 @@ function initializePartiQLParser(content: string) {
 
 function symbolAtCaretPosition(parseTree: TerminalNode, caretPosition: { line: number; character: number }) {
     const start = parseTree.symbol.column
-    const stop = parseTree.symbol.column + (parseTree.symbol.text?.length ?? 0)
+    const stop = start + (parseTree.symbol.text?.length ?? 0)
+
+    console.log(
+        `Checking symbol: ${parseTree.symbol.text}, Line: ${parseTree.symbol.line}, Start: ${start}, Stop: ${stop}`
+    )
+    console.log(`Caret POsition: Line: ${caretPosition.line + 1}, character: ${caretPosition.character}`)
+
     return (
-        parseTree.symbol.line == caretPosition.line + 1 && 
+        parseTree.symbol.line == caretPosition.line + 1 &&
         start <= caretPosition.character &&
         stop > caretPosition.character
     )
 }
-
 
 function computeTokenIndexOfTerminalNode(
     parseTree: TerminalNode,
     caretPosition: { line: number; character: number }
 ): number | undefined {
     if (symbolAtCaretPosition(parseTree, caretPosition)) {
+        console.log(`Token index found: ${parseTree.symbol.tokenIndex} for symbol: ${parseTree.symbol.text}`)
         return parseTree.symbol.tokenIndex
     } else {
         return undefined
@@ -77,8 +83,10 @@ function computeTokenIndexOfChildNode(
     for (let i = 0; i < parseTree.getChildCount(); i++) {
         const child = parseTree.getChild(i)
         if (child != null) {
+            console.log(`Visiting child node at index: ${i}`)
             const index = computeTokenIndex(child, caretPosition)
             if (index !== undefined) {
+                console.log(`Index found in child: ${index}`)
                 return index
             }
         }
@@ -90,6 +98,7 @@ function computeTokenIndex(
     parseTree: ParseTree,
     caretPosition: { line: number; character: number }
 ): number | undefined {
+    console.log(`Current parseTree node type: ${parseTree.constructor.name}`)
     if (parseTree instanceof TerminalNode) {
         return computeTokenIndexOfTerminalNode(parseTree, caretPosition)
     } else {
@@ -114,10 +123,8 @@ function getCandidates(parser: PartiQLParser, index: number) {
     return core.collectCandidates(index)
 }
 
-export function getSuggestions(
-    content: string,
-    position: { line: number; character: number }
-): CompletionList | null {
+export function getSuggestions(content: string, position: { line: number; character: number }): CompletionList | null {
+    console.log(`Getting suggestions for content: ${content}, position: ${position.line + 1}:${position.character}`)
     const parser = initializePartiQLParser(content)
     const tokenIndex = getTokenIndexFromParseTree(parser, position)
     const candidates = getCandidates(parser, tokenIndex)
