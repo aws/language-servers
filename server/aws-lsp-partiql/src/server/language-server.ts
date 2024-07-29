@@ -9,6 +9,8 @@ import {
     Hover,
     SignatureHelpParams,
     SignatureHelp,
+    CompletionParams,
+    CompletionList,
     type DidChangeTextDocumentParams,
     type DidOpenTextDocumentParams,
     type Server,
@@ -36,6 +38,9 @@ export const PartiQLServerFactory =
                     },
                     signatureHelpProvider: {
                         triggerCharacters: ['('],
+                    },
+                    completionProvider: {
+                        resolveProvider: false,
                     },
                 },
             }
@@ -117,6 +122,21 @@ export const PartiQLServerFactory =
             return signatureHelp
         }
 
+        const onCompletionHandler = async (
+            params: CompletionParams,
+            _token: CancellationToken
+        ): Promise<CompletionList | null> => {
+            const emptyCompletionList = CompletionList.create([])
+
+            const textDocument = await workspace.getTextDocument(params.textDocument.uri)
+            if (!textDocument) {
+                logging.log(`textDocument [${params.textDocument.uri}] not found`)
+                return emptyCompletionList
+            }
+            const completions = await service.doComplete(textDocument, params.position)
+            return completions ?? emptyCompletionList
+        }
+
         lsp.onInitialized(onInitializedHandler)
         lsp.onDidChangeTextDocument(onDidChangeTextDocumentHandler)
         lsp.onDidOpenTextDocument(onDidOpenTextDocumentHandler)
@@ -124,6 +144,7 @@ export const PartiQLServerFactory =
         lsp.onSemanticTokens(onSemanticTokensHandler)
         lsp.onHover(onHoverHandler)
         lsp.onSignatureHelp(onSignatureHelpHandler)
+        lsp.onCompletion(onCompletionHandler)
 
         logging.log('The PartiQL LSP Language Server has been initialised')
 
