@@ -26,7 +26,7 @@ import { createAuthFollowUpResult, getAuthFollowUpType, getDefaultChatResponse }
 import { ChatSessionManagementService } from './chatSessionManagementService'
 import { ChatTelemetryController } from './telemetry/chatTelemetryController'
 import { QuickAction } from './quickActions'
-import { getErrorMessage, isAwsError, isNullish, isObject } from '../utils'
+import { getErrorMessage, hasCode, isAwsError, isNullish, isObject } from '../utils'
 import { Metric } from '../telemetry/metric'
 import { TriggerContext, TriggerContextExtractor } from './contexts/triggerContextExtractor'
 import { HELP_MESSAGE } from './constants'
@@ -92,7 +92,14 @@ export class ChatController implements ChatHandlers {
                 response = await session.generateAssistantResponse(requestInput)
                 this.#log('Response for conversationId:', conversationIdentifier, JSON.stringify(response.$metadata))
             } catch (err) {
-                if (isAwsError(err) || (isObject(err) && 'statusCode' in err && typeof err.statusCode === 'number')) {
+                if (isObject(err) && 'name' in err && err.name === 'AbortError') {
+                    this.#log('Q api request aborted')
+
+                    return new ResponseError<ChatResult>(LSPErrorCodes.RequestCancelled, 'Request cancelled')
+                } else if (
+                    isAwsError(err) ||
+                    (isObject(err) && 'statusCode' in err && typeof err.statusCode === 'number')
+                ) {
                     metric.setDimension('cwsprChatRepsonseCode', err.statusCode ?? 400)
                     this.#telemetryController.emitMessageResponseError(params.tabId, metric.metric)
                 }
@@ -153,6 +160,11 @@ export class ChatController implements ChatHandlers {
                     ? result.data
                     : new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, result.error)
             } catch (err) {
+                if (hasCode(err) && err.code === 'ECONNRESET') {
+                    this.#log('Response streaming aborted')
+                    return new ResponseError<ChatResult>(LSPErrorCodes.RequestCancelled, 'Request cancelled')
+                }
+
                 this.#log(
                     'Error encountered during response streaming:',
                     err instanceof Error ? err.message : 'unknown'
@@ -170,8 +182,8 @@ export class ChatController implements ChatHandlers {
     onCopyCodeToClipboard() {}
 
     onEndChat(params: EndChatParams, _token: CancellationToken): boolean {
-        this.#triggerContext.cancel(params.tabId)
-        this.#chatSessionManagementService.getSession(params.tabId).data?.abortRequest()
+        this.#log('end chat')
+        this.#cancelRequest(params.tabId)
 
         return true
     }
@@ -339,6 +351,11 @@ export class ChatController implements ChatHandlers {
         this.#features.logging.log(messages.join(' '))
     }
 
+    #cancelRequest(tabId: string) {
+        this.#triggerContext.cancel(tabId)
+        this.#chatSessionManagementService.getSession(tabId).data?.abortRequest()
+    }
+
     #withLspCancellation<TReturnValue>(
         tabId: string,
         token: CancellationToken,
@@ -351,8 +368,7 @@ export class ChatController implements ChatHandlers {
                 token.onCancellationRequested(() => {
                     this.#log('cancellation requested')
 
-                    this.#triggerContext.cancel(tabId)
-                    this.#chatSessionManagementService.getSession(tabId).data?.abortRequest()
+                    this.#cancelRequest(tabId)
                     isCancelled = true
 
                     resolve(new ResponseError<TReturnValue>(LSPErrorCodes.RequestCancelled, 'Request cancelled'))
