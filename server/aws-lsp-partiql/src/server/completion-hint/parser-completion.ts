@@ -114,6 +114,8 @@ function getCandidates(parser: PartiQLParser, index: number) {
     return core.collectCandidates(index)
 }
 
+// Get the position of the last space in the line before the given position
+// Optimize completion on the middle of a word
 function getPosition(
     content: string,
     position: { line: number; character: number }

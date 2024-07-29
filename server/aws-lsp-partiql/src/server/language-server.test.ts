@@ -1,7 +1,7 @@
 import { Server } from '@aws/language-server-runtimes/server-interface'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import { TextDocument } from 'vscode-languageserver-textdocument'
-import { TextDocumentItem, Hover, SignatureHelp } from 'vscode-languageserver-types'
+import { TextDocumentItem, Hover, SignatureHelp, CompletionList } from 'vscode-languageserver-types'
 import { PartiQLServerFactory } from './language-server'
 import { createPartiQLLanguageService } from './language-service'
 import { CancellationTokenSource } from 'vscode-languageserver'
@@ -266,5 +266,72 @@ describe('PartiQL Server - SignatureHelp Functionality', () => {
 
         expect(signatureHelpSpy).toHaveBeenCalledWith(testDocument, { line: 1, character: 2 })
         expect(result).toBeNull()
+    })
+})
+
+describe('PartiQL Server - Completion Functionality', () => {
+    let service: ReturnType<typeof createPartiQLLanguageService>
+    let server: Server
+    let features: TestFeatures
+    let completionSpy: jest.SpyInstance
+
+    const testContent = `SELECT * FR'`
+    const testDocument = TextDocument.create('file:///completionTest.partiql', 'partiql', 1, testContent)
+
+    beforeEach(async () => {
+        service = createPartiQLLanguageService()
+        server = PartiQLServerFactory(service)
+        features = new TestFeatures()
+
+        await features.start(server)
+        features.openDocument(testDocument)
+
+        completionSpy = jest.spyOn(service, 'doComplete').mockImplementation((doc, position) => {
+            if (position.line === 0 && position.character === 11) {
+                return CompletionList.create([{ label: 'FROM' }], false)
+            }
+            return CompletionList.create([], false) // Return an empty list for other positions
+        })
+    })
+
+    afterEach(() => {
+        jest.clearAllMocks()
+        features.dispose()
+    })
+
+    it('should provide correct completions within FROM clause', async () => {
+        const completionParams = {
+            textDocument: testDocument,
+            position: { line: 0, character: 11 },
+        }
+        const cancellationToken = new CancellationTokenSource().token
+
+        const result = await features.doCompletion(completionParams, cancellationToken)
+
+        expect(completionSpy).toHaveBeenCalledWith(testDocument, { line: 0, character: 11 })
+        expect(result).toEqual(
+            expect.objectContaining({
+                items: [expect.objectContaining({ label: 'FROM' })],
+                isIncomplete: false,
+            })
+        )
+    })
+
+    it('should not provide completions outside FROM clause', async () => {
+        const completionParams = {
+            textDocument: testDocument,
+            position: { line: 0, character: 3 }, // Position outside the 'LIKE' clause
+        }
+        const cancellationToken = new CancellationTokenSource().token
+
+        const result = await features.doCompletion(completionParams, cancellationToken)
+
+        expect(completionSpy).toHaveBeenCalledWith(testDocument, { line: 0, character: 3 })
+        expect(result).toEqual(
+            expect.objectContaining({
+                items: [],
+                isIncomplete: false,
+            })
+        )
     })
 })
