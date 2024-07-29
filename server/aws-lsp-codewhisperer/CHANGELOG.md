@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.0.10] - 2024-07-29
+- **Feature**: Add Q .NET Transform Server
+- Add default response for "How can Amazon Q help me?"
+- Allow "0" to be used as partial token in chat handler
+
 ## [0.0.9] - 2024-07-01
 - Update security scans to exclude gitignored files
 
