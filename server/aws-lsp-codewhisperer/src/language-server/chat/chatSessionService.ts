@@ -9,6 +9,7 @@ import { CredentialsProvider } from '@aws/language-server-runtimes/server-interf
 import { getBearerTokenFromProvider } from '../utils'
 
 export type ChatSessionServiceConfig = CodeWhispererStreamingClientConfig
+export type Dispose = () => void
 export class ChatSessionService {
     public shareCodeWhispererContentWithAWS = false
     readonly #codeWhispererRegion = 'us-east-1'

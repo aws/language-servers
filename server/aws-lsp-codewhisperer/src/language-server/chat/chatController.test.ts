@@ -12,7 +12,7 @@ import { ChatController } from './chatController'
 import { ChatSessionManagementService } from './chatSessionManagementService'
 import { ChatSessionService } from './chatSessionService'
 import { ChatTelemetryController } from './telemetry/chatTelemetryController'
-import { DocumentContextExtractor } from './contexts/documentContext'
+import { TriggerContextExtractor } from './contexts/triggerContextExtractor'
 import * as utils from './utils'
 import { DEFAULT_HELP_FOLLOW_UP_PROMPT, HELP_MESSAGE } from './constants'
 
@@ -340,7 +340,7 @@ describe('ChatController', () => {
             }
 
             beforeEach(() => {
-                extractDocumentContextStub = sinon.stub(DocumentContextExtractor.prototype, 'extractDocumentContext')
+                extractDocumentContextStub = sinon.stub(TriggerContextExtractor.prototype, 'extractDocumentContext')
                 testFeatures.openDocument(typescriptDocument)
             })
 
