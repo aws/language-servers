@@ -11,9 +11,11 @@ import {
     Hover,
     MarkupKind,
     SignatureHelp,
+    CompletionList,
 } from '@aws/language-server-runtimes/server-interface'
 import { type2Hover } from './hover-info/parser-type'
 import { findSignatureInfo } from './signature-help/signature-info'
+import { getSuggestions } from './completion-hint/parser-completion'
 
 // Test error-parsing
 type parserTestDataType = { input: string; expectedOutput: string; expectedAntlrOutput: string; errorType: string }
@@ -858,6 +860,108 @@ describe('PartiQL SignatureHelp testing', () => {
         it(`should correctly detect the request for signatureHelp and return corresponding function signatureHelp from dictionary.`, async () => {
             const signatureHelp = findSignatureInfo(testData.input)
             expect(signatureHelp).toEqual(testData.expectedOutput)
+        })
+    })
+})
+
+// Test Completion Hint
+type parserTestDataCompletionHint = {
+    input: string
+    position: { line: number; character: number }
+    expectedOutput: CompletionList | null
+}
+
+const parserTestDataCompletion: parserTestDataCompletionHint[] = [
+    // Test completion hint for incomplete variable `SEL` -> `SELECT`
+    {
+        input: `SEL`,
+        position: { line: 0, character: 3 },
+        expectedOutput: {
+            isIncomplete: false,
+            items: [
+                {
+                    label: 'SELECT',
+                },
+            ],
+        },
+    },
+    // Test completion hint for `FROM CLAUSE`
+    {
+        input: `SELECT * `,
+        position: { line: 0, character: 9 },
+        expectedOutput: {
+            isIncomplete: false,
+            items: [
+                {
+                    label: 'FROM',
+                },
+            ],
+        },
+    },
+    // Test completion hint for `AS` alais
+    {
+        input: `SELECT * FROM table_1 `,
+        position: { line: 0, character: 22 },
+        expectedOutput: {
+            isIncomplete: false,
+            items: [
+                {
+                    label: 'AS',
+                },
+            ],
+        },
+    },
+    // Test completion hint for emply file -> `SELECT CLAUSE`
+    {
+        input: ``,
+        position: { line: 0, character: 0 },
+        expectedOutput: {
+            isIncomplete: false,
+            items: [
+                {
+                    label: 'SELECT',
+                },
+            ],
+        },
+    },
+    // Test completion hint for Multi-lines file  -> `HAVING CLAUSE`
+    {
+        input: `SELECT attributeId, COUNT(*) as the_count
+        FROM repeating_things
+        GROUP BY attributeId 
+        GROUP AS g `,
+        position: { line: 3, character: 11 },
+        expectedOutput: {
+            isIncomplete: false,
+            items: [
+                {
+                    label: 'HAVING',
+                },
+            ],
+        },
+    },
+    // Test completion hint for a new query -> `SELECT CLAUSE`
+    {
+        input: `SELECT "a", b, c FROM stuff s INNER CROSS JOIN @s WHERE f(s)  -- comment
+        
+        `,
+        position: { line: 1, character: 0 },
+        expectedOutput: {
+            isIncomplete: false,
+            items: [
+                {
+                    label: 'SELECT',
+                },
+            ],
+        },
+    },
+]
+
+describe('PartiQL Completion Hint testing', () => {
+    parserTestDataCompletion.forEach(testData => {
+        it(`should correctly return completion hint list.`, async () => {
+            const suggestions = getSuggestions(testData.input, testData.position)
+            expect(suggestions!.items).toEqual(expect.arrayContaining([testData.expectedOutput!.items[0]]))
         })
     })
 })

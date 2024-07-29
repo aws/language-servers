@@ -7,6 +7,7 @@ import {
     SemanticTokensLegend,
     Hover,
     SignatureHelp,
+    CompletionList,
 } from '@aws/language-server-runtimes/server-interface'
 // Commented out code is to use the PartiQL Rust parser, should be used again after
 // https://github.com/partiql/partiql-lang-rust/issues/472 is resolved.
@@ -19,6 +20,7 @@ import { PartiQLTokens } from '../antlr-generated/PartiQLTokens'
 import { findNodes, encodeSemanticTokens, SemanticToken, string2TokenTypes } from './syntax-highlighting/parser-tokens'
 import { type2Hover } from './hover-info/parser-type'
 import { findSignatureInfo } from './signature-help/signature-info'
+import { getSuggestions } from './completion-hint/parser-completion'
 
 // This is a constant that is used to determine if the language server supports multi-line tokens.
 const MULTILINETOKENSUPPORT = true
@@ -157,5 +159,12 @@ class PartiQLLanguageService {
         })
         const signatureHelp = findSignatureInfo(lineText)
         return signatureHelp
+    }
+
+    public doComplete(
+        textDocument: TextDocument,
+        position: { line: number; character: number }
+    ): CompletionList | null {
+        return getSuggestions(normalizeQuery(textDocument.getText()), position)
     }
 }
