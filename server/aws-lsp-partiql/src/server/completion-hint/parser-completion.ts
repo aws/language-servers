@@ -53,7 +53,7 @@ function symbolAtCaretPosition(parseTree: TerminalNode, caretPosition: { line: n
     const stop = start + (parseTree.symbol.text?.length ?? 0)
 
     return (
-        parseTree.symbol.line == caretPosition.line + 1 &&
+        parseTree.symbol.line == caretPosition.line &&
         start <= caretPosition.character &&
         stop > caretPosition.character
     )
@@ -125,7 +125,7 @@ function getPosition(
     const substring = line.substring(0, position.character)
     const lastSpaceIndex = substring.lastIndexOf(' ')
     return {
-        line: position.line,
+        line: position.line + 1, // change to 1-indexed line number
         character: lastSpaceIndex + 1,
     }
 }
