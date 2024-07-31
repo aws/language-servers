@@ -1,4 +1,3 @@
-#!/usr/bin/env sh
 
 echo [pre-commit] formatting staged files...
 npm run format-staged
