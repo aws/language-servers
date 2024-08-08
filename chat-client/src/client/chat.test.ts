@@ -29,6 +29,12 @@ describe('Chat', () => {
     let mynahUi: MynahUI
     let clientApi: { postMessage: sinon.SinonStub }
 
+    before(() => {
+        // Mock global ResizeObserver for test environment
+        // @ts-ignore
+        global.ResizeObserver = null
+    })
+
     beforeEach(() => {
         sandbox.stub(TabFactory, 'generateUniqueId').returns(initialTabId)
 
@@ -45,6 +51,11 @@ describe('Chat', () => {
         Object.keys(mynahUi.getAllTabs()).forEach(tabId => {
             mynahUi.removeTab(tabId, (mynahUi as any).lastEventId)
         })
+    })
+
+    after(() => {
+        // @ts-ignore
+        global.ResizeObserver = undefined
     })
 
     it('publishes ready event and initial tab add event, when initialized', () => {
