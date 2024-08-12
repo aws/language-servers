@@ -37,7 +37,7 @@
         "@aws/chat-client-ui-types": "^0.0.6",
         "@aws/lsp-fqn": "^0.0.1",
         "@gerhobbelt/gitignore-parser": "^0.2.0-9",
-        "@smithy/node-http-handler": "^2.5.0",
+        "@smithy/node-http-handler": "^3.1.4",
         "adm-zip": "^0.5.10",
         "archiver": "^6.0.1",
         "aws-sdk": "^2.1403.0",
