@@ -31,25 +31,31 @@ export const targetFrameworkMap = new Map<string, string>([
     ['net6.0', 'NET_6_0'],
     ['net7.0', 'NET_7_0'],
     ['net8.0', 'NET_8_0'],
-  ]);
-const dummyVersionIndex = 999;
+])
+const dummyVersionIndex = 999
 
-const targetFrameworkKeysArray = Array.from(targetFrameworkMap.keys());
-function getKeyIndexOfVersion( key: any) {
-  return targetFrameworkKeysArray.indexOf(key);
+const targetFrameworkKeysArray = Array.from(targetFrameworkMap.keys())
+function getKeyIndexOfVersion(key: any) {
+    return targetFrameworkKeysArray.indexOf(key)
 }
 
-function findMinimumSourceVersion(projectMetadata : TransformProjectMetadata[], logging: Logging){
-    var minimumVersionIndex = dummyVersionIndex;
+function findMinimumSourceVersion(projectMetadata: TransformProjectMetadata[], logging: Logging) {
+    var minimumVersionIndex = dummyVersionIndex
     projectMetadata.forEach(project => {
-        if(project.ProjectTargetFramework != '' && targetFrameworkMap.has(project.ProjectTargetFramework)){
-            logging.log("Project version to compare " + project.ProjectTargetFramework);
-                minimumVersionIndex = getKeyIndexOfVersion(project.ProjectTargetFramework) < minimumVersionIndex ?
-                 getKeyIndexOfVersion(project.ProjectTargetFramework) : minimumVersionIndex;
-        }});
-    var minimumDotNetVersion = minimumVersionIndex != dummyVersionIndex? targetFrameworkMap.get(targetFrameworkKeysArray[minimumVersionIndex]) : '';
-    logging.log("Selected lowest version is " + minimumDotNetVersion);
-    return minimumDotNetVersion;
+        if (project.ProjectTargetFramework != '' && targetFrameworkMap.has(project.ProjectTargetFramework)) {
+            logging.log('Project version to compare ' + project.ProjectTargetFramework)
+            minimumVersionIndex =
+                getKeyIndexOfVersion(project.ProjectTargetFramework) < minimumVersionIndex
+                    ? getKeyIndexOfVersion(project.ProjectTargetFramework)
+                    : minimumVersionIndex
+        }
+    })
+    var minimumDotNetVersion =
+        minimumVersionIndex != dummyVersionIndex
+            ? targetFrameworkMap.get(targetFrameworkKeysArray[minimumVersionIndex])
+            : ''
+    logging.log('Selected lowest version is ' + minimumDotNetVersion)
+    return minimumDotNetVersion
 }
 
 export function getCWStartTransformRequest(
@@ -57,8 +63,8 @@ export function getCWStartTransformRequest(
     uploadId: string,
     logging: Logging
 ): CodeWhispererTokenUserClient.StartTransformationRequest {
-    const sourceFramework = findMinimumSourceVersion(userInputRequest.ProjectMetadata, logging);
-    logging.log("Lowest sourceFramework for startTransform Request " + sourceFramework);
+    const sourceFramework = findMinimumSourceVersion(userInputRequest.ProjectMetadata, logging)
+    logging.log('Lowest sourceFramework for startTransform Request ' + sourceFramework)
     return {
         workspaceState: {
             uploadId: uploadId,
