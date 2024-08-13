@@ -4,6 +4,7 @@ import { StartTransformRequest, StartTransformResponse, TransformProjectMetadata
 import CodeWhispererTokenUserClient = require('../../client/token/codewhispererbearertokenclient')
 import { Logging } from '@aws/language-server-runtimes/server-interface'
 
+//sequence of targetFrameworkMap matters a lot because we are using as sorted indices of old to new .net versions
 export const targetFrameworkMap = new Map<string, string>([
     ['net35', 'NET_FRAMEWORK_V_3_5'],
     ['net40', 'NET_FRAMEWORK_V_4_0'],
@@ -31,6 +32,7 @@ export const targetFrameworkMap = new Map<string, string>([
     ['net7.0', 'NET_7_0'],
     ['net8.0', 'NET_8_0'],
   ]);
+const dummyVersionIndex = 999;
 
 const targetFrameworkKeysArray = Array.from(targetFrameworkMap.keys());
 function getKeyIndexOfVersion( key: any) {
@@ -38,17 +40,16 @@ function getKeyIndexOfVersion( key: any) {
 }
 
 function findMinimumSourceVersion(projectMetadata : TransformProjectMetadata[], logging: Logging){
-    var selectedVersionIndex = 999;
+    var minimumVersionIndex = dummyVersionIndex;
     projectMetadata.forEach(project => {
-        if(project.ProjectTargetFramework != ''){
-            if(targetFrameworkMap.has(project.ProjectTargetFramework)){
-                logging.log("Project version here " + project.ProjectTargetFramework);
-                selectedVersionIndex = getKeyIndexOfVersion(project.ProjectTargetFramework) < selectedVersionIndex ? getKeyIndexOfVersion(project.ProjectTargetFramework) : selectedVersionIndex;
-            }
+        if(project.ProjectTargetFramework != '' && targetFrameworkMap.has(project.ProjectTargetFramework)){
+            logging.log("Project version to compare " + project.ProjectTargetFramework);
+                minimumVersionIndex = getKeyIndexOfVersion(project.ProjectTargetFramework) < minimumVersionIndex ?
+                 getKeyIndexOfVersion(project.ProjectTargetFramework) : minimumVersionIndex;
         }});
-    var selectedDotNetVersion = selectedVersionIndex != 999? targetFrameworkMap.get(targetFrameworkKeysArray[selectedVersionIndex]) : '';
-    logging.log("Selected version " + selectedDotNetVersion);
-    return selectedDotNetVersion;
+    var minimumDotNetVersion = minimumVersionIndex != dummyVersionIndex? targetFrameworkMap.get(targetFrameworkKeysArray[minimumVersionIndex]) : '';
+    logging.log("Selected lowest version is " + minimumDotNetVersion);
+    return minimumDotNetVersion;
 }
 
 export function getCWStartTransformRequest(
@@ -57,7 +58,7 @@ export function getCWStartTransformRequest(
     logging: Logging
 ): CodeWhispererTokenUserClient.StartTransformationRequest {
     const sourceFramework = findMinimumSourceVersion(userInputRequest.ProjectMetadata, logging);
-    logging.log("Selected sourceFramework for startTransform Request" + sourceFramework);
+    logging.log("Lowest sourceFramework for startTransform Request " + sourceFramework);
     return {
         workspaceState: {
             uploadId: uploadId,

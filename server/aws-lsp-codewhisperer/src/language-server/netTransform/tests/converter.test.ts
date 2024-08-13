@@ -250,7 +250,7 @@ describe('Test Converter', () => {
       
           expect(loggingMock.log.calledWith('Project version to compare net6.0')).to.be.true;
           expect(loggingMock.log.calledWith('Project version to compare netcoreapp3.1')).to.be.true;
-          expect(loggingMock.log.calledWith('Selected version is NET_CORE_APP_3_1')).to.be.true;
+          expect(loggingMock.log.calledWith('Selected lowest version is NET_CORE_APP_3_1')).to.be.true;
         });
       
         it('should return an empty string when no valid target frameworks are found', () => {
@@ -279,7 +279,7 @@ describe('Test Converter', () => {
           const result = findMinimumSourceVersion(projectMetadata, loggingMock);
       
           expect(result).to.equal('');
-          expect(loggingMock.log.calledWith('Selected version is ')).to.be.true;
+          expect(loggingMock.log.calledWith('Selected lowest version is ')).to.be.true;
         });
       
         it('should handle multiple projects with the same minimum version', () => {
