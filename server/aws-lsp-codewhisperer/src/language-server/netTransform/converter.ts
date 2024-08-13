@@ -1,47 +1,63 @@
 import { AWSError } from 'aws-sdk'
 import { PromiseResult } from 'aws-sdk/lib/request'
-import { StartTransformRequest, StartTransformResponse } from './models'
+import { StartTransformRequest, StartTransformResponse, TransformProjectMetadata } from './models'
 import CodeWhispererTokenUserClient = require('../../client/token/codewhispererbearertokenclient')
+import { Logging } from '@aws/language-server-runtimes/server-interface'
 
 export const targetFrameworkMap = new Map<string, string>([
-    ['net8.0', 'NET_8_0'],
-    ['net7.0', 'NET_7_0'],
-    ['net6.0', 'NET_6_0'],
-    ['net5.0', 'NET_5_0'],
-    ['netcoreapp3.1', 'NET_CORE_APP_3_1'],
-    ['netcoreapp3.0', 'NET_CORE_APP_3_0'],
-    ['netcoreapp2.2', 'NET_CORE_APP_2_2'],
-    ['netcoreapp2.1', 'NET_CORE_APP_2_1'],
-    ['netcoreapp2.0', 'NET_CORE_APP_2_0'],
-    ['netcoreapp1.1', 'NET_CORE_APP_1_1'],
-    ['netcoreapp1.0', 'NET_CORE_APP_1_0'],
-    ['net481', 'NET_FRAMEWORK_V_4_8'],
-    ['net48', 'NET_FRAMEWORK_V_4_8'],
-    ['net472', 'NET_FRAMEWORK_V_4_7_2'],
-    ['net471', 'NET_FRAMEWORK_V_4_7_1'],
-    ['net47', 'NET_FRAMEWORK_V_4_7'],
-    ['net462', 'NET_FRAMEWORK_V_4_6_2'],
-    ['net461', 'NET_FRAMEWORK_V_4_6_1'],
-    ['net46', 'NET_FRAMEWORK_V_4_6'],
-    ['net452', 'NET_FRAMEWORK_V_4_5_2'],
-    ['net451', 'NET_FRAMEWORK_V_4_5_1'],
-    ['net45', 'NET_FRAMEWORK_V_4_5'],
-    ['net403', 'NET_FRAMEWORK_V_4_0'],
-    ['net40', 'NET_FRAMEWORK_V_4_0'],
     ['net35', 'NET_FRAMEWORK_V_3_5'],
-])
+    ['net40', 'NET_FRAMEWORK_V_4_0'],
+    ['net403', 'NET_FRAMEWORK_V_4_0'],
+    ['net45', 'NET_FRAMEWORK_V_4_5'],
+    ['net451', 'NET_FRAMEWORK_V_4_5_1'],
+    ['net452', 'NET_FRAMEWORK_V_4_5_2'],
+    ['net46', 'NET_FRAMEWORK_V_4_6'],
+    ['net461', 'NET_FRAMEWORK_V_4_6_1'],
+    ['net462', 'NET_FRAMEWORK_V_4_6_2'],
+    ['net47', 'NET_FRAMEWORK_V_4_7'],
+    ['net471', 'NET_FRAMEWORK_V_4_7_1'],
+    ['net472', 'NET_FRAMEWORK_V_4_7_2'],
+    ['net48', 'NET_FRAMEWORK_V_4_8'],
+    ['net481', 'NET_FRAMEWORK_V_4_8'],
+    ['netcoreapp1.0', 'NET_CORE_APP_1_0'],
+    ['netcoreapp1.1', 'NET_CORE_APP_1_1'],
+    ['netcoreapp2.0', 'NET_CORE_APP_2_0'],
+    ['netcoreapp2.1', 'NET_CORE_APP_2_1'],
+    ['netcoreapp2.2', 'NET_CORE_APP_2_2'],
+    ['netcoreapp3.0', 'NET_CORE_APP_3_0'],
+    ['netcoreapp3.1', 'NET_CORE_APP_3_1'],
+    ['net5.0', 'NET_5_0'],
+    ['net6.0', 'NET_6_0'],
+    ['net7.0', 'NET_7_0'],
+    ['net8.0', 'NET_8_0'],
+  ]);
+
+const targetFrameworkKeysArray = Array.from(targetFrameworkMap.keys());
+function getKeyIndexOfVersion( key: any) {
+  return targetFrameworkKeysArray.indexOf(key);
+}
+
+function findMinimumSourceVersion(projectMetadata : TransformProjectMetadata[], logging: Logging){
+    var selectedVersionIndex = 999;
+    projectMetadata.forEach(project => {
+        if(project.ProjectTargetFramework != ''){
+            if(targetFrameworkMap.has(project.ProjectTargetFramework)){
+                logging.log("Project version here " + project.ProjectTargetFramework);
+                selectedVersionIndex = getKeyIndexOfVersion(project.ProjectTargetFramework) < selectedVersionIndex ? getKeyIndexOfVersion(project.ProjectTargetFramework) : selectedVersionIndex;
+            }
+        }});
+    var selectedDotNetVersion = selectedVersionIndex != 999? targetFrameworkMap.get(targetFrameworkKeysArray[selectedVersionIndex]) : '';
+    logging.log("Selected version " + selectedDotNetVersion);
+    return selectedDotNetVersion;
+}
 
 export function getCWStartTransformRequest(
     userInputRequest: StartTransformRequest,
-    uploadId: string
+    uploadId: string,
+    logging: Logging
 ): CodeWhispererTokenUserClient.StartTransformationRequest {
-    const targetProject = userInputRequest.ProjectMetadata.find(project => project.ProjectTargetFramework != '')
-    const sourceFramework =
-        targetProject == undefined
-            ? ''
-            : targetFrameworkMap.has(targetProject.ProjectTargetFramework)
-              ? targetFrameworkMap.get(targetProject.ProjectTargetFramework)
-              : ''
+    const sourceFramework = findMinimumSourceVersion(userInputRequest.ProjectMetadata, logging);
+    logging.log("Selected sourceFramework for startTransform Request" + sourceFramework);
     return {
         workspaceState: {
             uploadId: uploadId,

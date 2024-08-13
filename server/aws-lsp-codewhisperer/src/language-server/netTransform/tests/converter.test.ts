@@ -2,10 +2,14 @@ import { expect } from 'chai'
 import { AWSError, HttpResponse } from 'aws-sdk'
 import { PromiseResult } from 'aws-sdk/lib/request'
 import { Response } from 'aws-sdk/lib/response'
-import { StartTransformRequest } from '../models'
+import { StartTransformRequest, TransformProjectMetadata } from '../models'
 import { getCWStartTransformRequest, getCWStartTransformResponse, targetFrameworkMap } from '../converter'
 import CodeWhispererTokenUserClient = require('../../../client/token/codewhispererbearertokenclient')
+import { Logging } from '@aws/language-server-runtimes/server-interface'
+import { stubInterface } from 'ts-sinon'
+import sinon = require('sinon')
 
+const mockedLogging = stubInterface<Logging>()
 const sampleStartTransformationRequest: CodeWhispererTokenUserClient.StartTransformationRequest = {
     workspaceState: {
         uploadId: '',
@@ -77,7 +81,7 @@ describe('Test Converter', () => {
             testUserInputRequest.ProgramLanguage = 'csharp'
             testUserInputRequest.ProjectMetadata[0].ProjectTargetFramework = 'net8.0'
 
-            const startTransformationRequest = getCWStartTransformRequest(testUserInputRequest, testUploadId)
+            const startTransformationRequest = getCWStartTransformRequest(testUserInputRequest, testUploadId, mockedLogging)
 
             let expectedStartTransformationRequest = sampleStartTransformationRequest
             expectedStartTransformationRequest.workspaceState.uploadId = testUploadId
@@ -103,7 +107,7 @@ describe('Test Converter', () => {
             testUserInputRequest.ProgramLanguage = 'csharp'
             testUserInputRequest.ProjectMetadata[0].ProjectTargetFramework = 'not supported'
 
-            const startTransformationRequest = getCWStartTransformRequest(testUserInputRequest, testUploadId)
+            const startTransformationRequest = getCWStartTransformRequest(testUserInputRequest, testUploadId, mockedLogging)
 
             let expectedStartTransformationRequest = sampleStartTransformationRequest
             expectedStartTransformationRequest.workspaceState.uploadId = testUploadId
@@ -125,7 +129,7 @@ describe('Test Converter', () => {
             testUserInputRequest.ProgramLanguage = 'csharp'
             testUserInputRequest.ProjectMetadata[0].ProjectTargetFramework = 'net8.0'
 
-            const startTransformationRequest = getCWStartTransformRequest(testUserInputRequest, testUploadId)
+            const startTransformationRequest = getCWStartTransformRequest(testUserInputRequest, testUploadId, mockedLogging)
 
             let expectedStartTransformationRequest = sampleStartTransformationRequest
             expectedStartTransformationRequest.workspaceState.uploadId = testUploadId
@@ -195,4 +199,163 @@ describe('Test Converter', () => {
             })
         })
     })
+    
+    describe('findMinimumSourceVersion', () => {
+
+        it('should find the minimum .NET version from project metadata', () => {
+          const loggingMock = { log: sinon.spy() }; // Using Sinon for creating spies
+      
+          const projectMetadata: TransformProjectMetadata[] = [
+            {
+                ProjectTargetFramework: 'net6.0',
+                Name: '',
+                ProjectPath: '',
+                SourceCodeFilePaths: [],
+                ProjectLanguage: '',
+                ProjectType: '',
+                ExternalReferences: []
+            },
+            {
+                ProjectTargetFramework: 'netcoreapp3.1',
+                Name: '',
+                ProjectPath: '',
+                SourceCodeFilePaths: [],
+                ProjectLanguage: '',
+                ProjectType: '',
+                ExternalReferences: []
+            },
+            {
+                ProjectTargetFramework: '',
+                Name: '',
+                ProjectPath: '',
+                SourceCodeFilePaths: [],
+                ProjectLanguage: '',
+                ProjectType: '',
+                ExternalReferences: []
+            }, 
+            {
+                ProjectTargetFramework: 'unknownFramework',
+                Name: '',
+                ProjectPath: '',
+                SourceCodeFilePaths: [],
+                ProjectLanguage: '',
+                ProjectType: '',
+                ExternalReferences: []
+            }, 
+          ];
+      
+          const result = findMinimumSourceVersion(projectMetadata, loggingMock);
+      
+          expect(result).to.equal('NET_CORE_APP_3_1');
+      
+          expect(loggingMock.log.calledWith('Project version to compare net6.0')).to.be.true;
+          expect(loggingMock.log.calledWith('Project version to compare netcoreapp3.1')).to.be.true;
+          expect(loggingMock.log.calledWith('Selected version is NET_CORE_APP_3_1')).to.be.true;
+        });
+      
+        it('should return an empty string when no valid target frameworks are found', () => {
+          const loggingMock = { log: sinon.spy() };
+          const projectMetadata: TransformProjectMetadata[] = [
+            {
+                ProjectTargetFramework: '',
+                Name: '',
+                ProjectPath: '',
+                SourceCodeFilePaths: [],
+                ProjectLanguage: '',
+                ProjectType: '',
+                ExternalReferences: []
+            },
+            {
+                ProjectTargetFramework: 'unknownFramework',
+                Name: '',
+                ProjectPath: '',
+                SourceCodeFilePaths: [],
+                ProjectLanguage: '',
+                ProjectType: '',
+                ExternalReferences: []
+            },
+          ];
+      
+          const result = findMinimumSourceVersion(projectMetadata, loggingMock);
+      
+          expect(result).to.equal('');
+          expect(loggingMock.log.calledWith('Selected version is ')).to.be.true;
+        });
+      
+        it('should handle multiple projects with the same minimum version', () => {
+          const loggingMock = { log: sinon.spy() };
+          const projectMetadata: TransformProjectMetadata[] = [
+            {
+                ProjectTargetFramework: 'netcoreapp3.1',
+                Name: '',
+                ProjectPath: '',
+                SourceCodeFilePaths: [],
+                ProjectLanguage: '',
+                ProjectType: '',
+                ExternalReferences: []
+            },
+            {
+                ProjectTargetFramework: 'net461',
+                Name: '',
+                ProjectPath: '',
+                SourceCodeFilePaths: [],
+                ProjectLanguage: '',
+                ProjectType: '',
+                ExternalReferences: []
+            },
+            {
+                ProjectTargetFramework: 'netcoreapp3.1',
+                Name: '',
+                ProjectPath: '',
+                SourceCodeFilePaths: [],
+                ProjectLanguage: '',
+                ProjectType: '',
+                ExternalReferences: []
+            },
+          ];
+      
+          const result = findMinimumSourceVersion(projectMetadata, loggingMock);
+      
+          // Adjust the expectation based on your desired behavior
+          expect(result).to.equal('NET_CORE_APP_3_1'); 
+      
+          expect(loggingMock.log.calledWith('Project version to compare netcoreapp3.1')).to.be.true;
+          expect(loggingMock.log.calledWith('Project version to compare net461')).to.be.true;
+          expect(loggingMock.log.calledWith('Selected version is NET_CORE_APP_3_1')).to.be.true;
+        });
+      
+        it('should prioritize .NET Core over .NET Framework for the same version number', () => {
+          const loggingMock = { log: sinon.spy() };
+          const projectMetadata: TransformProjectMetadata[] = [
+            {
+                ProjectTargetFramework: 'net472',
+                Name: '',
+                ProjectPath: '',
+                SourceCodeFilePaths: [],
+                ProjectLanguage: '',
+                ProjectType: '',
+                ExternalReferences: []
+            },
+            {
+                ProjectTargetFramework: 'netcoreapp2.0',
+                Name: '',
+                ProjectPath: '',
+                SourceCodeFilePaths: [],
+                ProjectLanguage: '',
+                ProjectType: '',
+                ExternalReferences: []
+            },
+          ];
+      
+          const result = findMinimumSourceVersion(projectMetadata, loggingMock);
+      
+          expect(result).to.equal('NET_CORE_APP_2_0');
+        });
+      
+        // Add more test cases to cover other scenarios and edge cases
+      });
 })
+function findMinimumSourceVersion(projectMetadata: TransformProjectMetadata[], loggingMock: { log: sinon.SinonSpy<any[], any> }) {
+    throw new Error('Function not implemented.')
+}
+
