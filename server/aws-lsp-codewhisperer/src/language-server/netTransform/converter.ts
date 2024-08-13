@@ -39,7 +39,7 @@ function getKeyIndexOfVersion(key: any) {
     return targetFrameworkKeysArray.indexOf(key)
 }
 
-function findMinimumSourceVersion(projectMetadata: TransformProjectMetadata[], logging: Logging) {
+export function findMinimumSourceVersion(projectMetadata: TransformProjectMetadata[], logging: Logging) {
     var minimumVersionIndex = dummyVersionIndex
     projectMetadata.forEach(project => {
         if (project.ProjectTargetFramework != '' && targetFrameworkMap.has(project.ProjectTargetFramework)) {

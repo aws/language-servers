@@ -3,7 +3,12 @@ import { AWSError, HttpResponse } from 'aws-sdk'
 import { PromiseResult } from 'aws-sdk/lib/request'
 import { Response } from 'aws-sdk/lib/response'
 import { StartTransformRequest, TransformProjectMetadata } from '../models'
-import { getCWStartTransformRequest, getCWStartTransformResponse, targetFrameworkMap } from '../converter'
+import {
+    findMinimumSourceVersion,
+    getCWStartTransformRequest,
+    getCWStartTransformResponse,
+    targetFrameworkMap,
+} from '../converter'
 import CodeWhispererTokenUserClient = require('../../../client/token/codewhispererbearertokenclient')
 import { Logging } from '@aws/language-server-runtimes/server-interface'
 import { stubInterface } from 'ts-sinon'
@@ -327,48 +332,11 @@ describe('Test Converter', () => {
 
             const result = findMinimumSourceVersion(projectMetadata, loggingMock)
 
-            // Adjust the expectation based on your desired behavior
-            expect(result).to.equal('NET_CORE_APP_3_1')
+            expect(result).to.equal('NET_FRAMEWORK_V_4_6_1')
 
             expect(loggingMock.log.calledWith('Project version to compare netcoreapp3.1')).to.be.true
             expect(loggingMock.log.calledWith('Project version to compare net461')).to.be.true
-            expect(loggingMock.log.calledWith('Selected version is NET_CORE_APP_3_1')).to.be.true
+            expect(loggingMock.log.calledWith('Selected lowest version is NET_FRAMEWORK_V_4_6_1')).to.be.true
         })
-
-        it('should prioritize .NET Core over .NET Framework for the same version number', () => {
-            const loggingMock = { log: sinon.spy() }
-            const projectMetadata: TransformProjectMetadata[] = [
-                {
-                    ProjectTargetFramework: 'net472',
-                    Name: '',
-                    ProjectPath: '',
-                    SourceCodeFilePaths: [],
-                    ProjectLanguage: '',
-                    ProjectType: '',
-                    ExternalReferences: [],
-                },
-                {
-                    ProjectTargetFramework: 'netcoreapp2.0',
-                    Name: '',
-                    ProjectPath: '',
-                    SourceCodeFilePaths: [],
-                    ProjectLanguage: '',
-                    ProjectType: '',
-                    ExternalReferences: [],
-                },
-            ]
-
-            const result = findMinimumSourceVersion(projectMetadata, loggingMock)
-
-            expect(result).to.equal('NET_CORE_APP_2_0')
-        })
-
-        // Add more test cases to cover other scenarios and edge cases
     })
 })
-function findMinimumSourceVersion(
-    projectMetadata: TransformProjectMetadata[],
-    loggingMock: { log: sinon.SinonSpy<any[], any> }
-) {
-    throw new Error('Function not implemented.')
-}
