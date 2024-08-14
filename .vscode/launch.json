@@ -78,7 +78,7 @@
             "type": "extensionHost",
             "request": "launch",
             "runtimeExecutable": "${execPath}",
-            "args": ["--extensionDevelopmentPath=${workspaceFolder}/client/vscode"],
+            "args": ["--extensionDevelopmentPath=${workspaceFolder}/client/vscode", "--profile-temp"],
             "outFiles": ["${workspaceFolder}/client/vscode/out/**/*.js"],
             "env": {
                 "LSP_SERVER": "${workspaceFolder}/app/aws-lsp-codewhisperer-runtimes/out/token-standalone.js",
@@ -123,7 +123,7 @@
             "type": "extensionHost",
             "request": "launch",
             "runtimeExecutable": "${execPath}",
-            "args": ["--extensionDevelopmentPath=${workspaceFolder}/client/vscode"],
+            "args": ["--extensionDevelopmentPath=${workspaceFolder}/client/vscode", "--profile-temp"],
             "outFiles": ["${workspaceFolder}/client/vscode/out/**/*.js"],
             "env": {
                 "LSP_SERVER": "${workspaceFolder}/app/hello-world-lsp-runtimes/out/standalone.js",
