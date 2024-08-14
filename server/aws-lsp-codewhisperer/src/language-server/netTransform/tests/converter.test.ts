@@ -3,7 +3,12 @@ import { AWSError, HttpResponse } from 'aws-sdk'
 import { PromiseResult } from 'aws-sdk/lib/request'
 import { Response } from 'aws-sdk/lib/response'
 import { StartTransformRequest, TransformProjectMetadata } from '../models'
-import { findMinimumSourceVersion, getCWStartTransformRequest, getCWStartTransformResponse, targetFrameworkMap } from '../converter'
+import {
+    findMinimumSourceVersion,
+    getCWStartTransformRequest,
+    getCWStartTransformResponse,
+    targetFrameworkMap,
+} from '../converter'
 import CodeWhispererTokenUserClient = require('../../../client/token/codewhispererbearertokenclient')
 import { Logging } from '@aws/language-server-runtimes/server-interface'
 import { stubInterface } from 'ts-sinon'
@@ -81,7 +86,11 @@ describe('Test Converter', () => {
             testUserInputRequest.ProgramLanguage = 'csharp'
             testUserInputRequest.ProjectMetadata[0].ProjectTargetFramework = 'net8.0'
 
-            const startTransformationRequest = getCWStartTransformRequest(testUserInputRequest, testUploadId, mockedLogging)
+            const startTransformationRequest = getCWStartTransformRequest(
+                testUserInputRequest,
+                testUploadId,
+                mockedLogging
+            )
 
             let expectedStartTransformationRequest = sampleStartTransformationRequest
             expectedStartTransformationRequest.workspaceState.uploadId = testUploadId
@@ -107,7 +116,11 @@ describe('Test Converter', () => {
             testUserInputRequest.ProgramLanguage = 'csharp'
             testUserInputRequest.ProjectMetadata[0].ProjectTargetFramework = 'not supported'
 
-            const startTransformationRequest = getCWStartTransformRequest(testUserInputRequest, testUploadId, mockedLogging)
+            const startTransformationRequest = getCWStartTransformRequest(
+                testUserInputRequest,
+                testUploadId,
+                mockedLogging
+            )
 
             let expectedStartTransformationRequest = sampleStartTransformationRequest
             expectedStartTransformationRequest.workspaceState.uploadId = testUploadId
@@ -129,7 +142,11 @@ describe('Test Converter', () => {
             testUserInputRequest.ProgramLanguage = 'csharp'
             testUserInputRequest.ProjectMetadata[0].ProjectTargetFramework = 'net8.0'
 
-            const startTransformationRequest = getCWStartTransformRequest(testUserInputRequest, testUploadId, mockedLogging)
+            const startTransformationRequest = getCWStartTransformRequest(
+                testUserInputRequest,
+                testUploadId,
+                mockedLogging
+            )
 
             let expectedStartTransformationRequest = sampleStartTransformationRequest
             expectedStartTransformationRequest.workspaceState.uploadId = testUploadId
