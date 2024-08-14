@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.0.11] - 2024-08-14
+- Fix issue with source framework selection on transform
+
 ## [0.0.10] - 2024-07-29
 - **Feature**: Add Q .NET Transform Server
 - Add default response for "How can Amazon Q help me?"
