@@ -73,7 +73,7 @@ export class TransformHandler {
             this.logging.log('payload path: ' + payloadFilePath)
 
             const uploadId = await this.preTransformationUploadCode(payloadFilePath)
-            const request = getCWStartTransformRequest(userInputrequest, uploadId)
+            const request = getCWStartTransformRequest(userInputrequest, uploadId, this.logging)
             this.logging.log('send request to start transform api: ' + JSON.stringify(request))
             const response = await this.client.codeModernizerStartCodeTransformation(request)
             this.logging.log('response start transform api: ' + JSON.stringify(response))
