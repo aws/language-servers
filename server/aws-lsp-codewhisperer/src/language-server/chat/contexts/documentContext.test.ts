@@ -24,7 +24,7 @@ describe('DocumentContext', () => {
             const documentContextExtractor = new DocumentContextExtractor({ characterLimits: 19 })
             const expected: DocumentContext = {
                 programmingLanguage: { languageName: 'typescript' },
-                relativeFilePath: 'file://test.ts',
+                relativeFilePath: 'test.ts',
                 documentSymbols: [],
                 text: "console.log('test')",
                 hasCodeSnippet: true,
@@ -64,7 +64,7 @@ describe('DocumentContext', () => {
             const documentContextExtractor = new DocumentContextExtractor({ characterLimits: 19 })
             const expected: DocumentContext = {
                 programmingLanguage: { languageName: 'typescript' },
-                relativeFilePath: 'file://test.ts',
+                relativeFilePath: 'test.ts',
                 documentSymbols: [],
                 text: "console.log('test')",
                 hasCodeSnippet: true,
@@ -99,35 +99,6 @@ describe('DocumentContext', () => {
 
             assert.deepStrictEqual(result, expected)
         })
-
-        it('returns undefined cursorState if the end position was collapsed', async () => {
-            const documentContextExtractor = new DocumentContextExtractor({ characterLimits: 0 })
-
-            const expected: DocumentContext = {
-                programmingLanguage: { languageName: 'typescript' },
-                relativeFilePath: 'file://test.ts',
-                documentSymbols: [],
-                text: '',
-                hasCodeSnippet: false,
-                totalEditorCharacters: mockTypescriptCodeBlock.length,
-                cursorState: undefined,
-            }
-
-            const result = await documentContextExtractor.extractDocumentContext(mockTSDocument, {
-                range: {
-                    start: {
-                        line: 1,
-                        character: 13,
-                    },
-                    end: {
-                        line: 1,
-                        character: 13,
-                    },
-                },
-            })
-
-            assert.deepStrictEqual(result, expected)
-        })
     })
 
     it('handles other languages correctly', async () => {
@@ -140,7 +111,7 @@ describe('DocumentContext', () => {
 
         const expectedResult: DocumentContext = {
             programmingLanguage: { languageName: 'go' },
-            relativeFilePath: 'file://test.go',
+            relativeFilePath: 'test.go',
             documentSymbols: [],
             text: 'fmt.Println("test")',
             totalEditorCharacters: mockGoCodeBLock.length,

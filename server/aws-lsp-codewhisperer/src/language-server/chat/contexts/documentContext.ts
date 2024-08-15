@@ -75,10 +75,14 @@ export class DocumentContextExtractor {
             cursorState: rangeWithinCodeBlock ? { range: rangeWithinCodeBlock } : undefined,
             text: document.getText(codeBlockRange),
             programmingLanguage: languageId ? { languageName: languageId } : undefined,
-            relativeFilePath: document.uri,
+            relativeFilePath: this.#getSantizedFilePath(document),
             documentSymbols,
             hasCodeSnippet: Boolean(rangeWithinCodeBlock),
             totalEditorCharacters: document.getText().length,
         }
+    }
+
+    #getSantizedFilePath(document: TextDocument) {
+        return document.uri.split('/').pop() ?? ''
     }
 }
