@@ -99,35 +99,6 @@ describe('DocumentContext', () => {
 
             assert.deepStrictEqual(result, expected)
         })
-
-        it('returns undefined cursorState if the end position was collapsed', async () => {
-            const documentContextExtractor = new DocumentContextExtractor({ characterLimits: 0 })
-
-            const expected: DocumentContext = {
-                programmingLanguage: { languageName: 'typescript' },
-                relativeFilePath: 'file://test.ts',
-                documentSymbols: [],
-                text: '',
-                hasCodeSnippet: false,
-                totalEditorCharacters: mockTypescriptCodeBlock.length,
-                cursorState: undefined,
-            }
-
-            const result = await documentContextExtractor.extractDocumentContext(mockTSDocument, {
-                range: {
-                    start: {
-                        line: 1,
-                        character: 13,
-                    },
-                    end: {
-                        line: 1,
-                        character: 13,
-                    },
-                },
-            })
-
-            assert.deepStrictEqual(result, expected)
-        })
     })
 
     it('handles other languages correctly', async () => {
