@@ -1,6 +1,6 @@
 import { TriggerType } from '@aws/chat-client-ui-types'
 import { ChatTriggerType, GenerateAssistantResponseCommandInput, UserIntent } from '@amzn/codewhisperer-streaming'
-import { ChatParams } from '@aws/language-server-runtimes/server-interface'
+import { ChatParams, CursorState } from '@aws/language-server-runtimes/server-interface'
 import { Features } from '../../types'
 import { DocumentContext, DocumentContextExtractor } from './documentContext'
 
@@ -10,6 +10,8 @@ export interface TriggerContext extends Partial<DocumentContext> {
 }
 
 export class QChatTriggerContext {
+    private static readonly DEFAULT_CURSOR_STATE: CursorState = { position: { line: 0, character: 0 } }
+
     #workspace: Features['workspace']
     #documentContextExtractor: DocumentContextExtractor
 
@@ -19,7 +21,7 @@ export class QChatTriggerContext {
     }
 
     async getNewTriggerContext(params: ChatParams): Promise<TriggerContext> {
-        const documentContext: DocumentContext | undefined = await this.#extractDocumentContext(params)
+        const documentContext: DocumentContext | undefined = await this.extractDocumentContext(params)
 
         return {
             ...documentContext,
@@ -66,16 +68,22 @@ export class QChatTriggerContext {
         this.#documentContextExtractor.dispose()
     }
 
-    async #extractDocumentContext(
+    // public for testing
+    async extractDocumentContext(
         input: Pick<ChatParams, 'cursorState' | 'textDocument'>
     ): Promise<DocumentContext | undefined> {
-        const { textDocument: textDocumentIdentifier, cursorState = [] } = input
+        const { textDocument: textDocumentIdentifier, cursorState } = input
 
         const textDocument =
             textDocumentIdentifier?.uri && (await this.#workspace.getTextDocument(textDocumentIdentifier.uri))
 
         return textDocument
-            ? this.#documentContextExtractor.extractDocumentContext(textDocument, cursorState[0])
+            ? this.#documentContextExtractor.extractDocumentContext(
+                  textDocument,
+                  // we want to include a default position if a text document is found so users can still ask questions about the opened file
+                  // the range will be expanded up to the max characters downstream
+                  cursorState?.[0] ?? QChatTriggerContext.DEFAULT_CURSOR_STATE
+              )
             : undefined
     }
 
