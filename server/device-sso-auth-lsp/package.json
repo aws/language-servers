@@ -1,0 +1,16 @@
+{
+    "name": "@amzn/device-sso-auth-lsp",
+    "version": "0.0.1",
+    "description": "Device SSO Authentication flow over LSP Server",
+    "main": "out/index.js",
+    "scripts": {
+        "compile": "tsc --build"
+    },
+    "dependencies": {
+        "@aws/language-server-runtimes": "^0.2.6",
+        "vscode-languageserver": "^9.0.1"
+    },
+    "devDependencies": {
+        "ts-loader": "^9.4.4"
+    }
+}
