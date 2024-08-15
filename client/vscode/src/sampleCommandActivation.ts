@@ -6,7 +6,7 @@ export function registerLogCommand(languageClient: LanguageClient, extensionCont
 }
 export function registerTransformCommand(languageClient: LanguageClient, extensionContext: ExtensionContext) {
     extensionContext.subscriptions.push(
-        commands.registerCommand('aws/qNetTransform/startTransform', qNetCommand(languageClient))
+        commands.registerCommand('aws.qNetTransform.startTransform', qNetCommand(languageClient))
     )
 }
 export function logCommand(languageClient: LanguageClient) {

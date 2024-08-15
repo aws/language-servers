@@ -66,6 +66,10 @@
                 "command": "aws.amazonq.sendToPrompt",
                 "title": "Send to Prompt",
                 "category": "Amazon Q"
+            },
+            {
+                "command": "aws.qNetTransform.startTransform",
+                "title": "Start Transform"
             }
         ],
         "menus": {
