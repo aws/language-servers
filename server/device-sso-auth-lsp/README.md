@@ -6,7 +6,7 @@ It is port of [SSO flow implementation in VSCode sample client](../../client/vsc
 
 [`SsoAuthServer`](./src/language-server/SsoAuthServer.ts) Server implementation is the entry point for this Server. 
 
-Supports only [`standalone`]() AWS Server Runtime, as it requires NodeJS `fs` access.
+Supports only [`standalone`](https://github.com/aws/language-server-runtimes/blob/main/runtimes/runtimes/standalone.ts) AWS Server Runtime, as it requires NodeJS `fs` access.
 
 ## Supported features
 
