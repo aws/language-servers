@@ -61,10 +61,6 @@ export function getExtendedCodeBlockRange(
  * reflects the position in the entire document needs to be adjusted.
  */
 export function getSelectionWithinExtendedRange(selection: Range, extendedRange: Range): Range | undefined {
-    if (selection.start.line === selection.end.line && selection.start.character === selection.end.character) {
-        return undefined
-    }
-
     return {
         start: {
             line: selection.start.line - extendedRange.start.line,
