@@ -270,7 +270,7 @@ export class TransformHandler {
                 if (response.transformationJob?.status) {
                     this.logging.log(
                         'status is included in validExitSTatus for poll ' +
-                        validExitStatus.includes(response.transformationJob.status)
+                            validExitStatus.includes(response.transformationJob.status)
                     )
                 }
 
