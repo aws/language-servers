@@ -148,9 +148,10 @@ export class TransformHandler {
 
             this.logging.log(`CodeTransform: Response from S3 Upload = ${response.statusCode}`)
         } catch (e: any) {
-            const errorMessage = (e as Error).message ?? 'Error in S3 UploadZip API call'
-
+            const error = e as Error
+            const errorMessage = `error: ${error.message || 'Error in S3 UploadZip API call'}, please see https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/troubleshooting-code-transformation.html#project-upload-fail`
             this.logging.log(errorMessage)
+            throw new Error(errorMessage)
         }
     }
 
@@ -269,7 +270,7 @@ export class TransformHandler {
                 if (response.transformationJob?.status) {
                     this.logging.log(
                         'status is included in validExitSTatus for poll ' +
-                            validExitStatus.includes(response.transformationJob.status)
+                        validExitStatus.includes(response.transformationJob.status)
                     )
                 }
 
