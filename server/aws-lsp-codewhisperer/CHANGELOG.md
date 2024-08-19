@@ -2,7 +2,6 @@
 
 ## [0.0.12] - 2024-08-19
 - Allow sending document without active focus in Chat requests
-- Implement sample device auth SSO flow in LSP server
 
 ## [0.0.11] - 2024-08-14
 - Fix issue with source framework selection on transform
