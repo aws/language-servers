@@ -220,6 +220,14 @@ export const HOVER_JSON = {
     },
 }
 
+export const HOVER_JSON_CUSTOMIZED = {
+    contents: 'Custom content',
+    range: {
+        start: { line: 2, character: 4 },
+        end: { line: 2, character: 15 },
+    },
+}
+
 export const TEXT_TO_DIAGNOSE_JSON = `{
     "AWSTemplateFormatVersionTest": "2010-09-09",
     "Globals": {}
@@ -256,6 +264,24 @@ const DIAGNOSTICS_JSON = [
         source: 'json',
     },
 ]
+
+export const DIAGNOSTICS_JSON_CUSTOM = [
+    ...DIAGNOSTICS_JSON,
+    {
+        // customization added to the message
+        range: {
+            start: { line: 0, character: 0 },
+            end: { line: 0, character: 0 },
+        },
+        message: 'Custom message',
+    },
+]
+
+export const DIAGNOSTICS_RESPONSE_JSON_CUSTOM = {
+    uri: 'diagnostics.json',
+    diagnostics: DIAGNOSTICS_JSON_CUSTOM,
+    version: 1,
+}
 
 export const DIAGNOSTICS_RESPONSE_JSON = {
     uri: 'diagnostics.json',

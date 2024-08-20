@@ -1,5 +1,5 @@
 import { Server } from '@aws/language-server-runtimes/server-interface'
-import { AwsLanguageService, textDocumentUtils } from '@aws/lsp-core/out/base'
+import { AwsLanguageService, textDocumentUtils, UriResolver } from '@aws/lsp-core/out/base'
 import { TextDocument } from 'vscode-languageserver-textdocument'
 import {
     Hover,
@@ -15,7 +15,7 @@ import {
     CompletionParams,
     DidChangeTextDocumentParams,
 } from '@aws/language-server-runtimes/server-interface'
-import { create } from '../language-service/jsonLanguageService'
+import { create, JsonLanguageService } from '../language-service/jsonLanguageService'
 
 /**
  * This is a demonstration language server that handles both JSON and YAML files according to the
@@ -133,22 +133,9 @@ export const JsonServerFactory =
         }
     }
 
-async function getSchema(url: string) {
-    const response = await fetch(url)
-    const schema = await (await response.blob()).text()
-
-    return schema
-}
-
 export const CreateJsonLanguageServer = (
     defaultSchemaUri: string,
-    allowComments: boolean = true,
-    uriResolver: (url: string) => Promise<string> = getSchema
-) =>
-    JsonServerFactory(
-        create({
-            defaultSchemaUri: defaultSchemaUri,
-            allowComments: allowComments,
-            uriResolver: uriResolver,
-        })
-    )
+    customServiceClass?: JsonLanguageService,
+    allowComments?: boolean,
+    uriResolver?: UriResolver
+) => JsonServerFactory(create({ defaultSchemaUri, allowComments, uriResolver }, customServiceClass))

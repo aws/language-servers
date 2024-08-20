@@ -108,7 +108,7 @@ export class BuildspecServer {
 
             const results = await this.buildSpecService.doComplete(textDocument, position)
 
-            if (results!!) {
+            if (results!) {
                 completionItemUtils.prependItemDetail(results.items, BuildspecServer.serverId)
             }
 
