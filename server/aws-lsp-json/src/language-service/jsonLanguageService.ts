@@ -78,10 +78,7 @@ async function getSchema(url: string) {
     return schema
 }
 
-export function create(
-    props: JsonLanguageServiceProps,
-    customJsonLanguageService?: JsonLanguageService
-): AwsLanguageService {
-    const jsonService = customJsonLanguageService || new JsonLanguageService(props)
+export function create(props: JsonLanguageServiceProps): AwsLanguageService {
+    const jsonService = new JsonLanguageService(props)
     return new MutuallyExclusiveLanguageService([jsonService])
 }

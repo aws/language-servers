@@ -2,9 +2,10 @@ import { Diagnostic, TextDocument } from '@aws/language-server-runtimes-types'
 import { standalone } from '@aws/language-server-runtimes/runtimes'
 import { RuntimeProps } from '@aws/language-server-runtimes/runtimes/runtime'
 import { JsonLanguageService } from '@aws/lsp-json'
-import { createJsonLanguageServer, getVersionInfo, jsonSchemaUrl } from './common'
+import { getVersionInfo, jsonSchemaUrl } from './common'
 import { Position } from '@aws/language-server-runtimes/protocol'
 import { Hover } from 'ts-lsp-client'
+import { createCustomJsonLanguageServer } from '@aws/lsp-json/out/language-server/jsonServer'
 
 class MyJSONLanguageService extends JsonLanguageService {
     constructor(defaultSchemaUri: string) {
@@ -23,7 +24,7 @@ class MyJSONLanguageService extends JsonLanguageService {
     }
 }
 
-const JsonLanguageServer = createJsonLanguageServer(new MyJSONLanguageService(jsonSchemaUrl))
+const JsonLanguageServer = createCustomJsonLanguageServer(new MyJSONLanguageService(jsonSchemaUrl))
 const VERSION = getVersionInfo()
 
 const props: RuntimeProps = {

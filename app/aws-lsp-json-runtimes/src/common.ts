@@ -1,10 +1,10 @@
-import { CreateJsonLanguageServer, JsonLanguageService } from '@aws/lsp-json'
+import { CreateJsonLanguageServer } from '@aws/lsp-json'
 
 export const jsonSchemaUrl =
     'https://raw.githubusercontent.com/aws/serverless-application-model/main/samtranslator/schema/schema.json'
 
-export const createJsonLanguageServer = (jsonLanguageService?: JsonLanguageService) => {
-    return CreateJsonLanguageServer(jsonSchemaUrl, jsonLanguageService)
+export const createJsonLanguageServer = () => {
+    return CreateJsonLanguageServer(jsonSchemaUrl)
 }
 
 export const getVersionInfo = () => {

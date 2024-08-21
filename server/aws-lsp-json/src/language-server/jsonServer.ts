@@ -1,5 +1,10 @@
 import { Server } from '@aws/language-server-runtimes/server-interface'
-import { AwsLanguageService, textDocumentUtils, UriResolver } from '@aws/lsp-core/out/base'
+import {
+    AwsLanguageService,
+    MutuallyExclusiveLanguageService,
+    textDocumentUtils,
+    UriResolver,
+} from '@aws/lsp-core/out/base'
 import { TextDocument } from 'vscode-languageserver-textdocument'
 import {
     Hover,
@@ -133,9 +138,19 @@ export const JsonServerFactory =
         }
     }
 
+export function createCustomJsonLanguageServer(customService: JsonLanguageService) {
+    return JsonServerFactory(new MutuallyExclusiveLanguageService([customService]))
+}
+
 export const CreateJsonLanguageServer = (
     defaultSchemaUri: string,
-    customServiceClass?: JsonLanguageService,
     allowComments?: boolean,
     uriResolver?: UriResolver
-) => JsonServerFactory(create({ defaultSchemaUri, allowComments, uriResolver }, customServiceClass))
+) =>
+    JsonServerFactory(
+        create({
+            defaultSchemaUri: defaultSchemaUri,
+            allowComments: allowComments,
+            uriResolver: uriResolver,
+        })
+    )
