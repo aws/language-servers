@@ -42,6 +42,7 @@ export interface AWSConfig {
 import CodeWhispererSigv4Client = require('../client/sigv4/codewhisperersigv4client')
 import CodeWhispererTokenClient = require('../client/token/codewhispererbearertokenclient')
 import AWS = require('aws-sdk')
+import { getUserAgent } from './utils'
 
 // Right now the only difference between the token client and the IAM client for codewhsiperer is the difference in function name
 // This abstract class can grow in the future to account for any additional changes across the clients
@@ -77,6 +78,7 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
         const options: CodeWhispererSigv4ClientConfigurationOptions = {
             region: this.codeWhispererRegion,
             endpoint: this.codeWhispererEndpoint,
+            customUserAgent: getUserAgent(),
             credentialProvider: new CredentialProviderChain([
                 () => credentialsProvider.getCredentials('iam') as Credentials,
             ]),
@@ -118,6 +120,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         const options: CodeWhispererTokenClientConfigurationOptions = {
             region: this.codeWhispererRegion,
             endpoint: this.codeWhispererEndpoint,
+            customUserAgent: getUserAgent(),
             onRequestSetup: [
                 req => {
                     req.on('build', ({ httpRequest }) => {

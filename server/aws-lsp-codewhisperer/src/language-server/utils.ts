@@ -3,6 +3,7 @@ import { AWSError } from 'aws-sdk'
 import { Suggestion } from './codeWhispererService'
 import { CodewhispererCompletionType } from './telemetry/types'
 import { MISSING_BEARER_TOKEN_ERROR } from './constants'
+const { version } = require('../../package.json')
 
 export function isAwsError(error: unknown): error is AWSError {
     if (error === undefined) {
@@ -81,4 +82,19 @@ export const flattenMetric = (obj: any, prefix = '') => {
     })
 
     return flattened
+}
+
+/**
+ * Returns a string that should be used as the extension's user agent.
+ */
+export function getUserAgent(): string {
+    // TODO, get these information from initialization options
+    // can potentially use clientInfo from LSP initialize result for the first two fields
+    const extensionName = 'aws'
+    const extensionVersion = '0.0.0'
+    const platformName = 'win32'
+    const platformVersion = '18.20.4'
+    const clientId = 'XXXXXXXXXX'
+
+    return `Flare/${version} ${extensionName}/${extensionVersion} ${platformName}/${platformVersion} ClientId/${clientId}`
 }
