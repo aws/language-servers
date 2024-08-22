@@ -18,11 +18,9 @@ import {
 
 async function createLSPServer(runtimeFile: string) {
     const rootPath = path.resolve(__dirname)
-    let process: ChildProcessWithoutNullStreams
 
     // Start the LSP server
-    // eslint-disable-next-line prefer-const
-    process = spawn('node', [runtimeFile, '--stdio'], {
+    const process = spawn('node', [runtimeFile, '--stdio'], {
         shell: true,
         stdio: 'pipe',
     })

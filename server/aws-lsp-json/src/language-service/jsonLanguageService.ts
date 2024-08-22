@@ -28,7 +28,7 @@ export class JsonLanguageService implements AwsLanguageService {
             schemaRequestService: resolveUri?.bind(this),
         })
         const schemas = props.defaultSchemaUri ? [{ fileMatch: ['*'], uri: props.defaultSchemaUri }] : undefined
-        this.jsonService.configure({ allowComments: props.allowComments ?? false, schemas })
+        this.jsonService.configure({ allowComments: props.allowComments ?? true, schemas })
     }
 
     public isSupported(document: TextDocument): boolean {
