@@ -53,7 +53,7 @@ export const triggerType = (fileContext: FileContext): CodewhispererAutomatedTri
     }
 
     const lastLF = fileContext.leftFileContent.lastIndexOf('\n')
-    if (lastLF >= 0 && fileContext.leftFileContent.substring(lastLF + 2).trim() === '') {
+    if (lastLF >= 0 && fileContext.leftFileContent.substring(lastLF + 1).trim() === '') {
         return 'Enter'
     }
 
