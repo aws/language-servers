@@ -38,6 +38,7 @@ const supportedFileTypes: CodewhispererLanguage[] = [
     'typescript',
     'json',
     'yaml',
+    'sql',
 ]
 
 export const supportedSecurityScanLanguages: CodewhispererLanguage[] = ['csharp']
