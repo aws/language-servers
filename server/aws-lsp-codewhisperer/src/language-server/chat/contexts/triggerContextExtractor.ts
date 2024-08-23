@@ -95,7 +95,12 @@ export class TriggerContextExtractor {
             textDocumentIdentifier?.uri && (await this.#workspace.getTextDocument(textDocumentIdentifier.uri))
 
         const documentContext =
-            textDocument && (await this.extractDocumentContext(params.tabId, textDocument, cursorState?.[0] ?? TriggerContextExtractor.DEFAULT_CURSOR_STATE))
+            textDocument &&
+            (await this.extractDocumentContext(
+                params.tabId,
+                textDocument,
+                cursorState?.[0] ?? TriggerContextExtractor.DEFAULT_CURSOR_STATE
+            ))
 
         return {
             ...documentContext,
