@@ -49,18 +49,16 @@ describe('DocumentFQNExtractor', () => {
         assert.deepStrictEqual(await documentSymbolsPromise, [])
     })
 
-    it('resolves to empty array if not successful', async () => {
-        extractorStub.returns([Promise.resolve({ success: false, data: mockExtractedSymbols }), () => {}])
+    it('throws error if error is present', () => {
+        const mockError = new Error('mock error')
 
-        let [documentSymbolsPromise] = documentFqnExtractor.extractDocumentSymbols(typescriptDocument, mockRange)
+        extractorStub.returns([
+            Promise.resolve({ success: false, data: mockExtractedSymbols, error: mockError }),
+            () => {},
+        ])
 
-        assert.deepStrictEqual(await documentSymbolsPromise, [])
-
-        extractorStub.returns([Promise.resolve({ success: false, data: undefined }), () => {}])(
-            ([documentSymbolsPromise] = documentFqnExtractor.extractDocumentSymbols(typescriptDocument, mockRange))
-        )
-
-        assert.deepStrictEqual(await documentSymbolsPromise, [])
+        const [documentSymbolsPromise] = documentFqnExtractor.extractDocumentSymbols(typescriptDocument, mockRange)
+        assert.rejects(documentSymbolsPromise)
     })
 
     it('uses language id if passed', async () => {
