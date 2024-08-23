@@ -20,7 +20,7 @@ export type Result<TData, TError> =
           error: TError
       }
 
-export type ExtractorResult = Result<FqnExtractorOutput, string>
+export type ExtractorResult = Result<FqnExtractorOutput, Error>
 
 export interface FullyQualifiedName {
     source: string[]

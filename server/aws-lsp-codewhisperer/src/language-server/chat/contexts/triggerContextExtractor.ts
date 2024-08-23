@@ -13,7 +13,6 @@ import { getLanguageId } from '../../languageDetection'
 import { Cancel, Features } from '../../types'
 import { DocumentFqnExtractor, DocumentFqnExtractorConfig } from './documentFqnExtractor'
 import { getExtendedCodeBlockRange, getSelectionWithinExtendedRange } from './utils'
-import { CancellationError as FqnCancellationError } from '@aws/lsp-fqn'
 import { CancellationError } from '../utils'
 
 export type TriggerContext = Partial<DocumentContext> & {
@@ -143,7 +142,7 @@ export class TriggerContextExtractor {
         try {
             documentSymbols = await extractPromise
         } catch (error: unknown) {
-            if (error instanceof FqnCancellationError) {
+            if (error instanceof Error && error.name === CancellationError.name) {
                 throw new CancellationError(error.message, error.stack)
             }
 

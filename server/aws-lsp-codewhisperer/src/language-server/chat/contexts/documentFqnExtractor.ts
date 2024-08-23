@@ -113,7 +113,9 @@ export class DocumentFqnExtractor {
 
         return [
             extractPromise.then(result => {
-                if (!result.success || !result.data.fullyQualified) {
+                if (!result.success) {
+                    throw result.error
+                } else if (!result.data.fullyQualified) {
                     return []
                 }
 

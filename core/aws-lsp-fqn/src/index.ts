@@ -1,7 +1,6 @@
 import { Cancellable, ExtractorResult, FqnExtractorInput, IFqnWorkerPool, WorkerPoolConfig } from './common/types'
 
 export * from './common/types'
-export * from './common/utils'
 
 export declare class FqnWorkerPool implements IFqnWorkerPool {
     constructor(workerPoolConfig?: WorkerPoolConfig)
