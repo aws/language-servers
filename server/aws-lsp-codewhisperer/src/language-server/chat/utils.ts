@@ -62,3 +62,11 @@ export function getDefaultChatResponse(prompt?: string): ChatResult | undefined 
 
     return undefined
 }
+
+export class CancellationError extends Error {
+    constructor(message?: string, stack?: string) {
+        super(message || 'Promise cancelled')
+        this.name = 'CancellationError'
+        this.stack = stack
+    }
+}

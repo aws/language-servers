@@ -22,7 +22,7 @@ import {
 } from '../telemetry/types'
 import { Features, LspHandlers, Result } from '../types'
 import { ChatEventParser } from './chatEventParser'
-import { createAuthFollowUpResult, getAuthFollowUpType, getDefaultChatResponse } from './utils'
+import { CancellationError, createAuthFollowUpResult, getAuthFollowUpType, getDefaultChatResponse } from './utils'
 import { ChatSessionManagementService } from './chatSessionManagementService'
 import { ChatTelemetryController } from './telemetry/chatTelemetryController'
 import { QuickAction } from './quickActions'
@@ -72,6 +72,7 @@ export class ChatController implements ChatHandlers {
                 cwsprChatConversationType: 'Chat',
             })
 
+            // wait how do we tell if this is cancelled
             const triggerContext = await this.#getTriggerContext(params, metric)
 
             // return empty result since the other promise will have been resolved
@@ -93,9 +94,7 @@ export class ChatController implements ChatHandlers {
                 this.#log('Response for conversationId:', conversationIdentifier, JSON.stringify(response.$metadata))
             } catch (err) {
                 if (isObject(err) && 'name' in err && err.name === 'AbortError') {
-                    this.#log('Q api request aborted')
-
-                    return new ResponseError<ChatResult>(LSPErrorCodes.RequestCancelled, 'Request cancelled')
+                    throw new CancellationError('Q api request aborted')
                 } else if (
                     isAwsError(err) ||
                     (isObject(err) && 'statusCode' in err && typeof err.statusCode === 'number')
@@ -162,7 +161,7 @@ export class ChatController implements ChatHandlers {
             } catch (err) {
                 if (hasCode(err) && err.code === 'ECONNRESET') {
                     this.#log('Response streaming aborted')
-                    return new ResponseError<ChatResult>(LSPErrorCodes.RequestCancelled, 'Request cancelled')
+                    throw new CancellationError('Response streaming aborted')
                 }
 
                 this.#log(
@@ -375,7 +374,17 @@ export class ChatController implements ChatHandlers {
                 })
             }),
             // .race doesn't stop the "losing" promise from executing so we need to provide this boolean for early termination
-            action(() => isCancelled),
+            action(() => isCancelled).catch(error => {
+                if (error instanceof CancellationError) {
+                    this.#log('Request cancelled: ', error.message)
+                    return new ResponseError<TReturnValue>(LSPErrorCodes.RequestCancelled, 'Request cancelled')
+                }
+
+                return new ResponseError<TReturnValue>(
+                    ErrorCodes.InternalError,
+                    error instanceof Error ? error.message : 'Unknown error'
+                )
+            }),
         ])
     }
 }

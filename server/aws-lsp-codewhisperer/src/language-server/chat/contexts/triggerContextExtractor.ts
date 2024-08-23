@@ -13,6 +13,8 @@ import { getLanguageId } from '../../languageDetection'
 import { Cancel, Features } from '../../types'
 import { DocumentFqnExtractor, DocumentFqnExtractorConfig } from './documentFqnExtractor'
 import { getExtendedCodeBlockRange, getSelectionWithinExtendedRange } from './utils'
+import { CancellationError as FqnCancellationError } from '@aws/lsp-fqn'
+import { CancellationError } from '../utils'
 
 export type TriggerContext = Partial<DocumentContext> & {
     userIntent?: string
@@ -135,14 +137,17 @@ export class TriggerContextExtractor {
 
         try {
             documentSymbols = await extractPromise
-            // register job here
         } catch (error: unknown) {
+            if (error instanceof FqnCancellationError) {
+                throw new CancellationError(error.message, error.stack)
+            }
+
             this.#logger?.log(
                 `Error extracting document symbols but continuing on. ${error instanceof Error ? error.message : 'Unknown error'}`
             )
+        } finally {
+            delete this.#cancellableByTabId[tabId]
         }
-
-        delete this.#cancellableByTabId[tabId]
 
         return {
             cursorState: rangeWithinCodeBlock ? { range: rangeWithinCodeBlock } : undefined,
@@ -160,6 +165,7 @@ export class TriggerContextExtractor {
     }
 
     public dispose() {
+        Object.values(this.#cancellableByTabId).forEach(cancellable => cancellable?.())
         this.#documentSymbolExtractor.dispose()
     }
 

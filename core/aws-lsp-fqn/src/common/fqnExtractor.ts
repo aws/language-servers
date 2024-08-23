@@ -31,5 +31,6 @@ export async function extract(fqn: typeof Fqn, input: FqnExtractorInput): Promis
     const endLocation = new fqn.Location(selection.end.line, selection.end.character)
     const extent = new fqn.Extent(startLocation, endLocation)
 
+    await new Promise(r => setTimeout(r, 2000))
     return extractNames(fqn, languageId, fileText, extent)
 }
