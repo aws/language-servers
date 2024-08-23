@@ -1,6 +1,7 @@
 import { pool, Pool } from 'workerpool'
 import { DEFAULT_MAX_QUEUE_SIZE, DEFAULT_MAX_WORKERS, DEFAULT_TIMEOUT, FQN_WORKER_ID } from './defaults'
 import { ExtractorResult, FqnExtractorInput, IFqnWorkerPool, Logger, WorkerPoolConfig, Cancellable } from './types'
+import { CancellationError } from './utils'
 
 export class CommonFqnWorkerPool implements IFqnWorkerPool {
     #workerPool: Pool
@@ -24,10 +25,14 @@ export class CommonFqnWorkerPool implements IFqnWorkerPool {
 
         return [
             // have to wrap this in promise since exec promise is not a true promise
-            new Promise<ExtractorResult>(resolve => {
+            new Promise<ExtractorResult>((resolve, reject) => {
                 execPromise
                     .then(data => resolve(data as ExtractorResult))
                     .catch(error => {
+                        if (error instanceof CancellationError) {
+                            return reject(error)
+                        }
+
                         const errorMessage = `Encountered error while extracting fully qualified names: ${
                             error instanceof Error ? error.message : 'Unknown'
                         }`
