@@ -25,10 +25,10 @@ describe('DocumentFQNExtractor', () => {
     it('returns symbols in the right shape', async () => {
         const documentFqnExtractor = new DocumentFqnExtractor()
 
-        extractorStub.returns(Promise.resolve({ success: true, data: mockExtractedSymbols }))
-        const documentSymbols = await documentFqnExtractor.extractDocumentSymbols(typescriptDocument, mockRange)
+        extractorStub.returns([Promise.resolve({ success: true, data: mockExtractedSymbols }), () => {}])
+        const [documentSymbolsPromise] = documentFqnExtractor.extractDocumentSymbols(typescriptDocument, mockRange)
 
-        assert.deepStrictEqual(documentSymbols, expectedExtractedNames)
+        assert.deepStrictEqual(await documentSymbolsPromise, expectedExtractedNames)
         sinon.assert.calledOnceWithExactly(extractorStub, {
             fileText: typescriptDocument.getText(),
             selection: mockRange,
@@ -39,41 +39,41 @@ describe('DocumentFQNExtractor', () => {
     it('returns empty array if language id is not supported', async () => {
         const documentFqnExtractor = new DocumentFqnExtractor()
 
-        extractorStub.returns(Promise.resolve({ success: true, data: mockExtractedSymbols }))
-        const documentSymbols = await documentFqnExtractor.extractDocumentSymbols(
+        extractorStub.returns([Promise.resolve({ success: true, data: mockExtractedSymbols }), () => {}])
+        const [documentSymbolsPromise] = documentFqnExtractor.extractDocumentSymbols(
             typescriptDocument,
             mockRange,
             'lolcode'
         )
 
-        assert.deepStrictEqual(documentSymbols, [])
+        assert.deepStrictEqual(await documentSymbolsPromise, [])
     })
 
     it('resolves to empty array if not successful', async () => {
-        extractorStub.resolves({ success: false, data: mockExtractedSymbols })
+        extractorStub.returns([Promise.resolve({ success: false, data: mockExtractedSymbols }), () => {}])
 
-        let documentSymbols = await documentFqnExtractor.extractDocumentSymbols(typescriptDocument, mockRange)
+        let [documentSymbolsPromise] = documentFqnExtractor.extractDocumentSymbols(typescriptDocument, mockRange)
 
-        assert.deepStrictEqual(documentSymbols, [])
+        assert.deepStrictEqual(await documentSymbolsPromise, [])
 
-        extractorStub.resolves({ success: false, data: undefined })
+        extractorStub.returns([Promise.resolve({ success: false, data: undefined }), () => {}])(
+            ([documentSymbolsPromise] = documentFqnExtractor.extractDocumentSymbols(typescriptDocument, mockRange))
+        )
 
-        documentSymbols = await documentFqnExtractor.extractDocumentSymbols(typescriptDocument, mockRange)
-
-        assert.deepStrictEqual(documentSymbols, [])
+        assert.deepStrictEqual(await documentSymbolsPromise, [])
     })
 
     it('uses language id if passed', async () => {
         const documentFqnExtractor = new DocumentFqnExtractor()
 
-        extractorStub.resolves({ success: true, data: mockExtractedSymbols })
-        const documentSymbols = await documentFqnExtractor.extractDocumentSymbols(
+        extractorStub.returns([Promise.resolve({ success: true, data: mockExtractedSymbols }), () => {}])
+        const [documentSymbolsPromise] = documentFqnExtractor.extractDocumentSymbols(
             typescriptDocument,
             mockRange,
             'python'
         )
 
-        assert.deepStrictEqual(documentSymbols, expectedExtractedNames)
+        assert.deepStrictEqual(await documentSymbolsPromise, expectedExtractedNames)
         sinon.assert.calledOnceWithExactly(extractorStub, {
             fileText: typescriptDocument.getText(),
             selection: mockRange,
@@ -84,46 +84,55 @@ describe('DocumentFQNExtractor', () => {
     it('dedups symbols', async () => {
         const documentFqnExtractor = new DocumentFqnExtractor()
 
-        extractorStub.resolves({
-            success: true,
-            data: {
-                fullyQualified: {
-                    ...mockExtractedSymbols.fullyQualified,
-                    usedSymbols: [
-                        ...mockExtractedSymbols.fullyQualified.usedSymbols.slice(0, 4),
-                        ...mockExtractedSymbols.fullyQualified.usedSymbols.slice(3, 6),
-                        ...mockExtractedSymbols.fullyQualified.usedSymbols.slice(5),
-                    ],
+        extractorStub.returns([
+            Promise.resolve({
+                success: true,
+                data: {
+                    fullyQualified: {
+                        ...mockExtractedSymbols.fullyQualified,
+                        usedSymbols: [
+                            ...mockExtractedSymbols.fullyQualified.usedSymbols.slice(0, 4),
+                            ...mockExtractedSymbols.fullyQualified.usedSymbols.slice(3, 6),
+                            ...mockExtractedSymbols.fullyQualified.usedSymbols.slice(5),
+                        ],
+                    },
                 },
-            },
-        })
+            }),
+            () => {},
+        ])
 
-        const documentSymbols = await documentFqnExtractor.extractDocumentSymbols(typescriptDocument, mockRange)
+        const [documentSymbolsPromise] = documentFqnExtractor.extractDocumentSymbols(typescriptDocument, mockRange)
 
-        assert.deepStrictEqual(documentSymbols, expectedExtractedNames)
+        assert.deepStrictEqual(await documentSymbolsPromise, expectedExtractedNames)
     })
 
     it('returns no more than the limit of symbols specify', async () => {
         const documentFqnExtractor = new DocumentFqnExtractor({ maxSymbols: 3 })
 
-        extractorStub.resolves({
-            success: true,
-            data: mockExtractedSymbols,
-        })
-        const documentSymbols = await documentFqnExtractor.extractDocumentSymbols(typescriptDocument, mockRange)
+        extractorStub.returns([
+            Promise.resolve({
+                success: true,
+                data: mockExtractedSymbols,
+            }),
+            () => {},
+        ])
+        const [documentSymbolsPromise] = documentFqnExtractor.extractDocumentSymbols(typescriptDocument, mockRange)
 
-        assert.deepStrictEqual(documentSymbols, expectedExtractedNames.slice(0, 3))
+        assert.deepStrictEqual(await documentSymbolsPromise, expectedExtractedNames.slice(0, 3))
     })
 
     it('filters out symbols if either name or source does not conform to the length limit', async () => {
         const documentFqnExtractor = new DocumentFqnExtractor({ nameMinLength: 5, nameMaxLength: 8 })
 
-        extractorStub.resolves({
-            success: true,
-            data: mockExtractedSymbols,
-        })
-        const documentSymbols = await documentFqnExtractor.extractDocumentSymbols(typescriptDocument, mockRange)
+        extractorStub.returns([
+            Promise.resolve({
+                success: true,
+                data: mockExtractedSymbols,
+            }),
+            () => {},
+        ])
+        const [documentSymbolsPromise] = documentFqnExtractor.extractDocumentSymbols(typescriptDocument, mockRange)
 
-        assert.deepStrictEqual(documentSymbols, [{ name: 'mkdir', type: 'USAGE', source: 'node:fs' }])
+        assert.deepStrictEqual(await documentSymbolsPromise, [{ name: 'mkdir', type: 'USAGE', source: 'node:fs' }])
     })
 })
