@@ -72,7 +72,6 @@ export class ChatController implements ChatHandlers {
                 cwsprChatConversationType: 'Chat',
             })
 
-            // wait how do we tell if this is cancelled
             const triggerContext = await this.#getTriggerContext(params, metric)
 
             // return empty result since the other promise will have been resolved
