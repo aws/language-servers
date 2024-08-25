@@ -48,7 +48,8 @@ export class TransformHandler {
     async startTransformation(userInputrequest: StartTransformRequest): Promise<StartTransformResponse> {
         var unsupportedProjects: string[] = []
         const isProject = validation.isProject(userInputrequest)
-        const containsUnsupportedViews = await validation.checkForUnsupportedViews(userInputrequest, isProject)
+        const containsUnsupportedViews = false
+        // const containsUnsupportedViews = await validation.checkForUnsupportedViews(userInputrequest, isProject)
         /*
         if (isProject) {
             let isValid = validation.validateProject(userInputrequest)
@@ -89,7 +90,7 @@ export class TransformHandler {
             this.logging.log(errorMessage)
             throw new Error(errorMessage)
         } finally {
-            artifactManager.cleanup()
+            // artifactManager.cleanup()
         }
     }
 
