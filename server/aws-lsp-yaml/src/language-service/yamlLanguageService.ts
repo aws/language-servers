@@ -7,7 +7,7 @@ import { YamlFormattingOptions } from './formattingOptions'
 export type YamlLanguageServiceProps = {
     displayName: string
     defaultSchemaUri: string
-    uriResolver: UriResolver
+    uriResolver?: UriResolver
 }
 
 /**
@@ -18,6 +18,13 @@ export class YamlLanguageService implements AwsLanguageService {
     private yamlService: LanguageService
 
     constructor(private readonly props: YamlLanguageServiceProps) {
+        let resolveUri: (url: string) => Promise<string>
+        if (props.uriResolver) {
+            resolveUri = props.uriResolver
+        } else {
+            resolveUri = getSchema
+        }
+
         const workspaceContext = {
             resolveRelativePath(relativePath: string, resource: string) {
                 return new URL(relativePath, resource).href
@@ -25,7 +32,7 @@ export class YamlLanguageService implements AwsLanguageService {
         }
 
         this.yamlService = getLanguageService({
-            schemaRequestService: this.props.uriResolver,
+            schemaRequestService: resolveUri,
             workspaceContext,
         })
 
@@ -74,6 +81,13 @@ export class YamlLanguageService implements AwsLanguageService {
             ],
         })
     }
+}
+
+async function getSchema(url: string) {
+    const response = await fetch(url)
+    const schema = await (await response.blob()).text()
+
+    return schema
 }
 
 export function create(props: YamlLanguageServiceProps): AwsLanguageService {

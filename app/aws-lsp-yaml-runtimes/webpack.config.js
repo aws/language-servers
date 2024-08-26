@@ -32,7 +32,8 @@ const baseConfig = {
 const nodeConfig = {
     ...baseConfig,
     entry: {
-        'aws-lsp-yaml-standalone': path.join(__dirname, 'src/index.ts'),
+        'aws-lsp-yaml-standalone-with-customization': path.join(__dirname, 'src/serverWithCustomization.ts'),
+        'aws-lsp-yaml-standalone': path.join(__dirname, 'src/serverWithoutCustomization.ts'),
     },
     target: 'node',
 }

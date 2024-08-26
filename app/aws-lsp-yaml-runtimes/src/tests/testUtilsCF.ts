@@ -206,6 +206,14 @@ export const HOVER_YAML = {
     },
 }
 
+export const HOVER_YAML_CUSTOMIZED = {
+    contents: 'Custom content',
+    range: {
+        start: { line: 0, character: 0 },
+        end: { line: 0, character: 9 },
+    },
+}
+
 export const TEXT_TO_DIAGNOSE_YAML = `AWSTemplateFormatVersion: "2010-09-09"
 Globals:  `
 
@@ -243,6 +251,24 @@ const DIAGNOSTICS_YAML = [
         },
     },
 ]
+
+export const DIAGNOSTICS_YAML_CUSTOM = [
+    ...DIAGNOSTICS_YAML,
+    {
+        // customization added to the message
+        range: {
+            start: { line: 0, character: 0 },
+            end: { line: 0, character: 0 },
+        },
+        message: 'Custom message',
+    },
+]
+
+export const DIAGNOSTICS_RESPONSE_YAML_CUSTOM = {
+    uri: 'diagnostics.yml',
+    diagnostics: DIAGNOSTICS_YAML_CUSTOM,
+    version: 1,
+}
 
 export const DIAGNOSTICS_RESPONSE_YAML = {
     uri: 'diagnostics.yml',
