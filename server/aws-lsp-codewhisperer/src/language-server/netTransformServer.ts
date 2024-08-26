@@ -2,6 +2,7 @@ import {
     CancellationToken,
     CredentialsProvider,
     ExecuteCommandParams,
+    InitializeParams,
     Server,
 } from '@aws/language-server-runtimes/server-interface'
 import { StreamingClient } from '../client/streamingClient/codewhispererStreamingClient'
@@ -192,7 +193,13 @@ export const QNetTransformServerToken =
             logging.log(params.command)
             return runTransformCommand(params, _token)
         }
-        const onInitializeHandler = () => {
+        const onInitializeHandler = (params: InitializeParams) => {
+            if (params.awsRuntimeMetadata?.customUserAgent) {
+                codewhispererclient.updateClientConfig({
+                    customUserAgent: params.awsRuntimeMetadata?.customUserAgent,
+                })
+            }
+
             return {
                 capabilities: {
                     executeCommandProvider: {

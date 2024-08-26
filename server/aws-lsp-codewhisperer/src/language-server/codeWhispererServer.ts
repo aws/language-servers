@@ -1,6 +1,7 @@
 import {
     CancellationToken,
     CredentialsProvider,
+    InitializeParams,
     InlineCompletionItemWithReferences,
     InlineCompletionListWithReferences,
     InlineCompletionTriggerKind,
@@ -279,6 +280,18 @@ export const CodewhispererServerFactory =
 
         const sessionManager = SessionManager.getInstance()
         const codeWhispererService = service(credentialsProvider)
+
+        lsp.addInitializer((params: InitializeParams) => {
+            if (params.awsRuntimeMetadata?.customUserAgent) {
+                codeWhispererService.updateClientConfig({
+                    customUserAgent: params.awsRuntimeMetadata?.customUserAgent,
+                })
+            }
+
+            return {
+                capabilities: {},
+            }
+        })
 
         // Mutable state to track whether code with references should be included in
         // the response. No locking or concurrency controls, filtering is done

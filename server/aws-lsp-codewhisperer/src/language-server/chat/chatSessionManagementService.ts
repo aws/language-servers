@@ -6,7 +6,8 @@ export class ChatSessionManagementService {
     static #instance?: ChatSessionManagementService
     #sessionByTab: Map<string, ChatSessionService> = new Map<string, any>()
     #credentialsProvider?: CredentialsProvider
-    #clientConfig?: ChatSessionServiceConfig | (() => ChatSessionServiceConfig)
+    #clientConfig?: ChatSessionServiceConfig | (() => ChatSessionServiceConfig) = {}
+    #customUserAgent?: string = '%Amazon-Q-For-LanguageServers%'
 
     public static getInstance() {
         if (!ChatSessionManagementService.#instance) {
@@ -34,6 +35,10 @@ export class ChatSessionManagementService {
         return this
     }
 
+    public setCustomUserAgent(customUserAgent: string) {
+        this.#customUserAgent = customUserAgent
+    }
+
     public hasSession(tabId: string): boolean {
         return this.#sessionByTab.has(tabId)
     }
@@ -52,7 +57,10 @@ export class ChatSessionManagementService {
         }
 
         const clientConfig = typeof this.#clientConfig === 'function' ? this.#clientConfig() : this.#clientConfig
-        const newSession = new ChatSessionService(this.#credentialsProvider, clientConfig)
+        const newSession = new ChatSessionService(this.#credentialsProvider, {
+            ...clientConfig,
+            customUserAgent: this.#customUserAgent,
+        })
 
         this.#sessionByTab.set(tabId, newSession)
 

@@ -2,6 +2,7 @@ import {
     CancellationToken,
     CredentialsProvider,
     ExecuteCommandParams,
+    InitializeParams,
     Server,
 } from '@aws/language-server-runtimes/server-interface'
 import { performance } from 'perf_hooks'
@@ -208,7 +209,13 @@ export const SecurityScanServerToken =
             }
             return
         }
-        const onInitializeHandler = () => {
+        const onInitializeHandler = (params: InitializeParams) => {
+            if (params.awsRuntimeMetadata?.customUserAgent) {
+                codewhispererclient.updateClientConfig({
+                    customUserAgent: params.awsRuntimeMetadata?.customUserAgent,
+                })
+            }
+
             return {
                 capabilities: {
                     executeCommandProvider: {

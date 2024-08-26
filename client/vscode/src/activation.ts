@@ -6,7 +6,7 @@
 import * as cp from 'child_process'
 import * as path from 'path'
 
-import { ExtensionContext, workspace } from 'vscode'
+import { ExtensionContext, workspace, env, version } from 'vscode'
 
 import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind } from 'vscode-languageclient/node'
 import { registerChat } from './chatActivation'
@@ -19,6 +19,7 @@ import {
 } from './credentialsActivation'
 import { registerInlineCompletion } from './inlineCompletionActivation'
 import { registerLogCommand, registerTransformCommand } from './sampleCommandActivation'
+import { randomUUID } from 'crypto'
 
 export async function activateDocumentsLanguageServer(extensionContext: ExtensionContext) {
     /**
@@ -99,7 +100,19 @@ export async function activateDocumentsLanguageServer(extensionContext: Extensio
             { scheme: 'file', language: 'partiql' },
             { scheme: 'untitled', language: 'partiql' },
         ],
-        initializationOptions: {},
+        initializationOptions: {
+            aws: {
+                product: {
+                    name: 'Sample-VSCode-Extension',
+                    version: '0.0.1',
+                },
+                platform: {
+                    name: `${env.appName.replace(/\s/g, '-')}`,
+                    version: version,
+                },
+                clientId: randomUUID(),
+            },
+        },
         synchronize: {
             fileEvents: workspace.createFileSystemWatcher('**/*.{json,java,yml,yaml,ts,pql}'),
         },
