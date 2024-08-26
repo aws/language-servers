@@ -17,13 +17,18 @@ export class JsonLanguageService implements AwsLanguageService {
     private jsonService: LanguageService
 
     constructor(private readonly props: JsonLanguageServiceProps) {
+        let resolveUri: (url: string) => Promise<string>
+
+        if (props.uriResolver) {
+            resolveUri = props.uriResolver
+        } else {
+            resolveUri = getSchema
+        }
         this.jsonService = getLanguageService({
-            schemaRequestService: props.uriResolver?.bind(this),
+            schemaRequestService: resolveUri?.bind(this),
         })
-
         const schemas = props.defaultSchemaUri ? [{ fileMatch: ['*'], uri: props.defaultSchemaUri }] : undefined
-
-        this.jsonService.configure({ allowComments: props.allowComments ?? false, schemas })
+        this.jsonService.configure({ allowComments: props.allowComments ?? true, schemas })
     }
 
     public isSupported(document: TextDocument): boolean {
@@ -66,8 +71,14 @@ export class JsonLanguageService implements AwsLanguageService {
     }
 }
 
+async function getSchema(url: string) {
+    const response = await fetch(url)
+    const schema = await (await response.blob()).text()
+
+    return schema
+}
+
 export function create(props: JsonLanguageServiceProps): AwsLanguageService {
     const jsonService = new JsonLanguageService(props)
-
     return new MutuallyExclusiveLanguageService([jsonService])
 }

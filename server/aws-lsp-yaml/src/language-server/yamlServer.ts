@@ -1,5 +1,10 @@
 import { Server } from '@aws/language-server-runtimes/server-interface'
-import { AwsLanguageService, textDocumentUtils } from '@aws/lsp-core/out/base'
+import {
+    AwsLanguageService,
+    MutuallyExclusiveLanguageService,
+    textDocumentUtils,
+    UriResolver,
+} from '@aws/lsp-core/out/base'
 import { TextDocument } from 'vscode-languageserver-textdocument'
 import {
     Hover,
@@ -15,7 +20,7 @@ import {
     CompletionParams,
     DidChangeTextDocumentParams,
 } from '@aws/language-server-runtimes/server-interface'
-import { create } from '../language-service/yamlLanguageService'
+import { create, YamlLanguageService } from '../language-service/yamlLanguageService'
 
 /**
  * This is a demonstration language server that handles both JSON and YAML files according to the
@@ -133,18 +138,11 @@ export const YamlServerFactory =
         }
     }
 
-async function getSchema(url: string) {
-    const response = await fetch(url)
-    const schema = await (await response.blob()).text()
-
-    return schema
+export function createCustomYamlLanguageServer(customService: YamlLanguageService) {
+    return YamlServerFactory(new MutuallyExclusiveLanguageService([customService]))
 }
 
-export const CreateYamlLanguageServer = (
-    displayName: string,
-    defaultSchemaUri: string,
-    uriResolver: (url: string) => Promise<string> = getSchema
-) =>
+export const CreateYamlLanguageServer = (displayName: string, defaultSchemaUri: string, uriResolver?: UriResolver) =>
     YamlServerFactory(
         create({
             displayName: displayName,
