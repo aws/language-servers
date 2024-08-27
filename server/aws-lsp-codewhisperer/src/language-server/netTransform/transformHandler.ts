@@ -23,6 +23,7 @@ import {
     StartTransformRequest,
     StartTransformResponse,
     TransformProjectMetadata,
+    PollTransformationStatus,
 } from './models'
 import * as validation from './validation'
 import path = require('path')
@@ -241,20 +242,20 @@ export class TransformHandler {
 
     async pollTransformation(request: GetTransformRequest, validExitStatus: string[], failureStates: string[]) {
         let timer = 0
-        let getTransformRetry = 0
-        let getTransformMaxRetry = 3
+        let getTransformAttempt = 0
+        let getTransformMaxAttempts = 3
         const getCodeTransformationRequest = {
             transformationJobId: request.TransformationJobId,
         } as GetTransformationRequest
         this.logging.log('poll : send request to get transform  api: ' + JSON.stringify(getCodeTransformationRequest))
         let response = await this.client.codeModernizerGetCodeTransformation(getCodeTransformationRequest)
         this.logging.log('poll : received response from get transform  api: ' + JSON.stringify(response))
-        let status = response?.transformationJob?.status ?? 'NOT_FOUND'
+        let status = response?.transformationJob?.status ?? PollTransformationStatus.NOT_FOUND
 
         this.logging.log('validExitStatus here are : ' + validExitStatus)
         this.logging.log('failureStatus here are : ' + failureStates)
 
-        while (status != 'Timed_out' && !failureStates.includes(status)) {
+        while (status != PollTransformationStatus.TIMEOUT && !failureStates.includes(status)) {
             try {
                 const apiStartTime = Date.now()
 
@@ -286,20 +287,25 @@ export class TransformHandler {
                 this.logging.log('current polling timer ' + timer)
 
                 if (timer > 24 * 3600 * 1000) {
-                    status = 'Timed_out'
+                    status = PollTransformationStatus.TIMEOUT
                     break
                 }
             } catch (e: any) {
-                if (status === 'Retry' && getTransformRetry === getTransformMaxRetry) {
-                    const errorMessage = (e as Error).message ?? 'Error in GetTransformation API call'
-                    this.logging.log('CodeTransformation: GetTransformation error = ' + errorMessage)
-                    status = 'FAILED'
+                const errorMessage = (e as Error).message ?? 'Error in GetTransformation API call'
+                this.logging.log('poll : error polling transformation job from the server: ' + errorMessage)
+                if (status === PollTransformationStatus.RETRY && getTransformAttempt === getTransformMaxAttempts) {
+                    this.logging.log(
+                        `CodeTransformation: GetTransformation failed after ${getTransformMaxAttempts} retries.`
+                    )
+                    status = PollTransformationStatus.FAILED
                     break
-                } else if (status === 'Retry') {
-                    getTransformRetry += 1
+                } else if (status === PollTransformationStatus.RETRY) {
+                    getTransformAttempt += 1
+                    this.logging.log(`poll : ${getTransformAttempt} attempt failed, retry in 10s... `)
                 } else {
-                    status = 'Retry' // first time failed, status will be overwritten if no failure in next poll
-                    getTransformRetry = 0
+                    status = PollTransformationStatus.RETRY // first time failed, status will be overwritten if no failure in next poll
+                    getTransformAttempt = 0
+                    this.logging.log('poll : attempt to retry... ')
                 }
             }
         }
