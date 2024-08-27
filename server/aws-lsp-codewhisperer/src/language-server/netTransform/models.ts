@@ -57,7 +57,6 @@ export enum CancellationJobStatus {
 export enum PollTransformationStatus {
     TIMEOUT = 'TIMEOUT',
     NOT_FOUND = 'NOT_FOUND',
-    RETRY = 'RETRY',
     FAILED = 'FAILED',
 }
 

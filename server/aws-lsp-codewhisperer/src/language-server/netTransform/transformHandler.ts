@@ -194,45 +194,85 @@ export class TransformHandler {
         }
     }
     async getTransformationPlan(request: GetTransformPlanRequest) {
-        const getCodeTransformationPlanRequest = {
-            transformationJobId: request.TransformationJobId,
-        } as GetTransformationRequest
-        this.logging.log('send request to get transform plan api: ' + JSON.stringify(getCodeTransformationPlanRequest))
-        const response = await this.client.codeModernizerGetCodeTransformationPlan(getCodeTransformationPlanRequest)
-        this.logging.log('received response from get transform plan api: ' + JSON.stringify(response))
-        return {
-            TransformationPlan: response.transformationPlan,
-        } as GetTransformPlanResponse
+        let getTransformationPlanAttempt = 0
+        let getTransformationPlanMaxAttempts = 3
+        while (getTransformationPlanAttempt <= getTransformationPlanMaxAttempts) {
+            try {
+                const getCodeTransformationPlanRequest = {
+                    transformationJobId: request.TransformationJobId,
+                } as GetTransformationRequest
+                this.logging.log(
+                    'send request to get transform plan api: ' + JSON.stringify(getCodeTransformationPlanRequest)
+                )
+                const response = await this.client.codeModernizerGetCodeTransformationPlan(
+                    getCodeTransformationPlanRequest
+                )
+                this.logging.log('received response from get transform plan api: ' + JSON.stringify(response))
+                return {
+                    TransformationPlan: response.transformationPlan,
+                } as GetTransformPlanResponse
+            } catch (e: any) {
+                const errorMessage = (e as Error).message ?? 'Error in GetTransformationPlan API call'
+                this.logging.log('Error: ' + errorMessage)
+                if (getTransformationPlanAttempt === getTransformationPlanMaxAttempts) {
+                    this.logging.log(
+                        `CodeTransformation: GetTransformationPlan failed after ${getTransformationPlanMaxAttempts} attempts.`
+                    )
+                    throw e
+                } else {
+                    getTransformationPlanAttempt += 1
+                    this.logging.log(
+                        `poll : ${getTransformationPlanAttempt} attempt to get transformation plan failed, retry in 10 seconds or exit after ${getTransformationPlanMaxAttempts} attempts.`
+                    )
+                    await this.sleep(10 * 1000)
+                }
+            }
+        }
     }
 
     async cancelTransformation(request: CancelTransformRequest) {
-        try {
-            const stopCodeTransformationRequest = {
-                transformationJobId: request.TransformationJobId,
-            } as StopTransformationRequest
-            this.logging.log(
-                'send request to cancel transform plan api: ' + JSON.stringify(stopCodeTransformationRequest)
-            )
-            const response = await this.client.codeModernizerStopCodeTransformation(stopCodeTransformationRequest)
-            this.logging.log('received response from cancel transform plan api: ' + JSON.stringify(response))
-            let status: CancellationJobStatus
-            switch (response.transformationStatus) {
-                case 'STOPPED':
-                    status = CancellationJobStatus.SUCCESSFULLY_CANCELLED
-                    break
-                default:
-                    status = CancellationJobStatus.FAILED_TO_CANCEL
-                    break
+        let cancelTransformationAttempt = 0
+        let cancelTransformationMaxAttempts = 3
+        while (cancelTransformationAttempt <= cancelTransformationMaxAttempts) {
+            try {
+                const stopCodeTransformationRequest = {
+                    transformationJobId: request.TransformationJobId,
+                } as StopTransformationRequest
+                this.logging.log(
+                    'send request to cancel transform plan api: ' + JSON.stringify(stopCodeTransformationRequest)
+                )
+                const response = await this.client.codeModernizerStopCodeTransformation(stopCodeTransformationRequest)
+                this.logging.log('received response from cancel transform plan api: ' + JSON.stringify(response))
+                let status: CancellationJobStatus
+                switch (response.transformationStatus) {
+                    case 'STOPPED':
+                        status = CancellationJobStatus.SUCCESSFULLY_CANCELLED
+                        break
+                    default:
+                        status = CancellationJobStatus.FAILED_TO_CANCEL
+                        break
+                }
+                return {
+                    TransformationJobStatus: status,
+                } as CancelTransformResponse
+            } catch (e: any) {
+                const errorMessage = (e as Error).message ?? 'Error in CancelTransformation API call'
+                this.logging.log('Error: ' + errorMessage)
+                if (cancelTransformationAttempt === cancelTransformationMaxAttempts) {
+                    this.logging.log(
+                        `CodeTransformation: CancelTransformation failed after ${cancelTransformationMaxAttempts} attempts.`
+                    )
+                    return {
+                        TransformationJobStatus: CancellationJobStatus.FAILED_TO_CANCEL,
+                    } as CancelTransformResponse
+                } else {
+                    cancelTransformationAttempt += 1
+                    this.logging.log(
+                        `poll : ${cancelTransformationAttempt} attempt to cancel transformation status failed, retry in 10 seconds or exit after ${cancelTransformationMaxAttempts} attempts.`
+                    )
+                    await this.sleep(10 * 1000)
+                }
             }
-            return {
-                TransformationJobStatus: status,
-            } as CancelTransformResponse
-        } catch (e: any) {
-            const errorMessage = (e as Error).message ?? 'Error in CancelTransformation API call'
-            this.logging.log('Error: ' + errorMessage)
-            return {
-                TransformationJobStatus: CancellationJobStatus.FAILED_TO_CANCEL,
-            } as CancelTransformResponse
         }
     }
 
@@ -290,22 +330,21 @@ export class TransformHandler {
                     status = PollTransformationStatus.TIMEOUT
                     break
                 }
+                getTransformAttempt = 0 // a successful polling will reset attempt
             } catch (e: any) {
                 const errorMessage = (e as Error).message ?? 'Error in GetTransformation API call'
                 this.logging.log('poll : error polling transformation job from the server: ' + errorMessage)
-                if (status === PollTransformationStatus.RETRY && getTransformAttempt === getTransformMaxAttempts) {
+                if (getTransformAttempt >= getTransformMaxAttempts) {
                     this.logging.log(
-                        `CodeTransformation: GetTransformation failed after ${getTransformMaxAttempts} retries.`
+                        `CodeTransformation: GetTransformation failed after ${getTransformMaxAttempts} attempts.`
                     )
                     status = PollTransformationStatus.FAILED
                     break
-                } else if (status === PollTransformationStatus.RETRY) {
-                    getTransformAttempt += 1
-                    this.logging.log(`poll : ${getTransformAttempt} attempt failed, retry in 10s... `)
                 } else {
-                    status = PollTransformationStatus.RETRY // first time failed, status will be overwritten if no failure in next poll
-                    getTransformAttempt = 0
-                    this.logging.log('poll : attempt to retry... ')
+                    getTransformAttempt += 1
+                    this.logging.log(
+                        `poll : ${getTransformAttempt} attempt to poll transformation status failed, retry in 10 seconds or exit after ${getTransformMaxAttempts} attempts.`
+                    )
                 }
             }
         }
