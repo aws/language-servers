@@ -5,15 +5,18 @@ import { CodewhispererServerFactory } from './codeWhispererServer'
 import { CodeWhispererServiceIAM, CodeWhispererServiceToken } from './codeWhispererService'
 import { QNetTransformServerToken } from './netTransformServer'
 import { QChatServer } from './qChatServer'
+import { readFileSync } from 'fs'
 
 export const CodeWhispererServerTokenProxy = CodewhispererServerFactory(credentialsProvider => {
     let additionalAwsConfig = {}
     const proxyUrl = process.env.HTTPS_PROXY ?? process.env.https_proxy
+    const certs = process.env.NODE_EXTRA_CA_CERTS ? [readFileSync(process.env.NODE_EXTRA_CA_CERTS)] : undefined
 
     if (proxyUrl) {
         const { getProxyHttpAgent } = require('proxy-http-agent')
         const proxyAgent = getProxyHttpAgent({
             proxy: proxyUrl,
+            ca: certs,
         })
         additionalAwsConfig = {
             proxy: proxyAgent,
@@ -25,14 +28,16 @@ export const CodeWhispererServerTokenProxy = CodewhispererServerFactory(credenti
 export const CodeWhispererServerIAMProxy = CodewhispererServerFactory(credentialsProvider => {
     let additionalAwsConfig = {}
     const proxyUrl = process.env.HTTPS_PROXY ?? process.env.https_proxy
+    const certs = process.env.NODE_EXTRA_CA_CERTS ? [readFileSync(process.env.NODE_EXTRA_CA_CERTS)] : undefined
 
     if (proxyUrl) {
         const { getProxyHttpAgent } = require('proxy-http-agent')
         const proxyAgent = getProxyHttpAgent({
             proxy: proxyUrl,
+            ca: certs,
         })
         additionalAwsConfig = {
-            proxy: proxyAgent,
+            httpOptions: proxyAgent,
         }
     }
     return new CodeWhispererServiceIAM(credentialsProvider, additionalAwsConfig)
@@ -41,11 +46,13 @@ export const CodeWhispererServerIAMProxy = CodewhispererServerFactory(credential
 export const CodeWhispererSecurityScanServerTokenProxy = SecurityScanServerToken(credentialsProvider => {
     let additionalAwsConfig = {}
     const proxyUrl = process.env.HTTPS_PROXY ?? process.env.https_proxy
+    const certs = process.env.NODE_EXTRA_CA_CERTS ? [readFileSync(process.env.NODE_EXTRA_CA_CERTS)] : undefined
 
     if (proxyUrl) {
         const { getProxyHttpAgent } = require('proxy-http-agent')
         const proxyAgent = getProxyHttpAgent({
             proxy: proxyUrl,
+            ca: certs,
         })
         additionalAwsConfig = {
             proxy: proxyAgent,
@@ -74,6 +81,7 @@ export const QChatServerProxy = QChatServer(credentialsProvider => {
     let clientOptions: ChatSessionServiceConfig | undefined
 
     const proxyUrl = process.env.HTTPS_PROXY ?? process.env.https_proxy
+    const certs = process.env.NODE_EXTRA_CA_CERTS ? [readFileSync(process.env.NODE_EXTRA_CA_CERTS)] : undefined
 
     if (proxyUrl) {
         const { NodeHttpHandler } = require('@smithy/node-http-handler')
@@ -93,6 +101,7 @@ export const QChatServerProxy = QChatServer(credentialsProvider => {
             // this mimics aws-sdk-v3-js-proxy
             const agent = new HttpsProxyAgent({
                 proxy: proxyUrl,
+                ca: certs,
             })
 
             return {
