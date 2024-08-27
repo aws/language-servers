@@ -268,7 +268,7 @@ export class TransformHandler {
                 } else {
                     cancelTransformationAttempt += 1
                     this.logging.log(
-                        `poll : ${cancelTransformationAttempt} attempt to cancel transformation status failed, retry in 10 seconds or exit after ${cancelTransformationMaxAttempts} attempts.`
+                        `poll : ${cancelTransformationAttempt} attempt to cancel transformation failed, retry in 10 seconds or exit after ${cancelTransformationMaxAttempts} attempts.`
                     )
                     await this.sleep(10 * 1000)
                 }
