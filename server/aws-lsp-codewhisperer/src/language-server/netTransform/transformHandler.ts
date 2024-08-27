@@ -241,7 +241,8 @@ export class TransformHandler {
 
     async pollTransformation(request: GetTransformRequest, validExitStatus: string[], failureStates: string[]) {
         let timer = 0
-
+        let getTransformRetry = 0
+        let getTransformMaxRetry = 3
         const getCodeTransformationRequest = {
             transformationJobId: request.TransformationJobId,
         } as GetTransformationRequest
@@ -289,10 +290,17 @@ export class TransformHandler {
                     break
                 }
             } catch (e: any) {
-                const errorMessage = (e as Error).message ?? 'Error in GetTransformation API call'
-                this.logging.log('CodeTransformation: GetTransformation error = ' + errorMessage)
-                status = 'FAILED'
-                break
+                if (status === 'Retry' && getTransformRetry === getTransformMaxRetry) {
+                    const errorMessage = (e as Error).message ?? 'Error in GetTransformation API call'
+                    this.logging.log('CodeTransformation: GetTransformation error = ' + errorMessage)
+                    status = 'FAILED'
+                    break
+                } else if (status === 'Retry') {
+                    getTransformRetry += 1
+                } else {
+                    status = 'Retry' // first time failed, status will be overwritten if no failure in next poll
+                    getTransformRetry = 0
+                }
             }
         }
         this.logging.log('poll : returning response from server : ' + JSON.stringify(response))
