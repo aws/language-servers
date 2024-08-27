@@ -31,6 +31,7 @@ import {
     StartTransformRequest,
 } from './netTransform/models'
 import { TransformHandler } from './netTransform/transformHandler'
+import { CodeWhispererStreamingClientConfig } from '@amzn/codewhisperer-streaming'
 
 export const validStatesForGettingPlan = ['COMPLETED', 'PARTIALLY_COMPLETED', 'PLANNED', 'TRANSFORMING', 'TRANSFORMED']
 export const validStatesForComplete = ['COMPLETED']
@@ -126,8 +127,10 @@ export const QNetTransformServerToken =
                     case DownloadArtifactsCommand: {
                         const request = params as DownloadArtifactsRequest
                         const cwStreamingClientInstance = new StreamingClient()
-                        const cwStreamingClient =
-                            await cwStreamingClientInstance.getStreamingClient(credentialsProvider)
+                        const cwStreamingClient = await cwStreamingClientInstance.getStreamingClient(
+                            credentialsProvider,
+                            customCWClientConfig
+                        )
                         logging.log('Calling Download Archive  with job Id: ' + request.TransformationJobId)
                         const response = await transformHandler.downloadExportResultArchive(
                             cwStreamingClient,
@@ -193,10 +196,15 @@ export const QNetTransformServerToken =
             logging.log(params.command)
             return runTransformCommand(params, _token)
         }
+
+        const customCWClientConfig: CodeWhispererStreamingClientConfig = {}
         const onInitializeHandler = (params: InitializeParams) => {
             if (params.awsRuntimeMetadata?.customUserAgent) {
+                // Cache user agent to reuse between commands calls
+                customCWClientConfig.customUserAgent = params.awsRuntimeMetadata.customUserAgent
+
                 codewhispererclient.updateClientConfig({
-                    customUserAgent: params.awsRuntimeMetadata?.customUserAgent,
+                    customUserAgent: params.awsRuntimeMetadata.customUserAgent,
                 })
             }
 

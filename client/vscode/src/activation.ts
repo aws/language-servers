@@ -103,7 +103,7 @@ export async function activateDocumentsLanguageServer(extensionContext: Extensio
         initializationOptions: {
             aws: {
                 product: {
-                    name: 'Sample-VSCode-Extension',
+                    name: 'Sample Extension for VSCode',
                     version: '0.0.1',
                 },
                 platform: {
