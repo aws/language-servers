@@ -102,15 +102,15 @@ export async function activateDocumentsLanguageServer(extensionContext: Extensio
         ],
         initializationOptions: {
             aws: {
-                product: {
+                clientInfo: {
                     name: 'Sample Extension for VSCode',
                     version: '0.0.1',
+                    clientId: randomUUID(),
                 },
-                platform: {
-                    name: `${env.appName.replace(/\s/g, '-')}`,
+                platformInfo: {
+                    name: env.appName,
                     version: version,
                 },
-                clientId: randomUUID(),
             },
         },
         synchronize: {
