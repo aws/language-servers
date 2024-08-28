@@ -1,5 +1,6 @@
 import { CodeWhispererStreaming, ExportIntent } from '@amzn/codewhisperer-streaming'
 import { Logging, Workspace } from '@aws/language-server-runtimes/server-interface'
+import * as fs from 'fs'
 import got from 'got'
 import { v4 as uuidv4 } from 'uuid'
 import {
@@ -27,6 +28,7 @@ import {
 import * as validation from './validation'
 import path = require('path')
 import AdmZip = require('adm-zip')
+import { Console } from 'console'
 import { supportedProjects, unsupportedViewComponents } from './resources/SupportedProjects'
 import { String } from 'aws-sdk/clients/codebuild'
 import { ProjectMetadata } from 'aws-sdk/clients/lookoutvision'
