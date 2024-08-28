@@ -39,7 +39,6 @@ import {
 } from '@aws/language-server-runtimes-types'
 import { MynahUIDataModel, MynahUITabStoreModel } from '@aws/mynah-ui'
 import { ServerMessage, TELEMETRY, TelemetryParams } from '../contracts/serverContracts'
-import { ENTER_FOCUS, EXIT_FOCUS } from '../contracts/telemetry'
 import { Messager, OutboundChatApi } from './messager'
 import { InboundChatApi, createMynahUi } from './mynahUi'
 import { TabFactory } from './tabs/tabFactory'
@@ -62,6 +61,7 @@ export const createChat = (
 
     const sendMessageToClient = (message: UiMessage | ServerMessage) => {
         clientApi.postMessage(message)
+        console.log(`Post message: ${JSON.stringify(message)}`)
     }
 
     const handleMessage = (event: MessageEvent): void => {
@@ -98,11 +98,6 @@ export const createChat = (
                 // TODO: Report error?
                 break
         }
-    }
-
-    const handleApplicationFocus = (event: FocusEvent): void => {
-        const params = { name: event.type === 'focus' ? ENTER_FOCUS : EXIT_FOCUS }
-        sendMessageToClient({ command: TELEMETRY, params })
     }
 
     const chatApi: OutboundChatApi = {
@@ -151,8 +146,6 @@ export const createChat = (
             })
 
             window.addEventListener('message', handleMessage)
-            window.addEventListener('focus', handleApplicationFocus)
-            window.addEventListener('blur', handleApplicationFocus)
         },
     }
 
