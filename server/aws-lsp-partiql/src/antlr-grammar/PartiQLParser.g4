@@ -31,6 +31,7 @@ options {
 
 /** This file is taken from https://github.com/partiql/partiql-lang-kotlin/blob/d660231f2e59ceae0a8306ce880491d8f710708b/partiql-parser/src/main/antlr/PartiQLParser.g4,
  * however it is modified to allow for multiple queries separated by semi colon here.
+ * Support for CREATE TABLE (... PRIMARY KEY (col [, col])) was added.
  */
  
 // root
@@ -136,7 +137,12 @@ tableDef
 
 tableDefPart
     : columnName type columnConstraint*                             # ColumnDeclaration
+    | PRIMARY KEY ( PAREN_LEFT columnDef PAREN_RIGHT )              # PrimaryKey
     ;
+
+columnDef
+    : columnName ( COMMA columnName )*
+    ; 
 
 columnConstraint
     : ( CONSTRAINT columnConstraintName )?  columnConstraintDef
