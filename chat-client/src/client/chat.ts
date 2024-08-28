@@ -61,7 +61,6 @@ export const createChat = (
 
     const sendMessageToClient = (message: UiMessage | ServerMessage) => {
         clientApi.postMessage(message)
-        console.log(`Post message: ${JSON.stringify(message)}`)
     }
 
     const handleMessage = (event: MessageEvent): void => {
