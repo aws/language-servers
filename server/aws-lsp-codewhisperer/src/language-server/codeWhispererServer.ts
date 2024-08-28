@@ -335,6 +335,11 @@ export const CodewhispererServerFactory =
                     triggerType: codewhispererAutoTriggerType, // The 2 trigger types currently influencing the Auto-Trigger are SpecialCharacter and Enter
                 })
 
+                logging.log('\n=======LOG STATEMENTS FOR AUTO TRIGGER DEBUGGING=======')
+                logging.log(`isAutomaticLspTriggerKind: ${isAutomaticLspTriggerKind}`)
+                logging.log(`codewhispererAutoTriggerType: ${codewhispererAutoTriggerType}`)
+                logging.log(`autoTriggerResult: ${JSON.stringify(autoTriggerResult)}`)
+                logging.log('=======================================================\n')
                 if (
                     isAutomaticLspTriggerKind &&
                     codewhispererAutoTriggerType === 'Classifier' &&

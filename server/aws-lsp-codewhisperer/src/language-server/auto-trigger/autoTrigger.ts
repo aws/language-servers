@@ -157,6 +157,33 @@ export const autoTrigger = ({
 
     const shouldTrigger = sigmoid(classifierResult) > TRIGGER_THRESHOLD
 
+    console.log('\n================LOG STATEMENTS FOR AUTO TRIGGER DEBUGGING==================')
+    console.log(
+        `coefficients.lengthOfRightCoefficient * normalize(lengthOfRight, 'lenRight')`,
+        coefficients.lengthOfRightCoefficient * normalize(lengthOfRight, 'lenRight')
+    )
+    console.log(
+        `coefficients.lengthOfLeftCurrentCoefficient * normalize(lengthOfLeftCurrent, 'lenLeftCur')`,
+        coefficients.lengthOfLeftCurrentCoefficient * normalize(lengthOfLeftCurrent, 'lenLeftCur')
+    )
+    console.log(
+        `coefficients.lengthOfLeftPrevCoefficient * normalize(lengthOfLeftPrev, 'lenLeftPrev')`,
+        coefficients.lengthOfLeftPrevCoefficient * normalize(lengthOfLeftPrev, 'lenLeftPrev')
+    )
+    console.log(
+        `coefficients.lineNumCoefficient * normalize(lineNum, 'lineNum')`,
+        coefficients.lineNumCoefficient * normalize(lineNum, 'lineNum')
+    )
+    console.log(`osCoefficient`, osCoefficient)
+    console.log(`triggerTypeCoefficient`, triggerTypeCoefficient)
+    console.log(`charCoefficient`, charCoefficient)
+    console.log(`keyWordCoefficient`, keyWordCoefficient)
+    console.log(`coefficients.intercept`, coefficients.intercept)
+    console.log(`previousDecisionCoefficient`, previousDecisionCoefficient)
+    console.log(`languageCoefficient`, languageCoefficient)
+    console.log(`leftContextLengthCoefficient`, leftContextLengthCoefficient)
+    console.log('===========================================================================\n')
+
     return {
         shouldTrigger,
         classifierResult,
