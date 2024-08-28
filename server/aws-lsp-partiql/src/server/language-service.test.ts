@@ -116,12 +116,42 @@ describe('PartiQL validation parsing using ANTLR', () => {
         expect(diagnosticsMessages).toHaveLength(0)
     })
 
-    it('should not give errors for DML statements', () => {
+    it('should not give errors for DDL statements', () => {
         const validationFile = TextDocument.create(
             'file:///testPartiQLvalidation.json',
             'partiql',
             1,
             `CREATE TABLE VehicleRegistration`
+        )
+        const diagnosticsMessages = doAntlrValidation(validationFile)
+        expect(diagnosticsMessages).toHaveLength(0)
+    })
+
+    it('should not give errors when adding PRIMARY KEY with one column', () => {
+        const validationFile = TextDocument.create(
+            'file:///testPartiQLvalidation.json',
+            'partiql',
+            1,
+            `CREATE TABLE "test1"."test2" (
+                "test_col1" ascii,
+                PRIMARY KEY (test_col1)
+            )`
+        )
+        const diagnosticsMessages = doAntlrValidation(validationFile)
+        expect(diagnosticsMessages).toHaveLength(0)
+    })
+
+    it('should not give errors when adding PRIMARY KEY with multiple columns', () => {
+        const validationFile = TextDocument.create(
+            'file:///testPartiQLvalidation.json',
+            'partiql',
+            1,
+            `CREATE TABLE "test1"."test2" (
+                "test_col1" ascii,
+                "test_col2" ascii,
+                "test_col3" ascii,
+                PRIMARY KEY ("test_col1", test_col2, "test_col3")
+            )`
         )
         const diagnosticsMessages = doAntlrValidation(validationFile)
         expect(diagnosticsMessages).toHaveLength(0)
