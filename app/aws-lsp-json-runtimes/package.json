@@ -23,7 +23,7 @@
         "mocha": "^10.2.0",
         "ts-lsp-client": "^1.0.3",
         "ts-loader": "^9.4.4",
-        "webpack": "^5.88.2",
+        "webpack": "^5.94.0",
         "webpack-cli": "^5.1.4"
     }
 }
