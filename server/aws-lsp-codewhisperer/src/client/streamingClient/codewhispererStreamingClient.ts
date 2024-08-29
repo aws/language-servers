@@ -14,7 +14,7 @@ export class StreamingClient {
 export async function createStreamingClient(credentialsProvider: any): Promise<CodeWhispererStreaming> {
     const creds = credentialsProvider.getCredentials('bearer')
 
-    let clientOptions;
+    let clientOptions
     const proxyUrl = process.env.HTTPS_PROXY ?? process.env.https_proxy
     const certs = process.env.AWS_CA_BUNDLE ? [readFileSync(process.env.AWS_CA_BUNDLE)] : undefined
 
@@ -35,13 +35,12 @@ export async function createStreamingClient(credentialsProvider: any): Promise<C
         }
     }
 
-
     const streamingClient = new CodeWhispererStreaming({
         region: codeWhispererRegion,
         endpoint: codeWhispererEndpoint,
         token: { token: creds.token },
         retryStrategy: new ConfiguredRetryStrategy(0, (attempt: number) => 500 + attempt ** 10),
-        requestHandler: clientOptions?.requestHandler
+        requestHandler: clientOptions?.requestHandler,
     })
     return streamingClient
 }
