@@ -53,16 +53,12 @@ export abstract class CodeWhispererServiceBase {
 
     abstract generateSuggestions(request: GenerateSuggestionsRequest): Promise<GenerateSuggestionsResponse>
 
-    constructor(credentialsProvider: CredentialsProvider, additionalAwsConfig: AWSConfig = {}) {
+    constructor(credentialsProvider: CredentialsProvider, additionalAwsConfig: AWS.ConfigurationOptions = {}) {
         this.updateAwsConfiguration(additionalAwsConfig)
     }
 
-    updateAwsConfiguration = (awsConfig: AWSConfig) => {
-        if (awsConfig?.proxy) {
-            AWS.config.update({
-                httpOptions: { agent: awsConfig.proxy },
-            })
-        }
+    updateAwsConfiguration = (awsConfig: AWS.ConfigurationOptions) => {
+        AWS.config.update(awsConfig)
     }
 
     generateItemId = () => uuidv4()
@@ -71,7 +67,7 @@ export abstract class CodeWhispererServiceBase {
 export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
     client: CodeWhispererSigv4Client
 
-    constructor(credentialsProvider: CredentialsProvider, additionalAwsConfig: AWSConfig = {}) {
+    constructor(credentialsProvider: CredentialsProvider, additionalAwsConfig: AWS.ConfigurationOptions = {}) {
         super(credentialsProvider, additionalAwsConfig)
 
         const options: CodeWhispererSigv4ClientConfigurationOptions = {
@@ -112,7 +108,7 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
 export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     client: CodeWhispererTokenClient
 
-    constructor(credentialsProvider: CredentialsProvider, additionalAwsConfig: AWSConfig = {}) {
+    constructor(credentialsProvider: CredentialsProvider, additionalAwsConfig: AWS.ConfigurationOptions = {}) {
         super(credentialsProvider, additionalAwsConfig)
 
         const options: CodeWhispererTokenClientConfigurationOptions = {
