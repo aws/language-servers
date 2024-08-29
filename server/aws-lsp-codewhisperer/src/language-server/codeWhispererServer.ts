@@ -31,7 +31,7 @@ import {
     CodeWhispererUserDecisionEvent,
     CodeWhispererUserTriggerDecisionEvent,
 } from './telemetry/types'
-import { getCompletionType, isAwsError } from './utils'
+import { getCompletionType, getUserAgent, isAwsError } from './utils'
 
 const EMPTY_RESULT = { sessionId: '', items: [] }
 export const CONTEXT_CHARACTERS_LIMIT = 10240
@@ -282,11 +282,9 @@ export const CodewhispererServerFactory =
         const codeWhispererService = service(credentialsProvider)
 
         lsp.addInitializer((params: InitializeParams) => {
-            if (params.awsRuntimeMetadata?.customUserAgent) {
-                codeWhispererService.updateClientConfig({
-                    customUserAgent: params.awsRuntimeMetadata?.customUserAgent,
-                })
-            }
+            codeWhispererService.updateClientConfig({
+                customUserAgent: getUserAgent(params),
+            })
 
             return {
                 capabilities: {},

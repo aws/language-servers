@@ -15,7 +15,7 @@ import SecurityScanDiagnosticsProvider from './securityScan/securityScanDiagnost
 import { SecurityScanCancelledError, SecurityScanHandler } from './securityScan/securityScanHandler'
 import { SecurityScanRequestParams, SecurityScanResponse } from './securityScan/types'
 import { SecurityScanEvent } from './telemetry/types'
-import { getErrorMessage, parseJson } from './utils'
+import { getErrorMessage, getUserAgent, parseJson } from './utils'
 
 const RunSecurityScanCommand = 'aws/codewhisperer/runSecurityScan'
 const CancelSecurityScanCommand = 'aws/codewhisperer/cancelSecurityScan'
@@ -210,11 +210,9 @@ export const SecurityScanServerToken =
             return
         }
         const onInitializeHandler = (params: InitializeParams) => {
-            if (params.awsRuntimeMetadata?.customUserAgent) {
-                codewhispererclient.updateClientConfig({
-                    customUserAgent: params.awsRuntimeMetadata?.customUserAgent,
-                })
-            }
+            codewhispererclient.updateClientConfig({
+                customUserAgent: getUserAgent(params),
+            })
 
             return {
                 capabilities: {

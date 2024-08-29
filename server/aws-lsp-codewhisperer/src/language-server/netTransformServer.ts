@@ -32,6 +32,7 @@ import {
 } from './netTransform/models'
 import { TransformHandler } from './netTransform/transformHandler'
 import { CodeWhispererStreamingClientConfig } from '@amzn/codewhisperer-streaming'
+import { getUserAgent } from './utils'
 
 export const validStatesForGettingPlan = ['COMPLETED', 'PARTIALLY_COMPLETED', 'PLANNED', 'TRANSFORMING', 'TRANSFORMED']
 export const validStatesForComplete = ['COMPLETED']
@@ -199,14 +200,12 @@ export const QNetTransformServerToken =
 
         const customCWClientConfig: CodeWhispererStreamingClientConfig = {}
         const onInitializeHandler = (params: InitializeParams) => {
-            if (params.awsRuntimeMetadata?.customUserAgent) {
-                // Cache user agent to reuse between commands calls
-                customCWClientConfig.customUserAgent = params.awsRuntimeMetadata.customUserAgent
+            // Cache user agent to reuse between commands calls
+            customCWClientConfig.customUserAgent = getUserAgent(params)
 
-                codewhispererclient.updateClientConfig({
-                    customUserAgent: params.awsRuntimeMetadata.customUserAgent,
-                })
-            }
+            codewhispererclient.updateClientConfig({
+                customUserAgent: customCWClientConfig.customUserAgent,
+            })
 
             return {
                 capabilities: {
