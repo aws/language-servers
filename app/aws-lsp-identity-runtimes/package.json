@@ -1,0 +1,19 @@
+{
+    "name": "@aws/aws-lsp-identity-runtimes",
+    "version": "0.0.1",
+    "description": "LSP Server POC",
+    "main": "./out/standalone.js",
+    "scripts": {
+        "package": "npm run compile && npm run webpack",
+        "compile": "tsc --build",
+        "clean": "rm -rf out/ bin/ tsconfig.tsbuildinfo"
+    },
+    "dependencies": {
+        "@aws/lsp-identity": "^0.0.1",
+        "@aws/language-server-runtimes": "^0.2.5"
+    },
+    "devDependencies": {
+        "ts-lsp-client": "^1.0.3",
+        "ts-loader": "^9.4.4"
+    }
+}

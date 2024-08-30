@@ -16,6 +16,9 @@
             "path": "./client/vscode"
         },
         {
+            "path": "./client/LspServerPoc"
+        },
+        {
             "path": "./chat-client"
         },
         {
@@ -47,6 +50,12 @@
         },
         {
             "path": "./server/aws-lsp-partiql"
+        },
+        {
+            "path": "./server/aws-lsp-identity"
+        },
+        {
+            "path": "./app/aws-lsp-identity-runtimes"
         },
         {
             "path": "./app/aws-lsp-buildspec-runtimes"

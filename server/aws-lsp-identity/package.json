@@ -1,0 +1,17 @@
+{
+    "name": "@aws/lsp-identity",
+    "version": "0.0.1",
+    "description": "Identity server",
+    "main": "out/index.js",
+    "scripts": {
+        "compile": "tsc --build"
+    },
+    "dependencies": {
+        "@aws/language-server-runtimes": "^0.2.6",
+        "@aws/language-server-runtimes-types": "^0.0.6",
+        "vscode-languageserver": "^9.0.1"
+    },
+    "devDependencies": {
+        "ts-loader": "^9.4.4"
+    }
+}

@@ -133,6 +133,19 @@
             "preLaunchTask": "npm: compile"
         },
         {
+            "name": "LspServerPoc",
+            "type": "extensionHost",
+            "request": "launch",
+            "autoAttachChildProcesses": true,
+            "runtimeExecutable": "${execPath}",
+            "args": ["--extensionDevelopmentPath=${workspaceFolder}/client/LspServerPoc", "--disable-extensions"],
+            "env": {
+                "LSP_SERVER": "${workspaceFolder}/app/aws-lsp-identity-runtimes/out/standalone.js"
+            },
+            "outFiles": ["${workspaceFolder}/../**/*.(m|c|)js"],
+            "preLaunchTask": "watch"
+        },
+        {
             "type": "node",
             "request": "launch",
             "preLaunchTask": "watch",

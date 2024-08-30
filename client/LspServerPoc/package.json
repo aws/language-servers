@@ -1,0 +1,22 @@
+{
+    "name": "lsp-server-poc",
+    "description": "VSCode Client for LspServerPoc",
+    "author": "AWS",
+    "version": "0.1.0",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/aws/language-servers"
+    },
+    "engines": {
+        "vscode": "^1.74.0"
+    },
+    "main": "./out/extension.js",
+    "contributes": {
+        "commands": [
+            {
+                "command": "myTestCommand",
+                "title": "My Test Command"
+            }
+        ]
+    }
+}
