@@ -7,6 +7,7 @@ import { AWSError } from 'aws-sdk'
 import { Suggestion } from './codeWhispererService'
 import { CodewhispererCompletionType } from './telemetry/types'
 import { MISSING_BEARER_TOKEN_ERROR } from './constants'
+import { ServerInfo } from '@aws/language-server-runtimes/server-interface/runtime'
 
 export function isAwsError(error: unknown): error is AWSError {
     if (error === undefined) {
@@ -88,20 +89,18 @@ export const flattenMetric = (obj: any, prefix = '') => {
 }
 
 const USER_AGENT_PREFIX = 'AWS-Language-Servers'
-export const getUserAgent = (initializeParams?: InitializeParams): string => {
+export const getUserAgent = (initializeParams: InitializeParams, serverInfo?: ServerInfo): string => {
     const format = (s: string) => s.replace(/\s/g, '-')
 
     const items: String[] = []
 
     items.push(USER_AGENT_PREFIX)
 
-    const { serverInfo } = initializeParams?.awsRuntimeMetadata || {}
-
     // Fields specific to runtime artifact
-    if (serverInfo) {
+    if (serverInfo?.name) {
         serverInfo.version
-            ? items.push(`${format(serverInfo?.name)}/${serverInfo?.version}`)
-            : items.push(format(serverInfo?.name))
+            ? items.push(`${format(serverInfo.name)}/${serverInfo.version}`)
+            : items.push(format(serverInfo.name))
     }
 
     // Compute client-specific suffix

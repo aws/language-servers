@@ -22,7 +22,7 @@ const CancelSecurityScanCommand = 'aws/codewhisperer/cancelSecurityScan'
 
 export const SecurityScanServerToken =
     (service: (credentialsProvider: CredentialsProvider) => CodeWhispererServiceToken): Server =>
-    ({ credentialsProvider, workspace, logging, lsp, telemetry }) => {
+    ({ credentialsProvider, workspace, logging, lsp, telemetry, runtime }) => {
         const codewhispererclient = service(credentialsProvider)
         const diagnosticsProvider = new SecurityScanDiagnosticsProvider(lsp, logging)
         const scanHandler = new SecurityScanHandler(codewhispererclient, workspace, logging)
@@ -211,7 +211,7 @@ export const SecurityScanServerToken =
         }
         const onInitializeHandler = (params: InitializeParams) => {
             codewhispererclient.updateClientConfig({
-                customUserAgent: getUserAgent(params),
+                customUserAgent: getUserAgent(params, runtime.serverInfo),
             })
 
             return {

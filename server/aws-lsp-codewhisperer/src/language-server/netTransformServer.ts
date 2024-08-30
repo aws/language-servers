@@ -51,7 +51,7 @@ const DownloadArtifactsCommand = 'aws/qNetTransform/downloadArtifacts'
  */
 export const QNetTransformServerToken =
     (service: (credentialsProvider: CredentialsProvider) => CodeWhispererServiceToken): Server =>
-    ({ credentialsProvider, workspace, logging, lsp, telemetry }) => {
+    ({ credentialsProvider, workspace, logging, lsp, telemetry, runtime }) => {
         const codewhispererclient = service(credentialsProvider)
         const transformHandler = new TransformHandler(codewhispererclient, workspace, logging)
         const runTransformCommand = async (params: ExecuteCommandParams, _token: CancellationToken) => {
@@ -201,7 +201,7 @@ export const QNetTransformServerToken =
         const customCWClientConfig: CodeWhispererStreamingClientConfig = {}
         const onInitializeHandler = (params: InitializeParams) => {
             // Cache user agent to reuse between commands calls
-            customCWClientConfig.customUserAgent = getUserAgent(params)
+            customCWClientConfig.customUserAgent = getUserAgent(params, runtime.serverInfo)
 
             codewhispererclient.updateClientConfig({
                 customUserAgent: customCWClientConfig.customUserAgent,

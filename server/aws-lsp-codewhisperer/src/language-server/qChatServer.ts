@@ -7,14 +7,14 @@ import { getUserAgent } from './utils'
 export const QChatServer =
     (service: (credentialsProvider: CredentialsProvider) => ChatSessionManagementService): Server =>
     features => {
-        const { chat, credentialsProvider, logging, lsp } = features
+        const { chat, credentialsProvider, logging, lsp, runtime } = features
 
         const chatSessionManagementService: ChatSessionManagementService = service(credentialsProvider)
 
         const chatController = new ChatController(chatSessionManagementService, features)
 
         lsp.addInitializer((params: InitializeParams) => {
-            chatSessionManagementService.setCustomUserAgent(getUserAgent(params))
+            chatSessionManagementService.setCustomUserAgent(getUserAgent(params, runtime.serverInfo))
 
             return {
                 capabilities: {},

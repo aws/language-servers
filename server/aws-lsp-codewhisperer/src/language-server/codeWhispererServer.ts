@@ -274,7 +274,7 @@ const hasLeftContextMatch = (suggestions: Suggestion[], leftFileContent: string)
 
 export const CodewhispererServerFactory =
     (service: (credentials: CredentialsProvider) => CodeWhispererServiceBase): Server =>
-    ({ credentialsProvider, lsp, workspace, telemetry, logging }) => {
+    ({ credentialsProvider, lsp, workspace, telemetry, logging, runtime }) => {
         let lastUserModificationTime: number
         let timeSinceLastUserModification: number = 0
 
@@ -283,7 +283,7 @@ export const CodewhispererServerFactory =
 
         lsp.addInitializer((params: InitializeParams) => {
             codeWhispererService.updateClientConfig({
-                customUserAgent: getUserAgent(params),
+                customUserAgent: getUserAgent(params, runtime.serverInfo),
             })
 
             return {
