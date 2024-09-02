@@ -156,6 +156,33 @@ describe('PartiQL validation parsing using ANTLR', () => {
         const diagnosticsMessages = doAntlrValidation(validationFile)
         expect(diagnosticsMessages).toHaveLength(0)
     })
+
+    it('should not give errors when adding options to CREATE TABLE', () => {
+        const validationFile = TextDocument.create(
+            'file:///testPartiQLvalidation.json',
+            'partiql',
+            1,
+            `CREATE TABLE "test1"."test2" (
+                "test_col1" ascii,
+                "test_col2" ascii,
+                "test_col3" ascii
+            ) WITH CUSTOM_PROPERTIES={
+                'capacity_mode':{
+                        'throughput_mode': 'PROVISIONED', 'read_capacity_units': 10, 'write_capacity_units': 20
+                    },
+                'point_in_time_recovery':{'status': 'enabled'},
+                'encryption_specification':{
+                        'encryption_type': 'CUSTOMER_MANAGED_KMS_KEY', 
+                        'kms_key_identifier':'arn:aws:kms:eu-west-1:5555555555555:key/11111111-1111-111-1111-111111111111'
+                    }
+            }
+            AND CLUSTERING ORDER BY ("test_col1" ASC, test_col2 DESC) 
+            AND TAGS={'key1':'val1', 'key2':'val2'}
+            AND default_time_to_live = 3024000;`
+        )
+        const diagnosticsMessages = doAntlrValidation(validationFile)
+        expect(diagnosticsMessages).toHaveLength(0)
+    })
 })
 
 type edgeCaseParserDataType = { input: any; name: string; specificErrorString: string }

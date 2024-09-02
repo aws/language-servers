@@ -32,6 +32,7 @@ options {
 /** This file is taken from https://github.com/partiql/partiql-lang-kotlin/blob/d660231f2e59ceae0a8306ce880491d8f710708b/partiql-parser/src/main/antlr/PartiQLParser.g4,
  * however it is modified to allow for multiple queries separated by semi colon here.
  * Support for CREATE TABLE (... PRIMARY KEY (col [, col])) was added.
+ * Support for options for CREATE TABLE was added.
  */
  
 // root
@@ -115,6 +116,9 @@ tableName : symbolPrimitive;
 tableConstraintName : symbolPrimitive;
 columnName : symbolPrimitive;
 columnConstraintName : symbolPrimitive;
+tableOption : IDENTIFIER;
+tableOptionValue: LITERAL_STRING | LITERAL_INTEGER;
+clusteringDirection: ASC | DESC;
 
 ddl
     : createCommand
@@ -122,7 +126,7 @@ ddl
     ;
 
 createCommand
-    : CREATE TABLE qualifiedName ( PAREN_LEFT tableDef PAREN_RIGHT )?                           # CreateTable
+    : CREATE TABLE qualifiedName ( PAREN_LEFT tableDef PAREN_RIGHT )? withDef?                  # CreateTable
     | CREATE INDEX ON symbolPrimitive PAREN_LEFT pathSimple ( COMMA pathSimple )* PAREN_RIGHT   # CreateIndex
     ;
 
@@ -151,6 +155,26 @@ columnConstraint
 columnConstraintDef
     : NOT NULL                                  # ColConstrNotNull
     | NULL                                      # ColConstrNull
+    ;
+
+withDef 
+    : WITH tableOptions ( AND tableOptions )*
+    ;
+
+tableOptions
+    : tableOption EQ tableOptionMap
+    | tableOption EQ tableOptionValue
+    | CLUSTERING ORDER BY PAREN_LEFT clusteringOrder PAREN_RIGHT
+    ; 
+
+tableOptionMap
+    : BRACE_LEFT tableOptionMap (COMMA tableOptionMap)* BRACE_RIGHT
+    | tableOptionValue COLON tableOptionValue
+    | tableOptionValue COLON tableOptionMap
+    ; 
+
+clusteringOrder
+    : columnName clusteringDirection ( COMMA columnName clusteringDirection )*
     ;
 
 /**
