@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.0.13] - 2024-09-02
+- Add retry to pollTransformation
+- Fix autotrigger - LF
+- Add sql to supported file types
+- Fix: failed to upload due to cert validation failed
+
 ## [0.0.12] - 2024-08-19
 - Allow sending document without active focus in Chat requests
 
