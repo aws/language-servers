@@ -12,9 +12,9 @@
         "webpack": "webpack"
     },
     "dependencies": {
-        "copyfiles": "^2.4.1",
-        "@aws/language-server-runtimes": "^0.2.8",
-        "@aws/lsp-codewhisperer": "*"
+        "@aws/language-server-runtimes": "^0.2.14",
+        "@aws/lsp-codewhisperer": "*",
+        "copyfiles": "^2.4.1"
     },
     "devDependencies": {
         "ts-loader": "^9.4.4",

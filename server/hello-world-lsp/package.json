@@ -11,12 +11,12 @@
         "test": "ts-mocha -b 'src/**/*.test.ts'"
     },
     "dependencies": {
-        "@aws/language-server-runtimes": "^0.2.6",
+        "@aws/language-server-runtimes": "^0.2.14",
         "vscode-languageserver": "^9.0.1"
     },
     "devDependencies": {
         "ts-loader": "^9.4.4",
-        "webpack-cli": "^5.1.4",
-        "webpack": "^5.94.0"
+        "webpack": "^5.94.0",
+        "webpack-cli": "^5.1.4"
     }
 }

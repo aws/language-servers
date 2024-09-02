@@ -1,5 +1,5 @@
 import { BearerCredentials, CredentialsProvider } from '@aws/language-server-runtimes/server-interface'
-import { AWSError, CredentialProviderChain, Credentials } from 'aws-sdk'
+import { AWSError, ConfigurationOptions, CredentialProviderChain, Credentials } from 'aws-sdk'
 import { PromiseResult } from 'aws-sdk/lib/request'
 import { v4 as uuidv4 } from 'uuid'
 import {
@@ -59,6 +59,13 @@ export abstract class CodeWhispererServiceBase {
 
     updateAwsConfiguration = (awsConfig: AWS.ConfigurationOptions) => {
         AWS.config.update(awsConfig)
+    }
+
+    /**
+     * Updates Service Client options after client was instantiated.
+     */
+    public updateClientConfig(options: ConfigurationOptions) {
+        this.client.config.update(options)
     }
 
     generateItemId = () => uuidv4()

@@ -2,6 +2,7 @@ import {
     CancellationToken,
     CredentialsProvider,
     ExecuteCommandParams,
+    InitializeParams,
     Server,
 } from '@aws/language-server-runtimes/server-interface'
 import { performance } from 'perf_hooks'
@@ -14,14 +15,14 @@ import SecurityScanDiagnosticsProvider from './securityScan/securityScanDiagnost
 import { SecurityScanCancelledError, SecurityScanHandler } from './securityScan/securityScanHandler'
 import { SecurityScanRequestParams, SecurityScanResponse } from './securityScan/types'
 import { SecurityScanEvent } from './telemetry/types'
-import { getErrorMessage, parseJson } from './utils'
+import { getErrorMessage, getUserAgent, parseJson } from './utils'
 
 const RunSecurityScanCommand = 'aws/codewhisperer/runSecurityScan'
 const CancelSecurityScanCommand = 'aws/codewhisperer/cancelSecurityScan'
 
 export const SecurityScanServerToken =
     (service: (credentialsProvider: CredentialsProvider) => CodeWhispererServiceToken): Server =>
-    ({ credentialsProvider, workspace, logging, lsp, telemetry }) => {
+    ({ credentialsProvider, workspace, logging, lsp, telemetry, runtime }) => {
         const codewhispererclient = service(credentialsProvider)
         const diagnosticsProvider = new SecurityScanDiagnosticsProvider(lsp, logging)
         const scanHandler = new SecurityScanHandler(codewhispererclient, workspace, logging)
@@ -208,7 +209,11 @@ export const SecurityScanServerToken =
             }
             return
         }
-        const onInitializeHandler = () => {
+        const onInitializeHandler = (params: InitializeParams) => {
+            codewhispererclient.updateClientConfig({
+                customUserAgent: getUserAgent(params, runtime.serverInfo),
+            })
+
             return {
                 capabilities: {
                     executeCommandProvider: {
