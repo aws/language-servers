@@ -1,6 +1,7 @@
 # Changelog
 
 ## [0.0.13] - 2024-09-02
+- Set customUserAgent for SDK calls in Q Servers
 - Add retry to pollTransformation
 - Fix autotrigger - LF
 - Add sql to supported file types
