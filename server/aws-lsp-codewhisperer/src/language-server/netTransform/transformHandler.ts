@@ -1,5 +1,5 @@
 import { CodeWhispererStreaming, ExportIntent } from '@amzn/codewhisperer-streaming'
-import { integer, Logging, Workspace } from '@aws/language-server-runtimes/server-interface'
+import { Logging, Workspace } from '@aws/language-server-runtimes/server-interface'
 import * as fs from 'fs'
 import got from 'got'
 import { v4 as uuidv4 } from 'uuid'
@@ -196,7 +196,6 @@ export class TransformHandler {
     async getTransformationPlan(request: GetTransformPlanRequest) {
         let getTransformationPlanAttempt = 0
         let getTransformationPlanMaxAttempts = 3
-        let exponentialDelayFactor = 2
         while (true) {
             try {
                 const getCodeTransformationPlanRequest = {
