@@ -1,5 +1,5 @@
 import { CodeWhispererStreaming, ExportIntent } from '@amzn/codewhisperer-streaming'
-import { Logging, Workspace } from '@aws/language-server-runtimes/server-interface'
+import { integer, Logging, Workspace } from '@aws/language-server-runtimes/server-interface'
 import * as fs from 'fs'
 import got from 'got'
 import { v4 as uuidv4 } from 'uuid'
@@ -196,6 +196,7 @@ export class TransformHandler {
     async getTransformationPlan(request: GetTransformPlanRequest) {
         let getTransformationPlanAttempt = 0
         let getTransformationPlanMaxAttempts = 3
+        let exponentialDelayFactor = 2
         while (true) {
             try {
                 const getCodeTransformationPlanRequest = {
@@ -223,10 +224,11 @@ export class TransformHandler {
                     throw e
                 }
 
+                const expDelayMs = this.getExpDelayForApiRetryMs(getTransformationPlanAttempt)
                 this.logging.log(
-                    `poll : Attempt ${getTransformationPlanAttempt}/${getTransformationPlanMaxAttempts} to get transformation plan failed`
+                    `poll : Attempt ${getTransformationPlanAttempt}/${getTransformationPlanMaxAttempts} to get transformation plan failed, retry in ${expDelayMs} seconds`
                 )
-                await this.sleep(10 * 1000)
+                await this.sleep(expDelayMs * 1000)
             }
         }
     }
@@ -270,10 +272,11 @@ export class TransformHandler {
                     } as CancelTransformResponse
                 }
 
+                const expDelayMs = this.getExpDelayForApiRetryMs(cancelTransformationAttempt)
                 this.logging.log(
-                    `poll : Attempt ${cancelTransformationAttempt}/${cancelTransformationMaxAttempts} to get transformation plan failed`
+                    `poll : Attempt ${cancelTransformationAttempt}/${cancelTransformationMaxAttempts} to get transformation plan failed, retry in ${expDelayMs} seconds`
                 )
-                await this.sleep(10 * 1000)
+                await this.sleep(expDelayMs * 1000)
             }
         }
     }
@@ -346,9 +349,11 @@ export class TransformHandler {
                     break
                 }
 
+                const expDelayMs = this.getExpDelayForApiRetryMs(getTransformAttempt)
                 this.logging.log(
-                    `poll : Attempt ${getTransformAttempt}/${getTransformMaxAttempts} to get transformation plan failed`
+                    `poll : Attempt ${getTransformAttempt}/${getTransformMaxAttempts} to get transformation plan failed, retry in ${expDelayMs} seconds`
                 )
+                await this.sleep(expDelayMs * 1000)
             }
         }
         this.logging.log('poll : returning response from server : ' + JSON.stringify(response))
@@ -421,5 +426,12 @@ export class TransformHandler {
             fs.mkdirSync(workspacePath, { recursive: true })
         }
         return workspacePath
+    }
+
+    getExpDelayForApiRetryMs(attempt: number): number {
+        const exponentialDelayFactor = 2
+        const exponentialDelay = 10 * Math.pow(exponentialDelayFactor, attempt)
+        const jitteredDelay = Math.floor(Math.random() * 10)
+        return exponentialDelay + jitteredDelay // returns in milliseconds
     }
 }
