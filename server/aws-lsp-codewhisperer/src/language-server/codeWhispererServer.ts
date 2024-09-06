@@ -19,6 +19,7 @@ import {
     CodeWhispererServiceBase,
     CodeWhispererServiceIAM,
     CodeWhispererServiceToken,
+    GenerateSuggestionsRequest,
     Suggestion,
 } from './codeWhispererService'
 import { CodewhispererLanguage, getSupportedLanguageId } from './languageDetection'
@@ -32,6 +33,7 @@ import {
     CodeWhispererUserTriggerDecisionEvent,
 } from './telemetry/types'
 import { getCompletionType, getUserAgent, isAwsError } from './utils'
+import { fetchSupplementalContext } from './supplementalContextUtil/supplementalContextUtil'
 
 const EMPTY_RESULT = { sessionId: '', items: [] }
 export const CONTEXT_CHARACTERS_LIMIT = 10240
@@ -354,9 +356,12 @@ export const CodewhispererServerFactory =
                     return EMPTY_RESULT
                 }
 
-                const requestContext = {
+                const supplementalContext = fetchSupplementalContext()
+
+                const requestContext: GenerateSuggestionsRequest = {
                     fileContext,
                     maxResults,
+                    supplementalContexts: [],
                 }
 
                 // Close ACTIVE session and record Discard trigger decision immediately
