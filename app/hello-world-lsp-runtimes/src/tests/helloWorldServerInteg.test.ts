@@ -1,6 +1,6 @@
 import * as chai from 'chai'
 import { expect } from 'chai'
-import * as chaiAsPromised from 'chai-as-promised'
+import chaiAsPromised from 'chai-as-promised'
 import { ChildProcessWithoutNullStreams, spawn } from 'child_process'
 import { describe } from 'node:test'
 import * as path from 'path'
