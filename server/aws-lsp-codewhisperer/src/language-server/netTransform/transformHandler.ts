@@ -341,7 +341,7 @@ export class TransformHandler {
                     this.logging.log(
                         `CodeTransformation: GetTransformation failed after ${getTransformMaxAttempts} attempts.`
                     )
-                    status = PollTransformationStatus.FAILED
+                    status = PollTransformationStatus.NOT_FOUND
                     break
                 }
 
