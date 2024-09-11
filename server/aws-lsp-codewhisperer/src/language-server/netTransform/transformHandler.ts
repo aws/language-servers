@@ -186,9 +186,7 @@ export class TransformHandler {
             const errorMessage = (e as Error).message ?? 'Error in GetTransformation API call'
             this.logging.log('Error: ' + errorMessage)
 
-            return {
-                TransformationJob: { status: 'FAILED' },
-            } as GetTransformResponse
+            return null
         }
     }
     async getTransformationPlan(request: GetTransformPlanRequest) {
@@ -290,8 +288,7 @@ export class TransformHandler {
             } catch (e: any) {
                 const errorMessage = (e as Error).message ?? 'Error in GetTransformation API call'
                 this.logging.log('CodeTransformation: GetTransformation error = ' + errorMessage)
-                status = 'FAILED'
-                break
+                continue
             }
         }
         this.logging.log('poll : returning response from server : ' + JSON.stringify(response))
