@@ -68,7 +68,7 @@ export const QNetTransformServerToken =
                         const request = params as GetTransformRequest
                         logging.log('Calling getTransform request with job Id: ' + request.TransformationJobId)
                         const response = await transformHandler.getTransformation(request)
-                        if(response != null){
+                        if (response != null) {
                             emitTransformationJobReceivedTelemetry(telemetry, response)
                         }
                         return response
