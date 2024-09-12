@@ -209,7 +209,7 @@ describe('Test Transform handler ', () => {
             const request = JSON.parse(requestString) as GetTransformRequest
             const res = await transformHandler.getTransformation(request)
 
-            expect(res.TransformationJob.status).to.equal('COMPLETED')
+            expect(res?.TransformationJob.status).to.equal('COMPLETED')
         })
     })
 
@@ -233,7 +233,7 @@ describe('Test Transform handler ', () => {
             const request = JSON.parse(requestString) as GetTransformRequest
             const res = await transformHandler.getTransformation(request)
 
-            expect(res.TransformationJob.status).to.equal('FAILED')
+            expect(res?.TransformationJob.status).to.equal('FAILED')
         })
     })
 
