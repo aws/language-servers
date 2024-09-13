@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.0.14] - 2024-09-13
+- .Net Transform: Removing manually setting job status to failed after any error from CodeWhisperer API
+
 ## [0.0.13] - 2024-09-02
 - Set customUserAgent for SDK calls in Q Servers
 - Add retry to pollTransformation
