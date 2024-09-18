@@ -9,7 +9,7 @@
 import * as path from 'path'
 import { fs } from '../../../shared'
 import * as vscode from 'vscode'
-import { CancellationToken, TextDocument } from '@aws/language-server-runtimes/server-interface'
+import { CancellationToken, Logging, TextDocument, Workspace } from '@aws/language-server-runtimes/server-interface'
 import {
     countSubstringMatches,
     extractClasses,
@@ -18,25 +18,27 @@ import {
     utgLanguageConfig,
     utgLanguageConfigs,
 } from './codeParsingUtil'
-import { ToolkitError } from '../../../shared/errors'
 import { supplemetalContextFetchingTimeoutMsg } from '../models/constants'
-import { CancellationError } from '../../../shared/utilities/timeoutUtils'
+import { CancellationError } from './supplementalContextUtil'
 import { utgConfig } from '../models/constants'
-import { CodeWhispererUserGroupSettings } from '../userGroupUtil'
-import { UserGroup } from '../models/constants'
+// import { CodeWhispererUserGroupSettings } from '../userGroupUtil'
+// import { UserGroup } from '../models/constants'
 import { getOpenFilesInWindow } from '../../../shared/utilities/editorUtilities'
-import { getLogger } from '../../../shared/logger/logger'
 import { CodeWhispererSupplementalContext, CodeWhispererSupplementalContextItem, UtgStrategy } from '../models/model'
+
+let log = (message: any) => {
+    console.log(message)
+}
 
 type UtgSupportedLanguage = keyof typeof utgLanguageConfigs
 
-function isUtgSupportedLanguage(languageId: vscode.TextDocument['languageId']): languageId is UtgSupportedLanguage {
+function isUtgSupportedLanguage(languageId: TextDocument['languageId']): languageId is UtgSupportedLanguage {
     return languageId in utgLanguageConfigs
 }
 
 export function shouldFetchUtgContext(
-    languageId: vscode.TextDocument['languageId'],
-    userGroup: UserGroup
+    languageId: TextDocument['languageId']
+    // userGroup: UserGroup - disabling since UserGroup feature is not ported yet.
 ): boolean | undefined {
     if (!isUtgSupportedLanguage(languageId)) {
         return undefined
@@ -45,7 +47,8 @@ export function shouldFetchUtgContext(
     if (languageId === 'java') {
         return true
     } else {
-        return userGroup === UserGroup.CrossFile
+        // TODO: how to get about UserGroup here? It is not supported in LS.
+        // return userGroup === UserGroup.CrossFile
     }
 }
 
@@ -61,9 +64,14 @@ export function shouldFetchUtgContext(
 export async function fetchSupplementalContextForTest(
     editor: vscode.TextEditor,
     document: TextDocument,
+    workspace: Workspace,
+    logging: Logging,
     cancellationToken: CancellationToken
 ): Promise<Pick<CodeWhispererSupplementalContext, 'supplementalContextItems' | 'strategy'> | undefined> {
-    const shouldProceed = shouldFetchUtgContext(document.languageId, CodeWhispererUserGroupSettings.instance.userGroup)
+    // Setup logger function
+    log = message => logging.log(message)
+
+    const shouldProceed = shouldFetchUtgContext(document.languageId)
 
     if (!shouldProceed) {
         return shouldProceed === undefined ? undefined : { supplementalContextItems: [], strategy: 'Empty' }
@@ -74,10 +82,10 @@ export async function fetchSupplementalContextForTest(
     // TODO (Metrics): 1. Total number of calls to fetchSupplementalContextForTest
     throwIfCancelled(cancellationToken)
 
-    let crossSourceFile = await findSourceFileByName(editor, languageConfig, cancellationToken)
+    let crossSourceFile = await findSourceFileByName(document, languageConfig, workspace, cancellationToken)
     if (crossSourceFile) {
         // TODO (Metrics): 2. Success count for fetchSourceFileByName (find source file by name)
-        getLogger().debug(`CodeWhisperer finished fetching utg context by file name`)
+        log(`CodeWhisperer finished fetching utg context by file name`)
         return {
             supplementalContextItems: await generateSupplementalContextFromFocalFile(
                 crossSourceFile,
@@ -92,7 +100,7 @@ export async function fetchSupplementalContextForTest(
     crossSourceFile = await findSourceFileByContent(editor, languageConfig, cancellationToken)
     if (crossSourceFile) {
         // TODO (Metrics): 3. Success count for fetchSourceFileByContent (find source file by content)
-        getLogger().debug(`CodeWhisperer finished fetching utg context by file content`)
+        log(`CodeWhisperer finished fetching utg context by file content`)
         return {
             supplementalContextItems: await generateSupplementalContextFromFocalFile(
                 crossSourceFile,
@@ -104,7 +112,7 @@ export async function fetchSupplementalContextForTest(
     }
 
     // TODO (Metrics): 4. Failure count - when unable to find focal file (supplemental context empty)
-    getLogger().debug(`CodeWhisperer failed to fetch utg context`)
+    log(`CodeWhisperer failed to fetch utg context`)
     return {
         supplementalContextItems: [],
         strategy: 'Empty',
@@ -186,35 +194,43 @@ async function getRelevantUtgFiles(editor: vscode.TextEditor): Promise<string[]>
     })
 }
 
+// PORT_TODO: this function has edge cases not covered in VSCode
+// Regexp matcher has edge cases and can result in rong responses
+// Path matching of dirname for constructing path does not work when `/test` is last section
+// Keeping this working at low effort
 async function findSourceFileByName(
-    editor: vscode.TextEditor,
+    document: TextDocument,
     languageConfig: utgLanguageConfig,
+    workspace: Workspace,
     cancellationToken: CancellationToken
 ): Promise<string | undefined> {
-    const testFileName = path.basename(editor.document.fileName)
+    const testFileName = path.basename(document.uri)
 
     let basenameSuffix = testFileName
     const match = testFileName.match(languageConfig.testFilenamePattern)
     if (match) {
-        basenameSuffix = match[1] || match[2]
+        basenameSuffix = match[1] || match[2] || match[3] // Added 3rd value, as Java pattern has 3 matchers
     }
 
     throwIfCancelled(cancellationToken)
 
     // Assuming the convention of using similar path structure for test and src files.
-    const dirPath = path.dirname(editor.document.uri.fsPath)
+    const dirPath = path.dirname(document.uri)
     let newPath = ''
-    const lastIndexTest = dirPath.lastIndexOf('/test/')
-    const lastIndexTst = dirPath.lastIndexOf('/tst/')
+    const lastIndexTest = dirPath.lastIndexOf('/test') // Removed trailing /, since paths where test is last element were not supported
+    const lastIndexTst = dirPath.lastIndexOf('/tst')
     // This is a faster way on the assumption that source file and test file will follow similar path structure.
     if (lastIndexTest > 0) {
-        newPath = dirPath.substring(0, lastIndexTest) + '/src/' + dirPath.substring(lastIndexTest + 5)
+        newPath = dirPath.substring(0, lastIndexTest) + '/src' + dirPath.substring(lastIndexTest + 5)
     } else if (lastIndexTst > 0) {
-        newPath = dirPath.substring(0, lastIndexTst) + '/src/' + dirPath.substring(lastIndexTst + 4)
+        newPath = dirPath.substring(0, lastIndexTst) + '/src' + dirPath.substring(lastIndexTst + 4)
     }
     newPath = path.join(newPath, basenameSuffix + languageConfig.extension)
+
+    // PORT_TODO: WIP Checkpoint
+
     // TODO: Add metrics here, as we are not able to find the source file by name.
-    if (await fs.exists(newPath)) {
+    if (await workspace.fs.exists(newPath)) {
         return newPath
     }
 
@@ -232,6 +248,6 @@ async function findSourceFileByName(
 
 function throwIfCancelled(token: CancellationToken): void | never {
     if (token.isCancellationRequested) {
-        throw new ToolkitError(supplemetalContextFetchingTimeoutMsg, { cause: new CancellationError('timeout') })
+        throw new CancellationError('Timeout: ' + supplemetalContextFetchingTimeoutMsg)
     }
 }

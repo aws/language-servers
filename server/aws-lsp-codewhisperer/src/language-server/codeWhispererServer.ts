@@ -356,7 +356,13 @@ export const CodewhispererServerFactory =
                     return EMPTY_RESULT
                 }
 
-                const supplementalContext = fetchSupplementalContext(textDocument, workspace, _token)
+                const supplementalContext = fetchSupplementalContext(
+                    textDocument,
+                    params.position,
+                    workspace,
+                    logging,
+                    _token
+                )
 
                 const requestContext: GenerateSuggestionsRequest = {
                     fileContext,
