@@ -11,13 +11,15 @@ import { fetchSupplementalContextForSrc } from './crossFileContextUtil'
 import { isTestFile } from './codeParsingUtil'
 import * as vscode from 'vscode'
 import { CodeWhispererSupplementalContext } from '../models/model'
-import { CancellationToken, TextDocument } from '@aws/language-server-runtimes/server-interface'
+import { CancellationToken, Position, TextDocument, Workspace } from '@aws/language-server-runtimes/server-interface'
 
 export class CancellationError extends Error {}
 
 export async function fetchSupplementalContext(
     editor: vscode.TextEditor,
     document: TextDocument,
+    position: Position,
+    workspace: Workspace,
     cancellationToken: CancellationToken
 ): Promise<CodeWhispererSupplementalContext | undefined> {
     const timesBeforeFetching = performance.now()
@@ -34,7 +36,7 @@ export async function fetchSupplementalContext(
     if (isUtg) {
         supplementalContextPromise = fetchSupplementalContextForTest(editor, document, cancellationToken)
     } else {
-        supplementalContextPromise = fetchSupplementalContextForSrc(editor, document, cancellationToken)
+        supplementalContextPromise = fetchSupplementalContextForSrc(document, position, workspace, cancellationToken)
     }
 
     return supplementalContextPromise
@@ -53,7 +55,7 @@ export async function fetchSupplementalContext(
             }
         })
         .catch(err => {
-            // TODO: lift this error handling to codeWhispererServer caller
+            // PORT_TODO: lift this error handling to codeWhispererServer caller
             if (err instanceof CancellationError) {
                 return {
                     isUtg: isUtg,
