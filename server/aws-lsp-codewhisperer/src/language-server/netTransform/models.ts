@@ -53,6 +53,13 @@ export enum CancellationJobStatus {
     TIMED_OUT,
 }
 
+// status specific to pollTransformation
+export enum PollTransformationStatus {
+    TIMEOUT = 'TIMEOUT',
+    NOT_FOUND = 'NOT_FOUND',
+    FAILED = 'FAILED',
+}
+
 export interface CancelTransformResponse {
     TransformationJobStatus: CancellationJobStatus
 }

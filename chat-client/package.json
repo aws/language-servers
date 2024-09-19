@@ -1,6 +1,6 @@
 {
     "name": "@aws/chat-client",
-    "version": "0.0.2",
+    "version": "0.0.3",
     "description": "AWS Chat Client",
     "main": "out/index.js",
     "repository": {
@@ -29,7 +29,7 @@
         "sinon": "^18.0.0",
         "ts-mocha": "^10.0.0",
         "ts-sinon": "^2.0.2",
-        "webpack": "^5.38.1",
+        "webpack": "^5.94.0",
         "webpack-cli": "^5.1.4"
     },
     "prettier": {

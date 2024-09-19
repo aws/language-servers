@@ -1,18 +1,21 @@
-import { CredentialsProvider, Server } from '@aws/language-server-runtimes/server-interface'
+import { CredentialsProvider, InitializeParams, Server } from '@aws/language-server-runtimes/server-interface'
 import { ChatController } from './chat/chatController'
 import { ChatSessionManagementService } from './chat/chatSessionManagementService'
 import { CLEAR_QUICK_ACTION, HELP_QUICK_ACTION } from './chat/quickActions'
+import { getUserAgent } from './utils'
 
 export const QChatServer =
     (service: (credentialsProvider: CredentialsProvider) => ChatSessionManagementService): Server =>
     features => {
-        const { chat, credentialsProvider, logging, lsp } = features
+        const { chat, credentialsProvider, logging, lsp, runtime } = features
 
         const chatSessionManagementService: ChatSessionManagementService = service(credentialsProvider)
 
         const chatController = new ChatController(chatSessionManagementService, features)
 
-        lsp.addInitializer(() => {
+        lsp.addInitializer((params: InitializeParams) => {
+            chatSessionManagementService.setCustomUserAgent(getUserAgent(params, runtime.serverInfo))
+
             return {
                 capabilities: {},
                 awsServerCapabilities: {

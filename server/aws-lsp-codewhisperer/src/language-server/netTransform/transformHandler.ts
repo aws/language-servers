@@ -23,6 +23,7 @@ import {
     StartTransformRequest,
     StartTransformResponse,
     TransformProjectMetadata,
+    PollTransformationStatus,
 } from './models'
 import * as validation from './validation'
 import path = require('path')
@@ -186,52 +187,93 @@ export class TransformHandler {
         } catch (e: any) {
             const errorMessage = (e as Error).message ?? 'Error in GetTransformation API call'
             this.logging.log('Error: ' + errorMessage)
-
-            return {
-                TransformationJob: { status: 'FAILED' },
-            } as GetTransformResponse
+            return null
         }
     }
     async getTransformationPlan(request: GetTransformPlanRequest) {
-        const getCodeTransformationPlanRequest = {
-            transformationJobId: request.TransformationJobId,
-        } as GetTransformationRequest
-        this.logging.log('send request to get transform plan api: ' + JSON.stringify(getCodeTransformationPlanRequest))
-        const response = await this.client.codeModernizerGetCodeTransformationPlan(getCodeTransformationPlanRequest)
-        this.logging.log('received response from get transform plan api: ' + JSON.stringify(response))
-        return {
-            TransformationPlan: response.transformationPlan,
-        } as GetTransformPlanResponse
+        let getTransformationPlanAttempt = 0
+        let getTransformationPlanMaxAttempts = 3
+        while (true) {
+            try {
+                const getCodeTransformationPlanRequest = {
+                    transformationJobId: request.TransformationJobId,
+                } as GetTransformationRequest
+                this.logging.log(
+                    'send request to get transform plan api: ' + JSON.stringify(getCodeTransformationPlanRequest)
+                )
+                const response = await this.client.codeModernizerGetCodeTransformationPlan(
+                    getCodeTransformationPlanRequest
+                )
+                this.logging.log('received response from get transform plan api: ' + JSON.stringify(response))
+                return {
+                    TransformationPlan: response.transformationPlan,
+                } as GetTransformPlanResponse
+            } catch (e: any) {
+                const errorMessage = (e as Error).message ?? 'Error in GetTransformationPlan API call'
+                this.logging.log('Error: ' + errorMessage)
+
+                getTransformationPlanAttempt += 1
+                if (getTransformationPlanAttempt >= getTransformationPlanMaxAttempts) {
+                    this.logging.log(
+                        `CodeTransformation: GetTransformationPlan failed after ${getTransformationPlanMaxAttempts} attempts.`
+                    )
+                    throw e
+                }
+
+                const expDelayMs = this.getExpDelayForApiRetryMs(getTransformationPlanAttempt)
+                this.logging.log(
+                    `poll : Attempt ${getTransformationPlanAttempt}/${getTransformationPlanMaxAttempts} to get transformation plan failed, retry in ${expDelayMs} seconds`
+                )
+                await this.sleep(expDelayMs * 1000)
+            }
+        }
     }
 
     async cancelTransformation(request: CancelTransformRequest) {
-        try {
-            const stopCodeTransformationRequest = {
-                transformationJobId: request.TransformationJobId,
-            } as StopTransformationRequest
-            this.logging.log(
-                'send request to cancel transform plan api: ' + JSON.stringify(stopCodeTransformationRequest)
-            )
-            const response = await this.client.codeModernizerStopCodeTransformation(stopCodeTransformationRequest)
-            this.logging.log('received response from cancel transform plan api: ' + JSON.stringify(response))
-            let status: CancellationJobStatus
-            switch (response.transformationStatus) {
-                case 'STOPPED':
-                    status = CancellationJobStatus.SUCCESSFULLY_CANCELLED
-                    break
-                default:
-                    status = CancellationJobStatus.FAILED_TO_CANCEL
-                    break
+        let cancelTransformationAttempt = 0
+        let cancelTransformationMaxAttempts = 3
+        while (true) {
+            try {
+                const stopCodeTransformationRequest = {
+                    transformationJobId: request.TransformationJobId,
+                } as StopTransformationRequest
+                this.logging.log(
+                    'send request to cancel transform plan api: ' + JSON.stringify(stopCodeTransformationRequest)
+                )
+                const response = await this.client.codeModernizerStopCodeTransformation(stopCodeTransformationRequest)
+                this.logging.log('received response from cancel transform plan api: ' + JSON.stringify(response))
+                let status: CancellationJobStatus
+                switch (response.transformationStatus) {
+                    case 'STOPPED':
+                        status = CancellationJobStatus.SUCCESSFULLY_CANCELLED
+                        break
+                    default:
+                        status = CancellationJobStatus.FAILED_TO_CANCEL
+                        break
+                }
+                return {
+                    TransformationJobStatus: status,
+                } as CancelTransformResponse
+            } catch (e: any) {
+                const errorMessage = (e as Error).message ?? 'Error in CancelTransformation API call'
+                this.logging.log('Error: ' + errorMessage)
+
+                cancelTransformationAttempt += 1
+                if (cancelTransformationAttempt >= cancelTransformationMaxAttempts) {
+                    this.logging.log(
+                        `CodeTransformation: CancelTransformation failed after ${cancelTransformationMaxAttempts} attempts.`
+                    )
+                    return {
+                        TransformationJobStatus: CancellationJobStatus.FAILED_TO_CANCEL,
+                    } as CancelTransformResponse
+                }
+
+                const expDelayMs = this.getExpDelayForApiRetryMs(cancelTransformationAttempt)
+                this.logging.log(
+                    `poll : Attempt ${cancelTransformationAttempt}/${cancelTransformationMaxAttempts} to get transformation plan failed, retry in ${expDelayMs} seconds`
+                )
+                await this.sleep(expDelayMs * 1000)
             }
-            return {
-                TransformationJobStatus: status,
-            } as CancelTransformResponse
-        } catch (e: any) {
-            const errorMessage = (e as Error).message ?? 'Error in CancelTransformation API call'
-            this.logging.log('Error: ' + errorMessage)
-            return {
-                TransformationJobStatus: CancellationJobStatus.FAILED_TO_CANCEL,
-            } as CancelTransformResponse
         }
     }
 
@@ -241,19 +283,20 @@ export class TransformHandler {
 
     async pollTransformation(request: GetTransformRequest, validExitStatus: string[], failureStates: string[]) {
         let timer = 0
-
+        let getTransformAttempt = 0
+        let getTransformMaxAttempts = 3
         const getCodeTransformationRequest = {
             transformationJobId: request.TransformationJobId,
         } as GetTransformationRequest
         this.logging.log('poll : send request to get transform  api: ' + JSON.stringify(getCodeTransformationRequest))
         let response = await this.client.codeModernizerGetCodeTransformation(getCodeTransformationRequest)
         this.logging.log('poll : received response from get transform  api: ' + JSON.stringify(response))
-        let status = response?.transformationJob?.status ?? 'NOT_FOUND'
+        let status = response?.transformationJob?.status ?? PollTransformationStatus.NOT_FOUND
 
         this.logging.log('validExitStatus here are : ' + validExitStatus)
         this.logging.log('failureStatus here are : ' + failureStates)
 
-        while (status != 'Timed_out' && !failureStates.includes(status)) {
+        while (status != PollTransformationStatus.TIMEOUT && !failureStates.includes(status)) {
             try {
                 const apiStartTime = Date.now()
 
@@ -285,14 +328,28 @@ export class TransformHandler {
                 this.logging.log('current polling timer ' + timer)
 
                 if (timer > 24 * 3600 * 1000) {
-                    status = 'Timed_out'
+                    status = PollTransformationStatus.TIMEOUT
                     break
                 }
+                getTransformAttempt = 0 // a successful polling will reset attempt
             } catch (e: any) {
                 const errorMessage = (e as Error).message ?? 'Error in GetTransformation API call'
-                this.logging.log('CodeTransformation: GetTransformation error = ' + errorMessage)
-                status = 'FAILED'
-                break
+                this.logging.log('poll : error polling transformation job from the server: ' + errorMessage)
+
+                getTransformAttempt += 1
+                if (getTransformAttempt >= getTransformMaxAttempts) {
+                    this.logging.log(
+                        `CodeTransformation: GetTransformation failed after ${getTransformMaxAttempts} attempts.`
+                    )
+                    status = PollTransformationStatus.NOT_FOUND
+                    break
+                }
+
+                const expDelayMs = this.getExpDelayForApiRetryMs(getTransformAttempt)
+                this.logging.log(
+                    `poll : Attempt ${getTransformAttempt}/${getTransformMaxAttempts} to get transformation plan failed, retry in ${expDelayMs} seconds`
+                )
+                await this.sleep(expDelayMs * 1000)
             }
         }
         this.logging.log('poll : returning response from server : ' + JSON.stringify(response))
@@ -365,5 +422,12 @@ export class TransformHandler {
             fs.mkdirSync(workspacePath, { recursive: true })
         }
         return workspacePath
+    }
+
+    getExpDelayForApiRetryMs(attempt: number): number {
+        const exponentialDelayFactor = 2
+        const exponentialDelay = 10 * Math.pow(exponentialDelayFactor, attempt)
+        const jitteredDelay = Math.floor(Math.random() * 10)
+        return exponentialDelay + jitteredDelay // returns in milliseconds
     }
 }

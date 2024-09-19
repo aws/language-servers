@@ -1,6 +1,7 @@
 import {
     CancellationToken,
     CredentialsProvider,
+    InitializeParams,
     InlineCompletionItemWithReferences,
     InlineCompletionListWithReferences,
     InlineCompletionTriggerKind,
@@ -30,7 +31,7 @@ import {
     CodeWhispererUserDecisionEvent,
     CodeWhispererUserTriggerDecisionEvent,
 } from './telemetry/types'
-import { getCompletionType, isAwsError } from './utils'
+import { getCompletionType, getUserAgent, isAwsError } from './utils'
 
 const EMPTY_RESULT = { sessionId: '', items: [] }
 export const CONTEXT_CHARACTERS_LIMIT = 10240
@@ -273,12 +274,22 @@ const hasLeftContextMatch = (suggestions: Suggestion[], leftFileContent: string)
 
 export const CodewhispererServerFactory =
     (service: (credentials: CredentialsProvider) => CodeWhispererServiceBase): Server =>
-    ({ credentialsProvider, lsp, workspace, telemetry, logging }) => {
+    ({ credentialsProvider, lsp, workspace, telemetry, logging, runtime }) => {
         let lastUserModificationTime: number
         let timeSinceLastUserModification: number = 0
 
         const sessionManager = SessionManager.getInstance()
         const codeWhispererService = service(credentialsProvider)
+
+        lsp.addInitializer((params: InitializeParams) => {
+            codeWhispererService.updateClientConfig({
+                customUserAgent: getUserAgent(params, runtime.serverInfo),
+            })
+
+            return {
+                capabilities: {},
+            }
+        })
 
         // Mutable state to track whether code with references should be included in
         // the response. No locking or concurrency controls, filtering is done

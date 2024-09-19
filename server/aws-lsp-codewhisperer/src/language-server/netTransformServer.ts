@@ -2,6 +2,7 @@ import {
     CancellationToken,
     CredentialsProvider,
     ExecuteCommandParams,
+    InitializeParams,
     Server,
 } from '@aws/language-server-runtimes/server-interface'
 import { StreamingClient } from '../client/streamingClient/codewhispererStreamingClient'
@@ -30,6 +31,8 @@ import {
     StartTransformRequest,
 } from './netTransform/models'
 import { TransformHandler } from './netTransform/transformHandler'
+import { CodeWhispererStreamingClientConfig } from '@amzn/codewhisperer-streaming'
+import { getUserAgent } from './utils'
 
 export const validStatesForGettingPlan = ['COMPLETED', 'PARTIALLY_COMPLETED', 'PLANNED', 'TRANSFORMING', 'TRANSFORMED']
 export const validStatesForComplete = ['COMPLETED']
@@ -48,7 +51,7 @@ const DownloadArtifactsCommand = 'aws/qNetTransform/downloadArtifacts'
  */
 export const QNetTransformServerToken =
     (service: (credentialsProvider: CredentialsProvider) => CodeWhispererServiceToken): Server =>
-    ({ credentialsProvider, workspace, logging, lsp, telemetry }) => {
+    ({ credentialsProvider, workspace, logging, lsp, telemetry, runtime }) => {
         const codewhispererclient = service(credentialsProvider)
         const transformHandler = new TransformHandler(codewhispererclient, workspace, logging)
         const runTransformCommand = async (params: ExecuteCommandParams, _token: CancellationToken) => {
@@ -65,7 +68,9 @@ export const QNetTransformServerToken =
                         const request = params as GetTransformRequest
                         logging.log('Calling getTransform request with job Id: ' + request.TransformationJobId)
                         const response = await transformHandler.getTransformation(request)
-                        emitTransformationJobReceivedTelemetry(telemetry, response)
+                        if (response != null) {
+                            emitTransformationJobReceivedTelemetry(telemetry, response)
+                        }
                         return response
                     }
                     case PollTransformCommand: {
@@ -125,8 +130,10 @@ export const QNetTransformServerToken =
                     case DownloadArtifactsCommand: {
                         const request = params as DownloadArtifactsRequest
                         const cwStreamingClientInstance = new StreamingClient()
-                        const cwStreamingClient =
-                            await cwStreamingClientInstance.getStreamingClient(credentialsProvider)
+                        const cwStreamingClient = await cwStreamingClientInstance.getStreamingClient(
+                            credentialsProvider,
+                            customCWClientConfig
+                        )
                         logging.log('Calling Download Archive  with job Id: ' + request.TransformationJobId)
                         const response = await transformHandler.downloadExportResultArchive(
                             cwStreamingClient,
@@ -192,7 +199,16 @@ export const QNetTransformServerToken =
             logging.log(params.command)
             return runTransformCommand(params, _token)
         }
-        const onInitializeHandler = () => {
+
+        const customCWClientConfig: CodeWhispererStreamingClientConfig = {}
+        const onInitializeHandler = (params: InitializeParams) => {
+            // Cache user agent to reuse between commands calls
+            customCWClientConfig.customUserAgent = getUserAgent(params, runtime.serverInfo)
+
+            codewhispererclient.updateClientConfig({
+                customUserAgent: customCWClientConfig.customUserAgent,
+            })
+
             return {
                 capabilities: {
                     executeCommandProvider: {

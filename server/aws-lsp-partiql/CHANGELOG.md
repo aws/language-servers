@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.0.4] - 2024-09-03
+- Features: add PRIMARY KEY and table options support PartiQL server grammar
+
 ## [0.0.3] - 2024-07-31
 - Features: Add syntax-highlighting, keywords hovering, function signature help and auto-completion support to this server
 
