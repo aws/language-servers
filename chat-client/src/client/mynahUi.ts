@@ -221,6 +221,13 @@ export const createMynahUi = (messager: Messager, tabFactory: TabFactory): [Myna
             }
             messager.onSourceLinkClick(payload)
         },
+        onStopChatResponse(tabId, _eventId) {
+            messager.onStopChatResponse({ tabId })
+            mynahUi.updateStore(tabId, {
+                loadingChat: false,
+                promptInputDisabledState: false,
+            })
+        },
         onInfoLinkClick: (tabId, link, mouseEvent, eventId) => {
             mouseEvent?.preventDefault()
             mouseEvent?.stopPropagation()

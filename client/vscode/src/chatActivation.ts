@@ -65,27 +65,51 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri, 
                 languageClient.info('AuthFollowUp clicked')
                 break
             case chatRequestType.method: {
+                let chatResult: ChatResult | string = ''
                 const textDocument = window.visibleTextEditors.find(editor => editor.document.uri.scheme === 'file')
+                const documentUri = textDocument?.document.uri.toString()
 
                 const partialResultToken = uuidv4()
-                const chatDisposable = languageClient.onProgress(chatRequestType, partialResultToken, partialResult =>
+                const chatDisposable = languageClient.onProgress(chatRequestType, partialResultToken, partialResult => {
+                    chatResult = partialResult
                     handlePartialResult<ChatResult>(partialResult, encryptionKey, panel, message.params.tabId)
-                )
+                })
 
                 const chatRequest = await encryptRequest<ChatParams>(
                     {
                         ...message.params,
-                        textDocument: {
-                            uri: textDocument?.document.uri.toString(),
-                        },
+                        textDocument: { uri: documentUri },
                     },
                     encryptionKey
                 )
-                const chatResult = await languageClient.sendRequest(chatRequestType, {
-                    ...chatRequest,
-                    partialResultToken,
-                })
-                handleCompleteResult<ChatResult>(chatResult, encryptionKey, panel, message.params.tabId, chatDisposable)
+
+                try {
+                    chatResult = await languageClient.sendRequest(chatRequestType, {
+                        ...chatRequest,
+                        partialResultToken,
+                    })
+                } catch (e) {
+                    if (e instanceof Error) {
+                        languageClient.info(`Client caught error during chat request: ${e.message}`)
+
+                        if (chatResult === '') {
+                            if (e.message === 'Request cancelled') {
+                                languageClient.info('Request cancelled before receiving any partial result')
+                                chatResult = { body: 'Request Cancelled' }
+                            } else {
+                                chatResult = { body: `Error in chat: ${e.message}` }
+                            }
+                        }
+                    }
+                } finally {
+                    handleCompleteResult<ChatResult>(
+                        chatResult,
+                        encryptionKey,
+                        panel,
+                        message.params.tabId,
+                        chatDisposable
+                    )
+                }
                 break
             }
             case quickActionRequestType.method: {

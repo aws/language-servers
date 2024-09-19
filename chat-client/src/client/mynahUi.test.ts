@@ -22,6 +22,7 @@ describe('MynahUI', () => {
 
     beforeEach(() => {
         outboundChatApi = {
+            endChat: sinon.stub(),
             sendChatPrompt: sinon.stub(),
             sendQuickActionCommand: sinon.stub(),
             tabAdded: sinon.stub(),
