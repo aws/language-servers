@@ -20,6 +20,7 @@ import {
 import { registerInlineCompletion } from './inlineCompletionActivation'
 import { registerLogCommand, registerTransformCommand } from './sampleCommandActivation'
 import { randomUUID } from 'crypto'
+import { registerCustomizations } from './customizationActivation'
 
 export async function activateDocumentsLanguageServer(extensionContext: ExtensionContext) {
     /**
@@ -145,6 +146,11 @@ export async function activateDocumentsLanguageServer(extensionContext: Extensio
     const enableChat = process.env.ENABLE_CHAT === 'true'
     if (enableChat) {
         registerChat(client, extensionContext.extensionUri, enableEncryptionInit ? encryptionKey : undefined)
+    }
+
+    const enableCustomizations = process.env.ENABLE_CUSTOMIZATIONS === 'true'
+    if (enableCustomizations) {
+        registerCustomizations(client)
     }
 
     return client

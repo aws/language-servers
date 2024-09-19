@@ -5,6 +5,7 @@ import { CodewhispererServerFactory } from './codeWhispererServer'
 import { CodeWhispererServiceIAM, CodeWhispererServiceToken } from './codeWhispererService'
 import { QNetTransformServerToken } from './netTransformServer'
 import { QChatServer } from './qChatServer'
+import { QConfigurationServerToken } from './configuration/qConfigurationServer'
 import { readFileSync } from 'fs'
 
 export const CodeWhispererServerTokenProxy = CodewhispererServerFactory(credentialsProvider => {
@@ -118,4 +119,22 @@ export const QChatServerProxy = QChatServer(credentialsProvider => {
     return ChatSessionManagementService.getInstance()
         .withCredentialsProvider(credentialsProvider)
         .withConfig(clientOptions)
+})
+
+export const CustomizationServerTokenProxy = QConfigurationServerToken(credentialsProvider => {
+    let additionalAwsConfig = {}
+    const proxyUrl = process.env.HTTPS_PROXY ?? process.env.https_proxy
+    const certs = process.env.AWS_CA_BUNDLE ? [readFileSync(process.env.AWS_CA_BUNDLE)] : undefined
+
+    if (proxyUrl) {
+        const { getProxyHttpAgent } = require('proxy-http-agent')
+        const proxyAgent = getProxyHttpAgent({
+            proxy: proxyUrl,
+            ca: certs,
+        })
+        additionalAwsConfig = {
+            httpOptions: proxyAgent,
+        }
+    }
+    return new CodeWhispererServiceToken(credentialsProvider, additionalAwsConfig)
 })
