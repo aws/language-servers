@@ -241,12 +241,11 @@ export async function getCrossFileCandidates(document: TextDocument, workspace: 
      * managed by this language server, instead of VSCode `vscode.window` API as VSCode toolkit does.
      */
     const unsortedCandidates = (await workspace.getAllTextDocuments()).filter(async candidateFile => {
-        const url = new URL(candidateFile.uri)
         return (
             targetFile !== candidateFile.uri &&
             (path.extname(targetFile) === path.extname(candidateFile.uri) ||
                 (dialects && dialects.has(path.extname(candidateFile.uri)))) &&
-            !(await isTestFile(url.pathname, { languageId: language }))
+            !(await isTestFile(new URL(candidateFile.uri).pathname, { languageId: language }))
         )
     })
 

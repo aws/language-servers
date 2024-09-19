@@ -9,7 +9,6 @@
 import { fetchSupplementalContextForTest } from './utgUtils'
 import { fetchSupplementalContextForSrc } from './crossFileContextUtil'
 import { isTestFile } from './codeParsingUtil'
-import * as vscode from 'vscode'
 import { CodeWhispererSupplementalContext } from '../models/model'
 import {
     CancellationToken,
@@ -22,7 +21,6 @@ import {
 export class CancellationError extends Error {}
 
 export async function fetchSupplementalContext(
-    editor: vscode.TextEditor,
     document: TextDocument,
     position: Position,
     workspace: Workspace,
@@ -41,13 +39,7 @@ export async function fetchSupplementalContext(
     >
 
     if (isUtg) {
-        supplementalContextPromise = fetchSupplementalContextForTest(
-            editor,
-            document,
-            workspace,
-            logging,
-            cancellationToken
-        )
+        supplementalContextPromise = fetchSupplementalContextForTest(document, workspace, logging, cancellationToken)
     } else {
         supplementalContextPromise = fetchSupplementalContextForSrc(document, position, workspace, cancellationToken)
     }

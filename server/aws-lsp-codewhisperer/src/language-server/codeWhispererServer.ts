@@ -303,7 +303,7 @@ export const CodewhispererServerFactory =
 
         const onInlineCompletionHandler = async (
             params: InlineCompletionWithReferencesParams,
-            _token: CancellationToken
+            token: CancellationToken
         ): Promise<InlineCompletionListWithReferences> => {
             // On every new completion request close current inflight session.
             const currentSession = sessionManager.getCurrentSession()
@@ -361,7 +361,7 @@ export const CodewhispererServerFactory =
                     params.position,
                     workspace,
                     logging,
-                    _token
+                    token
                 )
 
                 const requestContext: GenerateSuggestionsRequest = {

@@ -7,8 +7,6 @@
 // https://github.com/aws/aws-toolkit-vscode/blob/9d8ddbd85f4533e539a58e76f7c46883d8e50a79/packages/core/src/codewhisperer/util/supplementalContext/utgUtils.ts
 
 import * as path from 'path'
-import { fs } from '../../../shared'
-import * as vscode from 'vscode'
 import { CancellationToken, Logging, TextDocument, Workspace } from '@aws/language-server-runtimes/server-interface'
 import {
     countSubstringMatches,
@@ -21,9 +19,6 @@ import {
 import { supplemetalContextFetchingTimeoutMsg } from '../models/constants'
 import { CancellationError } from './supplementalContextUtil'
 import { utgConfig } from '../models/constants'
-// import { CodeWhispererUserGroupSettings } from '../userGroupUtil'
-// import { UserGroup } from '../models/constants'
-import { getOpenFilesInWindow } from '../../../shared/utilities/editorUtilities'
 import { CodeWhispererSupplementalContext, CodeWhispererSupplementalContextItem, UtgStrategy } from '../models/model'
 
 let log = (message: any) => {
@@ -62,7 +57,6 @@ export function shouldFetchUtgContext(
  * @returns
  */
 export async function fetchSupplementalContextForTest(
-    editor: vscode.TextEditor,
     document: TextDocument,
     workspace: Workspace,
     logging: Logging,
@@ -87,17 +81,20 @@ export async function fetchSupplementalContextForTest(
         // TODO (Metrics): 2. Success count for fetchSourceFileByName (find source file by name)
         log(`CodeWhisperer finished fetching utg context by file name`)
         return {
+            // PORT_TODO: Test that findSourceFileByName returns what's expected by generateSupplementalContextFromFocalFile
             supplementalContextItems: await generateSupplementalContextFromFocalFile(
                 crossSourceFile,
                 'ByName',
-                cancellationToken
+                cancellationToken,
+                workspace
             ),
             strategy: 'ByName',
         }
     }
     throwIfCancelled(cancellationToken)
 
-    crossSourceFile = await findSourceFileByContent(editor, languageConfig, cancellationToken)
+    // PORT_TODO: Test that findSourceFileByContent returns what's expected by generateSupplementalContextFromFocalFile
+    crossSourceFile = await findSourceFileByContent(document, languageConfig, workspace, cancellationToken)
     if (crossSourceFile) {
         // TODO (Metrics): 3. Success count for fetchSourceFileByContent (find source file by content)
         log(`CodeWhisperer finished fetching utg context by file content`)
@@ -105,7 +102,8 @@ export async function fetchSupplementalContextForTest(
             supplementalContextItems: await generateSupplementalContextFromFocalFile(
                 crossSourceFile,
                 'ByContent',
-                cancellationToken
+                cancellationToken,
+                workspace
             ),
             strategy: 'ByContent',
         }
@@ -122,9 +120,11 @@ export async function fetchSupplementalContextForTest(
 async function generateSupplementalContextFromFocalFile(
     filePath: string,
     strategy: UtgStrategy,
-    cancellationToken: CancellationToken
+    cancellationToken: CancellationToken,
+    workspace: Workspace
 ): Promise<CodeWhispererSupplementalContextItem[]> {
-    const fileContent = await fs.readFileAsString(vscode.Uri.parse(filePath!).fsPath)
+    const textDocument = await workspace.getTextDocument(filePath)
+    const fileContent = textDocument?.getText() || ''
 
     // DO NOT send code chunk with empty content
     if (fileContent.trim().length === 0) {
@@ -140,16 +140,18 @@ async function generateSupplementalContextFromFocalFile(
 }
 
 async function findSourceFileByContent(
-    editor: vscode.TextEditor,
+    document: TextDocument,
     languageConfig: utgLanguageConfig,
+    workspace: Workspace,
     cancellationToken: CancellationToken
 ): Promise<string | undefined> {
-    const testFileContent = await fs.readFileAsString(editor.document.fileName)
+    const testFileContent = document.getText()
     const testElementList = extractFunctions(testFileContent, languageConfig.functionExtractionPattern)
 
     throwIfCancelled(cancellationToken)
 
-    testElementList.push(...extractClasses(editor.document.fileName, languageConfig.classExtractionPattern))
+    // PORT_TODO: Check if this call to extractClasses is implemented correctly here - it seems to work on content, not filename
+    testElementList.push(...extractClasses(testFileContent, languageConfig.classExtractionPattern))
 
     throwIfCancelled(cancellationToken)
 
@@ -161,35 +163,35 @@ async function findSourceFileByContent(
         return sourceFilePath
     }
 
-    const relevantFilePaths = await getRelevantUtgFiles(editor)
+    const relevantTextDocuments = await getRelevantUtgFiles(document, workspace)
 
     throwIfCancelled(cancellationToken)
 
     // TODO (Metrics):Add metrics for relevantFilePaths length
-    for (const filePath of relevantFilePaths) {
+    for (const doc of relevantTextDocuments) {
         throwIfCancelled(cancellationToken)
 
-        const fileContent = await fs.readFileAsString(filePath)
+        const fileContent = doc.getText()
         const elementList = extractFunctions(fileContent, languageConfig.functionExtractionPattern)
         elementList.push(...extractClasses(fileContent, languageConfig.classExtractionPattern))
         const matchCount = countSubstringMatches(elementList, testElementList)
         if (matchCount > maxMatchCount) {
             maxMatchCount = matchCount
-            sourceFilePath = filePath
+            sourceFilePath = doc.uri // PORT_TODO: Check if this is correct
         }
     }
     return sourceFilePath
 }
 
-async function getRelevantUtgFiles(editor: vscode.TextEditor): Promise<string[]> {
-    const targetFile = editor.document.uri.fsPath
-    const language = editor.document.languageId
+async function getRelevantUtgFiles(document: TextDocument, workspace: Workspace): Promise<TextDocument[]> {
+    const targetFile = document.uri
+    const language = document.languageId
 
-    return await getOpenFilesInWindow(async candidateFile => {
+    return (await workspace.getAllTextDocuments()).filter(async candidateFile => {
         return (
-            targetFile !== candidateFile &&
-            path.extname(targetFile) === path.extname(candidateFile) &&
-            !(await isTestFile(candidateFile, { languageId: language }))
+            targetFile !== candidateFile.uri &&
+            path.extname(targetFile) === path.extname(candidateFile.uri) &&
+            !(await isTestFile(new URL(candidateFile.uri).pathname, { languageId: language }))
         )
     })
 }
@@ -227,19 +229,26 @@ async function findSourceFileByName(
     }
     newPath = path.join(newPath, basenameSuffix + languageConfig.extension)
 
-    // PORT_TODO: WIP Checkpoint
-
     // TODO: Add metrics here, as we are not able to find the source file by name.
     if (await workspace.fs.exists(newPath)) {
+        // PORT_TODO: Test that this branch returns what is supported in caller function
         return newPath
     }
 
     throwIfCancelled(cancellationToken)
 
-    const sourceFiles = await vscode.workspace.findFiles(`**/${basenameSuffix}${languageConfig.extension}`)
+    // Port note: look only at current workspace
+    const workspaceFolder = workspace.getWorkspaceFolder(document.uri)
+    const folderPrefix = workspaceFolder ? new URL(workspaceFolder?.uri).pathname : ''
+
+    const sourceFiles = await workspace.findFiles(
+        `${folderPrefix}**/${basenameSuffix}${languageConfig.extension}`,
+        cancellationToken
+    )
 
     throwIfCancelled(cancellationToken)
 
+    // PORT_NOTE: this logic does not work well when document is deeply nested and there are other files with same name on higher levels.
     if (sourceFiles.length > 0) {
         return sourceFiles[0].toString()
     }
