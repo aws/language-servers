@@ -15,8 +15,8 @@ import {
     isClientTelemetryEvent,
 } from './clientTelemetry'
 import { UserIntent } from '@amzn/codewhisperer-streaming'
-import { TriggerContext } from '../contexts/triggerContext'
 import { AcceptedSuggestionEntry, CodeDiffTracker } from '../../telemetry/codeDiffTracker'
+import { TriggerContext } from '../contexts/triggerContextExtractor'
 
 export const CONVERSATION_ID_METRIC_KEY = 'cwsprChatConversationId'
 
@@ -35,14 +35,9 @@ interface MessageTrigger extends TriggerContext {
     followUpActions?: Set<string>
 }
 
-interface StartTrigger {
-    triggerType?: TriggerType
-    hasUserSnippet?: boolean
-}
-
 interface ConversationTriggerInfo {
     conversationId: string
-    startTrigger?: StartTrigger
+    startTriggerType?: TriggerType
     lastMessageTrigger?: MessageTrigger
 }
 
@@ -255,9 +250,7 @@ export class ChatTelemetryController {
                 case ChatUIEventName.TabAdd:
                     this.#tabTelemetryInfoByTabId[params.tabId] = {
                         ...this.#tabTelemetryInfoByTabId[params.tabId],
-                        startTrigger: {
-                            triggerType: params.triggerType,
-                        },
+                        startTriggerType: params.triggerType,
                     }
                     break
                 case ChatUIEventName.EnterFocusChat:

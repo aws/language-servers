@@ -12,6 +12,7 @@ import {
     quickActionRequestType,
     QuickActionResult,
     QuickActionParams,
+    END_CHAT_REQUEST_METHOD,
 } from '@aws/language-server-runtimes/protocol'
 import { v4 as uuidv4 } from 'uuid'
 import { Uri, ViewColumn, Webview, WebviewPanel, commands, window } from 'vscode'
@@ -54,26 +55,64 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri, 
         languageClient.info(`vscode client: Received ${JSON.stringify(message)} from chat`)
 
         switch (message.command) {
+            case END_CHAT_REQUEST_METHOD:
+                languageClient.sendRequest(END_CHAT_REQUEST_METHOD, message.params)
+                break
             case INSERT_TO_CURSOR_POSITION:
                 insertTextAtCursorPosition(message.params.code)
                 break
             case AUTH_FOLLOW_UP_CLICKED:
                 languageClient.info('AuthFollowUp clicked')
                 break
-            case chatRequestType.method:
+            case chatRequestType.method: {
+                let chatResult: ChatResult | string = ''
+                const textDocument = window.visibleTextEditors.find(editor => editor.document.uri.scheme === 'file')
+                const documentUri = textDocument?.document.uri.toString()
+
                 const partialResultToken = uuidv4()
-                const chatDisposable = languageClient.onProgress(chatRequestType, partialResultToken, partialResult =>
+                const chatDisposable = languageClient.onProgress(chatRequestType, partialResultToken, partialResult => {
+                    chatResult = partialResult
                     handlePartialResult<ChatResult>(partialResult, encryptionKey, panel, message.params.tabId)
+                })
+
+                const chatRequest = await encryptRequest<ChatParams>(
+                    {
+                        ...message.params,
+                        textDocument: { uri: documentUri },
+                    },
+                    encryptionKey
                 )
 
-                const chatRequest = await encryptRequest<ChatParams>(message.params, encryptionKey)
-                const chatResult = await languageClient.sendRequest(chatRequestType, {
-                    ...chatRequest,
-                    partialResultToken,
-                })
-                handleCompleteResult<ChatResult>(chatResult, encryptionKey, panel, message.params.tabId, chatDisposable)
+                try {
+                    chatResult = await languageClient.sendRequest(chatRequestType, {
+                        ...chatRequest,
+                        partialResultToken,
+                    })
+                } catch (e) {
+                    if (e instanceof Error) {
+                        languageClient.info(`Client caught error during chat request: ${e.message}`)
+
+                        if (chatResult === '') {
+                            if (e.message === 'Request cancelled') {
+                                languageClient.info('Request cancelled before receiving any partial result')
+                                chatResult = { body: 'Request Cancelled' }
+                            } else {
+                                chatResult = { body: `Error in chat: ${e.message}` }
+                            }
+                        }
+                    }
+                } finally {
+                    handleCompleteResult<ChatResult>(
+                        chatResult,
+                        encryptionKey,
+                        panel,
+                        message.params.tabId,
+                        chatDisposable
+                    )
+                }
                 break
-            case quickActionRequestType.method:
+            }
+            case quickActionRequestType.method: {
                 const quickActionPartialResultToken = uuidv4()
                 const quickActionDisposable = languageClient.onProgress(
                     quickActionRequestType,
@@ -100,6 +139,7 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri, 
                     quickActionDisposable
                 )
                 break
+            }
             case followUpClickNotificationType.method:
                 if (!isValidAuthFollowUpType(message.params.followUp.type))
                     languageClient.sendNotification(followUpClickNotificationType, message.params)

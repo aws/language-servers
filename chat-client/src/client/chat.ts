@@ -17,6 +17,8 @@ import {
 import {
     CHAT_REQUEST_METHOD,
     ChatParams,
+    END_CHAT_REQUEST_METHOD,
+    EndChatParams,
     FEEDBACK_NOTIFICATION_METHOD,
     FOLLOW_UP_CLICK_NOTIFICATION_METHOD,
     FeedbackParams,
@@ -106,6 +108,9 @@ export const createChat = (
     }
 
     const chatApi: OutboundChatApi = {
+        endChat: (params: EndChatParams) => {
+            sendMessageToClient({ command: END_CHAT_REQUEST_METHOD, params })
+        },
         sendChatPrompt: (params: ChatParams) => {
             sendMessageToClient({ command: CHAT_REQUEST_METHOD, params })
         },

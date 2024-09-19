@@ -19,11 +19,13 @@ import {
     SOURCE_LINK_CLICK_NOTIFICATION_METHOD,
     INFO_LINK_CLICK_NOTIFICATION_METHOD,
     QUICK_ACTION_REQUEST_METHOD,
+    END_CHAT_REQUEST_METHOD,
 } from '@aws/language-server-runtimes-types'
 
 export const TELEMETRY = 'telemetry/event'
 
 export type ServerMessageCommand =
+    | typeof END_CHAT_REQUEST_METHOD
     | typeof CHAT_REQUEST_METHOD
     | typeof TAB_ADD_NOTIFICATION_METHOD
     | typeof TAB_REMOVE_NOTIFICATION_METHOD

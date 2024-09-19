@@ -12,6 +12,7 @@ import {
 } from '@aws/chat-client-ui-types'
 import {
     ChatParams,
+    EndChatParams,
     FeedbackParams,
     FollowUpClickParams,
     InfoLinkClickParams,
@@ -40,6 +41,7 @@ import {
 } from '../contracts/telemetry'
 
 export interface OutboundChatApi {
+    endChat(params: EndChatParams): void
     sendChatPrompt(params: ChatParams): void
     sendQuickActionCommand(params: QuickActionParams): void
     tabAdded(params: TabAddParams): void
@@ -79,6 +81,10 @@ export class Messager {
 
     onSendToPrompt = (params: SendToPromptParams, tabId: string): void => {
         this.chatApi.telemetry({ ...params, tabId, name: SEND_TO_PROMPT_TELEMETRY_EVENT })
+    }
+
+    onStopChatResponse = (params: EndChatParams): void => {
+        this.chatApi.endChat(params)
     }
 
     onChatPrompt = (params: ChatParams, triggerType?: string): void => {

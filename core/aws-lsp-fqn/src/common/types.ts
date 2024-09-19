@@ -20,7 +20,7 @@ export type Result<TData, TError> =
           error: TError
       }
 
-export type ExtractorResult = Result<FqnExtractorOutput, string>
+export type ExtractorResult = Result<FqnExtractorOutput, Error>
 
 export interface FullyQualifiedName {
     source: string[]
@@ -72,6 +72,9 @@ export interface FqnExtractorInput {
 }
 
 export interface IFqnWorkerPool {
-    exec(input: FqnExtractorInput): Promise<ExtractorResult>
+    exec(input: FqnExtractorInput): Cancellable<Promise<ExtractorResult>>
     dispose(): void
 }
+
+export type CancelFn = () => void
+export type Cancellable<T> = [T, CancelFn]

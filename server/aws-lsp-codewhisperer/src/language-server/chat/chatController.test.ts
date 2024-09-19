@@ -12,7 +12,7 @@ import { ChatController } from './chatController'
 import { ChatSessionManagementService } from './chatSessionManagementService'
 import { ChatSessionService } from './chatSessionService'
 import { ChatTelemetryController } from './telemetry/chatTelemetryController'
-import { DocumentContextExtractor } from './contexts/documentContext'
+import { TriggerContextExtractor } from './contexts/triggerContextExtractor'
 import * as utils from './utils'
 import { DEFAULT_HELP_FOLLOW_UP_PROMPT, HELP_MESSAGE } from './constants'
 
@@ -61,6 +61,8 @@ describe('ChatController', () => {
     }
     let removeConversationSpy: sinon.SinonSpy
     let emitConversationMetricStub: sinon.SinonStub
+    let abortRequestStub: sinon.SinonStub
+    let triggerContextCancelSpy: sinon.SinonSpy
 
     let testFeatures: TestFeatures
     let chatSessionManagementService: ChatSessionManagementService
@@ -88,9 +90,10 @@ describe('ChatController', () => {
         activeTabSpy = sinon.spy(ChatTelemetryController.prototype, 'activeTabId', ['get', 'set'])
         removeConversationSpy = sinon.spy(ChatTelemetryController.prototype, 'removeConversation')
         emitConversationMetricStub = sinon.stub(ChatTelemetryController.prototype, 'emitConversationMetric')
+        triggerContextCancelSpy = sinon.spy(TriggerContextExtractor.prototype, 'cancel')
 
         disposeStub = sinon.stub(ChatSessionService.prototype, 'dispose')
-
+        abortRequestStub = sinon.stub(ChatSessionService.prototype, 'abortRequest')
         chatSessionManagementService = ChatSessionManagementService.getInstance().withCredentialsProvider(
             testFeatures.credentialsProvider
         )
@@ -132,11 +135,8 @@ describe('ChatController', () => {
 
         chatController.onEndChat({ tabId: mockTabId }, mockCancellationToken)
 
-        sinon.assert.calledOnce(disposeStub)
-
-        const hasSession = chatSessionManagementService.hasSession(mockTabId)
-
-        assert.ok(!hasSession)
+        sinon.assert.calledOnce(abortRequestStub)
+        sinon.assert.calledOnce(triggerContextCancelSpy)
     })
 
     it('onTabAdd sets active tab id in telemetryController', () => {
@@ -340,7 +340,7 @@ describe('ChatController', () => {
             }
 
             beforeEach(() => {
-                extractDocumentContextStub = sinon.stub(DocumentContextExtractor.prototype, 'extractDocumentContext')
+                extractDocumentContextStub = sinon.stub(TriggerContextExtractor.prototype, 'extractDocumentContext')
                 testFeatures.openDocument(typescriptDocument)
             })
 
