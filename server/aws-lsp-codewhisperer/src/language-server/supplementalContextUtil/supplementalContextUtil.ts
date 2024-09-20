@@ -41,7 +41,13 @@ export async function fetchSupplementalContext(
         // Not implemented.
         return
     } else {
-        supplementalContextPromise = fetchSupplementalContextForSrc(document, position, workspace, cancellationToken)
+        supplementalContextPromise = fetchSupplementalContextForSrc(
+            document,
+            position,
+            workspace,
+            logging,
+            cancellationToken
+        )
     }
 
     return supplementalContextPromise

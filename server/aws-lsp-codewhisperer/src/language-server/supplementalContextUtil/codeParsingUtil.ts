@@ -69,13 +69,13 @@ export function countSubstringMatches(arr1: string[], arr2: string[]): number {
     return count
 }
 
-export async function isTestFile(
+export function isTestFile(
     filePath: string,
     languageConfig: {
         languageId: TextDocument['languageId']
         fileContent?: string
     }
-): Promise<boolean> {
+): boolean {
     const normalizedFilePath = normalize(filePath)
     const pathContainsTest =
         normalizedFilePath.includes('tests/') ||

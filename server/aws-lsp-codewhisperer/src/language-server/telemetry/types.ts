@@ -20,6 +20,10 @@ export interface CodeWhispererServiceInvocationEvent {
     codewhispererGettingStartedTask?: string
     reason?: string
     credentialStartUrl?: string
+    codewhispererSupplementalContextTimeout?: boolean
+    codewhispererSupplementalContextIsUtg?: boolean
+    codewhispererSupplementalContextLatency?: number
+    codewhispererSupplementalContextLength?: number
 }
 
 export interface CodeWhispererPerceivedLatencyEvent {
@@ -54,6 +58,9 @@ export interface CodeWhispererUserTriggerDecisionEvent {
     codewhispererTimeSinceLastUserDecision?: number
     codewhispererTimeToFirstRecommendation: number
     codewhispererPreviousSuggestionState?: string
+    codewhispererSupplementalContextTimeout?: boolean
+    codewhispererSupplementalContextIsUtg?: boolean
+    codewhispererSupplementalContextLength?: number
 }
 
 export interface CodeWhispererCodePercentageEvent {
@@ -75,6 +82,9 @@ export interface CodeWhispererUserDecisionEvent {
     codewhispererSuggestionState?: UserDecision
     codewhispererSuggestionReferences?: string[]
     codewhispererSuggestionReferenceCount: number
+    codewhispererSupplementalContextTimeout?: boolean
+    codewhispererSupplementalContextIsUtg?: boolean
+    codewhispererSupplementalContextLength?: number
 }
 
 export type Result = 'Succeeded' | 'Failed' | 'Cancelled'

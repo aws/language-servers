@@ -19,6 +19,7 @@ import {
     TextDocument,
     Workspace,
     Range,
+    Logging,
 } from '@aws/language-server-runtimes/server-interface'
 import { CancellationError } from './supplementalContextUtil'
 
@@ -57,6 +58,7 @@ export async function fetchSupplementalContextForSrc(
     document: TextDocument,
     position: Position,
     workspace: Workspace,
+    logging: Logging,
     cancellationToken: CancellationToken
 ): Promise<Pick<CodeWhispererSupplementalContext, 'supplementalContextItems' | 'strategy'> | undefined> {
     const shouldProceed = shouldFetchCrossFileContext(document.languageId)
@@ -73,7 +75,7 @@ export async function fetchSupplementalContextForSrc(
     const codeChunksCalculated = crossFileContextConfig.numberOfChunkToFetch
 
     // Step 1: Get relevant cross files to refer
-    const relevantCrossFileCandidates = await getCrossFileCandidates(document, workspace)
+    const relevantCrossFileCandidates = await getCrossFileCandidates(document, workspace, logging)
 
     throwIfCancelled(cancellationToken)
 
@@ -226,7 +228,11 @@ export async function splitFileToChunks(document: TextDocument, chunkSize: numbe
  * This function will return relevant cross files sorted by file distance for the given editor file
  * by referencing open files, imported files and same package files.
  */
-export async function getCrossFileCandidates(document: TextDocument, workspace: Workspace): Promise<TextDocument[]> {
+export async function getCrossFileCandidates(
+    document: TextDocument,
+    workspace: Workspace,
+    logging: Logging
+): Promise<TextDocument[]> {
     const targetFile = document.uri
     const language = document.languageId as CrossFileSupportedLanguage
     const dialects = supportedLanguageToDialects[language]
@@ -240,16 +246,16 @@ export async function getCrossFileCandidates(document: TextDocument, workspace: 
      * Porting note: this function relies of Workspace feature to get all documents,
      * managed by this language server, instead of VSCode `vscode.window` API as VSCode toolkit does.
      */
-    const unsortedCandidates = (await workspace.getAllTextDocuments()).filter(async candidateFile => {
-        return (
-            targetFile !== candidateFile.uri &&
-            (path.extname(targetFile) === path.extname(candidateFile.uri) ||
-                (dialects && dialects.has(path.extname(candidateFile.uri)))) &&
-            !(await isTestFile(new URL(candidateFile.uri).pathname, { languageId: language }))
-        )
-    })
-
+    const unsortedCandidates = await workspace.getAllTextDocuments()
     return unsortedCandidates
+        .filter(candidateFile => {
+            return !!(
+                targetFile !== candidateFile.uri &&
+                (path.extname(targetFile) === path.extname(candidateFile.uri) ||
+                    (dialects && dialects.has(path.extname(candidateFile.uri)))) &&
+                !isTestFile(new URL(candidateFile.uri).pathname, { languageId: language })
+            )
+        })
         .map(candidate => {
             return {
                 file: candidate,

@@ -34,6 +34,7 @@ import {
 } from './telemetry/types'
 import { getCompletionType, getUserAgent, isAwsError } from './utils'
 import { fetchSupplementalContext } from './supplementalContextUtil/supplementalContextUtil'
+import { CodeWhispererSupplementalContext } from './models/model'
 
 const EMPTY_RESULT = { sessionId: '', items: [] }
 export const CONTEXT_CHARACTERS_LIMIT = 10240
@@ -85,6 +86,10 @@ const emitServiceInvocationTelemetry = (telemetry: Telemetry, session: CodeWhisp
         codewhispererCursorOffset: session.startPosition.character,
         codewhispererLanguage: session.language,
         credentialStartUrl: session.credentialStartUrl,
+        codewhispererSupplementalContextTimeout: session.supplementalMetadata?.isProcessTimeout,
+        codewhispererSupplementalContextIsUtg: session.supplementalMetadata?.isUtg,
+        codewhispererSupplementalContextLatency: session.supplementalMetadata?.latency,
+        codewhispererSupplementalContextLength: session.supplementalMetadata?.contentsLength,
     }
     telemetry.emitMetric({
         name: 'codewhisperer_serviceInvocation',
@@ -109,6 +114,10 @@ const emitServiceInvocationFailure = (telemetry: Telemetry, session: CodeWhisper
         codewhispererCursorOffset: session.startPosition.character,
         codewhispererLanguage: session.language,
         credentialStartUrl: session.credentialStartUrl,
+        codewhispererSupplementalContextTimeout: session.supplementalMetadata?.isProcessTimeout,
+        codewhispererSupplementalContextIsUtg: session.supplementalMetadata?.isUtg,
+        codewhispererSupplementalContextLatency: session.supplementalMetadata?.latency,
+        codewhispererSupplementalContextLength: session.supplementalMetadata?.contentsLength,
     }
 
     telemetry.emitMetric({
@@ -193,6 +202,9 @@ const emitAggregatedUserTriggerDecisionTelemetry = (
             : undefined,
         codewhispererTimeToFirstRecommendation: session.timeToFirstRecommendation,
         codewhispererPreviousSuggestionState: session.previousTriggerDecision,
+        codewhispererSupplementalContextTimeout: session.supplementalMetadata?.isProcessTimeout,
+        codewhispererSupplementalContextIsUtg: session.supplementalMetadata?.isUtg,
+        codewhispererSupplementalContextLength: session.supplementalMetadata?.contentsLength,
     }
 
     telemetry.emitMetric({
@@ -216,6 +228,9 @@ const emitUserDecisionTelemetry = (telemetry: Telemetry, session: CodeWhispererS
             codewhispererSuggestionState: session.getSuggestionState(suggestion.itemId),
             codewhispererSuggestionReferences: [...new Set(licenses)],
             codewhispererSuggestionReferenceCount: suggestion.references?.length || 0,
+            codewhispererSupplementalContextTimeout: session.supplementalMetadata?.isProcessTimeout,
+            codewhispererSupplementalContextIsUtg: session.supplementalMetadata?.isUtg,
+            codewhispererSupplementalContextLength: session.supplementalMetadata?.contentsLength,
         }
 
         telemetry.emitMetric({
@@ -313,7 +328,7 @@ export const CodewhispererServerFactory =
                 sessionManager.discardSession(currentSession)
             }
 
-            return workspace.getTextDocument(params.textDocument.uri).then(textDocument => {
+            return workspace.getTextDocument(params.textDocument.uri).then(async textDocument => {
                 if (!textDocument) {
                     logging.log(`textDocument [${params.textDocument.uri}] not found`)
                     return EMPTY_RESULT
@@ -356,18 +371,24 @@ export const CodewhispererServerFactory =
                     return EMPTY_RESULT
                 }
 
-                const supplementalContext = fetchSupplementalContext(
+                const supplementalContext = await fetchSupplementalContext(
                     textDocument,
                     params.position,
                     workspace,
                     logging,
                     token
                 )
+                logSupplementalContext(supplementalContext)
 
                 const requestContext: GenerateSuggestionsRequest = {
                     fileContext,
                     maxResults,
-                    supplementalContexts: [],
+                    supplementalContexts: supplementalContext
+                        ? supplementalContext.supplementalContextItems.map(v => ({
+                              content: v.content,
+                              filePath: v.filePath,
+                          }))
+                        : [],
                 }
 
                 // Close ACTIVE session and record Discard trigger decision immediately
@@ -386,6 +407,7 @@ export const CodewhispererServerFactory =
                     classifierResult: autoTriggerResult?.classifierResult,
                     classifierThreshold: autoTriggerResult?.classifierThreshold,
                     credentialStartUrl: credentialsProvider.getConnectionMetadata?.()?.sso?.startUrl ?? undefined,
+                    supplementalMetadata: supplementalContext,
                 })
 
                 codePercentageTracker.countInvocation(inferredLanguageId)
@@ -583,6 +605,28 @@ export const CodewhispererServerFactory =
         })
 
         logging.log('Amazon Q Inline Suggestion server has been initialised')
+
+        const logSupplementalContext = (supplementalContext: CodeWhispererSupplementalContext | undefined) => {
+            if (!supplementalContext) {
+                return
+            }
+
+            let logString = `CodeWhispererSupplementalContext:
+            isUtg: ${supplementalContext.isUtg},
+            isProcessTimeout: ${supplementalContext.isProcessTimeout},
+            contentsLength: ${supplementalContext.contentsLength},
+            latency: ${supplementalContext.latency},
+        `
+            supplementalContext.supplementalContextItems.forEach((context, index) => {
+                logString += `Chunk ${index}:
+                Path: ${context.filePath}
+                Content: ${index}:${context.content}
+                Score: ${context.score}
+                -----------------------------------------------`
+            })
+
+            logging.log(logString)
+        }
 
         return () => {
             codePercentageTracker.dispose()
