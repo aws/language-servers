@@ -144,8 +144,6 @@ function findBestKChunkMatches(chunkInput: Chunk, chunkReferences: Chunk[], k: n
  * This will be the inputquery to bm25 matching against list of cross-file chunks
  */
 function getInputChunk(document: TextDocument, cursorPosition: Position, chunkSize: number) {
-    // PORT_TODO: test implementation to work with LSP TextDocument. API of TextDocument is almost the same as for VSCode impl
-
     const startLine = Math.max(cursorPosition.line - chunkSize, 0)
     const endLine = Math.max(cursorPosition.line - 1, 0)
     const endCharacter = document.getText(Range.create(endLine, 0, endLine + 1, 0)).trimRight().length
@@ -206,14 +204,10 @@ function linkChunks(chunks: Chunk[]) {
     return updatedChunks
 }
 
-// PORT_TODO: test that file content from LSP
 export async function splitFileToChunks(document: TextDocument, chunkSize: number): Promise<Chunk[]> {
     const chunks: Chunk[] = []
 
-    // PORT_TODO: converting lineends from \r\n\ to \n may be needed for processing functions below to work.
     const fileContent = document.getText().trimEnd().replaceAll('\r\n', '\n')
-
-    // PORT_TODO: test that line ending on Windows system are correct for this to work
     const lines = fileContent.split('\n')
 
     for (let i = 0; i < lines.length; i += chunkSize) {
