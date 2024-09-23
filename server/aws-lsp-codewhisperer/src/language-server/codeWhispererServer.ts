@@ -33,7 +33,7 @@ import {
     CodeWhispererUserTriggerDecisionEvent,
 } from './telemetry/types'
 import { getCompletionType, getUserAgent, isAwsError } from './utils'
-import { fetchSupplementalContext } from './supplementalContextUtil/supplementalContextUtil'
+import { fetchSupplementalContext } from './utilities/supplementalContextUtil/supplementalContextUtil'
 import { CodeWhispererSupplementalContext } from './models/model'
 
 const EMPTY_RESULT = { sessionId: '', items: [] }

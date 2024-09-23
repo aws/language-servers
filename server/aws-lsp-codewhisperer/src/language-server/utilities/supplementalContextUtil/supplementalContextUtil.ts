@@ -8,7 +8,7 @@
 
 import { fetchSupplementalContextForSrc } from './crossFileContextUtil'
 import { isTestFile } from './codeParsingUtil'
-import { CodeWhispererSupplementalContext } from '../models/model'
+import { CodeWhispererSupplementalContext } from '../../models/model'
 import {
     CancellationToken,
     Logging,

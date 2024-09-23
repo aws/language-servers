@@ -9,10 +9,10 @@
 
 import path = require('path')
 import { BM25Document, BM25Okapi } from './rankBm25'
-import { crossFileContextConfig } from '../models/constants'
+import { crossFileContextConfig } from '../../models/constants'
 import { isTestFile } from './codeParsingUtil'
-import { getFileDistance } from '../utilities/filesystemUtilities'
-import { CodeWhispererSupplementalContext, CodeWhispererSupplementalContextItem } from '../models/model'
+import { getFileDistance } from '../filesystemUtilities'
+import { CodeWhispererSupplementalContext, CodeWhispererSupplementalContextItem } from '../../models/model'
 import {
     CancellationToken,
     Position,
