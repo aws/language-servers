@@ -19,65 +19,60 @@ import {
 
 export class CancellationError extends Error {}
 
-export async function fetchSupplementalContext(
+export function fetchSupplementalContext(
     document: TextDocument,
     position: Position,
     workspace: Workspace,
     logging: Logging,
     cancellationToken: CancellationToken
-): Promise<CodeWhispererSupplementalContext | undefined> {
+): CodeWhispererSupplementalContext | undefined {
     const timesBeforeFetching = performance.now()
 
-    const isUtg = await isTestFile(document.uri, {
+    const isUtg = isTestFile(document.uri, {
         languageId: document.languageId,
         fileContent: document.getText(),
     })
 
-    let supplementalContextPromise: Promise<
-        Pick<CodeWhispererSupplementalContext, 'supplementalContextItems' | 'strategy'> | undefined
-    >
+    try {
+        let supplementalContextValue:
+            | Pick<CodeWhispererSupplementalContext, 'supplementalContextItems' | 'strategy'>
+            | undefined
 
-    if (isUtg) {
-        // Not implemented.
-        return
-    } else {
-        supplementalContextPromise = fetchSupplementalContextForSrc(
-            document,
-            position,
-            workspace,
-            logging,
-            cancellationToken
-        )
+        if (isUtg) {
+            // Not implemented.
+            return
+        } else {
+            supplementalContextValue = fetchSupplementalContextForSrc(document, position, workspace, cancellationToken)
+        }
+
+        if (supplementalContextValue) {
+            return {
+                isUtg: isUtg,
+                isProcessTimeout: false,
+                supplementalContextItems: supplementalContextValue.supplementalContextItems,
+                contentsLength: supplementalContextValue.supplementalContextItems.reduce(
+                    (acc, curr) => acc + curr.content.length,
+                    0
+                ),
+                latency: performance.now() - timesBeforeFetching,
+                strategy: supplementalContextValue.strategy,
+            }
+        } else {
+            return undefined
+        }
+    } catch (err) {
+        if (err instanceof CancellationError) {
+            return {
+                isUtg: isUtg,
+                isProcessTimeout: true,
+                supplementalContextItems: [],
+                contentsLength: 0,
+                latency: performance.now() - timesBeforeFetching,
+                strategy: 'Empty',
+            }
+        } else {
+            logging.log(`Fail to fetch supplemental context for target file ${document.uri}: ${err}`)
+            return undefined
+        }
     }
-
-    return supplementalContextPromise
-        .then(value => {
-            if (value) {
-                return {
-                    isUtg: isUtg,
-                    isProcessTimeout: false,
-                    supplementalContextItems: value.supplementalContextItems,
-                    contentsLength: value.supplementalContextItems.reduce((acc, curr) => acc + curr.content.length, 0),
-                    latency: performance.now() - timesBeforeFetching,
-                    strategy: value.strategy,
-                }
-            } else {
-                return undefined
-            }
-        })
-        .catch(err => {
-            if (err instanceof CancellationError) {
-                return {
-                    isUtg: isUtg,
-                    isProcessTimeout: true,
-                    supplementalContextItems: [],
-                    contentsLength: 0,
-                    latency: performance.now() - timesBeforeFetching,
-                    strategy: 'Empty',
-                }
-            } else {
-                logging.log(`Fail to fetch supplemental context for target file ${document.uri}: ${err}`)
-                return undefined
-            }
-        })
 }

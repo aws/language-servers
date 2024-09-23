@@ -54,13 +54,12 @@ interface Chunk {
     score?: number
 }
 
-export async function fetchSupplementalContextForSrc(
+export function fetchSupplementalContextForSrc(
     document: TextDocument,
     position: Position,
     workspace: Workspace,
-    logging: Logging,
     cancellationToken: CancellationToken
-): Promise<Pick<CodeWhispererSupplementalContext, 'supplementalContextItems' | 'strategy'> | undefined> {
+): Pick<CodeWhispererSupplementalContext, 'supplementalContextItems' | 'strategy'> | undefined {
     const shouldProceed = shouldFetchCrossFileContext(document.languageId)
 
     if (!shouldProceed) {
@@ -75,7 +74,7 @@ export async function fetchSupplementalContextForSrc(
     const codeChunksCalculated = crossFileContextConfig.numberOfChunkToFetch
 
     // Step 1: Get relevant cross files to refer
-    const relevantCrossFileCandidates = await getCrossFileCandidates(document, workspace, logging)
+    const relevantCrossFileCandidates = getCrossFileCandidates(document, workspace)
 
     throwIfCancelled(cancellationToken)
 
@@ -85,7 +84,7 @@ export async function fetchSupplementalContextForSrc(
     let chunkList: Chunk[] = []
     for (const relevantFile of relevantCrossFileCandidates) {
         throwIfCancelled(cancellationToken)
-        const chunks: Chunk[] = await splitFileToChunks(relevantFile, crossFileContextConfig.numberOfLinesEachChunk)
+        const chunks: Chunk[] = splitFileToChunks(relevantFile, crossFileContextConfig.numberOfLinesEachChunk)
         const linkedChunks = linkChunks(chunks)
         chunkList.push(...linkedChunks)
         if (chunkList.length >= codeChunksCalculated) {
@@ -204,7 +203,7 @@ function linkChunks(chunks: Chunk[]) {
     return updatedChunks
 }
 
-export async function splitFileToChunks(document: TextDocument, chunkSize: number): Promise<Chunk[]> {
+export function splitFileToChunks(document: TextDocument, chunkSize: number): Chunk[] {
     const chunks: Chunk[] = []
 
     const fileContent = document.getText().trimEnd().replaceAll('\r\n', '\n')
@@ -227,11 +226,7 @@ type FileDistance = {
  * This function will return relevant cross files sorted by file distance for the given editor file
  * by referencing open files, imported files and same package files.
  */
-export async function getCrossFileCandidates(
-    document: TextDocument,
-    workspace: Workspace,
-    logging: Logging
-): Promise<TextDocument[]> {
+export function getCrossFileCandidates(document: TextDocument, workspace: Workspace): TextDocument[] {
     const targetFile = document.uri
     const language = document.languageId as CrossFileSupportedLanguage
     const dialects = supportedLanguageToDialects[language]
@@ -245,7 +240,7 @@ export async function getCrossFileCandidates(
      * Porting note: this function relies of Workspace feature to get all documents,
      * managed by this language server, instead of VSCode `vscode.window` API as VSCode toolkit does.
      */
-    const unsortedCandidates = await workspace.getAllTextDocuments()
+    const unsortedCandidates = workspace.getAllTextDocuments()
     return unsortedCandidates
         .filter((candidateFile: TextDocument) => {
             return !!(

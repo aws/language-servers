@@ -210,6 +210,10 @@ describe('Telemetry', () => {
                     codewhispererTotalShownTime: 0,
                     codewhispererTypeaheadLength: 0,
                     codewhispererTimeSinceLastDocumentChange: 0,
+                    codewhispererSupplementalContextTimeout: undefined,
+                    codewhispererSupplementalContextIsUtg: undefined,
+                    codewhispererSupplementalContextLatency: undefined,
+                    codewhispererSupplementalContextLength: undefined,
                     ...override,
                 },
             }

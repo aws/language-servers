@@ -124,6 +124,7 @@ describe('CodeWhisperer Server', () => {
                     rightFileContent: HELLO_WORLD_IN_CSHARP,
                 },
                 maxResults: 5,
+                supplementalContexts: [],
             }
             sinon.assert.calledOnceWithExactly(service.generateSuggestions, expectedGenerateSuggestionsRequest)
         })
@@ -154,6 +155,7 @@ describe('CodeWhisperer Server', () => {
                     rightFileContent: remainingLines,
                 },
                 maxResults: 5,
+                supplementalContexts: [],
             }
             sinon.assert.calledOnceWithExactly(service.generateSuggestions, expectedGenerateSuggestionsRequest)
         })
@@ -208,6 +210,7 @@ describe('CodeWhisperer Server', () => {
                     rightFileContent: HELLO_WORLD_IN_CSHARP,
                 },
                 maxResults: 5,
+                supplementalContexts: [],
             }
             sinon.assert.calledOnceWithExactly(service.generateSuggestions, expectedGenerateSuggestionsRequest)
         })
@@ -265,6 +268,7 @@ describe('CodeWhisperer Server', () => {
                     rightFileContent: HELLO_WORLD_IN_CSHARP,
                 },
                 maxResults: 5,
+                supplementalContexts: [],
             }
 
             // Check the service was called with the right parameters
@@ -348,6 +352,7 @@ describe('CodeWhisperer Server', () => {
                     rightFileContent: rightContext,
                 },
                 maxResults: 5,
+                supplementalContexts: [],
             }
             sinon.assert.calledOnceWithExactly(service.generateSuggestions, expectedGenerateSuggestionsRequest)
         })
@@ -383,6 +388,7 @@ describe('CodeWhisperer Server', () => {
                     rightFileContent: modifiedRightContext,
                 },
                 maxResults: 5,
+                supplementalContexts: [],
             }
             sinon.assert.calledOnceWithExactly(service.generateSuggestions, expectedGenerateSuggestionsRequest)
         })
@@ -904,6 +910,7 @@ describe('CodeWhisperer Server', () => {
                     rightFileContent: RIGHT_FILE_CONTEXT,
                 },
                 maxResults: 1,
+                supplementalContexts: [],
             }
             sinon.assert.calledOnceWithExactly(service.generateSuggestions, expectedGenerateSuggestionsRequest)
         })
@@ -1120,6 +1127,10 @@ describe('CodeWhisperer Server', () => {
                     codewhispererCursorOffset: 0,
                     codewhispererLanguage: 'csharp',
                     credentialStartUrl: undefined,
+                    codewhispererSupplementalContextTimeout: undefined,
+                    codewhispererSupplementalContextIsUtg: undefined,
+                    codewhispererSupplementalContextLatency: undefined,
+                    codewhispererSupplementalContextLength: undefined,
                 },
             }
             sinon.assert.calledOnceWithExactly(features.telemetry.emitMetric, expectedServiceInvocationMetric)
@@ -1163,6 +1174,10 @@ describe('CodeWhisperer Server', () => {
                     codewhispererCursorOffset: 0,
                     codewhispererLanguage: 'csharp',
                     credentialStartUrl: undefined,
+                    codewhispererSupplementalContextTimeout: undefined,
+                    codewhispererSupplementalContextIsUtg: undefined,
+                    codewhispererSupplementalContextLatency: undefined,
+                    codewhispererSupplementalContextLength: undefined,
                 },
             }
             sinon.assert.calledOnceWithExactly(features.telemetry.emitMetric, expectedServiceInvocationMetric)
@@ -1197,6 +1212,10 @@ describe('CodeWhisperer Server', () => {
                     codewhispererCursorOffset: 0,
                     codewhispererLanguage: 'csharp',
                     credentialStartUrl: undefined,
+                    codewhispererSupplementalContextTimeout: undefined,
+                    codewhispererSupplementalContextIsUtg: undefined,
+                    codewhispererSupplementalContextLatency: undefined,
+                    codewhispererSupplementalContextLength: undefined,
                 },
                 errorData: {
                     reason: 'TestError',
@@ -1234,6 +1253,10 @@ describe('CodeWhisperer Server', () => {
                     codewhispererCursorOffset: 0,
                     codewhispererLanguage: 'csharp',
                     credentialStartUrl: undefined,
+                    codewhispererSupplementalContextTimeout: undefined,
+                    codewhispererSupplementalContextIsUtg: undefined,
+                    codewhispererSupplementalContextLatency: undefined,
+                    codewhispererSupplementalContextLength: undefined,
                 },
                 errorData: {
                     reason: 'UnknownError',
@@ -1283,6 +1306,10 @@ describe('CodeWhisperer Server', () => {
                     codewhispererCursorOffset: 0,
                     codewhispererLanguage: 'csharp',
                     credentialStartUrl: undefined,
+                    codewhispererSupplementalContextTimeout: undefined,
+                    codewhispererSupplementalContextIsUtg: undefined,
+                    codewhispererSupplementalContextLatency: undefined,
+                    codewhispererSupplementalContextLength: undefined,
                 },
                 errorData: {
                     reason: 'TestAWSError',

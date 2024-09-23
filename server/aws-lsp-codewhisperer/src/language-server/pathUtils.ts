@@ -1,5 +1,6 @@
-import os = require('os')
-import * as _path from 'path'
+// In order for this to work in non-NodeJS environments, servers must be built with bundler including `path-browserify` and `os-browserify` modules.
+import * as os from 'os'
+import * as path from 'path'
 
 // Partial port of implementation in AWS Toolkit for VSCode
 // https://github.com/aws/aws-toolkit-vscode/blob/9d8ddbd85f4533e539a58e76f7c46883d8e50a79/packages/core/src/shared/utilities/pathUtils.ts
@@ -70,10 +71,10 @@ export function normalize(p: string): string {
     }
     const firstChar = p.substring(0, 1)
     if (driveLetterRegex.test(p.substring(0, 2))) {
-        return normalizeSeparator(_path.normalize(firstChar.toUpperCase() + p.substring(1)))
+        return normalizeSeparator(path.normalize(firstChar.toUpperCase() + p.substring(1)))
     }
     if (isUncPath(p)) {
         return normalizeSeparator(p)
     }
-    return normalizeSeparator(_path.normalize(p))
+    return normalizeSeparator(path.normalize(p))
 }
