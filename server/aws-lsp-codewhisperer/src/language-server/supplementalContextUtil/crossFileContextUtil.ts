@@ -218,6 +218,11 @@ export async function splitFileToChunks(document: TextDocument, chunkSize: numbe
     return chunks
 }
 
+type FileDistance = {
+    file: TextDocument
+    fileDistance: number
+}
+
 /**
  * This function will return relevant cross files sorted by file distance for the given editor file
  * by referencing open files, imported files and same package files.
@@ -242,7 +247,7 @@ export async function getCrossFileCandidates(
      */
     const unsortedCandidates = await workspace.getAllTextDocuments()
     return unsortedCandidates
-        .filter(candidateFile => {
+        .filter((candidateFile: TextDocument) => {
             return !!(
                 targetFile !== candidateFile.uri &&
                 (path.extname(targetFile) === path.extname(candidateFile.uri) ||
@@ -250,17 +255,17 @@ export async function getCrossFileCandidates(
                 !isTestFile(new URL(candidateFile.uri).pathname, { languageId: language })
             )
         })
-        .map(candidate => {
+        .map((candidate: TextDocument): FileDistance => {
             return {
                 file: candidate,
                 // PORT_TODO: port and test getFileDistance to work with LSP's URIs
                 fileDistance: getFileDistance(targetFile, candidate.uri),
             }
         })
-        .sort((file1, file2) => {
+        .sort((file1: FileDistance, file2: FileDistance) => {
             return file1.fileDistance - file2.fileDistance
         })
-        .map(fileToDistance => {
+        .map((fileToDistance: FileDistance) => {
             return fileToDistance.file
         })
 }
