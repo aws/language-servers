@@ -1,10 +1,10 @@
-// Port of implementation in AWS Toolkit for VSCode
+// Partial port of implementation in AWS Toolkit for VSCode
 // https://github.com/aws/aws-toolkit-vscode/blob/24840fda8559a3e3ace3517ad9844db76680dc50/packages/core/src/test/shared/utilities/pathUtils.test.ts
 
 import * as assert from 'assert'
 import { normalizeSeparator, normalize } from './pathUtils'
 
-describe.only('pathUtils', async function () {
+describe('pathUtils', async function () {
     it('normalizeSeparator()', function () {
         assert.strictEqual(normalizeSeparator('a/b/c'), 'a/b/c')
         assert.strictEqual(normalizeSeparator('a\\b\\c'), 'a/b/c')

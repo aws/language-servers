@@ -1,13 +1,8 @@
-/*!
- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
- * SPDX-License-Identifier: Apache-2.0
- */
-
 // Port of implementation in AWS Toolkit for VSCode
 // https://github.com/aws/aws-toolkit-vscode/blob/9d8ddbd85f4533e539a58e76f7c46883d8e50a79/packages/core/src/codewhisperer/util/supplementalContext/crossFileContextUtil.ts
 // Implementation is converted to work with LSP TextDocument instead of vscode APIs.
 
-import path = require('path')
+import * as path from 'path'
 import { BM25Document, BM25Okapi } from './rankBm25'
 import { crossFileContextConfig } from '../../models/constants'
 import { isTestFile } from './codeParsingUtil'
@@ -19,7 +14,6 @@ import {
     TextDocument,
     Workspace,
     Range,
-    Logging,
 } from '@aws/language-server-runtimes/server-interface'
 import { CancellationError } from './supplementalContextUtil'
 
@@ -154,7 +148,7 @@ function getInputChunk(document: TextDocument, cursorPosition: Position, chunkSi
 }
 
 /**
- * UserGroup is not used in VsCode implementation, keeping param for reference, but not implemented.
+ * Note: UserGroup is not used in VsCode implementation, keeping param for reference, but not implemented.
  *
  * Util to decide if we need to fetch crossfile context since CodeWhisperer CrossFile Context feature is gated by userGroup and language level
  * @param languageId: LSP TextDocument language Identifier
@@ -162,10 +156,7 @@ function getInputChunk(document: TextDocument, cursorPosition: Position, chunkSi
  * @returns specifically returning undefined if the langueage is not supported,
  * otherwise true/false depending on if the language is fully supported or not belonging to the user group
  */
-function shouldFetchCrossFileContext(
-    languageId: TextDocument['languageId'],
-    _userGroup?: any // UserGroup
-): boolean | undefined {
+function shouldFetchCrossFileContext(languageId: TextDocument['languageId'], _userGroup?: any): boolean | undefined {
     if (!isCrossFileSupported(languageId)) {
         return undefined
     }
