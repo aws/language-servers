@@ -128,3 +128,18 @@ export const createIterableResponse = <T>(data: T[]): AsyncIterable<T> => {
         },
     }
 }
+
+/**
+ * Shuffle a list, Fisher-Yates Sorting Algorithm.
+ * Copy of implementation from AWS Toolkit for VSCode https://github.com/aws/aws-toolkit-vscode/blob/a2daf60dca5e5699b8b25f6dc84708295f042c38/packages/core/src/test/testUtil.ts#L482
+ */
+export function shuffleList<T>(list: T[]): T[] {
+    const shuffledList = [...list]
+
+    for (let i = shuffledList.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1))
+        ;[shuffledList[i], shuffledList[j]] = [shuffledList[j], shuffledList[i]]
+    }
+
+    return shuffledList
+}
