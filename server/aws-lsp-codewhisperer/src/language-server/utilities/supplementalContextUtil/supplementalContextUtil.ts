@@ -14,13 +14,13 @@ import {
 
 export class CancellationError extends Error {}
 
-export function fetchSupplementalContext(
+export async function fetchSupplementalContext(
     document: TextDocument,
     position: Position,
     workspace: Workspace,
     logging: Logging,
     cancellationToken: CancellationToken
-): CodeWhispererSupplementalContext | undefined {
+): Promise<CodeWhispererSupplementalContext | undefined> {
     const timesBeforeFetching = performance.now()
 
     const isUtg = isTestFile(document.uri, {
@@ -34,10 +34,14 @@ export function fetchSupplementalContext(
             | undefined
 
         if (isUtg) {
-            // Not implemented.
             return
         } else {
-            supplementalContextValue = fetchSupplementalContextForSrc(document, position, workspace, cancellationToken)
+            supplementalContextValue = await fetchSupplementalContextForSrc(
+                document,
+                position,
+                workspace,
+                cancellationToken
+            )
         }
 
         if (supplementalContextValue) {

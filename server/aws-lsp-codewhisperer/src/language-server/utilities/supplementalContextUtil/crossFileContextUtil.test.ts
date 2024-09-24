@@ -35,12 +35,12 @@ describe('crossFileContextUtil', function () {
     }
 
     describe('fetchSupplementalContextForSrc', function () {
-        describe('should fetch 3 chunks and each chunk should contains 10 lines', function () {
-            function assertCorrectCodeChunk() {
+        describe('should fetch 3 chunks and each chunk should contains 10 lines', async function () {
+            async function assertCorrectCodeChunk() {
                 openDocument('file:///CrossFile.java', 'java', 1, sampleFileOf60Lines)
                 const currentDocument = openDocument('file:///TargetFile.java', 'java')
 
-                const actual = crossFile.fetchSupplementalContextForSrc(
+                const actual = await crossFile.fetchSupplementalContextForSrc(
                     currentDocument,
                     { line: 0, character: 0 },
                     features.workspace,
@@ -54,8 +54,8 @@ describe('crossFileContextUtil', function () {
                 assert.strictEqual(actual.supplementalContextItems[2].content.split('\n').length, 10)
             }
 
-            it('control group', function () {
-                assertCorrectCodeChunk()
+            it('control group', async function () {
+                await assertCorrectCodeChunk()
             })
         })
     })
@@ -63,7 +63,7 @@ describe('crossFileContextUtil', function () {
     describe('non supported language should return undefined', function () {
         it('c++', async function () {
             const currentDocument = openDocument('file:///TestFile.cpp', 'cpp', 1, 'content')
-            const actual = crossFile.fetchSupplementalContextForSrc(
+            const actual = await crossFile.fetchSupplementalContextForSrc(
                 currentDocument,
                 { line: 0, character: 0 },
                 features.workspace,
@@ -74,7 +74,7 @@ describe('crossFileContextUtil', function () {
 
         it('ruby', async function () {
             const currentDocument = openDocument('file:///testfile.rb', 'ruby', 1, 'content')
-            const actual = crossFile.fetchSupplementalContextForSrc(
+            const actual = await crossFile.fetchSupplementalContextForSrc(
                 currentDocument,
                 { line: 0, character: 0 },
                 features.workspace,
@@ -134,7 +134,7 @@ describe('crossFileContextUtil', function () {
             openDocument(testFile2, 'java')
             const targetDocument = openDocument(targetFile, 'java')
 
-            const actual = crossFile.getCrossFileCandidates(targetDocument, features.workspace)
+            const actual = await crossFile.getCrossFileCandidates(targetDocument, features.workspace)
 
             assert.ok(actual.length === 5)
             actual.forEach((actualFile, index) => {
@@ -175,13 +175,13 @@ describe('crossFileContextUtil', function () {
 
         fileExtLists.forEach(fileExt => {
             extToLanguageIdMap[fileExt].forEach(languageId => {
-                it('should be non empty', function () {
+                it('should be non empty', async function () {
                     const document = openDocument(`file:///file-1${fileExt}`, languageId, 1, 'content-1')
                     openDocument(`file:///file-2${fileExt}`, languageId, 1, 'content-2')
                     openDocument(`file:///file-3${fileExt}`, languageId, 1, 'content-3')
                     openDocument(`file:///file-4${fileExt}`, languageId, 1, 'content-4')
 
-                    const actual = crossFile.fetchSupplementalContextForSrc(
+                    const actual = await crossFile.fetchSupplementalContextForSrc(
                         document,
                         { line: 0, character: 0 },
                         features.workspace,

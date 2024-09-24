@@ -328,7 +328,7 @@ export const CodewhispererServerFactory =
                 sessionManager.discardSession(currentSession)
             }
 
-            return workspace.getTextDocument(params.textDocument.uri).then(textDocument => {
+            return workspace.getTextDocument(params.textDocument.uri).then(async textDocument => {
                 if (!textDocument) {
                     logging.log(`textDocument [${params.textDocument.uri}] not found`)
                     return EMPTY_RESULT
@@ -370,8 +370,7 @@ export const CodewhispererServerFactory =
                 ) {
                     return EMPTY_RESULT
                 }
-
-                const supplementalContext = fetchSupplementalContext(
+                const supplementalContext = await fetchSupplementalContext(
                     textDocument,
                     params.position,
                     workspace,
@@ -617,7 +616,7 @@ export const CodewhispererServerFactory =
             contentsLength: ${supplementalContext.contentsLength},
             latency: ${supplementalContext.latency},
         `
-            supplementalContext.supplementalContextItems.forEach((context, index) => {
+            supplementalContext.supplementalContextItems?.forEach((context, index) => {
                 logString += `Chunk ${index}:
                 Path: ${context.filePath}
                 Content: ${index}:${context.content}

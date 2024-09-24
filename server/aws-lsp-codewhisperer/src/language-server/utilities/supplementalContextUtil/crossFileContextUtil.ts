@@ -48,12 +48,12 @@ interface Chunk {
     score?: number
 }
 
-export function fetchSupplementalContextForSrc(
+export async function fetchSupplementalContextForSrc(
     document: TextDocument,
     position: Position,
     workspace: Workspace,
     cancellationToken: CancellationToken
-): Pick<CodeWhispererSupplementalContext, 'supplementalContextItems' | 'strategy'> | undefined {
+): Promise<Pick<CodeWhispererSupplementalContext, 'supplementalContextItems' | 'strategy'> | undefined> {
     const shouldProceed = shouldFetchCrossFileContext(document.languageId)
 
     if (!shouldProceed) {
@@ -68,7 +68,7 @@ export function fetchSupplementalContextForSrc(
     const codeChunksCalculated = crossFileContextConfig.numberOfChunkToFetch
 
     // Step 1: Get relevant cross files to refer
-    const relevantCrossFileCandidates = getCrossFileCandidates(document, workspace)
+    const relevantCrossFileCandidates = await getCrossFileCandidates(document, workspace)
 
     throwIfCancelled(cancellationToken)
 
@@ -217,7 +217,7 @@ type FileDistance = {
  * This function will return relevant cross files sorted by file distance for the given editor file
  * by referencing open files, imported files and same package files.
  */
-export function getCrossFileCandidates(document: TextDocument, workspace: Workspace): TextDocument[] {
+export async function getCrossFileCandidates(document: TextDocument, workspace: Workspace): Promise<TextDocument[]> {
     const targetFile = document.uri
     const language = document.languageId as CrossFileSupportedLanguage
     const dialects = supportedLanguageToDialects[language]
@@ -231,7 +231,7 @@ export function getCrossFileCandidates(document: TextDocument, workspace: Worksp
      * Porting note: this function relies of Workspace feature to get all documents,
      * managed by this language server, instead of VSCode `vscode.window` API as VSCode toolkit does.
      */
-    const unsortedCandidates = workspace.getAllTextDocuments()
+    const unsortedCandidates = await workspace.getAllTextDocuments()
     return unsortedCandidates
         .filter((candidateFile: TextDocument) => {
             return !!(

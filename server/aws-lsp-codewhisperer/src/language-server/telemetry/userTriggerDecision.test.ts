@@ -212,7 +212,6 @@ describe('Telemetry', () => {
                     codewhispererTimeSinceLastDocumentChange: 0,
                     codewhispererSupplementalContextTimeout: undefined,
                     codewhispererSupplementalContextIsUtg: undefined,
-                    codewhispererSupplementalContextLatency: undefined,
                     codewhispererSupplementalContextLength: undefined,
                     ...override,
                 },
@@ -764,7 +763,7 @@ describe('Telemetry', () => {
                     aUserTriggerDecision({
                         codewhispererSessionId: 'cwspr-session-id-0',
                         codewhispererSuggestionState: 'Discard',
-                        codewhispererTimeToFirstRecommendation: 2520,
+                        codewhispererTimeToFirstRecommendation: 1260,
                     })
                 )
                 sinon.assert.calledWithMatch(
@@ -772,7 +771,7 @@ describe('Telemetry', () => {
                     aUserTriggerDecision({
                         codewhispererSessionId: 'cwspr-session-id-1',
                         codewhispererSuggestionState: 'Discard',
-                        codewhispererTimeToFirstRecommendation: 2510,
+                        codewhispererTimeToFirstRecommendation: 1260,
                         codewhispererPreviousSuggestionState: 'Discard',
                     })
                 )
