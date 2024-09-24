@@ -14,7 +14,7 @@ export function validateProject(userInputrequest: StartTransformRequest): boolea
     var selectedProject = userInputrequest.ProjectMetadata.find(
         project => project.ProjectPath == userInputrequest.SelectedProjectPath
     )
-    if (selectedProject) return supportedProjects.includes(selectedProject.ProjectType)
+    if (selectedProject) return supportedProjects.includes(selectedProject?.ProjectType)
     return false
 }
 
