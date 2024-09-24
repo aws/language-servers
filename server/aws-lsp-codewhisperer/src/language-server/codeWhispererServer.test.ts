@@ -4,6 +4,7 @@ import {
     InlineCompletionTriggerKind,
     TextDocument,
     MetricEvent,
+    Position,
 } from '@aws/language-server-runtimes/server-interface'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import * as assert from 'assert'
@@ -471,6 +472,39 @@ describe('CodeWhisperer Server', () => {
             )
             // Check the completion result
             assert.deepEqual(result, EMPTY_RESULT)
+        })
+
+        describe('Supplemental Context', () => {
+            it('should send supplemental context', async () => {
+                // Open 3 files supporting cross-file context
+                features
+                    .openDocument(TextDocument.create('file:///SampleFile.java', 'java', 1, 'sample-content'))
+                    .openDocument(TextDocument.create('file:///TargetFile.java', 'java', 1, ''))
+
+                await features.doInlineCompletionWithReferences(
+                    {
+                        textDocument: { uri: 'file:///TargetFile.java' },
+                        position: Position.create(0, 0),
+                        context: { triggerKind: InlineCompletionTriggerKind.Invoked },
+                    },
+                    CancellationToken.None
+                )
+
+                const expectedGenerateSuggestionsRequest = {
+                    fileContext: {
+                        filename: 'file:///TargetFile.java',
+                        programmingLanguage: { languageName: 'java' },
+                        leftFileContent: '',
+                        rightFileContent: '',
+                    },
+                    maxResults: 5,
+                    supplementalContexts: [
+                        { content: 'sample-content', filePath: '/SampleFile.java' },
+                        { content: 'sample-content', filePath: '/SampleFile.java' },
+                    ],
+                }
+                sinon.assert.calledOnceWithExactly(service.generateSuggestions, expectedGenerateSuggestionsRequest)
+            })
         })
 
         // TODO: mock http request and verify the headers are passed

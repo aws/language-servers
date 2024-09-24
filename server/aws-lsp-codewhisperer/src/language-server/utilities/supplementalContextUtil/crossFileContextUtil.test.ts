@@ -8,7 +8,7 @@ import * as crossFile from './crossFileContextUtil'
 import { TextDocument } from 'vscode-languageserver-textdocument'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import { CancellationToken } from '@aws/language-server-runtimes/server-interface'
-import { shuffleList } from '../../testUtils'
+import { SAMPLE_FILE_OF_60_LINES_IN_JAVA, shuffleList } from '../../testUtils'
 import { supportedLanguageToDialects } from './crossFileContextUtil'
 import { crossFileContextConfig } from '../../models/constants'
 
@@ -37,7 +37,7 @@ describe('crossFileContextUtil', function () {
     describe('fetchSupplementalContextForSrc', function () {
         describe('should fetch 3 chunks and each chunk should contains 10 lines', async function () {
             async function assertCorrectCodeChunk() {
-                openDocument('file:///CrossFile.java', 'java', 1, sampleFileOf60Lines)
+                openDocument('file:///CrossFile.java', 'java', 1, SAMPLE_FILE_OF_60_LINES_IN_JAVA)
                 const currentDocument = openDocument('file:///TargetFile.java', 'java')
 
                 const actual = await crossFile.fetchSupplementalContextForSrc(
@@ -228,7 +228,7 @@ describe('crossFileContextUtil', function () {
         })
 
         it('codewhisperer crossfile config should use 10 lines', function () {
-            const document = TextDocument.create('file:///testfile.java', 'java', 1, sampleFileOf60Lines)
+            const document = TextDocument.create('file:///testfile.java', 'java', 1, SAMPLE_FILE_OF_60_LINES_IN_JAVA)
 
             const chunks = crossFile.splitFileToChunks(document, crossFileContextConfig.numberOfLinesEachChunk)
             assert.strictEqual(chunks.length, 6)
@@ -239,7 +239,7 @@ describe('crossFileContextUtil', function () {
                 'file:///testfile.java',
                 'java',
                 1,
-                sampleFileOf60Lines.replaceAll('\n', '\r\n')
+                SAMPLE_FILE_OF_60_LINES_IN_JAVA.replaceAll('\n', '\r\n')
             )
 
             const chunks = crossFile.splitFileToChunks(document, crossFileContextConfig.numberOfLinesEachChunk)
@@ -247,64 +247,3 @@ describe('crossFileContextUtil', function () {
         })
     })
 })
-
-const sampleFileOf60Lines = `import java.util.List;
-// we need this comment on purpose because chunk will be trimed right, adding this to avoid trimRight and make assertion easier
-/**
- * 
- * 
- * 
- * 
- * 
- **/
-class Main {
-    public static void main(String[] args) {
-        Calculator calculator = new Calculator();
-        calculator.add(1, 2);
-        calculator.subtract(1, 2);
-        calculator.multiply(1, 2);
-        calculator.divide(1, 2);
-        calculator.remainder(1, 2);
-    }
-}
-//
-class Calculator {
-    public Calculator() {
-        System.out.println("constructor");
-    }
-//
-    public add(int num1, int num2) {
-        System.out.println("add");
-        return num1 + num2;
-    }
-//
-    public subtract(int num1, int num2) {
-        System.out.println("subtract");
-        return num1 - num2;
-    }
-//
-    public multiply(int num1, int num2) {
-        System.out.println("multiply");
-        return num1 * num2;    
-    }
-//
-    public divide(int num1, int num2) {
-        System.out.println("divide");
-        return num1 / num2;
-    }
-//
-    public remainder(int num1, int num2) {
-        System.out.println("remainder");
-        return num1 % num2;
-    }
-//
-    public power(int num1, int num2) {
-        System.out.println("power");
-        return (int) Math.pow(num1, num2);
-    }
-//
-    public squareRoot(int num1) {
-        System.out.println("squareRoot");
-        return (int) Math.sqrt(num1);
-    }
-}`
