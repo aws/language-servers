@@ -97,6 +97,7 @@ describe('fetchSupplementalContext', function () {
 
         assert.strictEqual(result, undefined)
         sinon.assert.calledWithMatch(
+            // @ts-ignore
             logging.log,
             'Fail to fetch supplemental context for target file file:///somefile.js'
         )
