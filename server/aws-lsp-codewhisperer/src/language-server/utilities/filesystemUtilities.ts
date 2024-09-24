@@ -11,7 +11,6 @@ import * as pathutils from './pathUtils'
  * The file distance between A/B/C.java and A/D.java is 1
  */
 export function getFileDistance(fileA: string, fileB: string): number {
-    // TODO: Test how it works with nested folders with spaces (%20 symbol)
     let filePathA = pathutils.normalize(fileA).split('/')
     filePathA = filePathA.slice(0, filePathA.length - 1)
 

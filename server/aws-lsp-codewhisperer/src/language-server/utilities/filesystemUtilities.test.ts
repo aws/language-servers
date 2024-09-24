@@ -23,6 +23,13 @@ describe('filesystemUtilities', function () {
             assert.strictEqual(actual, 0)
         })
 
+        it('distance 0 with whitespace', function () {
+            fileA = 'foo/b%20ar/a.java'
+            fileB = 'foo/b%20ar/b.java'
+            const actual = getFileDistance(fileA, fileB)
+            assert.strictEqual(actual, 0)
+        })
+
         it('distance 1', function () {
             fileA = 'foo/bar/a.java'
             fileB = 'foo/b.java'
@@ -61,6 +68,13 @@ describe('filesystemUtilities', function () {
         it('distance 6', function () {
             fileA = 'foo/zoo/a.java'
             fileB = 'bar/baz/bee/bww/b.java'
+            const actual = getFileDistance(fileA, fileB)
+            assert.strictEqual(actual, 6)
+        })
+
+        it('distance 6 with whitespaces', function () {
+            fileA = 'foo/zo%20o/a.java'
+            fileB = 'bar/ba%20z/bee/bww/b.java'
             const actual = getFileDistance(fileA, fileB)
             assert.strictEqual(actual, 6)
         })
