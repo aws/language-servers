@@ -84,9 +84,10 @@ export const createChat = (
                 break
             case CHAT_OPTIONS:
                 const params = (message as ChatOptionsMessage).params
-                const chatConfig: ChatClientConfig = {
-                    quickActionCommands: params.quickActions?.quickActionsCommandGroups,
-                }
+                const chatConfig: ChatClientConfig = params?.quickActions?.quickActionsCommandGroups
+                    ? { quickActionCommands: params.quickActions.quickActionsCommandGroups }
+                    : {}
+
                 tabFactory.updateDefaultTabData(chatConfig)
 
                 const allExistingTabs: MynahUITabStoreModel = mynahUi.getAllTabs()
@@ -151,8 +152,9 @@ export const createChat = (
     const messager = new Messager(chatApi)
     const tabFactory = new TabFactory({
         ...DEFAULT_TAB_DATA,
-        quickActionCommands: config?.quickActionCommands,
+        ...(config?.quickActionCommands ? { quickActionCommands: config.quickActionCommands } : {}),
     })
+
     const [mynahUi, api] = createMynahUi(messager, tabFactory)
 
     mynahApi = api

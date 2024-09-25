@@ -1,6 +1,6 @@
 # Q Chat Client
 
-This package contains a chat client for the Q Language Server, that can be embedded in a webview. It renders the [MynahUI](https://github.com/aws/mynah-ui) library inside the webview.
+This package contains a chat client for the Q Language Server, that can be embedded in a webview. It uses [MynahUI](https://github.com/aws/mynah-ui) to render a web based chat interface.
 
 ## Communication
 
