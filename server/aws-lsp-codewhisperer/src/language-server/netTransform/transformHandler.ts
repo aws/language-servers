@@ -86,7 +86,11 @@ export class TransformHandler {
                 containsUnsupportedViews
             )
         } catch (error) {
-            const errorMessage = (error as Error).message ?? 'Error in StartTransformation API call'
+            let errorMessage = (error as Error).message ?? 'Error in StartTransformation API call'
+            if (errorMessage.includes('Invalid transformation specification')) {
+                errorMessage =
+                    'Your profile credentials are not allow-listed or lack the necessary access. Please check your credentials.'
+            }
             this.logging.log(errorMessage)
             throw new Error(errorMessage)
         } finally {
