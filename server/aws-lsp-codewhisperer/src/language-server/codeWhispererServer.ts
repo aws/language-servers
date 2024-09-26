@@ -377,7 +377,6 @@ export const CodewhispererServerFactory =
                     logging,
                     token
                 )
-                logSupplementalContext(supplementalContext)
 
                 const requestContext: GenerateSuggestionsRequest = {
                     fileContext,
@@ -604,28 +603,6 @@ export const CodewhispererServerFactory =
         })
 
         logging.log('Amazon Q Inline Suggestion server has been initialised')
-
-        const logSupplementalContext = (supplementalContext: CodeWhispererSupplementalContext | undefined) => {
-            if (!supplementalContext) {
-                return
-            }
-
-            let logString = `CodeWhispererSupplementalContext:
-            isUtg: ${supplementalContext.isUtg},
-            isProcessTimeout: ${supplementalContext.isProcessTimeout},
-            contentsLength: ${supplementalContext.contentsLength},
-            latency: ${supplementalContext.latency},
-        `
-            supplementalContext.supplementalContextItems?.forEach((context, index) => {
-                logString += `Chunk ${index}:
-                Path: ${context.filePath}
-                Content: ${index}:${context.content}
-                Score: ${context.score}
-                -----------------------------------------------`
-            })
-
-            logging.log(logString)
-        }
 
         return () => {
             codePercentageTracker.dispose()
