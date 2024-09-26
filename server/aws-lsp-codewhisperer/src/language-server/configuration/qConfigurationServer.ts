@@ -30,7 +30,6 @@ export const QConfigurationServerToken =
 
         lsp.extensions.onGetConfigurationFromServer(
             async (params: GetConfigurationFromServerParams, token: CancellationToken) => {
-                logging.log(`configuration server, get config request: ${params.section}`)
                 if (params.section === Q_CONFIGURATION_SECTION) {
                     const customizations = (await codeWhispererService.listAvailableCustomizations({ maxResults: 100 }))
                         .customizations
