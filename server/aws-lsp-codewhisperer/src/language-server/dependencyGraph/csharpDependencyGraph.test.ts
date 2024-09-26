@@ -22,8 +22,8 @@ describe('Test CsharpDependencyGraph', () => {
         remove: Sinon.mock(),
     }
     const mockedWorkspace = {
-        getAllTextDocuments: Sinon.mock(),
         getTextDocument: Sinon.mock(),
+        getAllTextDocuments: Sinon.mock(),
         getWorkspaceFolder: mockedGetWorkspaceFolder,
         fs: mockedFs,
     }
