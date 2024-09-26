@@ -1,4 +1,12 @@
-import os = require('os')
+// In order for this to work in non-NodeJS environments, servers must be built with bundler including `path-browserify` and `os-browserify` modules.
+import * as os from 'os'
+import * as path from 'path'
+
+// Partial port of implementation in AWS Toolkit for VSCode
+// https://github.com/aws/aws-toolkit-vscode/blob/9d8ddbd85f4533e539a58e76f7c46883d8e50a79/packages/core/src/shared/utilities/pathUtils.ts
+
+/** Matches Windows drive letter ("C:"). */
+export const driveLetterRegex = /^[a-zA-Z]\:/
 
 /**
  * Returns `true` if path `p` is a descendant of directory `d` (or if they are
@@ -48,4 +56,25 @@ export function normalizeSeparator(p: string) {
 
 export function isUncPath(path: string) {
     return /^\s*[\/\\]{2}[^\/\\]+/.test(path)
+}
+
+/**
+ * Normalizes path `p`:
+ * - Replaces backslashes "\\" with "/".
+ * - Removes redundant path separators (except initial double-slash for UNC-style paths).
+ * - Uppercases drive-letter (Windows).
+ * - ...and returns the result of `path.normalize()`.
+ */
+export function normalize(p: string): string {
+    if (!p || p.length === 0) {
+        return p
+    }
+    const firstChar = p.substring(0, 1)
+    if (driveLetterRegex.test(p.substring(0, 2))) {
+        return normalizeSeparator(path.normalize(firstChar.toUpperCase() + p.substring(1)))
+    }
+    if (isUncPath(p)) {
+        return normalizeSeparator(p)
+    }
+    return normalizeSeparator(path.normalize(p))
 }

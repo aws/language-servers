@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { CodewhispererAutomatedTriggerType, CodewhispererTriggerType } from '../auto-trigger/autoTrigger'
 import { GenerateSuggestionsRequest, ResponseContext, Suggestion } from '../codeWhispererService'
 import { CodewhispererLanguage } from '../languageDetection'
+import { CodeWhispererSupplementalContext } from '../models/model'
 
 type SessionState = 'REQUESTING' | 'ACTIVE' | 'CLOSED' | 'ERROR' | 'DISCARD'
 export type UserDecision = 'Empty' | 'Filter' | 'Discard' | 'Accept' | 'Ignore' | 'Reject' | 'Unseen'
@@ -18,6 +19,7 @@ export interface SessionData {
     language: CodewhispererLanguage
     requestContext: GenerateSuggestionsRequest
     credentialStartUrl?: string
+    supplementalMetadata?: CodeWhispererSupplementalContext
 }
 
 export class CodeWhispererSession {
@@ -42,6 +44,7 @@ export class CodeWhispererSession {
     classifierThreshold?: number
     language: CodewhispererLanguage
     requestContext: GenerateSuggestionsRequest
+    supplementalMetadata?: CodeWhispererSupplementalContext
     timeToFirstRecommendation: number = 0
     credentialStartUrl?: string
     completionSessionResult?: {
@@ -65,6 +68,7 @@ export class CodeWhispererSession {
         this.triggerCharacter = data.triggerCharacter
         this.classifierResult = data.classifierResult
         this.classifierThreshold = data.classifierThreshold
+        this.supplementalMetadata = data.supplementalMetadata
         this.state = 'REQUESTING'
         this.startTime = new Date().getTime()
     }
