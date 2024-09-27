@@ -49,7 +49,7 @@ export abstract class CodeWhispererServiceBase {
     protected readonly codeWhispererRegion = 'us-east-1'
     protected readonly codeWhispererEndpoint = 'https://codewhisperer.us-east-1.amazonaws.com/'
     public shareCodeWhispererContentWithAWS = false
-    public customizationArn: string = ''
+    public customizationArn?: string
     abstract client: CodeWhispererSigv4Client | CodeWhispererTokenClient
 
     abstract generateSuggestions(request: GenerateSuggestionsRequest): Promise<GenerateSuggestionsResponse>

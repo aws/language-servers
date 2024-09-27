@@ -31,6 +31,7 @@ import { Metric } from '../telemetry/metric'
 import { QChatTriggerContext, TriggerContext } from './contexts/triggerContext'
 import { HELP_MESSAGE } from './constants'
 import { Q_CONFIGURATION_SECTION } from '../configuration/qConfigurationServer'
+import { undefinedIfEmpty } from '../utilities/textUtils'
 
 type ChatHandlers = LspHandlers<Chat>
 
@@ -39,14 +40,13 @@ export class ChatController implements ChatHandlers {
     #chatSessionManagementService: ChatSessionManagementService
     #telemetryController: ChatTelemetryController
     #triggerContext: QChatTriggerContext
-    customizationArn: string
+    customizationArn?: string
 
     constructor(chatSessionManagementService: ChatSessionManagementService, features: Features) {
         this.#features = features
         this.#chatSessionManagementService = chatSessionManagementService
         this.#triggerContext = new QChatTriggerContext(features.workspace, features.logging)
         this.#telemetryController = new ChatTelemetryController(features)
-        this.customizationArn = ''
     }
 
     dispose() {
@@ -341,10 +341,10 @@ export class ChatController implements ChatHandlers {
 
     updateConfiguration = async () => {
         try {
-            const qCustomizationConfig = await this.#features.lsp.workspace.getConfiguration(Q_CONFIGURATION_SECTION)
-            if (qCustomizationConfig) {
-                this.customizationArn = qCustomizationConfig.customization ?? ''
-                this.#log(`Chat configuration updated to use ${qCustomizationConfig.customization}`)
+            const qConfig = await this.#features.lsp.workspace.getConfiguration(Q_CONFIGURATION_SECTION)
+            if (qConfig) {
+                this.customizationArn = undefinedIfEmpty(qConfig.customization)
+                this.#log(`Chat configuration updated to use ${this.customizationArn}`)
             }
         } catch (error) {
             this.#log(`Error in GetConfiguration: ${error}`)

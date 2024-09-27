@@ -23,7 +23,7 @@ import {
     Suggestion,
 } from './codeWhispererService'
 import { CodewhispererLanguage, getSupportedLanguageId } from './languageDetection'
-import { getPrefixSuffixOverlap, truncateOverlapWithRightContext } from './mergeRightUtils'
+import { truncateOverlapWithRightContext } from './mergeRightUtils'
 import { CodeWhispererSession, SessionManager } from './session/sessionManager'
 import { CodePercentageTracker } from './telemetry/codePercentage'
 import {
@@ -35,6 +35,7 @@ import {
 import { getCompletionType, getUserAgent, isAwsError } from './utils'
 import { Q_CONFIGURATION_SECTION } from './configuration/qConfigurationServer'
 import { fetchSupplementalContext } from './utilities/supplementalContextUtil/supplementalContextUtil'
+import { undefinedIfEmpty } from './utilities/textUtils'
 
 const EMPTY_RESULT = { sessionId: '', items: [] }
 export const CONTEXT_CHARACTERS_LIMIT = 10240
@@ -549,8 +550,10 @@ export const CodewhispererServerFactory =
             try {
                 const qConfig = await lsp.workspace.getConfiguration(Q_CONFIGURATION_SECTION)
                 if (qConfig) {
-                    codeWhispererService.customizationArn = qConfig.customization ?? ''
-                    logging.log(`Inline completion configuration updated to use ${qConfig.customization}`)
+                    codeWhispererService.customizationArn = undefinedIfEmpty(qConfig.customization)
+                    logging.log(
+                        `Inline completion configuration updated to use ${codeWhispererService.customizationArn}`
+                    )
                 }
 
                 const config = await lsp.workspace.getConfiguration('aws.codeWhisperer')
