@@ -4,6 +4,7 @@ import {
     InlineCompletionTriggerKind,
     TextDocument,
     MetricEvent,
+    Position,
 } from '@aws/language-server-runtimes/server-interface'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import * as assert from 'assert'
@@ -124,6 +125,7 @@ describe('CodeWhisperer Server', () => {
                     rightFileContent: HELLO_WORLD_IN_CSHARP,
                 },
                 maxResults: 5,
+                supplementalContexts: [],
             }
             sinon.assert.calledOnceWithExactly(service.generateSuggestions, expectedGenerateSuggestionsRequest)
         })
@@ -154,6 +156,7 @@ describe('CodeWhisperer Server', () => {
                     rightFileContent: remainingLines,
                 },
                 maxResults: 5,
+                supplementalContexts: [],
             }
             sinon.assert.calledOnceWithExactly(service.generateSuggestions, expectedGenerateSuggestionsRequest)
         })
@@ -208,6 +211,7 @@ describe('CodeWhisperer Server', () => {
                     rightFileContent: HELLO_WORLD_IN_CSHARP,
                 },
                 maxResults: 5,
+                supplementalContexts: [],
             }
             sinon.assert.calledOnceWithExactly(service.generateSuggestions, expectedGenerateSuggestionsRequest)
         })
@@ -265,6 +269,7 @@ describe('CodeWhisperer Server', () => {
                     rightFileContent: HELLO_WORLD_IN_CSHARP,
                 },
                 maxResults: 5,
+                supplementalContexts: [],
             }
 
             // Check the service was called with the right parameters
@@ -348,6 +353,7 @@ describe('CodeWhisperer Server', () => {
                     rightFileContent: rightContext,
                 },
                 maxResults: 5,
+                supplementalContexts: [],
             }
             sinon.assert.calledOnceWithExactly(service.generateSuggestions, expectedGenerateSuggestionsRequest)
         })
@@ -383,6 +389,7 @@ describe('CodeWhisperer Server', () => {
                     rightFileContent: modifiedRightContext,
                 },
                 maxResults: 5,
+                supplementalContexts: [],
             }
             sinon.assert.calledOnceWithExactly(service.generateSuggestions, expectedGenerateSuggestionsRequest)
         })
@@ -465,6 +472,39 @@ describe('CodeWhisperer Server', () => {
             )
             // Check the completion result
             assert.deepEqual(result, EMPTY_RESULT)
+        })
+
+        describe('Supplemental Context', () => {
+            it('should send supplemental context', async () => {
+                // Open 3 files supporting cross-file context
+                features
+                    .openDocument(TextDocument.create('file:///SampleFile.java', 'java', 1, 'sample-content'))
+                    .openDocument(TextDocument.create('file:///TargetFile.java', 'java', 1, ''))
+
+                await features.doInlineCompletionWithReferences(
+                    {
+                        textDocument: { uri: 'file:///TargetFile.java' },
+                        position: Position.create(0, 0),
+                        context: { triggerKind: InlineCompletionTriggerKind.Invoked },
+                    },
+                    CancellationToken.None
+                )
+
+                const expectedGenerateSuggestionsRequest = {
+                    fileContext: {
+                        filename: 'file:///TargetFile.java',
+                        programmingLanguage: { languageName: 'java' },
+                        leftFileContent: '',
+                        rightFileContent: '',
+                    },
+                    maxResults: 5,
+                    supplementalContexts: [
+                        { content: 'sample-content', filePath: '/SampleFile.java' },
+                        { content: 'sample-content', filePath: '/SampleFile.java' },
+                    ],
+                }
+                sinon.assert.calledOnceWithExactly(service.generateSuggestions, expectedGenerateSuggestionsRequest)
+            })
         })
 
         // TODO: mock http request and verify the headers are passed
@@ -907,6 +947,7 @@ describe('CodeWhisperer Server', () => {
                     rightFileContent: RIGHT_FILE_CONTEXT,
                 },
                 maxResults: 1,
+                supplementalContexts: [],
             }
             sinon.assert.calledOnceWithExactly(service.generateSuggestions, expectedGenerateSuggestionsRequest)
         })
@@ -1123,6 +1164,10 @@ describe('CodeWhisperer Server', () => {
                     codewhispererCursorOffset: 0,
                     codewhispererLanguage: 'csharp',
                     credentialStartUrl: undefined,
+                    codewhispererSupplementalContextTimeout: undefined,
+                    codewhispererSupplementalContextIsUtg: undefined,
+                    codewhispererSupplementalContextLatency: undefined,
+                    codewhispererSupplementalContextLength: undefined,
                 },
             }
             sinon.assert.calledOnceWithExactly(features.telemetry.emitMetric, expectedServiceInvocationMetric)
@@ -1166,6 +1211,10 @@ describe('CodeWhisperer Server', () => {
                     codewhispererCursorOffset: 0,
                     codewhispererLanguage: 'csharp',
                     credentialStartUrl: undefined,
+                    codewhispererSupplementalContextTimeout: undefined,
+                    codewhispererSupplementalContextIsUtg: undefined,
+                    codewhispererSupplementalContextLatency: undefined,
+                    codewhispererSupplementalContextLength: undefined,
                 },
             }
             sinon.assert.calledOnceWithExactly(features.telemetry.emitMetric, expectedServiceInvocationMetric)
@@ -1200,6 +1249,10 @@ describe('CodeWhisperer Server', () => {
                     codewhispererCursorOffset: 0,
                     codewhispererLanguage: 'csharp',
                     credentialStartUrl: undefined,
+                    codewhispererSupplementalContextTimeout: undefined,
+                    codewhispererSupplementalContextIsUtg: undefined,
+                    codewhispererSupplementalContextLatency: undefined,
+                    codewhispererSupplementalContextLength: undefined,
                 },
                 errorData: {
                     reason: 'TestError',
@@ -1237,6 +1290,10 @@ describe('CodeWhisperer Server', () => {
                     codewhispererCursorOffset: 0,
                     codewhispererLanguage: 'csharp',
                     credentialStartUrl: undefined,
+                    codewhispererSupplementalContextTimeout: undefined,
+                    codewhispererSupplementalContextIsUtg: undefined,
+                    codewhispererSupplementalContextLatency: undefined,
+                    codewhispererSupplementalContextLength: undefined,
                 },
                 errorData: {
                     reason: 'UnknownError',
@@ -1286,6 +1343,10 @@ describe('CodeWhisperer Server', () => {
                     codewhispererCursorOffset: 0,
                     codewhispererLanguage: 'csharp',
                     credentialStartUrl: undefined,
+                    codewhispererSupplementalContextTimeout: undefined,
+                    codewhispererSupplementalContextIsUtg: undefined,
+                    codewhispererSupplementalContextLatency: undefined,
+                    codewhispererSupplementalContextLength: undefined,
                 },
                 errorData: {
                     reason: 'TestAWSError',

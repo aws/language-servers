@@ -28,6 +28,67 @@ export const SOME_UNSUPPORTED_FILE = TextDocument.create(
 )
 export const SOME_FILE_WITH_EXTENSION = TextDocument.create('file:///missing.hpp', '', 1, HELLO_WORLD_IN_CSHARP)
 
+export const SAMPLE_FILE_OF_60_LINES_IN_JAVA = `import java.util.List;
+// we need this comment on purpose because chunk will be trimed right, adding this to avoid trimRight and make assertion easier
+/**
+ * 
+ * 
+ * 
+ * 
+ * 
+ **/
+class Main {
+    public static void main(String[] args) {
+        Calculator calculator = new Calculator();
+        calculator.add(1, 2);
+        calculator.subtract(1, 2);
+        calculator.multiply(1, 2);
+        calculator.divide(1, 2);
+        calculator.remainder(1, 2);
+    }
+}
+//
+class Calculator {
+    public Calculator() {
+        System.out.println("constructor");
+    }
+//
+    public add(int num1, int num2) {
+        System.out.println("add");
+        return num1 + num2;
+    }
+//
+    public subtract(int num1, int num2) {
+        System.out.println("subtract");
+        return num1 - num2;
+    }
+//
+    public multiply(int num1, int num2) {
+        System.out.println("multiply");
+        return num1 * num2;    
+    }
+//
+    public divide(int num1, int num2) {
+        System.out.println("divide");
+        return num1 / num2;
+    }
+//
+    public remainder(int num1, int num2) {
+        System.out.println("remainder");
+        return num1 % num2;
+    }
+//
+    public power(int num1, int num2) {
+        System.out.println("power");
+        return (int) Math.pow(num1, num2);
+    }
+//
+    public squareRoot(int num1) {
+        System.out.println("squareRoot");
+        return (int) Math.sqrt(num1);
+    }
+}`
+
 export const HELLO_WORLD_LINE = `Console.WriteLine("Hello World!");`
 // Single line file will not have the full line contents
 export const SINGLE_LINE_FILE_CUTOFF_INDEX = 2
@@ -127,4 +188,19 @@ export const createIterableResponse = <T>(data: T[]): AsyncIterable<T> => {
             }
         },
     }
+}
+
+/**
+ * Shuffle a list, Fisher-Yates Sorting Algorithm.
+ * Copy of implementation from AWS Toolkit for VSCode https://github.com/aws/aws-toolkit-vscode/blob/a2daf60dca5e5699b8b25f6dc84708295f042c38/packages/core/src/test/testUtil.ts#L482
+ */
+export function shuffleList<T>(list: T[]): T[] {
+    const shuffledList = [...list]
+
+    for (let i = shuffledList.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1))
+        ;[shuffledList[i], shuffledList[j]] = [shuffledList[j], shuffledList[i]]
+    }
+
+    return shuffledList
 }
