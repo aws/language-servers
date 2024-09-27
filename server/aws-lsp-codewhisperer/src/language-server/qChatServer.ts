@@ -68,6 +68,9 @@ export const QChatServer =
             return chatController.onSendFeedback(params)
         })
 
+        lsp.onInitialized(chatController.updateConfiguration)
+        lsp.didChangeConfiguration(chatController.updateConfiguration)
+
         logging.log('Q Chat server has been initialized')
 
         return () => {

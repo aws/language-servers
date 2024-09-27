@@ -30,6 +30,8 @@ import { getErrorMessage, isAwsError, isNullish, isObject } from '../utils'
 import { Metric } from '../telemetry/metric'
 import { QChatTriggerContext, TriggerContext } from './contexts/triggerContext'
 import { HELP_MESSAGE } from './constants'
+import { Q_CONFIGURATION_SECTION } from '../configuration/qConfigurationServer'
+import { undefinedIfEmpty } from '../utilities/textUtils'
 
 type ChatHandlers = LspHandlers<Chat>
 
@@ -38,6 +40,7 @@ export class ChatController implements ChatHandlers {
     #chatSessionManagementService: ChatSessionManagementService
     #telemetryController: ChatTelemetryController
     #triggerContext: QChatTriggerContext
+    customizationArn?: string
 
     constructor(chatSessionManagementService: ChatSessionManagementService, features: Features) {
         this.#features = features
@@ -84,7 +87,13 @@ export class ChatController implements ChatHandlers {
         const conversationIdentifier = session?.sessionId ?? 'New session'
         try {
             this.#log('Request for conversation id:', conversationIdentifier)
-            const requestInput = this.#triggerContext.getChatParamsFromTrigger(params, triggerContext)
+            let requestInput = this.#triggerContext.getChatParamsFromTrigger(params, triggerContext)
+            if (this.customizationArn && requestInput.conversationState) {
+                requestInput.conversationState = {
+                    ...requestInput.conversationState,
+                    customizationArn: this.customizationArn,
+                }
+            }
 
             metric.recordStart()
             response = await session.generateAssistantResponse(requestInput)
@@ -328,6 +337,18 @@ export class ChatController implements ChatHandlers {
         })
 
         return chatEventParser.getChatResult()
+    }
+
+    updateConfiguration = async () => {
+        try {
+            const qConfig = await this.#features.lsp.workspace.getConfiguration(Q_CONFIGURATION_SECTION)
+            if (qConfig) {
+                this.customizationArn = undefinedIfEmpty(qConfig.customization)
+                this.#log(`Chat configuration updated to use ${this.customizationArn}`)
+            }
+        } catch (error) {
+            this.#log(`Error in GetConfiguration: ${error}`)
+        }
     }
 
     #log(...messages: string[]) {

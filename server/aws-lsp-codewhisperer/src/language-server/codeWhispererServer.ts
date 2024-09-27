@@ -23,7 +23,7 @@ import {
     Suggestion,
 } from './codeWhispererService'
 import { CodewhispererLanguage, getSupportedLanguageId } from './languageDetection'
-import { getPrefixSuffixOverlap, truncateOverlapWithRightContext } from './mergeRightUtils'
+import { truncateOverlapWithRightContext } from './mergeRightUtils'
 import { CodeWhispererSession, SessionManager } from './session/sessionManager'
 import { CodePercentageTracker } from './telemetry/codePercentage'
 import {
@@ -33,8 +33,9 @@ import {
     CodeWhispererUserTriggerDecisionEvent,
 } from './telemetry/types'
 import { getCompletionType, getUserAgent, isAwsError } from './utils'
+import { Q_CONFIGURATION_SECTION } from './configuration/qConfigurationServer'
 import { fetchSupplementalContext } from './utilities/supplementalContextUtil/supplementalContextUtil'
-import { CodeWhispererSupplementalContext } from './models/model'
+import { undefinedIfEmpty } from './utilities/textUtils'
 
 const EMPTY_RESULT = { sessionId: '', items: [] }
 export const CONTEXT_CHARACTERS_LIMIT = 10240
@@ -275,18 +276,6 @@ const mergeSuggestionsWithRightContext = (
             references: references?.length ? references : undefined,
         }
     })
-}
-
-// Checks if any suggestion in list of suggestions matches with left context of the file
-const hasLeftContextMatch = (suggestions: Suggestion[], leftFileContent: string): boolean => {
-    for (const suggestion of suggestions) {
-        const overlap = getPrefixSuffixOverlap(leftFileContent, suggestion.content)
-
-        if (overlap.length > 0 && overlap != suggestion.content) {
-            return true
-        }
-    }
-    return false
 }
 
 export const CodewhispererServerFactory =
@@ -557,26 +546,33 @@ export const CodewhispererServerFactory =
             emitUserTriggerDecisionTelemetry(telemetry, session, timeSinceLastUserModification)
         }
 
-        const updateConfiguration = async () =>
-            lsp.workspace
-                .getConfiguration('aws.codeWhisperer')
-                .then(config => {
-                    if (config && config['includeSuggestionsWithCodeReferences'] === true) {
-                        includeSuggestionsWithCodeReferences = true
-                        logging.log('Configuration updated to include suggestions with code references')
-                    } else {
-                        includeSuggestionsWithCodeReferences = false
-                        logging.log('Configuration updated to exclude suggestions with code references')
-                    }
-                    if (config && config['shareCodeWhispererContentWithAWS'] === true) {
-                        codeWhispererService.shareCodeWhispererContentWithAWS = true
-                        logging.log('Configuration updated to share Amazon Q content with AWS')
-                    } else {
-                        codeWhispererService.shareCodeWhispererContentWithAWS = false
-                        logging.log('Configuration updated to not share Amazon Q content with AWS')
-                    }
-                })
-                .catch(reason => logging.log(`Error in GetConfiguration: ${reason}`))
+        const updateConfiguration = async () => {
+            try {
+                const qConfig = await lsp.workspace.getConfiguration(Q_CONFIGURATION_SECTION)
+                if (qConfig) {
+                    codeWhispererService.customizationArn = undefinedIfEmpty(qConfig.customization)
+                    logging.log(
+                        `Inline completion configuration updated to use ${codeWhispererService.customizationArn}`
+                    )
+                }
+
+                const config = await lsp.workspace.getConfiguration('aws.codeWhisperer')
+                if (!config) return
+
+                includeSuggestionsWithCodeReferences = config['includeSuggestionsWithCodeReferences'] === true
+                logging.log(
+                    `Configuration updated to ${includeSuggestionsWithCodeReferences ? 'include' : 'exclude'} suggestions with code references`
+                )
+
+                codeWhispererService.shareCodeWhispererContentWithAWS =
+                    config['shareCodeWhispererContentWithAWS'] === true
+                logging.log(
+                    `Configuration updated to ${codeWhispererService.shareCodeWhispererContentWithAWS ? 'share' : 'not share'} Amazon Q content with AWS`
+                )
+            } catch (error) {
+                logging.log(`Error in GetConfiguration: ${error}`)
+            }
+        }
 
         lsp.extensions.onInlineCompletionWithReferences(onInlineCompletionHandler)
         lsp.extensions.onLogInlineCompletionSessionResults(onLogInlineCompletionSessionResultsHandler)

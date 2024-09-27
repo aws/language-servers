@@ -529,6 +529,9 @@ describe('CodeWhisperer Server', () => {
                 features.lsp.workspace.getConfiguration.returns(
                     Promise.resolve({ shareCodeWhispererContentWithAWS: true })
                 )
+
+                // Invoke event twice to ensure LSP Router propagates didChangeConfiguration notification and allows time for it to take effect in tests
+                await features.openDocument(SOME_FILE).doChangeConfiguration()
                 await features.openDocument(SOME_FILE).doChangeConfiguration()
 
                 assert(service.shareCodeWhispererContentWithAWS === true)

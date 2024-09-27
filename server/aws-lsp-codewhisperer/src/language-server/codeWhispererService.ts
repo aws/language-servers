@@ -49,6 +49,7 @@ export abstract class CodeWhispererServiceBase {
     protected readonly codeWhispererRegion = 'us-east-1'
     protected readonly codeWhispererEndpoint = 'https://codewhisperer.us-east-1.amazonaws.com/'
     public shareCodeWhispererContentWithAWS = false
+    public customizationArn?: string
     abstract client: CodeWhispererSigv4Client | CodeWhispererTokenClient
 
     abstract generateSuggestions(request: GenerateSuggestionsRequest): Promise<GenerateSuggestionsResponse>
@@ -93,6 +94,7 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
     async generateSuggestions(request: GenerateSuggestionsRequest): Promise<GenerateSuggestionsResponse> {
         // add cancellation check
         // add error check
+        if (this.customizationArn) request = { ...request, customizationArn: this.customizationArn }
 
         const response = await this.client.generateRecommendations(request).promise()
         const responseContext = {
@@ -140,6 +142,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     async generateSuggestions(request: GenerateSuggestionsRequest): Promise<GenerateSuggestionsResponse> {
         // add cancellation check
         // add error check
+        if (this.customizationArn) request = { ...request, customizationArn: this.customizationArn }
 
         const response = await this.client.generateCompletions(request).promise()
         const responseContext = {
@@ -241,5 +244,12 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         request: CodeWhispererTokenClient.ListCodeAnalysisFindingsRequest
     ): Promise<PromiseResult<CodeWhispererTokenClient.ListCodeAnalysisFindingsResponse, AWSError>> {
         return this.client.listCodeAnalysisFindings(request).promise()
+    }
+
+    /**
+     * @description Get list of available customizations
+     */
+    async listAvailableCustomizations(request: CodeWhispererTokenClient.ListAvailableCustomizationsRequest) {
+        return this.client.listAvailableCustomizations(request).promise()
     }
 }

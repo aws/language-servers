@@ -68,6 +68,10 @@
                 "category": "Amazon Q"
             },
             {
+                "command": "aws.amazonq.getCustomizations",
+                "title": "Q Developer - Get customizations"
+            },
+            {
                 "command": "aws.qNetTransform.startTransform",
                 "title": "Start Transform"
             }
@@ -160,6 +164,11 @@
                     ],
                     "default": "off",
                     "description": "Traces the communication between VS Code and the language server."
+                },
+                "aws.q.customization": {
+                    "scope": "resource",
+                    "type": "string",
+                    "description": "The selected Q customization"
                 }
             }
         },
