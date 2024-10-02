@@ -1,0 +1,47 @@
+{
+    "name": "@aws/aws-lsp-identity",
+    "version": "0.0.1",
+    "description": "Identity server",
+    "main": "./out/index.js",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/aws/language-servers"
+    },
+    "author": "Amazon Web Services",
+    "license": "Apache-2.0",
+    "engines": {
+        "node": ">=18.0.0"
+    },
+    "scripts": {
+        "clean": "rm -fr ./out tsconfig.tsbuildinfo",
+        "compile": "tsc --build --verbose",
+        "test": "ts-mocha -b 'src/**/*.test.ts'"
+    },
+    "dependencies": {
+        "@aws-sdk/client-sso-oidc": "^3.616.0",
+        "@aws-sdk/token-providers": "^3.614.0",
+        "@smithy/shared-ini-file-loader": "^3.1.5",
+        "@aws/language-server-runtimes": "^0.2.18",
+        "vscode-languageserver": "^9.0.1"
+    },
+    "devDependencies": {
+        "@aws-sdk/types": "^3.609.0",
+        "@smithy/types": "^3.4.1",
+        "@types/mocha": "^10.0.8",
+        "@types/mock-fs": "^4.13.4",
+        "mock-fs": "^5.2.0",
+        "ts-loader": "^9.5.1",
+        "ts-mocha": "^10.0.0",
+        "ts-sinon": "^2.0.2"
+    },
+    "prettier": {
+        "printWidth": 120,
+        "trailingComma": "es5",
+        "tabWidth": 4,
+        "singleQuote": true,
+        "semi": false,
+        "bracketSpacing": true,
+        "arrowParens": "avoid",
+        "endOfLine": "lf"
+    }
+}
