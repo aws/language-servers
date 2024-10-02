@@ -21,10 +21,16 @@ export class DuckTyper {
         return this
     }
 
-    eval(value: object, onlyDefined: boolean = false): boolean {
+    // unmatchedProperty determines how to handle object properties that
+    // don't match a rule.  For example, if there is property that doesn't
+    // match a rule, 'optional' means that property is implicitly
+    // optional and 'disallow' means it is implicitly disallowed.
+    eval(value: object, options?: { unmatchedProperty: 'optional' | 'disallow' }): boolean {
         if (!value) {
             return false
         }
+
+        options = { ...{ unmatchedProperty: 'optional' }, ...options }
 
         const propertyNames = new Set<string>(Object.keys(value))
 
@@ -51,6 +57,6 @@ export class DuckTyper {
             }
         }
 
-        return !onlyDefined || propertyNames.size === 0
+        return options.unmatchedProperty == 'optional' || propertyNames.size === 0
     }
 }

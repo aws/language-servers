@@ -11,11 +11,26 @@ export async function saveKnownFiles(parsedKnownFiles: ParsedIniData, init: Shar
     init.configFilepath ||= getConfigFilepath()
 
     const { configFile, credentialsFile } = await loadSharedConfigFiles(init)
+    normalizeParsedIniData(configFile)
+    normalizeParsedIniData(credentialsFile)
 
     unmergeConfigFiles(parsedKnownFiles, configFile, credentialsFile)
 
     await saveSharedConfigFile(init.configFilepath, IniFileType.config, configFile)
     await saveSharedConfigFile(init.filepath, IniFileType.credentials, credentialsFile)
+}
+
+export function normalizeParsedIniData(parsedIniData: ParsedIniData): ParsedIniData {
+    for (const [_, sectionValue] of Object.entries(parsedIniData)) {
+        for (const [settingName, settingValue] of Object.entries(sectionValue)) {
+            if (settingName !== settingName.toLowerCase()) {
+                sectionValue[settingName.toLowerCase()] = settingValue
+                delete sectionValue[settingName]
+            }
+        }
+    }
+
+    return parsedIniData
 }
 
 // Based on:

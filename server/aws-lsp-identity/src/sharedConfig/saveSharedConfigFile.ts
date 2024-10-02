@@ -56,6 +56,7 @@ export async function saveSharedConfigFile(
             outputNewSettings(fileSection, newSettingsIndices, output)
         } else {
             // Delete no longer existing section by not emitting anything until the next section header is read
+            // eslint-disable-next-line no-extra-semi
             ;({ done, value } = it.nextSectionHeader())
         }
 
@@ -191,9 +192,11 @@ class IniFileIterator implements IterableIterator<string> {
                     }
                 }
 
+                // Read tolerant on setting case name, but convert to lowercase for best compatability
+                // with AWS SDKs on load/write
                 if (setting?.groups) {
                     settingHandler(
-                        new Setting(setting.groups.name, setting.groups.value, {
+                        new Setting(setting.groups.name.toLowerCase(), setting.groups.value, {
                             comment: setting.groups.comment,
                             indent: setting.groups.indent,
                             subsection,

@@ -7,6 +7,7 @@ import { readFile } from 'fs/promises'
 import assert from 'assert'
 import { saveSharedConfigFile } from './saveSharedConfigFile'
 import { IniFileType } from './types'
+import { normalizeParsedIniData } from './saveKnownFiles'
 
 const file = `# Config comment 1
 [default] # Section's trailing comment
@@ -67,7 +68,7 @@ async function setupTest(config: string): Promise<ParsedIniData> {
 
     mock(mockConfig)
 
-    return await parseKnownFiles(init)
+    return normalizeParsedIniData(await parseKnownFiles(init))
 }
 
 async function loadFile(filepath: string): Promise<string> {
@@ -123,6 +124,7 @@ sso_session = test-sso-session`
 
         // [default] in config should have new fields
         const { configFile } = await loadSharedConfigFiles(init)
+        normalizeParsedIniData(configFile)
 
         assert.equal(configFile['default']['api_versions.s3'], '2024-09-07')
         assert.equal(configFile['default']['api_versions.dynamodb'], '2024-09-30')
@@ -145,6 +147,7 @@ sso_session = test-sso-session`
         await saveSharedConfigFile(init.configFilepath!, IniFileType.config, data)
 
         const { configFile } = await loadSharedConfigFiles(init)
+        normalizeParsedIniData(configFile)
 
         assert.equal(configFile['default']['region'], 'eu-north-1')
         assert.equal(configFile['subsettings']['api_versions.ec2'], '2024-09-07')
@@ -166,6 +169,7 @@ sso_session = test-sso-session`
         await saveSharedConfigFile(init.configFilepath!, IniFileType.config, data)
 
         const { configFile } = await loadSharedConfigFiles(init)
+        normalizeParsedIniData(configFile)
 
         // All were deleted
         assert.equal(Object.hasOwn(configFile, 'default'), false)
@@ -189,6 +193,7 @@ sso_session = test-sso-session`
         await saveSharedConfigFile(init.configFilepath!, IniFileType.config, data)
 
         const { configFile } = await loadSharedConfigFiles(init)
+        normalizeParsedIniData(configFile)
 
         assert.equal(configFile['sso-session.new-sso-session']['sso_region'], 'us-west-42')
         assert.equal(configFile['sso-session.new-sso-session']['sso_start_url'], 'https://nothing')
@@ -205,6 +210,7 @@ sso_session = test-sso-session`
         await saveSharedConfigFile(init.configFilepath!, IniFileType.config, data)
 
         const { configFile } = await loadSharedConfigFiles(init)
+        normalizeParsedIniData(configFile)
 
         assert.equal(Object.hasOwn(configFile, 'sso-session.test-sso-session'), false)
         assert.equal(configFile['sso-session.renamed-sso-session']['sso_region'], 'us-west-2')
@@ -219,6 +225,7 @@ sso_session = test-sso-session`
         await saveSharedConfigFile(init.configFilepath!, IniFileType.config, data)
 
         const { configFile } = await loadSharedConfigFiles(init)
+        normalizeParsedIniData(configFile)
 
         assert.equal(Object.hasOwn(configFile, 'default'), false)
     })

@@ -1,6 +1,8 @@
 import assert from 'assert'
 import { DuckTyper } from './duckTyper'
 
+const disallow: { unmatchedProperty: 'optional' | 'disallow' } = { unmatchedProperty: 'disallow' }
+
 describe('DuckTyper', () => {
     it('false on no value provided', () => {
         const sut = new DuckTyper().requireProperty('whatever')
@@ -13,8 +15,8 @@ describe('DuckTyper', () => {
         const sut = new DuckTyper()
 
         assert.equal(sut.eval({ whatever: 'whatever' }), true)
-        assert.equal(sut.eval({}, true), true)
-        assert.equal(sut.eval({ whatever: 'whatever' }, true), false)
+        assert.equal(sut.eval({}, disallow), true)
+        assert.equal(sut.eval({ whatever: 'whatever' }, disallow), false)
     })
 
     it('true on containing requireProperty', () => {
@@ -59,7 +61,7 @@ describe('DuckTyper', () => {
                 shouldExist: 42,
                 shouldNotExist: 'KABOOM!',
             },
-            true
+            disallow
         )
 
         assert.equal(actual, false)
