@@ -121,7 +121,7 @@ export const QChatServerProxy = QChatServer(credentialsProvider => {
         .withConfig(clientOptions)
 })
 
-export const CustomizationServerTokenProxy = QConfigurationServerToken(credentialsProvider => {
+export const QConfigurationServerTokenProxy = QConfigurationServerToken(credentialsProvider => {
     let additionalAwsConfig = {}
     const proxyUrl = process.env.HTTPS_PROXY ?? process.env.https_proxy
     const certs = process.env.AWS_CA_BUNDLE ? [readFileSync(process.env.AWS_CA_BUNDLE)] : undefined
