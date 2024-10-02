@@ -28,7 +28,9 @@ import {
     AUTH_FOLLOW_UP_CLICKED_TELEMETRY_EVENT,
     COPY_TO_CLIPBOARD_TELEMETRY_EVENT,
     CopyCodeToClipboardParams,
+    ENTER_FOCUS,
     ERROR_MESSAGE_TELEMETRY_EVENT,
+    EXIT_FOCUS,
     INFO_LINK_CLICK_TELEMETRY_EVENT,
     INSERT_TO_CURSOR_POSITION_TELEMETRY_EVENT,
     LINK_CLICK_TELEMETRY_EVENT,
@@ -75,6 +77,10 @@ export class Messager {
 
     onUiReady = (): void => {
         this.chatApi.uiReady()
+    }
+
+    onFocusStateChanged = (focusState: boolean): void => {
+        this.chatApi.telemetry({ name: focusState ? ENTER_FOCUS : EXIT_FOCUS })
     }
 
     onSendToPrompt = (params: SendToPromptParams, tabId: string): void => {
