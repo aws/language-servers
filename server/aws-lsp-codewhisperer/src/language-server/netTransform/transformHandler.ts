@@ -50,7 +50,6 @@ export class TransformHandler {
         var unsupportedProjects: string[] = []
         const isProject = validation.isProject(userInputrequest)
         const containsUnsupportedViews = await validation.checkForUnsupportedViews(userInputrequest, isProject)
-        /*
         if (isProject) {
             let isValid = validation.validateProject(userInputrequest)
             if (!isValid) {
@@ -63,7 +62,7 @@ export class TransformHandler {
         } else {
             unsupportedProjects = validation.validateSolution(userInputrequest)
         }
-*/
+
         const artifactManager = new ArtifactManager(
             this.workspace,
             this.logging,
