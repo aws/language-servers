@@ -3,8 +3,8 @@ import { RuntimeProps } from '@aws/language-server-runtimes/runtimes/runtime'
 import {
     CodeWhispererSecurityScanServerTokenProxy,
     CodeWhispererServerTokenProxy,
-    CustomizationServerTokenProxy,
     QChatServerProxy,
+    QConfigurationServerTokenProxy,
     QNetTransformServerTokenProxy,
 } from '@aws/lsp-codewhisperer/out/language-server/proxy-server'
 
@@ -18,7 +18,7 @@ const props: RuntimeProps = {
     servers: [
         CodeWhispererServerTokenProxy,
         CodeWhispererSecurityScanServerTokenProxy,
-        CustomizationServerTokenProxy,
+        QConfigurationServerTokenProxy,
         QNetTransformServerTokenProxy,
         QChatServerProxy,
     ],
