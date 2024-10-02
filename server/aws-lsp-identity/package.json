@@ -15,7 +15,8 @@
     "scripts": {
         "clean": "rm -fr ./out tsconfig.tsbuildinfo",
         "compile": "tsc --build --verbose",
-        "test": "ts-mocha -b 'src/**/*.test.ts'"
+        "test": "npm run test-unit",
+        "test-unit": "mocha 'out/**/*.test.js'"
     },
     "dependencies": {
         "@aws-sdk/client-sso-oidc": "^3.616.0",
