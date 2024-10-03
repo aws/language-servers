@@ -1,4 +1,4 @@
-import mock from 'mock-fs'
+import mock = require('mock-fs')
 import { DirectoryItems } from 'mock-fs/lib/filesystem'
 import { getHomeDir, loadSharedConfigFiles, parseKnownFiles, SharedConfigInit } from '@smithy/shared-ini-file-loader'
 import { normalizeParsedIniData, saveKnownFiles } from './saveKnownFiles'
