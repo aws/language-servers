@@ -93,7 +93,7 @@ export class TransformHandler {
             this.logging.log(errorMessage)
             throw new Error(errorMessage)
         } finally {
-            artifactManager.cleanup()
+            //artifactManager.cleanup()
         }
     }
 

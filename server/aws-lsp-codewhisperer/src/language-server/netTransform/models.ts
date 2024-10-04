@@ -93,6 +93,7 @@ export interface TransformProjectMetadata {
 
 export interface Project {
     projectFilePath: string
+    projectTarget: string
     codeFiles: CodeFile[]
     references: References[]
 }
