@@ -5,20 +5,16 @@ import {
     Profile,
     ProfileKind,
     SsoSession,
-} from '@aws/language-server-runtimes/protocol/identity-management'
-import {
     UpdateProfileError,
     UpdateProfileErrorData,
     updateProfileOptionsDefaults,
     UpdateProfileParams,
     UpdateProfileResult,
-} from '@aws/language-server-runtimes/protocol/identity-management'
-import { CancellationToken } from 'vscode-languageserver'
-import {
     AwsErrorCodes,
     AwsResponseError,
     AwsResponseErrorData,
-} from '@aws/language-server-runtimes/protocol/identity-management'
+} from '@aws/language-server-runtimes/server-interface/identity-management'
+import { CancellationToken } from 'vscode-languageserver'
 import { SharedConfigInit } from '@smithy/shared-ini-file-loader'
 import { DuckTyper } from '../../utils/duckTyper'
 
@@ -106,11 +102,13 @@ export class ProfileService {
             'Profile must be non-legacy sso-session type.'
         )
         this.throwOnInvalidProfile(!profile.name, 'Profile name required.')
+        this.throwOnInvalidProfile(!profile.settings, 'Settings required on profile.')
         this.throwOnInvalidProfile(!profile.settings.sso_session, 'Sso-session name required on profile.')
 
         this.throwOnInvalidSsoSession(!params.ssoSession, 'Sso-session required.')
         const ssoSession: SsoSession = params.ssoSession!
         this.throwOnInvalidSsoSession(!ssoSession.name, 'Sso-session name required.')
+        this.throwOnInvalidSsoSession(!ssoSession.settings, 'Settings required on sso-session.')
         this.throwOnInvalidSsoSession(!ssoSession.settings.sso_region, 'Sso-session region required.')
         this.throwOnInvalidSsoSession(!ssoSession.settings.sso_start_url, 'Sso-session start URL required.')
 

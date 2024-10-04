@@ -7,7 +7,7 @@ import {
 } from './profileService'
 import { parseKnownFiles, SharedConfigInit } from '@smithy/shared-ini-file-loader'
 import { IniSectionType, ParsedIniData } from '@smithy/types'
-import { ProfileKind, SsoSession } from '@aws/language-server-runtimes/protocol/identity-management'
+import { ProfileKind, SsoSession } from '@aws/language-server-runtimes/server-interface/identity-management'
 import { SectionHeader } from '../../sharedConfig/types'
 import { saveKnownFiles } from '../../sharedConfig'
 import { normalizeParsedIniData } from '../../sharedConfig/saveKnownFiles'

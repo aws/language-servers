@@ -13,7 +13,7 @@ import {
     SsoSession,
     UpdateProfileError,
     UpdateProfileParams,
-} from '@aws/language-server-runtimes/protocol/identity-management'
+} from '@aws/language-server-runtimes/server-interface/identity-management'
 import { normalizeParsedIniData } from '../../sharedConfig/saveKnownFiles'
 import { stubInterface } from 'ts-sinon'
 import { SinonStubbedInstance } from 'sinon'
@@ -231,6 +231,20 @@ describe('ProfileService', async () => {
         await expectUpdateProfileError(sut, { profile }, AwsErrorCodes.E_INVALID_PROFILE, 'Profile name required.')
     })
 
+    it('updateProfile throws on no settings', async () => {
+        const profile = {
+            kind: ProfileKind.SsoTokenProfile,
+            name: 'profile-name',
+        }
+
+        await expectUpdateProfileError(
+            sut,
+            { profile: profile as Profile },
+            AwsErrorCodes.E_INVALID_PROFILE,
+            'Settings required on profile.'
+        )
+    })
+
     it('updateProfile throws on no sso-session', async () => {
         const profile = {
             kind: ProfileKind.SsoTokenProfile,
@@ -304,6 +318,19 @@ describe('ProfileService', async () => {
             { profile: profile1, ssoSession },
             AwsErrorCodes.E_INVALID_SSO_SESSION,
             'Sso-session name required.'
+        )
+    })
+
+    it('updateProfile throws on no sso-session settings', async () => {
+        const ssoSession = {
+            name: 'ssoSession',
+        }
+
+        await expectUpdateProfileError(
+            sut,
+            { profile: profile1, ssoSession: ssoSession as SsoSession },
+            AwsErrorCodes.E_INVALID_SSO_SESSION,
+            'Settings required on sso-session.'
         )
     })
 

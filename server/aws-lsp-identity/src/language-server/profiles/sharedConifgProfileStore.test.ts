@@ -5,7 +5,7 @@ import { join } from 'path'
 import { SharedConfigProfileStore } from './sharedConfigProfileStore'
 import { expect, use } from 'chai'
 import { ProfileData } from './profileService'
-import { ProfileKind } from '@aws/language-server-runtimes/protocol/identity-management'
+import { ProfileKind } from '@aws/language-server-runtimes/server-interface/identity-management'
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 use(require('chai-as-promised'))
