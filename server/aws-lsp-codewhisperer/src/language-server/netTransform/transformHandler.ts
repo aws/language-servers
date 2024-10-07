@@ -7,6 +7,7 @@ import {
     CreateUploadUrlResponse,
     GetTransformationRequest,
     StopTransformationRequest,
+    TransformationJob,
 } from '../../client/token/codewhispererbearertokenclient'
 import { CodeWhispererServiceToken } from '../codeWhispererService'
 import { ArtifactManager } from './artifactManager'
@@ -356,12 +357,7 @@ export class TransformHandler {
             }
         }
         this.logging.log('poll : returning response from server : ' + JSON.stringify(response))
-        if (failureStates.includes(status)) {
-            this.logging.log(
-                `Transformation job for job ${request.TransformationJobId} is ${status} due to "${response.transformationJob.reason}". 
-                Please close Visual Studio, delete the bin and obj folders for the projects, and try running the transformation again.`
-            )
-        }
+        this.logSuggestionForFailureResponse(request, response.transformationJob, failureStates)
         return {
             TransformationJob: response.transformationJob,
         } as GetTransformResponse
@@ -438,5 +434,21 @@ export class TransformHandler {
         const exponentialDelay = 10 * Math.pow(exponentialDelayFactor, attempt)
         const jitteredDelay = Math.floor(Math.random() * 10)
         return exponentialDelay + jitteredDelay // returns in milliseconds
+    }
+
+    logSuggestionForFailureResponse(request: GetTransformRequest, job: TransformationJob, failureStates: string[]) {
+        let status = job?.status ?? PollTransformationStatus.NOT_FOUND
+        let reason = job?.reason ?? ''
+        if (failureStates.includes(status)) {
+            let suggestion = ''
+            if (reason.toLowerCase().includes('build validation failed')) {
+                suggestion =
+                    'Please close Visual Studio, delete the directories where build artifacts are generated (e.g. bin and obj), and try running the transformation again.'
+            }
+            this.logging.log(
+                `Transformation job for job ${request.TransformationJobId} is ${status} due to "${reason}". 
+                ${suggestion}`
+            )
+        }
     }
 }
