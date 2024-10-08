@@ -31,8 +31,12 @@
                 "title": "AWS LSP - Clear credentials from LSP Server"
             },
             {
-                "command": "awslsp.resolveBearerToken",
-                "title": "AWS LSP - Obtain bearer token and send to LSP Server"
+                "command": "awslsp.resolveBearerToken.BuilderID",
+                "title": "AWS LSP - Obtain bearer token and send to LSP Server - BuilderID"
+            },
+            {
+                "command": "awslsp.resolveBearerToken.IDC",
+                "title": "AWS LSP - Obtain bearer token and send to LSP Server - Identity Center"
             },
             {
                 "command": "awslsp.clearBearerToken",

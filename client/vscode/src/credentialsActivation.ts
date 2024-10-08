@@ -11,7 +11,8 @@ import {
     RequestType,
     ResponseMessage,
 } from 'vscode-languageclient/node'
-import { BuilderIdConnectionBuilder, SsoConnection } from './sso/builderId'
+import { SSOConnectionBuilder, SsoConnection } from './sso/connectionBuilder'
+import { LoginType } from './sso/model'
 
 /**
  * Request for custom notifications that Update Credentials and tokens.
@@ -128,7 +129,14 @@ export async function registerBearerTokenProviderSupport(
 
     extensionContext.subscriptions.push(
         ...[
-            commands.registerCommand('awslsp.resolveBearerToken', createResolveBearerTokenCommand(languageClient)),
+            commands.registerCommand(
+                'awslsp.resolveBearerToken.BuilderID',
+                createResolveBearerTokenCommand(languageClient, 'builderId')
+            ),
+            commands.registerCommand(
+                'awslsp.resolveBearerToken.IDC',
+                createResolveBearerTokenCommand(languageClient, 'idc')
+            ),
             commands.registerCommand('awslsp.clearBearerToken', createClearTokenCommand(languageClient)),
         ]
     )
@@ -228,9 +236,9 @@ function createGetConnectionMetadataRequestHandler(languageClient: LanguageClien
  * In this simulation, the user is asked for a profile name. That profile's credentials are
  * resolved and sent. (basic profile types only in this proof of concept)
  */
-function createResolveBearerTokenCommand(languageClient: LanguageClient) {
+function createResolveBearerTokenCommand(languageClient: LanguageClient, loginType: LoginType = 'builderId') {
     return async () => {
-        activeBuilderIdConnection = await BuilderIdConnectionBuilder.build()
+        activeBuilderIdConnection = await SSOConnectionBuilder.build(loginType)
 
         const token = await activeBuilderIdConnection.getToken()
 

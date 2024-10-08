@@ -12,8 +12,10 @@ import { RequiredProps, assertHasProps, hasProps, hasStringProps, selectFrom } f
 import {
     SsoProfile as BaseSsoProfile,
     ClientRegistration,
+    LoginType,
     SsoToken,
     builderIdStartUrl,
+    idcStartUrl,
     isExpired,
     openSsoPortalLink,
 } from './model'
@@ -317,33 +319,33 @@ export class SsoAccessTokenProvider {
     }
 }
 
-export class BuilderIdConnectionBuilder {
-    private static readonly getToken = keyedDebounce(BuilderIdConnectionBuilder._getToken.bind(this))
+/**
+ * SSO connection builder for Builder ID & Identity Center
+ */
+export class SSOConnectionBuilder {
+    private static readonly getToken = keyedDebounce(SSOConnectionBuilder._getToken.bind(this))
 
-    public static async build(): Promise<SsoConnection> {
-        const awsBuilderIdSsoProfile = BuilderIdConnectionBuilder.createBuilderIdProfile(defaultScopes)
-        const connection = await BuilderIdConnectionBuilder.createConnection(awsBuilderIdSsoProfile)
-        return connection
-    }
-
-    private static createBuilderIdProfile(scopes = [...ssoAccountAccessScopes]): SsoProfile {
-        return {
-            scopes,
+    public static async build(loginType: LoginType = 'builderId'): Promise<SsoConnection> {
+        const ssoProfile = {
+            scopes: defaultScopes,
             region: 'foo',
             ssoRegion: defaultSsoRegion,
-            startUrl: builderIdStartUrl,
+            startUrl: loginType === 'builderId' ? builderIdStartUrl : idcStartUrl,
+            loginType: loginType,
         }
+        const connection = await SSOConnectionBuilder.createConnection(ssoProfile)
+        return connection
     }
 
     private static async createConnection(profile: SsoProfile): Promise<SsoConnection> {
         const id = randomUUID()
-        const tokenProvider = BuilderIdConnectionBuilder.getTokenProvider(id, {
+        const tokenProvider = SSOConnectionBuilder.getTokenProvider(id, {
             ...profile,
         })
 
         ;(await tokenProvider.getToken()) ?? (await tokenProvider.createToken())
 
-        return BuilderIdConnectionBuilder.getSsoConnection(id, profile, tokenProvider)
+        return SSOConnectionBuilder.getSsoConnection(id, profile, tokenProvider)
     }
 
     private static getTokenProvider(id: string, profile: SsoProfile): SsoAccessTokenProvider {
@@ -361,7 +363,7 @@ export class BuilderIdConnectionBuilder {
         return {
             id,
             ...profile,
-            getToken: () => BuilderIdConnectionBuilder.getToken(id, provider),
+            getToken: () => SSOConnectionBuilder.getToken(id, provider),
         }
     }
 
