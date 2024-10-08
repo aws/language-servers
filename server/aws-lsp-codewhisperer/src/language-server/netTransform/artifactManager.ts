@@ -21,8 +21,7 @@ export class ArtifactManager {
     }
     async createZip(request: StartTransformRequest): Promise<string> {
         await this.createRequirementJson(request)
-        await this.copyReferenceDlls(request)
-        await this.copySoureFiles(request)
+        await this.copySolutionConfigFiles(request)
         return await this.zipArtifact()
     }
     async removeDir(dir: string) {
@@ -49,77 +48,70 @@ export class ArtifactManager {
         this.logging.log('generated requirement.json at: ' + dir)
     }
 
-    async copyReferenceDlls(request: StartTransformRequest) {
-        const filteredReferences = this.filterReferences(request)
-        filteredReferences.forEach(reference => {
-            const relativePath = this.normalizeReferenceFileRelativePath(
-                reference.RelativePath,
-                reference.IncludedInArtifact
-            )
-            this.copyFile(reference.AssemblyFullPath, this.getReferencePathFromRelativePath(relativePath))
-        })
-    }
-
-    async copySoureFiles(request: StartTransformRequest) {
+    async copySolutionConfigFiles(request: StartTransformRequest) {
         if (request.SolutionConfigPaths && request.SolutionConfigPaths.length > 0) {
             for (const configFilePath of request.SolutionConfigPaths) {
                 this.copySourceFile(request.SolutionRootPath, configFilePath)
-            }
-        }
-        if (request.ProjectMetadata && request.ProjectMetadata.length > 0) {
-            for (const metadata of request.ProjectMetadata) {
-                for (const filePath of metadata.SourceCodeFilePaths) {
-                    this.copySourceFile(request.SolutionRootPath, filePath)
-                }
             }
         }
     }
 
     copySourceFile(solutionRootPath: string, filePath: string): void {
         const relativePath = this.normalizeSourceFileRelativePath(solutionRootPath, filePath)
-        this.copyFile(filePath, this.getSourceCodePathFromRelativePath(relativePath))
+        this.copyFile(filePath, this.getWorkspaceCodePathFromRelativePath(relativePath))
     }
 
     async createRequirementJsonContent(request: StartTransformRequest): Promise<RequirementJson> {
-        const projects = request.ProjectMetadata.map(project => {
-            const codeFiles = project.SourceCodeFilePaths.filter(filePath => filePath).map(filePath => {
-                return {
-                    contentMd5Hash: this.calculateMD5Sync(filePath),
-                    relativePath: this.normalizeSourceFileRelativePath(request.SolutionRootPath, filePath),
-                } as CodeFile
+        var projects: Project[] = []
+        await request.ProjectMetadata.forEach(async project => {
+            const sourceCodeFilePaths = project.SourceCodeFilePaths.filter(filePath => filePath)
+            var codeFiles: CodeFile[] = []
+            var references: References[] = []
+
+            await sourceCodeFilePaths.forEach(async filePath => {
+                try {
+                    this.copySourceFile(request.SolutionRootPath, filePath)
+                    var contentHash = await this.calculateMD5Sync(filePath)
+                    var relativePath = this.normalizeSourceFileRelativePath(request.SolutionRootPath, filePath)
+                    codeFiles.push({
+                        contentMd5Hash: contentHash,
+                        relativePath: relativePath,
+                    })
+                } catch (error) {
+                    this.logging.log('failed to process file: ' + error + filePath)
+                }
             })
 
-            const references = project.ExternalReferences.map(reference => {
-                return {
-                    includedInArtifact: reference.IncludedInArtifact,
-                    relativePath: this.normalizeReferenceFileRelativePath(
+            project.ExternalReferences.forEach(reference => {
+                try {
+                    const relativePath = this.normalizeReferenceFileRelativePath(
                         reference.RelativePath,
                         reference.IncludedInArtifact
-                    ),
-                } as References
+                    )
+                    this.copyFile(
+                        reference.AssemblyFullPath,
+                        this.getWorkspaceReferencePathFromRelativePath(relativePath)
+                    )
+                    references.push({
+                        includedInArtifact: reference.IncludedInArtifact,
+                        relativePath: relativePath,
+                    })
+                } catch (error) {
+                    this.logging.log('failed to process file: ' + error + reference.AssemblyFullPath)
+                }
             })
-
-            return {
+            projects.push({
                 projectFilePath: this.normalizeSourceFileRelativePath(request.SolutionRootPath, project.ProjectPath),
+                projectTarget: project.ProjectTargetFramework,
                 codeFiles: codeFiles,
                 references: references,
-            } as Project
+            })
         })
         this.logging.log('total project reference:' + projects.length)
         return {
             EntryPath: this.normalizeSourceFileRelativePath(request.SolutionRootPath, request.SelectedProjectPath),
             Projects: projects,
         } as RequirementJson
-    }
-
-    filterReferences(request: StartTransformRequest) {
-        //remove duplicate externalreference
-        const externalReferences = request.ProjectMetadata.flatMap(r => r.ExternalReferences)
-        const includedReferences = externalReferences.filter(reference => reference.IncludedInArtifact)
-        return includedReferences.filter(
-            (reference, index) =>
-                index === includedReferences.findIndex(other => reference.AssemblyFullPath === other.AssemblyFullPath)
-        )
     }
 
     async zipArtifact(): Promise<string> {
@@ -146,11 +138,11 @@ export class ArtifactManager {
         return dir
     }
 
-    getReferencePathFromRelativePath(relativePath: string): string {
+    getWorkspaceReferencePathFromRelativePath(relativePath: string): string {
         return path.join(this.workspacePath, artifactFolderName, relativePath)
     }
 
-    getSourceCodePathFromRelativePath(relativePath: string): string {
+    getWorkspaceCodePathFromRelativePath(relativePath: string): string {
         return path.join(this.workspacePath, artifactFolderName, relativePath)
     }
 
@@ -198,9 +190,9 @@ export class ArtifactManager {
     copyFile(sourceFilePath: string, destFilePath: string) {
         const dir = path.dirname(destFilePath)
         this.createFolderIfNotExist(dir)
-        fs.copyFile(sourceFilePath, destFilePath, err => {
-            if (err) {
-                this.logging.log('failed to copy: ' + sourceFilePath + err)
+        fs.copyFile(sourceFilePath, destFilePath, error => {
+            if (error) {
+                this.logging.log('failed to copy: ' + sourceFilePath + error)
             }
         })
     }
@@ -211,6 +203,7 @@ export class ArtifactManager {
             const hash = crypto.createHash('md5').update(data)
             return hash.digest('hex')
         } catch (error) {
+            this.logging.log('failed to calculate hashcode: ' + filePath + error)
             return ''
         }
     }
