@@ -19,6 +19,7 @@ export interface SessionData {
     language: CodewhispererLanguage
     requestContext: GenerateSuggestionsRequest
     credentialStartUrl?: string
+    customizationArn?: string
     supplementalMetadata?: CodeWhispererSupplementalContext
 }
 
@@ -56,6 +57,7 @@ export class CodeWhispererSession {
     previousTriggerDecision?: UserTriggerDecision
     previousTriggerDecisionTime?: number
     reportedUserDecision: boolean = false
+    customizationArn?: string
 
     constructor(data: SessionData) {
         this.id = this.generateSessionId()
@@ -68,6 +70,7 @@ export class CodeWhispererSession {
         this.triggerCharacter = data.triggerCharacter
         this.classifierResult = data.classifierResult
         this.classifierThreshold = data.classifierThreshold
+        this.customizationArn = data.customizationArn
         this.supplementalMetadata = data.supplementalMetadata
         this.state = 'REQUESTING'
         this.startTime = new Date().getTime()
@@ -218,6 +221,10 @@ export class CodeWhispererSession {
             }
         }
         return isEmpty ? 'Empty' : 'Discard'
+    }
+
+    setCustomizationArn(value: string | undefined) {
+        this.customizationArn = value
     }
 }
 

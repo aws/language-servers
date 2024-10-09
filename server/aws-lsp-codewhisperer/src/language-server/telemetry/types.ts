@@ -20,6 +20,7 @@ export interface CodeWhispererServiceInvocationEvent {
     codewhispererGettingStartedTask?: string
     reason?: string
     credentialStartUrl?: string
+    codewhispererCustomizationArn?: string
     codewhispererSupplementalContextTimeout?: boolean
     codewhispererSupplementalContextIsUtg?: boolean
     codewhispererSupplementalContextLatency?: number
@@ -58,6 +59,7 @@ export interface CodeWhispererUserTriggerDecisionEvent {
     codewhispererTimeSinceLastUserDecision?: number
     codewhispererTimeToFirstRecommendation: number
     codewhispererPreviousSuggestionState?: string
+    codewhispererCustomizationArn?: string
     codewhispererSupplementalContextTimeout?: boolean
     codewhispererSupplementalContextIsUtg?: boolean
     codewhispererSupplementalContextLength?: number
