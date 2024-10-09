@@ -12,6 +12,7 @@ import {
     quickActionRequestType,
     QuickActionResult,
     QuickActionParams,
+    insertToCursorPositionNotificationType,
 } from '@aws/language-server-runtimes/protocol'
 import { v4 as uuidv4 } from 'uuid'
 import { Uri, ViewColumn, Webview, WebviewPanel, commands, window } from 'vscode'
@@ -56,11 +57,21 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri, 
         switch (message.command) {
             case INSERT_TO_CURSOR_POSITION:
                 insertTextAtCursorPosition(message.params.code)
+                languageClient.sendNotification(insertToCursorPositionNotificationType, {
+                    tabId: message.params.tabId,
+                    messageId: message.params.messageId,
+                    code: message.params.code,
+                    type: message.params.type,
+                    referenceTrackerInformation: message.params.referenceTrackerInformation,
+                    eventId: message.params.eventId,
+                    codeBlockIndex: message.params.codeBlockIndex,
+                    totalCodeBlocks: message.params.totalCodeBlocks,
+                })
                 break
             case AUTH_FOLLOW_UP_CLICKED:
                 languageClient.info('AuthFollowUp clicked')
                 break
-            case chatRequestType.method:
+            case chatRequestType.method: {
                 const partialResultToken = uuidv4()
                 const chatDisposable = languageClient.onProgress(chatRequestType, partialResultToken, partialResult =>
                     handlePartialResult<ChatResult>(partialResult, encryptionKey, panel, message.params.tabId)
@@ -73,7 +84,8 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri, 
                 })
                 handleCompleteResult<ChatResult>(chatResult, encryptionKey, panel, message.params.tabId, chatDisposable)
                 break
-            case quickActionRequestType.method:
+            }
+            case quickActionRequestType.method: {
                 const quickActionPartialResultToken = uuidv4()
                 const quickActionDisposable = languageClient.onProgress(
                     quickActionRequestType,
@@ -100,6 +112,7 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri, 
                     quickActionDisposable
                 )
                 break
+            }
             case followUpClickNotificationType.method:
                 if (!isValidAuthFollowUpType(message.params.followUp.type))
                     languageClient.sendNotification(followUpClickNotificationType, message.params)
