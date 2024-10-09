@@ -21,7 +21,7 @@
     "dependencies": {
         "@aws-sdk/client-sso-oidc": "^3.616.0",
         "@aws-sdk/token-providers": "^3.614.0",
-        "@aws/language-server-runtimes": "^0.2.18",
+        "@aws/language-server-runtimes": "^0.2.19",
         "@smithy/shared-ini-file-loader": "^3.1.5",
         "vscode-languageserver": "^9.0.1"
     },
