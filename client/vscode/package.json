@@ -74,6 +74,11 @@
             {
                 "command": "aws.qNetTransform.startTransform",
                 "title": "Start Transform"
+            },
+            {
+                "command": "aws.aws-lsp-identity.test",
+                "title": "Test Command",
+                "category": "Identity"
             }
         ],
         "menus": {

@@ -6,8 +6,8 @@ import {
     ssoSessionDuckTyper,
 } from './profileService'
 import { parseKnownFiles, SharedConfigInit } from '@smithy/shared-ini-file-loader'
-import { IniSectionType, ParsedIniData } from '@smithy/types'
-import { ProfileKind, SsoSession } from '@aws/language-server-runtimes/server-interface/identity-management'
+import { IniSection, IniSectionType, ParsedIniData } from '@smithy/types'
+import { ProfileKind, SsoSession } from '@aws/language-server-runtimes/server-interface'
 import { SectionHeader } from '../../sharedConfig/types'
 import { saveKnownFiles } from '../../sharedConfig'
 import { normalizeParsedIniData } from '../../sharedConfig/saveKnownFiles'
@@ -16,9 +16,7 @@ import { normalizeParsedIniData } from '../../sharedConfig/saveKnownFiles'
 // Applies shared config files location resolution, but JVM system properties are not supported
 // https://docs.aws.amazon.com/sdkref/latest/guide/file-location.html
 
-type Section = { name: string; settings: object }
-
-const ssoAccountAccessScope = 'sso:account:access'
+type Section = { name: string; settings?: object }
 
 export class SharedConfigProfileStore implements ProfileStore {
     constructor(private init: SharedConfigInit = { ignoreCache: true }) {}
@@ -35,14 +33,13 @@ export class SharedConfigProfileStore implements ProfileStore {
             const sectionHeader = SectionHeader.fromParsedSectionName(parsedSectionName)
             switch (sectionHeader.type) {
                 case IniSectionType.PROFILE:
-                    // Limiting to SSO token profiles is only temporary, more profile types will be added
-                    // and returned in the future, so use the kind property to filter.
-                    if (!profileDuckTypers.SsoTokenProfile.eval(settings)) {
-                        continue
-                    }
-
                     result.profiles.push({
-                        kind: ProfileKind.SsoTokenProfile,
+                        kinds: [
+                            // As more profile kinds are added this will get more complex and need refactored
+                            profileDuckTypers.SsoTokenProfile.eval(settings)
+                                ? ProfileKind.SsoTokenProfile
+                                : ProfileKind.Unknown,
+                        ],
                         name: sectionHeader.name,
                         settings: {
                             // Only apply settings expected on Profile
@@ -66,7 +63,7 @@ export class SharedConfigProfileStore implements ProfileStore {
                     }
 
                     if (settings.sso_registration_scopes) {
-                        ssoSession.settings.sso_registration_scopes = normalizeSettingList(
+                        ssoSession.settings!.sso_registration_scopes = normalizeSettingList(
                             settings.sso_registration_scopes
                         )
                     }
@@ -81,10 +78,12 @@ export class SharedConfigProfileStore implements ProfileStore {
         return result
     }
 
+    // If a setting is set to undefined or null, it will be removed from shared config files
+    // If the settings property is set to undefined or null, the entire section will be removed
+    // from the shared config files.  This is equivalent to deleting a section.
+    // Any settings or sections in the shared config files that are not passed into data will
+    // be preserved as-is.
     async save(data: ProfileData, init?: SharedConfigInit): Promise<void> {
-        // Safety check.  If there is ever a valid reason for the caller to delete all profiles
-        // and sso-sessions, add an options parameter with a setting to show the intent.  This
-        // is to guard against buggy code accidentally wiping out the users files.
         if (!(data?.profiles?.length || data?.ssoSessions?.length)) {
             return
         }
@@ -92,47 +91,49 @@ export class SharedConfigProfileStore implements ProfileStore {
         init = this.getSharedConfigInit(init)
         const parsedKnownFiles = normalizeParsedIniData(await parseKnownFiles(init))
 
-        this.applySectionsToParsedIni(
-            data.profiles,
-            parsedKnownFiles,
-            section =>
-                section.kind === ProfileKind.SsoTokenProfile && profileDuckTypers.SsoTokenProfile.eval(section.settings)
-        )
-
-        // Ensure all SsoSessions have sso:account:access set explicitly to support token refresh
-        for (const ssoSession of data.ssoSessions) {
-            if (!ssoSession.settings.sso_registration_scopes) {
-                ssoSession.settings.sso_registration_scopes = [ssoAccountAccessScope]
-                continue
-            }
-
-            if (!ssoSession.settings.sso_registration_scopes.includes(ssoAccountAccessScope)) {
-                ssoSession.settings.sso_registration_scopes.push(ssoAccountAccessScope)
-            }
+        if (data.profiles) {
+            this.applySectionsToParsedIni(
+                IniSectionType.PROFILE,
+                data.profiles,
+                parsedKnownFiles,
+                (section, parsedSection) =>
+                    !section.kinds.includes(ProfileKind.SsoTokenProfile) ||
+                    profileDuckTypers.SsoTokenProfile.eval(parsedSection)
+            )
         }
 
-        this.applySectionsToParsedIni(data.ssoSessions, parsedKnownFiles, section =>
-            ssoSessionDuckTyper.eval(section.settings)
-        )
+        if (data.ssoSessions) {
+            this.applySectionsToParsedIni(
+                IniSectionType.SSO_SESSION,
+                data.ssoSessions,
+                parsedKnownFiles,
+                (_, parsedSection) => ssoSessionDuckTyper.eval(parsedSection)
+            )
+        }
 
         await saveKnownFiles(parsedKnownFiles, init)
     }
 
     private applySectionsToParsedIni<T extends Section>(
+        sectionType: IniSectionType,
         sections: T[],
         parsedKnownFiles: ParsedIniData,
-        validator: (section: T) => boolean
+        validator: (section: T, parsedSection: IniSection) => boolean
     ): void {
         for (const section of sections) {
             if (!section?.name) {
                 throw new Error('Section name is required.')
             }
 
-            if (!validator(section)) {
-                throw new Error(`Section [${section.name}] is invalid.`)
+            const parsedSectionName = new SectionHeader(section.name, sectionType).toParsedSectionName()
+
+            // Remove sections that have no settings
+            if (!section.settings) {
+                delete parsedKnownFiles[parsedSectionName]
+                continue
             }
 
-            const parsedSection = (parsedKnownFiles[section.name] ||= {})
+            const parsedSection = (parsedKnownFiles[parsedSectionName] ||= {})
 
             // eslint-disable-next-line prefer-const
             for (let [name, value] of Object.entries(section.settings)) {
@@ -140,13 +141,20 @@ export class SharedConfigProfileStore implements ProfileStore {
                     value = normalizeSettingList(value)?.join(',') ?? ''
                 }
 
-                // If and when needed in the future, handle object types for subsections
+                // If and when needed in the future, handle object types for subsections (e.g. api_versions)
 
-                if (!value) {
-                    throw new Error(`Setting [${name}] must have a value.`)
+                // If setting passed with null or undefined then remove setting
+                // If setting passed with any other value then update setting
+                // If setting not passed then preserve setting in file as-is
+                if (value === null || value === undefined) {
+                    Object.hasOwn(parsedSection, name) && delete parsedSection[name]
+                } else {
+                    parsedSection[name] = value.toString()
                 }
+            }
 
-                parsedSection[name] = value.toString()
+            if (!validator(section, parsedSection)) {
+                throw new Error(`Section [${parsedSectionName}] is invalid.`)
             }
         }
     }

@@ -5,7 +5,7 @@ import { join } from 'path'
 import { SharedConfigProfileStore } from './sharedConfigProfileStore'
 import { expect, use } from 'chai'
 import { ProfileData } from './profileService'
-import { ProfileKind } from '@aws/language-server-runtimes/server-interface/identity-management'
+import { ProfileKind } from '@aws/language-server-runtimes/server-interface'
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 use(require('chai-as-promised'))
@@ -28,6 +28,7 @@ sso_session = test-sso-session
 [sso-session test-sso-session]
 sso_region = us-west-2
 sso_start_url = https://nowhere
+sso_registration_scopes = somescope
 
 [services s3-specific]
 s3 = 
@@ -75,7 +76,23 @@ describe('SharedConfigProfileStore', async () => {
         expect(actual).to.deep.equal({
             profiles: [
                 {
-                    kind: 'SsoTokenProfile',
+                    kinds: [ProfileKind.Unknown],
+                    name: 'default',
+                    settings: {
+                        region: 'us-west-2',
+                        sso_session: undefined,
+                    },
+                },
+                {
+                    kinds: [ProfileKind.Unknown],
+                    name: 'subsettings',
+                    settings: {
+                        region: undefined,
+                        sso_session: undefined,
+                    },
+                },
+                {
+                    kinds: [ProfileKind.SsoTokenProfile],
                     name: 'config-only.profile',
                     settings: {
                         region: 'us-west-2',
@@ -83,7 +100,100 @@ describe('SharedConfigProfileStore', async () => {
                     },
                 },
                 {
-                    kind: 'SsoTokenProfile',
+                    kinds: [ProfileKind.SsoTokenProfile],
+                    name: 'credentials-only.profile',
+                    settings: {
+                        region: 'us-east-1',
+                        sso_session: 'test-sso-session',
+                    },
+                },
+            ],
+            ssoSessions: [
+                {
+                    name: 'test-sso-session',
+                    settings: {
+                        sso_region: 'us-west-2',
+                        sso_start_url: 'https://nowhere',
+                        sso_registration_scopes: ['somescope'],
+                    },
+                },
+            ],
+        })
+    })
+
+    it('No changes if no profiles nor ssoSessions are provided', async () => {
+        setupTest(config, credentials)
+
+        const before = await sut.load()
+
+        const data: ProfileData = {
+            profiles: [],
+            ssoSessions: [],
+        }
+
+        await sut.save(data)
+
+        const after = await sut.load()
+
+        expect(after).to.deep.equal(before)
+    })
+
+    it('Removes setting on save if null or undefined', async () => {
+        setupTest(config, credentials)
+
+        const data: ProfileData = {
+            profiles: [
+                {
+                    kinds: [ProfileKind.SsoTokenProfile],
+                    name: 'config-only.profile',
+                    settings: {
+                        region: undefined, // Unset region from us-west-2
+                        sso_session: 'test-sso-session',
+                    },
+                },
+            ],
+            ssoSessions: [
+                {
+                    name: 'test-sso-session',
+                    settings: {
+                        sso_registration_scopes: undefined,
+                    },
+                },
+            ],
+        }
+
+        await sut.save(data)
+
+        const after = await sut.load()
+
+        expect(after).to.deep.equal({
+            profiles: [
+                {
+                    kinds: ['Unknown'],
+                    name: 'default',
+                    settings: {
+                        region: 'us-west-2',
+                        sso_session: undefined,
+                    },
+                },
+                {
+                    kinds: ['Unknown'],
+                    name: 'subsettings',
+                    settings: {
+                        region: undefined,
+                        sso_session: undefined,
+                    },
+                },
+                {
+                    kinds: [ProfileKind.SsoTokenProfile],
+                    name: 'config-only.profile',
+                    settings: {
+                        region: undefined,
+                        sso_session: 'test-sso-session',
+                    },
+                },
+                {
+                    kinds: ['SsoTokenProfile'],
                     name: 'credentials-only.profile',
                     settings: {
                         region: 'us-east-1',
@@ -103,21 +213,58 @@ describe('SharedConfigProfileStore', async () => {
         })
     })
 
-    it('Does not save if no profiles nor ssoSessions are provided', async () => {
+    it('Removes profiles and ssoSessions if not settings are provided', async () => {
         setupTest(config, credentials)
 
-        const before = await sut.load()
-
         const data: ProfileData = {
-            profiles: [],
-            ssoSessions: [],
+            profiles: [
+                {
+                    kinds: [ProfileKind.SsoTokenProfile],
+                    name: 'config-only.profile',
+                    settings: undefined,
+                },
+            ],
+            ssoSessions: [
+                {
+                    name: 'test-sso-session',
+                    settings: undefined,
+                },
+            ],
         }
 
         await sut.save(data)
 
         const after = await sut.load()
 
-        expect(after).to.deep.equal(before)
+        expect(after).to.deep.equal({
+            profiles: [
+                {
+                    kinds: ['Unknown'],
+                    name: 'default',
+                    settings: {
+                        region: 'us-west-2',
+                        sso_session: undefined,
+                    },
+                },
+                {
+                    kinds: ['Unknown'],
+                    name: 'subsettings',
+                    settings: {
+                        region: undefined,
+                        sso_session: undefined,
+                    },
+                },
+                {
+                    kinds: ['SsoTokenProfile'],
+                    name: 'credentials-only.profile',
+                    settings: {
+                        region: 'us-east-1',
+                        sso_session: 'test-sso-session',
+                    },
+                },
+            ],
+            ssoSessions: [],
+        })
     })
 
     it('Saves if profiles and ssoSessions are provided', async () => {
@@ -126,7 +273,7 @@ describe('SharedConfigProfileStore', async () => {
         const data: ProfileData = {
             profiles: [
                 {
-                    kind: ProfileKind.SsoTokenProfile,
+                    kinds: [ProfileKind.SsoTokenProfile],
                     name: 'config-only.profile',
                     settings: {
                         region: 'us-west-1',
@@ -136,15 +283,15 @@ describe('SharedConfigProfileStore', async () => {
             ],
             ssoSessions: [
                 {
-                    name: 'sso-session.test-sso-session',
+                    name: 'test-sso-session',
                     settings: {
                         sso_region: 'us-east-1',
                         sso_start_url: 'http://newnowhere',
-                        sso_registration_scopes: ['my-scope'], // Also verifies sso:account:access scope is added implicitly
+                        sso_registration_scopes: ['my-scope'],
                     },
                 },
                 {
-                    name: 'sso-session.new-sso-session',
+                    name: 'new-sso-session',
                     settings: {
                         sso_region: 'us-north-1',
                         sso_start_url: 'http://somewhere',
@@ -160,7 +307,23 @@ describe('SharedConfigProfileStore', async () => {
         expect(after).to.deep.equal({
             profiles: [
                 {
-                    kind: ProfileKind.SsoTokenProfile,
+                    kinds: ['Unknown'],
+                    name: 'default',
+                    settings: {
+                        region: 'us-west-2',
+                        sso_session: undefined,
+                    },
+                },
+                {
+                    kinds: ['Unknown'],
+                    name: 'subsettings',
+                    settings: {
+                        region: undefined,
+                        sso_session: undefined,
+                    },
+                },
+                {
+                    kinds: [ProfileKind.SsoTokenProfile],
                     name: 'config-only.profile',
                     settings: {
                         region: 'us-west-1',
@@ -168,7 +331,7 @@ describe('SharedConfigProfileStore', async () => {
                     },
                 },
                 {
-                    kind: ProfileKind.SsoTokenProfile,
+                    kinds: [ProfileKind.SsoTokenProfile],
                     name: 'credentials-only.profile',
                     settings: {
                         region: 'us-east-1',
@@ -181,7 +344,7 @@ describe('SharedConfigProfileStore', async () => {
                     name: 'test-sso-session',
                     settings: {
                         sso_region: 'us-east-1',
-                        sso_registration_scopes: ['my-scope', 'sso:account:access'],
+                        sso_registration_scopes: ['my-scope'],
                         sso_start_url: 'http://newnowhere',
                     },
                 },
@@ -189,7 +352,6 @@ describe('SharedConfigProfileStore', async () => {
                     name: 'new-sso-session',
                     settings: {
                         sso_region: 'us-north-1',
-                        sso_registration_scopes: ['sso:account:access'],
                         sso_start_url: 'http://somewhere',
                     },
                 },

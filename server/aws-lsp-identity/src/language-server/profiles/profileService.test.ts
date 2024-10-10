@@ -1,11 +1,4 @@
-import {
-    detectProfileKind,
-    ProfileData,
-    profileDuckTypers,
-    ProfileService,
-    ProfileStore,
-    ssoSessionDuckTyper,
-} from './profileService'
+import { ProfileData, profileDuckTypers, ProfileService, ProfileStore, ssoSessionDuckTyper } from './profileService'
 import {
     AwsErrorCodes,
     Profile,
@@ -13,7 +6,7 @@ import {
     SsoSession,
     UpdateProfileError,
     UpdateProfileParams,
-} from '@aws/language-server-runtimes/server-interface/identity-management'
+} from '@aws/language-server-runtimes/server-interface'
 import { normalizeParsedIniData } from '../../sharedConfig/saveKnownFiles'
 import { stubInterface } from 'ts-sinon'
 import { SinonStubbedInstance } from 'sinon'
@@ -34,7 +27,7 @@ beforeEach(() => {
     store = stubInterface()
 
     profile1 = {
-        kind: ProfileKind.SsoTokenProfile,
+        kinds: [ProfileKind.SsoTokenProfile],
         name: 'profile1',
         settings: {
             sso_session: 'ssoSession1',
@@ -42,7 +35,7 @@ beforeEach(() => {
     }
 
     profile2 = {
-        kind: ProfileKind.Unknown,
+        kinds: [ProfileKind.Unknown],
         name: 'profile2',
         settings: {
             region: 'whatever',
@@ -50,7 +43,7 @@ beforeEach(() => {
     }
 
     profile3 = {
-        kind: ProfileKind.SsoTokenProfile,
+        kinds: [ProfileKind.SsoTokenProfile],
         name: 'profile3',
         settings: {
             sso_session: 'ssoSession2',
@@ -109,7 +102,7 @@ describe('ProfileService', async () => {
     it('updateProfile updates existing profiles and sso-sessions', async () => {
         await sut.updateProfile({
             profile: {
-                kind: ProfileKind.SsoTokenProfile,
+                kinds: [ProfileKind.SsoTokenProfile],
                 name: 'profile1',
                 settings: {
                     sso_session: 'ssoSession1',
@@ -131,15 +124,13 @@ describe('ProfileService', async () => {
         expect(data).to.deep.equal({
             profiles: [
                 {
-                    kind: ProfileKind.SsoTokenProfile,
+                    kinds: [ProfileKind.SsoTokenProfile],
                     name: 'profile1',
                     settings: {
                         sso_session: 'ssoSession1',
                         region: 'us-west-2',
                     },
                 },
-                profile2,
-                profile3,
             ],
             ssoSessions: [
                 {
@@ -147,17 +138,16 @@ describe('ProfileService', async () => {
                     settings: {
                         sso_region: 'us-west-1',
                         sso_start_url: 'http://newnowhere',
-                        sso_registration_scopes: ['x', 'y', 'z'],
+                        sso_registration_scopes: ['x', 'y', 'z', 'sso:account:access'],
                     },
                 },
-                ssoSession2,
             ],
         })
     })
 
     it('updateProfile creates new profiles and sso-sessions', async () => {
         const newProfile = {
-            kind: ProfileKind.SsoTokenProfile,
+            kinds: [ProfileKind.SsoTokenProfile],
             name: 'newProfile',
             settings: {
                 sso_session: 'newSsoSession',
@@ -182,8 +172,8 @@ describe('ProfileService', async () => {
         const [[data]] = store.save.args
 
         expect(data).to.deep.equal({
-            profiles: [profile1, profile2, profile3, newProfile],
-            ssoSessions: [ssoSession1, ssoSession2, newSsoSession],
+            profiles: [newProfile],
+            ssoSessions: [newSsoSession],
         })
     })
 
@@ -204,7 +194,7 @@ describe('ProfileService', async () => {
 
     it('updateProfile throws on non-SSO token profile', async () => {
         const profile = {
-            kind: ProfileKind.Unknown,
+            kinds: [ProfileKind.Unknown],
             name: 'profile-name',
             settings: {
                 sso_session: 'sso-session-name',
@@ -221,7 +211,7 @@ describe('ProfileService', async () => {
 
     it('updateProfile throws on no profile name', async () => {
         const profile = {
-            kind: ProfileKind.SsoTokenProfile,
+            kinds: [ProfileKind.SsoTokenProfile],
             name: '',
             settings: {
                 sso_session: 'sso-session-name',
@@ -233,7 +223,7 @@ describe('ProfileService', async () => {
 
     it('updateProfile throws on no settings', async () => {
         const profile = {
-            kind: ProfileKind.SsoTokenProfile,
+            kinds: [ProfileKind.SsoTokenProfile],
             name: 'profile-name',
         }
 
@@ -247,7 +237,7 @@ describe('ProfileService', async () => {
 
     it('updateProfile throws on no sso-session', async () => {
         const profile = {
-            kind: ProfileKind.SsoTokenProfile,
+            kinds: [ProfileKind.SsoTokenProfile],
             name: 'profile-name',
             settings: {
                 sso_session: '',
@@ -264,7 +254,7 @@ describe('ProfileService', async () => {
 
     it('updateProfile throws on no sso-session on profile', async () => {
         const profile = {
-            kind: ProfileKind.SsoTokenProfile,
+            kinds: [ProfileKind.SsoTokenProfile],
             name: 'profile-name',
             settings: {
                 sso_session: '',
@@ -281,7 +271,7 @@ describe('ProfileService', async () => {
 
     it('updateProfile throws when profile cannot be created', async () => {
         const profile = {
-            kind: ProfileKind.SsoTokenProfile,
+            kinds: [ProfileKind.SsoTokenProfile],
             name: 'nonexistent-profile-name',
             settings: {
                 sso_session: 'ssoSession',
@@ -386,7 +376,7 @@ describe('ProfileService', async () => {
     })
 
     it('updateProfile throws when sso-session cannot be created', async () => {
-        profile1.settings.sso_session = 'nonexistent-sso-session-name'
+        profile1.settings!.sso_session = 'nonexistent-sso-session-name'
 
         const ssoSession = {
             name: 'nonexistent-sso-session-name',
@@ -405,7 +395,7 @@ describe('ProfileService', async () => {
     })
 
     it('updateProfile throws when cannot update shared sso-session', async () => {
-        profile3.settings.sso_session = 'ssoSession1'
+        profile3.settings!.sso_session = 'ssoSession1'
 
         const ssoSession = {
             name: 'ssoSession1',
@@ -501,19 +491,6 @@ describe('profileService.DuckTypers', () => {
 })
 
 describe('profileService.functions', () => {
-    it('detectProfileKind detects SsoTokenProfile, otherwise Unknown', () => {
-        const ssoTokenProfile = {
-            sso_session: 'my session',
-        }
-
-        const unknownProfile = {
-            aws_access_key_id: 'blah',
-        }
-
-        expect(detectProfileKind(ssoTokenProfile)).to.equal(ProfileKind.SsoTokenProfile)
-        expect(detectProfileKind(unknownProfile)).to.equal(ProfileKind.Unknown)
-    })
-
     it('normalizeParsedIniData changes all key names to lowercase', () => {
         const actual = normalizeParsedIniData({
             ssoProfile: {
