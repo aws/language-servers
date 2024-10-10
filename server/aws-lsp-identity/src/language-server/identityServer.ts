@@ -1,32 +1,18 @@
 import { ProfileService } from './profiles/profileService'
 import {
+    CancellationToken,
     ListProfilesParams,
     SsoTokenChangedParams,
     UpdateProfileParams,
     IdentityManagement,
-    Chat,
-    CredentialsProvider,
-    Logging,
-    Lsp,
     Server,
-    Telemetry,
-    Workspace,
 } from '@aws/language-server-runtimes/server-interface'
 import { SharedConfigProfileStore } from './profiles/sharedConfigProfileStore'
 import { IdentityService } from './identityService'
-import { CancellationToken } from 'vscode-languageserver'
 
 export const IdentityServerFactory =
     (identityService: IdentityService, profileService: ProfileService): Server =>
-    (features: {
-        credentialsProvider: CredentialsProvider
-        chat: Chat
-        lsp: Lsp
-        workspace: Workspace
-        logging: Logging
-        telemetry: Telemetry
-        identityManagement: IdentityManagement
-    }) => {
+    (features: { identityManagement: IdentityManagement }) => {
         const { identityManagement: idMgmt } = features
 
         const ssoTokenChangedHandler = async (sender: object, e: SsoTokenChangedParams) => {

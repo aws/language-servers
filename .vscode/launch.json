@@ -172,20 +172,6 @@
             "args": ["--forbid-only=false", "--forbid-pending=false", "./**/out/**/${fileBasenameNoExtension}.js"],
             "outFiles": ["${workspaceFolder}/**/out/**/*.(m|c|)js", "!**/node_modules/**"],
             "console": "integratedTerminal"
-        },
-        {
-            "name": "ts-mocha (current tab)",
-            "type": "node",
-            "request": "launch",
-            "program": "${workspaceFolder}/node_modules/.bin/ts-mocha",
-            "args": ["--forbid-only=false", "--forbid-pending=false", "${file}"],
-            "outFiles": [
-                "${workspaceFolder}/**/src/**/*.ts",
-                "${workspaceFolder}/**/out/**/*.ts",
-                "${workspaceFolder}/**/out/**/*.(m|c|)js",
-                "!**/node_modules/**"
-            ],
-            "console": "integratedTerminal"
         }
     ],
     "compounds": [

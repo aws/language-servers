@@ -1,39 +1,17 @@
 import { commands, window } from 'vscode'
 import {
-    ListProfilesError,
-    ListProfilesParams,
-    ListProfilesResult,
+    listProfilesRequestType,
     ProfileKind,
     SsoTokenChangedParams,
-    UpdateProfileError,
+    ssoTokenChangedRequestType,
     UpdateProfileParams,
-    UpdateProfileResult,
+    updateProfileRequestType,
 } from '@aws/language-server-runtimes/protocol'
 
-import { LanguageClient, ProtocolNotificationType, ProtocolRequestType } from 'vscode-languageclient/node'
-
-const ssoTokenChangedRequestType = new ProtocolNotificationType<SsoTokenChangedParams, void>(
-    'aws/identity/ssoTokenChanged'
-)
-
-const listProfilesRequestType = new ProtocolRequestType<
-    ListProfilesParams,
-    ListProfilesResult,
-    never,
-    ListProfilesError,
-    void
->('aws/identity/listProfiles')
-
-const updateProfileRequestType = new ProtocolRequestType<
-    UpdateProfileParams,
-    UpdateProfileResult,
-    never,
-    UpdateProfileError,
-    void
->('aws/identity/updateProfile')
+import { LanguageClient } from 'vscode-languageclient/node'
 
 export async function registerIdentity(client: LanguageClient): Promise<void> {
-    client.onNotification(ssoTokenChangedRequestType, ssoTokenChangedHandler)
+    client.onNotification(ssoTokenChangedRequestType.method, ssoTokenChangedHandler)
 
     commands.registerCommand('aws.aws-lsp-identity.test', execTestCommand.bind(null, client))
 }
@@ -44,7 +22,7 @@ function ssoTokenChangedHandler(params: SsoTokenChangedParams): void {
 
 // Put whatever calls to the aws-lsp-identity server you want to experiment with/debug here
 async function execTestCommand(client: LanguageClient): Promise<void> {
-    const result1 = await client.sendRequest(updateProfileRequestType, {
+    const result1 = await client.sendRequest(updateProfileRequestType.method, {
         profile: {
             kinds: [ProfileKind.SsoTokenProfile],
             name: 'codecatalyst',
@@ -64,6 +42,6 @@ async function execTestCommand(client: LanguageClient): Promise<void> {
     } as UpdateProfileParams)
     window.showInformationMessage(`UpdateProfile: ${JSON.stringify(result1)}`)
 
-    const result2 = await client.sendRequest(listProfilesRequestType, {})
+    const result2 = await client.sendRequest(listProfilesRequestType.method, {})
     window.showInformationMessage(`ListProfiles: ${JSON.stringify(result2)}`)
 }

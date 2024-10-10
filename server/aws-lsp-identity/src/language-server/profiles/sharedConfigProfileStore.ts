@@ -18,6 +18,9 @@ import { normalizeParsedIniData } from '../../sharedConfig/saveKnownFiles'
 
 type Section = { name: string; settings?: object }
 
+// eslint-disable-next-line no-control-regex
+const controlCharsRegex = /[\x00-\x1F\x7F-\x9F]/
+
 export class SharedConfigProfileStore implements ProfileStore {
     constructor(private init: SharedConfigInit = { ignoreCache: true }) {}
 
@@ -128,9 +131,18 @@ export class SharedConfigProfileStore implements ProfileStore {
             const parsedSectionName = new SectionHeader(section.name, sectionType).toParsedSectionName()
 
             // Remove sections that have no settings
-            if (!section.settings) {
+            if (
+                section.settings === undefined ||
+                section.settings === null ||
+                Object.keys(section.settings).length === 0
+            ) {
                 delete parsedKnownFiles[parsedSectionName]
                 continue
+            }
+
+            // Settings must be an object
+            if (section.settings !== Object(section.settings)) {
+                throw new Error(`Section [${section.name}] contains invalid settings value.`)
             }
 
             const parsedSection = (parsedKnownFiles[parsedSectionName] ||= {})
@@ -142,13 +154,23 @@ export class SharedConfigProfileStore implements ProfileStore {
                 }
 
                 // If and when needed in the future, handle object types for subsections (e.g. api_versions)
+                if (value === Object(value)) {
+                    throw new Error(`Setting [${name}] in section [${section.name}] cannot be an object.`)
+                }
 
                 // If setting passed with null or undefined then remove setting
                 // If setting passed with any other value then update setting
                 // If setting not passed then preserve setting in file as-is
-                if (value === null || value === undefined) {
+                value = value?.toString().trim()
+                if (value === undefined || value === null || value === '') {
                     Object.hasOwn(parsedSection, name) && delete parsedSection[name]
                 } else {
+                    if (controlCharsRegex.test(value)) {
+                        throw new Error(
+                            `Setting [${name}] in section [${section.name}] cannot contain control characters.`
+                        )
+                    }
+
                     parsedSection[name] = value.toString()
                 }
             }
