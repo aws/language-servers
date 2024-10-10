@@ -341,9 +341,8 @@ export class ChatController implements ChatHandlers {
         try {
             const qConfig = await this.#features.lsp.workspace.getConfiguration(Q_CONFIGURATION_SECTION)
             if (qConfig) {
-                const customizationValue = undefinedIfEmpty(qConfig.customization)
-                this.#customizationArn = customizationValue
-                this.#log(`Chat configuration updated to use ${customizationValue}`)
+                this.#customizationArn = undefinedIfEmpty(qConfig.customization)
+                this.#log(`Chat configuration updated to use ${this.#customizationArn}`)
             }
         } catch (error) {
             this.#log(`Error in GetConfiguration: ${error}`)

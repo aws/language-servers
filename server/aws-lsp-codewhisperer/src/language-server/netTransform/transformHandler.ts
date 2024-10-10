@@ -7,6 +7,7 @@ import {
     CreateUploadUrlResponse,
     GetTransformationRequest,
     StopTransformationRequest,
+    TransformationJob,
 } from '../../client/token/codewhispererbearertokenclient'
 import { CodeWhispererServiceToken } from '../codeWhispererService'
 import { ArtifactManager } from './artifactManager'
@@ -50,7 +51,6 @@ export class TransformHandler {
         var unsupportedProjects: string[] = []
         const isProject = validation.isProject(userInputrequest)
         const containsUnsupportedViews = await validation.checkForUnsupportedViews(userInputrequest, isProject)
-        /*
         if (isProject) {
             let isValid = validation.validateProject(userInputrequest)
             if (!isValid) {
@@ -63,7 +63,7 @@ export class TransformHandler {
         } else {
             unsupportedProjects = validation.validateSolution(userInputrequest)
         }
-*/
+
         const artifactManager = new ArtifactManager(
             this.workspace,
             this.logging,
@@ -357,6 +357,7 @@ export class TransformHandler {
             }
         }
         this.logging.log('poll : returning response from server : ' + JSON.stringify(response))
+        this.logSuggestionForFailureResponse(request, response.transformationJob, failureStates)
         return {
             TransformationJob: response.transformationJob,
         } as GetTransformResponse
@@ -433,5 +434,21 @@ export class TransformHandler {
         const exponentialDelay = 10 * Math.pow(exponentialDelayFactor, attempt)
         const jitteredDelay = Math.floor(Math.random() * 10)
         return exponentialDelay + jitteredDelay // returns in milliseconds
+    }
+
+    logSuggestionForFailureResponse(request: GetTransformRequest, job: TransformationJob, failureStates: string[]) {
+        let status = job?.status ?? PollTransformationStatus.NOT_FOUND
+        let reason = job?.reason ?? ''
+        if (failureStates.includes(status)) {
+            let suggestion = ''
+            if (reason.toLowerCase().includes('build validation failed')) {
+                suggestion =
+                    'Please close Visual Studio, delete the directories where build artifacts are generated (e.g. bin and obj), and try running the transformation again.'
+            }
+            this.logging.log(
+                `Transformation job for job ${request.TransformationJobId} is ${status} due to "${reason}". 
+                ${suggestion}`
+            )
+        }
     }
 }

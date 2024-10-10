@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.0.15] - 2024-10-09
+
+### Added
+
+- Amazon Q Configuration: Amazon Q Configuration Server and implement fetching available Q Customizations (#462).
+- Amazon Q Inline Code Completions: Supplemental cross-file context for source code for `java`, `python`, `javascript`, `typescript`, `javascriptreact`, `typescriptreact` language ids (#463).
+
+### Fixed
+
+- .Net Transform: Add transform logSuggestionForFailureResponse (#483)
+- .Net Transform: Add logging when polling get transformation status failed (#476).
+- .Net Transform: Add target framework and fix bug in copy file logic (#477).
+- .Net Transform: Specify StartTransformation error message (#468).
+
 ## [0.0.14] - 2024-09-13
 - .Net Transform: Removing manually setting job status to failed after any error from CodeWhisperer API
 

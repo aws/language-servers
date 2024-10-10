@@ -108,6 +108,9 @@ export const createMynahUi = (messager: Messager, tabFactory: TabFactory): [Myna
             }
             messager.onInsertToCursorPosition(payload)
         },
+        onFocusStateChanged(focusState: boolean) {
+            messager.onFocusStateChanged(focusState)
+        },
         onFollowUpClicked(tabId, messageId, followUp, eventId) {
             if (followUp.type !== undefined && isValidAuthFollowUpType(followUp.type)) {
                 const payload: AuthFollowUpClickedParams = {

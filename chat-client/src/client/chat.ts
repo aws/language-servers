@@ -39,7 +39,6 @@ import {
 } from '@aws/language-server-runtimes-types'
 import { MynahUIDataModel, MynahUITabStoreModel } from '@aws/mynah-ui'
 import { ServerMessage, TELEMETRY, TelemetryParams } from '../contracts/serverContracts'
-import { ENTER_FOCUS, EXIT_FOCUS } from '../contracts/telemetry'
 import { Messager, OutboundChatApi } from './messager'
 import { InboundChatApi, createMynahUi } from './mynahUi'
 import { TabFactory } from './tabs/tabFactory'
@@ -85,9 +84,10 @@ export const createChat = (
                 break
             case CHAT_OPTIONS:
                 const params = (message as ChatOptionsMessage).params
-                const chatConfig: ChatClientConfig = {
-                    quickActionCommands: params.quickActions?.quickActionsCommandGroups,
-                }
+                const chatConfig: ChatClientConfig = params?.quickActions?.quickActionsCommandGroups
+                    ? { quickActionCommands: params.quickActions.quickActionsCommandGroups }
+                    : {}
+
                 tabFactory.updateDefaultTabData(chatConfig)
 
                 const allExistingTabs: MynahUITabStoreModel = mynahUi.getAllTabs()
@@ -98,11 +98,6 @@ export const createChat = (
                 // TODO: Report error?
                 break
         }
-    }
-
-    const handleApplicationFocus = (event: FocusEvent): void => {
-        const params = { name: event.type === 'focus' ? ENTER_FOCUS : EXIT_FOCUS }
-        sendMessageToClient({ command: TELEMETRY, params })
     }
 
     const chatApi: OutboundChatApi = {
@@ -151,16 +146,15 @@ export const createChat = (
             })
 
             window.addEventListener('message', handleMessage)
-            window.addEventListener('focus', handleApplicationFocus)
-            window.addEventListener('blur', handleApplicationFocus)
         },
     }
 
     const messager = new Messager(chatApi)
     const tabFactory = new TabFactory({
         ...DEFAULT_TAB_DATA,
-        quickActionCommands: config?.quickActionCommands,
+        ...(config?.quickActionCommands ? { quickActionCommands: config.quickActionCommands } : {}),
     })
+
     const [mynahUi, api] = createMynahUi(messager, tabFactory)
 
     mynahApi = api

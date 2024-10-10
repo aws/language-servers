@@ -1,6 +1,6 @@
 import { ChatItemType, MynahUIDataModel } from '@aws/mynah-ui'
 
-export type DefaultTabData = Partial<MynahUIDataModel>
+export type DefaultTabData = MynahUIDataModel
 
 export class TabFactory {
     public static generateUniqueId() {
@@ -20,8 +20,8 @@ export class TabFactory {
                       {
                           type: ChatItemType.ANSWER,
                           body: `Hi, I'm Amazon Q. I can answer your software development questions. 
-                          Ask me to explain, debug, or optimize your code. 
-                          You can enter \`/\` to see a list of quick actions.`,
+                        Ask me to explain, debug, or optimize your code. 
+                        You can enter \`/\` to see a list of quick actions.`,
                       },
                       {
                           type: ChatItemType.ANSWER,
