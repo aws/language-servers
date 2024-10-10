@@ -20,6 +20,7 @@ export interface CodeWhispererServiceInvocationEvent {
     codewhispererGettingStartedTask?: string
     reason?: string
     credentialStartUrl?: string
+    codewhispererCustomizationArn?: string
     codewhispererSupplementalContextTimeout?: boolean
     codewhispererSupplementalContextIsUtg?: boolean
     codewhispererSupplementalContextLatency?: number
@@ -58,6 +59,7 @@ export interface CodeWhispererUserTriggerDecisionEvent {
     codewhispererTimeSinceLastUserDecision?: number
     codewhispererTimeToFirstRecommendation: number
     codewhispererPreviousSuggestionState?: string
+    codewhispererCustomizationArn?: string
     codewhispererSupplementalContextTimeout?: boolean
     codewhispererSupplementalContextIsUtg?: boolean
     codewhispererSupplementalContextLength?: number
@@ -181,6 +183,7 @@ export type ModifyCodeEvent = {
     cwsprChatConversationId: string
     cwsprChatMessageId: string
     cwsprChatModificationPercentage: number
+    codewhispererCustomizationArn?: string
 }
 
 export type AddMessageEvent = {
@@ -205,6 +208,7 @@ export type AddMessageEvent = {
     cwsprChatRequestLength?: number
     cwsprChatResponseLength?: number
     cwsprChatConversationType: ChatConversationType
+    codewhispererCustomizationArn?: string
 }
 
 export type EnterFocusChatEvent = {
@@ -249,6 +253,7 @@ export type InteractWithMessageEvent = {
     cwsprChatHasReference?: boolean
     cwsprChatCodeBlockIndex?: number
     cwsprChatTotalCodeBlocks?: number
+    codewhispererCustomizationArn?: string
 }
 
 export type StartConversationEvent = {

@@ -31,7 +31,8 @@ export class QChatTriggerContext {
 
     getChatParamsFromTrigger(
         params: ChatParams,
-        triggerContext: TriggerContext
+        triggerContext: TriggerContext,
+        customizationArn?: string
     ): GenerateAssistantResponseCommandInput {
         const { prompt } = params
 
@@ -58,6 +59,7 @@ export class QChatTriggerContext {
                         userIntent: triggerContext.userIntent,
                     },
                 },
+                customizationArn,
             },
         }
 

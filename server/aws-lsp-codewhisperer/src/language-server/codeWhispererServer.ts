@@ -91,6 +91,7 @@ const emitServiceInvocationTelemetry = (telemetry: Telemetry, session: CodeWhisp
         codewhispererSupplementalContextIsUtg: session.supplementalMetadata?.isUtg,
         codewhispererSupplementalContextLatency: session.supplementalMetadata?.latency,
         codewhispererSupplementalContextLength: session.supplementalMetadata?.contentsLength,
+        codewhispererCustomizationArn: session.customizationArn,
     }
     telemetry.emitMetric({
         name: 'codewhisperer_serviceInvocation',
@@ -119,6 +120,7 @@ const emitServiceInvocationFailure = (telemetry: Telemetry, session: CodeWhisper
         codewhispererSupplementalContextIsUtg: session.supplementalMetadata?.isUtg,
         codewhispererSupplementalContextLatency: session.supplementalMetadata?.latency,
         codewhispererSupplementalContextLength: session.supplementalMetadata?.contentsLength,
+        codewhispererCustomizationArn: session.customizationArn,
     }
 
     telemetry.emitMetric({
@@ -206,6 +208,7 @@ const emitAggregatedUserTriggerDecisionTelemetry = (
         codewhispererSupplementalContextTimeout: session.supplementalMetadata?.isProcessTimeout,
         codewhispererSupplementalContextIsUtg: session.supplementalMetadata?.isUtg,
         codewhispererSupplementalContextLength: session.supplementalMetadata?.contentsLength,
+        codewhispererCustomizationArn: session.customizationArn,
     }
 
     telemetry.emitMetric({
@@ -550,10 +553,11 @@ export const CodewhispererServerFactory =
             try {
                 const qConfig = await lsp.workspace.getConfiguration(Q_CONFIGURATION_SECTION)
                 if (qConfig) {
-                    codeWhispererService.customizationArn = undefinedIfEmpty(qConfig.customization)
-                    logging.log(
-                        `Inline completion configuration updated to use ${codeWhispererService.customizationArn}`
-                    )
+                    const customizationValue = undefinedIfEmpty(qConfig.customization)
+                    codeWhispererService.customizationArn = customizationValue
+                    sessionManager.getCurrentSession()?.setCustomizationArn(customizationValue)
+
+                    logging.log(`Inline completion configuration updated to use ${customizationValue}`)
                 }
 
                 const config = await lsp.workspace.getConfiguration('aws.codeWhisperer')

@@ -1,4 +1,7 @@
-import { GenerateAssistantResponseCommandOutput } from '@amzn/codewhisperer-streaming'
+import {
+    GenerateAssistantResponseCommandInput,
+    GenerateAssistantResponseCommandOutput,
+} from '@amzn/codewhisperer-streaming'
 import { ErrorCodes, FeedbackParams, chatRequestType } from '@aws/language-server-runtimes/protocol'
 import {
     CancellationToken,
@@ -40,7 +43,7 @@ export class ChatController implements ChatHandlers {
     #chatSessionManagementService: ChatSessionManagementService
     #telemetryController: ChatTelemetryController
     #triggerContext: QChatTriggerContext
-    customizationArn?: string
+    #customizationArn?: string
 
     constructor(chatSessionManagementService: ChatSessionManagementService, features: Features) {
         this.#features = features
@@ -83,17 +86,12 @@ export class ChatController implements ChatHandlers {
         })
 
         let response: GenerateAssistantResponseCommandOutput
+        let requestInput: GenerateAssistantResponseCommandInput
 
         const conversationIdentifier = session?.sessionId ?? 'New session'
         try {
             this.#log('Request for conversation id:', conversationIdentifier)
-            let requestInput = this.#triggerContext.getChatParamsFromTrigger(params, triggerContext)
-            if (this.customizationArn && requestInput.conversationState) {
-                requestInput.conversationState = {
-                    ...requestInput.conversationState,
-                    customizationArn: this.customizationArn,
-                }
-            }
+            requestInput = this.#triggerContext.getChatParamsFromTrigger(params, triggerContext, this.#customizationArn)
 
             metric.recordStart()
             response = await session.generateAssistantResponse(requestInput)
@@ -143,7 +141,7 @@ export class ChatController implements ChatHandlers {
                 }),
                 params.partialResultToken
             )
-
+            metric.setDimension('codewhispererCustomizationArn', requestInput.conversationState?.customizationArn)
             this.#telemetryController.emitAddMessageMetric(params.tabId, metric.metric)
 
             this.#telemetryController.updateTriggerInfo(params.tabId, {
@@ -343,8 +341,8 @@ export class ChatController implements ChatHandlers {
         try {
             const qConfig = await this.#features.lsp.workspace.getConfiguration(Q_CONFIGURATION_SECTION)
             if (qConfig) {
-                this.customizationArn = undefinedIfEmpty(qConfig.customization)
-                this.#log(`Chat configuration updated to use ${this.customizationArn}`)
+                this.#customizationArn = undefinedIfEmpty(qConfig.customization)
+                this.#log(`Chat configuration updated to use ${this.#customizationArn}`)
             }
         } catch (error) {
             this.#log(`Error in GetConfiguration: ${error}`)
