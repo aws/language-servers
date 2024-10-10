@@ -6,6 +6,7 @@ import {
     ChatTelemetryEventName,
     CombinedConversationEvent,
     InteractWithMessageEvent,
+    ModifyCodeEvent,
 } from '../../telemetry/types'
 import { Features, KeysMatching } from '../../types'
 import {
@@ -54,6 +55,7 @@ export class ChatTelemetryController {
     #activeTabId?: string
     #tabTelemetryInfoByTabId: { [tabId: string]: ConversationTriggerInfo }
     #currentTriggerByTabId: { [tabId: string]: TriggerType } = {}
+    #customizationInfoByTabAndMessageId: { [tabId: string]: { [messageId: string]: string } }
     #credentialsProvider: Features['credentialsProvider']
     #telemetry: Features['telemetry']
     #codeDiffTracker: CodeDiffTracker<AcceptedSuggestionChatEntry>
@@ -61,6 +63,7 @@ export class ChatTelemetryController {
     constructor(features: Features) {
         this.#tabTelemetryInfoByTabId = {}
         this.#currentTriggerByTabId = {}
+        this.#customizationInfoByTabAndMessageId = {}
         this.#telemetry = features.telemetry
         this.#credentialsProvider = features.credentialsProvider
         this.#telemetry.onClientTelemetry(params => this.#handleClientTelemetry(params))
@@ -85,8 +88,13 @@ export class ChatTelemetryController {
         return tabId && this.#tabTelemetryInfoByTabId[tabId]?.conversationId
     }
 
+    public getCustomizationId(tabId?: string, messageId?: string) {
+        return tabId && messageId && this.#customizationInfoByTabAndMessageId[tabId]?.[messageId]
+    }
+
     public removeConversation(tabId: string) {
         delete this.#tabTelemetryInfoByTabId[tabId]
+        delete this.#customizationInfoByTabAndMessageId[tabId]
     }
 
     public setConversationId(tabId: string, conversationId: string) {
@@ -102,12 +110,15 @@ export class ChatTelemetryController {
     }
 
     public emitModifyCodeMetric(entry: AcceptedSuggestionChatEntry, percentage: number) {
+        const data: Omit<ModifyCodeEvent, 'cwsprChatConversationId'> = {
+            cwsprChatMessageId: entry.messageId,
+            cwsprChatModificationPercentage: percentage,
+            codewhispererCustomizationArn: entry.customizationArn,
+        }
+
         this.emitConversationMetric({
             name: ChatTelemetryEventName.ModifyCode,
-            data: {
-                cwsprChatMessageId: entry.messageId,
-                cwsprChatModificationPercentage: percentage ? percentage : 0,
-            },
+            data,
         })
     }
 
@@ -168,11 +179,19 @@ export class ChatTelemetryController {
                     cwsprChatConversationType: metric.cwsprChatConversationType,
                     cwsprChatActiveEditorTotalCharacters: metric.cwsprChatActiveEditorTotalCharacters,
                     cwsprChatActiveEditorImportCount: metric.cwsprChatActiveEditorImportCount,
+                    codewhispererCustomizationArn: metric.codewhispererCustomizationArn,
                     // not possible: cwsprChatResponseType: metric.cwsprChatResponseType,
                 },
             },
             tabId
         )
+        // Store the customization value associated with the message
+        if (metric.cwsprChatMessageId && metric.codewhispererCustomizationArn) {
+            this.#customizationInfoByTabAndMessageId[tabId] = {
+                ...this.#customizationInfoByTabAndMessageId[tabId],
+                [metric.cwsprChatMessageId]: metric.codewhispererCustomizationArn,
+            }
+        }
     }
 
     public emitStartConversationMetric(tabId: string, metric: Partial<CombinedConversationEvent>) {
@@ -239,6 +258,7 @@ export class ChatTelemetryController {
                 fileUrl: documentUri,
                 time: Date.now(),
                 originalString: params.code,
+                customizationArn: this.getCustomizationId(params.tabId, params.messageId),
                 startPosition,
                 endPosition,
             })
@@ -273,15 +293,18 @@ export class ChatTelemetryController {
                     })
                     break
                 case ChatUIEventName.Vote:
+                    const voteData: Omit<InteractWithMessageEvent, 'cwsprChatConversationId'> = {
+                        cwsprChatMessageId: params.messageId,
+                        cwsprChatInteractionType:
+                            params.vote === RelevancyVoteType.UP
+                                ? ChatInteractionType.Upvote
+                                : ChatInteractionType.Downvote,
+                        codewhispererCustomizationArn: this.getCustomizationId(params.tabId, params.messageId),
+                    }
+
                     this.emitConversationMetric({
                         name: ChatTelemetryEventName.InteractWithMessage,
-                        data: {
-                            cwsprChatMessageId: params.messageId,
-                            cwsprChatInteractionType:
-                                params.vote === RelevancyVoteType.UP
-                                    ? ChatInteractionType.Upvote
-                                    : ChatInteractionType.Downvote,
-                        },
+                        data: voteData,
                     })
                     break
                 case ChatUIEventName.InsertToCursorPosition:
@@ -290,35 +313,42 @@ export class ChatTelemetryController {
                         this.#enqueueCodeDiffEntry(params)
                     }
 
+                    const interactData: Omit<InteractWithMessageEvent, 'cwsprChatConversationId'> = {
+                        cwsprChatMessageId: params.messageId,
+                        cwsprChatInteractionType:
+                            params.name === ChatUIEventName.InsertToCursorPosition
+                                ? ChatInteractionType.InsertAtCursor
+                                : ChatInteractionType.CopySnippet,
+                        cwsprChatAcceptedCharactersLength: params.code?.length ?? 0,
+                        cwsprChatHasReference: Boolean(params.referenceTrackerInformation?.length),
+                        cwsprChatCodeBlockIndex: params.codeBlockIndex,
+                        cwsprChatTotalCodeBlocks: params.totalCodeBlocks,
+                        codewhispererCustomizationArn: this.getCustomizationId(params.tabId, params.messageId),
+                    }
+
                     this.emitConversationMetric({
                         name: ChatTelemetryEventName.InteractWithMessage,
-                        data: {
-                            cwsprChatMessageId: params.messageId,
-                            cwsprChatInteractionType:
-                                params.name === ChatUIEventName.InsertToCursorPosition
-                                    ? ChatInteractionType.InsertAtCursor
-                                    : ChatInteractionType.CopySnippet,
-                            cwsprChatAcceptedCharactersLength: params.code?.length ?? 0,
-                            cwsprChatHasReference: Boolean(params.referenceTrackerInformation?.length),
-                            cwsprChatCodeBlockIndex: params.codeBlockIndex,
-                            cwsprChatTotalCodeBlocks: params.totalCodeBlocks,
-                        },
+                        data: interactData,
                     })
                     break
                 case ChatUIEventName.LinkClick:
                 case ChatUIEventName.InfoLinkClick:
-                    this.emitInteractWithMessageMetric(params.tabId, {
+                    const clickBodyLinkData: Omit<InteractWithMessageEvent, 'cwsprChatConversationId'> = {
                         cwsprChatMessageId: params.messageId,
                         cwsprChatInteractionType: ChatInteractionType.ClickBodyLink,
                         cwsprChatInteractionTarget: params.link,
-                    })
+                        codewhispererCustomizationArn: this.getCustomizationId(params.tabId, params.messageId),
+                    }
+                    this.emitInteractWithMessageMetric(params.tabId, clickBodyLinkData)
                     break
                 case ChatUIEventName.SourceLinkClick:
-                    this.emitInteractWithMessageMetric(params.tabId, {
+                    const clickLinkData: Omit<InteractWithMessageEvent, 'cwsprChatConversationId'> = {
                         cwsprChatMessageId: params.messageId,
                         cwsprChatInteractionType: ChatInteractionType.ClickLink,
                         cwsprChatInteractionTarget: params.link,
-                    })
+                        codewhispererCustomizationArn: this.getCustomizationId(params.tabId, params.messageId),
+                    }
+                    this.emitInteractWithMessageMetric(params.tabId, clickLinkData)
                     break
             }
         }
