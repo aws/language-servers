@@ -1,4 +1,4 @@
-name: Publish Codewhisperer Language Server to npmjs
+name: Publish Chat Client to npmjs
 
 on:
     push:

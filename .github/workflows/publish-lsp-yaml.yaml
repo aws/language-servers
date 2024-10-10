@@ -1,4 +1,4 @@
-name: Publish JSON Language Server to npmjs
+name: Publish YAML Language Server to npmjs
 
 on:
     push:
