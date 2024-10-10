@@ -1168,6 +1168,7 @@ describe('CodeWhisperer Server', () => {
                     codewhispererSupplementalContextIsUtg: undefined,
                     codewhispererSupplementalContextLatency: undefined,
                     codewhispererSupplementalContextLength: undefined,
+                    codewhispererCustomizationArn: undefined,
                 },
             }
             sinon.assert.calledOnceWithExactly(features.telemetry.emitMetric, expectedServiceInvocationMetric)
@@ -1215,6 +1216,7 @@ describe('CodeWhisperer Server', () => {
                     codewhispererSupplementalContextIsUtg: undefined,
                     codewhispererSupplementalContextLatency: undefined,
                     codewhispererSupplementalContextLength: undefined,
+                    codewhispererCustomizationArn: undefined,
                 },
             }
             sinon.assert.calledOnceWithExactly(features.telemetry.emitMetric, expectedServiceInvocationMetric)
@@ -1253,6 +1255,7 @@ describe('CodeWhisperer Server', () => {
                     codewhispererSupplementalContextIsUtg: undefined,
                     codewhispererSupplementalContextLatency: undefined,
                     codewhispererSupplementalContextLength: undefined,
+                    codewhispererCustomizationArn: undefined,
                 },
                 errorData: {
                     reason: 'TestError',
@@ -1294,6 +1297,7 @@ describe('CodeWhisperer Server', () => {
                     codewhispererSupplementalContextIsUtg: undefined,
                     codewhispererSupplementalContextLatency: undefined,
                     codewhispererSupplementalContextLength: undefined,
+                    codewhispererCustomizationArn: undefined,
                 },
                 errorData: {
                     reason: 'UnknownError',
@@ -1347,6 +1351,7 @@ describe('CodeWhisperer Server', () => {
                     codewhispererSupplementalContextIsUtg: undefined,
                     codewhispererSupplementalContextLatency: undefined,
                     codewhispererSupplementalContextLength: undefined,
+                    codewhispererCustomizationArn: undefined,
                 },
                 errorData: {
                     reason: 'TestAWSError',
