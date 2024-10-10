@@ -6,10 +6,9 @@ let client: LanguageClient
 
 export async function activate(context: ExtensionContext) {
     client = await activateDocumentsLanguageServer(context)
-    client.start()
-    return
+    await client.start()
 }
 
 export async function deactivate() {
-    client.stop()
+    await client.stop()
 }
