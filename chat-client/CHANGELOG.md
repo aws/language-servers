@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.0.5] - 2024-10-10
+
+### Fixed
+
+- Export built chat client app in `./build` directory
+
 ## [0.0.4] - 2024-10-09
 
 ### Fixed
