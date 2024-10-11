@@ -88,7 +88,7 @@ export class ChatTelemetryController {
         return tabId && this.#tabTelemetryInfoByTabId[tabId]?.conversationId
     }
 
-    public getCustomizationId(tabId?: string, messageId?: string) {
+    public getCustomizationId(tabId: string, messageId: string) {
         return tabId && messageId && this.#customizationInfoByTabAndMessageId[tabId]?.[messageId]
     }
 
