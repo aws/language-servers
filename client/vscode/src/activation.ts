@@ -21,6 +21,7 @@ import { registerInlineCompletion } from './inlineCompletionActivation'
 import { registerLogCommand, registerTransformCommand } from './sampleCommandActivation'
 import { randomUUID } from 'crypto'
 import { registerCustomizations } from './customizationActivation'
+import { registerIdentity } from './identityActivation'
 
 export async function activateDocumentsLanguageServer(extensionContext: ExtensionContext) {
     /**
@@ -151,6 +152,11 @@ export async function activateDocumentsLanguageServer(extensionContext: Extensio
     const enableCustomizations = process.env.ENABLE_CUSTOMIZATIONS === 'true'
     if (enableCustomizations) {
         registerCustomizations(client)
+    }
+
+    const enableIdentity = process.env.ENABLE_IDENTITY === 'true'
+    if (enableIdentity) {
+        await registerIdentity(client)
     }
 
     return client

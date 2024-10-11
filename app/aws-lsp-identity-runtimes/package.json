@@ -1,0 +1,13 @@
+{
+    "name": "@aws/aws-lsp-identity-runtimes",
+    "version": "0.1.0",
+    "description": "Identity Server Runtimes",
+    "main": "out/standalone.js",
+    "scripts": {
+        "compile": "tsc --build"
+    },
+    "dependencies": {
+        "@aws/language-server-runtimes": "^0.2.20",
+        "@aws/aws-lsp-identity": "^0.0.1"
+    }
+}

@@ -135,6 +135,25 @@
             "preLaunchTask": "npm: compile"
         },
         {
+            "name": "Identity Server + VSCode Extension",
+            "type": "extensionHost",
+            "request": "launch",
+            "runtimeExecutable": "${execPath}",
+            "args": ["--extensionDevelopmentPath=${workspaceFolder}/client/vscode", "--disable-extensions"],
+            "env": {
+                "LSP_SERVER": "${workspaceFolder}/app/aws-lsp-identity-runtimes/out/standalone.js",
+                "ENABLE_IDENTITY": "true",
+                "ENABLE_TOKEN_PROVIDER": "true"
+            },
+            "outFiles": [
+                "${workspaceFolder}/client/vscode/out/**/*.js",
+                "${workspaceFolder}/app/aws-lsp-identity-runtimes/out/**/*.js",
+                "${workspaceFolder}/server/aws-lsp-identity/out/**/*.js"
+            ],
+            "autoAttachChildProcesses": true,
+            "preLaunchTask": "watch"
+        },
+        {
             "name": "Unit Tests",
             "type": "node",
             "request": "launch",
@@ -153,17 +172,6 @@
             "args": ["--forbid-only=false", "--forbid-pending=false", "./**/out/**/${fileBasenameNoExtension}.js"],
             "outFiles": ["${workspaceFolder}/**/out/**/*.(m|c|)js", "!**/node_modules/**"],
             "console": "integratedTerminal"
-        },
-        {
-            "name": "ts-mocha (current tab)",
-            "type": "node",
-            "request": "launch",
-            "program": "${workspaceFolder}/node_modules/.bin/ts-mocha",
-            "args": ["--forbid-only=false", "--forbid-pending=false", "${file}"],
-            "outFiles": ["${workspaceFolder}/**/out/**/*.(m|c|)js", "!**/node_modules/**"],
-            "console": "integratedTerminal",
-            "pauseForSourceMap": true,
-            "stopOnEntry": true
         }
     ],
     "compounds": [

@@ -61,6 +61,9 @@
             "path": "./app/aws-lsp-codewhisperer-runtimes"
         },
         {
+            "path": "./app/aws-lsp-identity-runtimes"
+        },
+        {
             "path": "./app/aws-lsp-s3-runtimes"
         },
         {
