@@ -1,10 +1,10 @@
 import { ProfileData, profileDuckTypers, ProfileService, ProfileStore, ssoSessionDuckTyper } from './profileService'
 import {
     AwsErrorCodes,
+    AwsResponseError,
     Profile,
     ProfileKind,
     SsoSession,
-    UpdateProfileError,
     UpdateProfileParams,
 } from '@aws/language-server-runtimes/server-interface'
 import { normalizeParsedIniData } from '../../sharedConfig/saveKnownFiles'
@@ -177,19 +177,19 @@ describe('ProfileService', async () => {
         })
     })
 
-    async function expectUpdateProfileError(
+    async function expectAwsResponseError(
         service: ProfileService,
         params: UpdateProfileParams,
         code: string,
         message: string
     ): Promise<void> {
-        const error = await expect(service.updateProfile(params)).rejectedWith(UpdateProfileError)
+        const error = await expect(service.updateProfile(params)).rejectedWith(AwsResponseError)
         expect(error.message).equal(message)
         expect(error?.data?.awsErrorCode).equal(code)
     }
 
     it('updateProfile throws on no profile', async () => {
-        expectUpdateProfileError(sut, { profile: undefined! }, AwsErrorCodes.E_INVALID_PROFILE, 'Profile required.')
+        expectAwsResponseError(sut, { profile: undefined! }, AwsErrorCodes.E_INVALID_PROFILE, 'Profile required.')
     })
 
     it('updateProfile throws on non-SSO token profile', async () => {
@@ -201,7 +201,7 @@ describe('ProfileService', async () => {
             },
         }
 
-        await expectUpdateProfileError(
+        await expectAwsResponseError(
             sut,
             { profile },
             AwsErrorCodes.E_INVALID_PROFILE,
@@ -218,7 +218,7 @@ describe('ProfileService', async () => {
             },
         }
 
-        await expectUpdateProfileError(sut, { profile }, AwsErrorCodes.E_INVALID_PROFILE, 'Profile name required.')
+        await expectAwsResponseError(sut, { profile }, AwsErrorCodes.E_INVALID_PROFILE, 'Profile name required.')
     })
 
     it('updateProfile throws on no settings', async () => {
@@ -227,7 +227,7 @@ describe('ProfileService', async () => {
             name: 'profile-name',
         }
 
-        await expectUpdateProfileError(
+        await expectAwsResponseError(
             sut,
             { profile: profile as Profile },
             AwsErrorCodes.E_INVALID_PROFILE,
@@ -244,7 +244,7 @@ describe('ProfileService', async () => {
             },
         }
 
-        await expectUpdateProfileError(
+        await expectAwsResponseError(
             sut,
             { profile },
             AwsErrorCodes.E_INVALID_PROFILE,
@@ -261,7 +261,7 @@ describe('ProfileService', async () => {
             },
         }
 
-        await expectUpdateProfileError(
+        await expectAwsResponseError(
             sut,
             { profile },
             AwsErrorCodes.E_INVALID_PROFILE,
@@ -286,7 +286,7 @@ describe('ProfileService', async () => {
             },
         }
 
-        await expectUpdateProfileError(
+        await expectAwsResponseError(
             sut,
             { profile, ssoSession, options: { createNonexistentProfile: false } },
             AwsErrorCodes.E_CANNOT_CREATE_PROFILE,
@@ -303,7 +303,7 @@ describe('ProfileService', async () => {
             },
         }
 
-        await expectUpdateProfileError(
+        await expectAwsResponseError(
             sut,
             { profile: profile1, ssoSession },
             AwsErrorCodes.E_INVALID_SSO_SESSION,
@@ -316,7 +316,7 @@ describe('ProfileService', async () => {
             name: 'ssoSession',
         }
 
-        await expectUpdateProfileError(
+        await expectAwsResponseError(
             sut,
             { profile: profile1, ssoSession: ssoSession as SsoSession },
             AwsErrorCodes.E_INVALID_SSO_SESSION,
@@ -333,7 +333,7 @@ describe('ProfileService', async () => {
             },
         }
 
-        await expectUpdateProfileError(
+        await expectAwsResponseError(
             sut,
             { profile: profile1, ssoSession },
             AwsErrorCodes.E_INVALID_SSO_SESSION,
@@ -350,7 +350,7 @@ describe('ProfileService', async () => {
             },
         }
 
-        await expectUpdateProfileError(
+        await expectAwsResponseError(
             sut,
             { profile: profile1, ssoSession },
             AwsErrorCodes.E_INVALID_SSO_SESSION,
@@ -367,7 +367,7 @@ describe('ProfileService', async () => {
             },
         }
 
-        await expectUpdateProfileError(
+        await expectAwsResponseError(
             sut,
             { profile: profile1, ssoSession },
             AwsErrorCodes.E_INVALID_PROFILE,
@@ -386,7 +386,7 @@ describe('ProfileService', async () => {
             },
         }
 
-        await expectUpdateProfileError(
+        await expectAwsResponseError(
             sut,
             { profile: profile1, ssoSession, options: { createNonexistentSsoSession: false } },
             AwsErrorCodes.E_CANNOT_CREATE_SSO_SESSION,
@@ -405,7 +405,7 @@ describe('ProfileService', async () => {
             },
         }
 
-        await expectUpdateProfileError(
+        await expectAwsResponseError(
             sut,
             { profile: profile3, ssoSession, options: { updateSharedSsoSession: false } },
             AwsErrorCodes.E_CANNOT_OVERWRITE_SSO_SESSION,

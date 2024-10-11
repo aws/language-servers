@@ -1,13 +1,10 @@
 import {
     CancellationToken,
-    ListProfilesError,
     ListProfilesParams,
     ListProfilesResult,
     Profile,
     ProfileKind,
     SsoSession,
-    UpdateProfileError,
-    UpdateProfileErrorData,
     updateProfileOptionsDefaults,
     UpdateProfileParams,
     UpdateProfileResult,
@@ -79,8 +76,7 @@ export class ProfileService {
         // Currently only returns non-legacy sso-session profiles, will return more profile types in the future
         return await this.tryAsync(
             () => this.store.load(),
-            messageOrError =>
-                new ListProfilesError(messageOrError, { awsErrorCode: AwsErrorCodes.E_CANNOT_READ_SHARED_CONFIG })
+            error => new AwsResponseError(error.message, { awsErrorCode: AwsErrorCodes.E_CANNOT_READ_SHARED_CONFIG })
         )
     }
 
@@ -123,19 +119,18 @@ export class ProfileService {
 
         const { profiles, ssoSessions } = await this.tryAsync(
             () => this.store.load(),
-            messageOrError =>
-                new UpdateProfileError(messageOrError, { awsErrorCode: AwsErrorCodes.E_CANNOT_READ_SHARED_CONFIG })
+            error => new AwsResponseError(error.message, { awsErrorCode: AwsErrorCodes.E_CANNOT_READ_SHARED_CONFIG })
         )
 
         // Enforce options
         if (!options.createNonexistentProfile && !profiles.some(p => p.name === profile.name)) {
-            throw new UpdateProfileError('Cannot create profile.', {
+            throw new AwsResponseError('Cannot create profile.', {
                 awsErrorCode: AwsErrorCodes.E_CANNOT_CREATE_PROFILE,
             })
         }
 
         if (!options.createNonexistentSsoSession && !ssoSessions.some(s => s.name === ssoSession.name)) {
-            throw new UpdateProfileError('Cannot create sso-session.', {
+            throw new AwsResponseError('Cannot create sso-session.', {
                 awsErrorCode: AwsErrorCodes.E_CANNOT_CREATE_SSO_SESSION,
             })
         }
@@ -145,7 +140,7 @@ export class ProfileService {
             this.isSharedSsoSession(ssoSession.name, profiles, profile.name) &&
             this.willUpdateExistingSsoSession(ssoSession, ssoSessions)
         ) {
-            throw new UpdateProfileError('Cannot update shared sso-session.', {
+            throw new AwsResponseError('Cannot update shared sso-session.', {
                 awsErrorCode: AwsErrorCodes.E_CANNOT_OVERWRITE_SSO_SESSION,
             })
         }
@@ -167,21 +162,20 @@ export class ProfileService {
                     profiles: [params.profile],
                     ssoSessions: params.ssoSession ? [params.ssoSession] : [],
                 }),
-            messageOrError =>
-                new UpdateProfileError(messageOrError, { awsErrorCode: AwsErrorCodes.E_CANNOT_WRITE_SHARED_CONFIG })
+            error => new AwsResponseError(error.message, { awsErrorCode: AwsErrorCodes.E_CANNOT_WRITE_SHARED_CONFIG })
         )
 
         return result
     }
 
-    private async tryAsync<R, E extends AwsResponseError<AwsResponseErrorData>>(
+    private async tryAsync<R, E extends AwsResponseError>(
         tryThis: () => Promise<R>,
-        catchIt: (messageOrError: string | Error) => E
+        catchIt: (error: Error) => E
     ): Promise<R> {
         try {
             return await tryThis()
         } catch (e) {
-            throw catchIt(e instanceof Error ? e : (e as object)?.toString())
+            throw catchIt(e instanceof Error ? e : new Error((e as object)?.toString() ?? 'Unknown error'))
         }
     }
 
@@ -218,9 +212,9 @@ export class ProfileService {
         this.throwOnInvalid(expr, message, { awsErrorCode: AwsErrorCodes.E_INVALID_SSO_SESSION })
     }
 
-    private throwOnInvalid(expr: boolean, message: string, data: UpdateProfileErrorData): void {
+    private throwOnInvalid(expr: boolean, message: string, data: AwsResponseErrorData): void {
         if (expr) {
-            throw new UpdateProfileError(message, data)
+            throw new AwsResponseError(message, data)
         }
     }
 }
