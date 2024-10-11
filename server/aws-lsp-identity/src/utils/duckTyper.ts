@@ -25,7 +25,7 @@ export class DuckTyper {
     // don't match a rule.  For example, if there is property that doesn't
     // match a rule, 'optional' means that property is implicitly
     // optional and 'disallow' means it is implicitly disallowed.
-    eval(value: object, options?: { unmatchedProperty: 'optional' | 'disallow' }): boolean {
+    eval(value?: object, options?: { unmatchedProperty: 'optional' | 'disallow' }): boolean {
         if (!value) {
             return false
         }

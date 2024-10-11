@@ -1,19 +1,12 @@
-import {
-    detectProfileKind,
-    ProfileData,
-    profileDuckTypers,
-    ProfileService,
-    ProfileStore,
-    ssoSessionDuckTyper,
-} from './profileService'
+import { ProfileData, profileDuckTypers, ProfileService, ProfileStore, ssoSessionDuckTyper } from './profileService'
 import {
     AwsErrorCodes,
+    AwsResponseError,
     Profile,
     ProfileKind,
     SsoSession,
-    UpdateProfileError,
     UpdateProfileParams,
-} from '@aws/language-server-runtimes/server-interface/identity-management'
+} from '@aws/language-server-runtimes/server-interface'
 import { normalizeParsedIniData } from '../../sharedConfig/saveKnownFiles'
 import { stubInterface } from 'ts-sinon'
 import { SinonStubbedInstance } from 'sinon'
@@ -34,7 +27,7 @@ beforeEach(() => {
     store = stubInterface()
 
     profile1 = {
-        kind: ProfileKind.SsoTokenProfile,
+        kinds: [ProfileKind.SsoTokenProfile],
         name: 'profile1',
         settings: {
             sso_session: 'ssoSession1',
@@ -42,7 +35,7 @@ beforeEach(() => {
     }
 
     profile2 = {
-        kind: ProfileKind.Unknown,
+        kinds: [ProfileKind.Unknown],
         name: 'profile2',
         settings: {
             region: 'whatever',
@@ -50,7 +43,7 @@ beforeEach(() => {
     }
 
     profile3 = {
-        kind: ProfileKind.SsoTokenProfile,
+        kinds: [ProfileKind.SsoTokenProfile],
         name: 'profile3',
         settings: {
             sso_session: 'ssoSession2',
@@ -109,7 +102,7 @@ describe('ProfileService', async () => {
     it('updateProfile updates existing profiles and sso-sessions', async () => {
         await sut.updateProfile({
             profile: {
-                kind: ProfileKind.SsoTokenProfile,
+                kinds: [ProfileKind.SsoTokenProfile],
                 name: 'profile1',
                 settings: {
                     sso_session: 'ssoSession1',
@@ -131,15 +124,13 @@ describe('ProfileService', async () => {
         expect(data).to.deep.equal({
             profiles: [
                 {
-                    kind: ProfileKind.SsoTokenProfile,
+                    kinds: [ProfileKind.SsoTokenProfile],
                     name: 'profile1',
                     settings: {
                         sso_session: 'ssoSession1',
                         region: 'us-west-2',
                     },
                 },
-                profile2,
-                profile3,
             ],
             ssoSessions: [
                 {
@@ -147,17 +138,16 @@ describe('ProfileService', async () => {
                     settings: {
                         sso_region: 'us-west-1',
                         sso_start_url: 'http://newnowhere',
-                        sso_registration_scopes: ['x', 'y', 'z'],
+                        sso_registration_scopes: ['x', 'y', 'z', 'sso:account:access'],
                     },
                 },
-                ssoSession2,
             ],
         })
     })
 
     it('updateProfile creates new profiles and sso-sessions', async () => {
         const newProfile = {
-            kind: ProfileKind.SsoTokenProfile,
+            kinds: [ProfileKind.SsoTokenProfile],
             name: 'newProfile',
             settings: {
                 sso_session: 'newSsoSession',
@@ -182,36 +172,36 @@ describe('ProfileService', async () => {
         const [[data]] = store.save.args
 
         expect(data).to.deep.equal({
-            profiles: [profile1, profile2, profile3, newProfile],
-            ssoSessions: [ssoSession1, ssoSession2, newSsoSession],
+            profiles: [newProfile],
+            ssoSessions: [newSsoSession],
         })
     })
 
-    async function expectUpdateProfileError(
+    async function expectAwsResponseError(
         service: ProfileService,
         params: UpdateProfileParams,
         code: string,
         message: string
     ): Promise<void> {
-        const error = await expect(service.updateProfile(params)).rejectedWith(UpdateProfileError)
+        const error = await expect(service.updateProfile(params)).rejectedWith(AwsResponseError)
         expect(error.message).equal(message)
         expect(error?.data?.awsErrorCode).equal(code)
     }
 
     it('updateProfile throws on no profile', async () => {
-        expectUpdateProfileError(sut, { profile: undefined! }, AwsErrorCodes.E_INVALID_PROFILE, 'Profile required.')
+        expectAwsResponseError(sut, { profile: undefined! }, AwsErrorCodes.E_INVALID_PROFILE, 'Profile required.')
     })
 
     it('updateProfile throws on non-SSO token profile', async () => {
         const profile = {
-            kind: ProfileKind.Unknown,
+            kinds: [ProfileKind.Unknown],
             name: 'profile-name',
             settings: {
                 sso_session: 'sso-session-name',
             },
         }
 
-        await expectUpdateProfileError(
+        await expectAwsResponseError(
             sut,
             { profile },
             AwsErrorCodes.E_INVALID_PROFILE,
@@ -221,23 +211,23 @@ describe('ProfileService', async () => {
 
     it('updateProfile throws on no profile name', async () => {
         const profile = {
-            kind: ProfileKind.SsoTokenProfile,
+            kinds: [ProfileKind.SsoTokenProfile],
             name: '',
             settings: {
                 sso_session: 'sso-session-name',
             },
         }
 
-        await expectUpdateProfileError(sut, { profile }, AwsErrorCodes.E_INVALID_PROFILE, 'Profile name required.')
+        await expectAwsResponseError(sut, { profile }, AwsErrorCodes.E_INVALID_PROFILE, 'Profile name required.')
     })
 
     it('updateProfile throws on no settings', async () => {
         const profile = {
-            kind: ProfileKind.SsoTokenProfile,
+            kinds: [ProfileKind.SsoTokenProfile],
             name: 'profile-name',
         }
 
-        await expectUpdateProfileError(
+        await expectAwsResponseError(
             sut,
             { profile: profile as Profile },
             AwsErrorCodes.E_INVALID_PROFILE,
@@ -247,14 +237,14 @@ describe('ProfileService', async () => {
 
     it('updateProfile throws on no sso-session', async () => {
         const profile = {
-            kind: ProfileKind.SsoTokenProfile,
+            kinds: [ProfileKind.SsoTokenProfile],
             name: 'profile-name',
             settings: {
                 sso_session: '',
             },
         }
 
-        await expectUpdateProfileError(
+        await expectAwsResponseError(
             sut,
             { profile },
             AwsErrorCodes.E_INVALID_PROFILE,
@@ -264,14 +254,14 @@ describe('ProfileService', async () => {
 
     it('updateProfile throws on no sso-session on profile', async () => {
         const profile = {
-            kind: ProfileKind.SsoTokenProfile,
+            kinds: [ProfileKind.SsoTokenProfile],
             name: 'profile-name',
             settings: {
                 sso_session: '',
             },
         }
 
-        await expectUpdateProfileError(
+        await expectAwsResponseError(
             sut,
             { profile },
             AwsErrorCodes.E_INVALID_PROFILE,
@@ -281,7 +271,7 @@ describe('ProfileService', async () => {
 
     it('updateProfile throws when profile cannot be created', async () => {
         const profile = {
-            kind: ProfileKind.SsoTokenProfile,
+            kinds: [ProfileKind.SsoTokenProfile],
             name: 'nonexistent-profile-name',
             settings: {
                 sso_session: 'ssoSession',
@@ -296,7 +286,7 @@ describe('ProfileService', async () => {
             },
         }
 
-        await expectUpdateProfileError(
+        await expectAwsResponseError(
             sut,
             { profile, ssoSession, options: { createNonexistentProfile: false } },
             AwsErrorCodes.E_CANNOT_CREATE_PROFILE,
@@ -313,7 +303,7 @@ describe('ProfileService', async () => {
             },
         }
 
-        await expectUpdateProfileError(
+        await expectAwsResponseError(
             sut,
             { profile: profile1, ssoSession },
             AwsErrorCodes.E_INVALID_SSO_SESSION,
@@ -326,7 +316,7 @@ describe('ProfileService', async () => {
             name: 'ssoSession',
         }
 
-        await expectUpdateProfileError(
+        await expectAwsResponseError(
             sut,
             { profile: profile1, ssoSession: ssoSession as SsoSession },
             AwsErrorCodes.E_INVALID_SSO_SESSION,
@@ -343,7 +333,7 @@ describe('ProfileService', async () => {
             },
         }
 
-        await expectUpdateProfileError(
+        await expectAwsResponseError(
             sut,
             { profile: profile1, ssoSession },
             AwsErrorCodes.E_INVALID_SSO_SESSION,
@@ -360,7 +350,7 @@ describe('ProfileService', async () => {
             },
         }
 
-        await expectUpdateProfileError(
+        await expectAwsResponseError(
             sut,
             { profile: profile1, ssoSession },
             AwsErrorCodes.E_INVALID_SSO_SESSION,
@@ -377,7 +367,7 @@ describe('ProfileService', async () => {
             },
         }
 
-        await expectUpdateProfileError(
+        await expectAwsResponseError(
             sut,
             { profile: profile1, ssoSession },
             AwsErrorCodes.E_INVALID_PROFILE,
@@ -386,7 +376,7 @@ describe('ProfileService', async () => {
     })
 
     it('updateProfile throws when sso-session cannot be created', async () => {
-        profile1.settings.sso_session = 'nonexistent-sso-session-name'
+        profile1.settings!.sso_session = 'nonexistent-sso-session-name'
 
         const ssoSession = {
             name: 'nonexistent-sso-session-name',
@@ -396,7 +386,7 @@ describe('ProfileService', async () => {
             },
         }
 
-        await expectUpdateProfileError(
+        await expectAwsResponseError(
             sut,
             { profile: profile1, ssoSession, options: { createNonexistentSsoSession: false } },
             AwsErrorCodes.E_CANNOT_CREATE_SSO_SESSION,
@@ -405,7 +395,7 @@ describe('ProfileService', async () => {
     })
 
     it('updateProfile throws when cannot update shared sso-session', async () => {
-        profile3.settings.sso_session = 'ssoSession1'
+        profile3.settings!.sso_session = 'ssoSession1'
 
         const ssoSession = {
             name: 'ssoSession1',
@@ -415,7 +405,7 @@ describe('ProfileService', async () => {
             },
         }
 
-        await expectUpdateProfileError(
+        await expectAwsResponseError(
             sut,
             { profile: profile3, ssoSession, options: { updateSharedSsoSession: false } },
             AwsErrorCodes.E_CANNOT_OVERWRITE_SSO_SESSION,
@@ -501,19 +491,6 @@ describe('profileService.DuckTypers', () => {
 })
 
 describe('profileService.functions', () => {
-    it('detectProfileKind detects SsoTokenProfile, otherwise Unknown', () => {
-        const ssoTokenProfile = {
-            sso_session: 'my session',
-        }
-
-        const unknownProfile = {
-            aws_access_key_id: 'blah',
-        }
-
-        expect(detectProfileKind(ssoTokenProfile)).to.equal(ProfileKind.SsoTokenProfile)
-        expect(detectProfileKind(unknownProfile)).to.equal(ProfileKind.Unknown)
-    })
-
     it('normalizeParsedIniData changes all key names to lowercase', () => {
         const actual = normalizeParsedIniData({
             ssoProfile: {

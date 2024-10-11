@@ -1,20 +1,17 @@
 import {
-    ListProfilesError,
+    CancellationToken,
     ListProfilesParams,
     ListProfilesResult,
     Profile,
     ProfileKind,
     SsoSession,
-    UpdateProfileError,
-    UpdateProfileErrorData,
     updateProfileOptionsDefaults,
     UpdateProfileParams,
     UpdateProfileResult,
     AwsErrorCodes,
     AwsResponseError,
     AwsResponseErrorData,
-} from '@aws/language-server-runtimes/server-interface/identity-management'
-import { CancellationToken } from 'vscode-languageserver'
+} from '@aws/language-server-runtimes/server-interface'
 import { SharedConfigInit } from '@smithy/shared-ini-file-loader'
 import { DuckTyper } from '../../utils/duckTyper'
 
@@ -53,10 +50,6 @@ export const ssoSessionDuckTyper = new DuckTyper()
     .requireProperty(SsoSessionFields.sso_region)
     .optionalProperty(SsoSessionFields.sso_registration_scopes)
 
-export function detectProfileKind(profile: object): ProfileKind {
-    return (profileDuckTypers.SsoTokenProfile.eval(profile) && ProfileKind.SsoTokenProfile) || ProfileKind.Unknown
-}
-
 export function normalizeSettingList(
     list: string | string[] | null | undefined,
     delimiter: string = ','
@@ -82,56 +75,62 @@ export class ProfileService {
     async listProfiles(params: ListProfilesParams, token?: CancellationToken): Promise<ListProfilesResult> {
         // Currently only returns non-legacy sso-session profiles, will return more profile types in the future
         return await this.tryAsync(
-            this.store.load,
-            messageOrError =>
-                new ListProfilesError(messageOrError, { awsErrorCode: AwsErrorCodes.E_CANNOT_READ_SHARED_CONFIG })
+            () => this.store.load(),
+            error => new AwsResponseError(error.message, { awsErrorCode: AwsErrorCodes.E_CANNOT_READ_SHARED_CONFIG })
         )
     }
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    async updateProfile(params: UpdateProfileParams, _token?: CancellationToken): Promise<UpdateProfileResult> {
+    async updateProfile(params: UpdateProfileParams, token?: CancellationToken): Promise<UpdateProfileResult> {
         // Currently only supports non-legacy SSO profiles with sso-sessions
         const result: UpdateProfileResult = {}
         const options = { ...updateProfileOptionsDefaults, ...params.options }
 
-        // Validate params
+        // Validate params, this will change as more profile kinds are added
+        // Validate profile
         this.throwOnInvalidProfile(!params.profile, 'Profile required.')
         const profile = params.profile!
+
         this.throwOnInvalidProfile(
-            profile.kind !== ProfileKind.SsoTokenProfile,
+            !profile.kinds.includes(ProfileKind.SsoTokenProfile),
             'Profile must be non-legacy sso-session type.'
         )
         this.throwOnInvalidProfile(!profile.name, 'Profile name required.')
         this.throwOnInvalidProfile(!profile.settings, 'Settings required on profile.')
-        this.throwOnInvalidProfile(!profile.settings.sso_session, 'Sso-session name required on profile.')
+        const profileSettings = profile.settings!
 
+        this.throwOnInvalidProfile(!profileSettings.sso_session, 'Sso-session name required on profile.')
+
+        // Validate sso-session
         this.throwOnInvalidSsoSession(!params.ssoSession, 'Sso-session required.')
         const ssoSession: SsoSession = params.ssoSession!
+
         this.throwOnInvalidSsoSession(!ssoSession.name, 'Sso-session name required.')
         this.throwOnInvalidSsoSession(!ssoSession.settings, 'Settings required on sso-session.')
-        this.throwOnInvalidSsoSession(!ssoSession.settings.sso_region, 'Sso-session region required.')
-        this.throwOnInvalidSsoSession(!ssoSession.settings.sso_start_url, 'Sso-session start URL required.')
+        const ssoSessionSettings = ssoSession.settings!
+
+        this.throwOnInvalidSsoSession(!ssoSessionSettings.sso_region, 'Sso-session region required.')
+        this.throwOnInvalidSsoSession(!ssoSessionSettings.sso_start_url, 'Sso-session start URL required.')
 
         this.throwOnInvalidProfile(
-            profile.settings.sso_session !== ssoSession.name,
+            profileSettings.sso_session !== ssoSession.name,
             'Profile sso-session name must be the same as provided sso-session.'
         )
 
         const { profiles, ssoSessions } = await this.tryAsync(
-            this.store.load,
-            messageOrError =>
-                new UpdateProfileError(messageOrError, { awsErrorCode: AwsErrorCodes.E_CANNOT_READ_SHARED_CONFIG })
+            () => this.store.load(),
+            error => new AwsResponseError(error.message, { awsErrorCode: AwsErrorCodes.E_CANNOT_READ_SHARED_CONFIG })
         )
 
         // Enforce options
         if (!options.createNonexistentProfile && !profiles.some(p => p.name === profile.name)) {
-            throw new UpdateProfileError('Cannot create profile.', {
+            throw new AwsResponseError('Cannot create profile.', {
                 awsErrorCode: AwsErrorCodes.E_CANNOT_CREATE_PROFILE,
             })
         }
 
         if (!options.createNonexistentSsoSession && !ssoSessions.some(s => s.name === ssoSession.name)) {
-            throw new UpdateProfileError('Cannot create sso-session.', {
+            throw new AwsResponseError('Cannot create sso-session.', {
                 awsErrorCode: AwsErrorCodes.E_CANNOT_CREATE_SSO_SESSION,
             })
         }
@@ -141,71 +140,49 @@ export class ProfileService {
             this.isSharedSsoSession(ssoSession.name, profiles, profile.name) &&
             this.willUpdateExistingSsoSession(ssoSession, ssoSessions)
         ) {
-            throw new UpdateProfileError('Cannot update shared sso-session.', {
+            throw new AwsResponseError('Cannot update shared sso-session.', {
                 awsErrorCode: AwsErrorCodes.E_CANNOT_OVERWRITE_SSO_SESSION,
             })
         }
 
-        // Update profile for profile store
-        const parsedProfile = profiles.find(p => p.name === profile.name)
-        if (parsedProfile) {
-            parsedProfile.settings = {
-                ...parsedProfile.settings,
-                ...{
-                    region: profile.settings.region,
-                    sso_session: profile.settings.sso_session,
-                },
-            }
-        } else {
-            profiles.push({
-                kind: ProfileKind.SsoTokenProfile,
-                name: profile.name,
-                settings: profile.settings,
-            })
-        }
+        // Ensure ssoSession has sso:account:access set explicitly to support token refresh
+        if (options.ensureSsoAccountAccessScope) {
+            const ssoAccountAccessScope = 'sso:account:access'
 
-        // Update sso-session for sso-session store
-        const parsedSsoSession = ssoSessions.find(s => s.name === ssoSession.name)
-        if (parsedSsoSession) {
-            parsedSsoSession.settings = {
-                ...parsedSsoSession.settings,
-                ...{
-                    sso_region: ssoSession.settings.sso_region,
-                    sso_start_url: ssoSession.settings.sso_start_url,
-                    sso_registration_scopes: normalizeSettingList(ssoSession.settings.sso_registration_scopes),
-                },
+            if (!ssoSessionSettings.sso_registration_scopes) {
+                ssoSessionSettings.sso_registration_scopes = [ssoAccountAccessScope]
+            } else if (!ssoSessionSettings.sso_registration_scopes.includes(ssoAccountAccessScope)) {
+                ssoSessionSettings.sso_registration_scopes.push(ssoAccountAccessScope)
             }
-        } else {
-            ssoSessions.push({
-                name: ssoSession.name,
-                settings: ssoSession.settings,
-            })
         }
 
         await this.tryAsync(
-            () => this.store.save({ profiles, ssoSessions }),
-            messageOrError =>
-                new UpdateProfileError(messageOrError, { awsErrorCode: AwsErrorCodes.E_CANNOT_WRITE_SHARED_CONFIG })
+            () =>
+                this.store.save({
+                    profiles: [params.profile],
+                    ssoSessions: params.ssoSession ? [params.ssoSession] : [],
+                }),
+            error => new AwsResponseError(error.message, { awsErrorCode: AwsErrorCodes.E_CANNOT_WRITE_SHARED_CONFIG })
         )
 
         return result
     }
 
-    private async tryAsync<R, E extends AwsResponseError<AwsResponseErrorData>>(
+    private async tryAsync<R, E extends AwsResponseError>(
         tryThis: () => Promise<R>,
-        catchIt: (messageOrError: string | Error) => E
+        catchIt: (error: Error) => E
     ): Promise<R> {
         try {
             return await tryThis()
         } catch (e) {
-            throw catchIt(e instanceof Error ? e : (e as object)?.toString())
+            throw catchIt(e instanceof Error ? e : new Error((e as object)?.toString() ?? 'Unknown error'))
         }
     }
 
     private willUpdateExistingSsoSession(ssoSession: SsoSession, ssoSessions: SsoSession[]): boolean {
         const other = ssoSessions.find(s => s.name === ssoSession.name)
 
-        if (!other) {
+        if (!(ssoSession.settings && other?.settings)) {
             return false
         }
 
@@ -219,7 +196,7 @@ export class ProfileService {
 
     private isSharedSsoSession(ssoSessionName: string, profiles: Profile[], skipProfileName: string): boolean {
         for (const profile of profiles) {
-            if (profile.name !== skipProfileName && profile.settings.sso_session === ssoSessionName) {
+            if (profile.name !== skipProfileName && profile.settings?.sso_session === ssoSessionName) {
                 return true
             }
         }
@@ -235,9 +212,9 @@ export class ProfileService {
         this.throwOnInvalid(expr, message, { awsErrorCode: AwsErrorCodes.E_INVALID_SSO_SESSION })
     }
 
-    private throwOnInvalid(expr: boolean, message: string, data: UpdateProfileErrorData): void {
+    private throwOnInvalid(expr: boolean, message: string, data: AwsResponseErrorData): void {
         if (expr) {
-            throw new UpdateProfileError(message, data)
+            throw new AwsResponseError(message, data)
         }
     }
 }
