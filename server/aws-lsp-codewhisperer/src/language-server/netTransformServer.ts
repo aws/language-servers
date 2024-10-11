@@ -66,7 +66,9 @@ export const QNetTransformServerToken =
                     }
                     case GetTransformCommand: {
                         const request = params as GetTransformRequest
-                        logging.log('Calling getTransform request with Transformation Job ID: ' + request.TransformationJobId)
+                        logging.log(
+                            'Calling getTransform request with Transformation Job ID: ' + request.TransformationJobId
+                        )
                         const response = await transformHandler.getTransformation(request)
                         if (response != null) {
                             emitTransformationJobReceivedTelemetry(telemetry, response)
@@ -75,7 +77,9 @@ export const QNetTransformServerToken =
                     }
                     case PollTransformCommand: {
                         const request = params as GetTransformRequest
-                        logging.log('Calling pollTransform request with Transformation Job ID: ' + request.TransformationJobId)
+                        logging.log(
+                            'Calling pollTransform request with Transformation Job ID: ' + request.TransformationJobId
+                        )
                         const response = await transformHandler.pollTransformation(
                             request,
                             validStatesForComplete,
@@ -92,7 +96,10 @@ export const QNetTransformServerToken =
                     }
                     case PollTransformForPlanCommand: {
                         const request = params as GetTransformRequest
-                        logging.log('Calling pollTransformForPlan request with Transformation Job ID: ' + request.TransformationJobId)
+                        logging.log(
+                            'Calling pollTransformForPlan request with Transformation Job ID: ' +
+                                request.TransformationJobId
+                        )
                         const response = await transformHandler.pollTransformation(
                             request,
                             validStatesForGettingPlan,
@@ -109,7 +116,10 @@ export const QNetTransformServerToken =
                     }
                     case GetTransformPlanCommand: {
                         const request = params as GetTransformPlanRequest
-                        logging.log('Calling getTransformPlan request with Transformation Job ID: ' + request.TransformationJobId)
+                        logging.log(
+                            'Calling getTransformPlan request with Transformation Job ID: ' +
+                                request.TransformationJobId
+                        )
                         const response = await transformHandler.getTransformationPlan(request)
                         logging.log(
                             'Transformation plan details for Transformation Job ID' +
@@ -134,7 +144,10 @@ export const QNetTransformServerToken =
                             credentialsProvider,
                             customCWClientConfig
                         )
-                        logging.log('Calling Download Transformation results with Transformation Job ID: ' + request.TransformationJobId)
+                        logging.log(
+                            'Calling Download Transformation results with Transformation Job ID: ' +
+                                request.TransformationJobId
+                        )
                         const response = await transformHandler.downloadExportResultArchive(
                             cwStreamingClient,
                             request.TransformationJobId,

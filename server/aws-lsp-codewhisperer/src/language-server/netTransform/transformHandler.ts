@@ -292,7 +292,9 @@ export class TransformHandler {
         const getCodeTransformationRequest = {
             transformationJobId: request.TransformationJobId,
         } as GetTransformationRequest
-        this.logging.log('polling details: Sending request to get transform  api: ' + JSON.stringify(getCodeTransformationRequest))
+        this.logging.log(
+            'polling details: Sending request to get transform  api: ' + JSON.stringify(getCodeTransformationRequest)
+        )
         let response = await this.client.codeModernizerGetCodeTransformation(getCodeTransformationRequest)
         this.logging.log('polling details: Received response from get transform  api: ' + JSON.stringify(response))
         let status = response?.transformationJob?.status ?? PollTransformationStatus.NOT_FOUND
@@ -305,10 +307,13 @@ export class TransformHandler {
                     transformationJobId: request.TransformationJobId,
                 } as GetTransformationRequest
                 this.logging.log(
-                    'polling details: Sending request to get transform  api: ' + JSON.stringify(getCodeTransformationRequest)
+                    'polling details: Sending request to get transform  api: ' +
+                        JSON.stringify(getCodeTransformationRequest)
                 )
                 response = await this.client.codeModernizerGetCodeTransformation(getCodeTransformationRequest)
-                this.logging.log('polling details: Received response from get transform  api: ' + JSON.stringify(response))
+                this.logging.log(
+                    'polling details: Received response from get transform  api: ' + JSON.stringify(response)
+                )
                 this.logging.log('polling details: Current job status is ' + response.transformationJob.status)
 
                 if (response.transformationJob?.status) {
@@ -335,7 +340,9 @@ export class TransformHandler {
                 getTransformAttempt = 0 // a successful polling will reset attempt
             } catch (e: any) {
                 const errorMessage = (e as Error).message ?? 'Error in GetTransformation API call'
-                this.logging.log('polling details : Error in polling transformation job from the server: ' + errorMessage)
+                this.logging.log(
+                    'polling details : Error in polling transformation job from the server: ' + errorMessage
+                )
 
                 getTransformAttempt += 1
                 if (getTransformAttempt >= getTransformMaxAttempts) {
