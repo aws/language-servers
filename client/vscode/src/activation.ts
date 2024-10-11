@@ -100,6 +100,22 @@ export async function activateDocumentsLanguageServer(extensionContext: Extensio
             // partiql is illustrative of query-handling language servers
             { scheme: 'file', language: 'partiql' },
             { scheme: 'untitled', language: 'partiql' },
+            { scheme: 'file', language: 'go' },
+            { scheme: 'untitled', language: 'go' },
+            { scheme: 'file', language: 'php' },
+            { scheme: 'untitled', language: 'php' },
+            { scheme: 'file', language: 'rust' },
+            { scheme: 'untitled', language: 'rust' },
+            { scheme: 'file', language: 'kotlin' },
+            { scheme: 'untitled', language: 'kotlin' },
+            { scheme: 'file', language: 'terraform' },
+            { scheme: 'untitled', language: 'terraform' },
+            { scheme: 'file', language: 'ruby' },
+            { scheme: 'untitled', language: 'ruby' },
+            { scheme: 'file', language: 'shellscript' },
+            { scheme: 'untitled', language: 'shellscript' },
+            { scheme: 'file', language: 'scala' },
+            { scheme: 'untitled', language: 'scala' },
         ],
         initializationOptions: {
             aws: {
@@ -115,7 +131,9 @@ export async function activateDocumentsLanguageServer(extensionContext: Extensio
             },
         },
         synchronize: {
-            fileEvents: workspace.createFileSystemWatcher('**/*.{json,java,yml,yaml,ts,pql}'),
+            fileEvents: workspace.createFileSystemWatcher(
+                '**/*.{json,java,yml,yaml,ts,pql,go,php,rs,kt,tf,hcl,rb,sh,scala}'
+            ),
         },
     }
 
