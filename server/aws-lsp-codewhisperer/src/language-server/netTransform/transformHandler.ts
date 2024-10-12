@@ -386,7 +386,8 @@ export class TransformHandler {
                     }
                 }
             }
-            const pathContainingArchive = await this.archivePathGenerator(exportId, buffer, saveToDir)
+            const saveToWorkspace = path.join(saveToDir, workspaceFolderName)
+            const pathContainingArchive = await this.archivePathGenerator(exportId, buffer, saveToWorkspace)
             this.logging.log('pathContainingArchive :' + pathContainingArchive)
             return {
                 PathTosave: pathContainingArchive,
