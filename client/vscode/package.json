@@ -191,6 +191,17 @@
                     "PartiQL",
                     "partiql"
                 ]
+            },
+            {
+                "id": "terraform",
+                "aliases": [
+                    "Terraform",
+                    "terraform"
+                ],
+                "extensions": [
+                    ".tf",
+                    ".hcl"
+                ]
             }
         ]
     },

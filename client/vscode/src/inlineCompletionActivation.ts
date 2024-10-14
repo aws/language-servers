@@ -19,6 +19,14 @@ export function registerInlineCompletion(languageClient: LanguageClient) {
             { scheme: 'file', language: 'json' },
             { scheme: 'file', language: 'yaml' },
             { scheme: 'file', language: 'java' },
+            { scheme: 'file', language: 'go' },
+            { scheme: 'file', language: 'php' },
+            { scheme: 'file', language: 'rust' },
+            { scheme: 'file', language: 'kotlin' },
+            { scheme: 'file', language: 'terraform' },
+            { scheme: 'file', language: 'ruby' },
+            { scheme: 'file', language: 'shellscript' },
+            { scheme: 'file', language: 'scala' },
         ],
         inlineCompletionProvider
     )
