@@ -1,7 +1,7 @@
 import { AsyncEvent } from './asyncEvent'
 import { expect } from 'chai'
 
-describe('SimpleEvent', () => {
+describe('AsyncEvent', () => {
     it('Handlers get called, but not after removal', async () => {
         const sut = new AsyncEvent<string>()
 

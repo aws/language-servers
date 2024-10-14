@@ -7,10 +7,11 @@ import {
 } from './profileService'
 import { parseKnownFiles, SharedConfigInit } from '@smithy/shared-ini-file-loader'
 import { IniSection, IniSectionType, ParsedIniData } from '@smithy/types'
-import { ProfileKind, SsoSession } from '@aws/language-server-runtimes/server-interface'
+import { AwsErrorCodes, ProfileKind, SsoSession } from '@aws/language-server-runtimes/server-interface'
 import { SectionHeader } from '../../sharedConfig/types'
 import { saveKnownFiles } from '../../sharedConfig'
 import { normalizeParsedIniData } from '../../sharedConfig/saveKnownFiles'
+import { AwsError, tryAsync } from '../../awsError'
 
 // Uses AWS SDK for JavaScript v3
 // Applies shared config files location resolution, but JVM system properties are not supported
@@ -30,7 +31,12 @@ export class SharedConfigProfileStore implements ProfileStore {
             ssoSessions: [],
         }
 
-        const parsedIni = normalizeParsedIniData(await parseKnownFiles(this.getSharedConfigInit(init)))
+        const parsedIni = normalizeParsedIniData(
+            await tryAsync(
+                () => parseKnownFiles(this.getSharedConfigInit(init)),
+                error => AwsError.wrap(error, AwsErrorCodes.E_CANNOT_READ_SHARED_CONFIG)
+            )
+        )
 
         for (const [parsedSectionName, settings] of Object.entries(parsedIni)) {
             const sectionHeader = SectionHeader.fromParsedSectionName(parsedSectionName)
@@ -92,7 +98,12 @@ export class SharedConfigProfileStore implements ProfileStore {
         }
 
         init = this.getSharedConfigInit(init)
-        const parsedKnownFiles = normalizeParsedIniData(await parseKnownFiles(init))
+        const parsedKnownFiles = normalizeParsedIniData(
+            await tryAsync(
+                () => parseKnownFiles(this.getSharedConfigInit(init)),
+                error => AwsError.wrap(error, AwsErrorCodes.E_CANNOT_READ_SHARED_CONFIG)
+            )
+        )
 
         if (data.profiles) {
             this.applySectionsToParsedIni(
@@ -114,18 +125,30 @@ export class SharedConfigProfileStore implements ProfileStore {
             )
         }
 
-        await saveKnownFiles(parsedKnownFiles, init)
+        await tryAsync(
+            () => saveKnownFiles(parsedKnownFiles, init),
+            error => AwsError.wrap(error, AwsErrorCodes.E_CANNOT_WRITE_SHARED_CONFIG)
+        )
     }
 
     private applySectionsToParsedIni<T extends Section>(
-        sectionType: IniSectionType,
+        sectionType: IniSectionType.PROFILE | IniSectionType.SSO_SESSION, // SERVICES not currently supported
         sections: T[],
         parsedKnownFiles: ParsedIniData,
         validator: (section: T, parsedSection: IniSection) => boolean
     ): void {
+        const throwAwsError = (message: string) => {
+            throw new AwsError(
+                message,
+                sectionType === IniSectionType.PROFILE
+                    ? AwsErrorCodes.E_INVALID_PROFILE
+                    : AwsErrorCodes.E_INVALID_SSO_SESSION
+            )
+        }
+
         for (const section of sections) {
             if (!section?.name) {
-                throw new Error('Section name is required.')
+                throwAwsError('Section name is required.')
             }
 
             const parsedSectionName = new SectionHeader(section.name, sectionType).toParsedSectionName()
@@ -142,7 +165,7 @@ export class SharedConfigProfileStore implements ProfileStore {
 
             // Settings must be an object
             if (section.settings !== Object(section.settings)) {
-                throw new Error(`Section [${section.name}] contains invalid settings value.`)
+                throwAwsError(`Section [${section.name}] contains invalid settings value.`)
             }
 
             const parsedSection = (parsedKnownFiles[parsedSectionName] ||= {})
@@ -155,7 +178,7 @@ export class SharedConfigProfileStore implements ProfileStore {
 
                 // If and when needed in the future, handle object types for subsections (e.g. api_versions)
                 if (value === Object(value)) {
-                    throw new Error(`Setting [${name}] in section [${section.name}] cannot be an object.`)
+                    throwAwsError(`Setting [${name}] in section [${section.name}] cannot be an object.`)
                 }
 
                 // If setting passed with null or undefined then remove setting
@@ -166,7 +189,7 @@ export class SharedConfigProfileStore implements ProfileStore {
                     Object.hasOwn(parsedSection, name) && delete parsedSection[name]
                 } else {
                     if (controlCharsRegex.test(value)) {
-                        throw new Error(
+                        throwAwsError(
                             `Setting [${name}] in section [${section.name}] cannot contain control characters.`
                         )
                     }
@@ -176,7 +199,7 @@ export class SharedConfigProfileStore implements ProfileStore {
             }
 
             if (!validator(section, parsedSection)) {
-                throw new Error(`Section [${parsedSectionName}] is invalid.`)
+                throwAwsError(`Section [${parsedSectionName}] is invalid.`)
             }
         }
     }
