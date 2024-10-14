@@ -62,9 +62,8 @@ export class Messager {
     constructor(private readonly chatApi: OutboundChatApi) {}
 
     onTabAdd = (tabId: string, triggerType?: TriggerType): void => {
-        this.chatApi.telemetry({ triggerType: triggerType ?? 'click', tabId, name: TAB_ADD_TELEMETRY_EVENT })
-
         this.chatApi.tabAdded({ tabId })
+        this.chatApi.telemetry({ triggerType: triggerType ?? 'click', tabId, name: TAB_ADD_TELEMETRY_EVENT })
     }
 
     onTabChange = (tabId: string): void => {
@@ -88,14 +87,14 @@ export class Messager {
     }
 
     onChatPrompt = (params: ChatParams, triggerType?: string): void => {
+        this.chatApi.sendChatPrompt(params)
+
         // Let the server know about the latest trigger interaction on the tabId
         this.chatApi.telemetry({
             triggerType: triggerType ?? 'click',
             tabId: params.tabId,
             name: ADD_MESSAGE_TELEMETRY_EVENT,
         })
-
-        this.chatApi.sendChatPrompt(params)
     }
 
     onQuickActionCommand = (params: QuickActionParams): void => {
@@ -129,18 +128,18 @@ export class Messager {
     }
 
     onLinkClick = (params: LinkClickParams): void => {
-        this.chatApi.telemetry({ ...params, name: LINK_CLICK_TELEMETRY_EVENT })
         this.chatApi.linkClick(params)
+        this.chatApi.telemetry({ ...params, name: LINK_CLICK_TELEMETRY_EVENT })
     }
 
     onSourceLinkClick = (params: SourceLinkClickParams): void => {
-        this.chatApi.telemetry({ ...params, name: SOURCE_LINK_CLICK_TELEMETRY_EVENT })
         this.chatApi.sourceLinkClick(params)
+        this.chatApi.telemetry({ ...params, name: SOURCE_LINK_CLICK_TELEMETRY_EVENT })
     }
 
     onInfoLinkClick = (params: InfoLinkClickParams): void => {
-        this.chatApi.telemetry({ ...params, name: INFO_LINK_CLICK_TELEMETRY_EVENT })
         this.chatApi.infoLinkClick(params)
+        this.chatApi.telemetry({ ...params, name: INFO_LINK_CLICK_TELEMETRY_EVENT })
     }
 
     onError = (params: ErrorParams): void => {
