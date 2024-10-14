@@ -3,6 +3,7 @@ import {
     INSERT_TO_CURSOR_POSITION,
     AUTH_FOLLOW_UP_CLICKED,
     CHAT_OPTIONS,
+    COPY_TO_CLIPBOARD,
 } from '@aws/chat-client-ui-types'
 import {
     ChatResult,
@@ -47,18 +48,21 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri, 
     })
 
     languageClient.onTelemetry(e => {
-        languageClient.info(`vscode client: Received telemetry event from server ${JSON.stringify(e)}`)
+        languageClient.info(`[VSCode Client] Received telemetry event from server ${JSON.stringify(e)}`)
     })
 
     panel.webview.onDidReceiveMessage(async message => {
-        languageClient.info(`vscode client: Received ${JSON.stringify(message)} from chat`)
+        languageClient.info(`[VSCode Client]  Received ${JSON.stringify(message)} from chat`)
 
         switch (message.command) {
+            case COPY_TO_CLIPBOARD:
+                languageClient.info('[VSCode Client] Copy to clipboard event received')
+                break
             case INSERT_TO_CURSOR_POSITION:
                 insertTextAtCursorPosition(message.params.code)
                 break
             case AUTH_FOLLOW_UP_CLICKED:
-                languageClient.info('AuthFollowUp clicked')
+                languageClient.info('[VSCode Client] AuthFollowUp clicked')
                 break
             case chatRequestType.method:
                 const partialResultToken = uuidv4()
