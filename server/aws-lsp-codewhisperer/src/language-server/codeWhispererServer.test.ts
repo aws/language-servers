@@ -557,6 +557,7 @@ describe('CodeWhisperer Server', () => {
         beforeEach(() => {
             // Set up the server with a mock service, returning predefined recommendations
             service = stubInterface<CodeWhispererServiceBase>()
+            service.customizationArn = undefined
             service.generateSuggestions.returns(
                 Promise.resolve({
                     suggestions: EXPECTED_SUGGESTION_LIST,

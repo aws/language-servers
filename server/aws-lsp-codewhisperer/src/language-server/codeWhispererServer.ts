@@ -398,6 +398,7 @@ export const CodewhispererServerFactory =
                     classifierThreshold: autoTriggerResult?.classifierThreshold,
                     credentialStartUrl: credentialsProvider.getConnectionMetadata?.()?.sso?.startUrl ?? undefined,
                     supplementalMetadata: supplementalContext,
+                    customizationArn: undefinedIfEmpty(codeWhispererService.customizationArn),
                 })
 
                 codePercentageTracker.countInvocation(inferredLanguageId)
@@ -553,11 +554,10 @@ export const CodewhispererServerFactory =
             try {
                 const qConfig = await lsp.workspace.getConfiguration(Q_CONFIGURATION_SECTION)
                 if (qConfig) {
-                    const customizationValue = undefinedIfEmpty(qConfig.customization)
-                    codeWhispererService.customizationArn = customizationValue
-                    sessionManager.getCurrentSession()?.setCustomizationArn(customizationValue)
-
-                    logging.log(`Inline completion configuration updated to use ${customizationValue}`)
+                    codeWhispererService.customizationArn = undefinedIfEmpty(qConfig.customization)
+                    logging.log(
+                        `Inline completion configuration updated to use ${codeWhispererService.customizationArn}`
+                    )
                 }
 
                 const config = await lsp.workspace.getConfiguration('aws.codeWhisperer')

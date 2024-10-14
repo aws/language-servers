@@ -222,10 +222,6 @@ export class CodeWhispererSession {
         }
         return isEmpty ? 'Empty' : 'Discard'
     }
-
-    setCustomizationArn(value: string | undefined) {
-        this.customizationArn = value
-    }
 }
 
 export class SessionManager {
