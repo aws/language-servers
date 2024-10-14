@@ -54,6 +54,8 @@ export const IdentityServer = IdentityServerFactory(identityService, profileServ
 // call and emit an AwsResponseError in all failure cases.  If a better awsErrorCode than E_UNKNOWN can be
 // assumed at the call site, it can be provided as an arg, otherwise E_UNKNOWN as default is fine.
 // Following the error pattern, the inner most error message and awsErrorCode should be returned.
+// NOTE In the future it may make sense to refactor this code as a static method of AwsResponseError in
+// language-server-runtimes
 function awsResponseErrorWrap(error: Error, awsErrorCode: string = AwsErrorCodes.E_UNKNOWN): AwsResponseError {
     return new AwsResponseError(error?.message ?? 'Unknown error', {
         awsErrorCode: error instanceof AwsError ? error.awsErrorCode : awsErrorCode,

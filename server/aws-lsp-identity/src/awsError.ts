@@ -1,3 +1,7 @@
+// NOTE: This and other code in the aws-lsp-identity may make sense to move to a more common location
+// in language-servers in the future.  They are retained here for expediency in the project for which
+// they are being added and to incubate if needed.
+
 // This class should be used when throwing errors in most of the codebase.  Only the server class should
 // work directly with the LSP-specific AwsResponseError class.  This allows passing an awsErrorCode along
 // with the error to be reported back to the client via AwsResponseError.

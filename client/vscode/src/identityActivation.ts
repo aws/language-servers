@@ -21,6 +21,12 @@ function ssoTokenChangedHandler(params: SsoTokenChangedParams): void {
     window.showInformationMessage(`SsoTokenChanged raised: ${JSON.stringify(params)}`)
 }
 
+// The code here is for experimental purposes only.  Feel free to erase and replace
+// what is here with whatever you're experimenting with.  If it is helpful to commit
+// the code as a sample for future implementors to experiment as well, that is fine.
+// If you want to keep a sample function call (or whatever the experiment is) long-term,
+// you can add it as an additional function outside of this code so it can be maintained.
+// Consider the code in this function a scratchpad, do not put anything you want to keep here.
 // Put whatever calls to the aws-lsp-identity server you want to experiment with/debug here
 async function execTestCommand(client: LanguageClient): Promise<void> {
     try {

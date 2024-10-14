@@ -30,6 +30,22 @@ describe('AwsError', () => {
         expect(actual).to.have.a.property('message').that.equals('I am me')
         expect(actual).and.a.property('awsErrorCode').that.equals('any string works')
     })
+
+    it('Passed in cause is retained', () => {
+        const cause = new Error('I am the cause')
+        const ctorActual = new AwsError('I am the AwsError', AwsErrorCodes.E_UNKNOWN, { cause })
+        const wrapActual = AwsError.wrap(cause, AwsErrorCodes.E_INVALID_TOKEN)
+
+        expect(ctorActual).to.be.instanceof(AwsError)
+
+        expect(ctorActual.message).to.equal('I am the AwsError')
+        expect(ctorActual.cause).to.equal(cause)
+        expect((ctorActual.cause as Error).message).to.equal('I am the cause')
+
+        expect(wrapActual.message).to.equal('I am the cause')
+        expect(wrapActual.cause).to.equal(cause)
+        expect((wrapActual.cause as Error).message).to.equal('I am the cause')
+    })
 })
 
 describe('tryAsync', () => {
