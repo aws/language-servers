@@ -59,26 +59,26 @@ describe('Chat', () => {
     })
 
     it('publishes ready event and initial tab add event, when initialized', () => {
-        sinon.assert.callCount(clientApi.postMessage, 4)
+        assert.callCount(clientApi.postMessage, 4)
 
-        sinon.assert.calledWithExactly(clientApi.postMessage.firstCall, {
+        assert.calledWithExactly(clientApi.postMessage.firstCall, {
             command: TELEMETRY,
             params: { name: 'enterFocus' },
         })
-        sinon.assert.calledWithExactly(clientApi.postMessage.secondCall, { command: READY_NOTIFICATION_METHOD })
+        assert.calledWithExactly(clientApi.postMessage.secondCall, { command: READY_NOTIFICATION_METHOD })
 
         assert.calledWithExactly(clientApi.postMessage.thirdCall, {
+            command: TAB_ADD_NOTIFICATION_METHOD,
+            params: { tabId: initialTabId },
+        })
+
+        assert.calledWithExactly(clientApi.postMessage.lastCall, {
             command: TELEMETRY,
             params: {
                 triggerType: 'click',
                 name: TAB_ADD_TELEMETRY_EVENT,
                 tabId: initialTabId,
             },
-        })
-
-        sinon.assert.calledWithExactly(clientApi.postMessage.lastCall, {
-            command: TAB_ADD_NOTIFICATION_METHOD,
-            params: { tabId: initialTabId },
         })
     })
 
