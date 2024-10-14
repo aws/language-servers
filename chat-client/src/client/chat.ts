@@ -4,6 +4,8 @@ import {
     AuthFollowUpClickedParams,
     CHAT_OPTIONS,
     ChatOptionsMessage,
+    COPY_TO_CLIPBOARD,
+    CopyCodeToClipboardParams,
     ERROR_MESSAGE,
     ErrorMessage,
     GENERIC_COMMAND,
@@ -82,7 +84,7 @@ export const createChat = (
             case ERROR_MESSAGE:
                 mynahApi.showError((message as ErrorMessage).params)
                 break
-            case CHAT_OPTIONS:
+            case CHAT_OPTIONS: {
                 const params = (message as ChatOptionsMessage).params
                 const chatConfig: ChatClientConfig = params?.quickActions?.quickActionsCommandGroups
                     ? { quickActionCommands: params.quickActions.quickActionsCommandGroups }
@@ -94,6 +96,8 @@ export const createChat = (
                 for (const tabId in allExistingTabs) {
                     mynahUi.updateStore(tabId, chatConfig)
                 }
+                break
+            }
             default:
                 // TODO: Report error?
                 break
@@ -121,6 +125,9 @@ export const createChat = (
         },
         insertToCursorPosition: (params: InsertToCursorPositionParams) => {
             sendMessageToClient({ command: INSERT_TO_CURSOR_POSITION, params })
+        },
+        copyToClipboard: (params: CopyCodeToClipboardParams) => {
+            sendMessageToClient({ command: COPY_TO_CLIPBOARD, params })
         },
         authFollowUpClicked: (params: AuthFollowUpClickedParams) => {
             sendMessageToClient({ command: AUTH_FOLLOW_UP_CLICKED, params })

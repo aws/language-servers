@@ -5,6 +5,7 @@
 
 import {
     AuthFollowUpClickedParams,
+    CopyCodeToClipboardParams,
     ErrorParams,
     InsertToCursorPositionParams,
     SendToPromptParams,
@@ -27,7 +28,6 @@ import {
     ADD_MESSAGE_TELEMETRY_EVENT,
     AUTH_FOLLOW_UP_CLICKED_TELEMETRY_EVENT,
     COPY_TO_CLIPBOARD_TELEMETRY_EVENT,
-    CopyCodeToClipboardParams,
     ENTER_FOCUS,
     ERROR_MESSAGE_TELEMETRY_EVENT,
     EXIT_FOCUS,
@@ -49,6 +49,7 @@ export interface OutboundChatApi {
     tabRemoved(params: TabRemoveParams): void
     telemetry(params: TelemetryParams): void
     insertToCursorPosition(params: InsertToCursorPositionParams): void
+    copyToClipboard(params: CopyCodeToClipboardParams): void
     authFollowUpClicked(params: AuthFollowUpClickedParams): void
     followUpClicked(params: FollowUpClickParams): void
     sendFeedback(params: FeedbackParams): void
@@ -116,6 +117,7 @@ export class Messager {
     }
 
     onCopyCodeToClipboard = (params: CopyCodeToClipboardParams): void => {
+        this.chatApi.copyToClipboard(params)
         this.chatApi.telemetry({ ...params, name: COPY_TO_CLIPBOARD_TELEMETRY_EVENT })
     }
 
