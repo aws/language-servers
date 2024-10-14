@@ -9,6 +9,7 @@ export interface AcceptedSuggestionEntry {
     originalString: string
     startPosition: Position
     endPosition: Position
+    customizationArn?: string
 }
 
 export interface CodeDiffTrackerOptions {

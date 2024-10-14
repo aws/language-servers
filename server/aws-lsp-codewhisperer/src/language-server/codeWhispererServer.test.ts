@@ -557,6 +557,7 @@ describe('CodeWhisperer Server', () => {
         beforeEach(() => {
             // Set up the server with a mock service, returning predefined recommendations
             service = stubInterface<CodeWhispererServiceBase>()
+            service.customizationArn = undefined
             service.generateSuggestions.returns(
                 Promise.resolve({
                     suggestions: EXPECTED_SUGGESTION_LIST,
@@ -1168,6 +1169,7 @@ describe('CodeWhisperer Server', () => {
                     codewhispererSupplementalContextIsUtg: undefined,
                     codewhispererSupplementalContextLatency: undefined,
                     codewhispererSupplementalContextLength: undefined,
+                    codewhispererCustomizationArn: undefined,
                 },
             }
             sinon.assert.calledOnceWithExactly(features.telemetry.emitMetric, expectedServiceInvocationMetric)
@@ -1215,6 +1217,7 @@ describe('CodeWhisperer Server', () => {
                     codewhispererSupplementalContextIsUtg: undefined,
                     codewhispererSupplementalContextLatency: undefined,
                     codewhispererSupplementalContextLength: undefined,
+                    codewhispererCustomizationArn: undefined,
                 },
             }
             sinon.assert.calledOnceWithExactly(features.telemetry.emitMetric, expectedServiceInvocationMetric)
@@ -1253,6 +1256,7 @@ describe('CodeWhisperer Server', () => {
                     codewhispererSupplementalContextIsUtg: undefined,
                     codewhispererSupplementalContextLatency: undefined,
                     codewhispererSupplementalContextLength: undefined,
+                    codewhispererCustomizationArn: undefined,
                 },
                 errorData: {
                     reason: 'TestError',
@@ -1294,6 +1298,7 @@ describe('CodeWhisperer Server', () => {
                     codewhispererSupplementalContextIsUtg: undefined,
                     codewhispererSupplementalContextLatency: undefined,
                     codewhispererSupplementalContextLength: undefined,
+                    codewhispererCustomizationArn: undefined,
                 },
                 errorData: {
                     reason: 'UnknownError',
@@ -1347,6 +1352,7 @@ describe('CodeWhisperer Server', () => {
                     codewhispererSupplementalContextIsUtg: undefined,
                     codewhispererSupplementalContextLatency: undefined,
                     codewhispererSupplementalContextLength: undefined,
+                    codewhispererCustomizationArn: undefined,
                 },
                 errorData: {
                     reason: 'TestAWSError',

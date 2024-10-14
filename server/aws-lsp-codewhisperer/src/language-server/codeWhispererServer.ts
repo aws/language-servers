@@ -91,6 +91,7 @@ const emitServiceInvocationTelemetry = (telemetry: Telemetry, session: CodeWhisp
         codewhispererSupplementalContextIsUtg: session.supplementalMetadata?.isUtg,
         codewhispererSupplementalContextLatency: session.supplementalMetadata?.latency,
         codewhispererSupplementalContextLength: session.supplementalMetadata?.contentsLength,
+        codewhispererCustomizationArn: session.customizationArn,
     }
     telemetry.emitMetric({
         name: 'codewhisperer_serviceInvocation',
@@ -119,6 +120,7 @@ const emitServiceInvocationFailure = (telemetry: Telemetry, session: CodeWhisper
         codewhispererSupplementalContextIsUtg: session.supplementalMetadata?.isUtg,
         codewhispererSupplementalContextLatency: session.supplementalMetadata?.latency,
         codewhispererSupplementalContextLength: session.supplementalMetadata?.contentsLength,
+        codewhispererCustomizationArn: session.customizationArn,
     }
 
     telemetry.emitMetric({
@@ -206,6 +208,7 @@ const emitAggregatedUserTriggerDecisionTelemetry = (
         codewhispererSupplementalContextTimeout: session.supplementalMetadata?.isProcessTimeout,
         codewhispererSupplementalContextIsUtg: session.supplementalMetadata?.isUtg,
         codewhispererSupplementalContextLength: session.supplementalMetadata?.contentsLength,
+        codewhispererCustomizationArn: session.customizationArn,
     }
 
     telemetry.emitMetric({
@@ -395,6 +398,7 @@ export const CodewhispererServerFactory =
                     classifierThreshold: autoTriggerResult?.classifierThreshold,
                     credentialStartUrl: credentialsProvider.getConnectionMetadata?.()?.sso?.startUrl ?? undefined,
                     supplementalMetadata: supplementalContext,
+                    customizationArn: undefinedIfEmpty(codeWhispererService.customizationArn),
                 })
 
                 codePercentageTracker.countInvocation(inferredLanguageId)
