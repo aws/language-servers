@@ -4,6 +4,7 @@
  */
 import {
     AuthFollowUpClickedParams,
+    CopyCodeToClipboardParams,
     ErrorParams,
     GenericCommandParams,
     InsertToCursorPositionParams,
@@ -20,7 +21,7 @@ import {
     SourceLinkClickParams,
 } from '@aws/language-server-runtimes-types'
 import { ChatItem, ChatItemType, ChatPrompt, MynahUI, MynahUIDataModel, NotificationType } from '@aws/mynah-ui'
-import { CopyCodeToClipboardParams, VoteParams } from '../contracts/telemetry'
+import { VoteParams } from '../contracts/telemetry'
 import { Messager } from './messager'
 import { TabFactory } from './tabs/tabFactory'
 

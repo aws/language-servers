@@ -29,6 +29,7 @@ describe('MynahUI', () => {
             tabRemoved: sinon.stub(),
             telemetry: sinon.stub(),
             insertToCursorPosition: sinon.stub(),
+            copyToClipboard: sinon.stub(),
             authFollowUpClicked: sinon.stub(),
             followUpClicked: sinon.stub(),
             sendFeedback: sinon.stub(),
