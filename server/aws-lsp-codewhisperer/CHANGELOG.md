@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.0.16] - 2024-10-15
+
+### Added
+- Amazon Q Inline Code Completions: The server now supports all languages supported by Q, including `go`, `php`, `rust`, `kotlin`, `terraform`, `ruby`, `shell`, `scala`
+
+### Changed
+- Amazon Q Inline Code Completions and Q Chat:  Extend Chat and Completion Telemetry with Customization (#493).
+- .Net Transform: Transform result is moved to the artifact location (#495).
+
 ## [0.0.15] - 2024-10-09
 
 ### Added
