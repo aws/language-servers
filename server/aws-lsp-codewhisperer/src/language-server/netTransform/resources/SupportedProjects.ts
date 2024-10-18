@@ -4,7 +4,6 @@ export const supportedProjects = [
     'AspNetCoreMvcRazorPage',
     'AspNetMvc',
     'AspNetWebApi',
-    'AspNetWebForms',
     'CoreWCFService',
     'CoreWCFServiceConfig',
     'WCFClient',
