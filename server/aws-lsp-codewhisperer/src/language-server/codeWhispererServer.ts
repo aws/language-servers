@@ -312,6 +312,19 @@ export const CodewhispererServerFactory =
             params: InlineCompletionWithReferencesParams,
             token: CancellationToken
         ): Promise<InlineCompletionListWithReferences> => {
+            let startTime = Date.now()
+            let prevTime = startTime
+            // Random string of length 4
+            let requestId = Math.random().toString(36).substring(2, 6)
+            logging.log(`[DebugInlineCompletion][${requestId}] Start InlineCompletion request at ${startTime}`)
+
+            const instrumentLog = (message: string) => {
+                logging.log(
+                    `[DebugInlineCompletion][${requestId}] time took: +${Date.now() - prevTime}ms, total time: ${Date.now() - startTime}ms, message: ${message}`
+                )
+                prevTime = Date.now()
+            }
+
             // On every new completion request close current inflight session.
             const currentSession = sessionManager.getCurrentSession()
             if (currentSession && currentSession.state == 'REQUESTING') {
@@ -321,6 +334,8 @@ export const CodewhispererServerFactory =
             }
 
             return workspace.getTextDocument(params.textDocument.uri).then(async textDocument => {
+                instrumentLog(`Read ${params.textDocument.uri} content`)
+
                 if (!textDocument) {
                     logging.log(`textDocument [${params.textDocument.uri}] not found`)
                     return EMPTY_RESULT
@@ -340,6 +355,8 @@ export const CodewhispererServerFactory =
                 const selectionRange = params.context.selectedCompletionInfo?.range
                 const fileContext = getFileContext({ textDocument, inferredLanguageId, position: params.position })
 
+                instrumentLog('Got file context ' + JSON.stringify(fileContext))
+
                 // TODO: Can we get this derived from a keyboard event in the future?
                 // This picks the last non-whitespace character, if any, before the cursor
                 const triggerCharacter = fileContext.leftFileContent.trim().at(-1) ?? ''
@@ -355,6 +372,8 @@ export const CodewhispererServerFactory =
                     triggerType: codewhispererAutoTriggerType, // The 2 trigger types currently influencing the Auto-Trigger are SpecialCharacter and Enter
                 })
 
+                instrumentLog('Autotrigger result: ' + JSON.stringify(autoTriggerResult))
+
                 if (
                     isAutomaticLspTriggerKind &&
                     codewhispererAutoTriggerType === 'Classifier' &&
@@ -369,6 +388,7 @@ export const CodewhispererServerFactory =
                     logging,
                     token
                 )
+                instrumentLog('Collected supplemental context: ' + JSON.stringify(supplementalContext))
 
                 const requestContext: GenerateSuggestionsRequest = {
                     fileContext,
@@ -403,6 +423,8 @@ export const CodewhispererServerFactory =
 
                 codePercentageTracker.countInvocation(inferredLanguageId)
 
+                instrumentLog('Created new completion session. Calling codeWhispererService.generateSuggestions')
+
                 return codeWhispererService
                     .generateSuggestions({
                         ...requestContext,
@@ -417,6 +439,8 @@ export const CodewhispererServerFactory =
                         },
                     })
                     .then(suggestionResponse => {
+                        instrumentLog('Received inline suggestions ' + JSON.stringify(suggestionResponse))
+
                         // Populate the session with information from codewhisperer response
                         newSession.suggestions = suggestionResponse.suggestions
                         newSession.responseContext = suggestionResponse.responseContext
@@ -488,10 +512,13 @@ export const CodewhispererServerFactory =
                             return EMPTY_RESULT
                         }
 
+                        instrumentLog('Return InlineCompletion response to client')
+
                         return { items: suggestionsWithRightContext, sessionId: newSession.id }
                     })
                     .catch(err => {
                         // TODO, handle errors properly
+                        instrumentLog('Recommendation failure')
                         logging.log('Recommendation failure: ' + err)
                         emitServiceInvocationFailure(telemetry, newSession, err)
 
