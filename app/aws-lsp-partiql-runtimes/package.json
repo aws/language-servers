@@ -5,8 +5,8 @@
     "main": "out/index.js",
     "scripts": {
         "clean": "rm -rf out/ bin/ tsconfig.tsbuildinfo",
-        "compile": "tsc --build && npm run rspack",
-        "package": "npm run rspack",
+        "compile": "tsc --build && npm run package",
+        "package": "tsc --build && npm run rspack",
         "rspack": "rspack"
     },
     "dependencies": {
