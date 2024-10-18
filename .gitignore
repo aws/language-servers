@@ -19,7 +19,6 @@ server/aws-lsp-codewhisperer/src.gen/@amzn/codewhisperer-streaming/dist*
 **/.vscode-test
 !/bin
 *.tsbuildinfo
-app/aws-lsp-partiql-*
 
 # Mynah
 !mynah-ui/dist
