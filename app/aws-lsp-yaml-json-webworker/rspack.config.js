@@ -1,5 +1,5 @@
 var path = require('path')
-var webpack = require('webpack')
+const rspack = require('@rspack/core')
 
 const isDevelopment = true
 
@@ -21,10 +21,10 @@ const baseConfig = {
         },
     },
     plugins: [
-        new webpack.ProvidePlugin({
+        new rspack.ProvidePlugin({
             process: require.resolve('process/browser'),
         }),
-        new webpack.EnvironmentPlugin({
+        new rspack.EnvironmentPlugin({
             NODE_DEBUG: 'development',
             READABLE_STREAM: 'disable',
         }),
