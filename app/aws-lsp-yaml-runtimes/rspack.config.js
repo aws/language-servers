@@ -1,5 +1,4 @@
 var path = require('path')
-var webpack = require('webpack')
 
 const baseConfig = {
     mode: 'development',
@@ -21,6 +20,10 @@ const baseConfig = {
                 use: 'ts-loader',
                 exclude: /node_modules/,
             },
+            {
+                test: /node_modules[\\|/](vscode-json-languageservice)/,
+                use: { loader: 'umd-compat-loader' },
+            },
         ],
     },
 }
@@ -28,26 +31,10 @@ const baseConfig = {
 const nodeConfig = {
     ...baseConfig,
     entry: {
-        'hello-world-lsp-standalone': path.join(__dirname, 'src/standalone.ts'),
+        'aws-lsp-yaml-standalone-with-customization': path.join(__dirname, 'src/serverWithCustomization.ts'),
+        'aws-lsp-yaml-standalone': path.join(__dirname, 'src/serverWithoutCustomization.ts'),
     },
     target: 'node',
 }
 
-const webConfig = {
-    ...baseConfig,
-    entry: {
-        'hello-world-lsp-webworker': path.join(__dirname, 'src/webworker.ts'),
-    },
-    target: 'web',
-    plugins: [
-        new webpack.ProvidePlugin({
-            process: require.resolve('process/browser'),
-        }),
-        new webpack.EnvironmentPlugin({
-            NODE_DEBUG: 'development',
-            READABLE_STREAM: 'disable',
-        }),
-    ],
-}
-
-module.exports = [nodeConfig, webConfig]
+module.exports = [nodeConfig]

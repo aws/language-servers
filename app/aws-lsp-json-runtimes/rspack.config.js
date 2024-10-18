@@ -11,25 +11,26 @@ const baseConfig = {
         },
     },
     resolve: {
-        extensions: ['.ts', '.js'],
+        extensions: ['.ts', '.tsx', '.js'],
     },
     module: {
         rules: [
             {
                 test: /\.tsx?$/,
                 use: 'ts-loader',
-                exclude: [/node_modules/],
+                exclude: /node_modules/,
             },
         ],
     },
 }
 
-const nodeJsBundleConfig = {
+const nodeConfig = {
     ...baseConfig,
     entry: {
-        'aws-lsp-partiql-binary': path.join(__dirname, 'src/index.ts'),
+        'aws-lsp-json-standalone-with-customization': path.join(__dirname, 'src/serverWithCustomization.ts'),
+        'aws-lsp-json-standalone': path.join(__dirname, 'src/serverWithoutCustomization.ts'),
     },
     target: 'node',
 }
 
-module.exports = [nodeJsBundleConfig]
+module.exports = [nodeConfig]

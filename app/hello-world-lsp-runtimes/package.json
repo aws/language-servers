@@ -4,20 +4,22 @@
     "description": "Hello World Language Server Runtimes",
     "main": "out/standalone.js",
     "scripts": {
-        "package": "npm run compile && npm run webpack",
+        "package": "npm run compile && npm run rspack",
         "compile": "tsc --build",
         "clean": "rm -rf out/ bin/ tsconfig.tsbuildinfo",
         "lint": "npm run lint:bundle:webworker",
-        "lint:bundle:webworker": "webpack && eslint out/hello-world-lsp-webworker.js",
+        "lint:bundle:webworker": "rspack && eslint out/hello-world-lsp-webworker.js",
         "test": "npm run test-integ",
         "test-integ": "npm run package && mocha --timeout 5000 './out/**/*Integ.test.js'",
-        "webpack": "webpack"
+        "rspack": "rspack"
     },
     "dependencies": {
         "@aws/hello-world-lsp": "^0.0.1",
         "@aws/language-server-runtimes": "^0.2.20"
     },
     "devDependencies": {
+        "@rspack/cli": "^1.0.13",
+        "@rspack/core": "^1.0.13",
         "@types/chai": "^4.3.5",
         "@types/chai-as-promised": "^7.1.5",
         "@types/mocha": "^10.0.1",
@@ -25,8 +27,6 @@
         "chai-as-promised": "^7.1.1",
         "mocha": "^10.7.3",
         "ts-loader": "^9.4.4",
-        "ts-lsp-client": "^1.0.3",
-        "webpack": "^5.94.0",
-        "webpack-cli": "^5.1.4"
+        "ts-lsp-client": "^1.0.3"
     }
 }
