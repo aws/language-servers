@@ -365,7 +365,14 @@
         "cpp": -0.1734,
         "json": 0,
         "yaml": -0.3,
-        "tf": -0.55
+        "tf": -0.55,
+        "systemverilog": -0.43,
+        "dart": -0.43,
+        "lua": -0.43,
+        "swift": -0.43,
+        "vue": -0.43,
+        "powershell": -0.43,
+        "r": -0.43
     },
 
     "triggerTypeCoefficient": {
