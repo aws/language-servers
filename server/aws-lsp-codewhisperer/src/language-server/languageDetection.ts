@@ -23,6 +23,12 @@ export type CodewhispererLanguage =
     | 'typescript'
     | 'vue'
     | 'yaml'
+    | 'systemverilog'
+    | 'dart'
+    | 'lua'
+    | 'swift'
+    | 'powershell'
+    | 'r'
 
 // This will be extended as more language features
 // are integrated into the language server and clients.
@@ -107,6 +113,13 @@ export const qLanguageIdByDocumentLanguageId: { [key: string]: CodewhispererLang
     typescriptreact: 'tsx',
     vue: 'vue',
     yaml: 'yaml',
+    yml: 'yaml',
+    systemverilog: 'systemverilog',
+    dart: 'dart',
+    lua: 'lua',
+    swift: 'swift',
+    powershell: 'powershell',
+    r: 'r',
 }
 
 export const getSupportedLanguageId = (
