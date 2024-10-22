@@ -35,6 +35,7 @@ import { QChatTriggerContext, TriggerContext } from './contexts/triggerContext'
 import { HELP_MESSAGE } from './constants'
 import { Q_CONFIGURATION_SECTION } from '../configuration/qConfigurationServer'
 import { undefinedIfEmpty } from '../utilities/textUtils'
+import { TelemetryService } from '../telemetryService'
 
 type ChatHandlers = LspHandlers<Chat>
 
@@ -44,12 +45,18 @@ export class ChatController implements ChatHandlers {
     #telemetryController: ChatTelemetryController
     #triggerContext: QChatTriggerContext
     #customizationArn?: string
+    #telemetryService: TelemetryService
 
-    constructor(chatSessionManagementService: ChatSessionManagementService, features: Features) {
+    constructor(
+        chatSessionManagementService: ChatSessionManagementService,
+        features: Features,
+        telemetryService: TelemetryService
+    ) {
         this.#features = features
         this.#chatSessionManagementService = chatSessionManagementService
         this.#triggerContext = new QChatTriggerContext(features.workspace, features.logging)
         this.#telemetryController = new ChatTelemetryController(features)
+        this.#telemetryService = telemetryService
     }
 
     dispose() {
@@ -343,6 +350,10 @@ export class ChatController implements ChatHandlers {
             if (qConfig) {
                 this.#customizationArn = undefinedIfEmpty(qConfig.customization)
                 this.#log(`Chat configuration updated to use ${this.#customizationArn}`)
+                const enableTelemetryEventsToDestination = qConfig['enableTelemetryEventsToDestination'] == true
+                this.#telemetryService.updateEnableTelemetryEventsToDestination(enableTelemetryEventsToDestination)
+                const optOutTelemetryPreference = qConfig['optOutTelemetry'] == true ? 'OPTOUT' : 'OPTIN'
+                this.#telemetryService.updateOptOutPreference(optOutTelemetryPreference)
             }
         } catch (error) {
             this.#log(`Error in GetConfiguration: ${error}`)

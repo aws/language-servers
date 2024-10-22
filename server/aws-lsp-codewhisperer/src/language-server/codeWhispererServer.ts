@@ -36,6 +36,7 @@ import { getCompletionType, getUserAgent, isAwsError } from './utils'
 import { Q_CONFIGURATION_SECTION } from './configuration/qConfigurationServer'
 import { fetchSupplementalContext } from './utilities/supplementalContextUtil/supplementalContextUtil'
 import { undefinedIfEmpty } from './utilities/textUtils'
+import { TelemetryService } from './telemetryService'
 
 const EMPTY_RESULT = { sessionId: '', items: [] }
 export const CONTEXT_CHARACTERS_LIMIT = 10240
@@ -155,6 +156,7 @@ const emitPerceivedLatencyTelemetry = (telemetry: Telemetry, session: CodeWhispe
 
 const emitUserTriggerDecisionTelemetry = (
     telemetry: Telemetry,
+    telemetryService: TelemetryService,
     session: CodeWhispererSession,
     timeSinceLastUserModification?: number
 ) => {
@@ -168,7 +170,7 @@ const emitUserTriggerDecisionTelemetry = (
         return
     }
 
-    emitAggregatedUserTriggerDecisionTelemetry(telemetry, session, timeSinceLastUserModification)
+    emitAggregatedUserTriggerDecisionTelemetry(telemetry, telemetryService, session, timeSinceLastUserModification)
     emitUserDecisionTelemetry(telemetry, session)
 
     session.reportedUserDecision = true
@@ -176,9 +178,12 @@ const emitUserTriggerDecisionTelemetry = (
 
 const emitAggregatedUserTriggerDecisionTelemetry = (
     telemetry: Telemetry,
+    telemetryService: TelemetryService,
     session: CodeWhispererSession,
     timeSinceLastUserModification?: number
 ) => {
+    telemetryService.emitUserTriggerDecision(session)
+    // TODO: the below emitted event to the Toolkit DWH will be moved to telemetryService as well.
     const data: CodeWhispererUserTriggerDecisionEvent = {
         codewhispererSessionId: session.codewhispererSessionId || '',
         codewhispererFirstRequestId: session.responseContext?.requestId || '',
@@ -289,12 +294,14 @@ export const CodewhispererServerFactory =
 
         const sessionManager = SessionManager.getInstance()
         const codeWhispererService = service(credentialsProvider)
+        const telemetryService = new TelemetryService(credentialsProvider)
+        telemetryService.setToolkitTelemetry(telemetry)
 
         lsp.addInitializer((params: InitializeParams) => {
             codeWhispererService.updateClientConfig({
                 customUserAgent: getUserAgent(params, runtime.serverInfo),
             })
-
+            // TODO: set the user context here for TelemetryService
             return {
                 capabilities: {},
             }
@@ -385,7 +392,12 @@ export const CodewhispererServerFactory =
                 if (currentSession && currentSession.state === 'ACTIVE') {
                     // Emit user trigger decision at session close time for active session
                     sessionManager.discardSession(currentSession)
-                    emitUserTriggerDecisionTelemetry(telemetry, currentSession, timeSinceLastUserModification)
+                    emitUserTriggerDecisionTelemetry(
+                        telemetry,
+                        telemetryService,
+                        currentSession,
+                        timeSinceLastUserModification
+                    )
                 }
                 const newSession = sessionManager.createSession({
                     startPosition: params.position,
@@ -433,7 +445,12 @@ export const CodewhispererServerFactory =
                         if (newSession.state === 'CLOSED' || newSession.state === 'DISCARD') {
                             // Force Discard user decision on every received suggestion
                             newSession.suggestions.forEach(s => newSession.setSuggestionState(s.itemId, 'Discard'))
-                            emitUserTriggerDecisionTelemetry(telemetry, newSession, timeSinceLastUserModification)
+                            emitUserTriggerDecisionTelemetry(
+                                telemetry,
+                                telemetryService,
+                                newSession,
+                                timeSinceLastUserModification
+                            )
                             return EMPTY_RESULT
                         }
 
@@ -483,7 +500,12 @@ export const CodewhispererServerFactory =
                         // If after all server-side filtering no suggestions can be displayed, close session and return empty results
                         if (suggestionsWithRightContext.length === 0) {
                             sessionManager.closeSession(newSession)
-                            emitUserTriggerDecisionTelemetry(telemetry, newSession, timeSinceLastUserModification)
+                            emitUserTriggerDecisionTelemetry(
+                                telemetry,
+                                telemetryService,
+                                newSession,
+                                timeSinceLastUserModification
+                            )
 
                             return EMPTY_RESULT
                         }
@@ -547,7 +569,7 @@ export const CodewhispererServerFactory =
 
             // Always emit user trigger decision at session close
             sessionManager.closeSession(session)
-            emitUserTriggerDecisionTelemetry(telemetry, session, timeSinceLastUserModification)
+            emitUserTriggerDecisionTelemetry(telemetry, telemetryService, session, timeSinceLastUserModification)
         }
 
         const updateConfiguration = async () => {
@@ -558,6 +580,10 @@ export const CodewhispererServerFactory =
                     logging.log(
                         `Inline completion configuration updated to use ${codeWhispererService.customizationArn}`
                     )
+                    const enableTelemetryEventsToDestination = qConfig['enableTelemetryEventsToDestination'] == true
+                    telemetryService.updateEnableTelemetryEventsToDestination(enableTelemetryEventsToDestination)
+                    const optOutTelemetryPreference = qConfig['optOutTelemetry'] == true ? 'OPTOUT' : 'OPTIN'
+                    telemetryService.updateOptOutPreference(optOutTelemetryPreference)
                 }
 
                 const config = await lsp.workspace.getConfiguration('aws.codeWhisperer')

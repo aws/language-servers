@@ -3,19 +3,22 @@ import { ChatController } from './chat/chatController'
 import { ChatSessionManagementService } from './chat/chatSessionManagementService'
 import { CLEAR_QUICK_ACTION, HELP_QUICK_ACTION } from './chat/quickActions'
 import { getUserAgent } from './utils'
+import { TelemetryService } from './telemetryService'
 
 export const QChatServer =
     (service: (credentialsProvider: CredentialsProvider) => ChatSessionManagementService): Server =>
     features => {
-        const { chat, credentialsProvider, logging, lsp, runtime } = features
+        const { chat, credentialsProvider, telemetry, logging, lsp, runtime } = features
 
         const chatSessionManagementService: ChatSessionManagementService = service(credentialsProvider)
+        const telemetryService = new TelemetryService(credentialsProvider)
+        telemetryService.setToolkitTelemetry(telemetry)
 
-        const chatController = new ChatController(chatSessionManagementService, features)
+        const chatController = new ChatController(chatSessionManagementService, features, telemetryService)
 
         lsp.addInitializer((params: InitializeParams) => {
             chatSessionManagementService.setCustomUserAgent(getUserAgent(params, runtime.serverInfo))
-
+            // TODO: set the user context here for TelemetryService
             return {
                 capabilities: {},
                 awsServerCapabilities: {
