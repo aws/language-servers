@@ -366,13 +366,13 @@
         "json": 0,
         "yaml": -0.3,
         "tf": -0.55,
-        "systemverilog": -0.43,
-        "dart": -0.43,
-        "lua": -0.43,
-        "swift": -0.43,
-        "vue": -0.43,
-        "powershell": -0.43,
-        "r": -0.43
+        "systemverilog": -0.4302,
+        "dart": -0.4302,
+        "lua": -0.4302,
+        "swift": -0.4302,
+        "vue": -0.4302,
+        "powershell": -0.4302,
+        "r": -0.4302
     },
 
     "triggerTypeCoefficient": {
