@@ -27,7 +27,7 @@
         "@aws/language-server-runtimes": "^0.2.20",
         "antlr4-c3": "^3.4.1",
         "antlr4ng": "^3.0.4",
-        "web-tree-sitter": "0.22.6"
+        "web-tree-sitter": "0.24.3"
     },
     "devDependencies": {
         "@babel/plugin-transform-modules-commonjs": "^7.25.7",
