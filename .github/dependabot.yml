@@ -4,8 +4,48 @@
 version: 2
 updates:
     - package-ecosystem: 'npm'
-      directory: '/'
-      target-branch: 'main' # Avoid updates to "staging".
+      directory: '/server/aws-lsp-buildspec'
+      target-branch: 'main'
+      schedule:
+          interval: 'weekly'
+    - package-ecosystem: 'npm'
+      directory: '/server/aws-lsp-cloudformation'
+      target-branch: 'main'
+      schedule:
+          interval: 'weekly'
+    - package-ecosystem: 'npm'
+      directory: '/server/aws-lsp-codewhisperer'
+      target-branch: 'main'
+      schedule:
+          interval: 'weekly'
+    - package-ecosystem: 'npm'
+      directory: '/server/aws-lsp-identity'
+      target-branch: 'main'
+      schedule:
+          interval: 'weekly'
+    - package-ecosystem: 'npm'
+      directory: '/server/aws-lsp-json'
+      target-branch: 'main'
+      schedule:
+          interval: 'weekly'
+    - package-ecosystem: 'npm'
+      directory: '/server/aws-lsp-partiql'
+      target-branch: 'main'
+      schedule:
+          interval: 'weekly'
+    - package-ecosystem: 'npm'
+      directory: '/server/aws-lsp-s3'
+      target-branch: 'main'
+      schedule:
+          interval: 'weekly'
+    - package-ecosystem: 'npm'
+      directory: '/server/aws-lsp-yaml'
+      target-branch: 'main'
+      schedule:
+          interval: 'weekly'
+    - package-ecosystem: 'npm'
+      directory: '/server/aws-lsp-device-sso-auth-lsp'
+      target-branch: 'main'
       schedule:
           interval: 'weekly'
     - package-ecosystem: 'npm'
@@ -15,3 +55,28 @@ updates:
           interval: 'weekly'
       ignore:
           - dependency-name: '*'
+    - package-ecosystem: 'npm'
+      directory: '/'
+      target-branch: 'main' # Avoid updates to "staging".
+      schedule:
+          interval: 'weekly'
+    - package-ecosystem: 'npm'
+      directory: '/app'
+      target-branch: 'main'
+      schedule:
+          interval: 'weekly'
+    - package-ecosystem: 'npm'
+      directory: '/chat-client'
+      target-branch: 'main'
+      schedule:
+          interval: 'weekly'
+    - package-ecosystem: 'npm'
+      directory: '/client'
+      target-branch: 'main'
+      schedule:
+          interval: 'weekly'
+    - package-ecosystem: 'npm'
+      directory: '/core'
+      target-branch: 'main'
+      schedule:
+          interval: 'weekly'
