@@ -94,6 +94,11 @@ export class CodeDiffTracker<T extends AcceptedSuggestionEntry = AcceptedSuggest
         }
     }
 
+    // Used for accessing the codeDiffTracker eventQueue in unit tests
+    public get eventQueue() {
+        return this.#eventQueue
+    }
+
     private async flush() {
         const newEventQueue: T[] = []
 

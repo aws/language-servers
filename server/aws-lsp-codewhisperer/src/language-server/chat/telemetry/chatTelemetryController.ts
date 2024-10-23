@@ -109,6 +109,11 @@ export class ChatTelemetryController {
         return this.#tabTelemetryInfoByTabId[tabId]?.lastMessageTrigger
     }
 
+    // Used for accessing codeDiffTracker in unit tests
+    public get codeDiffTracker(): CodeDiffTracker<AcceptedSuggestionChatEntry> {
+        return this.#codeDiffTracker
+    }
+
     public emitModifyCodeMetric(entry: AcceptedSuggestionChatEntry, percentage: number) {
         const data: Omit<ModifyCodeEvent, 'cwsprChatConversationId'> = {
             cwsprChatMessageId: entry.messageId,
@@ -243,6 +248,45 @@ export class ChatTelemetryController {
         )
     }
 
+    public enqueueCodeDiffEntry(params: Omit<InsertToCursorPositionParams, 'name'>) {
+        if (!params.code || !params.cursorPosition || !params.textDocument?.uri) {
+            return
+        }
+
+        const startPosition = params.cursorPosition
+        const insertedLines = params.code.split('\n')
+        const numberOfInsertedLines = insertedLines.length
+
+        // Calculate the new cursor position
+        let endPosition
+        if (numberOfInsertedLines === 1) {
+            // If single line, add the length of the inserted code to the character
+            endPosition = {
+                line: startPosition.line,
+                character: startPosition.character + params.code.length,
+            }
+        } else {
+            // If multiple lines, set the cursor to the end of the last inserted line
+            endPosition = {
+                line: startPosition.line + numberOfInsertedLines - 1,
+                character: insertedLines[numberOfInsertedLines - 1].length,
+            }
+        }
+
+        this.#codeDiffTracker.enqueue({
+            messageId: params.messageId,
+            fileUrl: params.textDocument.uri,
+            time: Date.now(),
+            originalString: params.code,
+            customizationArn: this.getCustomizationId(params.tabId, params.messageId),
+            startPosition,
+            endPosition,
+        })
+    }
+
+    // Current clients don't send the inserToCursorPosition event to server as a chat request but the information comes as a telemetry notification
+    // Therefore currently modifyCode telemetry is calculated in the chatTelemetryController
+    // Once clients start sending the inserToCursorPosition chat event and stops sending the telemetry event, we can remove this private function and its invocation
     #enqueueCodeDiffEntry(params: InsertToCursorPositionParams) {
         const documentUri = params.textDocument?.uri
         const cursorRangeOrPosition = params.cursorState?.[0]
