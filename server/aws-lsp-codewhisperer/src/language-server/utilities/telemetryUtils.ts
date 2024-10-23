@@ -70,16 +70,21 @@ const getIdeCategory = (initializeParams: InitializeParams) => {
 
 // Map result from https://nodejs.org/api/process.html#process_process_platform to expected Operating system
 const getOperatingSystem = () => {
-    switch (process.platform) {
-        case 'darwin':
-            return 'MAC'
-        case 'win32':
-            return 'WINDOWS'
-        case 'linux':
-            return 'LINUX'
-        default:
-            return 'UNKNOWN'
+    // Node.js environment
+    if (typeof process !== 'undefined') {
+        switch (process.platform) {
+            case 'darwin':
+                return 'MAC'
+            case 'win32':
+                return 'WINDOWS'
+            case 'linux':
+                return 'LINUX'
+            default:
+                return 'UNKNOWN'
+        }
     }
+
+    return 'UNKNOWN'
 }
 
 // Compute UserContext object for sendTelemetryEvent API call.
