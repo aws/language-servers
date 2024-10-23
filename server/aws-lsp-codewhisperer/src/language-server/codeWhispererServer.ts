@@ -34,7 +34,7 @@ import {
 } from './telemetry/types'
 import { getCompletionType, getUserAgent, isAwsError } from './utils'
 import { Q_CONFIGURATION_SECTION } from './configuration/qConfigurationServer'
-import { fetchSupplementalContext } from './utilities/supplementalContextUtil/supplementalContextUtil'
+// import { fetchSupplementalContext } from './utilities/supplementalContextUtil/supplementalContextUtil'
 import { undefinedIfEmpty } from './utilities/textUtils'
 
 const EMPTY_RESULT = { sessionId: '', items: [] }
@@ -333,7 +333,7 @@ export const CodewhispererServerFactory =
                 sessionManager.discardSession(currentSession)
             }
 
-            return workspace.getTextDocument(params.textDocument.uri).then(async textDocument => {
+            return workspace.getTextDocument(params.textDocument.uri).then(textDocument => {
                 instrumentLog(`Read ${params.textDocument.uri} content`)
 
                 if (!textDocument) {
@@ -381,24 +381,20 @@ export const CodewhispererServerFactory =
                 ) {
                     return EMPTY_RESULT
                 }
-                const supplementalContext = await fetchSupplementalContext(
-                    textDocument,
-                    params.position,
-                    workspace,
-                    logging,
-                    token
-                )
-                instrumentLog('Collected supplemental context: ' + JSON.stringify(supplementalContext))
+                // const supplementalContext = await fetchSupplementalContext(
+                //     textDocument,
+                //     params.position,
+                //     workspace,
+                //     logging,
+                //     token
+                // )
+                // instrumentLog('Collected supplemental context: ' + JSON.stringify(supplementalContext))
+                const supplementalContext = {}
 
                 const requestContext: GenerateSuggestionsRequest = {
                     fileContext,
                     maxResults,
-                    supplementalContexts: supplementalContext?.supplementalContextItems
-                        ? supplementalContext.supplementalContextItems.map(v => ({
-                              content: v.content,
-                              filePath: v.filePath,
-                          }))
-                        : [],
+                    supplementalContexts: [],
                 }
 
                 // Close ACTIVE session and record Discard trigger decision immediately
@@ -417,7 +413,7 @@ export const CodewhispererServerFactory =
                     classifierResult: autoTriggerResult?.classifierResult,
                     classifierThreshold: autoTriggerResult?.classifierThreshold,
                     credentialStartUrl: credentialsProvider.getConnectionMetadata?.()?.sso?.startUrl ?? undefined,
-                    supplementalMetadata: supplementalContext,
+                    // supplementalMetadata: supplementalContext,
                     customizationArn: undefinedIfEmpty(codeWhispererService.customizationArn),
                 })
 
