@@ -13,7 +13,8 @@ import {
 } from '@aws/language-server-runtimes/server-interface'
 import { SharedConfigInit } from '@smithy/shared-ini-file-loader'
 import { DuckTyper } from '../../duckTyper'
-import { AwsError, tryAsync } from '../../awsError'
+import { AwsError } from '../../awsError'
+import { tryAsync } from '../../sso/utils'
 
 export interface ProfileData {
     profiles: Profile[]
@@ -69,13 +70,13 @@ export function normalizeSettingList(
 }
 
 export class ProfileService {
-    constructor(private store: ProfileStore) {}
+    constructor(private profileStore: ProfileStore) {}
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     async listProfiles(params: ListProfilesParams, token?: CancellationToken): Promise<ListProfilesResult> {
         // Currently only returns non-legacy sso-session profiles, will return more profile types in the future
         return await tryAsync(
-            () => this.store.load(),
+            () => this.profileStore.load(),
             error => new AwsResponseError(error.message, { awsErrorCode: AwsErrorCodes.E_CANNOT_READ_SHARED_CONFIG })
         )
     }
@@ -118,7 +119,7 @@ export class ProfileService {
         )
 
         const { profiles, ssoSessions } = await tryAsync(
-            () => this.store.load(),
+            () => this.profileStore.load(),
             error => AwsError.wrap(error, AwsErrorCodes.E_CANNOT_READ_SHARED_CONFIG)
         )
 
@@ -152,7 +153,7 @@ export class ProfileService {
 
         await tryAsync(
             () =>
-                this.store.save({
+                this.profileStore.save({
                     profiles: [params.profile],
                     ssoSessions: params.ssoSession ? [params.ssoSession] : [],
                 }),

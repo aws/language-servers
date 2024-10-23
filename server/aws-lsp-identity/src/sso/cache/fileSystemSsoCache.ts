@@ -1,8 +1,9 @@
 import { getSSOTokenFilepath, getSSOTokenFromFile, SSOToken } from '@smithy/shared-ini-file-loader'
 import { SsoCache, SsoClientRegistration, ssoClientRegistrationDuckTyper, ssoTokenDuckTyper } from './ssoCache'
 import { readFile, writeFile } from 'fs/promises'
-import { AwsError, tryAsync } from '../../awsError'
-import { AwsErrorCodes } from '@aws/language-server-runtimes/protocol'
+import { AwsError } from '../../awsError'
+import { AwsErrorCodes, SsoSession } from '@aws/language-server-runtimes/server-interface'
+import { throwOnInvalidClientName, throwOnInvalidSsoSession, tryAsync } from '../utils'
 
 // As this is a cache, we tend to swallow a lot of the errors as it is ok to just recreate the items each
 // time, though recreating the SSO token without a refresh token will be every hour.  This is a better
@@ -11,10 +12,10 @@ import { AwsErrorCodes } from '@aws/language-server-runtimes/protocol'
 export class FileSystemSsoCache implements SsoCache {
     async getSsoClientRegistration(
         clientName: string,
-        ssoRegion: string,
-        ssoStartUrl: string
+        ssoSession: SsoSession
     ): Promise<SsoClientRegistration | undefined> {
-        const id = toSsoClientRegistrationCacheId(clientName, ssoRegion, ssoStartUrl)
+        const id = toSsoClientRegistrationCacheId(clientName, ssoSession)
+
         return await tryGetAsync(async () => {
             const registration = await getSsoClientRegistrationFromFile(id)
             return ssoClientRegistrationDuckTyper.eval(registration) ? registration : undefined
@@ -23,35 +24,35 @@ export class FileSystemSsoCache implements SsoCache {
 
     async setSsoClientRegistration(
         clientName: string,
-        ssoRegion: string,
-        ssoStartUrl: string,
+        ssoSession: SsoSession,
         clientRegistration: SsoClientRegistration
     ): Promise<void> {
-        if (!clientName || !ssoRegion || !ssoStartUrl || !ssoClientRegistrationDuckTyper.eval(clientRegistration)) {
-            return
-        }
+        const id = toSsoClientRegistrationCacheId(clientName, ssoSession)
 
-        const id = toSsoClientRegistrationCacheId(clientName, ssoRegion, ssoStartUrl)
         await tryAsync(
             () => writeSsoObjectToFile(id, clientRegistration),
             error => AwsError.wrap(error, AwsErrorCodes.E_CANNOT_WRITE_SSO_CACHE)
         )
     }
 
-    async getSsoToken(ssoSessionName: string): Promise<SSOToken | undefined> {
+    async getSsoToken(clientName: string, ssoSession: SsoSession): Promise<SSOToken | undefined> {
+        throwOnInvalidSsoSession(ssoSession)
+
         return await tryGetAsync(async () => {
-            const ssoToken = await getSSOTokenFromFile(ssoSessionName)
+            const ssoToken = await getSSOTokenFromFile(ssoSession.name)
             return ssoTokenDuckTyper.eval(ssoToken) ? ssoToken : undefined
         })
     }
 
-    async setSsoToken(ssoSessionName: string, ssoToken: SSOToken): Promise<void> {
-        if (!ssoSessionName || !ssoTokenDuckTyper.eval(ssoToken)) {
+    async setSsoToken(clientName: string, ssoSession: SsoSession, ssoToken: SSOToken): Promise<void> {
+        throwOnInvalidSsoSession(ssoSession)
+
+        if (!ssoTokenDuckTyper.eval(ssoToken)) {
             return
         }
 
         tryAsync(
-            () => writeSsoObjectToFile(ssoSessionName, ssoToken),
+            () => writeSsoObjectToFile(ssoSession.name, ssoToken),
             error => AwsError.wrap(error, AwsErrorCodes.E_CANNOT_WRITE_SSO_CACHE)
         )
     }
@@ -71,10 +72,13 @@ async function tryGetAsync<R>(tryIt: () => Promise<R | undefined>): Promise<R | 
     }
 }
 
-function toSsoClientRegistrationCacheId(clientName: string, ssoRegion: string, ssoStartUrl: string): string {
+function toSsoClientRegistrationCacheId(clientName: string, ssoSession: SsoSession): string {
+    throwOnInvalidClientName(clientName)
+    throwOnInvalidSsoSession(ssoSession)
+
     return JSON.stringify({
-        region: ssoRegion,
-        startUrl: ssoStartUrl,
+        region: ssoSession.settings.sso_region,
+        startUrl: ssoSession.settings.sso_start_url,
         tool: clientName,
     })
 }
