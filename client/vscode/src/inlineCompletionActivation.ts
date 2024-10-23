@@ -26,7 +26,14 @@ export function registerInlineCompletion(languageClient: LanguageClient) {
             { scheme: 'file', language: 'terraform' },
             { scheme: 'file', language: 'ruby' },
             { scheme: 'file', language: 'shellscript' },
+            { scheme: 'file', language: 'dart' },
+            { scheme: 'file', language: 'lua' },
+            { scheme: 'file', language: 'powershell' },
+            { scheme: 'file', language: 'r' },
+            { scheme: 'file', language: 'swift' },
+            { scheme: 'file', language: 'systemverilog' },
             { scheme: 'file', language: 'scala' },
+            { scheme: 'file', language: 'vue' },
         ],
         inlineCompletionProvider
     )
