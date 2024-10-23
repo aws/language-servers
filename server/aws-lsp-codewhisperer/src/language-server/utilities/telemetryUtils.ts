@@ -57,7 +57,8 @@ const mapClientNameToIdeCategory = (clientName: string): string | undefined => {
     return IDE_CATEGORY_MAP[clientName]
 }
 
-// Use InitializeParams.initializationOptions.aws to derive IDE Category from calling client.
+// Use InitializeParams.initializationOptions.aws.clientInfo.extension to derive IDE Category from calling client
+// https://github.com/aws/language-server-runtimes/blob/main/runtimes/protocol/lsp.ts#L60-L69
 const getIdeCategory = (initializeParams: InitializeParams) => {
     let ideCategory
     if (initializeParams.initializationOptions?.aws.clientInfo?.extension?.name) {
@@ -81,6 +82,9 @@ const getOperatingSystem = () => {
     }
 }
 
+// Compute UserContext object for sendTelemetryEvent API call.
+// Do not return context when unknown IDE or Operating system is found.
+// This behaviour may change in the future, when API will accept not enumerated values in API definition.
 export const makeUserContextObject = (initializeParams: InitializeParams, product: string): UserContext | undefined => {
     const userContext: UserContext = {
         ideCategory: getIdeCategory(initializeParams),
