@@ -46,35 +46,29 @@ export const getUserAgent = (initializeParams: InitializeParams, serverInfo?: Se
     return items.join(' ')
 }
 
-export const IDE_CATEGORY_MAP: { [key: string]: IdeCategory } = {
-    'Visual Studio Code': 'VSCODE',
-    JetBrains: 'JETBRAINS',
-    Eclipse: 'ECLIPSE',
-    'Visual Studio': 'VISUAL_STUDIO',
+const IDE_CATEGORY_MAP: { [key: string]: IdeCategory } = {
+    'AmazonQ-For-VSCode': 'VSCODE',
+    'Amazon-Q-For-JetBrains': 'JETBRAINS',
+    'AmazonQ-For-Eclipse': 'ECLIPSE',
+    'AWS-Toolkit-For-VisualStudio': 'VISUAL_STUDIO',
 }
 
-export const mapClientNameToIdeCategory = (clientName: string): string | undefined => {
+const mapClientNameToIdeCategory = (clientName: string): string | undefined => {
     return IDE_CATEGORY_MAP[clientName]
 }
 
-export const getIdeCategory = (initializeParams: InitializeParams) => {
+// Use InitializeParams.initializationOptions.aws to derive IDE Category from calling client.
+const getIdeCategory = (initializeParams: InitializeParams) => {
     let ideCategory
-    if (initializeParams.initializationOptions?.aws.clientInfo?.name) {
-        ideCategory = mapClientNameToIdeCategory(initializeParams.initializationOptions?.aws.clientInfo?.name)
-    } else if (initializeParams.clientInfo?.name) {
-        ideCategory = mapClientNameToIdeCategory(initializeParams.clientInfo?.name)
+    if (initializeParams.initializationOptions?.aws.clientInfo?.extension?.name) {
+        ideCategory = mapClientNameToIdeCategory(initializeParams.initializationOptions.aws.clientInfo.extension.name)
     }
 
-    return (
-        ideCategory ||
-        initializeParams.initializationOptions?.aws.clientInfo?.name.replace(/\s+/g, '_').toUpperCase() ||
-        initializeParams.clientInfo?.name.replace(/\s+/g, '_').toUpperCase() ||
-        'UNKNOWN'
-    )
+    return ideCategory || 'UNKNOWN'
 }
 
 // Map result from https://nodejs.org/api/process.html#process_process_platform to expected Operating system
-export const getOperatingSystem = () => {
+const getOperatingSystem = () => {
     switch (process.platform) {
         case 'darwin':
             return 'MAC'
@@ -84,7 +78,6 @@ export const getOperatingSystem = () => {
             return 'LINUX'
         default:
             return 'UNKNOWN'
-        // return process.platform.toUpperCase();
     }
 }
 
@@ -98,11 +91,7 @@ export const makeUserContextObject = (initializeParams: InitializeParams, produc
             initializeParams?.initializationOptions?.aws?.clientInfo?.version || initializeParams.clientInfo?.version,
     }
 
-    // TODO: Clarify if we can return values not specified in CodeWhisperer service API
-    if (
-        !Object.values(IDE_CATEGORY_MAP).includes(userContext.ideCategory) ||
-        userContext.operatingSystem === 'UNKNOWN'
-    ) {
+    if (userContext.ideCategory === 'UNKNOWN' || userContext.operatingSystem === 'UNKNOWN') {
         return
     }
 
