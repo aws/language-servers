@@ -17,7 +17,7 @@
         "compile": "tsc --build --verbose",
         "copy": "copyfiles --error --flat ./src/sso/authorizationCodePkce/resources/* ./out/sso/authorizationCodePkce/resources/",
         "package": "npm run compile && npm run copy",
-        "test": "npm run test-unit",
+        "test": "npm run package && npm run test-unit",
         "test-unit": "mocha 'out/**/*.test.js'"
     },
     "dependencies": {
@@ -34,6 +34,7 @@
         "@types/chai-as-promised": "^7.1.5",
         "@types/mocha": "^10.0.8",
         "@types/mock-fs": "^4.13.4",
+        "@types/sinon": "^17.0.3",
         "chai": "^4.3.7",
         "chai-as-promised": "^7.1.1",
         "copyfiles": "^2.4.1",

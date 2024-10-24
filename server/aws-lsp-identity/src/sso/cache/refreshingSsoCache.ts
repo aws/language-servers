@@ -22,10 +22,7 @@ export class RefreshingSsoCache implements SsoCache {
 
     constructor(private next: SsoCache) {}
 
-    async getSsoClientRegistration(
-        clientName: string,
-        ssoSession: SsoSession
-    ): Promise<SsoClientRegistration | undefined> {
+    async getSsoClientRegistration(clientName: string, ssoSession: SsoSession): Promise<SsoClientRegistration> {
         throwOnInvalidClientName(clientName)
         throwOnInvalidSsoSession(ssoSession)
 
@@ -47,11 +44,9 @@ export class RefreshingSsoCache implements SsoCache {
                         scopes: ssoSession.settings.sso_registration_scopes,
                     }),
                 error =>
-                    new AwsError(
-                        `Cannot register client [${clientName ?? 'null'}].`,
-                        AwsErrorCodes.E_CANNOT_REGISTER_CLIENT,
-                        { cause: error }
-                    )
+                    new AwsError(`Cannot register client [${clientName}].`, AwsErrorCodes.E_CANNOT_REGISTER_CLIENT, {
+                        cause: error,
+                    })
             )
 
             clientRegistration = {
@@ -119,10 +114,7 @@ export class RefreshingSsoCache implements SsoCache {
 
         const clientRegistration = await this.getSsoClientRegistration(clientName, ssoSession)
         if (!clientRegistration) {
-            throw new AwsError(
-                `Client registration [${clientName ?? 'null'}] is not found.`,
-                AwsErrorCodes.E_INVALID_SSO_CLIENT
-            )
+            throw new AwsError(`Client registration [${clientName}] is not found.`, AwsErrorCodes.E_INVALID_SSO_CLIENT)
         }
 
         // TODO Do we need a customUserAgent from the client here?  How is this handled in other LSP servers?
