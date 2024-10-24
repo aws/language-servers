@@ -117,6 +117,20 @@ export async function activateDocumentsLanguageServer(extensionContext: Extensio
             { scheme: 'untitled', language: 'shellscript' },
             { scheme: 'file', language: 'scala' },
             { scheme: 'untitled', language: 'scala' },
+            { scheme: 'file', language: 'dart' },
+            { scheme: 'untitled', language: 'dart' },
+            { scheme: 'file', language: 'lua' },
+            { scheme: 'untitled', language: 'lua' },
+            { scheme: 'file', language: 'powershell' },
+            { scheme: 'untitled', language: 'powershell' },
+            { scheme: 'file', language: 'r' },
+            { scheme: 'untitled', language: 'r' },
+            { scheme: 'file', language: 'swift' },
+            { scheme: 'untitled', language: 'swift' },
+            { scheme: 'file', language: 'systemverilog' },
+            { scheme: 'untitled', language: 'systemverilog' },
+            { scheme: 'file', language: 'vue' },
+            { scheme: 'untitled', language: 'vue' },
         ],
         initializationOptions: {
             aws: {
@@ -133,7 +147,7 @@ export async function activateDocumentsLanguageServer(extensionContext: Extensio
         },
         synchronize: {
             fileEvents: workspace.createFileSystemWatcher(
-                '**/*.{json,java,yml,yaml,ts,pql,go,php,rs,kt,tf,hcl,rb,sh,scala}'
+                '**/*.{json,java,yml,yaml,ts,pql,go,php,rs,kt,tf,hcl,rb,sh,scala,sv,svh,vh,dart,lua,wlua,swift,vue,ps1,psm1,r}'
             ),
         },
     }

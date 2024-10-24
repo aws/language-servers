@@ -193,6 +193,29 @@
                 ]
             },
             {
+                "id": "lua",
+                "aliases": [
+                    "lua",
+                    "Lua"
+                ],
+                "extensions": [
+                    ".lua",
+                    ".wlua"
+                ]
+            },
+            {
+                "id": "systemverilog",
+                "aliases": [
+                    "SystemVerilog",
+                    "systemverilog"
+                ],
+                "extensions": [
+                    ".sv",
+                    ".svh",
+                    ".vh"
+                ]
+            },
+            {
                 "id": "terraform",
                 "aliases": [
                     "Terraform",
@@ -201,6 +224,16 @@
                 "extensions": [
                     ".tf",
                     ".hcl"
+                ]
+            },
+            {
+                "id": "vue",
+                "aliases": [
+                    "vue",
+                    "Vue"
+                ],
+                "extensions": [
+                    ".vue"
                 ]
             }
         ]
