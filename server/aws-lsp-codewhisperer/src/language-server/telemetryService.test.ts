@@ -10,13 +10,7 @@ describe('TelemetryService', () => {
 
     beforeEach(() => {
         mockCredentialsProvider = {} as CredentialsProvider
-        telemetryService = new TelemetryService(mockCredentialsProvider)
-    })
-
-    it('setToolkitTelemetry sets the toolkitTelemetry property', () => {
-        const mockTelemetry = {} as Telemetry
-        telemetryService.setToolkitTelemetry(mockTelemetry)
-        expect((telemetryService as any).toolkitTelemetry).to.equal(mockTelemetry)
+        telemetryService = new TelemetryService(mockCredentialsProvider, {}, {} as Telemetry)
     })
 
     it('updateUserContext updates the userContext property', () => {
@@ -82,6 +76,6 @@ describe('TelemetryService', () => {
             },
         } as unknown as CodeWhispererSession
         suggestionState = getSuggestionState(session)
-        expect(suggestionState).to.equal('')
+        expect(suggestionState).to.equal('EMPTY')
     })
 })

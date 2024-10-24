@@ -294,11 +294,13 @@ export const CodewhispererServerFactory =
 
         const sessionManager = SessionManager.getInstance()
         const codeWhispererService = service(credentialsProvider)
-        const telemetryService = new TelemetryService(credentialsProvider)
-        telemetryService.setToolkitTelemetry(telemetry)
+        const telemetryService = new TelemetryService(credentialsProvider, {}, telemetry)
 
         lsp.addInitializer((params: InitializeParams) => {
             codeWhispererService.updateClientConfig({
+                customUserAgent: getUserAgent(params, runtime.serverInfo),
+            })
+            telemetryService.updateClientConfig({
                 customUserAgent: getUserAgent(params, runtime.serverInfo),
             })
             // TODO: set the user context here for TelemetryService

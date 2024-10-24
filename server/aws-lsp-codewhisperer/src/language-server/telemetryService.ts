@@ -13,14 +13,15 @@ export class TelemetryService extends CodeWhispererServiceToken {
     private userContext!: UserContext
     private optOutPreference!: OptOutPreference
     private enableTelemetryEventsToDestination!: boolean
-    private toolkitTelemetry!: Telemetry
+    private telemetry: Telemetry
 
-    constructor(credentialsProvider: CredentialsProvider, additionalAwsConfig: AWS.ConfigurationOptions = {}) {
+    constructor(
+        credentialsProvider: CredentialsProvider,
+        additionalAwsConfig: AWS.ConfigurationOptions = {},
+        telemetry: Telemetry
+    ) {
         super(credentialsProvider, additionalAwsConfig)
-    }
-
-    public setToolkitTelemetry(toolkitTelemetry: Telemetry): void {
-        this.toolkitTelemetry = toolkitTelemetry
+        this.telemetry = telemetry
     }
 
     public updateUserContext(userContext: UserContext): void {
@@ -38,7 +39,7 @@ export class TelemetryService extends CodeWhispererServiceToken {
     private getSuggestionState(session: CodeWhispererSession): SuggestionState {
         let suggestionState: SuggestionState
         if (session.getAggregatedUserTriggerDecision() === undefined) {
-            suggestionState = ''
+            suggestionState = 'EMPTY'
         } else if (session.getAggregatedUserTriggerDecision() === 'Accept') {
             suggestionState = 'ACCEPT'
         } else if (session.getAggregatedUserTriggerDecision() === 'Reject') {
@@ -52,6 +53,20 @@ export class TelemetryService extends CodeWhispererServiceToken {
     }
 
     public emitUserTriggerDecision(session: CodeWhispererSession) {
+        const completionSessionResult = session.completionSessionResult ?? {}
+        const acceptedItemId = Object.keys(completionSessionResult).find(k => completionSessionResult[k].accepted)
+        const acceptedSuggestion = session.suggestions.find(s => s.itemId === acceptedItemId)
+        const generatedLines =
+            acceptedSuggestion === undefined || acceptedSuggestion.content.trim() === ''
+                ? 0
+                : acceptedSuggestion.content.split('\n').length
+        const referenceCount =
+            acceptedSuggestion === undefined
+                ? 0
+                : acceptedSuggestion.references && acceptedSuggestion.references.length > 0
+                  ? 1
+                  : 0
+
         const event: UserTriggerDecisionEvent = {
             sessionId: session.codewhispererSessionId || '',
             requestId: session.responseContext?.requestId || '',
@@ -62,22 +77,21 @@ export class TelemetryService extends CodeWhispererServiceToken {
             completionType:
                 session.suggestions.length > 0 ? getCompletionType(session.suggestions[0]).toUpperCase() : '',
             suggestionState: this.getSuggestionState(session),
-            // TODO: Need to change this value of recommendationLatencyMilliseconds
-            recommendationLatencyMilliseconds: 0,
+            recommendationLatencyMilliseconds: session.firstCompletionDisplayLatency
+                ? session.firstCompletionDisplayLatency
+                : 0,
             timestamp: new Date(Date.now()),
             triggerToResponseLatencyMilliseconds: session.timeToFirstRecommendation,
-            suggestionReferenceCount: session.suggestions.length,
-            /* TODO: populate correct values for generatedLine and numberOfRecommendations
-            generatedLine: 0,
-            numberOfRecommendations: 0
-             */
+            suggestionReferenceCount: referenceCount,
+            generatedLine: generatedLines,
+            numberOfRecommendations: session.suggestions.length,
         }
         this.sendTelemetryEvent({
             telemetryEvent: {
                 userTriggerDecisionEvent: event,
             },
-            userContext: this.userContext ? this.userContext : undefined,
-            optOutPreference: this.optOutPreference ? this.optOutPreference : undefined,
+            userContext: this.userContext,
+            optOutPreference: this.optOutPreference,
         })
     }
 }

@@ -11,8 +11,7 @@ export const QChatServer =
         const { chat, credentialsProvider, telemetry, logging, lsp, runtime } = features
 
         const chatSessionManagementService: ChatSessionManagementService = service(credentialsProvider)
-        const telemetryService = new TelemetryService(credentialsProvider)
-        telemetryService.setToolkitTelemetry(telemetry)
+        const telemetryService = new TelemetryService(credentialsProvider, {}, telemetry)
 
         const chatController = new ChatController(chatSessionManagementService, features, telemetryService)
 
