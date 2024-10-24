@@ -151,7 +151,7 @@
                 "${workspaceFolder}/server/aws-lsp-identity/out/**/*.js"
             ],
             "autoAttachChildProcesses": true,
-            "preLaunchTask": "watch"
+            "preLaunchTask": "npm: package"
         },
         {
             "name": "Unit Tests",

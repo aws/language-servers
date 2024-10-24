@@ -40,10 +40,10 @@ describe('AuthorizationServer', () => {
     })
 
     it('Returns a valid resource request.', async () => {
-        // using sut = await AuthorizationServer.start()
-        // const origin = new URL(sut.redirectUri).origin
-        // const { data } = await httpGet(`${origin}/index.html`)
-        // expect(data).contains('</html>')
+        using sut = await AuthorizationServer.start()
+        const origin = new URL(sut.redirectUri).origin
+        const { data } = await httpGet(`${origin}/index.html`)
+        expect(data).contains('</html>')
     })
 
     it('Returns a 404 on invalid resource request.', async () => {

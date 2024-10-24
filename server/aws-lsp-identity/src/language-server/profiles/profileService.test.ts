@@ -23,61 +23,61 @@ let profile3: Profile
 let ssoSession1: SsoSession
 let ssoSession2: SsoSession
 
-beforeEach(() => {
-    store = stubInterface()
-
-    profile1 = {
-        kinds: [ProfileKind.SsoTokenProfile],
-        name: 'profile1',
-        settings: {
-            sso_session: 'ssoSession1',
-        },
-    }
-
-    profile2 = {
-        kinds: [ProfileKind.Unknown],
-        name: 'profile2',
-        settings: {
-            region: 'whatever',
-        },
-    }
-
-    profile3 = {
-        kinds: [ProfileKind.SsoTokenProfile],
-        name: 'profile3',
-        settings: {
-            sso_session: 'ssoSession2',
-        },
-    }
-
-    ssoSession1 = {
-        name: 'ssoSession1',
-        settings: {
-            sso_region: 'us-west-1',
-            sso_start_url: 'http://nowhere',
-            sso_registration_scopes: ['a', 'b', 'c'],
-        },
-    }
-
-    ssoSession2 = {
-        name: 'ssoSession2',
-        settings: {
-            sso_region: 'us-west-2',
-            sso_start_url: 'http://nowhere',
-        },
-    }
-
-    store.load.returns(
-        Promise.resolve({
-            profiles: [profile1, profile2, profile3],
-            ssoSessions: [ssoSession1, ssoSession2],
-        } satisfies ProfileData)
-    )
-
-    sut = new ProfileService(store)
-})
-
 describe('ProfileService', async () => {
+    beforeEach(() => {
+        store = stubInterface()
+
+        profile1 = {
+            kinds: [ProfileKind.SsoTokenProfile],
+            name: 'profile1',
+            settings: {
+                sso_session: 'ssoSession1',
+            },
+        }
+
+        profile2 = {
+            kinds: [ProfileKind.Unknown],
+            name: 'profile2',
+            settings: {
+                region: 'whatever',
+            },
+        }
+
+        profile3 = {
+            kinds: [ProfileKind.SsoTokenProfile],
+            name: 'profile3',
+            settings: {
+                sso_session: 'ssoSession2',
+            },
+        }
+
+        ssoSession1 = {
+            name: 'ssoSession1',
+            settings: {
+                sso_region: 'us-west-1',
+                sso_start_url: 'http://nowhere',
+                sso_registration_scopes: ['a', 'b', 'c'],
+            },
+        }
+
+        ssoSession2 = {
+            name: 'ssoSession2',
+            settings: {
+                sso_region: 'us-west-2',
+                sso_start_url: 'http://nowhere',
+            },
+        }
+
+        store.load.returns(
+            Promise.resolve({
+                profiles: [profile1, profile2, profile3],
+                ssoSessions: [ssoSession1, ssoSession2],
+            } satisfies ProfileData)
+        )
+
+        sut = new ProfileService(store)
+    })
+
     it('listProfiles return profiles and sso-sessions', async () => {
         const actual = await sut.listProfiles({})
 

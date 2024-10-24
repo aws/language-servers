@@ -47,10 +47,6 @@ const ssoToken: SSOToken = {
     registrationExpiresAt: '2024-12-09T19:59:06.000Z',
 }
 
-afterEach(() => {
-    mock.restore()
-})
-
 function setupTest(args?: {
     clientRegistrationId?: string
     clientRegistration?: SsoClientRegistration
@@ -80,6 +76,10 @@ function createSsoSession(name: string): SsoSession {
 }
 
 describe('FileSystemSsoCache', () => {
+    afterEach(() => {
+        mock.restore()
+    })
+
     it('getSsoClientRegistration returns valid registration', async () => {
         setupTest()
 

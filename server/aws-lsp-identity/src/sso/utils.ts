@@ -13,7 +13,7 @@ export function getSsoOidc(ssoRegion: string): SSOOIDC & Disposable {
 
 export function throwOnInvalidClientName(clientName?: string): asserts clientName is string {
     if (!clientName?.trim().length) {
-        throw new AwsError(`Client name [${clientName ?? 'undefined'}] is invalid.`, AwsErrorCodes.E_INVALID_SSO_CLIENT)
+        throw new AwsError(`Client name [${clientName}] is invalid.`, AwsErrorCodes.E_INVALID_SSO_CLIENT)
     }
 }
 
@@ -24,10 +24,12 @@ export function throwOnInvalidClientRegistration(
         !clientRegistration ||
         !clientRegistration.clientId ||
         !clientRegistration.clientSecret ||
-        !clientRegistration.expiresAt
+        !clientRegistration.expiresAt ||
+        !clientRegistration.scopes ||
+        !clientRegistration.scopes.length
     ) {
         throw new AwsError(
-            `Client registration [${clientRegistration?.clientId ?? 'undefined'}] is invalid.`,
+            `Client registration [${clientRegistration?.clientId}] is invalid.`,
             AwsErrorCodes.E_INVALID_SSO_CLIENT
         )
     }
@@ -43,10 +45,7 @@ export function throwOnInvalidSsoSession(
         !ssoSession.settings.sso_region ||
         !ssoSession.settings.sso_start_url
     ) {
-        throw new AwsError(
-            `SSO session [${ssoSession?.name ?? 'undefined'}] is invalid.`,
-            AwsErrorCodes.E_INVALID_SSO_SESSION
-        )
+        throw new AwsError(`SSO session [${ssoSession?.name}] is invalid.`, AwsErrorCodes.E_INVALID_SSO_SESSION)
     }
 }
 
