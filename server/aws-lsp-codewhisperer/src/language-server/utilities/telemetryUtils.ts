@@ -95,9 +95,9 @@ export const makeUserContextObject = (initializeParams: InitializeParams, produc
         ideCategory: getIdeCategory(initializeParams),
         operatingSystem: getOperatingSystem(),
         product: product,
-        clientId: initializeParams?.initializationOptions?.aws?.clientInfo?.clientId,
+        clientId: initializeParams.initializationOptions?.aws.clientInfo?.clientId,
         ideVersion:
-            initializeParams?.initializationOptions?.aws?.clientInfo?.version || initializeParams.clientInfo?.version,
+            initializeParams.initializationOptions?.aws.clientInfo?.version || initializeParams.clientInfo?.version,
     }
 
     if (userContext.ideCategory === 'UNKNOWN' || userContext.operatingSystem === 'UNKNOWN') {
