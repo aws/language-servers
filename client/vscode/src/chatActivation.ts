@@ -17,7 +17,7 @@ import {
 } from '@aws/language-server-runtimes/protocol'
 import { v4 as uuidv4 } from 'uuid'
 import { Uri, ViewColumn, Webview, WebviewPanel, commands, window } from 'vscode'
-import { Disposable, LanguageClient, State } from 'vscode-languageclient/node'
+import { Disposable, LanguageClient, Position, State, TextDocumentIdentifier } from 'vscode-languageclient/node'
 import * as jose from 'jose'
 
 export function registerChat(languageClient: LanguageClient, extensionUri: Uri, encryptionKey?: Buffer) {
@@ -59,19 +59,22 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri, 
             case COPY_TO_CLIPBOARD:
                 languageClient.info('[VSCode Client] Copy to clipboard event received')
                 break
-            case INSERT_TO_CURSOR_POSITION:
-                insertTextAtCursorPosition(message.params.code)
+            case INSERT_TO_CURSOR_POSITION: {
+                const editor = window.activeTextEditor
+                let textDocument: TextDocumentIdentifier | undefined = undefined
+                let cursorPosition: Position | undefined = undefined
+                if (editor) {
+                    cursorPosition = editor.selection.active
+                    textDocument = { uri: editor.document.uri.toString() }
+                }
+
                 languageClient.sendNotification(insertToCursorPositionNotificationType, {
-                    tabId: message.params.tabId,
-                    messageId: message.params.messageId,
-                    code: message.params.code,
-                    type: message.params.type,
-                    referenceTrackerInformation: message.params.referenceTrackerInformation,
-                    eventId: message.params.eventId,
-                    codeBlockIndex: message.params.codeBlockIndex,
-                    totalCodeBlocks: message.params.totalCodeBlocks,
+                    ...message.params,
+                    cursorPosition,
+                    textDocument,
                 })
                 break
+            }
             case AUTH_FOLLOW_UP_CLICKED:
                 languageClient.info('[VSCode Client] AuthFollowUp clicked')
                 break
@@ -220,17 +223,6 @@ function registerGenericCommand(commandName: string, genericCommand: string, pan
             params: { genericCommand, selection, triggerType },
         })
     })
-}
-
-function insertTextAtCursorPosition(text: string) {
-    const editor = window.activeTextEditor
-    console.log({ editor })
-    if (editor) {
-        const cursorStart = editor.selection.active
-        editor.edit(editBuilder => {
-            editBuilder.insert(cursorStart, text)
-        })
-    }
 }
 
 function isServerEvent(command: string) {
