@@ -26,6 +26,7 @@ describe('Test CsharpDependencyGraph', () => {
         mockedGetWorkspaceFolder.reset()
         mockedGetWorkspaceFolder.returns(undefined)
         mockedLogging = stubInterface<Logging>()
+        // @ts-ignore
         csharpDependencyGraph = new CsharpDependencyGraph(mockedWorkspace, mockedLogging, projectPathUri)
     })
 

@@ -15,7 +15,8 @@ import SecurityScanDiagnosticsProvider from './securityScan/securityScanDiagnost
 import { SecurityScanCancelledError, SecurityScanHandler } from './securityScan/securityScanHandler'
 import { SecurityScanRequestParams, SecurityScanResponse } from './securityScan/types'
 import { SecurityScanEvent } from './telemetry/types'
-import { getErrorMessage, getUserAgent, parseJson } from './utils'
+import { getErrorMessage, parseJson } from './utils'
+import { getUserAgent } from './utilities/telemetryUtils'
 
 const RunSecurityScanCommand = 'aws/codewhisperer/runSecurityScan'
 const CancelSecurityScanCommand = 'aws/codewhisperer/cancelSecurityScan'

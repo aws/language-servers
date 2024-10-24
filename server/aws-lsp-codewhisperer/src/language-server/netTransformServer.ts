@@ -32,7 +32,7 @@ import {
 } from './netTransform/models'
 import { TransformHandler } from './netTransform/transformHandler'
 import { CodeWhispererStreamingClientConfig } from '@amzn/codewhisperer-streaming'
-import { getUserAgent } from './utils'
+import { getUserAgent } from './utilities/telemetryUtils'
 
 export const validStatesForGettingPlan = ['COMPLETED', 'PARTIALLY_COMPLETED', 'PLANNED', 'TRANSFORMING', 'TRANSFORMED']
 export const validStatesForComplete = ['COMPLETED']

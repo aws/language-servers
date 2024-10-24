@@ -32,7 +32,8 @@ import {
     CodeWhispererUserDecisionEvent,
     CodeWhispererUserTriggerDecisionEvent,
 } from './telemetry/types'
-import { getCompletionType, getUserAgent, isAwsError } from './utils'
+import { getCompletionType, isAwsError } from './utils'
+import { getUserAgent } from './utilities/telemetryUtils'
 import { Q_CONFIGURATION_SECTION } from './configuration/qConfigurationServer'
 import { fetchSupplementalContext } from './utilities/supplementalContextUtil/supplementalContextUtil'
 import { undefinedIfEmpty } from './utilities/textUtils'

@@ -6,7 +6,7 @@ import {
     Server,
 } from '@aws/language-server-runtimes/server-interface'
 import { CodeWhispererServiceToken } from '../codeWhispererService'
-import { getUserAgent } from '../utils'
+import { getUserAgent } from '../utilities/telemetryUtils'
 
 // The configuration section that the server will register and listen to
 export const Q_CONFIGURATION_SECTION = 'aws.q'
