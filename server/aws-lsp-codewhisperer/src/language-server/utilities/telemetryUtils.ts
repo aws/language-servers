@@ -1,4 +1,4 @@
-import { InitializeParams, ServerInfo } from '@aws/language-server-runtimes/server-interface'
+import { InitializeParams, Platform, ServerInfo } from '@aws/language-server-runtimes/server-interface'
 import { IdeCategory, UserContext } from '../../client/token/codewhispererbearertokenclient'
 
 const USER_AGENT_PREFIX = 'AWS-Language-Servers'
@@ -68,32 +68,31 @@ const getIdeCategory = (initializeParams: InitializeParams) => {
     return ideCategory || 'UNKNOWN'
 }
 
-// Map result from https://nodejs.org/api/process.html#process_process_platform to expected Operating system
-const getOperatingSystem = () => {
-    // Node.js environment
-    if (typeof process !== 'undefined') {
-        switch (process.platform) {
-            case 'darwin':
-                return 'MAC'
-            case 'win32':
-                return 'WINDOWS'
-            case 'linux':
-                return 'LINUX'
-            default:
-                return 'UNKNOWN'
-        }
+// Map result from https://github.com/aws/language-server-runtimes/blob/main/runtimes/server-interface/runtime.ts#L6 to expected Operating system
+const getOperatingSystem = (platform: Platform) => {
+    switch (platform) {
+        case 'darwin':
+            return 'MAC'
+        case 'win32':
+            return 'WINDOWS'
+        case 'linux':
+            return 'LINUX'
+        default:
+            return 'UNKNOWN'
     }
-
-    return 'UNKNOWN'
 }
 
 // Compute UserContext object for sendTelemetryEvent API call.
 // Do not return context when unknown IDE or Operating system is found.
 // This behaviour may change in the future, when API will accept not enumerated values in API definition.
-export const makeUserContextObject = (initializeParams: InitializeParams, product: string): UserContext | undefined => {
+export const makeUserContextObject = (
+    initializeParams: InitializeParams,
+    platform: Platform,
+    product: string
+): UserContext | undefined => {
     const userContext: UserContext = {
         ideCategory: getIdeCategory(initializeParams),
-        operatingSystem: getOperatingSystem(),
+        operatingSystem: getOperatingSystem(platform),
         product: product,
         clientId: initializeParams.initializationOptions?.aws.clientInfo?.clientId,
         ideVersion:
