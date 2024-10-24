@@ -252,4 +252,11 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     async listAvailableCustomizations(request: CodeWhispererTokenClient.ListAvailableCustomizationsRequest) {
         return this.client.listAvailableCustomizations(request).promise()
     }
+
+    /**
+     * @description send telemetry event to code whisperer data warehouse
+     */
+    async sendTelemetryEvent(request: CodeWhispererTokenClient.SendTelemetryEventRequest) {
+        return this.client.sendTelemetryEvent(request).promise()
+    }
 }

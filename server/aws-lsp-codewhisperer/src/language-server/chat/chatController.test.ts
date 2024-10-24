@@ -15,6 +15,7 @@ import { ChatTelemetryController } from './telemetry/chatTelemetryController'
 import { DocumentContextExtractor } from './contexts/documentContext'
 import * as utils from './utils'
 import { DEFAULT_HELP_FOLLOW_UP_PROMPT, HELP_MESSAGE } from './constants'
+import { TelemetryService } from '../telemetryService'
 
 describe('ChatController', () => {
     const mockTabId = 'tab-1'
@@ -65,6 +66,7 @@ describe('ChatController', () => {
     let testFeatures: TestFeatures
     let chatSessionManagementService: ChatSessionManagementService
     let chatController: ChatController
+    let telemetryService: TelemetryService
 
     beforeEach(() => {
         generateAssistantResponseStub = sinon
@@ -95,7 +97,7 @@ describe('ChatController', () => {
             testFeatures.credentialsProvider
         )
 
-        chatController = new ChatController(chatSessionManagementService, testFeatures)
+        chatController = new ChatController(chatSessionManagementService, testFeatures, telemetryService)
     })
 
     afterEach(() => {
