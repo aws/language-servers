@@ -68,6 +68,10 @@ export const QChatServer =
             return chatController.onSendFeedback(params)
         })
 
+        chat.onCodeInsertToCursorPosition(params => {
+            return chatController.onCodeInsertToCursorPosition(params)
+        })
+
         lsp.onInitialized(chatController.updateConfiguration)
         lsp.didChangeConfiguration(chatController.updateConfiguration)
 
