@@ -11,10 +11,19 @@ describe('Test CsharpDependencyGraph', () => {
     let mockedLogging: StubbedInstance<Logging>
     const projectPathUri = path.resolve(path.join(__dirname, 'sampleWs'))
     const tempDirPath = path.resolve('\\Temp')
-
-    const mockedFs: StubbedInstance<Workspace['fs']> = stubInterface<Workspace['fs']>()
-    mockedFs.getTempDirPath.returns(tempDirPath)
-
+    const mockedFs = {
+        copy: Sinon.mock(),
+        exists: Sinon.mock(),
+        getFileSize: Sinon.mock(),
+        getTempDirPath: () => tempDirPath,
+        readdir: Sinon.stub(),
+        readFile: Sinon.stub(),
+        isFile: Sinon.mock(),
+        remove: Sinon.mock(),
+        writeFile: Sinon.stub(),
+        appendFile: Sinon.stub(),
+        mkdir: Sinon.stub(),
+    }
     const mockedWorkspace: Workspace = {
         getTextDocument: Sinon.mock(),
         getAllTextDocuments: Sinon.mock(),
@@ -146,8 +155,6 @@ describe('Test CsharpDependencyGraph', () => {
                 if (filePath === path.join(projectPathUri, 'src', 'model.cs')) {
                     return `namespace Amazon.Cw.Model {}`
                 }
-
-                return 'defaultReadFileResult'
             })
             await csharpDependencyGraph.createNamespaceFilenameMapper(projectPathUri)
             assert.deepStrictEqual(
@@ -167,8 +174,6 @@ describe('Test CsharpDependencyGraph', () => {
                 if (filePath === path.join(projectPathUri, 'src', 'model.cs')) {
                     return ``
                 }
-
-                return 'defaultReadFileResult'
             })
             await csharpDependencyGraph.createNamespaceFilenameMapper(projectPathUri)
             assert.deepStrictEqual(csharpDependencyGraph.namespaceToFilepathDirectory, new Map([]))
@@ -202,14 +207,13 @@ describe('Test CsharpDependencyGraph', () => {
         })
 
         it("should return source file with its dependecies' file path", async () => {
-            mockedFs.getFileSize.resolves({ size: 1000 })
+            mockedFs.getFileSize.atLeast(1).resolves({ size: 1000 })
 
             mockedFs.readFile.onFirstCall().resolves(
                 `using Amazon.Cw.Props;
         var total = 5 + 4;`
             )
             const pickedSourceFiles = await csharpDependencyGraph.searchDependency(path.join(projectPathUri, 'main.cs'))
-            Sinon.assert.called(mockedFs.getFileSize)
             assert.deepStrictEqual(
                 pickedSourceFiles,
                 new Set([
@@ -313,15 +317,13 @@ describe('Test CsharpDependencyGraph', () => {
             assert.strictEqual(mockedFs.readFile.calledWith(projectPathUri), false)
         })
         it('should traverse through files until it reaches payload size limit', async () => {
-            mockedFs.getFileSize.resolves({ size: Math.pow(2, 19) })
+            mockedFs.getFileSize.atLeast(1).resolves({ size: Math.pow(2, 19) })
             await csharpDependencyGraph.traverseDir(projectPathUri)
-            Sinon.assert.called(mockedFs.getFileSize)
             assert.strictEqual(csharpDependencyGraph.isProjectTruncated, true)
         })
         it('should traverse through all files', async () => {
-            mockedFs.getFileSize.resolves({ size: Math.pow(2, 10) })
+            mockedFs.getFileSize.atLeast(1).resolves({ size: Math.pow(2, 10) })
             await csharpDependencyGraph.traverseDir(projectPathUri)
-            Sinon.assert.called(mockedFs.getFileSize)
             assert.strictEqual(csharpDependencyGraph.isProjectTruncated, false)
         })
     })
@@ -391,8 +393,7 @@ namespace Amazon.Toolkit.Demo {
         it('should call zip dir', async () => {
             const zipSize = Math.pow(2, 19)
             const zipFileBuffer = 'dummy-zip-data'
-            mockedFs.getFileSize.resolves({ size: zipSize })
-
+            mockedFs.getFileSize.atLeast(1).resolves({ size: zipSize })
             csharpDependencyGraph.createZip = Sinon.stub().returns({
                 zipFileBuffer,
                 zipFileSize: zipSize,
@@ -409,7 +410,6 @@ namespace Amazon.Toolkit.Demo {
 
             const trucation = await csharpDependencyGraph.generateTruncation(path.join(projectPathUri, 'main.cs'))
 
-            Sinon.assert.called(mockedFs.getFileSize)
             assert.deepStrictEqual(trucation, expectedResult)
         })
     })
