@@ -1,4 +1,4 @@
-import { BearerCredentials, CredentialsProvider } from '@aws/language-server-runtimes/server-interface'
+import { BearerCredentials, CredentialsProvider, CredentialsType } from '@aws/language-server-runtimes/server-interface'
 import { AWSError, ConfigurationOptions, CredentialProviderChain, Credentials } from 'aws-sdk'
 import { PromiseResult } from 'aws-sdk/lib/request'
 import { v4 as uuidv4 } from 'uuid'
@@ -52,6 +52,8 @@ export abstract class CodeWhispererServiceBase {
     public customizationArn?: string
     abstract client: CodeWhispererSigv4Client | CodeWhispererTokenClient
 
+    abstract getCredentialsType(): CredentialsType
+
     abstract generateSuggestions(request: GenerateSuggestionsRequest): Promise<GenerateSuggestionsResponse>
 
     constructor(credentialsProvider: CredentialsProvider, additionalAwsConfig: AWS.ConfigurationOptions = {}) {
@@ -89,6 +91,10 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
         this.client.setupRequestListeners = ({ httpRequest }) => {
             httpRequest.headers['x-amzn-codewhisperer-optout'] = `${!this.shareCodeWhispererContentWithAWS}`
         }
+    }
+
+    getCredentialsType(): CredentialsType {
+        return 'iam'
     }
 
     async generateSuggestions(request: GenerateSuggestionsRequest): Promise<GenerateSuggestionsResponse> {
@@ -137,6 +143,10 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
             ],
         }
         this.client = createCodeWhispererTokenClient(options)
+    }
+
+    getCredentialsType(): CredentialsType {
+        return 'bearer'
     }
 
     async generateSuggestions(request: GenerateSuggestionsRequest): Promise<GenerateSuggestionsResponse> {

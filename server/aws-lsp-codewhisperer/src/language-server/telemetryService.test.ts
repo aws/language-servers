@@ -11,6 +11,7 @@ import {
 import { UserContext, OptOutPreference, UserTriggerDecisionEvent } from '../client/token/codewhispererbearertokenclient'
 import { CodeWhispererSession } from './session/sessionManager'
 import sinon from 'ts-sinon'
+import { builderIdStartUrl } from './constants'
 
 class MockCredentialsProvider implements CredentialsProvider {
     private mockIamCredentials: IamCredentials | undefined
@@ -39,12 +40,7 @@ class MockCredentialsProvider implements CredentialsProvider {
         return this.mockConnectionMetadata
     }
 
-    setIamCredentials(credentials: IamCredentials | undefined) {
-        this.mockIamCredentials = credentials
-    }
-
     setConnectionMetadata(metadata: ConnectionMetadata | undefined) {
-        console.log('coming here?')
         this.mockConnectionMetadata = metadata
     }
 }
@@ -74,6 +70,7 @@ describe('TelemetryService', () => {
                 discarded: false,
             },
         },
+        acceptedSuggestionId: 'item-id-1',
         firstCompletionDisplayLatency: 100,
         timeToFirstRecommendation: 200,
     }
@@ -84,7 +81,7 @@ describe('TelemetryService', () => {
     })
 
     it('updateUserContext updates the userContext property', () => {
-        telemetryService = new TelemetryService(mockCredentialsProvider, {}, {} as Telemetry)
+        telemetryService = new TelemetryService(mockCredentialsProvider, 'bearer', {} as Telemetry, {})
         const mockUserContext: UserContext = {
             clientId: 'aaaabbbbccccdddd',
             ideCategory: 'ECLIPSE',
@@ -97,20 +94,20 @@ describe('TelemetryService', () => {
     })
 
     it('updateOptOutPreference updates the optOutPreference property', () => {
-        telemetryService = new TelemetryService(mockCredentialsProvider, {}, {} as Telemetry)
+        telemetryService = new TelemetryService(mockCredentialsProvider, 'bearer', {} as Telemetry, {})
         const mockOptOutPreference: OptOutPreference = 'OPTIN'
         telemetryService.updateOptOutPreference(mockOptOutPreference)
         expect((telemetryService as any).optOutPreference).to.equal(mockOptOutPreference)
     })
 
     it('updateEnableTelemetryEventsToDestination updates the enableTelemetryEventsToDestination property', () => {
-        telemetryService = new TelemetryService(mockCredentialsProvider, {}, {} as Telemetry)
+        telemetryService = new TelemetryService(mockCredentialsProvider, 'bearer', {} as Telemetry, {})
         telemetryService.updateEnableTelemetryEventsToDestination(true)
         expect((telemetryService as any).enableTelemetryEventsToDestination).to.be.true
     })
 
     it('getSuggestionState fetches the suggestion state from CodeWhispererSession', () => {
-        telemetryService = new TelemetryService(mockCredentialsProvider, {}, {} as Telemetry)
+        telemetryService = new TelemetryService(mockCredentialsProvider, 'bearer', {} as Telemetry, {})
         const getSuggestionState = (telemetryService as any).getSuggestionState.bind(telemetryService)
         let session = {
             getAggregatedUserTriggerDecision: () => {
@@ -154,11 +151,7 @@ describe('TelemetryService', () => {
     })
 
     it('should not emit user trigger decision if login is invalid (IAM)', () => {
-        mockCredentialsProvider.setIamCredentials({
-            accessKeyId: 'accessKey',
-            secretAccessKey: 'secretKey',
-        })
-        telemetryService = new TelemetryService(mockCredentialsProvider, {}, {} as Telemetry)
+        telemetryService = new TelemetryService(mockCredentialsProvider, 'iam', {} as Telemetry, {})
         telemetryService.emitUserTriggerDecision(mockSession as CodeWhispererSession)
         const invokeSendTelemetryEventSpy: sinon.SinonSpy = sinon.spy(
             telemetryService,
@@ -167,13 +160,13 @@ describe('TelemetryService', () => {
         sinon.assert.notCalled(invokeSendTelemetryEventSpy)
     })
 
-    it('should not emit user trigger decision if login is invalid (idc but OPTOUT)', () => {
+    it('should not emit user trigger decision if login is invalid (builderId but OPTOUT)', () => {
         mockCredentialsProvider.setConnectionMetadata({
             sso: {
-                startUrl: 'idc-start-url',
+                startUrl: builderIdStartUrl,
             },
         })
-        telemetryService = new TelemetryService(mockCredentialsProvider, {}, {} as Telemetry)
+        telemetryService = new TelemetryService(mockCredentialsProvider, 'bearer', {} as Telemetry, {})
         telemetryService.updateOptOutPreference('OPTOUT')
         telemetryService.emitUserTriggerDecision(mockSession as CodeWhispererSession)
         const invokeSendTelemetryEventSpy: sinon.SinonSpy = sinon.spy(
@@ -181,6 +174,7 @@ describe('TelemetryService', () => {
             'invokeSendTelemetryEvent' as any
         )
         sinon.assert.notCalled(invokeSendTelemetryEventSpy)
+        invokeSendTelemetryEventSpy.restore()
     })
 
     it('should emit user trigger decision event correctly', () => {
@@ -197,13 +191,12 @@ describe('TelemetryService', () => {
             generatedLine: 3,
             numberOfRecommendations: 1,
         }
-        mockCredentialsProvider.setIamCredentials(undefined)
         mockCredentialsProvider.setConnectionMetadata({
             sso: {
                 startUrl: 'idc-start-url',
             },
         })
-        telemetryService = new TelemetryService(mockCredentialsProvider, {}, {} as Telemetry)
+        telemetryService = new TelemetryService(mockCredentialsProvider, 'bearer', {} as Telemetry, {})
         const invokeSendTelemetryEventSpy: sinon.SinonSpy = sinon.spy(
             telemetryService,
             'invokeSendTelemetryEvent' as any

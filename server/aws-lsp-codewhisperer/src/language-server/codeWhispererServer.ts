@@ -294,7 +294,12 @@ export const CodewhispererServerFactory =
 
         const sessionManager = SessionManager.getInstance()
         const codeWhispererService = service(credentialsProvider)
-        const telemetryService = new TelemetryService(credentialsProvider, {}, telemetry)
+        const telemetryService = new TelemetryService(
+            credentialsProvider,
+            codeWhispererService.getCredentialsType(),
+            telemetry,
+            {}
+        )
 
         lsp.addInitializer((params: InitializeParams) => {
             codeWhispererService.updateClientConfig({
@@ -582,9 +587,9 @@ export const CodewhispererServerFactory =
                     logging.log(
                         `Inline completion configuration updated to use ${codeWhispererService.customizationArn}`
                     )
-                    const enableTelemetryEventsToDestination = qConfig['enableTelemetryEventsToDestination'] == true
+                    const enableTelemetryEventsToDestination = qConfig['enableTelemetryEventsToDestination'] === true
                     telemetryService.updateEnableTelemetryEventsToDestination(enableTelemetryEventsToDestination)
-                    const optOutTelemetryPreference = qConfig['optOutTelemetry'] == true ? 'OPTOUT' : 'OPTIN'
+                    const optOutTelemetryPreference = qConfig['optOutTelemetry'] === true ? 'OPTOUT' : 'OPTIN'
                     telemetryService.updateOptOutPreference(optOutTelemetryPreference)
                 }
 

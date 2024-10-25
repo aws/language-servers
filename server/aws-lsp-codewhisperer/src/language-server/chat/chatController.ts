@@ -350,9 +350,9 @@ export class ChatController implements ChatHandlers {
             if (qConfig) {
                 this.#customizationArn = undefinedIfEmpty(qConfig.customization)
                 this.#log(`Chat configuration updated to use ${this.#customizationArn}`)
-                const enableTelemetryEventsToDestination = qConfig['enableTelemetryEventsToDestination'] == true
+                const enableTelemetryEventsToDestination = qConfig['enableTelemetryEventsToDestination'] === true
                 this.#telemetryService.updateEnableTelemetryEventsToDestination(enableTelemetryEventsToDestination)
-                const optOutTelemetryPreference = qConfig['optOutTelemetry'] == true ? 'OPTOUT' : 'OPTIN'
+                const optOutTelemetryPreference = qConfig['optOutTelemetry'] === true ? 'OPTOUT' : 'OPTIN'
                 this.#telemetryService.updateOptOutPreference(optOutTelemetryPreference)
             }
         } catch (error) {

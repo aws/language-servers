@@ -1,5 +1,5 @@
 import { CodeWhispererServiceToken } from './codeWhispererService'
-import { CredentialsProvider, Telemetry } from '@aws/language-server-runtimes/server-interface'
+import { CredentialsProvider, CredentialsType, Telemetry } from '@aws/language-server-runtimes/server-interface'
 import { CodeWhispererSession } from './session/sessionManager'
 import {
     SuggestionState,
@@ -15,13 +15,16 @@ export class TelemetryService extends CodeWhispererServiceToken {
     private enableTelemetryEventsToDestination!: boolean
     private telemetry: Telemetry
     private loginType: LoginType
+    private credentialsType: CredentialsType
 
     constructor(
         credentialsProvider: CredentialsProvider,
-        additionalAwsConfig: AWS.ConfigurationOptions = {},
-        telemetry: Telemetry
+        credentialsType: CredentialsType,
+        telemetry: Telemetry,
+        additionalAwsConfig: AWS.ConfigurationOptions = {}
     ) {
         super(credentialsProvider, additionalAwsConfig)
+        this.credentialsType = credentialsType
         this.telemetry = telemetry
         this.loginType = getLoginTypeFromProvider(credentialsProvider)
     }
@@ -40,22 +43,24 @@ export class TelemetryService extends CodeWhispererServiceToken {
 
     private getSuggestionState(session: CodeWhispererSession): SuggestionState {
         let suggestionState: SuggestionState
-        if (session.getAggregatedUserTriggerDecision() === undefined) {
-            suggestionState = 'EMPTY'
-        } else if (session.getAggregatedUserTriggerDecision() === 'Accept') {
-            suggestionState = 'ACCEPT'
-        } else if (session.getAggregatedUserTriggerDecision() === 'Reject') {
-            suggestionState = 'REJECT'
-        } else if (session.getAggregatedUserTriggerDecision() === 'Discard') {
-            suggestionState = 'DISCARD'
-        } else {
-            suggestionState = 'EMPTY'
+        switch (session.getAggregatedUserTriggerDecision()) {
+            case 'Accept':
+                suggestionState = 'ACCEPT'
+                break
+            case 'Reject':
+                suggestionState = 'REJECT'
+                break
+            case 'Discard':
+                suggestionState = 'DISCARD'
+                break
+            default:
+                suggestionState = 'EMPTY'
         }
         return suggestionState
     }
 
     private isLoginInvalidForTelemetry(): boolean {
-        return this.loginType === 'iam' || (this.loginType !== 'identityCenter' && this.optOutPreference !== 'OPTOUT')
+        return this.credentialsType === 'iam' || (this.loginType === 'builderId' && this.optOutPreference === 'OPTOUT')
     }
 
     private invokeSendTelemetryEvent(event: any) {
@@ -73,8 +78,7 @@ export class TelemetryService extends CodeWhispererServiceToken {
             return
         }
         const completionSessionResult = session.completionSessionResult ?? {}
-        const acceptedItemId = Object.keys(completionSessionResult).find(k => completionSessionResult[k].accepted)
-        const acceptedSuggestion = session.suggestions.find(s => s.itemId === acceptedItemId)
+        const acceptedSuggestion = session.suggestions.find(s => s.itemId === session.acceptedSuggestionId)
         const generatedLines =
             acceptedSuggestion === undefined || acceptedSuggestion.content.trim() === ''
                 ? 0
