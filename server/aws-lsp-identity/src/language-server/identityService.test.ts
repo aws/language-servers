@@ -56,7 +56,10 @@ describe('IdentityService', () => {
             setSsoToken: Promise.resolve(),
         })
 
-        autoRefresher = createStubInstance(SsoTokenAutoRefresher) as StubbedInstance<SsoTokenAutoRefresher>
+        autoRefresher = createStubInstance(SsoTokenAutoRefresher, {
+            watch: Promise.resolve(),
+            unwatch: undefined,
+        }) as StubbedInstance<SsoTokenAutoRefresher>
 
         stub(acp, 'authorizationCodePkceFlow').returns(
             Promise.resolve({

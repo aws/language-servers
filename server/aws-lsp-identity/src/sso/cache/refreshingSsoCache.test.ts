@@ -79,7 +79,7 @@ describe('RefreshingSsoCache', () => {
     describe('getSsoClientRegistration', () => {
         it('Creates a new SSO client registration.', async () => {
             const ssoCache = stubSsoCache()
-            const sut = new RefreshingSsoCache(ssoCache)
+            const sut = new RefreshingSsoCache(ssoCache, _ => {})
 
             const actual = await sut.getSsoClientRegistration('my-client-name', ssoSession)
 
@@ -93,7 +93,7 @@ describe('RefreshingSsoCache', () => {
         it('Updates an expired SSO client registration.', async () => {
             const clientRegistration = createSsoClientRegistration(-10000 /* expired */)
             const ssoCache = stubSsoCache(clientRegistration)
-            const sut = new RefreshingSsoCache(ssoCache)
+            const sut = new RefreshingSsoCache(ssoCache, _ => {})
 
             const actual = await sut.getSsoClientRegistration('my-client-name', ssoSession)
 
@@ -109,7 +109,7 @@ describe('RefreshingSsoCache', () => {
     describe('getSsoToken', () => {
         it('Returns nothing on no cached SSO token.', async () => {
             const ssoCache = stubSsoCache()
-            const sut = new RefreshingSsoCache(ssoCache)
+            const sut = new RefreshingSsoCache(ssoCache, _ => {})
 
             const actual = await sut.getSsoToken('my-client-name', ssoSession)
 
@@ -118,7 +118,7 @@ describe('RefreshingSsoCache', () => {
 
         it('Returns nothing on expired SSO token.', async () => {
             const ssoCache = stubSsoCache(createSsoClientRegistration(10000), createSsoToken(-10000))
-            const sut = new RefreshingSsoCache(ssoCache)
+            const sut = new RefreshingSsoCache(ssoCache, _ => {})
 
             const actual = await sut.getSsoToken('my-client-name', ssoSession)
 
@@ -128,7 +128,7 @@ describe('RefreshingSsoCache', () => {
         it('Returns existing SSO token before refresh window (5 minutes before expiration).', async () => {
             const ssoToken = createSsoToken(6 * 60 * 1000 /* 6 minutes before */)
             const ssoCache = stubSsoCache(createSsoClientRegistration(10000), ssoToken)
-            const sut = new RefreshingSsoCache(ssoCache)
+            const sut = new RefreshingSsoCache(ssoCache, _ => {})
 
             const actual = await sut.getSsoToken('my-client-name', ssoSession)
 
@@ -145,7 +145,7 @@ describe('RefreshingSsoCache', () => {
         it('Returns existing SSO token when refresh attempted recently (within 30 seconds).', async () => {
             const ssoToken = createSsoToken(3 * 60 * 1000 /* 3 minutes before */)
             const ssoCache = stubSsoCache(createSsoClientRegistration(10000), ssoToken)
-            const sut = new RefreshingSsoCache(ssoCache)
+            const sut = new RefreshingSsoCache(ssoCache, _ => {})
             ;(sut as any).ssoTokenDetails[ssoSession.name] = {
                 lastRefreshMillis: Date.now() - 10000 /* 10 seconds ago */,
             }
@@ -166,7 +166,7 @@ describe('RefreshingSsoCache', () => {
             const ssoToken = createSsoToken(-10000)
             ssoToken.refreshToken = undefined
             const ssoCache = stubSsoCache(createSsoClientRegistration(10000), ssoToken)
-            const sut = new RefreshingSsoCache(ssoCache)
+            const sut = new RefreshingSsoCache(ssoCache, _ => {})
 
             const actual = await sut.getSsoToken('my-client-name', ssoSession)
 
@@ -177,7 +177,7 @@ describe('RefreshingSsoCache', () => {
             const ssoToken = createSsoToken(4 * 60 * 1000 /* 4 minutes before */)
             const expiresAtMillis = Date.parse(ssoToken.expiresAt) // Save, token updated in-place
             const ssoCache = stubSsoCache(createSsoClientRegistration(10000), ssoToken)
-            const sut = new RefreshingSsoCache(ssoCache)
+            const sut = new RefreshingSsoCache(ssoCache, _ => {})
 
             const actual = await sut.getSsoToken('my-client-name', ssoSession)
 
