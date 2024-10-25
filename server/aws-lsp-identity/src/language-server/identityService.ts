@@ -6,6 +6,8 @@ import {
     GetSsoTokenParams,
     GetSsoTokenResult,
     IamIdentityCenterSsoTokenSource,
+    InvalidateSsoTokenParams,
+    InvalidateSsoTokenResult,
     SsoSession,
     SsoTokenSourceKind,
 } from '@aws/language-server-runtimes/server-interface'
@@ -14,7 +16,7 @@ import { authorizationCodePkceFlow, awsBuilderIdReservedName, awsBuilderIdSsoReg
 import { AwsError } from '../awsError'
 import { SsoCache } from '../sso/cache'
 import { SsoTokenAutoRefresher } from './ssoTokenAutoRefresher'
-import { throwOnInvalidClientRegistration, throwOnInvalidSsoSession, tryAsync } from '../sso/utils'
+import { throwOnInvalidClientRegistration, throwOnInvalidSsoSession, throwOnInvalidSsoSessionName } from '../sso/utils'
 
 type SsoTokenSource = IamIdentityCenterSsoTokenSource | AwsBuilderIdSsoTokenSource
 
@@ -43,20 +45,31 @@ export class IdentityService {
             const clientRegistration = await this.ssoCache.getSsoClientRegistration(params.clientName, ssoSession)
             throwOnInvalidClientRegistration(clientRegistration)
 
-            ssoToken = await tryAsync(
-                () => authorizationCodePkceFlow(clientRegistration, ssoSession, this.showUrl, token),
-                error => AwsError.wrap(error, AwsErrorCodes.E_CANNOT_CREATE_SSO_TOKEN)
+            ssoToken = await authorizationCodePkceFlow(clientRegistration, ssoSession, this.showUrl, token).catch(
+                reason => {
+                    throw AwsError.wrap(reason, AwsErrorCodes.E_CANNOT_CREATE_SSO_TOKEN)
+                }
             )
 
-            await tryAsync(
-                () => this.ssoCache.setSsoToken(params.clientName, ssoSession, ssoToken!),
-                error => AwsError.wrap(error, AwsErrorCodes.E_CANNOT_WRITE_SSO_CACHE)
-            )
+            await this.ssoCache.setSsoToken(params.clientName, ssoSession, ssoToken!).catch(reason => {
+                throw AwsError.wrap(reason, AwsErrorCodes.E_CANNOT_WRITE_SSO_CACHE)
+            })
         }
 
         this.autoRefresher.watch(ssoSession.name)
 
         return { ssoToken: { accessToken: ssoToken.accessToken, id: ssoSession.name } }
+    }
+
+    async invalidateSsoToken(
+        params: InvalidateSsoTokenParams,
+        token: CancellationToken
+    ): Promise<InvalidateSsoTokenResult> {
+        throwOnInvalidSsoSessionName(params?.ssoTokenId)
+
+        await this.ssoCache.removeSsoToken(params.ssoTokenId)
+
+        return {}
     }
 
     private async getSsoSession(source: SsoTokenSource): Promise<SsoSession> {

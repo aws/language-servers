@@ -7,8 +7,7 @@ import {
     UpdateProfileParams,
 } from '@aws/language-server-runtimes/server-interface'
 import { normalizeParsedIniData } from '../../sharedConfig/saveKnownFiles'
-import { stubInterface } from 'ts-sinon'
-import { SinonStubbedInstance } from 'sinon'
+import { StubbedInstance, stubInterface } from 'ts-sinon'
 import { expect, use } from 'chai'
 import { AwsError } from '../../awsError'
 
@@ -16,7 +15,7 @@ import { AwsError } from '../../awsError'
 use(require('chai-as-promised'))
 
 let sut: ProfileService
-let store: SinonStubbedInstance<ProfileStore>
+let store: StubbedInstance<ProfileStore>
 let profile1: Profile
 let profile2: Profile
 let profile3: Profile
@@ -25,8 +24,6 @@ let ssoSession2: SsoSession
 
 describe('ProfileService', async () => {
     beforeEach(() => {
-        store = stubInterface()
-
         profile1 = {
             kinds: [ProfileKind.SsoTokenProfile],
             name: 'profile1',
@@ -68,12 +65,13 @@ describe('ProfileService', async () => {
             },
         }
 
-        store.load.returns(
-            Promise.resolve({
+        store = stubInterface<ProfileStore>({
+            load: Promise.resolve({
                 profiles: [profile1, profile2, profile3],
                 ssoSessions: [ssoSession1, ssoSession2],
-            } satisfies ProfileData)
-        )
+            } satisfies ProfileData),
+            save: Promise.resolve(),
+        })
 
         sut = new ProfileService(store)
     })

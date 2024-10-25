@@ -1,9 +1,9 @@
 import { getSSOTokenFilepath, getSSOTokenFromFile, SSOToken } from '@smithy/shared-ini-file-loader'
 import { SsoCache, SsoClientRegistration, ssoClientRegistrationDuckTyper, ssoTokenDuckTyper } from './ssoCache'
-import { readFile, writeFile } from 'fs/promises'
+import { readFile, unlink, writeFile } from 'fs/promises'
 import { AwsError } from '../../awsError'
 import { AwsErrorCodes, SsoSession } from '@aws/language-server-runtimes/server-interface'
-import { throwOnInvalidClientName, throwOnInvalidSsoSession, tryAsync } from '../utils'
+import { throwOnInvalidClientName, throwOnInvalidSsoSession, throwOnInvalidSsoSessionName } from '../utils'
 
 // As this is a cache, we tend to swallow a lot of the errors as it is ok to just recreate the items each
 // time, though recreating the SSO token without a refresh token will be every hour.  This is a better
@@ -16,10 +16,9 @@ export class FileSystemSsoCache implements SsoCache {
     ): Promise<SsoClientRegistration | undefined> {
         const id = toSsoClientRegistrationCacheId(clientName, ssoSession)
 
-        return await tryGetAsync(async () => {
-            const registration = await getSsoClientRegistrationFromFile(id)
-            return ssoClientRegistrationDuckTyper.eval(registration) ? registration : undefined
-        })
+        return await await getSsoClientRegistrationFromFile(id)
+            .then(registration => (ssoClientRegistrationDuckTyper.eval(registration) ? registration : undefined))
+            .catch(reason => ignoreDoesNotExistOrThrow(reason))
     }
 
     async setSsoClientRegistration(
@@ -29,19 +28,23 @@ export class FileSystemSsoCache implements SsoCache {
     ): Promise<void> {
         const id = toSsoClientRegistrationCacheId(clientName, ssoSession)
 
-        await tryAsync(
-            () => writeSsoObjectToFile(id, clientRegistration),
-            error => AwsError.wrap(error, AwsErrorCodes.E_CANNOT_WRITE_SSO_CACHE)
-        )
+        await writeSsoObjectToFile(id, clientRegistration).catch(reason => {
+            throw AwsError.wrap(reason, AwsErrorCodes.E_CANNOT_WRITE_SSO_CACHE)
+        })
+    }
+
+    async removeSsoToken(ssoSessionName: string): Promise<void> {
+        throwOnInvalidSsoSessionName(ssoSessionName)
+
+        await unlink(getSSOTokenFilepath(ssoSessionName)).catch(reason => ignoreDoesNotExistOrThrow(reason))
     }
 
     async getSsoToken(clientName: string, ssoSession: SsoSession): Promise<SSOToken | undefined> {
         throwOnInvalidSsoSession(ssoSession)
 
-        return await tryGetAsync(async () => {
-            const ssoToken = await getSSOTokenFromFile(ssoSession.name)
-            return ssoTokenDuckTyper.eval(ssoToken) ? ssoToken : undefined
-        })
+        return await getSSOTokenFromFile(ssoSession.name)
+            .then(ssoToken => (ssoTokenDuckTyper.eval(ssoToken) ? ssoToken : undefined))
+            .catch(reason => ignoreDoesNotExistOrThrow(reason))
     }
 
     async setSsoToken(clientName: string, ssoSession: SsoSession, ssoToken: SSOToken): Promise<void> {
@@ -51,25 +54,20 @@ export class FileSystemSsoCache implements SsoCache {
             return
         }
 
-        tryAsync(
-            () => writeSsoObjectToFile(ssoSession.name, ssoToken),
-            error => AwsError.wrap(error, AwsErrorCodes.E_CANNOT_WRITE_SSO_CACHE)
-        )
+        await writeSsoObjectToFile(ssoSession.name, ssoToken).catch(reason => {
+            throw AwsError.wrap(reason, AwsErrorCodes.E_CANNOT_WRITE_SSO_CACHE)
+        })
     }
 }
 
-async function tryGetAsync<R>(tryIt: () => Promise<R | undefined>): Promise<R | undefined> {
-    try {
-        return await tryIt()
-    } catch (error) {
-        // Error codes are consistent across OSes (Windows is converted to libuv error codes)
-        // https://nodejs.org/api/errors.html#errorerrno
-        if ((error as SystemError)?.code === 'ENOENT') {
-            return Promise.resolve(undefined)
-        }
-
-        throw AwsError.wrap(error as Error, AwsErrorCodes.E_CANNOT_READ_SSO_CACHE)
+function ignoreDoesNotExistOrThrow(error: unknown): Promise<undefined> {
+    // Error codes are consistent across OSes (Windows is converted to libuv error codes)
+    // https://nodejs.org/api/errors.html#errorerrno
+    if ((error as SystemError)?.code === 'ENOENT') {
+        return Promise.resolve(undefined)
     }
+
+    throw AwsError.wrap(error as Error, AwsErrorCodes.E_CANNOT_READ_SSO_CACHE)
 }
 
 function toSsoClientRegistrationCacheId(clientName: string, ssoSession: SsoSession): string {

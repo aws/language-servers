@@ -4,6 +4,8 @@ import {
     GetSsoTokenParams,
     getSsoTokenRequestType,
     IamIdentityCenterSsoTokenSource,
+    InvalidateSsoTokenParams,
+    invalidateSsoTokenRequestType,
     SsoTokenChangedParams,
     ssoTokenChangedRequestType,
     SsoTokenSourceKind,
@@ -75,6 +77,16 @@ async function execTestCommand(client: LanguageClient): Promise<void> {
             } satisfies IamIdentityCenterSsoTokenSource,
         } satisfies GetSsoTokenParams)
         window.showInformationMessage(`GetSsoToken: ${JSON.stringify(result)}`)
+    } catch (e) {
+        const are = e as AwsResponseError
+        window.showErrorMessage(`${are.message} [${are.data?.awsErrorCode}]`)
+    }
+
+    try {
+        await client.sendRequest(invalidateSsoTokenRequestType.method, {
+            ssoTokenId: 'my-idc-q-NOPE',
+        } satisfies InvalidateSsoTokenParams)
+        window.showInformationMessage(`InvalidateSsoToken: successful`)
     } catch (e) {
         const are = e as AwsResponseError
         window.showErrorMessage(`${are.message} [${are.data?.awsErrorCode}]`)

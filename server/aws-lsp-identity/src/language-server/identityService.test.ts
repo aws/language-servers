@@ -1,13 +1,13 @@
 import { expect, use } from 'chai'
 import { StubbedInstance, stubInterface } from 'ts-sinon'
 import { awsBuilderIdReservedName, SsoCache, SsoClientRegistration } from '../sso'
+import * as acp from '../sso/authorizationCodePkce/authorizationCodePkceFlow'
 import { IdentityService } from './identityService'
 import { ProfileData, ProfileStore } from './profiles/profileService'
 import { SsoTokenAutoRefresher } from './ssoTokenAutoRefresher'
 import { createStubInstance, restore, stub } from 'sinon'
 import { CancellationToken, ProfileKind, SsoTokenSourceKind } from '@aws/language-server-runtimes/protocol'
 import { SSOToken } from '@smithy/shared-ini-file-loader'
-import * as ssoUtils from '../sso/utils'
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 use(require('chai-as-promised'))
@@ -52,11 +52,13 @@ describe('IdentityService', () => {
                 issuedAt: new Date(Date.now()).toISOString(),
                 scopes: ['sso:account:access'],
             } satisfies SsoClientRegistration),
+            removeSsoToken: Promise.resolve(),
+            setSsoToken: Promise.resolve(),
         })
 
         autoRefresher = createStubInstance(SsoTokenAutoRefresher) as StubbedInstance<SsoTokenAutoRefresher>
 
-        stub(ssoUtils, 'tryAsync').returns(
+        stub(acp, 'authorizationCodePkceFlow').returns(
             Promise.resolve({
                 accessToken: 'my-access-token',
                 expiresAt: new Date(Date.now() + 10 * 1000).toISOString(),
@@ -71,6 +73,7 @@ describe('IdentityService', () => {
     describe('getSsoToken', () => {
         it('Can login with AWS Builder ID.', async () => {
             sut = new IdentityService(profileStore, ssoCache, autoRefresher, _ => {})
+
             const actual = await sut.getSsoToken(
                 {
                     clientName: 'my-client',
@@ -78,6 +81,7 @@ describe('IdentityService', () => {
                 },
                 CancellationToken.None
             )
+
             expect(actual.ssoToken.id).to.equal(awsBuilderIdReservedName)
             expect(actual.ssoToken.accessToken).to.equal('my-access-token')
             expect(autoRefresher.watch.calledOnce).to.be.true
@@ -85,6 +89,7 @@ describe('IdentityService', () => {
 
         it('Can login with IAM Identity Center.', async () => {
             sut = new IdentityService(profileStore, ssoCache, autoRefresher, _ => {})
+
             const actual = await sut.getSsoToken(
                 {
                     clientName: 'my-client',
@@ -92,6 +97,7 @@ describe('IdentityService', () => {
                 },
                 CancellationToken.None
             )
+
             expect(actual.ssoToken.id).to.equal('my-sso-session')
             expect(actual.ssoToken.accessToken).to.equal('my-access-token')
             expect(autoRefresher.watch.calledOnce).to.be.true
@@ -99,6 +105,7 @@ describe('IdentityService', () => {
 
         it('Throws when no SSO token cached and loginOnInvalidToken is false.', async () => {
             sut = new IdentityService(profileStore, ssoCache, autoRefresher, _ => {})
+
             const error = await expect(
                 sut.getSsoToken(
                     {
@@ -112,8 +119,27 @@ describe('IdentityService', () => {
                     CancellationToken.None
                 )
             ).rejectedWith(Error)
+
             expect(error.message).to.equal('SSO token not found.')
             expect(autoRefresher.watch.calledOnce).to.be.false
+        })
+    })
+
+    describe('invalidateSsoToken', () => {
+        it('removeToken removes on valid SSO session name', async () => {
+            sut = new IdentityService(profileStore, ssoCache, autoRefresher, _ => {})
+
+            await sut.invalidateSsoToken({ ssoTokenId: 'my-sso-session' }, CancellationToken.None)
+
+            expect(ssoCache.removeSsoToken.called).is.true
+        })
+
+        it('removeToken throws on invalid SSO session name', async () => {
+            sut = new IdentityService(profileStore, ssoCache, autoRefresher, _ => {})
+
+            await expect(sut.invalidateSsoToken({ ssoTokenId: '   ' }, CancellationToken.None)).to.be.rejectedWith()
+
+            expect(ssoCache.removeSsoToken.notCalled).is.true
         })
     })
 })

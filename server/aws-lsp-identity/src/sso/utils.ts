@@ -22,9 +22,9 @@ export function throwOnInvalidClientRegistration(
 ): asserts clientRegistration is SsoClientRegistration & { clientId: string; clientSecret: string; expiresAt: string } {
     if (
         !clientRegistration ||
-        !clientRegistration.clientId ||
-        !clientRegistration.clientSecret ||
-        !clientRegistration.expiresAt ||
+        !clientRegistration.clientId?.trim() ||
+        !clientRegistration.clientSecret?.trim() ||
+        !clientRegistration.expiresAt?.trim() ||
         !clientRegistration.scopes ||
         !clientRegistration.scopes.length
     ) {
@@ -35,27 +35,23 @@ export function throwOnInvalidClientRegistration(
     }
 }
 
+export function throwOnInvalidSsoSessionName(ssoSessionName?: string): asserts ssoSessionName is string {
+    if (!ssoSessionName?.trim()) {
+        throw new AwsError('SSO session name is invalid.', AwsErrorCodes.E_INVALID_SSO_SESSION)
+    }
+}
+
 export function throwOnInvalidSsoSession(
     ssoSession?: SsoSession
 ): asserts ssoSession is SsoSession & { name: string; settings: { sso_region: string; sso_start_url: string } } {
     if (
         !ssoSession ||
-        !ssoSession.name ||
+        throwOnInvalidClientName(ssoSession.name) ||
         !ssoSession.settings ||
-        !ssoSession.settings.sso_region ||
-        !ssoSession.settings.sso_start_url
+        !ssoSession.settings.sso_region?.trim() ||
+        !ssoSession.settings.sso_start_url?.trim()
     ) {
         throw new AwsError(`SSO session [${ssoSession?.name}] is invalid.`, AwsErrorCodes.E_INVALID_SSO_SESSION)
-    }
-}
-
-// A convenience function to reduce the amount of code need for one-liner try/catch blocks as well
-// as make declarations of consts for results of a call that must occur inside a try block.
-export async function tryAsync<R, E extends Error>(tryIt: () => Promise<R>, catchIt: (error: Error) => E): Promise<R> {
-    try {
-        return await tryIt()
-    } catch (error) {
-        throw catchIt(error instanceof Error ? error : new Error(error?.toString() ?? 'Unknown error'))
     }
 }
 

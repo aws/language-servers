@@ -5,6 +5,8 @@ import { DirectoryItems } from 'mock-fs/lib/filesystem'
 import { getSSOTokenFilepath, SSOToken } from '@smithy/shared-ini-file-loader'
 import { SsoClientRegistration } from './ssoCache'
 import { SsoSession } from '@aws/language-server-runtimes/server-interface'
+import { access } from 'fs/promises'
+import * as fs from 'fs'
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 use(require('chai-as-promised'))
@@ -73,6 +75,10 @@ function createSsoSession(name: string): SsoSession {
             sso_start_url: 'https://nowhere',
         },
     }
+}
+
+function expectFileExists(filename: string): Chai.Assertion {
+    return expect(access(getSSOTokenFilepath(ssoSession.name), fs.constants.F_OK))
 }
 
 describe('FileSystemSsoCache', () => {
@@ -149,6 +155,32 @@ describe('FileSystemSsoCache', () => {
         setupTest()
 
         await sut.setSsoClientRegistration(clientName, ssoSession, {} as SsoClientRegistration) // no throw
+    })
+
+    it('removeSsoToken deletes a valid token', async () => {
+        const filename = getSSOTokenFilepath(ssoSession.name)
+        setupTest()
+
+        await expectFileExists(filename).to.not.be.rejectedWith()
+
+        await sut.removeSsoToken(ssoSession.name)
+
+        await expectFileExists(filename).to.be.rejectedWith()
+    })
+
+    it('removeSsoToken does nothing on invalid/non-existent token', async () => {
+        const filename = getSSOTokenFilepath(ssoSession.name)
+        setupTest()
+
+        await expectFileExists(filename).to.not.be.rejectedWith()
+
+        await sut.removeSsoToken('non-existent token')
+
+        await expectFileExists(filename).to.not.be.rejectedWith()
+    })
+
+    it('removeToken throws on invalid SSO session name', async () => {
+        await expect(sut.removeSsoToken(null!)).to.be.rejectedWith()
     })
 
     it('getSsoToken returns valid token', async () => {
