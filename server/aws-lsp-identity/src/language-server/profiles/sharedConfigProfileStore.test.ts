@@ -50,10 +50,6 @@ const dir = join(getHomeDir(), '.aws').replaceAll('\\', '/')
 // This applies to parseKnownFiles, saveKnownFiles, and loadSharedConfigFiles
 const init: SharedConfigInit = { ignoreCache: true }
 
-afterEach(() => {
-    mock.restore()
-})
-
 function setupTest(config: string, credentials: string): void {
     // Just for sanity, safe to call restore if mock not currently active
     mock.restore()
@@ -68,6 +64,10 @@ function setupTest(config: string, credentials: string): void {
 }
 
 describe('SharedConfigProfileStore', async () => {
+    afterEach(() => {
+        mock.restore()
+    })
+
     it('loads SSO token profiles and sso-sessions, but not services', async () => {
         setupTest(config, credentials)
 

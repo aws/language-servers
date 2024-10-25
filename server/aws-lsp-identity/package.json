@@ -1,5 +1,5 @@
 {
-    "name": "@aws/aws-lsp-identity",
+    "name": "@aws/lsp-identity",
     "version": "0.0.1",
     "description": "Identity server",
     "main": "./out/index.js",
@@ -15,7 +15,9 @@
     "scripts": {
         "clean": "rm -fr ./out tsconfig.tsbuildinfo",
         "compile": "tsc --build --verbose",
-        "test": "npm run test-unit",
+        "copy": "copyfiles --error --flat ./src/sso/authorizationCodePkce/resources/* ./out/sso/authorizationCodePkce/resources/",
+        "package": "npm run compile && npm run copy",
+        "test": "npm run package && npm run test-unit",
         "test-unit": "mocha 'out/**/*.test.js'"
     },
     "dependencies": {
@@ -32,8 +34,10 @@
         "@types/chai-as-promised": "^7.1.5",
         "@types/mocha": "^10.0.9",
         "@types/mock-fs": "^4.13.4",
+        "@types/sinon": "^17.0.3",
         "chai": "^4.3.7",
         "chai-as-promised": "^7.1.1",
+        "copyfiles": "^2.4.1",
         "mock-fs": "^5.2.0",
         "sinon": "^19.0.2",
         "ts-loader": "^9.5.1",

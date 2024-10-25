@@ -150,8 +150,7 @@
                 "${workspaceFolder}/app/aws-lsp-identity-runtimes/out/**/*.js",
                 "${workspaceFolder}/server/aws-lsp-identity/out/**/*.js"
             ],
-            "autoAttachChildProcesses": true,
-            "preLaunchTask": "watch"
+            "autoAttachChildProcesses": true
         },
         {
             "name": "Unit Tests",
