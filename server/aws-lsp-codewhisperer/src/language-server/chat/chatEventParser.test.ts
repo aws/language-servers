@@ -16,7 +16,7 @@ describe('ChatEventParser', () => {
             chatEventParser.processPartialEvent({
                 invalidStateEvent: {
                     message: 'Invalid state!',
-                    reason: 'Unknown!',
+                    reason: 'INVALID_TASK_ASSIST_PLAN',
                 },
             }),
             {
