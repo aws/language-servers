@@ -15,7 +15,7 @@ type TelemetryBuckets = {
 
 export class CodePercentageTracker {
     private buckets: TelemetryBuckets
-    private intervalId: NodeJS.Timeout
+    private intervalId: NodeJS.Timer
     private telemetry: Telemetry
 
     constructor(telemetry: Telemetry) {

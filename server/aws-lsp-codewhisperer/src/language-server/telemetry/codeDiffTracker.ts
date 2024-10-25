@@ -34,7 +34,7 @@ export class CodeDiffTracker<T extends AcceptedSuggestionEntry = AcceptedSuggest
     private static readonly DEFAULT_MAX_QUEUE_SIZE = 10000
 
     #eventQueue: T[]
-    #interval?: NodeJS.Timeout
+    #interval?: NodeJS.Timer
     #workspace: Features['workspace']
     #logging: Features['logging']
     #recordMetric: (entry: T, codeModificationPercentage: number) => void
