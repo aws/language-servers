@@ -7,13 +7,14 @@ import {
     UserContext,
     OptOutPreference,
 } from '../client/token/codewhispererbearertokenclient'
-import { getCompletionType } from './utils'
+import { getCompletionType, getLoginTypeFromProvider, LoginType } from './utils'
 
 export class TelemetryService extends CodeWhispererServiceToken {
     private userContext!: UserContext
     private optOutPreference!: OptOutPreference
     private enableTelemetryEventsToDestination!: boolean
     private telemetry: Telemetry
+    private loginType: LoginType
 
     constructor(
         credentialsProvider: CredentialsProvider,
@@ -22,6 +23,7 @@ export class TelemetryService extends CodeWhispererServiceToken {
     ) {
         super(credentialsProvider, additionalAwsConfig)
         this.telemetry = telemetry
+        this.loginType = getLoginTypeFromProvider(credentialsProvider)
     }
 
     public updateUserContext(userContext: UserContext): void {
@@ -52,7 +54,24 @@ export class TelemetryService extends CodeWhispererServiceToken {
         return suggestionState
     }
 
+    private isLoginInvalidForTelemetry(): boolean {
+        return this.loginType === 'iam' || (this.loginType !== 'identityCenter' && this.optOutPreference !== 'OPTOUT')
+    }
+
+    private invokeSendTelemetryEvent(event: any) {
+        this.sendTelemetryEvent({
+            telemetryEvent: {
+                userTriggerDecisionEvent: event,
+            },
+            userContext: this.userContext,
+            optOutPreference: this.optOutPreference,
+        })
+    }
+
     public emitUserTriggerDecision(session: CodeWhispererSession) {
+        if (this.isLoginInvalidForTelemetry()) {
+            return
+        }
         const completionSessionResult = session.completionSessionResult ?? {}
         const acceptedItemId = Object.keys(completionSessionResult).find(k => completionSessionResult[k].accepted)
         const acceptedSuggestion = session.suggestions.find(s => s.itemId === acceptedItemId)
@@ -86,12 +105,6 @@ export class TelemetryService extends CodeWhispererServiceToken {
             generatedLine: generatedLines,
             numberOfRecommendations: session.suggestions.length,
         }
-        this.sendTelemetryEvent({
-            telemetryEvent: {
-                userTriggerDecisionEvent: event,
-            },
-            userContext: this.userContext,
-            optOutPreference: this.optOutPreference,
-        })
+        this.invokeSendTelemetryEvent(event)
     }
 }

@@ -2,12 +2,14 @@ import {
     InitializeParams,
     BearerCredentials,
     CredentialsProvider,
+    ConnectionMetadata,
 } from '@aws/language-server-runtimes/server-interface'
 import { AWSError } from 'aws-sdk'
 import { Suggestion } from './codeWhispererService'
 import { CodewhispererCompletionType } from './telemetry/types'
-import { MISSING_BEARER_TOKEN_ERROR } from './constants'
+import { builderIdStartUrl, MISSING_BEARER_TOKEN_ERROR } from './constants'
 import { ServerInfo } from '@aws/language-server-runtimes/server-interface/runtime'
+export type LoginType = 'builderId' | 'identityCenter' | 'iam'
 
 export function isAwsError(error: unknown): error is AWSError {
     if (error === undefined) {
@@ -130,4 +132,16 @@ export const getUserAgent = (initializeParams: InitializeParams, serverInfo?: Se
     }
 
     return items.join(' ')
+}
+
+export function getLoginTypeFromProvider(credentialsProvider: CredentialsProvider): LoginType {
+    if (credentialsProvider.hasCredentials('iam')) {
+        return 'iam'
+    }
+    const connectionMetadata = credentialsProvider.getConnectionMetadata()
+    return connectionMetadata && connectionMetadata.sso && connectionMetadata.sso.startUrl
+        ? connectionMetadata.sso.startUrl.includes(builderIdStartUrl)
+            ? 'builderId'
+            : 'identityCenter'
+        : 'builderId'
 }

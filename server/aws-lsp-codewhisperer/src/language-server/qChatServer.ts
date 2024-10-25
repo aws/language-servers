@@ -17,6 +17,9 @@ export const QChatServer =
 
         lsp.addInitializer((params: InitializeParams) => {
             chatSessionManagementService.setCustomUserAgent(getUserAgent(params, runtime.serverInfo))
+            telemetryService.updateClientConfig({
+                customUserAgent: getUserAgent(params, runtime.serverInfo),
+            })
             // TODO: set the user context here for TelemetryService
             return {
                 capabilities: {},
