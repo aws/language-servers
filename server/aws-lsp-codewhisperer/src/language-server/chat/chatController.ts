@@ -2,7 +2,15 @@ import {
     GenerateAssistantResponseCommandInput,
     GenerateAssistantResponseCommandOutput,
 } from '@amzn/codewhisperer-streaming'
-import { ErrorCodes, FeedbackParams, chatRequestType } from '@aws/language-server-runtimes/protocol'
+import {
+    ApplyWorkspaceEditParams,
+    ErrorCodes,
+    FeedbackParams,
+    InsertToCursorPositionParams,
+    TextDocumentEdit,
+    TextEdit,
+    chatRequestType,
+} from '@aws/language-server-runtimes/protocol'
 import {
     CancellationToken,
     Chat,
@@ -176,7 +184,63 @@ export class ChatController implements ChatHandlers {
         }
     }
 
-    onCodeInsertToCursorPosition() {}
+    async onCodeInsertToCursorPosition(params: InsertToCursorPositionParams) {
+        // Implementation based on https://github.com/aws/aws-toolkit-vscode/blob/1814cc84228d4bf20270574c5980b91b227f31cf/packages/core/src/amazonq/commons/controllers/contentController.ts#L38
+        if (!params.textDocument || !params.cursorPosition || !params.code) {
+            const missingParams = []
+
+            if (!params.textDocument) missingParams.push('textDocument')
+            if (!params.cursorPosition) missingParams.push('cursorPosition')
+            if (!params.code) missingParams.push('code')
+
+            this.#log(
+                `Q Chat server failed to insert code. Missing required parameters for insert code: ${missingParams.join(', ')}`
+            )
+
+            return
+        }
+
+        const cursorPosition = params.cursorPosition
+
+        const indentRange = {
+            start: { line: cursorPosition.line, character: 0 },
+            end: cursorPosition,
+        }
+        const documentContent = await this.#features.workspace.getTextDocument(params.textDocument.uri)
+        let indent = documentContent?.getText(indentRange)
+        if (indent && indent.trim().length !== 0) {
+            indent = ' '.repeat(indent.length - indent.trimStart().length)
+        }
+
+        let textWithIndent = ''
+        params.code.split('\n').forEach((line, index) => {
+            if (index === 0) {
+                textWithIndent += line
+            } else {
+                textWithIndent += '\n' + indent + line
+            }
+        })
+
+        const workspaceEdit: ApplyWorkspaceEditParams = {
+            edit: {
+                documentChanges: [
+                    TextDocumentEdit.create({ uri: params.textDocument.uri, version: 0 }, [
+                        TextEdit.insert(cursorPosition, textWithIndent),
+                    ]),
+                ],
+            },
+        }
+        const applyResult = await this.#features.lsp.workspace.applyWorkspaceEdit(workspaceEdit)
+
+        if (applyResult.applied) {
+            this.#log(`Q Chat server inserted code successfully`)
+            this.#telemetryController.enqueueCodeDiffEntry({ ...params, code: textWithIndent })
+        } else {
+            this.#log(
+                `Q Chat server failed to insert code: ${applyResult.failureReason ?? 'No failure reason provided'}`
+            )
+        }
+    }
     onCopyCodeToClipboard() {}
 
     onEndChat(params: EndChatParams, _token: CancellationToken): boolean {

@@ -31,12 +31,12 @@
         "typescript": "^5.5.3"
     },
     "devDependencies": {
-        "@types/node": "^20.12.2",
+        "@types/node": "^22.7.5",
         "@typescript-eslint/eslint-plugin": "^7.7.1",
         "@typescript-eslint/parser": "^7.7.1",
         "eslint": "^8.42.0",
         "eslint-plugin-import": "^2.29.1",
-        "eslint-plugin-unused-imports": "^3.1.0",
+        "eslint-plugin-unused-imports": "^4.1.4",
         "husky": "^9.1.1",
         "prettier": "^3.3.3",
         "pretty-quick": "^4.0.0",

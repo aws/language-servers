@@ -13,7 +13,7 @@ import {
 } from '@aws/language-server-runtimes/server-interface'
 import { SharedConfigInit } from '@smithy/shared-ini-file-loader'
 import { DuckTyper } from '../../duckTyper'
-import { AwsError, tryAsync } from '../../awsError'
+import { AwsError } from '../../awsError'
 
 export interface ProfileData {
     profiles: Profile[]
@@ -69,15 +69,14 @@ export function normalizeSettingList(
 }
 
 export class ProfileService {
-    constructor(private store: ProfileStore) {}
+    constructor(private profileStore: ProfileStore) {}
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     async listProfiles(params: ListProfilesParams, token?: CancellationToken): Promise<ListProfilesResult> {
         // Currently only returns non-legacy sso-session profiles, will return more profile types in the future
-        return await tryAsync(
-            () => this.store.load(),
-            error => new AwsResponseError(error.message, { awsErrorCode: AwsErrorCodes.E_CANNOT_READ_SHARED_CONFIG })
-        )
+        return await this.profileStore.load().catch(reason => {
+            throw new AwsResponseError(reason.message, { awsErrorCode: AwsErrorCodes.E_CANNOT_READ_SHARED_CONFIG })
+        })
     }
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -117,10 +116,9 @@ export class ProfileService {
             'Profile sso-session name must be the same as provided sso-session.'
         )
 
-        const { profiles, ssoSessions } = await tryAsync(
-            () => this.store.load(),
-            error => AwsError.wrap(error, AwsErrorCodes.E_CANNOT_READ_SHARED_CONFIG)
-        )
+        const { profiles, ssoSessions } = await this.profileStore.load().catch(reason => {
+            throw AwsError.wrap(reason, AwsErrorCodes.E_CANNOT_READ_SHARED_CONFIG)
+        })
 
         // Enforce options
         if (!options.createNonexistentProfile && !profiles.some(p => p.name === profile.name)) {
@@ -150,14 +148,14 @@ export class ProfileService {
             }
         }
 
-        await tryAsync(
-            () =>
-                this.store.save({
-                    profiles: [params.profile],
-                    ssoSessions: params.ssoSession ? [params.ssoSession] : [],
-                }),
-            error => AwsError.wrap(error, AwsErrorCodes.E_CANNOT_WRITE_SHARED_CONFIG)
-        )
+        await this.profileStore
+            .save({
+                profiles: [params.profile],
+                ssoSessions: params.ssoSession ? [params.ssoSession] : [],
+            })
+            .catch(reason => {
+                throw AwsError.wrap(reason, AwsErrorCodes.E_CANNOT_WRITE_SHARED_CONFIG)
+            })
 
         return result
     }

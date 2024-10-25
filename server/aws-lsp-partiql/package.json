@@ -24,13 +24,13 @@
         "out"
     ],
     "dependencies": {
-        "@aws/language-server-runtimes": "^0.2.20",
+        "@aws/language-server-runtimes": "^0.2.23",
         "antlr4-c3": "^3.4.1",
         "antlr4ng": "^3.0.4",
         "web-tree-sitter": "0.22.6"
     },
     "devDependencies": {
-        "@babel/plugin-transform-modules-commonjs": "^7.24.1",
+        "@babel/plugin-transform-modules-commonjs": "^7.25.7",
         "@types/jest": "29.5.12",
         "antlr4ng-cli": "^2.0.0",
         "babel-plugin-transform-import-meta": "^2.2.1",

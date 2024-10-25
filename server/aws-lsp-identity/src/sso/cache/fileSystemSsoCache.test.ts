@@ -4,6 +4,9 @@ import { expect, use } from 'chai'
 import { DirectoryItems } from 'mock-fs/lib/filesystem'
 import { getSSOTokenFilepath, SSOToken } from '@smithy/shared-ini-file-loader'
 import { SsoClientRegistration } from './ssoCache'
+import { SsoSession } from '@aws/language-server-runtimes/server-interface'
+import { access } from 'fs/promises'
+import * as fs from 'fs'
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 use(require('chai-as-promised'))
@@ -27,7 +30,13 @@ const clientRegistration: SsoClientRegistration = {
     scopes: ['codewhisperer:completions', 'codewhisperer:analysis'],
 }
 
-const ssoSessionName = 'my-sso-session'
+const ssoSession: SsoSession = {
+    name: 'my-sso-session',
+    settings: {
+        sso_region: 'us-east-1',
+        sso_start_url: 'https://nowhere',
+    },
+}
 
 const ssoToken: SSOToken = {
     clientId: 'someclientid',
@@ -40,10 +49,6 @@ const ssoToken: SSOToken = {
     registrationExpiresAt: '2024-12-09T19:59:06.000Z',
 }
 
-afterEach(() => {
-    mock.restore()
-})
-
 function setupTest(args?: {
     clientRegistrationId?: string
     clientRegistration?: SsoClientRegistration
@@ -53,7 +58,7 @@ function setupTest(args?: {
     // Just for sanity, safe to call restore if mock not currently active
     mock.restore()
 
-    args = { ...{ clientRegistrationId, clientRegistration, ssoSessionName, ssoToken }, ...args }
+    args = { ...{ clientRegistrationId, clientRegistration, ssoSessionName: ssoSession.name, ssoToken }, ...args }
 
     const mockConfig: DirectoryItems = {}
     mockConfig[getSSOTokenFilepath(args.clientRegistrationId!)] = JSON.stringify(args.clientRegistration)
@@ -62,11 +67,29 @@ function setupTest(args?: {
     mock(mockConfig)
 }
 
+function createSsoSession(name: string): SsoSession {
+    return {
+        name,
+        settings: {
+            sso_region: 'us-east-1',
+            sso_start_url: 'https://nowhere',
+        },
+    }
+}
+
+function expectFileExists(filename: string): Chai.Assertion {
+    return expect(access(getSSOTokenFilepath(ssoSession.name), fs.constants.F_OK))
+}
+
 describe('FileSystemSsoCache', () => {
+    afterEach(() => {
+        mock.restore()
+    })
+
     it('getSsoClientRegistration returns valid registration', async () => {
         setupTest()
 
-        const actual = await sut.getSsoClientRegistration(clientName, ssoRegion, ssoStartUrl)
+        const actual = await sut.getSsoClientRegistration(clientName, ssoSession)
 
         expect(actual).to.not.be.null.and.not.undefined
         expect(actual?.clientId).to.equal('someclientid')
@@ -78,7 +101,7 @@ describe('FileSystemSsoCache', () => {
     it('getSsoClientRegistration returns undefined when file does not exist', async () => {
         setupTest()
 
-        const actual = await sut.getSsoClientRegistration('does', 'not', 'exist')
+        const actual = await sut.getSsoClientRegistration('does', ssoSession)
 
         expect(actual).to.be.undefined
     })
@@ -86,7 +109,7 @@ describe('FileSystemSsoCache', () => {
     it('getSsoClientRegistration returns undefined on invalid registration', async () => {
         setupTest({ clientRegistration: {} as SsoClientRegistration })
 
-        const actual = await sut.getSsoClientRegistration(clientName, ssoRegion, ssoStartUrl)
+        const actual = await sut.getSsoClientRegistration(clientName, ssoSession)
 
         expect(actual).to.be.undefined
     })
@@ -94,14 +117,14 @@ describe('FileSystemSsoCache', () => {
     it('setSsoClientRegistration writes new valid registration', async () => {
         setupTest()
 
-        await sut.setSsoClientRegistration('new', 'client', 'id', {
+        await sut.setSsoClientRegistration('new', ssoSession, {
             clientId: 'someclientid',
             clientSecret: 'someclientsecret',
             expiresAt: '2024-10-14T12:00:00.000Z',
             scopes: ['sso:account:access', 'codewhisperer:analysis'],
         })
 
-        const actual = await sut.getSsoClientRegistration('new', 'client', 'id')
+        const actual = await sut.getSsoClientRegistration('new', ssoSession)
 
         expect(actual).to.not.be.null.and.not.undefined
         expect(actual?.clientId).to.equal('someclientid')
@@ -113,13 +136,13 @@ describe('FileSystemSsoCache', () => {
     it('setSsoClientRegistration writes updated existing registration', async () => {
         setupTest()
 
-        await sut.setSsoClientRegistration(clientName, ssoRegion, ssoStartUrl, {
+        await sut.setSsoClientRegistration(clientName, ssoSession, {
             clientId: 'newclientid',
             clientSecret: 'newclientsecret',
             expiresAt: '2024-11-14T04:05:45Z',
         })
 
-        const actual = await sut.getSsoClientRegistration(clientName, ssoRegion, ssoStartUrl)
+        const actual = await sut.getSsoClientRegistration(clientName, ssoSession)
 
         expect(actual).to.not.be.null.and.not.undefined
         expect(actual?.clientId).to.equal('newclientid')
@@ -131,13 +154,39 @@ describe('FileSystemSsoCache', () => {
     it('setSsoClientRegistration returns without error on invalid registration', async () => {
         setupTest()
 
-        await sut.setSsoClientRegistration(clientName, ssoRegion, ssoStartUrl, {} as SsoClientRegistration) // no throw
+        await sut.setSsoClientRegistration(clientName, ssoSession, {} as SsoClientRegistration) // no throw
+    })
+
+    it('removeSsoToken deletes a valid token', async () => {
+        const filename = getSSOTokenFilepath(ssoSession.name)
+        setupTest()
+
+        await expectFileExists(filename).to.not.be.rejectedWith()
+
+        await sut.removeSsoToken(ssoSession.name)
+
+        await expectFileExists(filename).to.be.rejectedWith()
+    })
+
+    it('removeSsoToken does nothing on invalid/non-existent token', async () => {
+        const filename = getSSOTokenFilepath(ssoSession.name)
+        setupTest()
+
+        await expectFileExists(filename).to.not.be.rejectedWith()
+
+        await sut.removeSsoToken('non-existent token')
+
+        await expectFileExists(filename).to.not.be.rejectedWith()
+    })
+
+    it('removeToken throws on invalid SSO session name', async () => {
+        await expect(sut.removeSsoToken(null!)).to.be.rejectedWith()
     })
 
     it('getSsoToken returns valid token', async () => {
         setupTest()
 
-        const actual = await sut.getSsoToken(ssoSessionName)
+        const actual = await sut.getSsoToken(clientName, ssoSession)
 
         expect(actual).to.not.be.null.and.not.undefined
         expect(actual?.accessToken).to.equal('someaccesstoken')
@@ -153,7 +202,7 @@ describe('FileSystemSsoCache', () => {
     it('getSsoToken returns undefined when file does not exist', async () => {
         setupTest()
 
-        const actual = await sut.getSsoToken('does not exist')
+        const actual = await sut.getSsoToken(clientName, createSsoSession('does not exist'))
 
         expect(actual).to.be.undefined
     })
@@ -161,15 +210,16 @@ describe('FileSystemSsoCache', () => {
     it('getSsoToken returns undefined on invalid token', async () => {
         setupTest({ ssoSessionName: 'invalid-token', ssoToken: {} as SSOToken })
 
-        const actual = await sut.getSsoToken('invalid-token')
+        const actual = await sut.getSsoToken(clientName, createSsoSession('invalid-token'))
 
         expect(actual).to.be.undefined
     })
 
     it('setSsoToken writes new valid token', async () => {
         setupTest()
+        const ssoSession = createSsoSession('new-token')
 
-        await sut.setSsoToken('new-token', {
+        await sut.setSsoToken(clientName, ssoSession, {
             clientId: 'someclientid',
             clientSecret: 'someclientsecret',
             region: 'us-west-2',
@@ -180,7 +230,7 @@ describe('FileSystemSsoCache', () => {
             registrationExpiresAt: '2024-12-14T12:00:00.000Z',
         })
 
-        const actual = await sut.getSsoToken('new-token')
+        const actual = await sut.getSsoToken(clientName, ssoSession)
 
         expect(actual).to.not.be.null.and.not.undefined
         expect(actual?.accessToken).to.equal('newaccesstoken')
@@ -196,12 +246,12 @@ describe('FileSystemSsoCache', () => {
     it('setSsoToken writes updated existing token', async () => {
         setupTest()
 
-        await sut.setSsoToken(ssoSessionName, {
+        await sut.setSsoToken(clientName, ssoSession, {
             accessToken: 'newaccesstoken',
             expiresAt: '2024-10-14T12:00:00.000Z',
         })
 
-        const actual = await sut.getSsoToken(ssoSessionName)
+        const actual = await sut.getSsoToken(clientName, ssoSession)
 
         expect(actual).to.not.be.null.and.not.undefined
         expect(actual?.accessToken).to.equal('newaccesstoken')
@@ -217,6 +267,6 @@ describe('FileSystemSsoCache', () => {
     it('setSsoToken returns without error on invalid token', async () => {
         setupTest()
 
-        await sut.setSsoToken(ssoSessionName, {} as SSOToken) // no throw
+        await sut.setSsoToken(clientName, ssoSession, {} as SSOToken) // no throw
     })
 })

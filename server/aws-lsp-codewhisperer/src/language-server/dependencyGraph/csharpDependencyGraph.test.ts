@@ -1,4 +1,4 @@
-import { Logging } from '@aws/language-server-runtimes/server-interface'
+import { Logging, Workspace } from '@aws/language-server-runtimes/server-interface'
 import * as assert from 'assert'
 import * as path from 'path'
 import * as Sinon from 'sinon'
@@ -20,8 +20,11 @@ describe('Test CsharpDependencyGraph', () => {
         readFile: Sinon.stub(),
         isFile: Sinon.mock(),
         remove: Sinon.mock(),
+        writeFile: Sinon.stub(),
+        appendFile: Sinon.stub(),
+        mkdir: Sinon.stub(),
     }
-    const mockedWorkspace = {
+    const mockedWorkspace: Workspace = {
         getTextDocument: Sinon.mock(),
         getAllTextDocuments: Sinon.mock(),
         getWorkspaceFolder: mockedGetWorkspaceFolder,
