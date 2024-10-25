@@ -152,7 +152,9 @@ export class CodeDiffTracker<T extends AcceptedSuggestionEntry = AcceptedSuggest
     }
 
     #clearInterval() {
-        clearInterval(this.#interval)
-        this.#interval = undefined
+        if (this.#interval) {
+            clearInterval(this.#interval[Symbol.toPrimitive]())
+            this.#interval = undefined
+        }
     }
 }

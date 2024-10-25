@@ -101,6 +101,6 @@ export class CodePercentageTracker {
     }
 
     dispose(): void {
-        clearInterval(this.intervalId)
+        clearInterval(this.intervalId[Symbol.toPrimitive]())
     }
 }
