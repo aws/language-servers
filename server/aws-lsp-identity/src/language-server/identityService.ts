@@ -67,6 +67,8 @@ export class IdentityService {
     ): Promise<InvalidateSsoTokenResult> {
         throwOnInvalidSsoSessionName(params?.ssoTokenId)
 
+        this.autoRefresher.unwatch(params.ssoTokenId)
+
         await this.ssoCache.removeSsoToken(params.ssoTokenId)
 
         return {}
