@@ -5,14 +5,14 @@ import {
   ServiceOutputTypes,
 } from "../CodeWhispererStreamingClient";
 import {
-  GenerateAssistantResponseRequest,
-  GenerateAssistantResponseRequestFilterSensitiveLog,
-  GenerateAssistantResponseResponse,
-  GenerateAssistantResponseResponseFilterSensitiveLog,
+  SendMessageRequest,
+  SendMessageRequestFilterSensitiveLog,
+  SendMessageResponse,
+  SendMessageResponseFilterSensitiveLog,
 } from "../models/models_0";
 import {
-  de_GenerateAssistantResponseCommand,
-  se_GenerateAssistantResponseCommand,
+  de_SendMessageCommand,
+  se_SendMessageCommand,
 } from "../protocols/Aws_restJson1";
 import { getSerdePlugin } from "@smithy/middleware-serde";
 import { Command as $Command } from "@smithy/smithy-client";
@@ -26,25 +26,26 @@ export { $Command };
 /**
  * @public
  *
- * The input for {@link GenerateAssistantResponseCommand}.
+ * The input for {@link SendMessageCommand}.
  */
-export interface GenerateAssistantResponseCommandInput extends GenerateAssistantResponseRequest {}
+export interface SendMessageCommandInput extends SendMessageRequest {}
 /**
  * @public
  *
- * The output of {@link GenerateAssistantResponseCommand}.
+ * The output of {@link SendMessageCommand}.
  */
-export interface GenerateAssistantResponseCommandOutput extends GenerateAssistantResponseResponse, __MetadataBearer {}
+export interface SendMessageCommandOutput extends SendMessageResponse, __MetadataBearer {}
 
 /**
- * API to generate assistant response.
+ * @public
+ *
  * @example
  * Use a bare-bones client and the command you need to make an API call.
  * ```javascript
- * import { CodeWhispererStreamingClient, GenerateAssistantResponseCommand } from "@amzn/codewhisperer-streaming"; // ES Modules import
- * // const { CodeWhispererStreamingClient, GenerateAssistantResponseCommand } = require("@amzn/codewhisperer-streaming"); // CommonJS import
+ * import { CodeWhispererStreamingClient, SendMessageCommand } from "@amzn/codewhisperer-streaming"; // ES Modules import
+ * // const { CodeWhispererStreamingClient, SendMessageCommand } = require("@amzn/codewhisperer-streaming"); // CommonJS import
  * const client = new CodeWhispererStreamingClient(config);
- * const input = { // GenerateAssistantResponseRequest
+ * const input = { // SendMessageRequest
  *   conversationState: { // ConversationState
  *     conversationId: "STRING_VALUE",
  *     history: [ // ChatHistory
@@ -334,12 +335,13 @@ export interface GenerateAssistantResponseCommandOutput extends GenerateAssistan
  *     customizationArn: "STRING_VALUE",
  *   },
  *   profileArn: "STRING_VALUE",
+ *   source: "STRING_VALUE",
+ *   dryRun: true || false,
  * };
- * const command = new GenerateAssistantResponseCommand(input);
+ * const command = new SendMessageCommand(input);
  * const response = await client.send(command);
- * // { // GenerateAssistantResponseResponse
- * //   conversationId: "STRING_VALUE", // required
- * //   generateAssistantResponseResponse: { // ChatResponseStream Union: only one key present
+ * // { // SendMessageResponse
+ * //   sendMessageResponse: { // ChatResponseStream Union: only one key present
  * //     messageMetadataEvent: { // MessageMetadataEvent
  * //       conversationId: "STRING_VALUE",
  * //       utteranceId: "STRING_VALUE",
@@ -595,14 +597,20 @@ export interface GenerateAssistantResponseCommandOutput extends GenerateAssistan
  *
  * ```
  *
- * @param GenerateAssistantResponseCommandInput - {@link GenerateAssistantResponseCommandInput}
- * @returns {@link GenerateAssistantResponseCommandOutput}
- * @see {@link GenerateAssistantResponseCommandInput} for command's `input` shape.
- * @see {@link GenerateAssistantResponseCommandOutput} for command's `response` shape.
+ * @param SendMessageCommandInput - {@link SendMessageCommandInput}
+ * @returns {@link SendMessageCommandOutput}
+ * @see {@link SendMessageCommandInput} for command's `input` shape.
+ * @see {@link SendMessageCommandOutput} for command's `response` shape.
  * @see {@link CodeWhispererStreamingClientResolvedConfig | config} for CodeWhispererStreamingClient's `config` shape.
  *
  * @throws {@link InternalServerException} (server fault)
  *  This exception is thrown when an unexpected error occurred during the processing of a request.
+ *
+ * @throws {@link ServiceQuotaExceededException} (client fault)
+ *  This exception is thrown when request was denied due to caller exceeding their usage limits
+ *
+ * @throws {@link DryRunOperationException} (client fault)
+ *  This exception is translated to a 204 as it succeeded the IAM Auth.
  *
  * @throws {@link ThrottlingException} (client fault)
  *  This exception is thrown when request was denied due to request throttling.
@@ -610,22 +618,27 @@ export interface GenerateAssistantResponseCommandOutput extends GenerateAssistan
  * @throws {@link ValidationException} (client fault)
  *  This exception is thrown when the input fails to satisfy the constraints specified by the service.
  *
+ * @throws {@link ConflictException} (client fault)
+ *  This exception is thrown when the action to perform could not be completed because the resource is in a conflicting state.
+ *
+ * @throws {@link ResourceNotFoundException} (client fault)
+ *  This exception is thrown when describing a resource that does not exist.
+ *
  * @throws {@link AccessDeniedException} (client fault)
  *  This exception is thrown when the user does not have sufficient access to perform this action.
  *
  * @throws {@link CodeWhispererStreamingServiceException}
  * <p>Base exception class for all service exceptions from CodeWhispererStreaming service.</p>
  *
- * @public
  */
-export class GenerateAssistantResponseCommand extends $Command.classBuilder<GenerateAssistantResponseCommandInput, GenerateAssistantResponseCommandOutput, CodeWhispererStreamingClientResolvedConfig, ServiceInputTypes, ServiceOutputTypes>()
+export class SendMessageCommand extends $Command.classBuilder<SendMessageCommandInput, SendMessageCommandOutput, CodeWhispererStreamingClientResolvedConfig, ServiceInputTypes, ServiceOutputTypes>()
       .m(function (this: any, Command: any, cs: any, config: CodeWhispererStreamingClientResolvedConfig, o: any) {
           return [
 
   getSerdePlugin(config, this.serialize, this.deserialize),
       ];
   })
-  .s("AmazonCodeWhispererStreamingService", "GenerateAssistantResponse", {
+  .s("AmazonCodeWhispererStreamingService", "SendMessage", {
 
     /**
      * @internal
@@ -634,20 +647,20 @@ export class GenerateAssistantResponseCommand extends $Command.classBuilder<Gene
       output: true,
     },
   })
-  .n("CodeWhispererStreamingClient", "GenerateAssistantResponseCommand")
-  .f(GenerateAssistantResponseRequestFilterSensitiveLog, GenerateAssistantResponseResponseFilterSensitiveLog)
-  .ser(se_GenerateAssistantResponseCommand)
-  .de(de_GenerateAssistantResponseCommand)
+  .n("CodeWhispererStreamingClient", "SendMessageCommand")
+  .f(SendMessageRequestFilterSensitiveLog, SendMessageResponseFilterSensitiveLog)
+  .ser(se_SendMessageCommand)
+  .de(de_SendMessageCommand)
 .build() {
 /** @internal type navigation helper, not in runtime. */
 declare protected static __types: {
   api: {
-      input: GenerateAssistantResponseRequest;
-      output: GenerateAssistantResponseResponse;
+      input: SendMessageRequest;
+      output: SendMessageResponse;
   };
   sdk: {
-      input: GenerateAssistantResponseCommandInput;
-      output: GenerateAssistantResponseCommandOutput;
+      input: SendMessageCommandInput;
+      output: SendMessageCommandOutput;
   };
 };
 }
