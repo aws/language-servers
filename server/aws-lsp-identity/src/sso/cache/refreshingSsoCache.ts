@@ -4,10 +4,10 @@ import { AwsErrorCodes, SsoSession } from '@aws/language-server-runtimes/server-
 import { AwsError } from '../../awsError'
 import {
     getSsoOidc,
-    tryAsync,
     throwOnInvalidSsoSession,
     throwOnInvalidClientName,
     UpdateSsoTokenFromCreateToken,
+    throwOnInvalidSsoSessionName,
 } from '../utils'
 
 const refreshWindowMillis = 5 * 60 * 1000
@@ -33,21 +33,24 @@ export class RefreshingSsoCache implements SsoCache {
         if (!clientRegistration || Date.parse(clientRegistration.expiresAt) < Date.now()) {
             const oidc = getSsoOidc(ssoSession.settings.sso_region)
 
-            const result = await tryAsync(
-                () =>
-                    oidc.registerClient({
-                        clientName,
-                        clientType: 'public',
-                        grantTypes: ['authorization_code', 'refresh_token'],
-                        issuerUrl: ssoSession.settings.sso_start_url,
-                        redirectUris: ['http://127.0.0.1/oauth/callback'],
-                        scopes: ssoSession.settings.sso_registration_scopes,
-                    }),
-                error =>
-                    new AwsError(`Cannot register client [${clientName}].`, AwsErrorCodes.E_CANNOT_REGISTER_CLIENT, {
-                        cause: error,
-                    })
-            )
+            const result = await oidc
+                .registerClient({
+                    clientName,
+                    clientType: 'public',
+                    grantTypes: ['authorization_code', 'refresh_token'],
+                    issuerUrl: ssoSession.settings.sso_start_url,
+                    redirectUris: ['http://127.0.0.1/oauth/callback'],
+                    scopes: ssoSession.settings.sso_registration_scopes,
+                })
+                .catch(reason => {
+                    throw new AwsError(
+                        `Cannot register client [${clientName}].`,
+                        AwsErrorCodes.E_CANNOT_REGISTER_CLIENT,
+                        {
+                            cause: reason,
+                        }
+                    )
+                })
 
             clientRegistration = {
                 clientId: result.clientId!,
@@ -70,6 +73,12 @@ export class RefreshingSsoCache implements SsoCache {
         clientRegistration: SsoClientRegistration
     ): Promise<void> {
         await this.next.setSsoClientRegistration(clientName, ssoSession, clientRegistration)
+    }
+
+    async removeSsoToken(ssoSessionName: string): Promise<void> {
+        throwOnInvalidSsoSessionName(ssoSessionName)
+
+        await this.next.removeSsoToken(ssoSessionName)
     }
 
     async getSsoToken(clientName: string, ssoSession: SsoSession): Promise<SSOToken | undefined> {
@@ -121,21 +130,20 @@ export class RefreshingSsoCache implements SsoCache {
         // https://github.com/aws/language-servers/blob/main/server/aws-lsp-codewhisperer/src/language-server/utils.ts#L92
         using oidc = getSsoOidc(ssoSession.settings.sso_region)
 
-        const result = await tryAsync(
-            () =>
-                oidc.createToken({
-                    clientId: clientRegistration?.clientId,
-                    clientSecret: clientRegistration?.clientSecret,
-                    grantType: 'refresh_token',
-                    refreshToken: ssoToken.refreshToken,
-                }),
-            error =>
-                new AwsError(
+        const result = await oidc
+            .createToken({
+                clientId: clientRegistration?.clientId,
+                clientSecret: clientRegistration?.clientSecret,
+                grantType: 'refresh_token',
+                refreshToken: ssoToken.refreshToken,
+            })
+            .catch(reason => {
+                throw new AwsError(
                     `Cannot refresh token [${ssoSession.name ?? 'null'}].`,
                     AwsErrorCodes.E_CANNOT_REFRESH_SSO_TOKEN,
-                    { cause: error }
+                    { cause: reason }
                 )
-        )
+            })
 
         UpdateSsoTokenFromCreateToken(result, clientRegistration, ssoSession, ssoToken)
 

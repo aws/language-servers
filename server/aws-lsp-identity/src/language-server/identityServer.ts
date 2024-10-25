@@ -10,13 +10,13 @@ import {
     AwsErrorCodes,
     GetSsoTokenParams,
     Lsp,
+    InvalidateSsoTokenParams,
 } from '@aws/language-server-runtimes/server-interface'
 import { SharedConfigProfileStore } from './profiles/sharedConfigProfileStore'
 import { IdentityService } from './identityService'
 import { AwsError } from '../awsError'
 import { FileSystemSsoCache, RefreshingSsoCache } from '../sso/cache'
 import { RaiseSsoTokenChanged, SsoTokenAutoRefresher } from './ssoTokenAutoRefresher'
-import { tryAsync } from '../sso/utils'
 import { ShowUrl } from '../sso'
 
 export const IdentityServerFactory = (): Server => (features: { identityManagement: IdentityManagement; lsp: Lsp }) => {
@@ -38,25 +38,30 @@ export const IdentityServerFactory = (): Server => (features: { identityManageme
     // JSON-RPC request/notification handlers (client->server)
     idMgmt.onGetSsoToken(
         async (params: GetSsoTokenParams, token: CancellationToken) =>
-            await tryAsync(
-                () => identityService.getSsoToken(params, token),
-                error => awsResponseErrorWrap(error)
-            )
+            await identityService.getSsoToken(params, token).catch(reason => {
+                throw awsResponseErrorWrap(reason)
+            })
+    )
+
+    idMgmt.onInvalidateSsoToken(
+        async (params: InvalidateSsoTokenParams, token: CancellationToken) =>
+            await identityService.invalidateSsoToken(params, token).catch(reason => {
+                throw awsResponseErrorWrap(reason)
+            })
     )
 
     idMgmt.onListProfiles(
         async (params: ListProfilesParams, token: CancellationToken) =>
-            await tryAsync(
-                () => profileService.listProfiles(params, token),
-                error => awsResponseErrorWrap(error)
-            )
+            await profileService.listProfiles(params, token).catch(reason => {
+                throw awsResponseErrorWrap(reason)
+            })
     )
+
     idMgmt.onUpdateProfile(
         async (params: UpdateProfileParams, token: CancellationToken) =>
-            await tryAsync(
-                () => profileService.updateProfile(params, token),
-                error => awsResponseErrorWrap(error)
-            )
+            await profileService.updateProfile(params, token).catch(reason => {
+                throw awsResponseErrorWrap(reason)
+            })
     )
 
     // disposable

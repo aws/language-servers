@@ -3,7 +3,6 @@ import {
     throwOnInvalidClientName,
     throwOnInvalidClientRegistration,
     throwOnInvalidSsoSession,
-    tryAsync,
     UpdateSsoTokenFromCreateToken,
 } from './utils'
 import { SsoClientRegistration } from './cache'
@@ -125,28 +124,6 @@ describe('utils', () => {
                 expect(() => throwOnInvalidSsoSession(ssoSession)).to.throw()
             })
         }
-    })
-
-    describe('tryAsync', () => {
-        it('tryAsync returns value on success', async () => {
-            const actual = await tryAsync(
-                () => Promise.resolve('success has been so easy for you'),
-                error => new Error('bad news')
-            )
-
-            expect(actual).to.equal('success has been so easy for you')
-        })
-
-        it('tryAsync throws error on failure', async () => {
-            await expect(
-                tryAsync(
-                    () => {
-                        throw new Error('and I can put you back down too')
-                    },
-                    error => error
-                )
-            ).to.be.rejectedWith('and I can put you back down too')
-        })
     })
 
     describe('UpdateSsoTokenFromCreateToken', () => {

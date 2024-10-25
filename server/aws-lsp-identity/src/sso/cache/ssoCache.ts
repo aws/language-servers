@@ -29,6 +29,8 @@ export interface SsoCache {
         clientRegistration: SsoClientRegistration
     ): Promise<void>
 
+    removeSsoToken(ssoSessionName: string): Promise<void>
+
     getSsoToken(clientName: string, ssoSession: SsoSession): Promise<SSOToken | undefined>
 
     setSsoToken(clientName: string, ssoSession: SsoSession, ssoToken: SSOToken): Promise<void>

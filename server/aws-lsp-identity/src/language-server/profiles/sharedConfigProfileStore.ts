@@ -12,7 +12,6 @@ import { SectionHeader } from '../../sharedConfig/types'
 import { saveKnownFiles } from '../../sharedConfig'
 import { normalizeParsedIniData } from '../../sharedConfig/saveKnownFiles'
 import { AwsError } from '../../awsError'
-import { tryAsync } from '../../sso/utils'
 
 // Uses AWS SDK for JavaScript v3
 // Applies shared config files location resolution, but JVM system properties are not supported
@@ -33,10 +32,9 @@ export class SharedConfigProfileStore implements ProfileStore {
         }
 
         const parsedIni = normalizeParsedIniData(
-            await tryAsync(
-                () => parseKnownFiles(this.getSharedConfigInit(init)),
-                error => AwsError.wrap(error, AwsErrorCodes.E_CANNOT_READ_SHARED_CONFIG)
-            )
+            await parseKnownFiles(this.getSharedConfigInit(init)).catch(reason => {
+                throw AwsError.wrap(reason, AwsErrorCodes.E_CANNOT_READ_SHARED_CONFIG)
+            })
         )
 
         for (const [parsedSectionName, settings] of Object.entries(parsedIni)) {
@@ -100,10 +98,9 @@ export class SharedConfigProfileStore implements ProfileStore {
 
         init = this.getSharedConfigInit(init)
         const parsedKnownFiles = normalizeParsedIniData(
-            await tryAsync(
-                () => parseKnownFiles(this.getSharedConfigInit(init)),
-                error => AwsError.wrap(error, AwsErrorCodes.E_CANNOT_READ_SHARED_CONFIG)
-            )
+            await parseKnownFiles(this.getSharedConfigInit(init)).catch(reason => {
+                throw AwsError.wrap(reason, AwsErrorCodes.E_CANNOT_READ_SHARED_CONFIG)
+            })
         )
 
         if (data.profiles) {
@@ -126,10 +123,9 @@ export class SharedConfigProfileStore implements ProfileStore {
             )
         }
 
-        await tryAsync(
-            () => saveKnownFiles(parsedKnownFiles, init),
-            error => AwsError.wrap(error, AwsErrorCodes.E_CANNOT_WRITE_SHARED_CONFIG)
-        )
+        await saveKnownFiles(parsedKnownFiles, init).catch(reason => {
+            throw AwsError.wrap(reason, AwsErrorCodes.E_CANNOT_WRITE_SHARED_CONFIG)
+        })
     }
 
     private applySectionsToParsedIni<T extends Section>(
