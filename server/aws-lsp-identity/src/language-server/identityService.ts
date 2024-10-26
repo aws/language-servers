@@ -56,7 +56,10 @@ export class IdentityService {
             })
         }
 
-        this.autoRefresher.watch(ssoSession.name)
+        // Auto refresh is best effort
+        await this.autoRefresher.watch(params.clientName, ssoSession).catch(_ => {
+            // TODO Add logging in future PR
+        })
 
         return { ssoToken: { accessToken: ssoToken.accessToken, id: ssoSession.name } }
     }
