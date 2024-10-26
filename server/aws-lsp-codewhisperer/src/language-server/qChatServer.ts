@@ -3,7 +3,7 @@ import { ChatController } from './chat/chatController'
 import { ChatSessionManagementService } from './chat/chatSessionManagementService'
 import { CLEAR_QUICK_ACTION, HELP_QUICK_ACTION } from './chat/quickActions'
 import { TelemetryService } from './telemetryService'
-import { getUserAgent } from './utilities/telemetryUtils'
+import { getUserAgent, makeUserContextObject } from './utilities/telemetryUtils'
 
 export const QChatServer =
     (service: (credentialsProvider: CredentialsProvider) => ChatSessionManagementService): Server =>
@@ -20,7 +20,7 @@ export const QChatServer =
             telemetryService.updateClientConfig({
                 customUserAgent: getUserAgent(params, runtime.serverInfo),
             })
-            // TODO: set the user context here for TelemetryService
+            telemetryService.updateUserContext(makeUserContextObject(params, runtime.platform, 'CHAT'))
             return {
                 capabilities: {},
                 awsServerCapabilities: {

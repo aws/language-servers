@@ -10,7 +10,7 @@ import {
 import { getCompletionType, getLoginTypeFromProvider, LoginType } from './utils'
 
 export class TelemetryService extends CodeWhispererServiceToken {
-    private userContext!: UserContext
+    private userContext: UserContext | undefined
     private optOutPreference!: OptOutPreference
     private enableTelemetryEventsToDestination!: boolean
     private telemetry: Telemetry
@@ -29,7 +29,7 @@ export class TelemetryService extends CodeWhispererServiceToken {
         this.loginType = getLoginTypeFromProvider(credentialsProvider)
     }
 
-    public updateUserContext(userContext: UserContext): void {
+    public updateUserContext(userContext: UserContext | undefined): void {
         this.userContext = userContext
     }
 
@@ -73,7 +73,7 @@ export class TelemetryService extends CodeWhispererServiceToken {
         })
     }
 
-    public emitUserTriggerDecision(session: CodeWhispererSession) {
+    public emitUserTriggerDecision(session: CodeWhispererSession, timeSinceLastUserModification?: number) {
         if (this.isLoginInvalidForTelemetry()) {
             return
         }
@@ -108,6 +108,7 @@ export class TelemetryService extends CodeWhispererServiceToken {
             suggestionReferenceCount: referenceCount,
             generatedLine: generatedLines,
             numberOfRecommendations: session.suggestions.length,
+            perceivedLatencyMilliseconds: timeSinceLastUserModification,
         }
         this.invokeSendTelemetryEvent(event)
     }

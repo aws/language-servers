@@ -33,7 +33,7 @@ import {
     CodeWhispererUserTriggerDecisionEvent,
 } from './telemetry/types'
 import { getCompletionType, isAwsError } from './utils'
-import { getUserAgent } from './utilities/telemetryUtils'
+import { getUserAgent, makeUserContextObject } from './utilities/telemetryUtils'
 import { Q_CONFIGURATION_SECTION } from './configuration/qConfigurationServer'
 import { fetchSupplementalContext } from './utilities/supplementalContextUtil/supplementalContextUtil'
 import { undefinedIfEmpty } from './utilities/textUtils'
@@ -183,7 +183,7 @@ const emitAggregatedUserTriggerDecisionTelemetry = (
     session: CodeWhispererSession,
     timeSinceLastUserModification?: number
 ) => {
-    telemetryService.emitUserTriggerDecision(session)
+    telemetryService.emitUserTriggerDecision(session, timeSinceLastUserModification)
     // TODO: the below emitted event to the Toolkit DWH will be moved to telemetryService as well.
     const data: CodeWhispererUserTriggerDecisionEvent = {
         codewhispererSessionId: session.codewhispererSessionId || '',
@@ -309,7 +309,7 @@ export const CodewhispererServerFactory =
             telemetryService.updateClientConfig({
                 customUserAgent: getUserAgent(params, runtime.serverInfo),
             })
-            // TODO: set the user context here for TelemetryService
+            telemetryService.updateUserContext(makeUserContextObject(params, runtime.platform, 'INLINE'))
             return {
                 capabilities: {},
             }
