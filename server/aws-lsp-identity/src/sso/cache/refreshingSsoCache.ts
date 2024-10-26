@@ -11,8 +11,8 @@ import {
 } from '../utils'
 import { RaiseSsoTokenChanged } from '../../language-server/ssoTokenAutoRefresher'
 
-export const refreshWindowMillis = 5 * 60 * 1000
-export const retryWindowMillis = 30000
+export const refreshWindowMillis: number = 5 * 60 * 1000
+export const retryWindowMillis: number = 30000
 
 interface SsoTokenDetail {
     lastRefreshMillis: number
@@ -26,7 +26,10 @@ export class RefreshingSsoCache implements SsoCache {
         private readonly raiseSsoTokenChanged: RaiseSsoTokenChanged
     ) {}
 
-    async getSsoClientRegistration(clientName: string, ssoSession: SsoSession): Promise<SsoClientRegistration> {
+    async getSsoClientRegistration(
+        clientName: string,
+        ssoSession: SsoSession
+    ): Promise<SsoClientRegistration | undefined> {
         throwOnInvalidClientName(clientName)
         throwOnInvalidSsoSession(ssoSession)
 

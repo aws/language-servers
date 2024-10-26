@@ -84,10 +84,10 @@ describe('RefreshingSsoCache', () => {
             const actual = await sut.getSsoClientRegistration('my-client-name', ssoSession)
 
             expect(actual).not.to.be.empty
-            expect(actual.clientId).to.equal('new-client-id')
-            expect(actual.clientSecret).to.equal('new-client-secret')
-            expect(actual.expiresAt).not.to.be.empty
-            expect(actual.scopes).to.deep.equal(['sso:account:access'])
+            expect(actual!.clientId).to.equal('new-client-id')
+            expect(actual!.clientSecret).to.equal('new-client-secret')
+            expect(actual!.expiresAt).not.to.be.empty
+            expect(actual!.scopes).to.deep.equal(['sso:account:access'])
         })
 
         it('Updates an expired SSO client registration.', async () => {
@@ -98,11 +98,11 @@ describe('RefreshingSsoCache', () => {
             const actual = await sut.getSsoClientRegistration('my-client-name', ssoSession)
 
             expect(actual).not.to.be.empty
-            expect(actual.clientId).to.equal('new-client-id')
-            expect(actual.clientSecret).to.equal('new-client-secret')
-            expect(actual.expiresAt).not.to.be.empty
-            expect(Date.parse(actual.expiresAt)).to.be.greaterThan(Date.parse(clientRegistration.expiresAt))
-            expect(actual.scopes).to.deep.equal(['sso:account:access'])
+            expect(actual!.clientId).to.equal('new-client-id')
+            expect(actual!.clientSecret).to.equal('new-client-secret')
+            expect(actual!.expiresAt).not.to.be.empty
+            expect(Date.parse(actual!.expiresAt)).to.be.greaterThan(Date.parse(clientRegistration.expiresAt))
+            expect(actual!.scopes).to.deep.equal(['sso:account:access'])
         })
     })
 
