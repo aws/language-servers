@@ -55,7 +55,7 @@ describe('TelemetryService', () => {
             codewhispererSessionId: 'test-session-id',
         },
         customizationArn: 'test-arn',
-        language: 'typescript',
+        language: 'tsx',
         suggestions: [
             {
                 itemId: 'item-id-1',

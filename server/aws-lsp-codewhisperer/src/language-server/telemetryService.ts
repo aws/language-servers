@@ -8,6 +8,7 @@ import {
     OptOutPreference,
 } from '../client/token/codewhispererbearertokenclient'
 import { getCompletionType, getLoginTypeFromProvider, LoginType } from './utils'
+import { getRuntimeLanguage } from './languageDetection'
 
 export class TelemetryService extends CodeWhispererServiceToken {
     private userContext: UserContext | undefined
@@ -95,7 +96,7 @@ export class TelemetryService extends CodeWhispererServiceToken {
             requestId: session.responseContext?.requestId || '',
             customizationArn: session.customizationArn || '',
             programmingLanguage: {
-                languageName: session.language,
+                languageName: getRuntimeLanguage(session.language),
             },
             completionType:
                 session.suggestions.length > 0 ? getCompletionType(session.suggestions[0]).toUpperCase() : '',

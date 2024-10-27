@@ -23,6 +23,31 @@ export type CodewhispererLanguage =
     | 'typescript'
     | 'vue'
     | 'yaml'
+    | 'systemVerilog'
+
+type RuntimeLanguage = Exclude<CodewhispererLanguage, 'jsx' | 'tsx' | 'systemVerilog'> | 'systemverilog'
+
+const runtimeLanguageSet: ReadonlySet<RuntimeLanguage> = new Set([
+    'c',
+    'cpp',
+    'csharp',
+    'go',
+    'java',
+    'javascript',
+    'kotlin',
+    'php',
+    'python',
+    'ruby',
+    'rust',
+    'scala',
+    'shell',
+    'sql',
+    'typescript',
+    'json',
+    'yaml',
+    'tf',
+    'systemverilog',
+])
 
 // This will be extended as more language features
 // are integrated into the language server and clients.
@@ -168,4 +193,28 @@ function getCodeWhispererLanguageIdByExtension(textDocument: TextDocument) {
     }
 
     return undefined
+}
+
+/**
+ * Normalize client side language id to service aware language id (service is not aware of jsx/tsx)
+ * Only used when invoking CodeWhisperer service API, for client usage please use normalizeLanguage
+ * Client side CodewhispererLanguage is a superset of NormalizedLanguageId
+ */
+export const getRuntimeLanguage = (language: CodewhispererLanguage): RuntimeLanguage => {
+    switch (language) {
+        case 'jsx':
+            return 'javascript'
+
+        case 'tsx':
+            return 'typescript'
+
+        case 'systemVerilog':
+            return 'systemverilog'
+
+        default:
+            if (!runtimeLanguageSet.has(language)) {
+                // return passed one in case passed one does not lie in the runtimeLanguageSet
+            }
+            return language
+    }
 }
