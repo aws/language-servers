@@ -6,6 +6,7 @@ import {
     UserTriggerDecisionEvent,
     UserContext,
     OptOutPreference,
+    SendTelemetryEventRequest,
 } from '../client/token/codewhispererbearertokenclient'
 import { getCompletionType, getLoginTypeFromProvider, LoginType } from './utils'
 import { getRuntimeLanguage } from './languageDetection'
@@ -65,13 +66,18 @@ export class TelemetryService extends CodeWhispererServiceToken {
     }
 
     private invokeSendTelemetryEvent(event: any) {
-        this.sendTelemetryEvent({
+        const request: SendTelemetryEventRequest = {
             telemetryEvent: {
                 userTriggerDecisionEvent: event,
             },
-            userContext: this.userContext,
-            optOutPreference: this.optOutPreference,
-        })
+        }
+        if (this.userContext !== undefined) {
+            request.userContext = this.userContext
+        }
+        if (this.optOutPreference !== undefined) {
+            request.optOutPreference = this.optOutPreference
+        }
+        this.sendTelemetryEvent(request)
     }
 
     public emitUserTriggerDecision(session: CodeWhispererSession, timeSinceLastUserModification?: number) {
@@ -94,7 +100,7 @@ export class TelemetryService extends CodeWhispererServiceToken {
         const event: UserTriggerDecisionEvent = {
             sessionId: session.codewhispererSessionId || '',
             requestId: session.responseContext?.requestId || '',
-            customizationArn: session.customizationArn || '',
+            customizationArn: session.customizationArn === '' ? undefined : session.customizationArn,
             programmingLanguage: {
                 languageName: getRuntimeLanguage(session.language),
             },
