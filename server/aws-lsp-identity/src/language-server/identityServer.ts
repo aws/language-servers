@@ -29,8 +29,8 @@ export const IdentityServerFactory = (): Server => (features: { identityManageme
 
     // Initialize dependencies
     const profileStore = new SharedConfigProfileStore()
-    const ssoCache = new RefreshingSsoCache(new FileSystemSsoCache())
-    const autoRefresher = new SsoTokenAutoRefresher(ssoCache, raiseSsoTokenChanged)
+    const ssoCache = new RefreshingSsoCache(new FileSystemSsoCache(), raiseSsoTokenChanged)
+    const autoRefresher = new SsoTokenAutoRefresher(ssoCache)
 
     const identityService = new IdentityService(profileStore, ssoCache, autoRefresher, showUrl)
     const profileService = new ProfileService(profileStore)
@@ -65,7 +65,9 @@ export const IdentityServerFactory = (): Server => (features: { identityManageme
     )
 
     // disposable
-    return () => {}
+    return () => {
+        autoRefresher[Symbol.dispose]()
+    }
 }
 
 export const IdentityServer = IdentityServerFactory()

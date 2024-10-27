@@ -1,6 +1,6 @@
 import { SSOToken } from '@smithy/shared-ini-file-loader'
 import { SsoCache, SsoClientRegistration } from './ssoCache'
-import { AwsErrorCodes, SsoSession } from '@aws/language-server-runtimes/server-interface'
+import { AwsErrorCodes, SsoSession, SsoTokenChangedKind } from '@aws/language-server-runtimes/server-interface'
 import { AwsError } from '../../awsError'
 import {
     getSsoOidc,
@@ -9,9 +9,10 @@ import {
     UpdateSsoTokenFromCreateToken,
     throwOnInvalidSsoSessionName,
 } from '../utils'
+import { RaiseSsoTokenChanged } from '../../language-server/ssoTokenAutoRefresher'
 
-const refreshWindowMillis = 5 * 60 * 1000
-const retryWindowMillis = 30000
+export const refreshWindowMillis: number = 5 * 60 * 1000
+export const retryWindowMillis: number = 30000
 
 interface SsoTokenDetail {
     lastRefreshMillis: number
@@ -20,9 +21,15 @@ interface SsoTokenDetail {
 export class RefreshingSsoCache implements SsoCache {
     private readonly ssoTokenDetails: Record<string, SsoTokenDetail> = {}
 
-    constructor(private next: SsoCache) {}
+    constructor(
+        private next: SsoCache,
+        private readonly raiseSsoTokenChanged: RaiseSsoTokenChanged
+    ) {}
 
-    async getSsoClientRegistration(clientName: string, ssoSession: SsoSession): Promise<SsoClientRegistration> {
+    async getSsoClientRegistration(
+        clientName: string,
+        ssoSession: SsoSession
+    ): Promise<SsoClientRegistration | undefined> {
         throwOnInvalidClientName(clientName)
         throwOnInvalidSsoSession(ssoSession)
 
@@ -149,6 +156,8 @@ export class RefreshingSsoCache implements SsoCache {
 
         // Cache it
         await this.setSsoToken(clientName, ssoSession, ssoToken)
+
+        this.raiseSsoTokenChanged({ kind: SsoTokenChangedKind.Refreshed, ssoTokenId: ssoSession.name })
 
         return ssoToken
     }
