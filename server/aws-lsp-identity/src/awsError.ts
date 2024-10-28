@@ -26,13 +26,3 @@ export class AwsError extends Error {
             : new AwsError(error?.message ?? 'Unknown error', awsErrorCode, { cause: error })
     }
 }
-
-// A convenience function to reduce the amount of code need for one-liner try/catch blocks as well
-// as make declarations of consts for results of a call that must occur inside a try block.
-export async function tryAsync<R, E extends Error>(tryIt: () => Promise<R>, catchIt: (error: Error) => E): Promise<R> {
-    try {
-        return await tryIt()
-    } catch (error) {
-        throw catchIt(error instanceof Error ? error : new Error(error?.toString() ?? 'Unknown error'))
-    }
-}

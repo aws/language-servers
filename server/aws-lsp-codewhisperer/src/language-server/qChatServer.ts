@@ -2,20 +2,25 @@ import { CredentialsProvider, InitializeParams, Server } from '@aws/language-ser
 import { ChatController } from './chat/chatController'
 import { ChatSessionManagementService } from './chat/chatSessionManagementService'
 import { CLEAR_QUICK_ACTION, HELP_QUICK_ACTION } from './chat/quickActions'
-import { getUserAgent } from './utils'
+import { TelemetryService } from './telemetryService'
+import { getUserAgent, makeUserContextObject } from './utilities/telemetryUtils'
 
 export const QChatServer =
     (service: (credentialsProvider: CredentialsProvider) => ChatSessionManagementService): Server =>
     features => {
-        const { chat, credentialsProvider, logging, lsp, runtime } = features
+        const { chat, credentialsProvider, telemetry, logging, lsp, runtime } = features
 
         const chatSessionManagementService: ChatSessionManagementService = service(credentialsProvider)
+        const telemetryService = new TelemetryService(credentialsProvider, 'bearer', telemetry, {})
 
-        const chatController = new ChatController(chatSessionManagementService, features)
+        const chatController = new ChatController(chatSessionManagementService, features, telemetryService)
 
         lsp.addInitializer((params: InitializeParams) => {
             chatSessionManagementService.setCustomUserAgent(getUserAgent(params, runtime.serverInfo))
-
+            telemetryService.updateClientConfig({
+                customUserAgent: getUserAgent(params, runtime.serverInfo),
+            })
+            telemetryService.updateUserContext(makeUserContextObject(params, runtime.platform, 'CHAT'))
             return {
                 capabilities: {},
                 awsServerCapabilities: {
@@ -66,6 +71,10 @@ export const QChatServer =
 
         chat.onSendFeedback(params => {
             return chatController.onSendFeedback(params)
+        })
+
+        chat.onCodeInsertToCursorPosition(params => {
+            return chatController.onCodeInsertToCursorPosition(params)
         })
 
         lsp.onInitialized(chatController.updateConfiguration)

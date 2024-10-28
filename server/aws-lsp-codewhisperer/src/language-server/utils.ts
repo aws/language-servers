@@ -2,12 +2,14 @@ import {
     InitializeParams,
     BearerCredentials,
     CredentialsProvider,
+    ConnectionMetadata,
 } from '@aws/language-server-runtimes/server-interface'
 import { AWSError } from 'aws-sdk'
 import { Suggestion } from './codeWhispererService'
 import { CodewhispererCompletionType } from './telemetry/types'
-import { MISSING_BEARER_TOKEN_ERROR } from './constants'
+import { BUILDER_ID_START_URL, MISSING_BEARER_TOKEN_ERROR } from './constants'
 import { ServerInfo } from '@aws/language-server-runtimes/server-interface/runtime'
+export type LoginType = 'builderId' | 'identityCenter'
 
 export function isAwsError(error: unknown): error is AWSError {
     if (error === undefined) {
@@ -88,46 +90,7 @@ export const flattenMetric = (obj: any, prefix = '') => {
     return flattened
 }
 
-const USER_AGENT_PREFIX = 'AWS-Language-Servers'
-export const getUserAgent = (initializeParams: InitializeParams, serverInfo?: ServerInfo): string => {
-    const format = (s: string) => s.replace(/\s/g, '-')
-
-    const items: String[] = []
-
-    items.push(USER_AGENT_PREFIX)
-
-    // Fields specific to runtime artifact
-    if (serverInfo?.name) {
-        serverInfo.version
-            ? items.push(`${format(serverInfo.name)}/${serverInfo.version}`)
-            : items.push(format(serverInfo.name))
-    }
-
-    // Compute client-specific suffix
-    // Missing required data fields are replaced with 'UNKNOWN' token
-    // Whitespaces in product.name and platform.name are replaced to '-'
-    if (initializeParams?.initializationOptions?.aws) {
-        const { clientInfo } = initializeParams?.initializationOptions?.aws
-        const { extension } = clientInfo || {}
-
-        if (extension) {
-            items.push(`${extension.name ? format(extension.name) : 'UNKNOWN'}/${extension.version || 'UNKNOWN'}`)
-        }
-
-        if (clientInfo) {
-            items.push(`${clientInfo.name ? format(clientInfo.name) : 'UNKNOWN'}/${clientInfo.version || 'UNKNOWN'}`)
-        }
-
-        if (clientInfo?.clientId) {
-            items.push(`ClientId/${clientInfo?.clientId}`)
-        }
-    } else {
-        // Default to standard InitializeParams.clientInfo if no custom aws.clientInfo is set
-        const { clientInfo } = initializeParams || {}
-        if (clientInfo) {
-            items.push(`${clientInfo.name ? format(clientInfo.name) : 'UNKNOWN'}/${clientInfo.version || 'UNKNOWN'}`)
-        }
-    }
-
-    return items.join(' ')
+export function getLoginTypeFromProvider(credentialsProvider: CredentialsProvider): LoginType {
+    const connectionMetadata = credentialsProvider.getConnectionMetadata()
+    return connectionMetadata?.sso?.startUrl?.includes(BUILDER_ID_START_URL) ? 'builderId' : 'identityCenter'
 }
