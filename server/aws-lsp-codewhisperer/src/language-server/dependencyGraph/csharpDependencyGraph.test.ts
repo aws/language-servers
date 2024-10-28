@@ -13,21 +13,18 @@ describe('Test CsharpDependencyGraph', () => {
     const tempDirPath = path.resolve('\\Temp')
     const mockedFs = {
         copy: Sinon.mock(),
-        exists: Sinon.mock(),
         getFileSize: Sinon.mock(),
         getTempDirPath: () => tempDirPath,
         readdir: Sinon.stub(),
         readFile: Sinon.stub(),
         isFile: Sinon.mock(),
-        remove: Sinon.mock(),
-        writeFile: Sinon.stub(),
-        appendFile: Sinon.stub(),
-        mkdir: Sinon.stub(),
     }
+
     const mockedWorkspace: Workspace = {
         getTextDocument: Sinon.mock(),
         getAllTextDocuments: Sinon.mock(),
         getWorkspaceFolder: mockedGetWorkspaceFolder,
+        // @ts-ignore mockedFs doesn't need to mock every fs function for this test to work
         fs: mockedFs,
     }
 
