@@ -138,6 +138,8 @@ and be able to debug it all.
 
 > **NOTE**: If you see "Recommendation failure: Error: Authorization failed, bearer token is not set" errors, make sure to authenticate using `"AWS LSP - Obtain bearer token and send to LSP server"` command.
 
+> **NOTE**: The lsp client is activated by one of the `activationEvents` defined [here](https://github.com/aws/language-servers/blob/06fd81d1e936648ef43243865039f89c7ac142a7/client/vscode/package.json#L18-L22), the lsp client then starts the LSP server.
+
 ## Testing
 
 ### Running Tests

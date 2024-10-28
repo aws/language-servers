@@ -61,7 +61,7 @@ export class TelemetryService extends CodeWhispererServiceToken {
         return suggestionState
     }
 
-    private isLoginInvalidForTelemetry(): boolean {
+    private shouldNotSendTelemetry(): boolean {
         return this.credentialsType === 'iam' || (this.loginType === 'builderId' && this.optOutPreference === 'OPTOUT')
     }
 
@@ -76,7 +76,7 @@ export class TelemetryService extends CodeWhispererServiceToken {
     }
 
     public emitUserTriggerDecision(session: CodeWhispererSession, timeSinceLastUserModification?: number) {
-        if (this.isLoginInvalidForTelemetry()) {
+        if (this.shouldNotSendTelemetry()) {
             return
         }
         const completionSessionResult = session.completionSessionResult ?? {}
@@ -91,6 +91,8 @@ export class TelemetryService extends CodeWhispererServiceToken {
                 : acceptedSuggestion.references && acceptedSuggestion.references.length > 0
                   ? 1
                   : 0
+        const perceivedLatencyMilliseconds =
+            session.triggerType === 'OnDemand' ? session.timeToFirstRecommendation : timeSinceLastUserModification
 
         const event: UserTriggerDecisionEvent = {
             sessionId: session.codewhispererSessionId || '',
@@ -100,7 +102,7 @@ export class TelemetryService extends CodeWhispererServiceToken {
                 languageName: getRuntimeLanguage(session.language),
             },
             completionType:
-                session.suggestions.length > 0 ? getCompletionType(session.suggestions[0]).toUpperCase() : '',
+                session.suggestions.length > 0 ? getCompletionType(session.suggestions[0]).toUpperCase() : 'LINE',
             suggestionState: this.getSuggestionState(session),
             recommendationLatencyMilliseconds: session.firstCompletionDisplayLatency
                 ? session.firstCompletionDisplayLatency

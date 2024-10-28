@@ -4,20 +4,26 @@ export type CodewhispererLanguage =
     | 'c'
     | 'cpp'
     | 'csharp'
+    | 'dart'
     | 'go'
     | 'java'
     | 'javascript'
     | 'json'
     | 'jsx'
     | 'kotlin'
+    | 'lua'
     | 'php'
     | 'plaintext'
+    | 'powershell'
     | 'python'
+    | 'r'
     | 'ruby'
     | 'rust'
     | 'scala'
     | 'shell'
     | 'sql'
+    | 'swift'
+    | 'systemverilog'
     | 'tf'
     | 'tsx'
     | 'typescript'
@@ -56,22 +62,29 @@ const supportedFileTypes: CodewhispererLanguage[] = [
     'c',
     'cpp',
     'csharp',
+    'dart',
     'go',
     'java',
     'javascript',
+    'json',
     'jsx',
     'kotlin',
+    'lua',
     'php',
+    'powershell',
     'python',
+    'r',
     'ruby',
     'rust',
     'scala',
     'shell',
+    'sql',
+    'swift',
+    'systemverilog',
     'tf',
     'typescript',
-    'json',
+    'vue',
     'yaml',
-    'sql',
 ]
 
 export const supportedSecurityScanLanguages: CodewhispererLanguage[] = ['csharp']
@@ -80,28 +93,38 @@ export const languageByExtension: { [key: string]: CodewhispererLanguage } = {
     '.c': 'c',
     '.cpp': 'cpp',
     '.cs': 'csharp',
+    '.dart': 'dart',
     '.h': 'c',
     '.hcl': 'tf',
     '.hpp': 'cpp',
     '.go': 'go',
-    '.kt': 'kotlin',
-    '.kts': 'kotlin',
     '.java': 'java',
     '.js': 'javascript',
     '.json': 'json',
     '.jsx': 'jsx',
+    '.kt': 'kotlin',
+    '.kts': 'kotlin',
+    '.lua': 'lua',
     '.php': 'php',
+    '.ps1': 'powershell',
+    '.psm1': 'powershell',
     '.py': 'python',
+    '.r': 'r',
     '.rb': 'ruby',
     '.rs': 'rust',
     '.sc': 'scala',
     '.scala': 'scala',
     '.sh': 'shell',
     '.sql': 'sql',
+    '.sv': 'systemverilog',
+    '.svh': 'systemverilog',
+    '.swift': 'swift',
     '.tf': 'tf',
     '.ts': 'typescript',
     '.tsx': 'tsx',
+    '.vh': 'systemverilog',
     '.vue': 'vue',
+    '.wlua': 'lua',
     '.yaml': 'yaml',
     '.yml': 'yaml',
 }
@@ -111,6 +134,7 @@ export const qLanguageIdByDocumentLanguageId: { [key: string]: CodewhispererLang
     c: 'c',
     cpp: 'cpp',
     csharp: 'csharp',
+    dart: 'dart',
     go: 'go',
     java: 'java',
     javascript: 'javascript',
@@ -118,20 +142,26 @@ export const qLanguageIdByDocumentLanguageId: { [key: string]: CodewhispererLang
     json: 'json',
     jsx: 'jsx',
     kotlin: 'kotlin',
+    lua: 'lua',
+    powershell: 'powershell',
     php: 'php',
     python: 'python',
+    r: 'r',
     ruby: 'ruby',
     rust: 'rust',
     scala: 'scala',
     shell: 'shell',
     shellscript: 'shell',
     sql: 'sql',
+    swift: 'swift',
+    systemverilog: 'systemverilog',
     tf: 'tf',
     terraform: 'tf',
     typescript: 'typescript',
     typescriptreact: 'tsx',
     vue: 'vue',
     yaml: 'yaml',
+    yml: 'yaml',
 }
 
 export const getSupportedLanguageId = (
