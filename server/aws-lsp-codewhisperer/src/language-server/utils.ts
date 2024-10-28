@@ -1,10 +1,6 @@
-import {
-    InitializeParams,
-    BearerCredentials,
-    CredentialsProvider,
-    ConnectionMetadata,
-} from '@aws/language-server-runtimes/server-interface'
+import { BearerCredentials, CredentialsProvider } from '@aws/language-server-runtimes/server-interface'
 import { AWSError } from 'aws-sdk'
+import { distance } from 'fastest-levenshtein'
 import { Suggestion } from './codeWhispererService'
 import { CodewhispererCompletionType } from './telemetry/types'
 import { BUILDER_ID_START_URL, MISSING_BEARER_TOKEN_ERROR } from './constants'
@@ -94,4 +90,15 @@ export function getLoginTypeFromProvider(credentialsProvider: CredentialsProvide
     const connectionMetadata = credentialsProvider.getConnectionMetadata()
     const startUrl = connectionMetadata?.sso?.startUrl
     return !startUrl ? 'none' : startUrl.includes(BUILDER_ID_START_URL) ? 'builderId' : 'identityCenter'
+}
+
+// Port of implementation in AWS Toolkit for VSCode
+// https://github.com/aws/aws-toolkit-vscode/blob/master/packages/core/src/codewhisperer/util/commonUtil.ts#L81C1-L88C2
+// With edit distance, complicate usermodification can be considered as simple edit(add, delete, replace),
+// and thus the unmodified part of recommendation length can be deducted/approximated
+// ex. (modified > original): originalRecom: foo -> modifiedRecom: fobarbarbaro, distance = 9, delta = 12 - 9 = 3
+// ex. (modified == original): originalRecom: helloworld -> modifiedRecom: HelloWorld, distance = 2, delta = 10 - 2 = 8
+// ex. (modified < original): originalRecom: CodeWhisperer -> modifiedRecom: CODE, distance = 12, delta = 13 - 12 = 1
+export function getUnmodifiedAcceptedTokens(origin: string, after: string) {
+    return Math.max(origin.length, after.length) - distance(origin, after)
 }

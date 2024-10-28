@@ -68,7 +68,8 @@ export interface CodeWhispererUserTriggerDecisionEvent {
 export interface CodeWhispererCodePercentageEvent {
     codewhispererTotalTokens: number
     codewhispererLanguage: string
-    codewhispererAcceptedTokens: number
+    codewhispererAcceptedTokens?: number
+    codewhispererSuggestedTokens: number
     codewhispererPercentage: number
     successCount: number
 }

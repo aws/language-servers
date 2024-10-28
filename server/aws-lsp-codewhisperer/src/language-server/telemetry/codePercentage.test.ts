@@ -2,6 +2,7 @@ import { Telemetry } from '@aws/language-server-runtimes/server-interface'
 import sinon, { StubbedInstance, stubInterface } from 'ts-sinon'
 import { CodePercentageTracker } from './codePercentage'
 import assert = require('assert')
+import { TelemetryService } from '../telemetryService'
 
 describe('CodePercentage', () => {
     const LANGUAGE_ID = 'python'
@@ -13,12 +14,14 @@ describe('CodePercentage', () => {
 
     let tracker: CodePercentageTracker
     let telemetry: StubbedInstance<Telemetry>
+    let telemetryService: StubbedInstance<TelemetryService>
     let clock: sinon.SinonFakeTimers
 
     beforeEach(() => {
         clock = sinon.useFakeTimers()
         telemetry = stubInterface<Telemetry>()
-        tracker = new CodePercentageTracker(telemetry)
+        telemetryService = stubInterface<TelemetryService>()
+        tracker = new CodePercentageTracker(telemetry, telemetryService)
     })
 
     afterEach(() => {
@@ -45,7 +48,8 @@ describe('CodePercentage', () => {
             data: {
                 codewhispererTotalTokens: 20,
                 codewhispererLanguage: LANGUAGE_ID,
-                codewhispererAcceptedTokens: 10,
+                codewhispererAcceptedTokens: undefined,
+                codewhispererSuggestedTokens: 10,
                 codewhispererPercentage: 50.0,
                 successCount: 1,
             },
@@ -81,7 +85,8 @@ describe('CodePercentage', () => {
             data: {
                 codewhispererTotalTokens: 20,
                 codewhispererLanguage: LANGUAGE_ID,
-                codewhispererAcceptedTokens: 10,
+                codewhispererAcceptedTokens: undefined,
+                codewhispererSuggestedTokens: 10,
                 codewhispererPercentage: 50.0,
                 successCount: 1,
             },
@@ -92,7 +97,8 @@ describe('CodePercentage', () => {
             data: {
                 codewhispererTotalTokens: 30,
                 codewhispererLanguage: OTHER_LANGUAGE_ID,
-                codewhispererAcceptedTokens: 10,
+                codewhispererAcceptedTokens: undefined,
+                codewhispererSuggestedTokens: 10,
                 codewhispererPercentage: 33.33,
                 successCount: 1,
             },

@@ -112,7 +112,8 @@ class HelloWorld
                 data: {
                     codewhispererTotalTokens: totalInsertCharacters,
                     codewhispererLanguage: 'csharp',
-                    codewhispererAcceptedTokens: codeWhispererCharacters,
+                    codewhispererAcceptedTokens: undefined,
+                    codewhispererSuggestedTokens: codeWhispererCharacters,
                     codewhispererPercentage: codePercentage,
                     successCount: 1,
                 },
