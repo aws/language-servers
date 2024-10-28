@@ -18,6 +18,7 @@ import {
 import { UserIntent } from '@amzn/codewhisperer-streaming'
 import { TriggerContext } from '../contexts/triggerContext'
 import { AcceptedSuggestionEntry, CodeDiffTracker } from '../../telemetry/codeDiffTracker'
+import { TelemetryService } from '../../telemetryService'
 
 export const CONVERSATION_ID_METRIC_KEY = 'cwsprChatConversationId'
 
@@ -59,8 +60,9 @@ export class ChatTelemetryController {
     #credentialsProvider: Features['credentialsProvider']
     #telemetry: Features['telemetry']
     #codeDiffTracker: CodeDiffTracker<AcceptedSuggestionChatEntry>
+    #telemetryService: TelemetryService
 
-    constructor(features: Features) {
+    constructor(features: Features, telemetryService: TelemetryService) {
         this.#tabTelemetryInfoByTabId = {}
         this.#currentTriggerByTabId = {}
         this.#customizationInfoByTabAndMessageId = {}
@@ -70,6 +72,7 @@ export class ChatTelemetryController {
         this.#codeDiffTracker = new CodeDiffTracker(features.workspace, features.logging, (entry, percentage) =>
             this.emitModifyCodeMetric(entry, percentage)
         )
+        this.#telemetryService = telemetryService
     }
 
     public get activeTabId(): string | undefined {

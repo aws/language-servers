@@ -4,6 +4,7 @@ import { ChatTelemetryEventName } from '../../telemetry/types'
 import { CONVERSATION_ID_METRIC_KEY, ChatTelemetryController } from './chatTelemetryController'
 import assert = require('assert')
 import { ChatUIEventName } from './clientTelemetry'
+import { TelemetryService } from '../../telemetryService'
 
 describe('TelemetryController', () => {
     const mockTabId = 'mockTabId'
@@ -11,10 +12,11 @@ describe('TelemetryController', () => {
 
     let testFeatures: TestFeatures
     let telemetryController: ChatTelemetryController
+    let telemetryService: TelemetryService
 
     beforeEach(() => {
         testFeatures = new TestFeatures()
-        telemetryController = new ChatTelemetryController(testFeatures)
+        telemetryController = new ChatTelemetryController(testFeatures, telemetryService)
     })
 
     it('able to set and get activeTabId', () => {

@@ -65,12 +65,7 @@ export class TelemetryService extends CodeWhispererServiceToken {
         return this.credentialsType === 'iam' || (this.loginType === 'builderId' && this.optOutPreference === 'OPTOUT')
     }
 
-    private invokeSendTelemetryEvent(event: any) {
-        const request: SendTelemetryEventRequest = {
-            telemetryEvent: {
-                userTriggerDecisionEvent: event,
-            },
-        }
+    private invokeSendTelemetryEvent(request: SendTelemetryEventRequest) {
         if (this.userContext !== undefined) {
             request.userContext = this.userContext
         }
@@ -117,6 +112,11 @@ export class TelemetryService extends CodeWhispererServiceToken {
             numberOfRecommendations: session.suggestions.length,
             perceivedLatencyMilliseconds: timeSinceLastUserModification,
         }
-        this.invokeSendTelemetryEvent(event)
+        const request: SendTelemetryEventRequest = {
+            telemetryEvent: {
+                userTriggerDecisionEvent: event,
+            },
+        }
+        this.invokeSendTelemetryEvent(request)
     }
 }

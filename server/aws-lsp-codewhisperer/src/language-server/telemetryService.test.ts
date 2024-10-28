@@ -8,7 +8,12 @@ import {
     IamCredentials,
     Telemetry,
 } from '@aws/language-server-runtimes/server-interface'
-import { UserContext, OptOutPreference, UserTriggerDecisionEvent } from '../client/token/codewhispererbearertokenclient'
+import {
+    UserContext,
+    OptOutPreference,
+    UserTriggerDecisionEvent,
+    SendTelemetryEventRequest,
+} from '../client/token/codewhispererbearertokenclient'
 import { CodeWhispererSession } from './session/sessionManager'
 import sinon from 'ts-sinon'
 import { builderIdStartUrl } from './constants'
@@ -178,18 +183,23 @@ describe('TelemetryService', () => {
     })
 
     it('should emit user trigger decision event correctly', () => {
-        const expectedEvent: Partial<UserTriggerDecisionEvent> = {
-            sessionId: 'test-session-id',
-            requestId: 'test-request-id',
-            customizationArn: 'test-arn',
-            programmingLanguage: { languageName: 'typescript' },
-            completionType: 'BLOCK',
-            suggestionState: 'ACCEPT',
-            recommendationLatencyMilliseconds: 100,
-            triggerToResponseLatencyMilliseconds: 200,
-            suggestionReferenceCount: 0,
-            generatedLine: 3,
-            numberOfRecommendations: 1,
+        const expectedUserTriggerDecisionEvent: SendTelemetryEventRequest = {
+            telemetryEvent: {
+                userTriggerDecisionEvent: {
+                    sessionId: 'test-session-id',
+                    requestId: 'test-request-id',
+                    customizationArn: 'test-arn',
+                    programmingLanguage: { languageName: 'typescript' },
+                    completionType: 'BLOCK',
+                    suggestionState: 'ACCEPT',
+                    recommendationLatencyMilliseconds: 100,
+                    triggerToResponseLatencyMilliseconds: 200,
+                    suggestionReferenceCount: 0,
+                    generatedLine: 3,
+                    numberOfRecommendations: 1,
+                    timestamp: new Date(Date.now()),
+                },
+            },
         }
         mockCredentialsProvider.setConnectionMetadata({
             sso: {
@@ -204,7 +214,7 @@ describe('TelemetryService', () => {
         telemetryService.updateOptOutPreference('OPTIN')
         telemetryService.emitUserTriggerDecision(mockSession as CodeWhispererSession)
         sinon.assert.calledOnce(invokeSendTelemetryEventSpy)
-        sinon.assert.calledWith(invokeSendTelemetryEventSpy, sinon.match(expectedEvent))
+        sinon.assert.calledWith(invokeSendTelemetryEventSpy, sinon.match(expectedUserTriggerDecisionEvent))
         invokeSendTelemetryEventSpy.restore()
     })
 })
