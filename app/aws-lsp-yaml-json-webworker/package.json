@@ -16,7 +16,7 @@
         "@aws/lsp-yaml": "*"
     },
     "devDependencies": {
-        "@types/node": "^22.7.5",
+        "@types/node": "^22.8.1",
         "path": "^0.12.7",
         "path-browserify": "^1.0.1",
         "ts-loader": "^9.5.1",
