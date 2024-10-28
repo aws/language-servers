@@ -11,12 +11,12 @@
         "serve:webpack": "NODE_ENV=development webpack serve"
     },
     "dependencies": {
-        "@aws/language-server-runtimes": "^0.2.20",
+        "@aws/language-server-runtimes": "^0.2.23",
         "@aws/lsp-json": "*",
         "@aws/lsp-yaml": "*"
     },
     "devDependencies": {
-        "@types/node": "^20.11.30",
+        "@types/node": "^22.7.5",
         "path": "^0.12.7",
         "path-browserify": "^1.0.1",
         "ts-loader": "^9.5.1",

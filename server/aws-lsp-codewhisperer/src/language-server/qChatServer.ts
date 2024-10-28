@@ -2,7 +2,7 @@ import { CredentialsProvider, InitializeParams, Server } from '@aws/language-ser
 import { ChatController } from './chat/chatController'
 import { ChatSessionManagementService } from './chat/chatSessionManagementService'
 import { CLEAR_QUICK_ACTION, HELP_QUICK_ACTION } from './chat/quickActions'
-import { getUserAgent } from './utils'
+import { getUserAgent } from './utilities/telemetryUtils'
 
 export const QChatServer =
     (service: (credentialsProvider: CredentialsProvider) => ChatSessionManagementService): Server =>
@@ -66,6 +66,10 @@ export const QChatServer =
 
         chat.onSendFeedback(params => {
             return chatController.onSendFeedback(params)
+        })
+
+        chat.onCodeInsertToCursorPosition(params => {
+            return chatController.onCodeInsertToCursorPosition(params)
         })
 
         lsp.onInitialized(chatController.updateConfiguration)
