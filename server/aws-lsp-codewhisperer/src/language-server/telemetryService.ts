@@ -61,7 +61,7 @@ export class TelemetryService extends CodeWhispererServiceToken {
         return suggestionState
     }
 
-    private shouldSendTelemetry(): boolean {
+    private shouldNotSendTelemetry(): boolean {
         return this.credentialsType === 'iam' || (this.loginType === 'builderId' && this.optOutPreference === 'OPTOUT')
     }
 
@@ -81,7 +81,7 @@ export class TelemetryService extends CodeWhispererServiceToken {
     }
 
     public emitUserTriggerDecision(session: CodeWhispererSession, timeSinceLastUserModification?: number) {
-        if (this.shouldSendTelemetry()) {
+        if (this.shouldNotSendTelemetry()) {
             return
         }
         const completionSessionResult = session.completionSessionResult ?? {}
