@@ -11,7 +11,7 @@ import {
 import { UserContext, OptOutPreference, UserTriggerDecisionEvent } from '../client/token/codewhispererbearertokenclient'
 import { CodeWhispererSession } from './session/sessionManager'
 import sinon from 'ts-sinon'
-import { builderIdStartUrl } from './constants'
+import { BUILDER_ID_START_URL } from './constants'
 
 class MockCredentialsProvider implements CredentialsProvider {
     private mockIamCredentials: IamCredentials | undefined
@@ -160,10 +160,10 @@ describe('TelemetryService', () => {
         sinon.assert.notCalled(invokeSendTelemetryEventSpy)
     })
 
-    it('should not emit user trigger decision if login is invalid (builderId but OPTOUT)', () => {
+    it('should not emit user trigger decision if login is BuilderID, but user chose OPTOUT option', () => {
         mockCredentialsProvider.setConnectionMetadata({
             sso: {
-                startUrl: builderIdStartUrl,
+                startUrl: BUILDER_ID_START_URL,
             },
         })
         telemetryService = new TelemetryService(mockCredentialsProvider, 'bearer', {} as Telemetry, {})
