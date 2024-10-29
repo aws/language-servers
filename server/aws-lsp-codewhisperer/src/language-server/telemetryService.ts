@@ -9,6 +9,7 @@ import {
     SendTelemetryEventRequest,
     ChatInteractWithMessageEvent,
     ChatMessageInteractionType,
+    TelemetryEvent,
 } from '../client/token/codewhispererbearertokenclient'
 import { getCompletionType, getLoginTypeFromProvider, LoginType } from './utils'
 import { getRuntimeLanguage } from './languageDetection'
@@ -72,7 +73,10 @@ export class TelemetryService extends CodeWhispererServiceToken {
         )
     }
 
-    private invokeSendTelemetryEvent(request: SendTelemetryEventRequest) {
+    private invokeSendTelemetryEvent(event: TelemetryEvent) {
+        const request: SendTelemetryEventRequest = {
+            telemetryEvent: event,
+        }
         if (this.userContext !== undefined) {
             request.userContext = this.userContext
         }
@@ -157,12 +161,9 @@ export class TelemetryService extends CodeWhispererServiceToken {
             numberOfRecommendations: session.suggestions.length,
             perceivedLatencyMilliseconds: timeSinceLastUserModification,
         }
-        const request: SendTelemetryEventRequest = {
-            telemetryEvent: {
-                userTriggerDecisionEvent: event,
-            },
-        }
-        this.invokeSendTelemetryEvent(request)
+        this.invokeSendTelemetryEvent({
+            userTriggerDecisionEvent: event,
+        })
     }
 
     public emitChatInteractWithMessage(
@@ -186,11 +187,8 @@ export class TelemetryService extends CodeWhispererServiceToken {
             acceptedSnippetHasReference: false,
             hasProjectLevelContext: false,
         }
-        const request: SendTelemetryEventRequest = {
-            telemetryEvent: {
-                chatInteractWithMessageEvent: event,
-            },
-        }
-        this.invokeSendTelemetryEvent(request)
+        this.invokeSendTelemetryEvent({
+            chatInteractWithMessageEvent: event,
+        })
     }
 }

@@ -8,12 +8,7 @@ import {
     IamCredentials,
     Telemetry,
 } from '@aws/language-server-runtimes/server-interface'
-import {
-    UserContext,
-    OptOutPreference,
-    UserTriggerDecisionEvent,
-    SendTelemetryEventRequest,
-} from '../client/token/codewhispererbearertokenclient'
+import { UserContext, OptOutPreference, TelemetryEvent } from '../client/token/codewhispererbearertokenclient'
 import { CodeWhispererSession } from './session/sessionManager'
 import sinon from 'ts-sinon'
 import { BUILDER_ID_START_URL } from './constants'
@@ -184,22 +179,20 @@ describe('TelemetryService', () => {
     })
 
     it('should emit user trigger decision event correctly', () => {
-        const expectedUserTriggerDecisionEvent: SendTelemetryEventRequest = {
-            telemetryEvent: {
-                userTriggerDecisionEvent: {
-                    sessionId: 'test-session-id',
-                    requestId: 'test-request-id',
-                    customizationArn: 'test-arn',
-                    programmingLanguage: { languageName: 'typescript' },
-                    completionType: 'BLOCK',
-                    suggestionState: 'ACCEPT',
-                    recommendationLatencyMilliseconds: 100,
-                    triggerToResponseLatencyMilliseconds: 200,
-                    suggestionReferenceCount: 0,
-                    generatedLine: 3,
-                    numberOfRecommendations: 1,
-                    timestamp: new Date(Date.now()),
-                },
+        const expectedUserTriggerDecisionEvent: TelemetryEvent = {
+            userTriggerDecisionEvent: {
+                sessionId: 'test-session-id',
+                requestId: 'test-request-id',
+                customizationArn: 'test-arn',
+                programmingLanguage: { languageName: 'typescript' },
+                completionType: 'BLOCK',
+                suggestionState: 'ACCEPT',
+                recommendationLatencyMilliseconds: 100,
+                triggerToResponseLatencyMilliseconds: 200,
+                suggestionReferenceCount: 0,
+                generatedLine: 3,
+                numberOfRecommendations: 1,
+                timestamp: new Date(Date.now()),
             },
         }
         mockCredentialsProvider.setConnectionMetadata({
@@ -254,22 +247,20 @@ describe('TelemetryService', () => {
                 acceptedLineCount,
             })
             expect(invokeSendTelemetryEventStub.calledOnce).to.be.true
-            const expectedRequest = {
-                telemetryEvent: {
-                    chatInteractWithMessageEvent: {
-                        conversationId: conversationId,
-                        messageId: metric.cwsprChatMessageId,
-                        customizationArn: metric.codewhispererCustomizationArn,
-                        interactionType: 'INSERT_AT_CURSOR',
-                        interactionTarget: metric.cwsprChatInteractionTarget,
-                        acceptedCharacterCount: metric.cwsprChatAcceptedCharactersLength,
-                        acceptedLineCount: acceptedLineCount,
-                        acceptedSnippetHasReference: false,
-                        hasProjectLevelContext: false,
-                    },
+            const expectedEvent = {
+                chatInteractWithMessageEvent: {
+                    conversationId: conversationId,
+                    messageId: metric.cwsprChatMessageId,
+                    customizationArn: metric.codewhispererCustomizationArn,
+                    interactionType: 'INSERT_AT_CURSOR',
+                    interactionTarget: metric.cwsprChatInteractionTarget,
+                    acceptedCharacterCount: metric.cwsprChatAcceptedCharactersLength,
+                    acceptedLineCount: acceptedLineCount,
+                    acceptedSnippetHasReference: false,
+                    hasProjectLevelContext: false,
                 },
             }
-            expect(invokeSendTelemetryEventStub.firstCall.args[0]).to.deep.equal(expectedRequest)
+            expect(invokeSendTelemetryEventStub.firstCall.args[0]).to.deep.equal(expectedEvent)
         })
 
         it('should not send InteractWithMessage when conversationId is undefined', () => {
@@ -338,7 +329,7 @@ describe('TelemetryService', () => {
             })
             expect(invokeSendTelemetryEventStub.calledOnce).to.be.true
             const calledArg = invokeSendTelemetryEventStub.firstCall.args[0]
-            expect(calledArg.telemetryEvent.chatInteractWithMessageEvent.acceptedLineCount).to.be.undefined
+            expect(calledArg.chatInteractWithMessageEvent.acceptedLineCount).to.be.undefined
         })
     })
 })
