@@ -12,7 +12,7 @@
         "server/**"
     ],
     "scripts": {
-        "prepare": "husky install .husky",
+        "prepare": "husky .husky",
         "lint": "eslint app/ chat-client/ client/ core/ script/ server/ --ext .ts,.tsx --ignore-path .gitignore && prettier --check .",
         "check:formatting": "prettier --check .",
         "format": "prettier --write .",

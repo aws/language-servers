@@ -1,35 +1,28 @@
 // smithy-typescript generated code
 import {
-    CodeWhispererStreamingClientResolvedConfig,
-    ServiceInputTypes,
-    ServiceOutputTypes,
-} from '../CodeWhispererStreamingClient'
+  CodeWhispererStreamingClientResolvedConfig,
+  ServiceInputTypes,
+  ServiceOutputTypes,
+} from "../CodeWhispererStreamingClient";
 import {
-    GenerateTaskAssistPlanRequest,
-    GenerateTaskAssistPlanRequestFilterSensitiveLog,
-    GenerateTaskAssistPlanResponse,
-    GenerateTaskAssistPlanResponseFilterSensitiveLog,
-} from '../models/models_0'
-import { de_GenerateTaskAssistPlanCommand, se_GenerateTaskAssistPlanCommand } from '../protocols/Aws_restJson1'
-import { getSerdePlugin } from '@smithy/middleware-serde'
-import { HttpRequest as __HttpRequest, HttpResponse as __HttpResponse } from '@smithy/protocol-http'
-import { Command as $Command } from '@smithy/smithy-client'
+  GenerateTaskAssistPlanRequest,
+  GenerateTaskAssistPlanRequestFilterSensitiveLog,
+  GenerateTaskAssistPlanResponse,
+  GenerateTaskAssistPlanResponseFilterSensitiveLog,
+} from "../models/models_0";
 import {
-    FinalizeHandlerArguments,
-    Handler,
-    HandlerExecutionContext,
-    MiddlewareStack,
-    SMITHY_CONTEXT_KEY,
-    EventStreamSerdeContext as __EventStreamSerdeContext,
-    HttpHandlerOptions as __HttpHandlerOptions,
-    MetadataBearer as __MetadataBearer,
-    SerdeContext as __SerdeContext,
-} from '@smithy/types'
+  de_GenerateTaskAssistPlanCommand,
+  se_GenerateTaskAssistPlanCommand,
+} from "../protocols/Aws_restJson1";
+import { getSerdePlugin } from "@smithy/middleware-serde";
+import { Command as $Command } from "@smithy/smithy-client";
+import { MetadataBearer as __MetadataBearer } from "@smithy/types";
 
 /**
  * @public
  */
-export { __MetadataBearer, $Command }
+export type { __MetadataBearer };
+export { $Command };
 /**
  * @public
  *
@@ -44,7 +37,6 @@ export interface GenerateTaskAssistPlanCommandInput extends GenerateTaskAssistPl
 export interface GenerateTaskAssistPlanCommandOutput extends GenerateTaskAssistPlanResponse, __MetadataBearer {}
 
 /**
- * @public
  * API to generate task assit plan.
  * @example
  * Use a bare-bones client and the command you need to make an API call.
@@ -107,6 +99,7 @@ export interface GenerateTaskAssistPlanCommandOutput extends GenerateTaskAssistP
  *                   ],
  *                 },
  *               ],
+ *               useRelevantDocuments: true || false,
  *             },
  *             shellState: { // ShellState
  *               shellName: "STRING_VALUE", // required
@@ -175,8 +168,19 @@ export interface GenerateTaskAssistPlanCommandOutput extends GenerateTaskAssistP
  *                 message: "STRING_VALUE", // required
  *               },
  *             },
+ *             consoleState: { // ConsoleState
+ *               region: "STRING_VALUE",
+ *               consoleUrl: "STRING_VALUE",
+ *               serviceId: "STRING_VALUE",
+ *               serviceConsolePage: "STRING_VALUE",
+ *               serviceSubconsolePage: "STRING_VALUE",
+ *               taskName: "STRING_VALUE",
+ *             },
+ *             userSettings: { // UserSettings
+ *               hasConsentedToCrossRegionCalls: true || false,
+ *             },
  *           },
- *           userIntent: "SUGGEST_ALTERNATE_IMPLEMENTATION" || "APPLY_COMMON_BEST_PRACTICES" || "IMPROVE_CODE" || "SHOW_EXAMPLES" || "CITE_SOURCES" || "EXPLAIN_LINE_BY_LINE" || "EXPLAIN_CODE_SELECTION",
+ *           userIntent: "SUGGEST_ALTERNATE_IMPLEMENTATION" || "APPLY_COMMON_BEST_PRACTICES" || "IMPROVE_CODE" || "SHOW_EXAMPLES" || "CITE_SOURCES" || "EXPLAIN_LINE_BY_LINE" || "EXPLAIN_CODE_SELECTION" || "GENERATE_CLOUDFORMATION_TEMPLATE" || "GENERATE_UNIT_TESTS" || "CODE_GENERATION",
  *         },
  *         assistantResponseMessage: { // AssistantResponseMessage
  *           messageId: "STRING_VALUE",
@@ -201,7 +205,7 @@ export interface GenerateTaskAssistPlanCommandOutput extends GenerateTaskAssistP
  *           ],
  *           followupPrompt: { // FollowupPrompt
  *             content: "STRING_VALUE", // required
- *             userIntent: "SUGGEST_ALTERNATE_IMPLEMENTATION" || "APPLY_COMMON_BEST_PRACTICES" || "IMPROVE_CODE" || "SHOW_EXAMPLES" || "CITE_SOURCES" || "EXPLAIN_LINE_BY_LINE" || "EXPLAIN_CODE_SELECTION",
+ *             userIntent: "SUGGEST_ALTERNATE_IMPLEMENTATION" || "APPLY_COMMON_BEST_PRACTICES" || "IMPROVE_CODE" || "SHOW_EXAMPLES" || "CITE_SOURCES" || "EXPLAIN_LINE_BY_LINE" || "EXPLAIN_CODE_SELECTION" || "GENERATE_CLOUDFORMATION_TEMPLATE" || "GENERATE_UNIT_TESTS" || "CODE_GENERATION",
  *           },
  *         },
  *       },
@@ -235,6 +239,7 @@ export interface GenerateTaskAssistPlanCommandOutput extends GenerateTaskAssistP
  *                 ],
  *               },
  *             ],
+ *             useRelevantDocuments: true || false,
  *           },
  *           shellState: {
  *             shellName: "STRING_VALUE", // required
@@ -284,8 +289,19 @@ export interface GenerateTaskAssistPlanCommandOutput extends GenerateTaskAssistP
  *               message: "STRING_VALUE", // required
  *             },
  *           },
+ *           consoleState: {
+ *             region: "STRING_VALUE",
+ *             consoleUrl: "STRING_VALUE",
+ *             serviceId: "STRING_VALUE",
+ *             serviceConsolePage: "STRING_VALUE",
+ *             serviceSubconsolePage: "STRING_VALUE",
+ *             taskName: "STRING_VALUE",
+ *           },
+ *           userSettings: {
+ *             hasConsentedToCrossRegionCalls: true || false,
+ *           },
  *         },
- *         userIntent: "SUGGEST_ALTERNATE_IMPLEMENTATION" || "APPLY_COMMON_BEST_PRACTICES" || "IMPROVE_CODE" || "SHOW_EXAMPLES" || "CITE_SOURCES" || "EXPLAIN_LINE_BY_LINE" || "EXPLAIN_CODE_SELECTION",
+ *         userIntent: "SUGGEST_ALTERNATE_IMPLEMENTATION" || "APPLY_COMMON_BEST_PRACTICES" || "IMPROVE_CODE" || "SHOW_EXAMPLES" || "CITE_SOURCES" || "EXPLAIN_LINE_BY_LINE" || "EXPLAIN_CODE_SELECTION" || "GENERATE_CLOUDFORMATION_TEMPLATE" || "GENERATE_UNIT_TESTS" || "CODE_GENERATION",
  *       },
  *       assistantResponseMessage: {
  *         messageId: "STRING_VALUE",
@@ -310,11 +326,11 @@ export interface GenerateTaskAssistPlanCommandOutput extends GenerateTaskAssistP
  *         ],
  *         followupPrompt: {
  *           content: "STRING_VALUE", // required
- *           userIntent: "SUGGEST_ALTERNATE_IMPLEMENTATION" || "APPLY_COMMON_BEST_PRACTICES" || "IMPROVE_CODE" || "SHOW_EXAMPLES" || "CITE_SOURCES" || "EXPLAIN_LINE_BY_LINE" || "EXPLAIN_CODE_SELECTION",
+ *           userIntent: "SUGGEST_ALTERNATE_IMPLEMENTATION" || "APPLY_COMMON_BEST_PRACTICES" || "IMPROVE_CODE" || "SHOW_EXAMPLES" || "CITE_SOURCES" || "EXPLAIN_LINE_BY_LINE" || "EXPLAIN_CODE_SELECTION" || "GENERATE_CLOUDFORMATION_TEMPLATE" || "GENERATE_UNIT_TESTS" || "CODE_GENERATION",
  *         },
  *       },
  *     },
- *     chatTriggerType: "MANUAL" || "DIAGNOSTIC", // required
+ *     chatTriggerType: "MANUAL" || "DIAGNOSTIC" || "INLINE_CHAT", // required
  *     customizationArn: "STRING_VALUE",
  *   },
  *   workspaceState: { // WorkspaceState
@@ -329,10 +345,12 @@ export interface GenerateTaskAssistPlanCommandOutput extends GenerateTaskAssistP
  * //   planningResponseStream: { // ChatResponseStream Union: only one key present
  * //     messageMetadataEvent: { // MessageMetadataEvent
  * //       conversationId: "STRING_VALUE",
+ * //       utteranceId: "STRING_VALUE",
  * //     },
  * //     assistantResponseEvent: { // AssistantResponseEvent
  * //       content: "STRING_VALUE", // required
  * //     },
+ * //     dryRunSucceedEvent: {},
  * //     codeReferenceEvent: { // CodeReferenceEvent
  * //       references: [ // References
  * //         { // Reference
@@ -358,8 +376,215 @@ export interface GenerateTaskAssistPlanCommandOutput extends GenerateTaskAssistP
  * //     followupPromptEvent: { // FollowupPromptEvent
  * //       followupPrompt: { // FollowupPrompt
  * //         content: "STRING_VALUE", // required
- * //         userIntent: "SUGGEST_ALTERNATE_IMPLEMENTATION" || "APPLY_COMMON_BEST_PRACTICES" || "IMPROVE_CODE" || "SHOW_EXAMPLES" || "CITE_SOURCES" || "EXPLAIN_LINE_BY_LINE" || "EXPLAIN_CODE_SELECTION",
+ * //         userIntent: "SUGGEST_ALTERNATE_IMPLEMENTATION" || "APPLY_COMMON_BEST_PRACTICES" || "IMPROVE_CODE" || "SHOW_EXAMPLES" || "CITE_SOURCES" || "EXPLAIN_LINE_BY_LINE" || "EXPLAIN_CODE_SELECTION" || "GENERATE_CLOUDFORMATION_TEMPLATE" || "GENERATE_UNIT_TESTS" || "CODE_GENERATION",
  * //       },
+ * //     },
+ * //     codeEvent: { // CodeEvent
+ * //       content: "STRING_VALUE", // required
+ * //     },
+ * //     intentsEvent: { // IntentsEvent
+ * //       intents: { // IntentMap
+ * //         "<keys>": { // IntentData
+ * //           "<keys>": { // IntentDataType Union: only one key present
+ * //             string: "STRING_VALUE",
+ * //           },
+ * //         },
+ * //       },
+ * //     },
+ * //     interactionComponentsEvent: { // InteractionComponentsEvent
+ * //       interactionComponentEntries: [ // InteractionComponentEntryList // required
+ * //         { // InteractionComponentEntry
+ * //           interactionComponentId: "STRING_VALUE",
+ * //           interactionComponent: { // InteractionComponent
+ * //             text: { // Text
+ * //               content: "STRING_VALUE", // required
+ * //             },
+ * //             alert: { // Alert
+ * //               type: "INFO" || "ERROR" || "WARNING", // required
+ * //               content: [ // AlertComponentList // required
+ * //                 { // AlertComponent
+ * //                   text: {
+ * //                     content: "STRING_VALUE", // required
+ * //                   },
+ * //                 },
+ * //               ],
+ * //             },
+ * //             infrastructureUpdate: { // InfrastructureUpdate
+ * //               transition: { // InfrastructureUpdateTransition
+ * //                 currentState: "STRING_VALUE", // required
+ * //                 nextState: "STRING_VALUE", // required
+ * //               },
+ * //             },
+ * //             progress: { // Progress
+ * //               content: [ // ProgressComponentList // required
+ * //                 { // ProgressComponent
+ * //                   step: { // Step
+ * //                     id: Number("int"), // required
+ * //                     state: "FAILED" || "SUCCEEDED" || "STOPPED" || "PENDING" || "IN_PROGRESS" || "LOADING" || "PAUSED", // required
+ * //                     label: "STRING_VALUE", // required
+ * //                     content: [ // StepComponentList
+ * //                       { // StepComponent
+ * //                         text: "<Text>",
+ * //                       },
+ * //                     ],
+ * //                   },
+ * //                 },
+ * //               ],
+ * //             },
+ * //             step: {
+ * //               id: Number("int"), // required
+ * //               state: "FAILED" || "SUCCEEDED" || "STOPPED" || "PENDING" || "IN_PROGRESS" || "LOADING" || "PAUSED", // required
+ * //               label: "STRING_VALUE", // required
+ * //               content: [
+ * //                 {
+ * //                   text: "<Text>",
+ * //                 },
+ * //               ],
+ * //             },
+ * //             taskDetails: { // TaskDetails
+ * //               overview: { // TaskOverview
+ * //                 label: "STRING_VALUE", // required
+ * //                 description: "STRING_VALUE", // required
+ * //               },
+ * //               content: [ // TaskComponentList // required
+ * //                 { // TaskComponent
+ * //                   text: "<Text>",
+ * //                   infrastructureUpdate: {
+ * //                     transition: {
+ * //                       currentState: "STRING_VALUE", // required
+ * //                       nextState: "STRING_VALUE", // required
+ * //                     },
+ * //                   },
+ * //                   alert: {
+ * //                     type: "INFO" || "ERROR" || "WARNING", // required
+ * //                     content: [ // required
+ * //                       {
+ * //                         text: "<Text>",
+ * //                       },
+ * //                     ],
+ * //                   },
+ * //                   progress: {
+ * //                     content: [ // required
+ * //                       {
+ * //                         step: "<Step>",
+ * //                       },
+ * //                     ],
+ * //                   },
+ * //                 },
+ * //               ],
+ * //               actions: [ // TaskActionList
+ * //                 { // TaskAction
+ * //                   label: "STRING_VALUE", // required
+ * //                   note: { // TaskActionNote
+ * //                     content: "STRING_VALUE", // required
+ * //                     type: "INFO" || "WARNING",
+ * //                   },
+ * //                   primary: true || false,
+ * //                   disabled: true || false,
+ * //                   payload: { // TaskActionPayload // required
+ * //                     "<keys>": "STRING_VALUE",
+ * //                   },
+ * //                   confirmation: { // TaskActionConfirmation
+ * //                     content: "STRING_VALUE",
+ * //                   },
+ * //                 },
+ * //               ],
+ * //             },
+ * //             taskReference: { // TaskReference
+ * //               taskId: "STRING_VALUE", // required
+ * //             },
+ * //             suggestions: { // Suggestions
+ * //               items: [ // SuggestionList // required
+ * //                 { // Suggestion
+ * //                   value: "STRING_VALUE", // required
+ * //                 },
+ * //               ],
+ * //             },
+ * //             section: { // Section
+ * //               title: "STRING_VALUE", // required
+ * //               content: [ // SectionComponentList // required
+ * //                 { // SectionComponent
+ * //                   text: "<Text>",
+ * //                   alert: {
+ * //                     type: "INFO" || "ERROR" || "WARNING", // required
+ * //                     content: [ // required
+ * //                       {
+ * //                         text: "<Text>",
+ * //                       },
+ * //                     ],
+ * //                   },
+ * //                   resource: { // Resource
+ * //                     title: "STRING_VALUE", // required
+ * //                     link: "STRING_VALUE", // required
+ * //                     description: "STRING_VALUE", // required
+ * //                     type: "STRING_VALUE", // required
+ * //                     ARN: "STRING_VALUE", // required
+ * //                     resourceJsonString: "STRING_VALUE", // required
+ * //                   },
+ * //                   resourceList: { // ResourceList
+ * //                     action: { // Action
+ * //                       webLink: { // WebLink
+ * //                         label: "STRING_VALUE", // required
+ * //                         url: "STRING_VALUE", // required
+ * //                       },
+ * //                       moduleLink: { // ModuleLink
+ * //                         cloudWatchTroubleshootingLink: { // CloudWatchTroubleshootingLink
+ * //                           label: "STRING_VALUE", // required
+ * //                           investigationPayload: "STRING_VALUE", // required
+ * //                           defaultText: "STRING_VALUE",
+ * //                         },
+ * //                       },
+ * //                     },
+ * //                     items: [ // Resources // required
+ * //                       {
+ * //                         title: "STRING_VALUE", // required
+ * //                         link: "STRING_VALUE", // required
+ * //                         description: "STRING_VALUE", // required
+ * //                         type: "STRING_VALUE", // required
+ * //                         ARN: "STRING_VALUE", // required
+ * //                         resourceJsonString: "STRING_VALUE", // required
+ * //                       },
+ * //                     ],
+ * //                   },
+ * //                 },
+ * //               ],
+ * //               action: {
+ * //                 webLink: {
+ * //                   label: "STRING_VALUE", // required
+ * //                   url: "STRING_VALUE", // required
+ * //                 },
+ * //                 moduleLink: {
+ * //                   cloudWatchTroubleshootingLink: {
+ * //                     label: "STRING_VALUE", // required
+ * //                     investigationPayload: "STRING_VALUE", // required
+ * //                     defaultText: "STRING_VALUE",
+ * //                   },
+ * //                 },
+ * //               },
+ * //             },
+ * //             resource: "<Resource>",
+ * //             resourceList: {
+ * //               action: {
+ * //                 webLink: {
+ * //                   label: "STRING_VALUE", // required
+ * //                   url: "STRING_VALUE", // required
+ * //                 },
+ * //                 moduleLink: {
+ * //                   cloudWatchTroubleshootingLink: {
+ * //                     label: "STRING_VALUE", // required
+ * //                     investigationPayload: "STRING_VALUE", // required
+ * //                     defaultText: "STRING_VALUE",
+ * //                   },
+ * //                 },
+ * //               },
+ * //               items: [ // required
+ * //                 "<Resource>",
+ * //               ],
+ * //             },
+ * //             action: "<Action>",
+ * //           },
+ * //         },
+ * //       ],
  * //     },
  * //     invalidStateEvent: { // InvalidStateEvent
  * //       reason: "INVALID_TASK_ASSIST_PLAN", // required
@@ -403,75 +628,38 @@ export interface GenerateTaskAssistPlanCommandOutput extends GenerateTaskAssistP
  * @throws {@link CodeWhispererStreamingServiceException}
  * <p>Base exception class for all service exceptions from CodeWhispererStreaming service.</p>
  *
+ * @public
  */
-export class GenerateTaskAssistPlanCommand extends $Command<
-    GenerateTaskAssistPlanCommandInput,
-    GenerateTaskAssistPlanCommandOutput,
-    CodeWhispererStreamingClientResolvedConfig
-> {
-    // Start section: command_properties
-    // End section: command_properties
+export class GenerateTaskAssistPlanCommand extends $Command.classBuilder<GenerateTaskAssistPlanCommandInput, GenerateTaskAssistPlanCommandOutput, CodeWhispererStreamingClientResolvedConfig, ServiceInputTypes, ServiceOutputTypes>()
+      .m(function (this: any, Command: any, cs: any, config: CodeWhispererStreamingClientResolvedConfig, o: any) {
+          return [
 
-    /**
-     * @public
-     */
-    constructor(readonly input: GenerateTaskAssistPlanCommandInput) {
-        // Start section: command_constructor
-        super()
-        // End section: command_constructor
-    }
+  getSerdePlugin(config, this.serialize, this.deserialize),
+      ];
+  })
+  .s("AmazonCodeWhispererStreamingService", "GenerateTaskAssistPlan", {
 
     /**
      * @internal
      */
-    resolveMiddleware(
-        clientStack: MiddlewareStack<ServiceInputTypes, ServiceOutputTypes>,
-        configuration: CodeWhispererStreamingClientResolvedConfig,
-        options?: __HttpHandlerOptions
-    ): Handler<GenerateTaskAssistPlanCommandInput, GenerateTaskAssistPlanCommandOutput> {
-        this.middlewareStack.use(getSerdePlugin(configuration, this.serialize, this.deserialize))
-
-        const stack = clientStack.concat(this.middlewareStack)
-
-        const { logger } = configuration
-        const clientName = 'CodeWhispererStreamingClient'
-        const commandName = 'GenerateTaskAssistPlanCommand'
-        const handlerExecutionContext: HandlerExecutionContext = {
-            logger,
-            clientName,
-            commandName,
-            inputFilterSensitiveLog: GenerateTaskAssistPlanRequestFilterSensitiveLog,
-            outputFilterSensitiveLog: GenerateTaskAssistPlanResponseFilterSensitiveLog,
-            [SMITHY_CONTEXT_KEY]: {
-                service: 'AmazonCodeWhispererStreamingService',
-                operation: 'GenerateTaskAssistPlan',
-            },
-        }
-        const { requestHandler } = configuration
-        return stack.resolve(
-            (request: FinalizeHandlerArguments<any>) =>
-                requestHandler.handle(request.request as __HttpRequest, options || {}),
-            handlerExecutionContext
-        )
-    }
-
-    /**
-     * @internal
-     */
-    private serialize(input: GenerateTaskAssistPlanCommandInput, context: __SerdeContext): Promise<__HttpRequest> {
-        return se_GenerateTaskAssistPlanCommand(input, context)
-    }
-
-    /**
-     * @internal
-     */
-    private deserialize(
-        output: __HttpResponse,
-        context: __SerdeContext & __EventStreamSerdeContext
-    ): Promise<GenerateTaskAssistPlanCommandOutput> {
-        return de_GenerateTaskAssistPlanCommand(output, context)
-    }
-
-    // Start section: command_body_extra
-    // End section: command_body_extra
+    eventStream: {
+      output: true,
+    },
+  })
+  .n("CodeWhispererStreamingClient", "GenerateTaskAssistPlanCommand")
+  .f(GenerateTaskAssistPlanRequestFilterSensitiveLog, GenerateTaskAssistPlanResponseFilterSensitiveLog)
+  .ser(se_GenerateTaskAssistPlanCommand)
+  .de(de_GenerateTaskAssistPlanCommand)
+.build() {
+/** @internal type navigation helper, not in runtime. */
+declare protected static __types: {
+  api: {
+      input: GenerateTaskAssistPlanRequest;
+      output: GenerateTaskAssistPlanResponse;
+  };
+  sdk: {
+      input: GenerateTaskAssistPlanCommandInput;
+      output: GenerateTaskAssistPlanCommandOutput;
+  };
+};
 }
