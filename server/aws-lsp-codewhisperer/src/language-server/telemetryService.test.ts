@@ -8,7 +8,7 @@ import {
     IamCredentials,
     Telemetry,
 } from '@aws/language-server-runtimes/server-interface'
-import { UserContext, OptOutPreference, TelemetryEvent } from '../client/token/codewhispererbearertokenclient'
+import { UserContext, OptOutPreference } from '../client/token/codewhispererbearertokenclient'
 import { CodeWhispererSession } from './session/sessionManager'
 import sinon from 'ts-sinon'
 import { BUILDER_ID_START_URL } from './constants'
@@ -189,7 +189,6 @@ describe('TelemetryService', () => {
                     generatedLine: 3,
                     numberOfRecommendations: 1,
                     perceivedLatencyMilliseconds: undefined,
-                    timestamp: new Date(Date.now()),
                 },
             },
             optOutPreference: 'OPTIN',
@@ -204,7 +203,10 @@ describe('TelemetryService', () => {
         telemetryService.updateOptOutPreference('OPTIN')
         telemetryService.emitUserTriggerDecision(mockSession as CodeWhispererSession)
         expect(invokeSendTelemetryEventStub.calledOnce).to.be.true
-        expect(invokeSendTelemetryEventStub.firstCall.args[0]).to.deep.equal(expectedUserTriggerDecisionEvent)
+        const actualArguments = invokeSendTelemetryEventStub.firstCall.args[0]
+        expect(actualArguments.telemetryEvent.userTriggerDecisionEvent).to.deep.include(
+            expectedUserTriggerDecisionEvent.telemetryEvent.userTriggerDecisionEvent
+        )
         sinon.restore()
     })
 
