@@ -133,6 +133,26 @@ describe('FileSystemSsoCache', () => {
         expect(actual?.scopes).to.deep.equal(['sso:account:access', 'codewhisperer:analysis'])
     })
 
+    it('setSsoClientRegistration writes new valid registration when ~/.aws does not exist', async () => {
+        mock.restore()
+        mock({})
+
+        await sut.setSsoClientRegistration('new', ssoSession, {
+            clientId: 'someclientid',
+            clientSecret: 'someclientsecret',
+            expiresAt: '2024-10-14T12:00:00.000Z',
+            scopes: ['sso:account:access', 'codewhisperer:analysis'],
+        })
+
+        const actual = await sut.getSsoClientRegistration('new', ssoSession)
+
+        expect(actual).to.not.be.null.and.not.undefined
+        expect(actual?.clientId).to.equal('someclientid')
+        expect(actual?.clientSecret).to.equal('someclientsecret')
+        expect(actual?.expiresAt).to.equal('2024-10-14T12:00:00.000Z')
+        expect(actual?.scopes).to.deep.equal(['sso:account:access', 'codewhisperer:analysis'])
+    })
+
     it('setSsoClientRegistration writes updated existing registration', async () => {
         setupTest()
 
@@ -217,6 +237,36 @@ describe('FileSystemSsoCache', () => {
 
     it('setSsoToken writes new valid token', async () => {
         setupTest()
+        const ssoSession = createSsoSession('new-token')
+
+        await sut.setSsoToken(clientName, ssoSession, {
+            clientId: 'someclientid',
+            clientSecret: 'someclientsecret',
+            region: 'us-west-2',
+            startUrl: 'https://somewhere',
+            accessToken: 'newaccesstoken',
+            refreshToken: 'newrefreshtoken',
+            expiresAt: '2024-10-14T12:00:00.000Z',
+            registrationExpiresAt: '2024-12-14T12:00:00.000Z',
+        })
+
+        const actual = await sut.getSsoToken(clientName, ssoSession)
+
+        expect(actual).to.not.be.null.and.not.undefined
+        expect(actual?.accessToken).to.equal('newaccesstoken')
+        expect(actual?.clientId).to.equal('someclientid')
+        expect(actual?.clientSecret).to.equal('someclientsecret')
+        expect(actual?.expiresAt).to.equal('2024-10-14T12:00:00.000Z')
+        expect(actual?.refreshToken).to.equal('newrefreshtoken')
+        expect(actual?.region).to.equal('us-west-2')
+        expect(actual?.registrationExpiresAt).to.equal('2024-12-14T12:00:00.000Z')
+        expect(actual?.startUrl).to.equal('https://somewhere')
+    })
+
+    it('setSsoToken writes new valid token when ~/.aws does not exist', async () => {
+        mock.restore()
+        mock({})
+
         const ssoSession = createSsoSession('new-token')
 
         await sut.setSsoToken(clientName, ssoSession, {
