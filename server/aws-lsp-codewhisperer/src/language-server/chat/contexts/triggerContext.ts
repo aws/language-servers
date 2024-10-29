@@ -5,7 +5,7 @@ import { Features } from '../../types'
 import { DocumentContext, DocumentContextExtractor } from './documentContext'
 
 export interface TriggerContext extends Partial<DocumentContext> {
-    userIntent?: string
+    userIntent?: UserIntent
     triggerType?: TriggerType
 }
 
