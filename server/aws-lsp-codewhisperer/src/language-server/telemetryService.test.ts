@@ -334,4 +334,39 @@ describe('TelemetryService', () => {
             expect(calledArg.telemetryEvent.chatInteractWithMessageEvent.acceptedLineCount).to.be.undefined
         })
     })
+
+    it('should emit CodeCoverageEvent event', () => {
+        const timestamp = new Date(Date.now())
+        const expectedEvent = {
+            codeCoverageEvent: {
+                customizationArn: 'test-arn',
+                programmingLanguage: { languageName: 'typescript' },
+                acceptedCharacterCount: 123,
+                totalCharacterCount: 456,
+                // timestamp,
+            },
+        }
+        mockCredentialsProvider.setConnectionMetadata({
+            sso: {
+                startUrl: 'idc-start-url',
+            },
+        })
+        telemetryService = new TelemetryService(mockCredentialsProvider, 'bearer', {} as Telemetry, {})
+        const invokeSendTelemetryEventSpy: sinon.SinonSpy = sinon.spy(
+            telemetryService,
+            'invokeSendTelemetryEvent' as any
+        )
+        telemetryService.updateOptOutPreference('OPTIN')
+
+        telemetryService.emitCodeCoverageEvent({
+            languageId: 'typescript',
+            customizationArn: 'test-arn',
+            acceptedCharacterCount: 123,
+            totalCharacterCount: 456,
+        })
+
+        sinon.assert.calledOnce(invokeSendTelemetryEventSpy)
+        sinon.assert.calledWith(invokeSendTelemetryEventSpy, sinon.match(expectedEvent))
+        invokeSendTelemetryEventSpy.restore()
+    })
 })

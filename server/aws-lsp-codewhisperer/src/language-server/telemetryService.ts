@@ -198,19 +198,17 @@ export class TelemetryService extends CodeWhispererServiceToken {
         languageId: CodewhispererLanguage
         acceptedCharacterCount: number
         totalCharacterCount: number
-        unmodifiedAcceptedCharacterCount?: number
         customizationArn?: string
     }) {
         const event: CodeCoverageEvent = {
-            customizationArn: params.customizationArn,
             programmingLanguage: {
                 languageName: getRuntimeLanguage(params.languageId),
             },
             acceptedCharacterCount: params.acceptedCharacterCount,
             totalCharacterCount: params.totalCharacterCount,
             timestamp: new Date(Date.now()),
-            unmodifiedAcceptedCharacterCount: params.unmodifiedAcceptedCharacterCount,
         }
+        if (params.customizationArn) event.customizationArn = params.customizationArn
 
         this.invokeSendTelemetryEvent({
             codeCoverageEvent: event,

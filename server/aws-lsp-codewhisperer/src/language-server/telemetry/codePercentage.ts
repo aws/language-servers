@@ -11,8 +11,6 @@ type TelemetryBuckets = {
         totalTokens: number
         // The accepted characters without counting user modification
         acceptedTokens: number
-        // The accepted characters after calculating user modification
-        unmodifiedAcceptedTokens?: number
         invocationCount: number
         successCount: number
     }
@@ -43,10 +41,9 @@ export class CodePercentageTracker {
 
                 this.telemetryService.emitCodeCoverageEvent({
                     languageId: event.codewhispererLanguage as CodewhispererLanguage,
+                    customizationArn: this.customizationArn,
                     totalCharacterCount: event.codewhispererTotalTokens,
                     acceptedCharacterCount: event.codewhispererSuggestedTokens,
-                    unmodifiedAcceptedCharacterCount: event.codewhispererAcceptedTokens,
-                    customizationArn: this.customizationArn,
                 })
             })
         }, CODE_PERCENTAGE_INTERVAL)
@@ -62,7 +59,6 @@ export class CodePercentageTracker {
                 return {
                     codewhispererTotalTokens: bucket.totalTokens,
                     codewhispererLanguage: languageId,
-                    codewhispererAcceptedTokens: bucket.unmodifiedAcceptedTokens,
                     codewhispererSuggestedTokens: bucket.acceptedTokens,
                     codewhispererPercentage: percentage,
                     successCount: bucket.successCount,
@@ -86,7 +82,6 @@ export class CodePercentageTracker {
         if (!this.buckets[languageId]) {
             this.buckets[languageId] = {
                 totalTokens: 0,
-                unmodifiedAcceptedTokens: undefined,
                 acceptedTokens: 0,
                 invocationCount: 0,
                 successCount: 0,
