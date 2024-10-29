@@ -1,9 +1,10 @@
 import { getSSOTokenFilepath, getSSOTokenFromFile, SSOToken } from '@smithy/shared-ini-file-loader'
 import { SsoCache, SsoClientRegistration, ssoClientRegistrationDuckTyper, ssoTokenDuckTyper } from './ssoCache'
-import { readFile, unlink, writeFile } from 'fs/promises'
+import { mkdir, readFile, unlink, writeFile } from 'fs/promises'
 import { AwsError } from '../../awsError'
 import { AwsErrorCodes, SsoSession } from '@aws/language-server-runtimes/server-interface'
 import { throwOnInvalidClientName, throwOnInvalidSsoSession, throwOnInvalidSsoSessionName } from '../utils'
+import path from 'path'
 
 // As this is a cache, we tend to swallow a lot of the errors as it is ok to just recreate the items each
 // time, though recreating the SSO token without a refresh token will be every hour.  This is a better
@@ -92,14 +93,10 @@ async function getSsoClientRegistrationFromFile(id: string): Promise<SsoClientRe
 // Based on:
 // https://github.com/aws/aws-sdk-js-v3/blob/6e61f0e78ff7a9e3b1f2cd651bde5fc656d85ba9/packages/token-providers/src/writeSSOTokenToFile.ts
 async function writeSsoObjectToFile(id: string, ssoObject: SSOToken | SsoClientRegistration): Promise<void> {
-    try {
-        const filepath = getSSOTokenFilepath(id)
-        const json = JSON.stringify(ssoObject, null, 2)
-        return await writeFile(filepath, json)
-    } catch {
-        // Writing to cache is best effort, based on:
-        // https://github.com/aws/aws-sdk-js-v3/blob/main/packages/token-providers/src/fromSso.ts
-    }
+    const filepath = getSSOTokenFilepath(id)
+    await mkdir(path.dirname(filepath), { mode: 0o755, recursive: true })
+    const json = JSON.stringify(ssoObject, null, 2)
+    return await writeFile(filepath, json, { encoding: 'utf-8', flush: true, mode: 0o600 })
 }
 
 // Minimal declaration of SystemError (no node type declaration for it) to access code property

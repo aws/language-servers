@@ -64,6 +64,7 @@ async function setupTest(config: string): Promise<ParsedIniData> {
     const mockConfig: DirectoryItems = {}
     mockConfig[dir] = {
         config,
+        'config~': config,
     }
 
     mock(mockConfig)
@@ -242,5 +243,35 @@ sso_session = test-sso-session`
         assert.equal(input[0], '# Config comment 1')
         assert.equal(input[1], "[default] # Section's trailing comment")
         assert.equal(input[2], "region = us-east-1   ; Setting's trailing comment")
+    })
+
+    it('Can create new when ~/.aws does not exist', async () => {
+        mock.restore()
+        mock({})
+
+        const data = { default: { region: 'us-west-2' } }
+
+        await saveSharedConfigFile(init.configFilepath!, IniFileType.config, data)
+
+        const { configFile } = await loadSharedConfigFiles(init)
+        normalizeParsedIniData(configFile)
+
+        assert.equal(Object.hasOwn(configFile, 'default'), true)
+    })
+
+    it('Can create new when ~/.aws exists, but file does not exist', async () => {
+        mock.restore()
+        const mockConfig: DirectoryItems = {}
+        mockConfig[dir] = {}
+        mock(mockConfig)
+
+        const data = { default: { region: 'us-west-2' } }
+
+        await saveSharedConfigFile(init.configFilepath!, IniFileType.config, data)
+
+        const { configFile } = await loadSharedConfigFiles(init)
+        normalizeParsedIniData(configFile)
+
+        assert.equal(Object.hasOwn(configFile, 'default'), true)
     })
 })

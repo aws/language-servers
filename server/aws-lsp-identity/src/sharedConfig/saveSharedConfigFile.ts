@@ -1,8 +1,10 @@
 import { ParsedIniData, IniSectionType, IniSection } from '@smithy/types'
-import { readFile, rename, writeFile } from 'fs/promises'
+import * as fs from 'fs'
+import { mkdir, readFile, rename, writeFile } from 'fs/promises'
 import { EOL } from 'os'
 import { IniFileType, Setting, SectionHeader } from './types'
 import { CONFIG_PREFIX_SEPARATOR } from '@smithy/shared-ini-file-loader'
+import path from 'path'
 
 const sectionHeaderKey = '#sectionHeader'
 const nextSettingKey = '#nextSetting'
@@ -12,56 +14,60 @@ export async function saveSharedConfigFile(
     filetype: IniFileType,
     file: ParsedIniData
 ): Promise<void> {
-    // Be tolerant of line terminator in file regardless of OS
-    const input = (await readFile(filepath, { encoding: 'utf-8' })).split(/\r?\n/)
     const output: string[] = []
+    const filepathExists = fs.existsSync(filepath)
 
-    for (let it = new IniFileIterator(input.values(), output), { done, value } = it.nextSectionHeader(); !done; ) {
-        if (!value) {
-            continue
+    if (filepathExists) {
+        // Be tolerant of line terminator in file regardless of OS
+        const input = (await readFile(filepath, { encoding: 'utf-8' })).split(/\r?\n/)
+
+        for (let it = new IniFileIterator(input.values(), output), { done, value } = it.nextSectionHeader(); !done; ) {
+            if (!value) {
+                continue
+            }
+
+            // Write updated section
+            const parsedSectionName = value.toParsedSectionName()
+            const newSettingsIndices: Record<string, number> = {}
+            if (file[parsedSectionName] && Object.keys(file[parsedSectionName]).length > 0) {
+                const fileSection = file[parsedSectionName]
+                newSettingsIndices[sectionHeaderKey] = output.push(value.toIniSectionName(filetype))
+
+                // Remove/update settings in file based on in-memory section
+                ;({ done, value } = it.nextSectionHeader((setting: Setting) => {
+                    const parsedSettingName = setting.toParsedSettingName()
+
+                    // If setting in file, but not in-memory then skip it (it's been deleted)
+                    if (!fileSection[parsedSettingName]) {
+                        return
+                    }
+
+                    // Otherwise, update setting in file regardless
+                    setting.value = fileSection[parsedSettingName]
+
+                    // Done with this setting, delete so that only new settings are left at the end of the loop
+                    // This also prevents writing redundant settings in the same section
+                    delete fileSection[parsedSettingName]
+
+                    if (setting.subsection && !newSettingsIndices[setting.subsection]) {
+                        newSettingsIndices[setting.subsection] = output.push(setting.toIniSubsectionHeaderLine())
+                    }
+
+                    newSettingsIndices[nextSettingKey] = output.push(setting.toIniSettingLine())
+                }))
+
+                // Insert remaining settings (i.e. new settings) after last setting written or under section header
+                // to avoid splitting settings across commented out sections at the end (which may be a commented out section itself)
+                outputNewSettings(fileSection, newSettingsIndices, output)
+            } else {
+                // Delete no longer existing section by not emitting anything until the next section header is read
+                // eslint-disable-next-line no-extra-semi
+                ;({ done, value } = it.nextSectionHeader())
+            }
+
+            // Delete processed sections from file so only new sections in file are left at the end of this loop
+            delete file[parsedSectionName]
         }
-
-        // Write updated section
-        const parsedSectionName = value.toParsedSectionName()
-        const newSettingsIndices: Record<string, number> = {}
-        if (file[parsedSectionName] && Object.keys(file[parsedSectionName]).length > 0) {
-            const fileSection = file[parsedSectionName]
-            newSettingsIndices[sectionHeaderKey] = output.push(value.toIniSectionName(filetype))
-
-            // Remove/update settings in file based on in-memory section
-            ;({ done, value } = it.nextSectionHeader((setting: Setting) => {
-                const parsedSettingName = setting.toParsedSettingName()
-
-                // If setting in file, but not in-memory then skip it (it's been deleted)
-                if (!fileSection[parsedSettingName]) {
-                    return
-                }
-
-                // Otherwise, update setting in file regardless
-                setting.value = fileSection[parsedSettingName]
-
-                // Done with this setting, delete so that only new settings are left at the end of the loop
-                // This also prevents writing redundant settings in the same section
-                delete fileSection[parsedSettingName]
-
-                if (setting.subsection && !newSettingsIndices[setting.subsection]) {
-                    newSettingsIndices[setting.subsection] = output.push(setting.toIniSubsectionHeaderLine())
-                }
-
-                newSettingsIndices[nextSettingKey] = output.push(setting.toIniSettingLine())
-            }))
-
-            // Insert remaining settings (i.e. new settings) after last setting written or under section header
-            // to avoid splitting settings across commented out sections at the end (which may be a commented out section itself)
-            outputNewSettings(fileSection, newSettingsIndices, output)
-        } else {
-            // Delete no longer existing section by not emitting anything until the next section header is read
-            // eslint-disable-next-line no-extra-semi
-            ;({ done, value } = it.nextSectionHeader())
-        }
-
-        // Delete processed sections from file so only new sections in file are left at the end of this loop
-        delete file[parsedSectionName]
     }
 
     // Add remaining sections (i.e. new sections) to the end of the file
@@ -77,7 +83,12 @@ export async function saveSharedConfigFile(
         }
     }
 
-    await rename(filepath, filepath + '~') // Backup file just in case
+    // Backup file just in case
+    if (filepathExists) {
+        await rename(filepath, filepath + '~')
+    }
+
+    await mkdir(path.dirname(filepath), { mode: 0o755, recursive: true })
     await writeFile(filepath, output.join(EOL), { encoding: 'utf-8', flush: true })
 }
 
