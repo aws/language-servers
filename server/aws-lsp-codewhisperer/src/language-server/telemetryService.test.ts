@@ -226,6 +226,11 @@ describe('TelemetryService', () => {
 
         beforeEach(() => {
             mockCredentialsProvider = new MockCredentialsProvider()
+            mockCredentialsProvider.setConnectionMetadata({
+                sso: {
+                    startUrl: 'idc-start-url',
+                },
+            })
             telemetryService = new TelemetryService(mockCredentialsProvider, 'bearer', {} as Telemetry, {})
             invokeSendTelemetryEventStub = sinon.stub(telemetryService, 'invokeSendTelemetryEvent' as any)
         })

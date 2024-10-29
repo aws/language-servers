@@ -64,8 +64,12 @@ export class TelemetryService extends CodeWhispererServiceToken {
         return suggestionState
     }
 
-    private shouldNotSendTelemetry(): boolean {
-        return this.credentialsType === 'iam' || (this.loginType === 'builderId' && this.optOutPreference === 'OPTOUT')
+    private shouldSendTelemetry(): boolean {
+        return (
+            this.credentialsType === 'bearer' &&
+            ((this.loginType === 'builderId' && this.optOutPreference === 'OPTIN') ||
+                this.loginType === 'identityCenter')
+        )
     }
 
     private invokeSendTelemetryEvent(request: SendTelemetryEventRequest) {
@@ -115,7 +119,7 @@ export class TelemetryService extends CodeWhispererServiceToken {
     }
 
     public emitUserTriggerDecision(session: CodeWhispererSession, timeSinceLastUserModification?: number) {
-        if (this.shouldNotSendTelemetry()) {
+        if (!this.shouldSendTelemetry()) {
             return
         }
         const completionSessionResult = session.completionSessionResult ?? {}
@@ -168,7 +172,7 @@ export class TelemetryService extends CodeWhispererServiceToken {
             acceptedLineCount?: number
         }
     ) {
-        if (this.shouldNotSendTelemetry() || options?.conversationId === undefined) {
+        if (!this.shouldSendTelemetry() || options?.conversationId === undefined) {
             return
         }
         const event: ChatInteractWithMessageEvent = {

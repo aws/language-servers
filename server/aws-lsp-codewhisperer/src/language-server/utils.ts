@@ -9,7 +9,7 @@ import { Suggestion } from './codeWhispererService'
 import { CodewhispererCompletionType } from './telemetry/types'
 import { BUILDER_ID_START_URL, MISSING_BEARER_TOKEN_ERROR } from './constants'
 import { ServerInfo } from '@aws/language-server-runtimes/server-interface/runtime'
-export type LoginType = 'builderId' | 'identityCenter'
+export type LoginType = 'builderId' | 'identityCenter' | 'none'
 
 export function isAwsError(error: unknown): error is AWSError {
     if (error === undefined) {
@@ -92,5 +92,6 @@ export const flattenMetric = (obj: any, prefix = '') => {
 
 export function getLoginTypeFromProvider(credentialsProvider: CredentialsProvider): LoginType {
     const connectionMetadata = credentialsProvider.getConnectionMetadata()
-    return connectionMetadata?.sso?.startUrl?.includes(BUILDER_ID_START_URL) ? 'builderId' : 'identityCenter'
+    const startUrl = connectionMetadata?.sso?.startUrl
+    return !startUrl ? 'none' : startUrl.includes(BUILDER_ID_START_URL) ? 'builderId' : 'identityCenter'
 }
