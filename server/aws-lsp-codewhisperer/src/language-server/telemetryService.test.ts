@@ -17,6 +17,7 @@ import {
 import { CodeWhispererSession } from './session/sessionManager'
 import sinon from 'ts-sinon'
 import { BUILDER_ID_START_URL } from './constants'
+import { ChatInteractionType } from './telemetry/types'
 
 class MockCredentialsProvider implements CredentialsProvider {
     private mockIamCredentials: IamCredentials | undefined
@@ -216,5 +217,123 @@ describe('TelemetryService', () => {
         sinon.assert.calledOnce(invokeSendTelemetryEventSpy)
         sinon.assert.calledWith(invokeSendTelemetryEventSpy, sinon.match(expectedUserTriggerDecisionEvent))
         invokeSendTelemetryEventSpy.restore()
+    })
+
+    describe('Chat interact with message', () => {
+        let telemetryService: TelemetryService
+        let mockCredentialsProvider: MockCredentialsProvider
+        let invokeSendTelemetryEventStub: sinon.SinonStub
+
+        beforeEach(() => {
+            mockCredentialsProvider = new MockCredentialsProvider()
+            telemetryService = new TelemetryService(mockCredentialsProvider, 'bearer', {} as Telemetry, {})
+            invokeSendTelemetryEventStub = sinon.stub(telemetryService, 'invokeSendTelemetryEvent' as any)
+        })
+
+        afterEach(() => {
+            sinon.restore()
+        })
+
+        it('should send InteractWithMessage event with correct parameters', () => {
+            const metric = {
+                cwsprChatMessageId: 'message123',
+                codewhispererCustomizationArn: 'arn:123',
+                cwsprChatInteractionType: ChatInteractionType.InsertAtCursor,
+                cwsprChatInteractionTarget: 'CODE',
+                cwsprChatAcceptedCharactersLength: 100,
+            }
+            const conversationId = 'conv123'
+            const acceptedLineCount = 5
+            telemetryService.emitChatInteractWithMessage(metric, {
+                conversationId,
+                acceptedLineCount,
+            })
+            expect(invokeSendTelemetryEventStub.calledOnce).to.be.true
+            const expectedRequest = {
+                telemetryEvent: {
+                    chatInteractWithMessageEvent: {
+                        conversationId: conversationId,
+                        messageId: metric.cwsprChatMessageId,
+                        customizationArn: metric.codewhispererCustomizationArn,
+                        interactionType: 'INSERT_AT_CURSOR',
+                        interactionTarget: metric.cwsprChatInteractionTarget,
+                        acceptedCharacterCount: metric.cwsprChatAcceptedCharactersLength,
+                        acceptedLineCount: acceptedLineCount,
+                        acceptedSnippetHasReference: false,
+                        hasProjectLevelContext: false,
+                    },
+                },
+            }
+            expect(invokeSendTelemetryEventStub.firstCall.args[0]).to.deep.equal(expectedRequest)
+        })
+
+        it('should not send InteractWithMessage when conversationId is undefined', () => {
+            const metric = {
+                cwsprChatMessageId: 'message123',
+                codewhispererCustomizationArn: 'arn:123',
+                cwsprChatInteractionType: ChatInteractionType.InsertAtCursor,
+                cwsprChatInteractionTarget: 'CODE',
+                cwsprChatAcceptedCharactersLength: 100,
+            }
+            telemetryService.emitChatInteractWithMessage(metric, {
+                acceptedLineCount: 5,
+            })
+            expect(invokeSendTelemetryEventStub.called).to.be.false
+        })
+
+        it('should not send InteractWithMessage when credentialsType is IAM', () => {
+            telemetryService = new TelemetryService(mockCredentialsProvider, 'iam', {} as Telemetry, {})
+            const metric = {
+                cwsprChatMessageId: 'message123',
+                codewhispererCustomizationArn: 'arn:123',
+                cwsprChatInteractionType: ChatInteractionType.InsertAtCursor,
+                cwsprChatInteractionTarget: 'CODE',
+                cwsprChatAcceptedCharactersLength: 100,
+            }
+            telemetryService.emitChatInteractWithMessage(metric, {
+                conversationId: 'conv123',
+                acceptedLineCount: 5,
+            })
+            expect(invokeSendTelemetryEventStub.called).to.be.false
+        })
+
+        it('should not send InteractWithMessage when login is BuilderID, but user chose OPTOUT option', () => {
+            mockCredentialsProvider.setConnectionMetadata({
+                sso: {
+                    startUrl: BUILDER_ID_START_URL,
+                },
+            })
+            telemetryService = new TelemetryService(mockCredentialsProvider, 'bearer', {} as Telemetry, {})
+            telemetryService.updateOptOutPreference('OPTOUT')
+            const metric = {
+                cwsprChatMessageId: 'message123',
+                codewhispererCustomizationArn: 'arn:123',
+                cwsprChatInteractionType: ChatInteractionType.InsertAtCursor,
+                cwsprChatInteractionTarget: 'CODE',
+                cwsprChatAcceptedCharactersLength: 100,
+            }
+            telemetryService.emitChatInteractWithMessage(metric, {
+                conversationId: 'conv123',
+                acceptedLineCount: 5,
+            })
+            expect(invokeSendTelemetryEventStub.called).to.be.false
+        })
+
+        it('should send InteractWithMessage but with optional acceptedLineCount parameter', () => {
+            const metric = {
+                cwsprChatMessageId: 'message123',
+                codewhispererCustomizationArn: 'arn:123',
+                cwsprChatInteractionType: ChatInteractionType.InsertAtCursor,
+                cwsprChatInteractionTarget: 'CODE',
+                cwsprChatAcceptedCharactersLength: 100,
+            }
+            const conversationId = 'conv123'
+            telemetryService.emitChatInteractWithMessage(metric, {
+                conversationId,
+            })
+            expect(invokeSendTelemetryEventStub.calledOnce).to.be.true
+            const calledArg = invokeSendTelemetryEventStub.firstCall.args[0]
+            expect(calledArg.telemetryEvent.chatInteractWithMessageEvent.acceptedLineCount).to.be.undefined
+        })
     })
 })

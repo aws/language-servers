@@ -7,9 +7,12 @@ import {
     UserContext,
     OptOutPreference,
     SendTelemetryEventRequest,
+    ChatInteractWithMessageEvent,
+    ChatMessageInteractionType,
 } from '../client/token/codewhispererbearertokenclient'
 import { getCompletionType, getLoginTypeFromProvider, LoginType } from './utils'
 import { getRuntimeLanguage } from './languageDetection'
+import { ChatInteractionType, InteractWithMessageEvent } from './telemetry/types'
 
 export class TelemetryService extends CodeWhispererServiceToken {
     private userContext: UserContext | undefined
@@ -75,6 +78,42 @@ export class TelemetryService extends CodeWhispererServiceToken {
         this.sendTelemetryEvent(request)
     }
 
+    private getCWClientTelemetryInteractionType(interactionType: ChatInteractionType): ChatMessageInteractionType {
+        let chatMessageInteractionType: ChatMessageInteractionType
+        switch (interactionType) {
+            case ChatInteractionType.InsertAtCursor:
+                chatMessageInteractionType = 'INSERT_AT_CURSOR'
+                break
+            case ChatInteractionType.CopySnippet:
+                chatMessageInteractionType = 'COPY_SNIPPET'
+                break
+            case ChatInteractionType.Copy:
+                chatMessageInteractionType = 'COPY'
+                break
+            case ChatInteractionType.ClickLink:
+                chatMessageInteractionType = 'CLICK_LINK'
+                break
+            case ChatInteractionType.ClickFollowUp:
+                chatMessageInteractionType = 'CLICK_FOLLOW_UP'
+                break
+            case ChatInteractionType.HoverReference:
+                chatMessageInteractionType = 'HOVER_REFERENCE'
+                break
+            case ChatInteractionType.Upvote:
+                chatMessageInteractionType = 'UPVOTE'
+                break
+            case ChatInteractionType.Downvote:
+                chatMessageInteractionType = 'DOWNVOTE'
+                break
+            case ChatInteractionType.ClickBodyLink:
+                chatMessageInteractionType = 'CLICK_BODY_LINK'
+                break
+            default:
+                chatMessageInteractionType = 'UNKNOWN'
+        }
+        return chatMessageInteractionType
+    }
+
     public emitUserTriggerDecision(session: CodeWhispererSession, timeSinceLastUserModification?: number) {
         if (this.shouldNotSendTelemetry()) {
             return
@@ -117,6 +156,35 @@ export class TelemetryService extends CodeWhispererServiceToken {
         const request: SendTelemetryEventRequest = {
             telemetryEvent: {
                 userTriggerDecisionEvent: event,
+            },
+        }
+        this.invokeSendTelemetryEvent(request)
+    }
+
+    public emitChatInteractWithMessage(
+        metric: Omit<InteractWithMessageEvent, 'cwsprChatConversationId'>,
+        options?: {
+            conversationId?: string
+            acceptedLineCount?: number
+        }
+    ) {
+        if (this.shouldNotSendTelemetry() || options?.conversationId === undefined) {
+            return
+        }
+        const event: ChatInteractWithMessageEvent = {
+            conversationId: options.conversationId,
+            messageId: metric.cwsprChatMessageId,
+            customizationArn: metric.codewhispererCustomizationArn,
+            interactionType: this.getCWClientTelemetryInteractionType(metric.cwsprChatInteractionType),
+            interactionTarget: metric.cwsprChatInteractionTarget,
+            acceptedCharacterCount: metric.cwsprChatAcceptedCharactersLength,
+            acceptedLineCount: options.acceptedLineCount,
+            acceptedSnippetHasReference: false,
+            hasProjectLevelContext: false,
+        }
+        const request: SendTelemetryEventRequest = {
+            telemetryEvent: {
+                chatInteractWithMessageEvent: event,
             },
         }
         this.invokeSendTelemetryEvent(request)
