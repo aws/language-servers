@@ -188,6 +188,7 @@ describe('TelemetryService', () => {
                     suggestionReferenceCount: 0,
                     generatedLine: 3,
                     numberOfRecommendations: 1,
+                    perceivedLatencyMilliseconds: undefined,
                     timestamp: new Date(Date.now()),
                 },
             },
@@ -202,8 +203,8 @@ describe('TelemetryService', () => {
         const invokeSendTelemetryEventStub: sinon.SinonStub = sinon.stub(telemetryService, 'sendTelemetryEvent' as any)
         telemetryService.updateOptOutPreference('OPTIN')
         telemetryService.emitUserTriggerDecision(mockSession as CodeWhispererSession)
-        sinon.assert.calledOnce(invokeSendTelemetryEventStub)
-        sinon.assert.calledWith(invokeSendTelemetryEventStub, sinon.match(expectedUserTriggerDecisionEvent))
+        expect(invokeSendTelemetryEventStub.calledOnce).to.be.true
+        expect(invokeSendTelemetryEventStub.firstCall.args[0]).to.deep.equal(expectedUserTriggerDecisionEvent)
         sinon.restore()
     })
 
