@@ -153,12 +153,10 @@ describe('TelemetryService', () => {
 
     it('should not emit user trigger decision if login is invalid (IAM)', () => {
         telemetryService = new TelemetryService(mockCredentialsProvider, 'iam', {} as Telemetry, {})
+        const invokeSendTelemetryEventStub: sinon.SinonStub = sinon.stub(telemetryService, 'sendTelemetryEvent' as any)
         telemetryService.emitUserTriggerDecision(mockSession as CodeWhispererSession)
-        const invokeSendTelemetryEventSpy: sinon.SinonSpy = sinon.spy(
-            telemetryService,
-            'invokeSendTelemetryEvent' as any
-        )
-        sinon.assert.notCalled(invokeSendTelemetryEventSpy)
+        sinon.assert.notCalled(invokeSendTelemetryEventStub)
+        sinon.restore()
     })
 
     it('should not emit user trigger decision if login is BuilderID, but user chose OPTOUT option', () => {
@@ -170,30 +168,30 @@ describe('TelemetryService', () => {
         telemetryService = new TelemetryService(mockCredentialsProvider, 'bearer', {} as Telemetry, {})
         telemetryService.updateOptOutPreference('OPTOUT')
         telemetryService.emitUserTriggerDecision(mockSession as CodeWhispererSession)
-        const invokeSendTelemetryEventSpy: sinon.SinonSpy = sinon.spy(
-            telemetryService,
-            'invokeSendTelemetryEvent' as any
-        )
-        sinon.assert.notCalled(invokeSendTelemetryEventSpy)
-        invokeSendTelemetryEventSpy.restore()
+        const invokeSendTelemetryEventStub: sinon.SinonStub = sinon.stub(telemetryService, 'sendTelemetryEvent' as any)
+        sinon.assert.notCalled(invokeSendTelemetryEventStub)
+        sinon.restore()
     })
 
     it('should emit user trigger decision event correctly', () => {
-        const expectedUserTriggerDecisionEvent: TelemetryEvent = {
-            userTriggerDecisionEvent: {
-                sessionId: 'test-session-id',
-                requestId: 'test-request-id',
-                customizationArn: 'test-arn',
-                programmingLanguage: { languageName: 'typescript' },
-                completionType: 'BLOCK',
-                suggestionState: 'ACCEPT',
-                recommendationLatencyMilliseconds: 100,
-                triggerToResponseLatencyMilliseconds: 200,
-                suggestionReferenceCount: 0,
-                generatedLine: 3,
-                numberOfRecommendations: 1,
-                timestamp: new Date(Date.now()),
+        const expectedUserTriggerDecisionEvent = {
+            telemetryEvent: {
+                userTriggerDecisionEvent: {
+                    sessionId: 'test-session-id',
+                    requestId: 'test-request-id',
+                    customizationArn: 'test-arn',
+                    programmingLanguage: { languageName: 'typescript' },
+                    completionType: 'BLOCK',
+                    suggestionState: 'ACCEPT',
+                    recommendationLatencyMilliseconds: 100,
+                    triggerToResponseLatencyMilliseconds: 200,
+                    suggestionReferenceCount: 0,
+                    generatedLine: 3,
+                    numberOfRecommendations: 1,
+                    timestamp: new Date(Date.now()),
+                },
             },
+            optOutPreference: 'OPTIN',
         }
         mockCredentialsProvider.setConnectionMetadata({
             sso: {
@@ -201,15 +199,12 @@ describe('TelemetryService', () => {
             },
         })
         telemetryService = new TelemetryService(mockCredentialsProvider, 'bearer', {} as Telemetry, {})
-        const invokeSendTelemetryEventSpy: sinon.SinonSpy = sinon.spy(
-            telemetryService,
-            'invokeSendTelemetryEvent' as any
-        )
+        const invokeSendTelemetryEventStub: sinon.SinonStub = sinon.stub(telemetryService, 'sendTelemetryEvent' as any)
         telemetryService.updateOptOutPreference('OPTIN')
         telemetryService.emitUserTriggerDecision(mockSession as CodeWhispererSession)
-        sinon.assert.calledOnce(invokeSendTelemetryEventSpy)
-        sinon.assert.calledWith(invokeSendTelemetryEventSpy, sinon.match(expectedUserTriggerDecisionEvent))
-        invokeSendTelemetryEventSpy.restore()
+        sinon.assert.calledOnce(invokeSendTelemetryEventStub)
+        sinon.assert.calledWith(invokeSendTelemetryEventStub, sinon.match(expectedUserTriggerDecisionEvent))
+        sinon.restore()
     })
 
     describe('Chat interact with message', () => {
@@ -225,7 +220,7 @@ describe('TelemetryService', () => {
                 },
             })
             telemetryService = new TelemetryService(mockCredentialsProvider, 'bearer', {} as Telemetry, {})
-            invokeSendTelemetryEventStub = sinon.stub(telemetryService, 'invokeSendTelemetryEvent' as any)
+            invokeSendTelemetryEventStub = sinon.stub(telemetryService, 'sendTelemetryEvent' as any)
         })
 
         afterEach(() => {
@@ -248,16 +243,18 @@ describe('TelemetryService', () => {
             })
             expect(invokeSendTelemetryEventStub.calledOnce).to.be.true
             const expectedEvent = {
-                chatInteractWithMessageEvent: {
-                    conversationId: conversationId,
-                    messageId: metric.cwsprChatMessageId,
-                    customizationArn: metric.codewhispererCustomizationArn,
-                    interactionType: 'INSERT_AT_CURSOR',
-                    interactionTarget: metric.cwsprChatInteractionTarget,
-                    acceptedCharacterCount: metric.cwsprChatAcceptedCharactersLength,
-                    acceptedLineCount: acceptedLineCount,
-                    acceptedSnippetHasReference: false,
-                    hasProjectLevelContext: false,
+                telemetryEvent: {
+                    chatInteractWithMessageEvent: {
+                        conversationId: conversationId,
+                        messageId: metric.cwsprChatMessageId,
+                        customizationArn: metric.codewhispererCustomizationArn,
+                        interactionType: 'INSERT_AT_CURSOR',
+                        interactionTarget: metric.cwsprChatInteractionTarget,
+                        acceptedCharacterCount: metric.cwsprChatAcceptedCharactersLength,
+                        acceptedLineCount: acceptedLineCount,
+                        acceptedSnippetHasReference: false,
+                        hasProjectLevelContext: false,
+                    },
                 },
             }
             expect(invokeSendTelemetryEventStub.firstCall.args[0]).to.deep.equal(expectedEvent)
@@ -279,6 +276,7 @@ describe('TelemetryService', () => {
 
         it('should not send InteractWithMessage when credentialsType is IAM', () => {
             telemetryService = new TelemetryService(mockCredentialsProvider, 'iam', {} as Telemetry, {})
+            invokeSendTelemetryEventStub = sinon.stub(telemetryService, 'sendTelemetryEvent' as any)
             const metric = {
                 cwsprChatMessageId: 'message123',
                 codewhispererCustomizationArn: 'arn:123',
@@ -300,6 +298,7 @@ describe('TelemetryService', () => {
                 },
             })
             telemetryService = new TelemetryService(mockCredentialsProvider, 'bearer', {} as Telemetry, {})
+            invokeSendTelemetryEventStub = sinon.stub(telemetryService, 'sendTelemetryEvent' as any)
             telemetryService.updateOptOutPreference('OPTOUT')
             const metric = {
                 cwsprChatMessageId: 'message123',
@@ -329,7 +328,7 @@ describe('TelemetryService', () => {
             })
             expect(invokeSendTelemetryEventStub.calledOnce).to.be.true
             const calledArg = invokeSendTelemetryEventStub.firstCall.args[0]
-            expect(calledArg.chatInteractWithMessageEvent.acceptedLineCount).to.be.undefined
+            expect(calledArg.telemetryEvent.chatInteractWithMessageEvent.acceptedLineCount).to.be.undefined
         })
     })
 })

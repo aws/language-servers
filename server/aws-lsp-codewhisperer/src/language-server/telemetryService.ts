@@ -74,6 +74,9 @@ export class TelemetryService extends CodeWhispererServiceToken {
     }
 
     private invokeSendTelemetryEvent(event: TelemetryEvent) {
+        if (!this.shouldSendTelemetry()) {
+            return
+        }
         const request: SendTelemetryEventRequest = {
             telemetryEvent: event,
         }
@@ -123,9 +126,6 @@ export class TelemetryService extends CodeWhispererServiceToken {
     }
 
     public emitUserTriggerDecision(session: CodeWhispererSession, timeSinceLastUserModification?: number) {
-        if (!this.shouldSendTelemetry()) {
-            return
-        }
         const completionSessionResult = session.completionSessionResult ?? {}
         const acceptedSuggestion = session.suggestions.find(s => s.itemId === session.acceptedSuggestionId)
         const generatedLines =
@@ -173,7 +173,7 @@ export class TelemetryService extends CodeWhispererServiceToken {
             acceptedLineCount?: number
         }
     ) {
-        if (!this.shouldSendTelemetry() || options?.conversationId === undefined) {
+        if (options?.conversationId === undefined) {
             return
         }
         const event: ChatInteractWithMessageEvent = {
