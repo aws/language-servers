@@ -12,7 +12,8 @@ export type ChatSessionServiceConfig = CodeWhispererStreamingClientConfig
 export class ChatSessionService {
     public shareCodeWhispererContentWithAWS = false
     readonly #codeWhispererRegion = 'us-east-1'
-    readonly #codeWhispererEndpoint = 'https://codewhisperer.us-east-1.amazonaws.com/'
+    readonly #codeWhispererEndpoint =
+        process?.env.AWS_Q_ENDPOINT_URL ?? 'https://codewhisperer.us-east-1.amazonaws.com/'
     #abortController?: AbortController
     #credentialsProvider: CredentialsProvider
     #config?: CodeWhispererStreamingClientConfig

@@ -4,7 +4,7 @@ import { readFileSync } from 'fs'
 
 const codeWhispererRegion = 'us-east-1'
 
-const codeWhispererEndpoint = 'https://codewhisperer.us-east-1.amazonaws.com/'
+const codeWhispererEndpoint = process?.env.AWS_Q_ENDPOINT_URL ?? 'https://codewhisperer.us-east-1.amazonaws.com/'
 
 export class StreamingClient {
     public async getStreamingClient(credentialsProvider: any, config?: CodeWhispererStreamingClientConfig) {
