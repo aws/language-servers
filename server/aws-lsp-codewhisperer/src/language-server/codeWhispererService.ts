@@ -47,7 +47,8 @@ import AWS = require('aws-sdk')
 // This abstract class can grow in the future to account for any additional changes across the clients
 export abstract class CodeWhispererServiceBase {
     protected readonly codeWhispererRegion = 'us-east-1'
-    protected readonly codeWhispererEndpoint = 'https://codewhisperer.us-east-1.amazonaws.com/'
+    protected readonly codeWhispererEndpoint =
+        process?.env.AWS_Q_ENDPOINT_URL ?? 'https://codewhisperer.us-east-1.amazonaws.com/'
     public shareCodeWhispererContentWithAWS = false
     public customizationArn?: string
     abstract client: CodeWhispererSigv4Client | CodeWhispererTokenClient
