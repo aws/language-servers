@@ -1,7 +1,7 @@
 import { CredentialsProvider, InitializeParams } from '@aws/language-server-runtimes/server-interface'
 import * as assert from 'assert'
 import * as sinon from 'sinon'
-import { getBearerTokenFromProvider, getLoginTypeFromProvider } from './utils'
+import { getBearerTokenFromProvider, getSsoConnectionType } from './utils'
 import { expect } from 'chai'
 import { BUILDER_ID_START_URL } from './constants'
 
@@ -46,8 +46,8 @@ describe('getBearerTokenFromProvider', () => {
     })
 })
 
-describe('getLoginTypeFromProvider', () => {
-    it('should return loginType as builderId', () => {
+describe('getSsoConnectionType', () => {
+    it('should return ssoConnectionType as builderId', () => {
         const mockCredentialsProvider: CredentialsProvider = {
             hasCredentials: sinon.stub().returns(true),
             getCredentials: sinon.stub().returns({ token: 'token' }),
@@ -57,11 +57,11 @@ describe('getLoginTypeFromProvider', () => {
                 },
             }),
         }
-        const loginType = getLoginTypeFromProvider(mockCredentialsProvider)
-        expect(loginType).to.equal('builderId')
+        const ssoConnectionType = getSsoConnectionType(mockCredentialsProvider)
+        expect(ssoConnectionType).to.equal('builderId')
     })
 
-    it('should return loginType as identityCenter', () => {
+    it('should return ssoConnectionType as identityCenter', () => {
         const mockCredentialsProvider: CredentialsProvider = {
             hasCredentials: sinon.stub().returns(true),
             getCredentials: sinon.stub().returns({ token: 'token' }),
@@ -71,21 +71,21 @@ describe('getLoginTypeFromProvider', () => {
                 },
             }),
         }
-        const loginType = getLoginTypeFromProvider(mockCredentialsProvider)
-        expect(loginType).to.equal('identityCenter')
+        const ssoConnectionType = getSsoConnectionType(mockCredentialsProvider)
+        expect(ssoConnectionType).to.equal('identityCenter')
     })
 
-    it('should return loginType as none when getConnectionMetadata returns undefined', () => {
+    it('should return ssoConnectionType as none when getConnectionMetadata returns undefined', () => {
         const mockCredentialsProvider: CredentialsProvider = {
             hasCredentials: sinon.stub().returns(true),
             getCredentials: sinon.stub().returns({ token: 'token' }),
             getConnectionMetadata: sinon.stub().returns(undefined),
         }
-        const loginType = getLoginTypeFromProvider(mockCredentialsProvider)
-        expect(loginType).to.equal('none')
+        const ssoConnectionType = getSsoConnectionType(mockCredentialsProvider)
+        expect(ssoConnectionType).to.equal('none')
     })
 
-    it('should return loginType as none when getConnectionMetadata.sso returns undefined', () => {
+    it('should return ssoConnectionType as none when getConnectionMetadata.sso returns undefined', () => {
         const mockCredentialsProvider: CredentialsProvider = {
             hasCredentials: sinon.stub().returns(true),
             getCredentials: sinon.stub().returns({ token: 'token' }),
@@ -93,11 +93,11 @@ describe('getLoginTypeFromProvider', () => {
                 sso: undefined,
             }),
         }
-        const loginType = getLoginTypeFromProvider(mockCredentialsProvider)
-        expect(loginType).to.equal('none')
+        const ssoConnectionType = getSsoConnectionType(mockCredentialsProvider)
+        expect(ssoConnectionType).to.equal('none')
     })
 
-    it('should return loginType as none when getConnectionMetadata.sso.startUrl is empty string', () => {
+    it('should return ssoConnectionType as none when getConnectionMetadata.sso.startUrl is empty string', () => {
         const mockCredentialsProvider: CredentialsProvider = {
             hasCredentials: sinon.stub().returns(true),
             getCredentials: sinon.stub().returns({ token: 'token' }),
@@ -107,11 +107,11 @@ describe('getLoginTypeFromProvider', () => {
                 },
             }),
         }
-        const loginType = getLoginTypeFromProvider(mockCredentialsProvider)
-        expect(loginType).to.equal('none')
+        const ssoConnectionType = getSsoConnectionType(mockCredentialsProvider)
+        expect(ssoConnectionType).to.equal('none')
     })
 
-    it('should return loginType as none when getConnectionMetadata.sso.startUrl returns undefined', () => {
+    it('should return ssoConnectionType as none when getConnectionMetadata.sso.startUrl returns undefined', () => {
         const mockCredentialsProvider: CredentialsProvider = {
             hasCredentials: sinon.stub().returns(true),
             getCredentials: sinon.stub().returns({ token: 'token' }),
@@ -121,7 +121,7 @@ describe('getLoginTypeFromProvider', () => {
                 },
             }),
         }
-        const loginType = getLoginTypeFromProvider(mockCredentialsProvider)
-        expect(loginType).to.equal('none')
+        const ssoConnectionType = getSsoConnectionType(mockCredentialsProvider)
+        expect(ssoConnectionType).to.equal('none')
     })
 })

@@ -12,7 +12,7 @@ import {
     CodeCoverageEvent,
     TelemetryEvent,
 } from '../client/token/codewhispererbearertokenclient'
-import { getCompletionType, getLoginTypeFromProvider, LoginType } from './utils'
+import { getCompletionType, getSsoConnectionType, SsoConnectionType } from './utils'
 import { ChatInteractionType, InteractWithMessageEvent } from './telemetry/types'
 import { CodewhispererLanguage, getRuntimeLanguage } from './languageDetection'
 
@@ -21,8 +21,21 @@ export class TelemetryService extends CodeWhispererServiceToken {
     private optOutPreference!: OptOutPreference
     private enableTelemetryEventsToDestination!: boolean
     private telemetry: Telemetry
-    private loginType: LoginType
+    private ssoConnectionType: SsoConnectionType
     private credentialsType: CredentialsType
+    private credentialsProvider: CredentialsProvider
+
+    private readonly cwInteractionTypeMap: Record<ChatInteractionType, ChatMessageInteractionType> = {
+        [ChatInteractionType.InsertAtCursor]: 'INSERT_AT_CURSOR',
+        [ChatInteractionType.CopySnippet]: 'COPY_SNIPPET',
+        [ChatInteractionType.Copy]: 'COPY',
+        [ChatInteractionType.ClickLink]: 'CLICK_LINK',
+        [ChatInteractionType.ClickFollowUp]: 'CLICK_FOLLOW_UP',
+        [ChatInteractionType.HoverReference]: 'HOVER_REFERENCE',
+        [ChatInteractionType.Upvote]: 'UPVOTE',
+        [ChatInteractionType.Downvote]: 'DOWNVOTE',
+        [ChatInteractionType.ClickBodyLink]: 'CLICK_BODY_LINK',
+    }
 
     constructor(
         credentialsProvider: CredentialsProvider,
@@ -31,9 +44,10 @@ export class TelemetryService extends CodeWhispererServiceToken {
         additionalAwsConfig: AWS.ConfigurationOptions = {}
     ) {
         super(credentialsProvider, additionalAwsConfig)
+        this.credentialsProvider = credentialsProvider
         this.credentialsType = credentialsType
         this.telemetry = telemetry
-        this.loginType = getLoginTypeFromProvider(credentialsProvider)
+        this.ssoConnectionType = getSsoConnectionType(credentialsProvider)
     }
 
     public updateUserContext(userContext: UserContext | undefined): void {
@@ -69,8 +83,8 @@ export class TelemetryService extends CodeWhispererServiceToken {
     private shouldSendTelemetry(): boolean {
         return (
             this.credentialsType === 'bearer' &&
-            ((this.loginType === 'builderId' && this.optOutPreference === 'OPTIN') ||
-                this.loginType === 'identityCenter')
+            ((this.ssoConnectionType === 'builderId' && this.optOutPreference === 'OPTIN') ||
+                this.ssoConnectionType === 'identityCenter')
         )
     }
 
@@ -92,39 +106,7 @@ export class TelemetryService extends CodeWhispererServiceToken {
     }
 
     private getCWClientTelemetryInteractionType(interactionType: ChatInteractionType): ChatMessageInteractionType {
-        let chatMessageInteractionType: ChatMessageInteractionType
-        switch (interactionType) {
-            case ChatInteractionType.InsertAtCursor:
-                chatMessageInteractionType = 'INSERT_AT_CURSOR'
-                break
-            case ChatInteractionType.CopySnippet:
-                chatMessageInteractionType = 'COPY_SNIPPET'
-                break
-            case ChatInteractionType.Copy:
-                chatMessageInteractionType = 'COPY'
-                break
-            case ChatInteractionType.ClickLink:
-                chatMessageInteractionType = 'CLICK_LINK'
-                break
-            case ChatInteractionType.ClickFollowUp:
-                chatMessageInteractionType = 'CLICK_FOLLOW_UP'
-                break
-            case ChatInteractionType.HoverReference:
-                chatMessageInteractionType = 'HOVER_REFERENCE'
-                break
-            case ChatInteractionType.Upvote:
-                chatMessageInteractionType = 'UPVOTE'
-                break
-            case ChatInteractionType.Downvote:
-                chatMessageInteractionType = 'DOWNVOTE'
-                break
-            case ChatInteractionType.ClickBodyLink:
-                chatMessageInteractionType = 'CLICK_BODY_LINK'
-                break
-            default:
-                chatMessageInteractionType = 'UNKNOWN'
-        }
-        return chatMessageInteractionType
+        return this.cwInteractionTypeMap[interactionType] || 'UNKNOWN'
     }
 
     public emitUserTriggerDecision(session: CodeWhispererSession, timeSinceLastUserModification?: number) {
@@ -140,6 +122,8 @@ export class TelemetryService extends CodeWhispererServiceToken {
                 : acceptedSuggestion.references && acceptedSuggestion.references.length > 0
                   ? 1
                   : 0
+        const acceptedCharacterCount =
+            acceptedSuggestion && acceptedSuggestion.content ? acceptedSuggestion.content.length : 0
         const perceivedLatencyMilliseconds =
             session.triggerType === 'OnDemand' ? session.timeToFirstRecommendation : timeSinceLastUserModification
 
@@ -161,7 +145,8 @@ export class TelemetryService extends CodeWhispererServiceToken {
             suggestionReferenceCount: referenceCount,
             generatedLine: generatedLines,
             numberOfRecommendations: session.suggestions.length,
-            perceivedLatencyMilliseconds: timeSinceLastUserModification,
+            perceivedLatencyMilliseconds: perceivedLatencyMilliseconds,
+            acceptedCharacterCount: acceptedCharacterCount,
         }
         this.invokeSendTelemetryEvent({
             userTriggerDecisionEvent: event,
@@ -181,7 +166,7 @@ export class TelemetryService extends CodeWhispererServiceToken {
         const event: ChatInteractWithMessageEvent = {
             conversationId: options.conversationId,
             messageId: metric.cwsprChatMessageId,
-            customizationArn: metric.codewhispererCustomizationArn,
+            customizationArn: this.credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
             interactionType: this.getCWClientTelemetryInteractionType(metric.cwsprChatInteractionType),
             interactionTarget: metric.cwsprChatInteractionTarget,
             acceptedCharacterCount: metric.cwsprChatAcceptedCharactersLength,

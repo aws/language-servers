@@ -222,15 +222,9 @@ export class ChatTelemetryController {
         tabId: string,
         metric: Omit<InteractWithMessageEvent, 'cwsprChatConversationId'>
     ) {
-        this.#telemetryService.emitChatInteractWithMessage(
-            {
-                ...metric,
-                credentialStartUrl: this.#credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
-            },
-            {
-                conversationId: this.getConversationId(tabId),
-            }
-        )
+        this.#telemetryService.emitChatInteractWithMessage(metric, {
+            conversationId: this.getConversationId(tabId),
+        })
         this.emitConversationMetric(
             {
                 name: ChatTelemetryEventName.InteractWithMessage,
@@ -357,15 +351,9 @@ export class ChatTelemetryController {
                                 : ChatInteractionType.Downvote,
                         codewhispererCustomizationArn: this.getCustomizationId(params.tabId, params.messageId),
                     }
-                    this.#telemetryService.emitChatInteractWithMessage(
-                        {
-                            ...voteData,
-                            credentialStartUrl: this.#credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
-                        },
-                        {
-                            conversationId: this.getConversationId(params.tabId),
-                        }
-                    )
+                    this.#telemetryService.emitChatInteractWithMessage(voteData, {
+                        conversationId: this.getConversationId(params.tabId),
+                    })
                     this.emitConversationMetric({
                         name: ChatTelemetryEventName.InteractWithMessage,
                         data: voteData,
@@ -389,19 +377,13 @@ export class ChatTelemetryController {
                         cwsprChatTotalCodeBlocks: params.totalCodeBlocks,
                         codewhispererCustomizationArn: this.getCustomizationId(params.tabId, params.messageId),
                     }
-                    this.#telemetryService.emitChatInteractWithMessage(
-                        {
-                            ...interactData,
-                            credentialStartUrl: this.#credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
-                        },
-                        {
-                            conversationId: this.getConversationId(params.tabId),
-                            acceptedLineCount:
-                                params.name === ChatUIEventName.InsertToCursorPosition
-                                    ? params.code?.split('\n').length
-                                    : undefined,
-                        }
-                    )
+                    this.#telemetryService.emitChatInteractWithMessage(interactData, {
+                        conversationId: this.getConversationId(params.tabId),
+                        acceptedLineCount:
+                            params.name === ChatUIEventName.InsertToCursorPosition
+                                ? params.code?.split('\n').length
+                                : undefined,
+                    })
                     this.emitConversationMetric({
                         name: ChatTelemetryEventName.InteractWithMessage,
                         data: interactData,

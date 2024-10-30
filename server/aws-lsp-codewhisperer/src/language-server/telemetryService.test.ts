@@ -196,6 +196,7 @@ describe('TelemetryService', () => {
                     generatedLine: 3,
                     numberOfRecommendations: 1,
                     perceivedLatencyMilliseconds: undefined,
+                    acceptedCharacterCount: 17,
                 },
             },
             optOutPreference: 'OPTIN',
@@ -254,7 +255,7 @@ describe('TelemetryService', () => {
                     chatInteractWithMessageEvent: {
                         conversationId: conversationId,
                         messageId: metric.cwsprChatMessageId,
-                        customizationArn: metric.codewhispererCustomizationArn,
+                        customizationArn: 'idc-start-url',
                         interactionType: 'INSERT_AT_CURSOR',
                         interactionTarget: metric.cwsprChatInteractionTarget,
                         acceptedCharacterCount: metric.cwsprChatAcceptedCharactersLength,
@@ -344,7 +345,7 @@ describe('TelemetryService', () => {
                     chatInteractWithMessageEvent: {
                         conversationId: 'conv123',
                         messageId: 'message123',
-                        customizationArn: 'arn:123',
+                        customizationArn: 'idc-start-url',
                         interactionType: 'INSERT_AT_CURSOR',
                         interactionTarget: 'CODE',
                         acceptedCharacterCount: 100,
