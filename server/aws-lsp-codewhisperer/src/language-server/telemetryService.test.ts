@@ -345,7 +345,7 @@ describe('TelemetryService', () => {
                     chatInteractWithMessageEvent: {
                         conversationId: 'conv123',
                         messageId: 'message123',
-                        customizationArn: 'arn:123',
+                        customizationArn: 'idc-start-url',
                         interactionType: 'INSERT_AT_CURSOR',
                         interactionTarget: 'CODE',
                         acceptedCharacterCount: 100,
