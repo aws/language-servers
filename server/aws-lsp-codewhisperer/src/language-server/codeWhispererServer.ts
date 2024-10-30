@@ -321,7 +321,7 @@ export const CodewhispererServerFactory =
         // the context of a single response.
         let includeSuggestionsWithCodeReferences = false
 
-        const codePercentageTracker = new CodePercentageTracker(telemetry)
+        const codePercentageTracker = new CodePercentageTracker(telemetry, telemetryService)
 
         const onInlineCompletionHandler = async (
             params: InlineCompletionWithReferencesParams,
@@ -585,6 +585,7 @@ export const CodewhispererServerFactory =
                 const qConfig = await lsp.workspace.getConfiguration(Q_CONFIGURATION_SECTION)
                 if (qConfig) {
                     codeWhispererService.customizationArn = undefinedIfEmpty(qConfig.customization)
+                    codePercentageTracker.customizationArn = undefinedIfEmpty(qConfig.customization)
                     logging.log(
                         `Inline completion configuration updated to use ${codeWhispererService.customizationArn}`
                     )

@@ -1,5 +1,7 @@
 import { Telemetry } from '@aws/language-server-runtimes/server-interface'
 import { CodeWhispererCodePercentageEvent } from './types'
+import { TelemetryService } from '../telemetryService'
+import { CodewhispererLanguage } from '../languageDetection'
 
 const CODE_PERCENTAGE_INTERVAL = 5 * 60 * 1000
 const CODE_PERCENTAGE_EVENT_NAME = 'codewhisperer_codePercentage'
@@ -7,6 +9,7 @@ const CODE_PERCENTAGE_EVENT_NAME = 'codewhisperer_codePercentage'
 type TelemetryBuckets = {
     [languageId: string]: {
         totalTokens: number
+        // The accepted characters without counting user modification
         acceptedTokens: number
         invocationCount: number
         successCount: number
@@ -17,10 +20,13 @@ export class CodePercentageTracker {
     private buckets: TelemetryBuckets
     private intervalId: NodeJS.Timeout
     private telemetry: Telemetry
+    private telemetryService: TelemetryService
+    public customizationArn?: string
 
-    constructor(telemetry: Telemetry) {
+    constructor(telemetry: Telemetry, telemetryService: TelemetryService) {
         this.buckets = {}
         this.telemetry = telemetry
+        this.telemetryService = telemetryService
 
         this.intervalId = this.startListening()
     }
@@ -31,6 +37,13 @@ export class CodePercentageTracker {
                 this.telemetry.emitMetric({
                     name: CODE_PERCENTAGE_EVENT_NAME,
                     data: event,
+                })
+
+                this.telemetryService.emitCodeCoverageEvent({
+                    languageId: event.codewhispererLanguage as CodewhispererLanguage,
+                    customizationArn: this.customizationArn,
+                    totalCharacterCount: event.codewhispererTotalTokens,
+                    acceptedCharacterCount: event.codewhispererSuggestedTokens,
                 })
             })
         }, CODE_PERCENTAGE_INTERVAL)
@@ -46,7 +59,7 @@ export class CodePercentageTracker {
                 return {
                     codewhispererTotalTokens: bucket.totalTokens,
                     codewhispererLanguage: languageId,
-                    codewhispererAcceptedTokens: bucket.acceptedTokens,
+                    codewhispererSuggestedTokens: bucket.acceptedTokens,
                     codewhispererPercentage: percentage,
                     successCount: bucket.successCount,
                 }

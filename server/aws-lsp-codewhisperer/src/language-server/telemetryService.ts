@@ -9,11 +9,12 @@ import {
     SendTelemetryEventRequest,
     ChatInteractWithMessageEvent,
     ChatMessageInteractionType,
+    CodeCoverageEvent,
     TelemetryEvent,
 } from '../client/token/codewhispererbearertokenclient'
 import { getCompletionType, getLoginTypeFromProvider, LoginType } from './utils'
-import { getRuntimeLanguage } from './languageDetection'
 import { ChatInteractionType, InteractWithMessageEvent } from './telemetry/types'
+import { CodewhispererLanguage, getRuntimeLanguage } from './languageDetection'
 
 export class TelemetryService extends CodeWhispererServiceToken {
     private userContext: UserContext | undefined
@@ -86,6 +87,7 @@ export class TelemetryService extends CodeWhispererServiceToken {
         if (this.optOutPreference !== undefined) {
             request.optOutPreference = this.optOutPreference
         }
+
         this.sendTelemetryEvent(request)
     }
 
@@ -189,6 +191,27 @@ export class TelemetryService extends CodeWhispererServiceToken {
         }
         this.invokeSendTelemetryEvent({
             chatInteractWithMessageEvent: event,
+        })
+    }
+
+    public emitCodeCoverageEvent(params: {
+        languageId: CodewhispererLanguage
+        acceptedCharacterCount: number
+        totalCharacterCount: number
+        customizationArn?: string
+    }) {
+        const event: CodeCoverageEvent = {
+            programmingLanguage: {
+                languageName: getRuntimeLanguage(params.languageId),
+            },
+            acceptedCharacterCount: params.acceptedCharacterCount,
+            totalCharacterCount: params.totalCharacterCount,
+            timestamp: new Date(Date.now()),
+        }
+        if (params.customizationArn) event.customizationArn = params.customizationArn
+
+        this.invokeSendTelemetryEvent({
+            codeCoverageEvent: event,
         })
     }
 }
