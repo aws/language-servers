@@ -1,8 +1,8 @@
 import {
     CodeWhispererStreaming,
     CodeWhispererStreamingClientConfig,
-    GenerateAssistantResponseCommandInput,
-    GenerateAssistantResponseCommandOutput,
+    SendMessageCommandInput,
+    SendMessageCommandOutput,
 } from '@amzn/codewhisperer-streaming'
 import { ConfiguredRetryStrategy } from '@aws-sdk/util-retry'
 import { CredentialsProvider } from '@aws/language-server-runtimes/server-interface'
@@ -31,9 +31,7 @@ export class ChatSessionService {
         this.#config = config
     }
 
-    public async generateAssistantResponse(
-        request: GenerateAssistantResponseCommandInput
-    ): Promise<GenerateAssistantResponseCommandOutput> {
+    public async sendMessage(request: SendMessageCommandInput): Promise<SendMessageCommandOutput> {
         this.#abortController = new AbortController()
 
         if (this.#sessionId && request.conversationState) {
@@ -48,7 +46,7 @@ export class ChatSessionService {
             ...this.#config,
         })
 
-        const response = await client.generateAssistantResponse(request, {
+        const response = await client.sendMessage(request, {
             abortSignal: this.#abortController?.signal,
         })
 

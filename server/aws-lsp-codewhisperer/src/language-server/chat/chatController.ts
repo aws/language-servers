@@ -1,7 +1,4 @@
-import {
-    GenerateAssistantResponseCommandInput,
-    GenerateAssistantResponseCommandOutput,
-} from '@amzn/codewhisperer-streaming'
+import { SendMessageCommandInput, SendMessageCommandOutput } from '@amzn/codewhisperer-streaming'
 import {
     ApplyWorkspaceEditParams,
     ErrorCodes,
@@ -100,8 +97,8 @@ export class ChatController implements ChatHandlers {
             session.abortRequest()
         })
 
-        let response: GenerateAssistantResponseCommandOutput
-        let requestInput: GenerateAssistantResponseCommandInput
+        let response: SendMessageCommandOutput
+        let requestInput: SendMessageCommandInput
 
         const conversationIdentifier = session?.sessionId ?? 'New session'
         try {
@@ -109,7 +106,7 @@ export class ChatController implements ChatHandlers {
             requestInput = this.#triggerContext.getChatParamsFromTrigger(params, triggerContext, this.#customizationArn)
 
             metric.recordStart()
-            response = await session.generateAssistantResponse(requestInput)
+            response = await session.sendMessage(requestInput)
             this.#log('Response for conversationId:', conversationIdentifier, JSON.stringify(response.$metadata))
         } catch (err) {
             if (isAwsError(err) || (isObject(err) && 'statusCode' in err && typeof err.statusCode === 'number')) {
@@ -377,14 +374,14 @@ export class ChatController implements ChatHandlers {
     }
 
     async #processAssistantResponse(
-        response: GenerateAssistantResponseCommandOutput,
+        response: SendMessageCommandOutput,
         metric: Metric<AddMessageEvent>,
         partialResultToken?: string | number
     ): Promise<Result<ChatResult, string>> {
         const requestId = response.$metadata.requestId!
         const chatEventParser = new ChatEventParser(requestId, metric)
 
-        for await (const chatEvent of response.generateAssistantResponseResponse!) {
+        for await (const chatEvent of response.sendMessageResponse!) {
             const chatResult = chatEventParser.processPartialEvent(chatEvent)
 
             // terminate early when there is an error

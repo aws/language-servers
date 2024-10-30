@@ -1,5 +1,5 @@
 import { TriggerType } from '@aws/chat-client-ui-types'
-import { ChatTriggerType, GenerateAssistantResponseCommandInput, UserIntent } from '@amzn/codewhisperer-streaming'
+import { ChatTriggerType, SendMessageCommandInput, UserIntent } from '@amzn/codewhisperer-streaming'
 import { ChatParams, CursorState } from '@aws/language-server-runtimes/server-interface'
 import { Features } from '../../types'
 import { DocumentContext, DocumentContextExtractor } from './documentContext'
@@ -33,10 +33,10 @@ export class QChatTriggerContext {
         params: ChatParams,
         triggerContext: TriggerContext,
         customizationArn?: string
-    ): GenerateAssistantResponseCommandInput {
+    ): SendMessageCommandInput {
         const { prompt } = params
 
-        const data: GenerateAssistantResponseCommandInput = {
+        const data: SendMessageCommandInput = {
             conversationState: {
                 chatTriggerType: ChatTriggerType.MANUAL,
                 currentMessage: {
