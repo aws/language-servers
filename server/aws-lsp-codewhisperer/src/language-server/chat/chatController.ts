@@ -145,7 +145,7 @@ export class ChatController implements ChatHandlers {
         }
 
         try {
-            const result = await this.#processAssistantResponse(
+            const result = await this.#processSendMessageResponse(
                 response,
                 metric.mergeWith({
                     cwsprChatResponseCode: response.$metadata.httpStatusCode,
@@ -373,7 +373,7 @@ export class ChatController implements ChatHandlers {
         return triggerContext
     }
 
-    async #processAssistantResponse(
+    async #processSendMessageResponse(
         response: SendMessageCommandOutput,
         metric: Metric<AddMessageEvent>,
         partialResultToken?: string | number
