@@ -18,6 +18,7 @@ import {
 import { UserIntent } from '@amzn/codewhisperer-streaming'
 import { TriggerContext } from '../contexts/triggerContext'
 import { AcceptedSuggestionEntry, CodeDiffTracker } from '../../telemetry/codeDiffTracker'
+import { TelemetryService } from '../../telemetryService'
 
 export const CONVERSATION_ID_METRIC_KEY = 'cwsprChatConversationId'
 
@@ -59,8 +60,9 @@ export class ChatTelemetryController {
     #credentialsProvider: Features['credentialsProvider']
     #telemetry: Features['telemetry']
     #codeDiffTracker: CodeDiffTracker<AcceptedSuggestionChatEntry>
+    #telemetryService: TelemetryService
 
-    constructor(features: Features) {
+    constructor(features: Features, telemetryService: TelemetryService) {
         this.#tabTelemetryInfoByTabId = {}
         this.#currentTriggerByTabId = {}
         this.#customizationInfoByTabAndMessageId = {}
@@ -70,6 +72,7 @@ export class ChatTelemetryController {
         this.#codeDiffTracker = new CodeDiffTracker(features.workspace, features.logging, (entry, percentage) =>
             this.emitModifyCodeMetric(entry, percentage)
         )
+        this.#telemetryService = telemetryService
     }
 
     public get activeTabId(): string | undefined {
@@ -219,6 +222,15 @@ export class ChatTelemetryController {
         tabId: string,
         metric: Omit<InteractWithMessageEvent, 'cwsprChatConversationId'>
     ) {
+        this.#telemetryService.emitChatInteractWithMessage(
+            {
+                ...metric,
+                credentialStartUrl: this.#credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
+            },
+            {
+                conversationId: this.getConversationId(tabId),
+            }
+        )
         this.emitConversationMetric(
             {
                 name: ChatTelemetryEventName.InteractWithMessage,
@@ -345,7 +357,15 @@ export class ChatTelemetryController {
                                 : ChatInteractionType.Downvote,
                         codewhispererCustomizationArn: this.getCustomizationId(params.tabId, params.messageId),
                     }
-
+                    this.#telemetryService.emitChatInteractWithMessage(
+                        {
+                            ...voteData,
+                            credentialStartUrl: this.#credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
+                        },
+                        {
+                            conversationId: this.getConversationId(params.tabId),
+                        }
+                    )
                     this.emitConversationMetric({
                         name: ChatTelemetryEventName.InteractWithMessage,
                         data: voteData,
@@ -369,7 +389,19 @@ export class ChatTelemetryController {
                         cwsprChatTotalCodeBlocks: params.totalCodeBlocks,
                         codewhispererCustomizationArn: this.getCustomizationId(params.tabId, params.messageId),
                     }
-
+                    this.#telemetryService.emitChatInteractWithMessage(
+                        {
+                            ...interactData,
+                            credentialStartUrl: this.#credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
+                        },
+                        {
+                            conversationId: this.getConversationId(params.tabId),
+                            acceptedLineCount:
+                                params.name === ChatUIEventName.InsertToCursorPosition
+                                    ? params.code?.split('\n').length
+                                    : undefined,
+                        }
+                    )
                     this.emitConversationMetric({
                         name: ChatTelemetryEventName.InteractWithMessage,
                         data: interactData,
