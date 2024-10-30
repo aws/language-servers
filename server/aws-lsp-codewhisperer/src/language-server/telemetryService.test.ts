@@ -47,6 +47,7 @@ class MockCredentialsProvider implements CredentialsProvider {
 }
 
 describe('TelemetryService', () => {
+    let clock: sinon.SinonFakeTimers
     let telemetryService: TelemetryService
     let mockCredentialsProvider: MockCredentialsProvider
     const mockSession: Partial<CodeWhispererSession> = {
@@ -74,11 +75,19 @@ describe('TelemetryService', () => {
         acceptedSuggestionId: 'item-id-1',
         firstCompletionDisplayLatency: 100,
         timeToFirstRecommendation: 200,
+        getAggregatedUserTriggerDecision: () => 'Accept',
     }
-    mockSession['getAggregatedUserTriggerDecision'] = () => 'Accept'
 
     beforeEach(() => {
+        clock = sinon.useFakeTimers({
+            now: 1483228800000,
+        })
         mockCredentialsProvider = new MockCredentialsProvider()
+    })
+
+    afterEach(() => {
+        clock.restore()
+        sinon.restore()
     })
 
     it('updateUserContext updates the userContext property', () => {
@@ -156,7 +165,6 @@ describe('TelemetryService', () => {
         const invokeSendTelemetryEventStub: sinon.SinonStub = sinon.stub(telemetryService, 'sendTelemetryEvent' as any)
         telemetryService.emitUserTriggerDecision(mockSession as CodeWhispererSession)
         sinon.assert.notCalled(invokeSendTelemetryEventStub)
-        sinon.restore()
     })
 
     it('should not emit user trigger decision if login is BuilderID, but user chose OPTOUT option', () => {
@@ -170,7 +178,6 @@ describe('TelemetryService', () => {
         telemetryService.emitUserTriggerDecision(mockSession as CodeWhispererSession)
         const invokeSendTelemetryEventStub: sinon.SinonStub = sinon.stub(telemetryService, 'sendTelemetryEvent' as any)
         sinon.assert.notCalled(invokeSendTelemetryEventStub)
-        sinon.restore()
     })
 
     it('should emit user trigger decision event correctly', () => {
@@ -201,13 +208,14 @@ describe('TelemetryService', () => {
         telemetryService = new TelemetryService(mockCredentialsProvider, 'bearer', {} as Telemetry, {})
         const invokeSendTelemetryEventStub: sinon.SinonStub = sinon.stub(telemetryService, 'sendTelemetryEvent' as any)
         telemetryService.updateOptOutPreference('OPTIN')
+
         telemetryService.emitUserTriggerDecision(mockSession as CodeWhispererSession)
+
         expect(invokeSendTelemetryEventStub.calledOnce).to.be.true
         const actualArguments = invokeSendTelemetryEventStub.firstCall.args[0]
         expect(actualArguments.telemetryEvent.userTriggerDecisionEvent).to.deep.include(
             expectedUserTriggerDecisionEvent.telemetryEvent.userTriggerDecisionEvent
         )
-        sinon.restore()
     })
 
     describe('Chat interact with message', () => {
@@ -261,6 +269,9 @@ describe('TelemetryService', () => {
                 },
             }
             expect(invokeSendTelemetryEventStub.firstCall.args[0]).to.deep.equal(expectedEvent)
+
+            sinon.assert.calledOnce(invokeSendTelemetryEventStub)
+            sinon.assert.calledWith(invokeSendTelemetryEventStub, sinon.match(expectedEvent))
         })
 
         it('should not send InteractWithMessage when conversationId is undefined', () => {
@@ -336,15 +347,17 @@ describe('TelemetryService', () => {
     })
 
     it('should emit CodeCoverageEvent event', () => {
-        const timestamp = new Date(Date.now())
         const expectedEvent = {
-            codeCoverageEvent: {
-                customizationArn: 'test-arn',
-                programmingLanguage: { languageName: 'typescript' },
-                acceptedCharacterCount: 123,
-                totalCharacterCount: 456,
-                // timestamp,
+            telemetryEvent: {
+                codeCoverageEvent: {
+                    customizationArn: 'test-arn',
+                    programmingLanguage: { languageName: 'typescript' },
+                    acceptedCharacterCount: 123,
+                    totalCharacterCount: 456,
+                    timestamp: new Date(Date.now()),
+                },
             },
+            optOutPreference: 'OPTIN',
         }
         mockCredentialsProvider.setConnectionMetadata({
             sso: {
@@ -352,10 +365,7 @@ describe('TelemetryService', () => {
             },
         })
         telemetryService = new TelemetryService(mockCredentialsProvider, 'bearer', {} as Telemetry, {})
-        const invokeSendTelemetryEventSpy: sinon.SinonSpy = sinon.spy(
-            telemetryService,
-            'invokeSendTelemetryEvent' as any
-        )
+        const invokeSendTelemetryEventStub: sinon.SinonStub = sinon.stub(telemetryService, 'sendTelemetryEvent' as any)
         telemetryService.updateOptOutPreference('OPTIN')
 
         telemetryService.emitCodeCoverageEvent({
@@ -365,8 +375,7 @@ describe('TelemetryService', () => {
             totalCharacterCount: 456,
         })
 
-        sinon.assert.calledOnce(invokeSendTelemetryEventSpy)
-        sinon.assert.calledWith(invokeSendTelemetryEventSpy, sinon.match(expectedEvent))
-        invokeSendTelemetryEventSpy.restore()
+        sinon.assert.calledOnce(invokeSendTelemetryEventStub)
+        sinon.assert.calledWith(invokeSendTelemetryEventStub, sinon.match(expectedEvent))
     })
 })
