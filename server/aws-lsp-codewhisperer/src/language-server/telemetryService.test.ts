@@ -1,4 +1,3 @@
-import { expect } from 'chai'
 import { TelemetryService } from './telemetryService'
 import {
     BearerCredentials,
@@ -100,20 +99,23 @@ describe('TelemetryService', () => {
             product: 'INLINE',
         }
         telemetryService.updateUserContext(mockUserContext)
-        expect((telemetryService as any).userContext).to.equal(mockUserContext)
+
+        sinon.assert.match((telemetryService as any).userContext, mockUserContext)
     })
 
     it('updateOptOutPreference updates the optOutPreference property', () => {
         telemetryService = new TelemetryService(mockCredentialsProvider, 'bearer', {} as Telemetry, {})
         const mockOptOutPreference: OptOutPreference = 'OPTIN'
         telemetryService.updateOptOutPreference(mockOptOutPreference)
-        expect((telemetryService as any).optOutPreference).to.equal(mockOptOutPreference)
+
+        sinon.assert.match((telemetryService as any).optOutPreference, mockOptOutPreference)
     })
 
     it('updateEnableTelemetryEventsToDestination updates the enableTelemetryEventsToDestination property', () => {
         telemetryService = new TelemetryService(mockCredentialsProvider, 'bearer', {} as Telemetry, {})
         telemetryService.updateEnableTelemetryEventsToDestination(true)
-        expect((telemetryService as any).enableTelemetryEventsToDestination).to.be.true
+
+        sinon.assert.match((telemetryService as any).enableTelemetryEventsToDestination, true)
     })
 
     it('getSuggestionState fetches the suggestion state from CodeWhispererSession', () => {
@@ -124,40 +126,37 @@ describe('TelemetryService', () => {
                 return 'Accept'
             },
         } as unknown as CodeWhispererSession
-        let suggestionState = getSuggestionState(session)
-        expect(suggestionState).to.equal('ACCEPT')
+
+        sinon.assert.match(getSuggestionState(session), 'ACCEPT')
 
         session = {
             getAggregatedUserTriggerDecision: () => {
                 return 'Reject'
             },
         } as unknown as CodeWhispererSession
-        suggestionState = getSuggestionState(session)
-        expect(suggestionState).to.equal('REJECT')
+
+        sinon.assert.match(getSuggestionState(session), 'REJECT')
 
         session = {
             getAggregatedUserTriggerDecision: () => {
                 return 'Discard'
             },
         } as unknown as CodeWhispererSession
-        suggestionState = getSuggestionState(session)
-        expect(suggestionState).to.equal('DISCARD')
+        sinon.assert.match(getSuggestionState(session), 'DISCARD')
 
         session = {
             getAggregatedUserTriggerDecision: () => {
                 return 'Empty'
             },
         } as unknown as CodeWhispererSession
-        suggestionState = getSuggestionState(session)
-        expect(suggestionState).to.equal('EMPTY')
+        sinon.assert.match(getSuggestionState(session), 'EMPTY')
 
         session = {
             getAggregatedUserTriggerDecision: () => {
                 return undefined
             },
         } as unknown as CodeWhispererSession
-        suggestionState = getSuggestionState(session)
-        expect(suggestionState).to.equal('EMPTY')
+        sinon.assert.match(getSuggestionState(session), 'EMPTY')
     })
 
     it('should not emit user trigger decision if login is invalid (IAM)', () => {
@@ -180,7 +179,7 @@ describe('TelemetryService', () => {
         sinon.assert.notCalled(invokeSendTelemetryEventStub)
     })
 
-    it('should emit user trigger decision event correctly', () => {
+    it('should emit userTriggerDecision event correctly', () => {
         const expectedUserTriggerDecisionEvent = {
             telemetryEvent: {
                 userTriggerDecisionEvent: {
@@ -191,6 +190,7 @@ describe('TelemetryService', () => {
                     completionType: 'BLOCK',
                     suggestionState: 'ACCEPT',
                     recommendationLatencyMilliseconds: 100,
+                    timestamp: new Date(Date.now()),
                     triggerToResponseLatencyMilliseconds: 200,
                     suggestionReferenceCount: 0,
                     generatedLine: 3,
@@ -211,11 +211,7 @@ describe('TelemetryService', () => {
 
         telemetryService.emitUserTriggerDecision(mockSession as CodeWhispererSession)
 
-        expect(invokeSendTelemetryEventStub.calledOnce).to.be.true
-        const actualArguments = invokeSendTelemetryEventStub.firstCall.args[0]
-        expect(actualArguments.telemetryEvent.userTriggerDecisionEvent).to.deep.include(
-            expectedUserTriggerDecisionEvent.telemetryEvent.userTriggerDecisionEvent
-        )
+        sinon.assert.calledOnceWithExactly(invokeSendTelemetryEventStub, expectedUserTriggerDecisionEvent)
     })
 
     describe('Chat interact with message', () => {
@@ -252,7 +248,7 @@ describe('TelemetryService', () => {
                 conversationId,
                 acceptedLineCount,
             })
-            expect(invokeSendTelemetryEventStub.calledOnce).to.be.true
+
             const expectedEvent = {
                 telemetryEvent: {
                     chatInteractWithMessageEvent: {
@@ -268,10 +264,8 @@ describe('TelemetryService', () => {
                     },
                 },
             }
-            expect(invokeSendTelemetryEventStub.firstCall.args[0]).to.deep.equal(expectedEvent)
 
-            sinon.assert.calledOnce(invokeSendTelemetryEventStub)
-            sinon.assert.calledWith(invokeSendTelemetryEventStub, sinon.match(expectedEvent))
+            sinon.assert.calledOnceWithExactly(invokeSendTelemetryEventStub, expectedEvent)
         })
 
         it('should not send InteractWithMessage when conversationId is undefined', () => {
@@ -285,7 +279,8 @@ describe('TelemetryService', () => {
             telemetryService.emitChatInteractWithMessage(metric, {
                 acceptedLineCount: 5,
             })
-            expect(invokeSendTelemetryEventStub.called).to.be.false
+
+            sinon.assert.notCalled(invokeSendTelemetryEventStub)
         })
 
         it('should not send InteractWithMessage when credentialsType is IAM', () => {
@@ -302,7 +297,8 @@ describe('TelemetryService', () => {
                 conversationId: 'conv123',
                 acceptedLineCount: 5,
             })
-            expect(invokeSendTelemetryEventStub.called).to.be.false
+
+            sinon.assert.notCalled(invokeSendTelemetryEventStub)
         })
 
         it('should not send InteractWithMessage when login is BuilderID, but user chose OPTOUT option', () => {
@@ -325,7 +321,8 @@ describe('TelemetryService', () => {
                 conversationId: 'conv123',
                 acceptedLineCount: 5,
             })
-            expect(invokeSendTelemetryEventStub.called).to.be.false
+
+            sinon.assert.notCalled(invokeSendTelemetryEventStub)
         })
 
         it('should send InteractWithMessage but with optional acceptedLineCount parameter', () => {
@@ -339,10 +336,24 @@ describe('TelemetryService', () => {
             const conversationId = 'conv123'
             telemetryService.emitChatInteractWithMessage(metric, {
                 conversationId,
+                acceptedLineCount: undefined,
             })
-            expect(invokeSendTelemetryEventStub.calledOnce).to.be.true
-            const calledArg = invokeSendTelemetryEventStub.firstCall.args[0]
-            expect(calledArg.telemetryEvent.chatInteractWithMessageEvent.acceptedLineCount).to.be.undefined
+
+            sinon.assert.calledWithExactly(invokeSendTelemetryEventStub, {
+                telemetryEvent: {
+                    chatInteractWithMessageEvent: {
+                        conversationId: 'conv123',
+                        messageId: 'message123',
+                        customizationArn: 'arn:123',
+                        interactionType: 'INSERT_AT_CURSOR',
+                        interactionTarget: 'CODE',
+                        acceptedCharacterCount: 100,
+                        acceptedLineCount: undefined, // Should be undefined
+                        acceptedSnippetHasReference: false,
+                        hasProjectLevelContext: false,
+                    },
+                },
+            })
         })
     })
 
@@ -375,7 +386,6 @@ describe('TelemetryService', () => {
             totalCharacterCount: 456,
         })
 
-        sinon.assert.calledOnce(invokeSendTelemetryEventStub)
-        sinon.assert.calledWith(invokeSendTelemetryEventStub, sinon.match(expectedEvent))
+        sinon.assert.calledOnceWithExactly(invokeSendTelemetryEventStub, expectedEvent)
     })
 })
