@@ -160,7 +160,7 @@ export abstract class DependencyGraph {
         const sourceWorkspacePath = await this.getProjectPath(srcFilePath)
         const fileRelativePath = path.relative(sourceWorkspacePath, srcFilePath)
         const destinationFileAbsolutePath = path.join(destDir, fileRelativePath)
-        await this.workspace.fs.copyFile(srcFilePath, destinationFileAbsolutePath)
+        await this.workspace.fs.copyFile(srcFilePath, destinationFileAbsolutePath, { ensureDir: true })
     }
 
     /**
