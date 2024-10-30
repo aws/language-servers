@@ -138,8 +138,8 @@ export class TelemetryService extends CodeWhispererServiceToken {
             acceptedSuggestion === undefined
                 ? 0
                 : acceptedSuggestion.references && acceptedSuggestion.references.length > 0
-                    ? 1
-                    : 0
+                  ? 1
+                  : 0
         const perceivedLatencyMilliseconds =
             session.triggerType === 'OnDemand' ? session.timeToFirstRecommendation : timeSinceLastUserModification
 
