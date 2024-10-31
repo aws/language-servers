@@ -1,10 +1,7 @@
 import { CodeWhispererStreaming, CodeWhispererStreamingClientConfig } from '@amzn/codewhisperer-streaming'
 import { ConfiguredRetryStrategy } from '@aws-sdk/util-retry'
 import { readFileSync } from 'fs'
-
-const codeWhispererRegion = 'us-east-1'
-
-const codeWhispererEndpoint = process?.env.AWS_Q_ENDPOINT_URL ?? 'https://codewhisperer.us-east-1.amazonaws.com/'
+import { AWS_Q_REGION, AWS_Q_ENDPOINT_URL } from '../../constants'
 
 export class StreamingClient {
     public async getStreamingClient(credentialsProvider: any, config?: CodeWhispererStreamingClientConfig) {
@@ -39,8 +36,8 @@ export async function createStreamingClient(
     }
 
     const streamingClient = new CodeWhispererStreaming({
-        region: codeWhispererRegion,
-        endpoint: codeWhispererEndpoint,
+        region: AWS_Q_REGION,
+        endpoint: AWS_Q_ENDPOINT_URL,
         token: { token: creds.token },
         retryStrategy: new ConfiguredRetryStrategy(0, (attempt: number) => 500 + attempt ** 10),
         requestHandler: clientOptions?.requestHandler,

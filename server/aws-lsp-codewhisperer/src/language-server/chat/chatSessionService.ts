@@ -7,13 +7,13 @@ import {
 import { ConfiguredRetryStrategy } from '@aws-sdk/util-retry'
 import { CredentialsProvider } from '@aws/language-server-runtimes/server-interface'
 import { getBearerTokenFromProvider } from '../utils'
+import { AWS_Q_REGION, AWS_Q_ENDPOINT_URL } from '../../constants'
 
 export type ChatSessionServiceConfig = CodeWhispererStreamingClientConfig
 export class ChatSessionService {
     public shareCodeWhispererContentWithAWS = false
-    readonly #codeWhispererRegion = 'us-east-1'
-    readonly #codeWhispererEndpoint =
-        process?.env.AWS_Q_ENDPOINT_URL ?? 'https://codewhisperer.us-east-1.amazonaws.com/'
+    readonly #codeWhispererRegion = AWS_Q_REGION
+    readonly #codeWhispererEndpoint = AWS_Q_ENDPOINT_URL
     #abortController?: AbortController
     #credentialsProvider: CredentialsProvider
     #config?: CodeWhispererStreamingClientConfig

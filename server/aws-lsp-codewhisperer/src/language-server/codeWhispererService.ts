@@ -42,13 +42,13 @@ export interface AWSConfig {
 import CodeWhispererSigv4Client = require('../client/sigv4/codewhisperersigv4client')
 import CodeWhispererTokenClient = require('../client/token/codewhispererbearertokenclient')
 import AWS = require('aws-sdk')
+import { AWS_Q_ENDPOINT_URL, AWS_Q_REGION } from '../constants'
 
 // Right now the only difference between the token client and the IAM client for codewhsiperer is the difference in function name
 // This abstract class can grow in the future to account for any additional changes across the clients
 export abstract class CodeWhispererServiceBase {
-    protected readonly codeWhispererRegion = 'us-east-1'
-    protected readonly codeWhispererEndpoint =
-        process?.env.AWS_Q_ENDPOINT_URL ?? 'https://codewhisperer.us-east-1.amazonaws.com/'
+    protected readonly codeWhispererRegion = AWS_Q_REGION
+    protected readonly codeWhispererEndpoint = AWS_Q_ENDPOINT_URL
     public shareCodeWhispererContentWithAWS = false
     public customizationArn?: string
     abstract client: CodeWhispererSigv4Client | CodeWhispererTokenClient
