@@ -21,7 +21,6 @@ export class TelemetryService extends CodeWhispererServiceToken {
     private optOutPreference!: OptOutPreference
     private enableTelemetryEventsToDestination!: boolean
     private telemetry: Telemetry
-    private ssoConnectionType: SsoConnectionType
     private credentialsType: CredentialsType
     private credentialsProvider: CredentialsProvider
 
@@ -47,7 +46,6 @@ export class TelemetryService extends CodeWhispererServiceToken {
         this.credentialsProvider = credentialsProvider
         this.credentialsType = credentialsType
         this.telemetry = telemetry
-        this.ssoConnectionType = getSsoConnectionType(credentialsProvider)
     }
 
     public updateUserContext(userContext: UserContext | undefined): void {
@@ -81,10 +79,12 @@ export class TelemetryService extends CodeWhispererServiceToken {
     }
 
     private shouldSendTelemetry(): boolean {
+        const ssoConnectionType = getSsoConnectionType(this.credentialsProvider)
+
         return (
             this.credentialsType === 'bearer' &&
-            ((this.ssoConnectionType === 'builderId' && this.optOutPreference === 'OPTIN') ||
-                this.ssoConnectionType === 'identityCenter')
+            ((ssoConnectionType === 'builderId' && this.optOutPreference === 'OPTIN') ||
+                ssoConnectionType === 'identityCenter')
         )
     }
 
