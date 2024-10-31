@@ -227,11 +227,6 @@ export class TelemetryService extends CodeWhispererServiceToken {
             customizationArn: params.customizationArn,
             userIntent: params.userIntent,
             hasCodeSnippet: params.hasCodeSnippet,
-            programmingLanguage: params.programmingLanguage
-                ? {
-                      languageName: getRuntimeLanguage(params.programmingLanguage),
-                  }
-                : undefined,
             activeEditorTotalCharacters: params.activeEditorTotalCharacters,
             timeToFirstChunkMilliseconds: params.timeToFirstChunkMilliseconds,
             timeBetweenChunks: params.timeBetweenChunks,
@@ -240,6 +235,11 @@ export class TelemetryService extends CodeWhispererServiceToken {
             responseLength: params.responseLength,
             numberOfCodeBlocks: params.numberOfCodeBlocks,
             hasProjectLevelContext: false,
+        }
+        if (params.programmingLanguage) {
+            event.programmingLanguage = {
+                languageName: getRuntimeLanguage(params.programmingLanguage),
+            }
         }
         this.invokeSendTelemetryEvent({
             chatAddMessageEvent: event,
