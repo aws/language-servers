@@ -24,6 +24,8 @@ export function ensureSsoAccountAccessScope(scopes?: string[]): string[] {
     return scopes
 }
 
+// TODO In a future PR when schedule permits, migrate this to language-server-runtimes/server-interface/server
+// for reuse in Server type parameter
 export interface ServerFeatures {
     chat: Chat
     credentialsProvider: CredentialsProvider
