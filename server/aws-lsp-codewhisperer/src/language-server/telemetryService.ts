@@ -11,6 +11,8 @@ import {
     ChatMessageInteractionType,
     CodeCoverageEvent,
     TelemetryEvent,
+    ChatAddMessageEvent,
+    UserIntent,
 } from '../client/token/codewhispererbearertokenclient'
 import { getCompletionType, getSsoConnectionType, SsoConnectionType } from './utils'
 import { ChatInteractionType, InteractWithMessageEvent } from './telemetry/types'
@@ -197,6 +199,50 @@ export class TelemetryService extends CodeWhispererServiceToken {
 
         this.invokeSendTelemetryEvent({
             codeCoverageEvent: event,
+        })
+    }
+
+    public emitChatAddMessage(params: {
+        conversationId?: string
+        messageId?: string
+        customizationArn?: string
+        userIntent?: UserIntent
+        hasCodeSnippet?: boolean
+        programmingLanguage?: CodewhispererLanguage
+        activeEditorTotalCharacters?: number
+        timeToFirstChunkMilliseconds?: number
+        timeBetweenChunks?: number[]
+        fullResponselatency?: number
+        requestLength?: number
+        responseLength?: number
+        numberOfCodeBlocks?: number
+        hasProjectLevelContext?: number
+    }) {
+        if (!params.conversationId || !params.messageId) {
+            return
+        }
+        const event: ChatAddMessageEvent = {
+            conversationId: params.conversationId,
+            messageId: params.messageId,
+            customizationArn: params.customizationArn,
+            userIntent: params.userIntent,
+            hasCodeSnippet: params.hasCodeSnippet,
+            programmingLanguage: params.programmingLanguage
+                ? {
+                      languageName: getRuntimeLanguage(params.programmingLanguage),
+                  }
+                : undefined,
+            activeEditorTotalCharacters: params.activeEditorTotalCharacters,
+            timeToFirstChunkMilliseconds: params.timeToFirstChunkMilliseconds,
+            timeBetweenChunks: params.timeBetweenChunks,
+            fullResponselatency: params.fullResponselatency,
+            requestLength: params.requestLength,
+            responseLength: params.responseLength,
+            numberOfCodeBlocks: params.numberOfCodeBlocks,
+            hasProjectLevelContext: false,
+        }
+        this.invokeSendTelemetryEvent({
+            chatAddMessageEvent: event,
         })
     }
 }

@@ -3,7 +3,14 @@ import {
     CodeWhispererStreaming,
     GenerateAssistantResponseCommandInput,
 } from '@amzn/codewhisperer-streaming'
-import { ChatResult, LSPErrorCodes, ResponseError, TextDocument } from '@aws/language-server-runtimes/server-interface'
+import {
+    ChatResult,
+    CredentialsProvider,
+    LSPErrorCodes,
+    ResponseError,
+    Telemetry,
+    TextDocument,
+} from '@aws/language-server-runtimes/server-interface'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import * as assert from 'assert'
 import sinon from 'ts-sinon'
@@ -67,6 +74,7 @@ describe('ChatController', () => {
     let chatSessionManagementService: ChatSessionManagementService
     let chatController: ChatController
     let telemetryService: TelemetryService
+    let invokeSendTelemetryEventStub: sinon.SinonStub
 
     beforeEach(() => {
         generateAssistantResponseStub = sinon
@@ -97,6 +105,18 @@ describe('ChatController', () => {
             testFeatures.credentialsProvider
         )
 
+        const mockCredentialsProvider: CredentialsProvider = {
+            hasCredentials: sinon.stub().returns(true),
+            getCredentials: sinon.stub().returns({ token: 'token' }),
+            getConnectionMetadata: sinon.stub().returns({
+                sso: {
+                    startUrl: undefined,
+                },
+            }),
+        }
+
+        telemetryService = new TelemetryService(mockCredentialsProvider, 'bearer', {} as Telemetry, {})
+        invokeSendTelemetryEventStub = sinon.stub(telemetryService, 'sendTelemetryEvent' as any)
         chatController = new ChatController(chatSessionManagementService, testFeatures, telemetryService)
     })
 
