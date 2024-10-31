@@ -1,9 +1,10 @@
 import * as path from 'path'
 import http, { IncomingMessage, Server, ServerResponse } from 'http'
 import { AwsError } from '../../awsError'
-import { AwsErrorCodes } from '@aws/language-server-runtimes/protocol'
+import { AwsErrorCodes, CancellationToken } from '@aws/language-server-runtimes/protocol'
 import { readFile } from 'fs/promises'
 import { randomUUID } from 'crypto'
+import { Observability } from '../../language-server/utils'
 
 export class AuthorizationServer implements Disposable {
     private static readonly authorizationPath = '/oauth/callback'
@@ -24,7 +25,12 @@ export class AuthorizationServer implements Disposable {
         return this.#redirectUri
     }
 
-    private constructor(private readonly httpServer: Server) {
+    private constructor(
+        private readonly clientName: string,
+        private readonly observability: Observability,
+        private readonly httpServer: Server,
+        token?: CancellationToken
+    ) {
         this.httpServer.on('request', this.requesterListener.bind(this))
 
         // Detect ephemeral port
@@ -50,6 +56,10 @@ export class AuthorizationServer implements Disposable {
         })
         this.authResolve = authResolve!
         this.authReject = authReject!
+
+        if (token) {
+            token.onCancellationRequested(this.authReject)
+        }
     }
 
     async [Symbol.dispose]() {
@@ -57,16 +67,21 @@ export class AuthorizationServer implements Disposable {
         this.httpServer.close()
     }
 
-    static async start(httpServer?: Server): Promise<AuthorizationServer> {
+    static async start(
+        clientName: string,
+        observability: Observability,
+        httpServer?: Server,
+        token?: CancellationToken
+    ): Promise<AuthorizationServer> {
         httpServer ||= http.createServer()
 
         // Wait for server to start listening
         await new Promise<void>(resolve => {
-            httpServer.once('listening', resolve)
-            httpServer.listen(0, '127.0.0.1')
+            httpServer!.once('listening', resolve)
+            httpServer!.listen(0, '127.0.0.1')
         })
 
-        return new AuthorizationServer(httpServer)
+        return new AuthorizationServer(clientName, observability, httpServer, token)
     }
 
     async authorizationCode(): Promise<string> {
@@ -129,7 +144,7 @@ export class AuthorizationServer implements Disposable {
     }
 
     private redirect(res: ServerResponse, error?: string) {
-        let redirectUri = `${this.origin}/index.html`
+        let redirectUri = `${this.origin}/index.html?clientName=${this.clientName}`
         if (error) {
             redirectUri += `?${new URLSearchParams({ error })}`
         }

@@ -17,6 +17,7 @@ import { AwsError } from '../awsError'
 import { SsoCache } from '../sso/cache'
 import { SsoTokenAutoRefresher } from './ssoTokenAutoRefresher'
 import { throwOnInvalidClientRegistration, throwOnInvalidSsoSession, throwOnInvalidSsoSessionName } from '../sso/utils'
+import { ensureSsoAccountAccessScope, Observability } from './utils'
 
 type SsoTokenSource = IamIdentityCenterSsoTokenSource | AwsBuilderIdSsoTokenSource
 
@@ -25,7 +26,9 @@ export class IdentityService {
         private readonly profileStore: ProfileStore,
         private readonly ssoCache: SsoCache,
         private readonly autoRefresher: SsoTokenAutoRefresher,
-        private readonly showUrl: ShowUrl
+        private readonly showUrl: ShowUrl,
+        private readonly clientName: string,
+        private readonly observability: Observability
     ) {}
 
     async getSsoToken(params: GetSsoTokenParams, token: CancellationToken): Promise<GetSsoTokenResult> {
@@ -34,7 +37,7 @@ export class IdentityService {
         const ssoSession = await this.getSsoSession(params.source)
         throwOnInvalidSsoSession(ssoSession)
 
-        let ssoToken = await this.ssoCache.getSsoToken(params.clientName, ssoSession)
+        let ssoToken = await this.ssoCache.getSsoToken(this.clientName, ssoSession)
 
         if (!ssoToken) {
             // If no cached token and cannot start the login process, give up
@@ -42,22 +45,27 @@ export class IdentityService {
                 throw new AwsError('SSO token not found.', AwsErrorCodes.E_INVALID_SSO_TOKEN)
             }
 
-            const clientRegistration = await this.ssoCache.getSsoClientRegistration(params.clientName, ssoSession)
+            const clientRegistration = await this.ssoCache.getSsoClientRegistration(this.clientName, ssoSession)
             throwOnInvalidClientRegistration(clientRegistration)
 
-            ssoToken = await authorizationCodePkceFlow(clientRegistration, ssoSession, this.showUrl, token).catch(
-                reason => {
-                    throw AwsError.wrap(reason, AwsErrorCodes.E_CANNOT_CREATE_SSO_TOKEN)
-                }
-            )
+            ssoToken = await authorizationCodePkceFlow(
+                this.clientName,
+                clientRegistration,
+                ssoSession,
+                this.showUrl,
+                token,
+                this.observability
+            ).catch(reason => {
+                throw AwsError.wrap(reason, AwsErrorCodes.E_CANNOT_CREATE_SSO_TOKEN)
+            })
 
-            await this.ssoCache.setSsoToken(params.clientName, ssoSession, ssoToken!).catch(reason => {
+            await this.ssoCache.setSsoToken(this.clientName, ssoSession, ssoToken!).catch(reason => {
                 throw AwsError.wrap(reason, AwsErrorCodes.E_CANNOT_WRITE_SSO_CACHE)
             })
         }
 
         // Auto refresh is best effort
-        await this.autoRefresher.watch(params.clientName, ssoSession).catch(_ => {
+        await this.autoRefresher.watch(this.clientName, ssoSession).catch(_ => {
             // TODO Add logging in future PR
         })
 
@@ -84,7 +92,7 @@ export class IdentityService {
                     name: awsBuilderIdReservedName,
                     settings: {
                         sso_region: awsBuilderIdSsoRegion,
-                        sso_registration_scopes: source.ssoRegistrationScopes,
+                        sso_registration_scopes: ensureSsoAccountAccessScope(source.ssoRegistrationScopes),
                         sso_start_url: 'https://view.awsapps.com/start',
                     },
                 }
@@ -103,16 +111,18 @@ export class IdentityService {
 
         const profile = profileData.profiles.find(profile => profile.name === source.profileName)
         if (!profile) {
-            throw new AwsError(`Profile [${source.profileName}] not found.`, AwsErrorCodes.E_PROFILE_NOT_FOUND)
+            throw new AwsError('Profile not found.', AwsErrorCodes.E_PROFILE_NOT_FOUND)
         }
 
         const ssoSession = profileData.ssoSessions.find(ssoSession => ssoSession.name === profile.settings?.sso_session)
         if (!ssoSession) {
-            throw new AwsError(
-                `SSO session [${profile.settings?.sso_session}] not found.`,
-                AwsErrorCodes.E_SSO_SESSION_NOT_FOUND
-            )
+            throw new AwsError('SSO session not found.', AwsErrorCodes.E_SSO_SESSION_NOT_FOUND)
         }
+
+        // eslint-disable-next-line no-extra-semi
+        ;(ssoSession.settings ||= {}).sso_registration_scopes = ensureSsoAccountAccessScope(
+            ssoSession.settings.sso_registration_scopes
+        )
 
         return ssoSession
     }

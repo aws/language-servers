@@ -2,75 +2,104 @@ import { ProfileService } from './profiles/profileService'
 import {
     CancellationToken,
     ListProfilesParams,
-    SsoTokenChangedParams,
     UpdateProfileParams,
-    IdentityManagement,
-    Server,
     AwsResponseError,
     AwsErrorCodes,
     GetSsoTokenParams,
-    Lsp,
     InvalidateSsoTokenParams,
+    InitializeParams,
+    HandlerResult,
+    PartialInitializeResult,
+    InitializeError,
 } from '@aws/language-server-runtimes/server-interface'
 import { SharedConfigProfileStore } from './profiles/sharedConfigProfileStore'
 import { IdentityService } from './identityService'
 import { AwsError } from '../awsError'
 import { FileSystemSsoCache, RefreshingSsoCache } from '../sso/cache'
-import { RaiseSsoTokenChanged, SsoTokenAutoRefresher } from './ssoTokenAutoRefresher'
+import { SsoTokenAutoRefresher } from './ssoTokenAutoRefresher'
 import { ShowUrl } from '../sso'
+import { ServerBase, ServerFeatures } from './utils'
 
-export const IdentityServerFactory = (): Server => (features: { identityManagement: IdentityManagement; lsp: Lsp }) => {
-    const { identityManagement: idMgmt, lsp } = features
+export class IdentityServer extends ServerBase {
+    constructor(features: ServerFeatures) {
+        super(features)
+    }
 
-    // Callbacks for server->client JSON-RPC calls
-    const raiseSsoTokenChanged: RaiseSsoTokenChanged = (params: SsoTokenChangedParams) =>
-        idMgmt.sendSsoTokenChanged(params)
-    const showUrl: ShowUrl = (url: URL) => lsp.window.showDocument({ uri: url.toString(), external: true })
+    static create(features: ServerFeatures): () => void {
+        return new IdentityServer(features)[Symbol.dispose]
+    }
 
-    // Initialize dependencies
-    const profileStore = new SharedConfigProfileStore()
-    const ssoCache = new RefreshingSsoCache(new FileSystemSsoCache(), raiseSsoTokenChanged)
-    const autoRefresher = new SsoTokenAutoRefresher(ssoCache)
+    protected override initialize(
+        params: InitializeParams
+    ): HandlerResult<PartialInitializeResult<any>, InitializeError> {
+        // Callbacks for server->client JSON-RPC calls
+        const showUrl: ShowUrl = (url: URL) =>
+            this.features.lsp.window.showDocument({ uri: url.toString(), external: true })
 
-    const identityService = new IdentityService(profileStore, ssoCache, autoRefresher, showUrl)
-    const profileService = new ProfileService(profileStore)
+        // Initialize dependencies
+        const profileStore = new SharedConfigProfileStore(this.observability)
 
-    // JSON-RPC request/notification handlers (client->server)
-    idMgmt.onGetSsoToken(
-        async (params: GetSsoTokenParams, token: CancellationToken) =>
-            await identityService.getSsoToken(params, token).catch(reason => {
-                throw awsResponseErrorWrap(reason)
-            })
-    )
+        const ssoCache = new RefreshingSsoCache(
+            new FileSystemSsoCache(this.observability),
+            this.features.identityManagement.sendSsoTokenChanged,
+            this.observability
+        )
 
-    idMgmt.onInvalidateSsoToken(
-        async (params: InvalidateSsoTokenParams, token: CancellationToken) =>
-            await identityService.invalidateSsoToken(params, token).catch(reason => {
-                throw awsResponseErrorWrap(reason)
-            })
-    )
+        const autoRefresher = new SsoTokenAutoRefresher(ssoCache, this.observability)
 
-    idMgmt.onListProfiles(
-        async (params: ListProfilesParams, token: CancellationToken) =>
-            await profileService.listProfiles(params, token).catch(reason => {
-                throw awsResponseErrorWrap(reason)
-            })
-    )
+        const identityService = new IdentityService(
+            profileStore,
+            ssoCache,
+            autoRefresher,
+            showUrl,
+            this.getClientName(params),
+            this.observability
+        )
 
-    idMgmt.onUpdateProfile(
-        async (params: UpdateProfileParams, token: CancellationToken) =>
-            await profileService.updateProfile(params, token).catch(reason => {
-                throw awsResponseErrorWrap(reason)
-            })
-    )
+        const profileService = new ProfileService(profileStore, this.observability)
 
-    // disposable
-    return () => {
-        autoRefresher[Symbol.dispose]()
+        // JSON-RPC request/notification handlers (client->server)
+        this.features.identityManagement.onGetSsoToken(
+            async (params: GetSsoTokenParams, token: CancellationToken) =>
+                await identityService.getSsoToken(params, token).catch(reason => {
+                    throw awsResponseErrorWrap(reason)
+                })
+        )
+
+        this.features.identityManagement.onInvalidateSsoToken(
+            async (params: InvalidateSsoTokenParams, token: CancellationToken) =>
+                await identityService.invalidateSsoToken(params, token).catch(reason => {
+                    throw awsResponseErrorWrap(reason)
+                })
+        )
+
+        this.features.identityManagement.onListProfiles(
+            async (params: ListProfilesParams, token: CancellationToken) =>
+                await profileService.listProfiles(params, token).catch(reason => {
+                    throw awsResponseErrorWrap(reason)
+                })
+        )
+
+        this.features.identityManagement.onUpdateProfile(
+            async (params: UpdateProfileParams, token: CancellationToken) =>
+                await profileService.updateProfile(params, token).catch(reason => {
+                    throw awsResponseErrorWrap(reason)
+                })
+        )
+
+        this.disposables.push(autoRefresher)
+
+        return { capabilities: {} }
+    }
+
+    private getClientName(params: InitializeParams): string {
+        return (
+            params.initializationOptions?.aws?.clientInfo?.extension?.name ??
+            params.clientInfo?.name ??
+            'AWS Development Tools'
+        )
     }
 }
-
-export const IdentityServer = IdentityServerFactory()
 
 // AwsResponseError should only be instantied and used at the server class level.  All other code should use
 // the LSP-agnostic AwsError class instead.  Each handler call should use this function to wrap the functional

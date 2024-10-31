@@ -5,12 +5,15 @@ import { AwsError } from '../../awsError'
 import { AwsErrorCodes, SsoSession } from '@aws/language-server-runtimes/server-interface'
 import { throwOnInvalidClientName, throwOnInvalidSsoSession, throwOnInvalidSsoSessionName } from '../utils'
 import path from 'path'
+import { Observability } from '../../language-server/utils'
 
 // As this is a cache, we tend to swallow a lot of the errors as it is ok to just recreate the items each
 // time, though recreating the SSO token without a refresh token will be every hour.  This is a better
 // situation that failing to get an SSO token at all.
 
 export class FileSystemSsoCache implements SsoCache {
+    constructor(private readonly observability: Observability) {}
+
     async getSsoClientRegistration(
         clientName: string,
         ssoSession: SsoSession
