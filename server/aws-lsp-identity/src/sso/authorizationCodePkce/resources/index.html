@@ -56,7 +56,7 @@
                             <p id="errorMessage" class="hint"></p>
                         </div>
                     </div>
-                    <p class="hint">You can close this window and re-start the authorization flow</p>
+                    <p class="hint">You can close this window.</p>
                 </div>
             </div>
         </div>
@@ -70,11 +70,10 @@
                     return
                 }
 
-                const productName = 'AWS IDE Extensions for VS Code'
+                const clientName = params.get('clientName') || 'AWS Development Tools'
                 document.getElementById('approvalMessage').innerText =
-                    `${productName} have been given requested permissions`
-                document.getElementById('footerText').innerText =
-                    `You can close this window and start using ${productName}`
+                    `${clientName} has been given the requested permissions.`
+                document.getElementById('footerText').innerText = `You can close this window.`
 
                 function showErrorMessage(errorText) {
                     document.getElementById('approved-auth').classList.add('hidden')

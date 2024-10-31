@@ -1,6 +1,7 @@
 import { SsoSession, SsoTokenChangedParams } from '@aws/language-server-runtimes/protocol'
 import { RefreshingSsoCache, refreshWindowMillis, retryWindowMillis } from '../sso/cache/refreshingSsoCache'
 import { throwOnInvalidClientName, throwOnInvalidSsoSession, throwOnInvalidSsoSessionName } from '../sso/utils'
+import { Observability } from './utils'
 
 const bufferedRefreshWindowMillis = refreshWindowMillis * 0.95
 const bufferedRetryWindowMillis = retryWindowMillis * 1.05
@@ -12,7 +13,10 @@ export type RaiseSsoTokenChanged = (params: SsoTokenChangedParams) => void
 export class SsoTokenAutoRefresher implements Disposable {
     private readonly timeouts: Record<string, NodeJS.Timeout> = {}
 
-    constructor(private readonly ssoCache: RefreshingSsoCache) {}
+    constructor(
+        private readonly ssoCache: RefreshingSsoCache,
+        private readonly observability: Observability
+    ) {}
 
     [Symbol.dispose](): void {
         for (const ssoSessionName of Object.keys(this.timeouts)) {

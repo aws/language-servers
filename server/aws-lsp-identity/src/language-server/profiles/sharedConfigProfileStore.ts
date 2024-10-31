@@ -12,6 +12,7 @@ import { SectionHeader } from '../../sharedConfig/types'
 import { saveKnownFiles } from '../../sharedConfig'
 import { normalizeParsedIniData } from '../../sharedConfig/saveKnownFiles'
 import { AwsError } from '../../awsError'
+import { Observability } from '../utils'
 
 // Uses AWS SDK for JavaScript v3
 // Applies shared config files location resolution, but JVM system properties are not supported
@@ -23,7 +24,10 @@ type Section = { name: string; settings?: object }
 const controlCharsRegex = /[\x00-\x1F\x7F-\x9F]/
 
 export class SharedConfigProfileStore implements ProfileStore {
-    constructor(private init: SharedConfigInit = { ignoreCache: true }) {}
+    constructor(
+        private readonly observability: Observability,
+        private readonly init: SharedConfigInit = { ignoreCache: true }
+    ) {}
 
     async load(init?: SharedConfigInit): Promise<ProfileData> {
         const result: ProfileData = {
@@ -162,7 +166,7 @@ export class SharedConfigProfileStore implements ProfileStore {
 
             // Settings must be an object
             if (section.settings !== Object(section.settings)) {
-                throwAwsError(`Section [${section.name}] contains invalid settings value.`)
+                throwAwsError('Section contains invalid settings value.')
             }
 
             const parsedSection = (parsedKnownFiles[parsedSectionName] ||= {})
@@ -175,7 +179,7 @@ export class SharedConfigProfileStore implements ProfileStore {
 
                 // If and when needed in the future, handle object types for subsections (e.g. api_versions)
                 if (value === Object(value)) {
-                    throwAwsError(`Setting [${name}] in section [${section.name}] cannot be an object.`)
+                    throwAwsError(`Setting [${name}] cannot be an object.`)
                 }
 
                 // If setting passed with null or undefined then remove setting
@@ -186,9 +190,7 @@ export class SharedConfigProfileStore implements ProfileStore {
                     Object.hasOwn(parsedSection, name) && delete parsedSection[name]
                 } else {
                     if (controlCharsRegex.test(value)) {
-                        throwAwsError(
-                            `Setting [${name}] in section [${section.name}] cannot contain control characters.`
-                        )
+                        throwAwsError(`Setting [${name}] cannot contain control characters.`)
                     }
 
                     parsedSection[name] = value.toString()
@@ -196,7 +198,7 @@ export class SharedConfigProfileStore implements ProfileStore {
             }
 
             if (!validator(section, parsedSection)) {
-                throwAwsError(`Section [${parsedSectionName}] is invalid.`)
+                throwAwsError('Section is invalid.')
             }
         }
     }

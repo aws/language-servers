@@ -11,7 +11,7 @@ body {
     padding: 15px 30px;
     display: flex;
     flex-direction: column;
-    font-family: Verdana, Geneva, Tahoma, sans-serif;
+    font-family: 'Amazon Ember', 'Helvetica Neue', Roboto, Arial, sans-serif;
     font-size: 0.9rem;
     background-color: #f2f3f3;
     justify-content: center;
@@ -84,7 +84,7 @@ body {
 }
 
 .hint {
-    color: #545b64;
+    color: #16191f;
 }
 
 .aws-icon {

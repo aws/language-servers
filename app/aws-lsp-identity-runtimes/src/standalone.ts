@@ -4,7 +4,7 @@ import { IdentityServer } from '@aws/lsp-identity'
 
 const props: RuntimeProps = {
     version: '0.1.0',
-    servers: [IdentityServer],
+    servers: [IdentityServer.create],
     name: 'Identity Server',
 }
 

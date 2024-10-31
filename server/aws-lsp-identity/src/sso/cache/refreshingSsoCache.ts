@@ -10,6 +10,7 @@ import {
     throwOnInvalidSsoSessionName,
 } from '../utils'
 import { RaiseSsoTokenChanged } from '../../language-server/ssoTokenAutoRefresher'
+import { Observability } from '../../language-server/utils'
 
 export const refreshWindowMillis: number = 5 * 60 * 1000
 export const retryWindowMillis: number = 30000
@@ -22,8 +23,9 @@ export class RefreshingSsoCache implements SsoCache {
     private readonly ssoTokenDetails: Record<string, SsoTokenDetail> = {}
 
     constructor(
-        private next: SsoCache,
-        private readonly raiseSsoTokenChanged: RaiseSsoTokenChanged
+        private readonly next: SsoCache,
+        private readonly raiseSsoTokenChanged: RaiseSsoTokenChanged,
+        private readonly observability: Observability
     ) {}
 
     async getSsoClientRegistration(
@@ -145,11 +147,7 @@ export class RefreshingSsoCache implements SsoCache {
                 refreshToken: ssoToken.refreshToken,
             })
             .catch(reason => {
-                throw new AwsError(
-                    `Cannot refresh token [${ssoSession.name ?? 'null'}].`,
-                    AwsErrorCodes.E_CANNOT_REFRESH_SSO_TOKEN,
-                    { cause: reason }
-                )
+                throw new AwsError('Cannot refresh token.', AwsErrorCodes.E_CANNOT_REFRESH_SSO_TOKEN, { cause: reason })
             })
 
         UpdateSsoTokenFromCreateToken(result, clientRegistration, ssoSession, ssoToken)
