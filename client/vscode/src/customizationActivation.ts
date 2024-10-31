@@ -3,7 +3,7 @@ import { LanguageClient } from 'vscode-languageclient/node'
 import { getConfigurationFromServerRequestType } from '@aws/language-server-runtimes/protocol'
 
 export async function registerCustomizations(languageClient: LanguageClient): Promise<void> {
-    commands.registerCommand('aws.amazonq.getCustomizations', getCustomizations(languageClient))
+    commands.registerCommand('aws.sample-vscode-ext-amazonq.getCustomizations', getCustomizations(languageClient))
 }
 
 function getCustomizations(languageClient: LanguageClient) {

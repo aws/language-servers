@@ -132,12 +132,12 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri, 
 
     panel.webview.html = getWebviewContent(panel.webview, extensionUri)
 
-    registerGenericCommand('aws.amazonq.explainCode', 'Explain', panel)
-    registerGenericCommand('aws.amazonq.refactorCode', 'Refactor', panel)
-    registerGenericCommand('aws.amazonq.fixCode', 'Fix', panel)
-    registerGenericCommand('aws.amazonq.optimizeCode', 'Optimize', panel)
+    registerGenericCommand('aws.sample-vscode-ext-amazonq.explainCode', 'Explain', panel)
+    registerGenericCommand('aws.sample-vscode-ext-amazonq.refactorCode', 'Refactor', panel)
+    registerGenericCommand('aws.sample-vscode-ext-amazonq.fixCode', 'Fix', panel)
+    registerGenericCommand('aws.sample-vscode-ext-amazonq.optimizeCode', 'Optimize', panel)
 
-    commands.registerCommand('aws.amazonq.sendToPrompt', data => {
+    commands.registerCommand('aws.sample-vscode-ext-amazonq.sendToPrompt', data => {
         const triggerType = getCommandTriggerType(data)
         const selection = getSelectedText()
 
