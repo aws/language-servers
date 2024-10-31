@@ -224,7 +224,6 @@ export class TelemetryService extends CodeWhispererServiceToken {
         const event: ChatAddMessageEvent = {
             conversationId: params.conversationId,
             messageId: params.messageId,
-            customizationArn: params.customizationArn,
             userIntent: params.userIntent,
             hasCodeSnippet: params.hasCodeSnippet,
             activeEditorTotalCharacters: params.activeEditorTotalCharacters,
@@ -235,6 +234,9 @@ export class TelemetryService extends CodeWhispererServiceToken {
             responseLength: params.responseLength,
             numberOfCodeBlocks: params.numberOfCodeBlocks,
             hasProjectLevelContext: false,
+        }
+        if (params.customizationArn) {
+            event.customizationArn = params.customizationArn
         }
         if (params.programmingLanguage) {
             event.programmingLanguage = {
