@@ -169,7 +169,9 @@ describe('TelemetryService', () => {
     it('should not emit user trigger decision if login is invalid (IAM)', () => {
         telemetryService = new TelemetryService(mockCredentialsProvider, 'iam', {} as Telemetry, {})
         const invokeSendTelemetryEventStub: sinon.SinonStub = sinon.stub(telemetryService, 'sendTelemetryEvent' as any)
+
         telemetryService.emitUserTriggerDecision(mockSession as CodeWhispererSession)
+
         sinon.assert.notCalled(invokeSendTelemetryEventStub)
     })
 
@@ -180,10 +182,40 @@ describe('TelemetryService', () => {
             },
         })
         telemetryService = new TelemetryService(mockCredentialsProvider, 'bearer', {} as Telemetry, {})
-        telemetryService.updateOptOutPreference('OPTOUT')
-        telemetryService.emitUserTriggerDecision(mockSession as CodeWhispererSession)
         const invokeSendTelemetryEventStub: sinon.SinonStub = sinon.stub(telemetryService, 'sendTelemetryEvent' as any)
+        telemetryService.updateOptOutPreference('OPTOUT')
+
+        telemetryService.emitUserTriggerDecision(mockSession as CodeWhispererSession)
+
         sinon.assert.notCalled(invokeSendTelemetryEventStub)
+    })
+
+    it('should handle SSO connection type change at runtime', () => {
+        telemetryService = new TelemetryService(mockCredentialsProvider, 'bearer', {} as Telemetry, {})
+        const sendTelemetryEventStub: sinon.SinonStub = sinon.stub(telemetryService, 'sendTelemetryEvent' as any)
+        telemetryService.updateOptOutPreference('OPTOUT') // Disables telemetry for builderId startUrl
+        mockCredentialsProvider.setConnectionMetadata({
+            sso: {
+                startUrl: 'https://some-random-test-idc-directory.awsapps.com',
+            },
+        })
+
+        // Emitting event with IdC connection
+        telemetryService.emitUserTriggerDecision(mockSession as CodeWhispererSession)
+
+        sinon.assert.calledOnce(sendTelemetryEventStub)
+
+        // Switch to BuilderId connection
+        mockCredentialsProvider.setConnectionMetadata({
+            sso: {
+                startUrl: BUILDER_ID_START_URL,
+            },
+        })
+        sendTelemetryEventStub.resetHistory()
+
+        // Should not emit event anymore with BuilderId
+        telemetryService.emitUserTriggerDecision(mockSession as CodeWhispererSession)
+        sinon.assert.notCalled(sendTelemetryEventStub)
     })
 
     it('should emit userTriggerDecision event correctly', () => {

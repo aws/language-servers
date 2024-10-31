@@ -11,7 +11,7 @@
         "package": "npm run compile && npm run compile:webpack"
     },
     "dependencies": {
-        "@aws/language-server-runtimes": "^0.2.23",
+        "@aws/language-server-runtimes": "^0.2.24",
         "@aws/lsp-partiql": "^0.0.4"
     },
     "devDependencies": {

@@ -26,7 +26,7 @@ export class ArtifactManager {
     }
     async removeDir(dir: string) {
         if (await this.workspace.fs.exists(dir)) {
-            await this.workspace.fs.remove(dir)
+            await this.workspace.fs.rm(dir, { recursive: true, force: true })
         }
     }
     cleanup() {
