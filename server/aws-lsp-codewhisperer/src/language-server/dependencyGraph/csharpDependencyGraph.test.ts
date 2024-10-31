@@ -12,7 +12,7 @@ describe('Test CsharpDependencyGraph', () => {
     const projectPathUri = path.resolve(path.join(__dirname, 'sampleWs'))
     const tempDirPath = path.resolve('\\Temp')
     const mockedFs = {
-        copy: Sinon.mock(),
+        copyFile: Sinon.mock(),
         getFileSize: Sinon.mock(),
         getTempDirPath: () => tempDirPath,
         readdir: Sinon.stub(),

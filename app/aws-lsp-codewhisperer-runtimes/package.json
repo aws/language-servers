@@ -12,7 +12,7 @@
         "webpack": "webpack"
     },
     "dependencies": {
-        "@aws/language-server-runtimes": "^0.2.23",
+        "@aws/language-server-runtimes": "^0.2.24",
         "@aws/lsp-codewhisperer": "*",
         "copyfiles": "^2.4.1"
     },

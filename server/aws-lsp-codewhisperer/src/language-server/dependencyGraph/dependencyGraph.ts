@@ -160,7 +160,7 @@ export abstract class DependencyGraph {
         const sourceWorkspacePath = await this.getProjectPath(srcFilePath)
         const fileRelativePath = path.relative(sourceWorkspacePath, srcFilePath)
         const destinationFileAbsolutePath = path.join(destDir, fileRelativePath)
-        await this.workspace.fs.copy(srcFilePath, destinationFileAbsolutePath)
+        await this.workspace.fs.copyFile(srcFilePath, destinationFileAbsolutePath, { ensureDir: true })
     }
 
     /**
@@ -186,7 +186,7 @@ export abstract class DependencyGraph {
      */
     protected async removeDir(dir: string) {
         if (await this.workspace.fs.exists(dir)) {
-            await this.workspace.fs.remove(dir)
+            await this.workspace.fs.rm(dir, { force: true })
         }
     }
 
