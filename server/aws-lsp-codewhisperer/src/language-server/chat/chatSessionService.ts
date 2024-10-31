@@ -16,14 +16,14 @@ export class ChatSessionService {
     #abortController?: AbortController
     #credentialsProvider: CredentialsProvider
     #config?: CodeWhispererStreamingClientConfig
-    #sessionId?: string
+    #conversationId?: string
 
-    public get sessionId(): string | undefined {
-        return this.#sessionId
+    public get conversationId(): string | undefined {
+        return this.#conversationId
     }
 
-    public set sessionId(value: string | undefined) {
-        this.#sessionId = value
+    public set conversationId(value: string | undefined) {
+        this.#conversationId = value
     }
 
     constructor(credentialsProvider: CredentialsProvider, config?: CodeWhispererStreamingClientConfig) {
@@ -34,8 +34,8 @@ export class ChatSessionService {
     public async sendMessage(request: SendMessageCommandInput): Promise<SendMessageCommandOutput> {
         this.#abortController = new AbortController()
 
-        if (this.#sessionId && request.conversationState) {
-            request.conversationState.conversationId = this.#sessionId
+        if (this.#conversationId && request.conversationState) {
+            request.conversationState.conversationId = this.#conversationId
         }
 
         const client = new CodeWhispererStreaming({
@@ -50,14 +50,12 @@ export class ChatSessionService {
             abortSignal: this.#abortController?.signal,
         })
 
-        this.#sessionId = response.conversationId
-
         return response
     }
 
     public clear(): void {
         this.#abortController?.abort()
-        this.#sessionId = undefined
+        this.#conversationId = undefined
     }
 
     public dispose(): void {

@@ -18,7 +18,12 @@ describe('ChatController', () => {
     const mockConversationId = 'mock-conversation-id'
     const mockMessageId = 'mock-message-id'
 
-    const mockAssistantResponseList: ChatResponseStream[] = [
+    const mockChatResponseList: ChatResponseStream[] = [
+        {
+            messageMetadataEvent: {
+                conversationId: mockConversationId,
+            },
+        },
         {
             assistantResponseEvent: {
                 content: 'Hello ',
@@ -69,11 +74,10 @@ describe('ChatController', () => {
             return new Promise(resolve =>
                 setTimeout(() => {
                     resolve({
-                        conversationId: mockConversationId,
                         $metadata: {
                             requestId: mockMessageId,
                         },
-                        sendMessageResponse: createIterableResponse(mockAssistantResponseList),
+                        sendMessageResponse: createIterableResponse(mockChatResponseList),
                     })
                 })
             )
@@ -222,7 +226,7 @@ describe('ChatController', () => {
 
             const chatResult = await chatResultPromise
 
-            sinon.assert.callCount(testFeatures.lsp.sendProgress, mockAssistantResponseList.length)
+            sinon.assert.callCount(testFeatures.lsp.sendProgress, mockChatResponseList.length)
             assert.deepStrictEqual(chatResult, expectedCompleteChatResult)
         })
 
@@ -234,7 +238,7 @@ describe('ChatController', () => {
 
             const chatResult = await chatResultPromise
 
-            sinon.assert.callCount(testFeatures.lsp.sendProgress, mockAssistantResponseList.length)
+            sinon.assert.callCount(testFeatures.lsp.sendProgress, mockChatResponseList.length)
             assert.deepStrictEqual(chatResult, expectedCompleteChatResult)
         })
 
@@ -271,16 +275,15 @@ describe('ChatController', () => {
         it('returns a ResponseError if response streams return an error event', async () => {
             sendMessageStub.callsFake(() => {
                 return Promise.resolve({
-                    conversationId: mockConversationId,
                     $metadata: {
                         requestId: mockMessageId,
                     },
                     sendMessageResponse: createIterableResponse([
                         // ["Hello ", "World"]
-                        ...mockAssistantResponseList.slice(0, 2),
+                        ...mockChatResponseList.slice(1, 3),
                         { error: { message: 'some error' } },
                         // ["!"]
-                        ...mockAssistantResponseList.slice(2),
+                        ...mockChatResponseList.slice(3),
                     ]),
                 })
             })
@@ -296,16 +299,15 @@ describe('ChatController', () => {
         it('returns a ResponseError if response streams return an invalid state event', async () => {
             sendMessageStub.callsFake(() => {
                 return Promise.resolve({
-                    conversationId: mockConversationId,
                     $metadata: {
                         requestId: mockMessageId,
                     },
                     sendMessageResponse: createIterableResponse([
                         // ["Hello ", "World"]
-                        ...mockAssistantResponseList.slice(0, 2),
+                        ...mockChatResponseList.slice(1, 3),
                         { invalidStateEvent: { message: 'invalid state' } },
                         // ["!"]
-                        ...mockAssistantResponseList.slice(2),
+                        ...mockChatResponseList.slice(3),
                     ]),
                 })
             })

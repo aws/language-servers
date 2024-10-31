@@ -32,7 +32,6 @@ describe('Chat Session Service', () => {
     }
 
     const mockRequestResponse: SendMessageCommandOutput = {
-        conversationId: mockConversationId,
         $metadata: {},
         sendMessageResponse: undefined,
     }
@@ -53,17 +52,12 @@ describe('Chat Session Service', () => {
     })
 
     describe('calling SendMessage', () => {
-        it('should call generate assistant response from the streaming client and set the session id ', async () => {
+        it('should fill in conversationId in the request if exists', async () => {
             await chatSessionService.sendMessage(mockRequestParams)
 
             sinon.assert.calledOnceWithExactly(sendMessageStub, mockRequestParams, sinon.match.object)
-            assert.strictEqual(chatSessionService.sessionId, mockConversationId)
-        })
 
-        it('should fill in conversationId with session id in the request if exists', async () => {
-            await chatSessionService.sendMessage(mockRequestParams)
-
-            sinon.assert.calledOnceWithExactly(sendMessageStub, mockRequestParams, sinon.match.object)
+            chatSessionService.conversationId = mockConversationId
 
             await chatSessionService.sendMessage(mockRequestParams)
 
@@ -94,14 +88,15 @@ describe('Chat Session Service', () => {
         sinon.assert.calledOnce(abortStub)
     })
 
-    it('clear() reset session id and aborts outgoing request', async () => {
+    it('clear() resets conversation id and aborts outgoing request', async () => {
         await chatSessionService.sendMessage(mockRequestParams)
+        chatSessionService.conversationId = mockConversationId
 
-        assert.strictEqual(chatSessionService.sessionId, mockConversationId)
+        assert.strictEqual(chatSessionService.conversationId, mockConversationId)
 
         chatSessionService.clear()
 
         sinon.assert.calledOnce(abortStub)
-        assert.strictEqual(chatSessionService.sessionId, undefined)
+        assert.strictEqual(chatSessionService.conversationId, undefined)
     })
 })
