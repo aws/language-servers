@@ -32,6 +32,7 @@ export const targetFrameworkMap = new Map<string, string>([
     ['net7.0', 'NET_7_0'],
     ['net8.0', 'NET_8_0'],
     ['net9.0', 'NET_9_0'],
+    ['netstandard2.0', 'NET_STANDARD_2_0'],
 ])
 
 const dummyVersionIndex = 999
