@@ -42,6 +42,9 @@ export class IdentityService {
         if (!ssoToken) {
             // If no cached token and cannot start the login process, give up
             if (!options.loginOnInvalidToken) {
+                this.observability.logging.log(
+                    'SSO token not found an loginOnInvalidToken = false, returning no token.'
+                )
                 throw new AwsError('SSO token not found.', AwsErrorCodes.E_INVALID_SSO_TOKEN)
             }
 
@@ -65,10 +68,11 @@ export class IdentityService {
         }
 
         // Auto refresh is best effort
-        await this.autoRefresher.watch(this.clientName, ssoSession).catch(_ => {
-            // TODO Add logging in future PR
+        await this.autoRefresher.watch(this.clientName, ssoSession).catch(reason => {
+            this.observability.logging.log(`Unable to auto-refresh token. ${reason}`)
         })
 
+        this.observability.logging.log('Successfully retrieved/logged-in to get SSO token.')
         return { ssoToken: { accessToken: ssoToken.accessToken, id: ssoSession.name } }
     }
 
@@ -82,6 +86,7 @@ export class IdentityService {
 
         await this.ssoCache.removeSsoToken(params.ssoTokenId)
 
+        this.observability.logging.log('Successfully invalidated SSO token.')
         return {}
     }
 
@@ -99,6 +104,7 @@ export class IdentityService {
             case SsoTokenSourceKind.IamIdentityCenter:
                 return await this.getSsoSessionFromProfileStore(source)
             default:
+                this.observability.logging.log(`SSO token source [${source['kind']}] is not supported.`)
                 throw new AwsError(
                     `SSO token source [${source['kind']}] is not supported.`,
                     AwsErrorCodes.E_SSO_TOKEN_SOURCE_NOT_SUPPORTED
@@ -111,11 +117,13 @@ export class IdentityService {
 
         const profile = profileData.profiles.find(profile => profile.name === source.profileName)
         if (!profile) {
+            this.observability.logging.log('Profile not found.')
             throw new AwsError('Profile not found.', AwsErrorCodes.E_PROFILE_NOT_FOUND)
         }
 
         const ssoSession = profileData.ssoSessions.find(ssoSession => ssoSession.name === profile.settings?.sso_session)
         if (!ssoSession) {
+            this.observability.logging.log('SSO session not found.')
             throw new AwsError('SSO session not found.', AwsErrorCodes.E_SSO_SESSION_NOT_FOUND)
         }
 

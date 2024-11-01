@@ -34,6 +34,9 @@ export class SsoTokenAutoRefresher implements Disposable {
 
         // Token doesn't exist, was invalidated by another process, or has expired
         if (!ssoToken) {
+            this.observability.logging.log(
+                'SSO token does not exist, was invalidated, or has expired and will not be auto-refreshed.'
+            )
             return
         }
 
@@ -51,9 +54,11 @@ export class SsoTokenAutoRefresher implements Disposable {
             delayMillis += Math.random() * maxRetryJitterMillis // Jitter to mitigate race conditions
         } else {
             // Otherwise, expired
+            this.observability.logging.log('SSO token has expired and will not be auto-refreshed.')
             return
         }
 
+        this.observability.logging.log(`Auto-refreshing SSO token in ${delayMillis} milliseconds.`)
         this.timeouts[ssoSession.name] = setTimeout(this.watch.bind(this, clientName, ssoSession), delayMillis)
     }
 
@@ -64,6 +69,7 @@ export class SsoTokenAutoRefresher implements Disposable {
         if (timeout) {
             clearTimeout(timeout)
             delete this.timeouts[ssoSessionName]
+            this.observability.logging.log('SSO token unwatched and will not be auto-refreshed.')
         }
     }
 }

@@ -9,8 +9,10 @@ import {
     Workspace,
     PartialInitializeResult,
     Telemetry,
+    InitializeParams,
+    HandlerResult,
+    InitializeError,
 } from '@aws/language-server-runtimes/server-interface'
-import { InitializeParams, HandlerResult, InitializeError } from 'vscode-languageserver'
 
 export function ensureSsoAccountAccessScope(scopes?: string[]): string[] {
     const ssoAccountAccessScope = 'sso:account:access'

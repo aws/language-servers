@@ -3,6 +3,7 @@ import { AuthorizationServer } from './authorizationServer'
 import * as http from 'http'
 import { stubInterface } from 'ts-sinon'
 import { Observability } from '../../language-server/utils'
+import { Logging, Telemetry } from '@aws/language-server-runtimes/server-interface'
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 use(require('chai-as-promised'))
@@ -27,6 +28,8 @@ async function httpGet(options: string | URL): Promise<{ data: string; statusCod
 
 function startAuthorizationServer(): Promise<AuthorizationServer> {
     const observability = stubInterface<Observability>()
+    observability.logging = stubInterface<Logging>()
+    observability.telemetry = stubInterface<Telemetry>()
 
     return AuthorizationServer.start('My Client', observability)
 }

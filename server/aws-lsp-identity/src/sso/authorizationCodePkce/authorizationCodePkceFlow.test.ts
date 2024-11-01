@@ -8,6 +8,7 @@ import { CancellationToken, SsoSession } from '@aws/language-server-runtimes/pro
 import * as ssoUtils from '../utils'
 import { authorizationCodePkceFlow } from './authorizationCodePkceFlow'
 import { Observability } from '../../language-server/utils'
+import { Logging, Telemetry } from '@aws/language-server-runtimes/server-interface'
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 use(require('chai-as-promised'))
@@ -56,6 +57,8 @@ describe('authorizationCodePkceFlow', () => {
         stub(ssoUtils, 'getSsoOidc').returns(ssoOidc)
 
         observability = stubInterface<Observability>()
+        observability.logging = stubInterface<Logging>()
+        observability.telemetry = stubInterface<Telemetry>()
     })
 
     afterEach(() => {

@@ -1,9 +1,11 @@
 import { ProfileData, profileDuckTypers, ProfileService, ProfileStore, ssoSessionDuckTyper } from './profileService'
 import {
     AwsErrorCodes,
+    Logging,
     Profile,
     ProfileKind,
     SsoSession,
+    Telemetry,
     UpdateProfileParams,
 } from '@aws/language-server-runtimes/server-interface'
 import { normalizeParsedIniData } from '../../sharedConfig/saveKnownFiles'
@@ -77,6 +79,8 @@ describe('ProfileService', async () => {
         })
 
         observability = stubInterface<Observability>()
+        observability.logging = stubInterface<Logging>()
+        observability.telemetry = stubInterface<Telemetry>()
 
         sut = new ProfileService(store, observability)
     })

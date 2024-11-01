@@ -41,15 +41,18 @@ export class AuthorizationServer implements Disposable {
             !Object.hasOwn(address, 'address') ||
             !Object.hasOwn(address, 'port')
         ) {
-            throw new AwsError('Local server address not found.', AwsErrorCodes.E_CANNOT_CREATE_SSO_TOKEN)
+            this.observability.logging.log('Local authorization web server address not found.')
+            throw new AwsError(
+                'Local authorization web server address not found.',
+                AwsErrorCodes.E_CANNOT_CREATE_SSO_TOKEN
+            )
         }
 
         this.origin = `http://${address.address}:${address.port}`
         this.#redirectUri = `${this.origin}${AuthorizationServer.authorizationPath}`
 
         // Set up authorization code promise
-        let authResolve,
-            authReject = undefined
+        let authResolve, authReject
         this.authPromise = new Promise<string>((resolve, reject) => {
             authResolve = resolve
             authReject = reject
@@ -63,6 +66,7 @@ export class AuthorizationServer implements Disposable {
     }
 
     async [Symbol.dispose]() {
+        this.observability.logging.log('Disposing of local authorization web server.')
         this.httpServer.closeAllConnections()
         this.httpServer.close()
     }
@@ -73,12 +77,14 @@ export class AuthorizationServer implements Disposable {
         httpServer?: Server,
         token?: CancellationToken
     ): Promise<AuthorizationServer> {
+        observability.logging.log('Starting local authorization web server...')
         httpServer ||= http.createServer()
 
         // Wait for server to start listening
         await new Promise<void>(resolve => {
             httpServer!.once('listening', resolve)
             httpServer!.listen(0, '127.0.0.1')
+            observability.logging.log('Local authorization web server started.')
         })
 
         return new AuthorizationServer(clientName, observability, httpServer, token)
@@ -89,6 +95,7 @@ export class AuthorizationServer implements Disposable {
     }
 
     private async requesterListener(req: IncomingMessage, res: ServerResponse): Promise<void> {
+        this.observability.logging.log('Web request received on local authorization web server.')
         if (!req.url) {
             return
         }
@@ -103,6 +110,7 @@ export class AuthorizationServer implements Disposable {
     }
 
     private authorizationRequest(req: IncomingMessage, res: ServerResponse) {
+        this.observability.logging.log('Authorization web request received on local authorization web server.')
         if (!req.url) {
             return
         }
@@ -112,40 +120,48 @@ export class AuthorizationServer implements Disposable {
 
             const error = searchParams.get('error')
             if (error) {
+                this.observability.logging.log(`Error on authorization redirect: ${error}`)
                 throw new Error(`${error}: ${searchParams.get('error_description') ?? 'No description'}`)
             }
 
             const code = searchParams.get('code')
             if (!code) {
+                this.observability.logging.log('Authorization code not found.')
                 throw new Error('Authorization code not found.')
             }
 
             const state = searchParams.get('state')
             if (!state) {
+                this.observability.logging.log('CSRF state not found.')
                 throw new Error('CSRF state not found.')
             }
 
             if (state !== this.csrfState) {
+                this.observability.logging.log('CSRF state is invalid.')
                 throw new Error('CSRF state is invalid.')
             }
 
             try {
                 this.redirect(res)
             } finally {
+                this.observability.logging.log('Authorization code returned.')
                 this.authResolve(code)
             }
         } catch (error) {
             try {
                 this.redirect(res, error?.toString())
             } finally {
+                this.observability.logging.log('Authorization redirect failed.')
                 this.authReject(error)
             }
         }
     }
 
     private redirect(res: ServerResponse, error?: string) {
+        this.observability.logging.log('Redirecting to local web page.')
         let redirectUri = `${this.origin}/index.html?clientName=${this.clientName}`
         if (error) {
+            this.observability.logging.log(`Redirecting to local web page with error: ${error}.`)
             redirectUri += `?${new URLSearchParams({ error })}`
         }
 

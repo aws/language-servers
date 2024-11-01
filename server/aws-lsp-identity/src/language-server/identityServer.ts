@@ -26,6 +26,7 @@ export class IdentityServer extends ServerBase {
     }
 
     static create(features: ServerFeatures): () => void {
+        features.logging.log('Creating identity server.')
         return new IdentityServer(features)[Symbol.dispose]
     }
 
@@ -62,6 +63,7 @@ export class IdentityServer extends ServerBase {
         this.features.identityManagement.onGetSsoToken(
             async (params: GetSsoTokenParams, token: CancellationToken) =>
                 await identityService.getSsoToken(params, token).catch(reason => {
+                    this.observability.logging.log(`GetSsoToken failed. ${reason}`)
                     throw awsResponseErrorWrap(reason)
                 })
         )
@@ -69,6 +71,7 @@ export class IdentityServer extends ServerBase {
         this.features.identityManagement.onInvalidateSsoToken(
             async (params: InvalidateSsoTokenParams, token: CancellationToken) =>
                 await identityService.invalidateSsoToken(params, token).catch(reason => {
+                    this.observability.logging.log(`InvalidateSsoToken failed. ${reason}`)
                     throw awsResponseErrorWrap(reason)
                 })
         )
@@ -76,6 +79,7 @@ export class IdentityServer extends ServerBase {
         this.features.identityManagement.onListProfiles(
             async (params: ListProfilesParams, token: CancellationToken) =>
                 await profileService.listProfiles(params, token).catch(reason => {
+                    this.observability.logging.log(`ListProfiles failed. ${reason}`)
                     throw awsResponseErrorWrap(reason)
                 })
         )
@@ -83,6 +87,7 @@ export class IdentityServer extends ServerBase {
         this.features.identityManagement.onUpdateProfile(
             async (params: UpdateProfileParams, token: CancellationToken) =>
                 await profileService.updateProfile(params, token).catch(reason => {
+                    this.observability.logging.log(`UpdateProfile failed. ${reason}`)
                     throw awsResponseErrorWrap(reason)
                 })
         )
