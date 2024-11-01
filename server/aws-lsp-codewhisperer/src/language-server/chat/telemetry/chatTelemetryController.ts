@@ -49,6 +49,7 @@ interface ConversationTriggerInfo {
 }
 
 interface AcceptedSuggestionChatEntry extends AcceptedSuggestionEntry {
+    conversationId: string
     messageId: string
 }
 
@@ -127,6 +128,12 @@ export class ChatTelemetryController {
         this.emitConversationMetric({
             name: ChatTelemetryEventName.ModifyCode,
             data,
+        })
+        this.#telemetryService.emitChatUserModificationEvent({
+            conversationId: entry.conversationId,
+            messageId: entry.messageId,
+            modificationPercentage: percentage,
+            customizationArn: entry.customizationArn,
         })
     }
 
@@ -280,6 +287,7 @@ export class ChatTelemetryController {
         }
 
         this.#codeDiffTracker.enqueue({
+            conversationId: this.getConversationId(params.tabId) || '',
             messageId: params.messageId,
             fileUrl: params.textDocument.uri,
             time: Date.now(),
@@ -304,6 +312,7 @@ export class ChatTelemetryController {
                 'position' in cursorRangeOrPosition ? cursorRangeOrPosition.position : cursorRangeOrPosition.range.end
 
             this.#codeDiffTracker.enqueue({
+                conversationId: this.getConversationId(params.tabId) || '',
                 messageId: params.messageId,
                 fileUrl: documentUri,
                 time: Date.now(),

@@ -11,6 +11,7 @@ import {
     ChatMessageInteractionType,
     CodeCoverageEvent,
     TelemetryEvent,
+    ChatUserModificationEvent,
 } from '../client/token/codewhispererbearertokenclient'
 import { getCompletionType, getSsoConnectionType, SsoConnectionType } from './utils'
 import { ChatInteractionType, InteractWithMessageEvent } from './telemetry/types'
@@ -178,6 +179,26 @@ export class TelemetryService extends CodeWhispererServiceToken {
             chatInteractWithMessageEvent: event,
         })
     }
+
+    public emitChatUserModificationEvent(params: {
+        conversationId: string
+        messageId: string
+        modificationPercentage: number
+        customizationArn?: string
+    }) {
+        const event: ChatUserModificationEvent = {
+            conversationId: params.conversationId,
+            messageId: params.messageId,
+            modificationPercentage: params.modificationPercentage,
+            customizationArn: params.customizationArn,
+        }
+
+        this.invokeSendTelemetryEvent({
+            chatUserModificationEvent: event,
+        })
+    }
+
+    public emitUserModificationEvent(...params: any) {}
 
     public emitCodeCoverageEvent(params: {
         languageId: CodewhispererLanguage
