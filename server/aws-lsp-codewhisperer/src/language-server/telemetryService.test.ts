@@ -294,7 +294,7 @@ describe('TelemetryService', () => {
                     chatInteractWithMessageEvent: {
                         conversationId: conversationId,
                         messageId: metric.cwsprChatMessageId,
-                        customizationArn: 'idc-start-url',
+                        customizationArn: 'arn:123',
                         interactionType: 'INSERT_AT_CURSOR',
                         interactionTarget: metric.cwsprChatInteractionTarget,
                         acceptedCharacterCount: metric.cwsprChatAcceptedCharactersLength,
@@ -384,7 +384,7 @@ describe('TelemetryService', () => {
                     chatInteractWithMessageEvent: {
                         conversationId: 'conv123',
                         messageId: 'message123',
-                        customizationArn: 'idc-start-url',
+                        customizationArn: 'arn:123',
                         interactionType: 'INSERT_AT_CURSOR',
                         interactionTarget: 'CODE',
                         acceptedCharacterCount: 100,
