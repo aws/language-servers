@@ -1,17 +1,20 @@
 import { expect, use } from 'chai'
 import { createStubInstance, restore, stub } from 'sinon'
-import { StubbedInstance } from 'ts-sinon'
+import { StubbedInstance, stubInterface } from 'ts-sinon'
 import { AuthorizationServer } from './authorizationServer'
 import { SSOOIDC } from '@aws-sdk/client-sso-oidc'
 import { SsoClientRegistration } from '../cache'
 import { CancellationToken, SsoSession } from '@aws/language-server-runtimes/protocol'
 import * as ssoUtils from '../utils'
 import { authorizationCodePkceFlow } from './authorizationCodePkceFlow'
+import { Observability } from '../../language-server/utils'
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 use(require('chai-as-promised'))
 
 let authorizationServer: StubbedInstance<AuthorizationServer>
+let observability: StubbedInstance<Observability>
+
 let ssoOidc: SSOOIDC & Disposable
 
 const clientRegistration: SsoClientRegistration = {
@@ -51,6 +54,8 @@ describe('authorizationCodePkceFlow', () => {
         } as unknown as SSOOIDC & Disposable
 
         stub(ssoUtils, 'getSsoOidc').returns(ssoOidc)
+
+        observability = stubInterface<Observability>()
     })
 
     afterEach(() => {
@@ -60,10 +65,12 @@ describe('authorizationCodePkceFlow', () => {
     it('Generates a valid authorize URL.', async () => {
         let authUrl: URL
         const actual = await authorizationCodePkceFlow(
+            'My Client',
             clientRegistration,
             ssoSession,
             url => (authUrl = url),
-            CancellationToken.None
+            CancellationToken.None,
+            observability
         )
         expect(authUrl!.host).to.equal('oidc.us-east-1.amazonaws.com')
         expect(authUrl!.pathname).to.equal('/authorize')
@@ -78,7 +85,14 @@ describe('authorizationCodePkceFlow', () => {
     })
 
     it('Returns a valid SSO token.', async () => {
-        const actual = await authorizationCodePkceFlow(clientRegistration, ssoSession, _ => {}, CancellationToken.None)
+        const actual = await authorizationCodePkceFlow(
+            'My Client',
+            clientRegistration,
+            ssoSession,
+            _ => {},
+            CancellationToken.None,
+            observability
+        )
         expect(actual.accessToken).to.equal('my-access-token')
         expect(actual.clientId).to.equal('my-client-id')
         expect(actual.clientSecret).to.equal('my-client-secret')

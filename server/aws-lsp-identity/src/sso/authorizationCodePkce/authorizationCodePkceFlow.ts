@@ -10,14 +10,17 @@ import { SsoClientRegistration } from '../cache'
 import { createHash, randomBytes } from 'crypto'
 import { normalizeSettingList } from '../../language-server/profiles/profileService'
 import { AuthorizationServer } from './authorizationServer'
+import { Observability } from '../../language-server/utils'
 
 export type ShowUrl = (url: URL) => void
 
 export async function authorizationCodePkceFlow(
+    clientName: string,
     clientRegistration: SsoClientRegistration,
     ssoSession: SsoSession,
     showUrl: ShowUrl,
-    token: CancellationToken
+    token: CancellationToken,
+    observability: Observability
 ): Promise<SSOToken> {
     throwOnInvalidClientRegistration(clientRegistration)
     throwOnInvalidSsoSession(ssoSession)
@@ -25,7 +28,7 @@ export async function authorizationCodePkceFlow(
     const codeVerifier = randomBytes(32).toString('base64url')
     const codeChallenge = createHash('sha256').update(codeVerifier).digest().toString('base64url')
 
-    using authServer = await AuthorizationServer.start()
+    using authServer = await AuthorizationServer.start(clientName, observability, undefined, token)
 
     // Create OIDC API Authorize URL and call showDocument back to destination
     const authorizeUrl = new URL(`https://oidc.${ssoSession.settings.sso_region}.amazonaws.com/authorize`)

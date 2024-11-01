@@ -10,12 +10,15 @@ import { normalizeParsedIniData } from '../../sharedConfig/saveKnownFiles'
 import { StubbedInstance, stubInterface } from 'ts-sinon'
 import { expect, use } from 'chai'
 import { AwsError } from '../../awsError'
+import { Observability } from '../utils'
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 use(require('chai-as-promised'))
 
 let sut: ProfileService
+
 let store: StubbedInstance<ProfileStore>
+let observability: StubbedInstance<Observability>
 let profile1: Profile
 let profile2: Profile
 let profile3: Profile
@@ -73,7 +76,9 @@ describe('ProfileService', async () => {
             save: Promise.resolve(),
         })
 
-        sut = new ProfileService(store)
+        observability = stubInterface<Observability>()
+
+        sut = new ProfileService(store, observability)
     })
 
     it('listProfiles return profiles and sso-sessions', async () => {

@@ -138,6 +138,7 @@
             "name": "Identity Server + VSCode Extension",
             "type": "extensionHost",
             "request": "launch",
+            "preLaunchTask": "watch",
             "runtimeExecutable": "${execPath}",
             "args": ["--extensionDevelopmentPath=${workspaceFolder}/client/vscode", "--disable-extensions"],
             "env": {

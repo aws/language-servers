@@ -1,7 +1,7 @@
 import {
     CodeWhispererStreaming,
-    GenerateAssistantResponseCommandInput,
-    GenerateAssistantResponseCommandOutput,
+    SendMessageCommandInput,
+    SendMessageCommandOutput,
 } from '@amzn/codewhisperer-streaming'
 import { CredentialsProvider } from '@aws/language-server-runtimes/server-interface'
 import * as assert from 'assert'
@@ -9,7 +9,7 @@ import sinon from 'ts-sinon'
 import { ChatSessionService } from './chatSessionService'
 
 describe('Chat Session Service', () => {
-    let generateAssistantResponseStub: sinon.SinonStub<any, any>
+    let sendMessageStub: sinon.SinonStub<any, any>
     let abortStub: sinon.SinonStub<any, any>
     let chatSessionService: ChatSessionService
     const mockCredentialsProvider: CredentialsProvider = {
@@ -20,7 +20,7 @@ describe('Chat Session Service', () => {
 
     const mockConversationId = 'mockConversationId'
 
-    const mockRequestParams: GenerateAssistantResponseCommandInput = {
+    const mockRequestParams: SendMessageCommandInput = {
         conversationState: {
             chatTriggerType: 'MANUAL',
             currentMessage: {
@@ -31,41 +31,35 @@ describe('Chat Session Service', () => {
         },
     }
 
-    const mockRequestResponse: GenerateAssistantResponseCommandOutput = {
-        conversationId: mockConversationId,
+    const mockRequestResponse: SendMessageCommandOutput = {
         $metadata: {},
-        generateAssistantResponseResponse: undefined,
+        sendMessageResponse: undefined,
     }
 
     beforeEach(() => {
         abortStub = sinon.stub(AbortController.prototype, 'abort')
 
-        generateAssistantResponseStub = sinon
-            .stub(CodeWhispererStreaming.prototype, 'generateAssistantResponse')
+        sendMessageStub = sinon
+            .stub(CodeWhispererStreaming.prototype, 'sendMessage')
             .callsFake(() => Promise.resolve(mockRequestResponse))
 
         chatSessionService = new ChatSessionService(mockCredentialsProvider)
     })
 
     afterEach(() => {
-        generateAssistantResponseStub.restore()
+        sendMessageStub.restore()
         abortStub.restore()
     })
 
-    describe('calling GenerateAssistantResponse', () => {
-        it('should call generate assistant response from the streaming client and set the session id ', async () => {
-            await chatSessionService.generateAssistantResponse(mockRequestParams)
+    describe('calling SendMessage', () => {
+        it('should fill in conversationId in the request if exists', async () => {
+            await chatSessionService.sendMessage(mockRequestParams)
 
-            sinon.assert.calledOnceWithExactly(generateAssistantResponseStub, mockRequestParams, sinon.match.object)
-            assert.strictEqual(chatSessionService.sessionId, mockConversationId)
-        })
+            sinon.assert.calledOnceWithExactly(sendMessageStub, mockRequestParams, sinon.match.object)
 
-        it('should fill in conversationId with session id in the request if exists', async () => {
-            await chatSessionService.generateAssistantResponse(mockRequestParams)
+            chatSessionService.conversationId = mockConversationId
 
-            sinon.assert.calledOnceWithExactly(generateAssistantResponseStub, mockRequestParams, sinon.match.object)
-
-            await chatSessionService.generateAssistantResponse(mockRequestParams)
+            await chatSessionService.sendMessage(mockRequestParams)
 
             const requestParamsWithConversationId = {
                 conversationState: {
@@ -74,16 +68,12 @@ describe('Chat Session Service', () => {
                 },
             }
 
-            assert.ok(
-                generateAssistantResponseStub
-                    .getCall(1)
-                    .calledWithExactly(requestParamsWithConversationId, sinon.match.object)
-            )
+            assert.ok(sendMessageStub.getCall(1).calledWithExactly(requestParamsWithConversationId, sinon.match.object))
         })
     })
 
     it('abortRequest() aborts request with AbortController', async () => {
-        await chatSessionService.generateAssistantResponse(mockRequestParams)
+        await chatSessionService.sendMessage(mockRequestParams)
 
         chatSessionService.abortRequest()
 
@@ -91,21 +81,22 @@ describe('Chat Session Service', () => {
     })
 
     it('dispose() calls aborts outgoing requests', async () => {
-        await chatSessionService.generateAssistantResponse(mockRequestParams)
+        await chatSessionService.sendMessage(mockRequestParams)
 
         chatSessionService.dispose()
 
         sinon.assert.calledOnce(abortStub)
     })
 
-    it('clear() reset session id and aborts outgoing request', async () => {
-        await chatSessionService.generateAssistantResponse(mockRequestParams)
+    it('clear() resets conversation id and aborts outgoing request', async () => {
+        await chatSessionService.sendMessage(mockRequestParams)
+        chatSessionService.conversationId = mockConversationId
 
-        assert.strictEqual(chatSessionService.sessionId, mockConversationId)
+        assert.strictEqual(chatSessionService.conversationId, mockConversationId)
 
         chatSessionService.clear()
 
         sinon.assert.calledOnce(abortStub)
-        assert.strictEqual(chatSessionService.sessionId, undefined)
+        assert.strictEqual(chatSessionService.conversationId, undefined)
     })
 })

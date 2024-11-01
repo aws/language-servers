@@ -1,15 +1,11 @@
-import {
-    ChatResponseStream,
-    CodeWhispererStreaming,
-    GenerateAssistantResponseCommandInput,
-} from '@amzn/codewhisperer-streaming'
+import { ChatResponseStream, CodeWhispererStreaming, SendMessageCommandInput } from '@amzn/codewhisperer-streaming'
 import {
     ChatResult,
-    CredentialsProvider,
     LSPErrorCodes,
     ResponseError,
-    Telemetry,
     TextDocument,
+    CredentialsProvider,
+    Telemetry,
 } from '@aws/language-server-runtimes/server-interface'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import * as assert from 'assert'
@@ -29,7 +25,12 @@ describe('ChatController', () => {
     const mockConversationId = 'mock-conversation-id'
     const mockMessageId = 'mock-message-id'
 
-    const mockAssistantResponseList: ChatResponseStream[] = [
+    const mockChatResponseList: ChatResponseStream[] = [
+        {
+            messageMetadataEvent: {
+                conversationId: mockConversationId,
+            },
+        },
         {
             assistantResponseEvent: {
                 content: 'Hello ',
@@ -61,7 +62,7 @@ describe('ChatController', () => {
         onCancellationRequested: () => ({ dispose: () => null }),
     }
 
-    let generateAssistantResponseStub: sinon.SinonStub
+    let sendMessageStub: sinon.SinonStub
     let disposeStub: sinon.SinonStub
     let activeTabSpy: {
         get: sinon.SinonSpy<[], string | undefined>
@@ -77,21 +78,18 @@ describe('ChatController', () => {
     let invokeSendTelemetryEventStub: sinon.SinonStub
 
     beforeEach(() => {
-        generateAssistantResponseStub = sinon
-            .stub(CodeWhispererStreaming.prototype, 'generateAssistantResponse')
-            .callsFake(() => {
-                return new Promise(resolve =>
-                    setTimeout(() => {
-                        resolve({
-                            conversationId: mockConversationId,
-                            $metadata: {
-                                requestId: mockMessageId,
-                            },
-                            generateAssistantResponseResponse: createIterableResponse(mockAssistantResponseList),
-                        })
+        sendMessageStub = sinon.stub(CodeWhispererStreaming.prototype, 'sendMessage').callsFake(() => {
+            return new Promise(resolve =>
+                setTimeout(() => {
+                    resolve({
+                        $metadata: {
+                            requestId: mockMessageId,
+                        },
+                        sendMessageResponse: createIterableResponse(mockChatResponseList),
                     })
-                )
-            })
+                })
+            )
+        })
 
         testFeatures = new TestFeatures()
 
@@ -248,7 +246,7 @@ describe('ChatController', () => {
 
             const chatResult = await chatResultPromise
 
-            sinon.assert.callCount(testFeatures.lsp.sendProgress, mockAssistantResponseList.length)
+            sinon.assert.callCount(testFeatures.lsp.sendProgress, mockChatResponseList.length)
             assert.deepStrictEqual(chatResult, expectedCompleteChatResult)
         })
 
@@ -260,12 +258,12 @@ describe('ChatController', () => {
 
             const chatResult = await chatResultPromise
 
-            sinon.assert.callCount(testFeatures.lsp.sendProgress, mockAssistantResponseList.length)
+            sinon.assert.callCount(testFeatures.lsp.sendProgress, mockChatResponseList.length)
             assert.deepStrictEqual(chatResult, expectedCompleteChatResult)
         })
 
-        it('returns a ResponseError if generateAssistantResponse returns an error', async () => {
-            generateAssistantResponseStub.callsFake(() => {
+        it('returns a ResponseError if sendMessage returns an error', async () => {
+            sendMessageStub.callsFake(() => {
                 throw new Error('Error')
             })
 
@@ -277,8 +275,8 @@ describe('ChatController', () => {
             assert.ok(chatResult instanceof ResponseError)
         })
 
-        it('returns a auth follow up action if generateAssistantResponse returns an auth error', async () => {
-            generateAssistantResponseStub.callsFake(() => {
+        it('returns a auth follow up action if sendMessage returns an auth error', async () => {
+            sendMessageStub.callsFake(() => {
                 throw new Error('Error')
             })
 
@@ -295,18 +293,17 @@ describe('ChatController', () => {
         })
 
         it('returns a ResponseError if response streams return an error event', async () => {
-            generateAssistantResponseStub.callsFake(() => {
+            sendMessageStub.callsFake(() => {
                 return Promise.resolve({
-                    conversationId: mockConversationId,
                     $metadata: {
                         requestId: mockMessageId,
                     },
-                    generateAssistantResponseResponse: createIterableResponse([
+                    sendMessageResponse: createIterableResponse([
                         // ["Hello ", "World"]
-                        ...mockAssistantResponseList.slice(0, 2),
+                        ...mockChatResponseList.slice(1, 3),
                         { error: { message: 'some error' } },
                         // ["!"]
-                        ...mockAssistantResponseList.slice(2),
+                        ...mockChatResponseList.slice(3),
                     ]),
                 })
             })
@@ -320,18 +317,17 @@ describe('ChatController', () => {
         })
 
         it('returns a ResponseError if response streams return an invalid state event', async () => {
-            generateAssistantResponseStub.callsFake(() => {
+            sendMessageStub.callsFake(() => {
                 return Promise.resolve({
-                    conversationId: mockConversationId,
                     $metadata: {
                         requestId: mockMessageId,
                     },
-                    generateAssistantResponseResponse: createIterableResponse([
+                    sendMessageResponse: createIterableResponse([
                         // ["Hello ", "World"]
-                        ...mockAssistantResponseList.slice(0, 2),
+                        ...mockChatResponseList.slice(1, 3),
                         { invalidStateEvent: { message: 'invalid state' } },
                         // ["!"]
-                        ...mockAssistantResponseList.slice(2),
+                        ...mockChatResponseList.slice(3),
                     ]),
                 })
             })
@@ -388,8 +384,7 @@ describe('ChatController', () => {
                     mockCancellationToken
                 )
 
-                const calledRequestInput: GenerateAssistantResponseCommandInput =
-                    generateAssistantResponseStub.firstCall.firstArg
+                const calledRequestInput: SendMessageCommandInput = sendMessageStub.firstCall.firstArg
 
                 assert.strictEqual(
                     calledRequestInput.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext
@@ -415,8 +410,7 @@ describe('ChatController', () => {
                     mockCancellationToken
                 )
 
-                const calledRequestInput: GenerateAssistantResponseCommandInput =
-                    generateAssistantResponseStub.firstCall.firstArg
+                const calledRequestInput: SendMessageCommandInput = sendMessageStub.firstCall.firstArg
 
                 assert.strictEqual(
                     calledRequestInput.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext
@@ -443,8 +437,7 @@ describe('ChatController', () => {
                     mockCancellationToken
                 )
 
-                const calledRequestInput: GenerateAssistantResponseCommandInput =
-                    generateAssistantResponseStub.firstCall.firstArg
+                const calledRequestInput: SendMessageCommandInput = sendMessageStub.firstCall.firstArg
 
                 assert.deepStrictEqual(
                     calledRequestInput.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext

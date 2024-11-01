@@ -14,6 +14,7 @@ import {
 import { SharedConfigInit } from '@smithy/shared-ini-file-loader'
 import { DuckTyper } from '../../duckTyper'
 import { AwsError } from '../../awsError'
+import { ensureSsoAccountAccessScope, Observability } from '../utils'
 
 export interface ProfileData {
     profiles: Profile[]
@@ -69,7 +70,10 @@ export function normalizeSettingList(
 }
 
 export class ProfileService {
-    constructor(private profileStore: ProfileStore) {}
+    constructor(
+        private profileStore: ProfileStore,
+        private readonly observability: Observability
+    ) {}
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     async listProfiles(params: ListProfilesParams, token?: CancellationToken): Promise<ListProfilesResult> {
@@ -139,13 +143,9 @@ export class ProfileService {
 
         // Ensure ssoSession has sso:account:access set explicitly to support token refresh
         if (options.ensureSsoAccountAccessScope) {
-            const ssoAccountAccessScope = 'sso:account:access'
-
-            if (!ssoSessionSettings.sso_registration_scopes) {
-                ssoSessionSettings.sso_registration_scopes = [ssoAccountAccessScope]
-            } else if (!ssoSessionSettings.sso_registration_scopes.includes(ssoAccountAccessScope)) {
-                ssoSessionSettings.sso_registration_scopes.push(ssoAccountAccessScope)
-            }
+            ssoSessionSettings.sso_registration_scopes = ensureSsoAccountAccessScope(
+                ssoSessionSettings.sso_registration_scopes
+            )
         }
 
         await this.profileStore

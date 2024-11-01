@@ -1,7 +1,4 @@
-import {
-    GenerateAssistantResponseCommandInput,
-    GenerateAssistantResponseCommandOutput,
-} from '@amzn/codewhisperer-streaming'
+import { SendMessageCommandInput, SendMessageCommandOutput } from '@amzn/codewhisperer-streaming'
 import {
     ApplyWorkspaceEditParams,
     ErrorCodes,
@@ -32,7 +29,7 @@ import {
     CombinedConversationEvent,
 } from '../telemetry/types'
 import { Features, LspHandlers, Result } from '../types'
-import { ChatEventParser } from './chatEventParser'
+import { ChatEventParser, ChatResultWithMetadata } from './chatEventParser'
 import { createAuthFollowUpResult, getAuthFollowUpType, getDefaultChatResponse } from './utils'
 import { ChatSessionManagementService } from './chatSessionManagementService'
 import { ChatTelemetryController } from './telemetry/chatTelemetryController'
@@ -93,24 +90,24 @@ export class ChatController implements ChatHandlers {
         })
 
         const triggerContext = await this.#getTriggerContext(params, metric)
-        const isNewConversation = !session.sessionId
+        const isNewConversation = !session.conversationId
 
         token.onCancellationRequested(() => {
             this.#log('cancellation requested')
             session.abortRequest()
         })
 
-        let response: GenerateAssistantResponseCommandOutput
-        let requestInput: GenerateAssistantResponseCommandInput
+        let response: SendMessageCommandOutput
+        let requestInput: SendMessageCommandInput
 
-        const conversationIdentifier = session?.sessionId ?? 'New session'
+        const conversationIdentifier = session?.conversationId ?? 'New conversation'
         try {
             this.#log('Request for conversation id:', conversationIdentifier)
             requestInput = this.#triggerContext.getChatParamsFromTrigger(params, triggerContext, this.#customizationArn)
 
             metric.recordStart()
-            response = await session.generateAssistantResponse(requestInput)
-            this.#log('Response for conversationId:', conversationIdentifier, JSON.stringify(response.$metadata))
+            response = await session.sendMessage(requestInput)
+            this.#log('Response for conversation id:', conversationIdentifier, JSON.stringify(response.$metadata))
         } catch (err) {
             if (isAwsError(err) || (isObject(err) && 'statusCode' in err && typeof err.statusCode === 'number')) {
                 metric.setDimension('cwsprChatRepsonseCode', err.statusCode ?? 400)
@@ -132,23 +129,8 @@ export class ChatController implements ChatHandlers {
             )
         }
 
-        if (response.conversationId) {
-            this.#telemetryController.setConversationId(params.tabId, response.conversationId)
-
-            if (isNewConversation) {
-                this.#telemetryController.updateTriggerInfo(params.tabId, {
-                    startTrigger: {
-                        hasUserSnippet: metric.metric.cwsprChatHasCodeSnippet ?? false,
-                        triggerType: triggerContext.triggerType,
-                    },
-                })
-
-                this.#telemetryController.emitStartConversationMetric(params.tabId, metric.metric)
-            }
-        }
-
         try {
-            const result = await this.#processAssistantResponse(
+            const result = await this.#processSendMessageResponse(
                 response,
                 metric.mergeWith({
                     cwsprChatResponseCode: response.$metadata.httpStatusCode,
@@ -156,6 +138,25 @@ export class ChatController implements ChatHandlers {
                 }),
                 params.partialResultToken
             )
+
+            session.conversationId = result.data?.conversationId
+            this.#log('Session conversation id:', session.conversationId || '')
+
+            if (session.conversationId) {
+                this.#telemetryController.setConversationId(params.tabId, session.conversationId)
+
+                if (isNewConversation) {
+                    this.#telemetryController.updateTriggerInfo(params.tabId, {
+                        startTrigger: {
+                            hasUserSnippet: metric.metric.cwsprChatHasCodeSnippet ?? false,
+                            triggerType: triggerContext.triggerType,
+                        },
+                    })
+
+                    this.#telemetryController.emitStartConversationMetric(params.tabId, metric.metric)
+                }
+            }
+
             metric.setDimension('codewhispererCustomizationArn', requestInput.conversationState?.customizationArn)
             this.#telemetryController.emitAddMessageMetric(params.tabId, metric.metric)
 
@@ -164,7 +165,7 @@ export class ChatController implements ChatHandlers {
                     ...triggerContext,
                     messageId: response.$metadata.requestId,
                     followUpActions: new Set(
-                        result.data?.followUp?.options
+                        result.data?.chatResult.followUp?.options
                             ?.map(option => option.prompt ?? '')
                             .filter(prompt => prompt.length > 0)
                     ),
@@ -172,7 +173,7 @@ export class ChatController implements ChatHandlers {
             })
 
             return result.success
-                ? result.data
+                ? result.data.chatResult
                 : new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, result.error)
         } catch (err) {
             this.#log('Error encountered during response streaming:', err instanceof Error ? err.message : 'unknown')
@@ -376,24 +377,24 @@ export class ChatController implements ChatHandlers {
         return triggerContext
     }
 
-    async #processAssistantResponse(
-        response: GenerateAssistantResponseCommandOutput,
+    async #processSendMessageResponse(
+        response: SendMessageCommandOutput,
         metric: Metric<AddMessageEvent>,
         partialResultToken?: string | number
-    ): Promise<Result<ChatResult, string>> {
+    ): Promise<Result<ChatResultWithMetadata, string>> {
         const requestId = response.$metadata.requestId!
         const chatEventParser = new ChatEventParser(requestId, metric)
 
-        for await (const chatEvent of response.generateAssistantResponseResponse!) {
-            const chatResult = chatEventParser.processPartialEvent(chatEvent)
+        for await (const chatEvent of response.sendMessageResponse!) {
+            const result = chatEventParser.processPartialEvent(chatEvent)
 
             // terminate early when there is an error
-            if (!chatResult.success) {
-                return chatResult
+            if (!result.success) {
+                return result
             }
 
             if (!isNullish(partialResultToken)) {
-                this.#features.lsp.sendProgress(chatRequestType, partialResultToken, chatResult.data)
+                this.#features.lsp.sendProgress(chatRequestType, partialResultToken, result.data.chatResult)
             }
         }
 
@@ -405,7 +406,7 @@ export class ChatController implements ChatHandlers {
             cwsprChatResponseLength: chatEventParser.body?.length ?? 0,
         })
 
-        return chatEventParser.getChatResult()
+        return chatEventParser.getResult()
     }
 
     updateConfiguration = async () => {
