@@ -43,12 +43,17 @@ export async function authorizationCodePkceFlow(
     }).toString()
 
     // Wait for user in browser flow
+    observability.logging.log(`Requesting ${clientName} to open SSO OIDC authorization login website.`)
     showUrl(authorizeUrl)
+
+    observability.logging.log('Waiting for authorization code...')
     const authorizationCode = await authServer.authorizationCode()
+    observability.logging.log('Authorization code returned.')
 
     // If success, call CreateToken
     using oidc = getSsoOidc(ssoSession.settings.sso_region)
 
+    observability.logging.log('Calling SSO OIDC to create SSO token.')
     const result = await oidc.createToken({
         clientId: clientRegistration.clientId,
         clientSecret: clientRegistration.clientSecret,
@@ -58,6 +63,7 @@ export async function authorizationCodePkceFlow(
         code: authorizationCode,
     })
 
+    observability.logging.log('Storing and returning created SSO token.')
     return UpdateSsoTokenFromCreateToken(result, clientRegistration, ssoSession)
 }
 

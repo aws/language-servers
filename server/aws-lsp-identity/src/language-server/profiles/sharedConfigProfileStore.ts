@@ -37,6 +37,7 @@ export class SharedConfigProfileStore implements ProfileStore {
 
         const parsedIni = normalizeParsedIniData(
             await parseKnownFiles(this.getSharedConfigInit(init)).catch(reason => {
+                this.observability.logging.log(`Unable to load shared config. ${reason}`)
                 throw AwsError.wrap(reason, AwsErrorCodes.E_CANNOT_READ_SHARED_CONFIG)
             })
         )
@@ -87,6 +88,7 @@ export class SharedConfigProfileStore implements ProfileStore {
             }
         }
 
+        this.observability.logging.log('Loaded shared config.')
         return result
     }
 
@@ -103,6 +105,7 @@ export class SharedConfigProfileStore implements ProfileStore {
         init = this.getSharedConfigInit(init)
         const parsedKnownFiles = normalizeParsedIniData(
             await parseKnownFiles(this.getSharedConfigInit(init)).catch(reason => {
+                this.observability.logging.log(`Unable to load shared config for saving. ${reason}`)
                 throw AwsError.wrap(reason, AwsErrorCodes.E_CANNOT_READ_SHARED_CONFIG)
             })
         )
@@ -128,8 +131,11 @@ export class SharedConfigProfileStore implements ProfileStore {
         }
 
         await saveKnownFiles(parsedKnownFiles, init).catch(reason => {
+            this.observability.logging.log(`Unable to save shared config. ${reason}`)
             throw AwsError.wrap(reason, AwsErrorCodes.E_CANNOT_WRITE_SHARED_CONFIG)
         })
+
+        this.observability.logging.log('Saved shared config.')
     }
 
     private applySectionsToParsedIni<T extends Section>(

@@ -5,6 +5,7 @@ import { StubbedInstance, stubInterface } from 'ts-sinon'
 import { SsoClientRegistration, RefreshingSsoCache } from '../sso'
 import { restore, spy } from 'sinon'
 import { Observability } from './utils'
+import { Logging, Telemetry } from '@aws/language-server-runtimes/server-interface'
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 use(require('chai-as-promised'))
@@ -52,6 +53,8 @@ function stubSsoCache(clientRegistration?: SsoClientRegistration, ssoToken?: SSO
 describe('SsoTokenAutoRefresher', () => {
     beforeEach(() => {
         observability = stubInterface<Observability>()
+        observability.logging = stubInterface<Logging>()
+        observability.telemetry = stubInterface<Telemetry>()
     })
 
     afterEach(() => {

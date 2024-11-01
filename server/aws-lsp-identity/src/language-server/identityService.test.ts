@@ -9,6 +9,7 @@ import { createStubInstance, restore, stub } from 'sinon'
 import { CancellationToken, ProfileKind, SsoTokenSourceKind } from '@aws/language-server-runtimes/protocol'
 import { SSOToken } from '@smithy/shared-ini-file-loader'
 import { Observability } from './utils'
+import { Logging, Telemetry } from '@aws/language-server-runtimes/server-interface'
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 use(require('chai-as-promised'))
@@ -69,6 +70,10 @@ describe('IdentityService', () => {
                 expiresAt: new Date(Date.now() + 10 * 1000).toISOString(),
             } satisfies SSOToken)
         )
+
+        observability = stubInterface<Observability>()
+        observability.logging = stubInterface<Logging>()
+        observability.telemetry = stubInterface<Telemetry>()
 
         sut = new IdentityService(profileStore, ssoCache, autoRefresher, _ => {}, 'My Client', observability)
     })

@@ -126,10 +126,12 @@ export class ProfileService {
 
         // Enforce options
         if (!options.createNonexistentProfile && !profiles.some(p => p.name === profile.name)) {
+            this.observability.logging.log(`Cannot create profile. options: ${JSON.stringify(options)}`)
             throw new AwsError('Cannot create profile.', AwsErrorCodes.E_CANNOT_CREATE_PROFILE)
         }
 
         if (!options.createNonexistentSsoSession && !ssoSessions.some(s => s.name === ssoSession.name)) {
+            this.observability.logging.log(`Cannot create sso-session. options: ${JSON.stringify(options)}`)
             throw new AwsError('Cannot create sso-session.', AwsErrorCodes.E_CANNOT_CREATE_SSO_SESSION)
         }
 
@@ -138,6 +140,7 @@ export class ProfileService {
             this.isSharedSsoSession(ssoSession.name, profiles, profile.name) &&
             this.willUpdateExistingSsoSession(ssoSession, ssoSessions)
         ) {
+            this.observability.logging.log(`Cannot update shared sso-session. options: ${JSON.stringify(options)}`)
             throw new AwsError('Cannot update shared sso-session.', AwsErrorCodes.E_CANNOT_OVERWRITE_SSO_SESSION)
         }
 
@@ -195,6 +198,7 @@ export class ProfileService {
 
     private throwOnInvalid(expr: boolean, message: string, awsErrorCode: string): void {
         if (expr) {
+            this.observability.logging.log(message)
             throw new AwsError(message, awsErrorCode)
         }
     }

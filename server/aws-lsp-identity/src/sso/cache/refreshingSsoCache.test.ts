@@ -7,6 +7,7 @@ import { RefreshingSsoCache } from './refreshingSsoCache'
 import { SSOOIDC } from '@aws-sdk/client-sso-oidc'
 import { SSOToken } from '@smithy/shared-ini-file-loader'
 import { Observability } from '../../language-server/utils'
+import { Logging, Telemetry } from '@aws/language-server-runtimes/server-interface'
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 use(require('chai-as-promised'))
@@ -74,6 +75,8 @@ describe('RefreshingSsoCache', () => {
         stub(ssoUtils, 'getSsoOidc').returns(ssoOidc)
 
         observability = stubInterface<Observability>()
+        observability.logging = stubInterface<Logging>()
+        observability.telemetry = stubInterface<Telemetry>()
     })
 
     afterEach(() => {
