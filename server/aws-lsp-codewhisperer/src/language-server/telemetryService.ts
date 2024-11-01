@@ -168,13 +168,15 @@ export class TelemetryService extends CodeWhispererServiceToken {
         const event: ChatInteractWithMessageEvent = {
             conversationId: options.conversationId,
             messageId: metric.cwsprChatMessageId,
-            customizationArn: this.credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
             interactionType: this.getCWClientTelemetryInteractionType(metric.cwsprChatInteractionType),
             interactionTarget: metric.cwsprChatInteractionTarget,
             acceptedCharacterCount: metric.cwsprChatAcceptedCharactersLength,
             acceptedLineCount: options.acceptedLineCount,
             acceptedSnippetHasReference: false,
             hasProjectLevelContext: false,
+        }
+        if (metric.codewhispererCustomizationArn) {
+            event.customizationArn = metric.codewhispererCustomizationArn
         }
         this.invokeSendTelemetryEvent({
             chatInteractWithMessageEvent: event,
