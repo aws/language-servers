@@ -9,6 +9,11 @@ import { Result } from '../types'
 import { AddMessageEvent } from '../telemetry/types'
 import { Metric } from '../telemetry/metric'
 
+export type ChatResultWithMetadata = {
+    chatResult: ChatResult
+    conversationId?: string
+}
+
 export class ChatEventParser implements ChatResult {
     static readonly FOLLOW_UP_TEXT = 'Suggested follow up questions:'
 
@@ -19,6 +24,8 @@ export class ChatEventParser implements ChatResult {
     relatedContent?: { title?: string; content: SourceLink[] }
     followUp?: { text?: string; options?: ChatItemAction[] }
     codeReference?: ReferenceTrackerInformation[]
+
+    conversationId?: string
 
     #metric: Metric<AddMessageEvent>
     #lastChunkTime: number = 0
@@ -63,8 +70,9 @@ export class ChatEventParser implements ChatResult {
         return this.#totalEvents
     }
 
-    public processPartialEvent(chatEvent: ChatResponseStream): Result<ChatResult, string> {
+    public processPartialEvent(chatEvent: ChatResponseStream): Result<ChatResultWithMetadata, string> {
         const {
+            messageMetadataEvent,
             followupPromptEvent,
             supplementaryWebLinksEvent,
             codeReferenceEvent,
@@ -122,12 +130,14 @@ export class ChatEventParser implements ChatResult {
             this.#totalEvents.codeReferenceEvent += 1
             const references = codeReferenceEvent.references.map(ChatEventParser.mapReferenceData)
             this.codeReference = [...(this.codeReference ?? []), ...references]
+        } else if (messageMetadataEvent?.conversationId) {
+            this.conversationId = messageMetadataEvent?.conversationId
         }
 
-        return this.getChatResult()
+        return this.getResult()
     }
 
-    public getChatResult(): Result<ChatResult, string> {
+    public getResult(): Result<ChatResultWithMetadata, string> {
         const chatResult: ChatResult = {
             messageId: this.messageId,
             body: this.body,
@@ -137,15 +147,20 @@ export class ChatEventParser implements ChatResult {
             codeReference: this.codeReference,
         }
 
+        const chatResultWithMetadata = {
+            chatResult,
+            conversationId: this.conversationId,
+        }
+
         return this.error
             ? {
                   success: false,
-                  data: chatResult,
+                  data: chatResultWithMetadata,
                   error: this.error,
               }
             : {
                   success: true,
-                  data: chatResult,
+                  data: chatResultWithMetadata,
               }
     }
 }
