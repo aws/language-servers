@@ -1,7 +1,7 @@
 import { CredentialsProvider, InitializeParams } from '@aws/language-server-runtimes/server-interface'
 import * as assert from 'assert'
 import * as sinon from 'sinon'
-import { getBearerTokenFromProvider, getSsoConnectionType } from './utils'
+import { getBearerTokenFromProvider, getSsoConnectionType, getUnmodifiedAcceptedTokens } from './utils'
 import { expect } from 'chai'
 import { BUILDER_ID_START_URL } from './constants'
 
@@ -123,5 +123,17 @@ describe('getSsoConnectionType', () => {
         }
         const ssoConnectionType = getSsoConnectionType(mockCredentialsProvider)
         expect(ssoConnectionType).to.equal('none')
+    })
+})
+
+describe('getUnmodifiedAcceptedTokens', function () {
+    it('Should return correct unmodified accepted tokens count', function () {
+        assert.strictEqual(getUnmodifiedAcceptedTokens('foo', 'fou'), 2)
+        assert.strictEqual(getUnmodifiedAcceptedTokens('foo', 'f11111oo'), 3)
+        assert.strictEqual(getUnmodifiedAcceptedTokens('foo', 'fo'), 2)
+        assert.strictEqual(getUnmodifiedAcceptedTokens('helloworld', 'HelloWorld'), 8)
+        assert.strictEqual(getUnmodifiedAcceptedTokens('helloworld', 'World'), 4)
+        assert.strictEqual(getUnmodifiedAcceptedTokens('CodeWhisperer', 'CODE'), 1)
+        assert.strictEqual(getUnmodifiedAcceptedTokens('CodeWhisperer', 'CodeWhispererGood'), 13)
     })
 })
