@@ -6,6 +6,7 @@ import {
     TextDocument,
     CredentialsProvider,
     Telemetry,
+    Logging,
 } from '@aws/language-server-runtimes/server-interface'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import * as assert from 'assert'
@@ -62,6 +63,12 @@ describe('ChatController', () => {
         onCancellationRequested: () => ({ dispose: () => null }),
     }
 
+    const logging: Logging = {
+        log: (message: string) => {
+            console.log(message)
+        },
+    }
+
     let sendMessageStub: sinon.SinonStub
     let disposeStub: sinon.SinonStub
     let activeTabSpy: {
@@ -113,7 +120,7 @@ describe('ChatController', () => {
             }),
         }
 
-        telemetryService = new TelemetryService(mockCredentialsProvider, 'bearer', {} as Telemetry, {})
+        telemetryService = new TelemetryService(mockCredentialsProvider, 'bearer', {} as Telemetry, logging, {})
         invokeSendTelemetryEventStub = sinon.stub(telemetryService, 'sendTelemetryEvent' as any)
         chatController = new ChatController(chatSessionManagementService, testFeatures, telemetryService)
     })

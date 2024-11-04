@@ -1,5 +1,10 @@
 import { CodeWhispererServiceToken } from './codeWhispererService'
-import { CredentialsProvider, CredentialsType, Telemetry } from '@aws/language-server-runtimes/server-interface'
+import {
+    CredentialsProvider,
+    CredentialsType,
+    Logging,
+    Telemetry,
+} from '@aws/language-server-runtimes/server-interface'
 import { CodeWhispererSession } from './session/sessionManager'
 import {
     SuggestionState,
@@ -14,7 +19,7 @@ import {
     ChatAddMessageEvent,
     UserIntent,
 } from '../client/token/codewhispererbearertokenclient'
-import { getCompletionType, getSsoConnectionType, SsoConnectionType } from './utils'
+import { getCompletionType, getSsoConnectionType, isAwsError } from './utils'
 import { ChatInteractionType, InteractWithMessageEvent } from './telemetry/types'
 import { CodewhispererLanguage, getRuntimeLanguage } from './languageDetection'
 
@@ -25,6 +30,7 @@ export class TelemetryService extends CodeWhispererServiceToken {
     private telemetry: Telemetry
     private credentialsType: CredentialsType
     private credentialsProvider: CredentialsProvider
+    private logging: Logging
 
     private readonly cwInteractionTypeMap: Record<ChatInteractionType, ChatMessageInteractionType> = {
         [ChatInteractionType.InsertAtCursor]: 'INSERT_AT_CURSOR',
@@ -42,12 +48,14 @@ export class TelemetryService extends CodeWhispererServiceToken {
         credentialsProvider: CredentialsProvider,
         credentialsType: CredentialsType,
         telemetry: Telemetry,
+        logging: Logging,
         additionalAwsConfig: AWS.ConfigurationOptions = {}
     ) {
         super(credentialsProvider, additionalAwsConfig)
         this.credentialsProvider = credentialsProvider
         this.credentialsType = credentialsType
         this.telemetry = telemetry
+        this.logging = logging
     }
 
     public updateUserContext(userContext: UserContext | undefined): void {
@@ -90,6 +98,17 @@ export class TelemetryService extends CodeWhispererServiceToken {
         )
     }
 
+    private logSendTelemetryEventFailure(error: any) {
+        let requestId: string | undefined
+        if (isAwsError(error)) {
+            requestId = error.requestId
+        }
+
+        this.logging.log(
+            `Failed to sendTelemetryEvent to CodeWhisperer, requestId: ${requestId ?? ''}, message: ${error.message}`
+        )
+    }
+
     private invokeSendTelemetryEvent(event: TelemetryEvent) {
         if (!this.shouldSendTelemetry()) {
             return
@@ -104,7 +123,7 @@ export class TelemetryService extends CodeWhispererServiceToken {
             request.optOutPreference = this.optOutPreference
         }
 
-        this.sendTelemetryEvent(request)
+        this.sendTelemetryEvent(request).then().catch(this.logSendTelemetryEventFailure)
     }
 
     private getCWClientTelemetryInteractionType(interactionType: ChatInteractionType): ChatMessageInteractionType {
