@@ -449,7 +449,7 @@ describe('TelemetryService', () => {
                 startUrl: 'idc-start-url',
             },
         })
-        telemetryService = new TelemetryService(mockCredentialsProvider, 'bearer', {} as Telemetry, {})
+        telemetryService = new TelemetryService(mockCredentialsProvider, 'bearer', {} as Telemetry, logging, {})
         const invokeSendTelemetryEventStub: sinon.SinonStub = sinon.stub(telemetryService, 'sendTelemetryEvent' as any)
         telemetryService.updateOptOutPreference('OPTIN')
 
@@ -490,7 +490,7 @@ describe('TelemetryService', () => {
                 startUrl: 'idc-start-url',
             },
         })
-        telemetryService = new TelemetryService(mockCredentialsProvider, 'bearer', {} as Telemetry, {})
+        telemetryService = new TelemetryService(mockCredentialsProvider, 'bearer', {} as Telemetry, logging, {})
         const invokeSendTelemetryEventStub: sinon.SinonStub = sinon.stub(telemetryService, 'sendTelemetryEvent' as any)
         telemetryService.updateOptOutPreference('OPTIN')
 
