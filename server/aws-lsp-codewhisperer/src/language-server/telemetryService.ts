@@ -190,15 +190,8 @@ export class TelemetryService extends CodeWhispererServiceToken {
         modificationPercentage: number
         customizationArn?: string
     }) {
-        const event: ChatUserModificationEvent = {
-            conversationId: params.conversationId,
-            messageId: params.messageId,
-            modificationPercentage: params.modificationPercentage,
-            customizationArn: params.customizationArn,
-        }
-
         this.invokeSendTelemetryEvent({
-            chatUserModificationEvent: event,
+            chatUserModificationEvent: params,
         })
     }
 

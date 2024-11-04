@@ -114,10 +114,12 @@ describe('TelemetryController', () => {
         const mockCursorPosition = { line: 0, character: 0 }
         const mockMessageId = 'mockMessageId'
         const mockTabId = 'mockTabId'
+        const mockConversationId = 'mockConversationId'
         const mockCustomizationArn = 'mockCustomizationArn'
 
         beforeEach(() => {
             sinon.stub(telemetryController, 'getCustomizationId').returns(mockCustomizationArn)
+            telemetryController.setConversationId(mockTabId, mockConversationId)
         })
 
         afterEach(() => {
@@ -138,6 +140,7 @@ describe('TelemetryController', () => {
 
             const enqueuedEntry = telemetryController.codeDiffTracker.eventQueue[0]
             assert.deepStrictEqual(enqueuedEntry, {
+                conversationId: mockConversationId,
                 messageId: mockMessageId,
                 fileUrl: mockTextDocumentUri,
                 time: enqueuedEntry.time,
@@ -162,6 +165,7 @@ describe('TelemetryController', () => {
 
             const enqueuedEntry = telemetryController.codeDiffTracker.eventQueue[0]
             assert.deepStrictEqual(enqueuedEntry, {
+                conversationId: mockConversationId,
                 messageId: mockMessageId,
                 fileUrl: mockTextDocumentUri,
                 time: enqueuedEntry.time,
@@ -187,6 +191,7 @@ describe('TelemetryController', () => {
 
             const enqueuedEntry = telemetryController.codeDiffTracker.eventQueue[0]
             assert.deepStrictEqual(enqueuedEntry, {
+                conversationId: mockConversationId,
                 messageId: mockMessageId,
                 fileUrl: mockTextDocumentUri,
                 time: enqueuedEntry.time,

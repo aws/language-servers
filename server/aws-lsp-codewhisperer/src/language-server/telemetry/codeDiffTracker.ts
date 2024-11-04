@@ -133,7 +133,6 @@ export class CodeDiffTracker<T extends AcceptedSuggestionEntry = AcceptedSuggest
                     suggestion.originalString,
                     currString
                 )
-
                 this.#recordMetric(suggestion, percentage, unmodifiedAcceptedCharacterCount)
             }
         } catch (e) {

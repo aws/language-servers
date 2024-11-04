@@ -340,19 +340,6 @@ export const CodewhispererServerFactory =
             workspace,
             logging,
             (entry: AcceptedInlineSuggestionEntry, percentage, unmodifiedAcceptedCharacterCount) => {
-                logging.log(
-                    `[DEBUG LOGGING] emitUserModificationEvent with ${JSON.stringify({
-                        sessionId: entry.sessionId,
-                        requestId: entry.requestId,
-                        languageId: entry.languageId,
-                        customizationArn: entry.customizationArn,
-                        timestamp: new Date(),
-                        acceptedCharacterCount: entry.originalString.length,
-                        modificationPercentage: percentage,
-                        unmodifiedAcceptedCharacterCount: unmodifiedAcceptedCharacterCount,
-                    })}`
-                )
-
                 telemetryService.emitUserModificationEvent({
                     sessionId: entry.sessionId,
                     requestId: entry.requestId,
