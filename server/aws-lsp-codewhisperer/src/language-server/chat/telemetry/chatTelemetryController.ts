@@ -19,6 +19,7 @@ import { UserIntent } from '@amzn/codewhisperer-streaming'
 import { TriggerContext } from '../contexts/triggerContext'
 import { AcceptedSuggestionEntry, CodeDiffTracker } from '../../telemetry/codeDiffTracker'
 import { TelemetryService } from '../../telemetryService'
+import { CodewhispererLanguage } from '../../languageDetection'
 
 export const CONVERSATION_ID_METRIC_KEY = 'cwsprChatConversationId'
 
@@ -165,6 +166,22 @@ export class ChatTelemetryController {
     }
 
     public emitAddMessageMetric(tabId: string, metric: Partial<CombinedConversationEvent>) {
+        const conversationId = this.getConversationId(tabId)
+        this.#telemetryService.emitChatAddMessage({
+            conversationId: conversationId,
+            messageId: metric.cwsprChatMessageId,
+            customizationArn: metric.codewhispererCustomizationArn,
+            userIntent: metric.cwsprChatUserIntent,
+            hasCodeSnippet: metric.cwsprChatHasCodeSnippet,
+            programmingLanguage: metric.cwsprChatProgrammingLanguage as CodewhispererLanguage,
+            activeEditorTotalCharacters: metric.cwsprChatActiveEditorTotalCharacters,
+            timeToFirstChunkMilliseconds: metric.cwsprTimeToFirstChunk,
+            timeBetweenChunks: metric.cwsprChatTimeBetweenChunks,
+            fullResponselatency: metric.cwsprChatFullResponseLatency,
+            requestLength: metric.cwsprChatRequestLength,
+            responseLength: metric.cwsprChatResponseLength,
+            numberOfCodeBlocks: metric.cwsprChatResponseCodeSnippetCount,
+        })
         this.emitConversationMetric(
             {
                 name: ChatTelemetryEventName.AddMessage,
