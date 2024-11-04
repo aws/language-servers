@@ -450,7 +450,9 @@ describe('TelemetryService', () => {
             },
         })
         telemetryService = new TelemetryService(mockCredentialsProvider, 'bearer', {} as Telemetry, logging, {})
-        const invokeSendTelemetryEventStub: sinon.SinonStub = sinon.stub(telemetryService, 'sendTelemetryEvent' as any)
+        const invokeSendTelemetryEventStub: sinon.SinonStub = sinon
+            .stub(telemetryService, 'sendTelemetryEvent' as any)
+            .returns(Promise.resolve())
         telemetryService.updateOptOutPreference('OPTIN')
 
         telemetryService.emitUserModificationEvent({
@@ -491,7 +493,9 @@ describe('TelemetryService', () => {
             },
         })
         telemetryService = new TelemetryService(mockCredentialsProvider, 'bearer', {} as Telemetry, logging, {})
-        const invokeSendTelemetryEventStub: sinon.SinonStub = sinon.stub(telemetryService, 'sendTelemetryEvent' as any)
+        const invokeSendTelemetryEventStub: sinon.SinonStub = sinon
+            .stub(telemetryService, 'sendTelemetryEvent' as any)
+            .returns(Promise.resolve())
         telemetryService.updateOptOutPreference('OPTIN')
 
         telemetryService.emitChatUserModificationEvent({
