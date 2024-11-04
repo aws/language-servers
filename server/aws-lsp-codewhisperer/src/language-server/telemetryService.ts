@@ -198,7 +198,32 @@ export class TelemetryService extends CodeWhispererServiceToken {
         })
     }
 
-    public emitUserModificationEvent(...params: any) {}
+    public emitUserModificationEvent(params: {
+        sessionId: string
+        requestId: string
+        languageId: CodewhispererLanguage
+        customizationArn?: string
+        timestamp: Date
+        modificationPercentage: number
+        acceptedCharacterCount: number
+        unmodifiedAcceptedCharacterCount: number
+    }) {
+        this.invokeSendTelemetryEvent({
+            userModificationEvent: {
+                sessionId: params.sessionId,
+                requestId: params.requestId,
+                programmingLanguage: {
+                    languageName: getRuntimeLanguage(params.languageId),
+                },
+                // deprecated % value and should not be used by service side
+                modificationPercentage: params.modificationPercentage,
+                customizationArn: params.customizationArn,
+                timestamp: params.timestamp,
+                acceptedCharacterCount: params.acceptedCharacterCount,
+                unmodifiedAcceptedCharacterCount: params.unmodifiedAcceptedCharacterCount,
+            },
+        })
+    }
 
     public emitCodeCoverageEvent(params: {
         languageId: CodewhispererLanguage

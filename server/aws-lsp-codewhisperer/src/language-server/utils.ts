@@ -1,4 +1,4 @@
-import { BearerCredentials, CredentialsProvider } from '@aws/language-server-runtimes/server-interface'
+import { BearerCredentials, CredentialsProvider, Position } from '@aws/language-server-runtimes/server-interface'
 import { AWSError } from 'aws-sdk'
 import { distance } from 'fastest-levenshtein'
 import { Suggestion } from './codeWhispererService'
@@ -101,4 +101,26 @@ export function getSsoConnectionType(credentialsProvider: CredentialsProvider): 
 // ex. (modified < original): originalRecom: CodeWhisperer -> modifiedRecom: CODE, distance = 12, delta = 13 - 12 = 1
 export function getUnmodifiedAcceptedTokens(origin: string, after: string) {
     return Math.max(origin.length, after.length) - distance(origin, after)
+}
+
+export function getEndPositionForAcceptedSuggestion(content: string, startPosition: Position): Position {
+    const insertedLines = content.split('\n')
+    const numberOfInsertedLines = insertedLines.length
+
+    // Calculate the new cursor position
+    let endPosition
+    if (numberOfInsertedLines === 1) {
+        // If single line, add the length of the inserted code to the character
+        endPosition = {
+            line: startPosition.line,
+            character: startPosition.character + content.length,
+        }
+    } else {
+        // If multiple lines, set the cursor to the end of the last inserted line
+        endPosition = {
+            line: startPosition.line + numberOfInsertedLines - 1,
+            character: insertedLines[numberOfInsertedLines - 1].length,
+        }
+    }
+    return endPosition
 }

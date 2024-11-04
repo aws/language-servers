@@ -19,6 +19,7 @@ import { UserIntent } from '@amzn/codewhisperer-streaming'
 import { TriggerContext } from '../contexts/triggerContext'
 import { AcceptedSuggestionEntry, CodeDiffTracker } from '../../telemetry/codeDiffTracker'
 import { TelemetryService } from '../../telemetryService'
+import { getEndPositionForAcceptedSuggestion } from '../../utils'
 
 export const CONVERSATION_ID_METRIC_KEY = 'cwsprChatConversationId'
 
@@ -266,25 +267,8 @@ export class ChatTelemetryController {
             return
         }
 
-        const startPosition = params.cursorPosition
-        const insertedLines = params.code.split('\n')
-        const numberOfInsertedLines = insertedLines.length
-
         // Calculate the new cursor position
-        let endPosition
-        if (numberOfInsertedLines === 1) {
-            // If single line, add the length of the inserted code to the character
-            endPosition = {
-                line: startPosition.line,
-                character: startPosition.character + params.code.length,
-            }
-        } else {
-            // If multiple lines, set the cursor to the end of the last inserted line
-            endPosition = {
-                line: startPosition.line + numberOfInsertedLines - 1,
-                character: insertedLines[numberOfInsertedLines - 1].length,
-            }
-        }
+        const endPosition = getEndPositionForAcceptedSuggestion(params.code, params.cursorPosition)
 
         this.#codeDiffTracker.enqueue({
             conversationId: this.getConversationId(params.tabId) || '',
@@ -293,7 +277,7 @@ export class ChatTelemetryController {
             time: Date.now(),
             originalString: params.code,
             customizationArn: this.getCustomizationId(params.tabId, params.messageId),
-            startPosition,
+            startPosition: params.cursorPosition,
             endPosition,
         })
     }
