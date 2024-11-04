@@ -1,9 +1,18 @@
 import { commands, window } from 'vscode'
 import {
+    AwsBuilderIdSsoTokenSource,
     AwsResponseError,
+    GetSsoTokenParams,
+    getSsoTokenRequestType,
+    GetSsoTokenResult,
+    InvalidateSsoTokenParams,
+    invalidateSsoTokenRequestType,
+    ListProfilesParams,
+    listProfilesRequestType,
     ProfileKind,
     SsoTokenChangedParams,
     ssoTokenChangedRequestType,
+    SsoTokenSourceKind,
     UpdateProfileParams,
     updateProfileRequestType,
 } from '@aws/language-server-runtimes/protocol'
@@ -53,39 +62,41 @@ async function execTestCommand(client: LanguageClient): Promise<void> {
         window.showErrorMessage(`${are.message} [${are.data?.awsErrorCode}]`)
     }
 
-    // try {
-    //     const result = await client.sendRequest(listProfilesRequestType.method, {} satisfies ListProfilesParams)
-    //     window.showInformationMessage(`ListProfiles: ${JSON.stringify(result)}`)
-    // } catch (e) {
-    //     const are = e as AwsResponseError
-    //     window.showErrorMessage(`${are.message} [${are.data?.awsErrorCode}]`)
-    // }
+    try {
+        const result = await client.sendRequest(listProfilesRequestType.method, {} satisfies ListProfilesParams)
+        window.showInformationMessage(`ListProfiles: ${JSON.stringify(result)}`)
+    } catch (e) {
+        const are = e as AwsResponseError
+        window.showErrorMessage(`${are.message} [${are.data?.awsErrorCode}]`)
+    }
 
-    // try {
-    //     const result = await client.sendRequest(getSsoTokenRequestType.method, {
-    //         clientName: 'Flare test client',
-    //         // source: {
-    //         //     kind: SsoTokenSourceKind.AwsBuilderId,
-    //         //     ssoRegistrationScopes: ['sso:account:access'],
-    //         // } satisfies AwsBuilderIdSsoTokenSource,
-    //         source: {
-    //             kind: SsoTokenSourceKind.IamIdentityCenter,
-    //             profileName: 'my-idc-q',
-    //         } satisfies IamIdentityCenterSsoTokenSource,
-    //     } satisfies GetSsoTokenParams)
-    //     window.showInformationMessage(`GetSsoToken: ${JSON.stringify(result)}`)
-    // } catch (e) {
-    //     const are = e as AwsResponseError
-    //     window.showErrorMessage(`${are.message} [${are.data?.awsErrorCode}]`)
-    // }
+    let ssoToken
+    try {
+        const result: GetSsoTokenResult = await client.sendRequest(getSsoTokenRequestType.method, {
+            clientName: 'Flare test client',
+            source: {
+                kind: SsoTokenSourceKind.AwsBuilderId,
+                ssoRegistrationScopes: ['codewhisperer:analysis', 'codewhisperer:completions'],
+            } satisfies AwsBuilderIdSsoTokenSource,
+            // source: {
+            //     kind: SsoTokenSourceKind.IamIdentityCenter,
+            //     profileName: 'my-idc-q',
+            // } satisfies IamIdentityCenterSsoTokenSource,
+        } satisfies GetSsoTokenParams)
+        ssoToken = result.ssoToken
+        window.showInformationMessage(`GetSsoToken: ${JSON.stringify(result)}`)
+    } catch (e) {
+        const are = e as AwsResponseError
+        window.showErrorMessage(`${are.message} [${are.data?.awsErrorCode}]`)
+    }
 
-    // try {
-    //     await client.sendRequest(invalidateSsoTokenRequestType.method, {
-    //         ssoTokenId: 'my-idc-q-NOPE',
-    //     } satisfies InvalidateSsoTokenParams)
-    //     window.showInformationMessage(`InvalidateSsoToken: successful`)
-    // } catch (e) {
-    //     const are = e as AwsResponseError
-    //     window.showErrorMessage(`${are.message} [${are.data?.awsErrorCode}]`)
-    // }
+    try {
+        await client.sendRequest(invalidateSsoTokenRequestType.method, {
+            ssoTokenId: ssoToken?.id || 'my-idc-q',
+        } satisfies InvalidateSsoTokenParams)
+        window.showInformationMessage(`InvalidateSsoToken: successful`)
+    } catch (e) {
+        const are = e as AwsResponseError
+        window.showErrorMessage(`${are.message} [${are.data?.awsErrorCode}]`)
+    }
 }

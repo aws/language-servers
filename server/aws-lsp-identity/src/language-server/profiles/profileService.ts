@@ -14,6 +14,7 @@ import {
 import { SharedConfigInit } from '@smithy/shared-ini-file-loader'
 import { DuckTyper } from '../../duckTyper'
 import { AwsError } from '../../awsError'
+import { ensureSsoAccountAccessScope, Observability } from '../utils'
 
 export interface ProfileData {
     profiles: Profile[]
@@ -69,7 +70,10 @@ export function normalizeSettingList(
 }
 
 export class ProfileService {
-    constructor(private profileStore: ProfileStore) {}
+    constructor(
+        private profileStore: ProfileStore,
+        private readonly observability: Observability
+    ) {}
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     async listProfiles(params: ListProfilesParams, token?: CancellationToken): Promise<ListProfilesResult> {
@@ -122,10 +126,12 @@ export class ProfileService {
 
         // Enforce options
         if (!options.createNonexistentProfile && !profiles.some(p => p.name === profile.name)) {
+            this.observability.logging.log(`Cannot create profile. options: ${JSON.stringify(options)}`)
             throw new AwsError('Cannot create profile.', AwsErrorCodes.E_CANNOT_CREATE_PROFILE)
         }
 
         if (!options.createNonexistentSsoSession && !ssoSessions.some(s => s.name === ssoSession.name)) {
+            this.observability.logging.log(`Cannot create sso-session. options: ${JSON.stringify(options)}`)
             throw new AwsError('Cannot create sso-session.', AwsErrorCodes.E_CANNOT_CREATE_SSO_SESSION)
         }
 
@@ -134,18 +140,15 @@ export class ProfileService {
             this.isSharedSsoSession(ssoSession.name, profiles, profile.name) &&
             this.willUpdateExistingSsoSession(ssoSession, ssoSessions)
         ) {
+            this.observability.logging.log(`Cannot update shared sso-session. options: ${JSON.stringify(options)}`)
             throw new AwsError('Cannot update shared sso-session.', AwsErrorCodes.E_CANNOT_OVERWRITE_SSO_SESSION)
         }
 
         // Ensure ssoSession has sso:account:access set explicitly to support token refresh
         if (options.ensureSsoAccountAccessScope) {
-            const ssoAccountAccessScope = 'sso:account:access'
-
-            if (!ssoSessionSettings.sso_registration_scopes) {
-                ssoSessionSettings.sso_registration_scopes = [ssoAccountAccessScope]
-            } else if (!ssoSessionSettings.sso_registration_scopes.includes(ssoAccountAccessScope)) {
-                ssoSessionSettings.sso_registration_scopes.push(ssoAccountAccessScope)
-            }
+            ssoSessionSettings.sso_registration_scopes = ensureSsoAccountAccessScope(
+                ssoSessionSettings.sso_registration_scopes
+            )
         }
 
         await this.profileStore
@@ -195,6 +198,7 @@ export class ProfileService {
 
     private throwOnInvalid(expr: boolean, message: string, awsErrorCode: string): void {
         if (expr) {
+            this.observability.logging.log(message)
             throw new AwsError(message, awsErrorCode)
         }
     }

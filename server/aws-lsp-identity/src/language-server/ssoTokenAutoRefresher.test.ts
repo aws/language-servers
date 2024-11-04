@@ -1,12 +1,16 @@
 import { expect, use } from 'chai'
 import { SsoTokenAutoRefresher } from './ssoTokenAutoRefresher'
 import { SSOToken } from '@smithy/shared-ini-file-loader'
-import { stubInterface } from 'ts-sinon'
+import { StubbedInstance, stubInterface } from 'ts-sinon'
 import { SsoClientRegistration, RefreshingSsoCache } from '../sso'
 import { restore, spy } from 'sinon'
+import { Observability } from './utils'
+import { Logging, Telemetry } from '@aws/language-server-runtimes/server-interface'
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 use(require('chai-as-promised'))
+
+let observability: StubbedInstance<Observability>
 
 const clientName = 'my-test-client'
 const now = Date.now()
@@ -47,13 +51,19 @@ function stubSsoCache(clientRegistration?: SsoClientRegistration, ssoToken?: SSO
 }
 
 describe('SsoTokenAutoRefresher', () => {
+    beforeEach(() => {
+        observability = stubInterface<Observability>()
+        observability.logging = stubInterface<Logging>()
+        observability.telemetry = stubInterface<Telemetry>()
+    })
+
     afterEach(() => {
         restore()
     })
 
     it('watch does nothing if SSO token is not loaded from cache.', async () => {
         const ssoCache = stubSsoCache(clientRegistration)
-        using sut = new SsoTokenAutoRefresher(ssoCache)
+        using sut = new SsoTokenAutoRefresher(ssoCache, observability)
 
         expect(Object.keys(sut['timeouts']).length).to.equal(0)
 
@@ -64,7 +74,7 @@ describe('SsoTokenAutoRefresher', () => {
 
     it('watch does nothing if SSO token is expired.', async () => {
         const ssoCache = stubSsoCache(clientRegistration, createSsoToken(-10000))
-        using sut = new SsoTokenAutoRefresher(ssoCache)
+        using sut = new SsoTokenAutoRefresher(ssoCache, observability)
 
         expect(Object.keys(sut['timeouts']).length).to.equal(0)
 
@@ -78,7 +88,7 @@ describe('SsoTokenAutoRefresher', () => {
 
         // Before the refresh window
         const ssoCache = stubSsoCache(clientRegistration, createSsoToken(60 * 60 * 1000))
-        using sut = new SsoTokenAutoRefresher(ssoCache)
+        using sut = new SsoTokenAutoRefresher(ssoCache, observability)
 
         expect(Object.keys(sut['timeouts']).length).to.equal(0)
 
@@ -97,7 +107,7 @@ describe('SsoTokenAutoRefresher', () => {
 
         // In the refresh window
         const ssoCache = stubSsoCache(clientRegistration, createSsoToken(4 * 60 * 1000))
-        using sut = new SsoTokenAutoRefresher(ssoCache)
+        using sut = new SsoTokenAutoRefresher(ssoCache, observability)
 
         expect(Object.keys(sut['timeouts']).length).to.equal(0)
 
@@ -113,7 +123,7 @@ describe('SsoTokenAutoRefresher', () => {
 
     it('unwatch does nothing if ssoSessionName is not watched.', () => {
         const ssoCache = stubSsoCache(clientRegistration)
-        using sut = new SsoTokenAutoRefresher(ssoCache)
+        using sut = new SsoTokenAutoRefresher(ssoCache, observability)
 
         expect(Object.keys(sut['timeouts']).length).to.equal(0)
 

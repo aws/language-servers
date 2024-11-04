@@ -10,14 +10,17 @@ import { SsoClientRegistration } from '../cache'
 import { createHash, randomBytes } from 'crypto'
 import { normalizeSettingList } from '../../language-server/profiles/profileService'
 import { AuthorizationServer } from './authorizationServer'
+import { Observability } from '../../language-server/utils'
 
 export type ShowUrl = (url: URL) => void
 
 export async function authorizationCodePkceFlow(
+    clientName: string,
     clientRegistration: SsoClientRegistration,
     ssoSession: SsoSession,
     showUrl: ShowUrl,
-    token: CancellationToken
+    token: CancellationToken,
+    observability: Observability
 ): Promise<SSOToken> {
     throwOnInvalidClientRegistration(clientRegistration)
     throwOnInvalidSsoSession(ssoSession)
@@ -25,7 +28,7 @@ export async function authorizationCodePkceFlow(
     const codeVerifier = randomBytes(32).toString('base64url')
     const codeChallenge = createHash('sha256').update(codeVerifier).digest().toString('base64url')
 
-    using authServer = await AuthorizationServer.start()
+    using authServer = await AuthorizationServer.start(clientName, observability, undefined, token)
 
     // Create OIDC API Authorize URL and call showDocument back to destination
     const authorizeUrl = new URL(`https://oidc.${ssoSession.settings.sso_region}.amazonaws.com/authorize`)
@@ -40,12 +43,17 @@ export async function authorizationCodePkceFlow(
     }).toString()
 
     // Wait for user in browser flow
+    observability.logging.log(`Requesting ${clientName} to open SSO OIDC authorization login website.`)
     showUrl(authorizeUrl)
+
+    observability.logging.log('Waiting for authorization code...')
     const authorizationCode = await authServer.authorizationCode()
+    observability.logging.log('Authorization code returned.')
 
     // If success, call CreateToken
     using oidc = getSsoOidc(ssoSession.settings.sso_region)
 
+    observability.logging.log('Calling SSO OIDC to create SSO token.')
     const result = await oidc.createToken({
         clientId: clientRegistration.clientId,
         clientSecret: clientRegistration.clientSecret,
@@ -55,6 +63,7 @@ export async function authorizationCodePkceFlow(
         code: authorizationCode,
     })
 
+    observability.logging.log('Storing and returning created SSO token.')
     return UpdateSsoTokenFromCreateToken(result, clientRegistration, ssoSession)
 }
 

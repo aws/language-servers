@@ -4,14 +4,18 @@ import { expect, use } from 'chai'
 import { DirectoryItems } from 'mock-fs/lib/filesystem'
 import { getSSOTokenFilepath, SSOToken } from '@smithy/shared-ini-file-loader'
 import { SsoClientRegistration } from './ssoCache'
-import { SsoSession } from '@aws/language-server-runtimes/server-interface'
+import { Logging, SsoSession, Telemetry } from '@aws/language-server-runtimes/server-interface'
 import { access } from 'fs/promises'
 import * as fs from 'fs'
+import { Observability } from '../../language-server/utils'
+import { StubbedInstance, stubInterface } from 'ts-sinon'
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 use(require('chai-as-promised'))
 
-const sut = new FileSystemSsoCache()
+let sut: FileSystemSsoCache
+
+let observability: StubbedInstance<Observability>
 
 const ssoRegion = 'us-east-1'
 const ssoStartUrl = 'https://nowhere'
@@ -82,6 +86,14 @@ function expectFileExists(filename: string): Chai.Assertion {
 }
 
 describe('FileSystemSsoCache', () => {
+    beforeEach(() => {
+        observability = stubInterface<Observability>()
+        observability.logging = stubInterface<Logging>()
+        observability.telemetry = stubInterface<Telemetry>()
+
+        sut = new FileSystemSsoCache(observability)
+    })
+
     afterEach(() => {
         mock.restore()
     })

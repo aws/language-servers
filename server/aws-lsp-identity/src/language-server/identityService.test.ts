@@ -8,6 +8,8 @@ import { SsoTokenAutoRefresher } from './ssoTokenAutoRefresher'
 import { createStubInstance, restore, stub } from 'sinon'
 import { CancellationToken, ProfileKind, SsoTokenSourceKind } from '@aws/language-server-runtimes/protocol'
 import { SSOToken } from '@smithy/shared-ini-file-loader'
+import { Observability } from './utils'
+import { Logging, Telemetry } from '@aws/language-server-runtimes/server-interface'
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 use(require('chai-as-promised'))
@@ -17,6 +19,7 @@ let sut: IdentityService
 let profileStore: StubbedInstance<ProfileStore>
 let ssoCache: StubbedInstance<SsoCache>
 let autoRefresher: StubbedInstance<SsoTokenAutoRefresher>
+let observability: StubbedInstance<Observability>
 
 describe('IdentityService', () => {
     beforeEach(() => {
@@ -67,6 +70,12 @@ describe('IdentityService', () => {
                 expiresAt: new Date(Date.now() + 10 * 1000).toISOString(),
             } satisfies SSOToken)
         )
+
+        observability = stubInterface<Observability>()
+        observability.logging = stubInterface<Logging>()
+        observability.telemetry = stubInterface<Telemetry>()
+
+        sut = new IdentityService(profileStore, ssoCache, autoRefresher, _ => {}, 'My Client', observability)
     })
 
     afterEach(() => {
@@ -75,8 +84,6 @@ describe('IdentityService', () => {
 
     describe('getSsoToken', () => {
         it('Can login with AWS Builder ID.', async () => {
-            sut = new IdentityService(profileStore, ssoCache, autoRefresher, _ => {})
-
             const actual = await sut.getSsoToken(
                 {
                     clientName: 'my-client',
@@ -91,8 +98,6 @@ describe('IdentityService', () => {
         })
 
         it('Can login with IAM Identity Center.', async () => {
-            sut = new IdentityService(profileStore, ssoCache, autoRefresher, _ => {})
-
             const actual = await sut.getSsoToken(
                 {
                     clientName: 'my-client',
@@ -107,8 +112,6 @@ describe('IdentityService', () => {
         })
 
         it('Throws when no SSO token cached and loginOnInvalidToken is false.', async () => {
-            sut = new IdentityService(profileStore, ssoCache, autoRefresher, _ => {})
-
             const error = await expect(
                 sut.getSsoToken(
                     {
@@ -130,16 +133,12 @@ describe('IdentityService', () => {
 
     describe('invalidateSsoToken', () => {
         it('removeToken removes on valid SSO session name', async () => {
-            sut = new IdentityService(profileStore, ssoCache, autoRefresher, _ => {})
-
             await sut.invalidateSsoToken({ ssoTokenId: 'my-sso-session' }, CancellationToken.None)
 
             expect(ssoCache.removeSsoToken.called).is.true
         })
 
         it('removeToken throws on invalid SSO session name', async () => {
-            sut = new IdentityService(profileStore, ssoCache, autoRefresher, _ => {})
-
             await expect(sut.invalidateSsoToken({ ssoTokenId: '   ' }, CancellationToken.None)).to.be.rejectedWith()
 
             expect(ssoCache.removeSsoToken.notCalled).is.true

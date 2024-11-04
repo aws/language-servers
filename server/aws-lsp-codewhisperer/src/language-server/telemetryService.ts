@@ -12,6 +12,8 @@ import {
     CodeCoverageEvent,
     TelemetryEvent,
     ChatUserModificationEvent,
+    ChatAddMessageEvent,
+    UserIntent,
 } from '../client/token/codewhispererbearertokenclient'
 import { getCompletionType, getSsoConnectionType, SsoConnectionType } from './utils'
 import { ChatInteractionType, InteractWithMessageEvent } from './telemetry/types'
@@ -167,13 +169,15 @@ export class TelemetryService extends CodeWhispererServiceToken {
         const event: ChatInteractWithMessageEvent = {
             conversationId: options.conversationId,
             messageId: metric.cwsprChatMessageId,
-            customizationArn: this.credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
             interactionType: this.getCWClientTelemetryInteractionType(metric.cwsprChatInteractionType),
             interactionTarget: metric.cwsprChatInteractionTarget,
             acceptedCharacterCount: metric.cwsprChatAcceptedCharactersLength,
             acceptedLineCount: options.acceptedLineCount,
             acceptedSnippetHasReference: false,
             hasProjectLevelContext: false,
+        }
+        if (metric.codewhispererCustomizationArn) {
+            event.customizationArn = metric.codewhispererCustomizationArn
         }
         this.invokeSendTelemetryEvent({
             chatInteractWithMessageEvent: event,
@@ -243,6 +247,52 @@ export class TelemetryService extends CodeWhispererServiceToken {
 
         this.invokeSendTelemetryEvent({
             codeCoverageEvent: event,
+        })
+    }
+
+    public emitChatAddMessage(params: {
+        conversationId?: string
+        messageId?: string
+        customizationArn?: string
+        userIntent?: UserIntent
+        hasCodeSnippet?: boolean
+        programmingLanguage?: CodewhispererLanguage
+        activeEditorTotalCharacters?: number
+        timeToFirstChunkMilliseconds?: number
+        timeBetweenChunks?: number[]
+        fullResponselatency?: number
+        requestLength?: number
+        responseLength?: number
+        numberOfCodeBlocks?: number
+        hasProjectLevelContext?: number
+    }) {
+        if (!params.conversationId || !params.messageId) {
+            return
+        }
+        const event: ChatAddMessageEvent = {
+            conversationId: params.conversationId,
+            messageId: params.messageId,
+            userIntent: params.userIntent,
+            hasCodeSnippet: params.hasCodeSnippet,
+            activeEditorTotalCharacters: params.activeEditorTotalCharacters,
+            timeToFirstChunkMilliseconds: params.timeToFirstChunkMilliseconds,
+            timeBetweenChunks: params.timeBetweenChunks,
+            fullResponselatency: params.fullResponselatency,
+            requestLength: params.requestLength,
+            responseLength: params.responseLength,
+            numberOfCodeBlocks: params.numberOfCodeBlocks,
+            hasProjectLevelContext: false,
+        }
+        if (params.customizationArn) {
+            event.customizationArn = params.customizationArn
+        }
+        if (params.programmingLanguage) {
+            event.programmingLanguage = {
+                languageName: getRuntimeLanguage(params.programmingLanguage),
+            }
+        }
+        this.invokeSendTelemetryEvent({
+            chatAddMessageEvent: event,
         })
     }
 }

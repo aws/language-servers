@@ -5,12 +5,16 @@ import { join } from 'path'
 import { SharedConfigProfileStore } from './sharedConfigProfileStore'
 import { expect, use } from 'chai'
 import { ProfileData } from './profileService'
-import { ProfileKind } from '@aws/language-server-runtimes/server-interface'
+import { Logging, ProfileKind, Telemetry } from '@aws/language-server-runtimes/server-interface'
+import { StubbedInstance, stubInterface } from 'ts-sinon'
+import { Observability } from '../utils'
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 use(require('chai-as-promised'))
 
-const sut = new SharedConfigProfileStore()
+let sut: SharedConfigProfileStore
+
+let observability: StubbedInstance<Observability>
 
 const config = `
 [default]
@@ -64,6 +68,14 @@ function setupTest(config: string, credentials: string): void {
 }
 
 describe('SharedConfigProfileStore', async () => {
+    beforeEach(() => {
+        observability = stubInterface<Observability>()
+        observability.logging = stubInterface<Logging>()
+        observability.telemetry = stubInterface<Telemetry>()
+
+        sut = new SharedConfigProfileStore(observability)
+    })
+
     afterEach(() => {
         mock.restore()
     })

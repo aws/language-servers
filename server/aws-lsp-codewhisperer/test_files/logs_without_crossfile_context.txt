@@ -1,0 +1,3523 @@
+[Trace - 12:15:01] Sending request 'aws/credentials/token/update - (77)'.
+Params: {
+    "data": "eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIn0..W_3GP2b_OuRvWSvc.2o6GNQ7XHeG8jt1wfLmgB5-xntc05eZL4p3n_F2AWlQXT379FSDirazqSbQ0WA1ZI9qiMvOWRnVis5kbACYUT83Uds8hEX7nFvsfvGSahfD1mqynmKgnxctg6ZuBx3dBrLbGbyS89kg2pCaldhnkKuFdwBnU_brlpB7SVB54XZwN2rqcTZiu-f5IiSuQrQUf4ZiOTgnUfIq_hski8hs7AigaDcsUvg4nTJx_IolV3XEr2ufqUzayOvPtd-I6wBMglPqHS86Jz3dVt3TL1abVRfeLRcwKKuhdH37PhhK9z2IQl_3PnTRRZ7oHA1de_nby_cs61syrvN9_krWYpAk.sznk_HXbGbePgiV-jC-Zcw",
+    "encrypted": true
+}
+
+
+[Trace - 12:15:01] Received notification 'window/logMessage'.
+Params: {
+    "type": 3,
+    "message": "Runtime: Decoding encrypted credentials token"
+}
+
+
+[Info  - 12:15:01] Runtime: Decoding encrypted credentials token
+[Trace - 12:15:01] Received notification 'window/logMessage'.
+Params: {
+    "type": 3,
+    "message": "Decoding JWT token"
+}
+
+
+[Info  - 12:15:01] Decoding JWT token
+[Trace - 12:15:01] Received notification 'window/logMessage'.
+Params: {
+    "type": 3,
+    "message": "Runtime: Successfully saved bearer credentials"
+}
+
+
+[Info  - 12:15:01] Runtime: Successfully saved bearer credentials
+[Trace - 12:15:01] Received request 'aws/credentials/getConnectionMetadata - (4)'.
+[Info  - 12:15:01] Client: The language server requested SSO connection metadata
+[Trace - 12:15:01] Sending response 'aws/credentials/getConnectionMetadata - (4)'. Processing request took 0ms
+Result: {
+    "sso": {
+        "startUrl": "https://amzn.awsapps.com/start"
+    }
+}
+
+
+[Trace - 12:15:01] Received notification 'window/logMessage'.
+Params: {
+    "type": 3,
+    "message": "Runtime: Connection metadata updated"
+}
+
+
+[Info  - 12:15:01] Runtime: Connection metadata updated
+[Trace - 12:15:01] Received response 'aws/credentials/token/update - (77)' in 11ms.
+No result returned.
+
+
+[Info  - 12:15:01] Client: The language server is now using a bearer token
+[Trace - 12:15:11] Sending notification 'textDocument/didChange'.
+Params: {
+    "textDocument": {
+        "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.ts",
+        "version": 4
+    },
+    "contentChanges": [
+        {
+            "range": {
+                "start": {
+                    "line": 0,
+                    "character": 42
+                },
+                "end": {
+                    "line": 0,
+                    "character": 42
+                }
+            },
+            "rangeLength": 0,
+            "text": "\n"
+        }
+    ]
+}
+
+
+[Trace - 12:15:11] Sending request 'aws/textDocument/inlineCompletionWithReferences - (78)'.
+Params: {
+    "textDocument": {
+        "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.ts"
+    },
+    "position": {
+        "line": 1,
+        "character": 0
+    },
+    "context": {
+        "triggerKind": 1
+    }
+}
+
+
+[Trace - 12:15:13] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_serviceInvocation",
+    "result": "Succeeded",
+    "data": {
+        "codewhispererRequestId": "e41383ef-6e70-45bd-81f6-8eb27a13dc4b",
+        "codewhispererSessionId": "14aacd98-4d30-487e-874b-c46cfa7272af",
+        "codewhispererLastSuggestionIndex": 0,
+        "codewhispererCompletionType": "Block",
+        "codewhispererTriggerType": "AutoTrigger",
+        "codewhispererAutomatedTriggerType": "Enter",
+        "duration": 2487,
+        "codewhispererLineNumber": 1,
+        "codewhispererCursorOffset": 0,
+        "codewhispererLanguage": "typescript",
+        "credentialStartUrl": "https://amzn.awsapps.com/start"
+    }
+}
+
+
+[Info  - 12:15:13] vscode client: Received telemetry event from server {"name":"codewhisperer_serviceInvocation","result":"Succeeded","data":{"codewhispererRequestId":"e41383ef-6e70-45bd-81f6-8eb27a13dc4b","codewhispererSessionId":"14aacd98-4d30-487e-874b-c46cfa7272af","codewhispererLastSuggestionIndex":0,"codewhispererCompletionType":"Block","codewhispererTriggerType":"AutoTrigger","codewhispererAutomatedTriggerType":"Enter","duration":2487,"codewhispererLineNumber":1,"codewhispererCursorOffset":0,"codewhispererLanguage":"typescript","credentialStartUrl":"https://amzn.awsapps.com/start"}}
+[Trace - 12:15:13] Received response 'aws/textDocument/inlineCompletionWithReferences - (78)' in 2492ms.
+Result: {
+    "items": [
+        {
+            "itemId": "fed59430-f85b-4e36-b859-20be892e27f7",
+            "insertText": "class Person {\n  private name: string;\n\n  constructor(name: string) {\n    this.name = name;\n  }\n\n  getName(): string {\n    return this.name;\n  }\n}\n\n// Create Student class that extends Person and overrides getName method\nclass Student extends Person {\n  private school: string;\n\n  constructor(name: string, school: string) {\n    super(name);\n    this.school = school;\n  }\n\n  getName(): string {\n    return `${super.getName()} from ${this.school}`;\n  }\n}\n\n// Example usage\nconst person = new Person(\"John\");\nconsole.log(person.getName()); // Output: John\n\nconst student = new Student(\"Jane\", \"XYZ University\");\nconsole.log(student.getName()); // Output: Jane from XYZ University"
+        }
+    ],
+    "sessionId": "594a876a-ca8a-483e-ab7f-4652706c8d99"
+}
+
+
+[Info  - 12:15:13] Client: Received 1 suggestions
+[Trace - 12:15:13] Sending request 'aws/textDocument/inlineCompletionWithReferences - (79)'.
+Params: {
+    "textDocument": {
+        "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.ts"
+    },
+    "position": {
+        "line": 1,
+        "character": 0
+    },
+    "context": {
+        "triggerKind": 0
+    }
+}
+
+
+[Trace - 12:15:13] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_userTriggerDecision",
+    "data": {
+        "codewhispererSessionId": "14aacd98-4d30-487e-874b-c46cfa7272af",
+        "codewhispererFirstRequestId": "e41383ef-6e70-45bd-81f6-8eb27a13dc4b",
+        "credentialStartUrl": "https://amzn.awsapps.com/start",
+        "codewhispererSuggestionState": "Discard",
+        "codewhispererCompletionType": "Block",
+        "codewhispererLanguage": "typescript",
+        "codewhispererTriggerType": "AutoTrigger",
+        "codewhispererAutomatedTriggerType": "Enter",
+        "codewhispererLineNumber": 1,
+        "codewhispererCursorOffset": 0,
+        "codewhispererSuggestionCount": 1,
+        "codewhispererClassifierResult": 0.20020436251349594,
+        "codewhispererClassifierThreshold": 0.43,
+        "codewhispererTotalShownTime": 0,
+        "codewhispererTypeaheadLength": 0,
+        "codewhispererTimeSinceLastDocumentChange": 43108,
+        "codewhispererTimeSinceLastUserDecision": 51160,
+        "codewhispererTimeToFirstRecommendation": 2487,
+        "codewhispererPreviousSuggestionState": "Empty"
+    }
+}
+
+
+[Info  - 12:15:13] vscode client: Received telemetry event from server {"name":"codewhisperer_userTriggerDecision","data":{"codewhispererSessionId":"14aacd98-4d30-487e-874b-c46cfa7272af","codewhispererFirstRequestId":"e41383ef-6e70-45bd-81f6-8eb27a13dc4b","credentialStartUrl":"https://amzn.awsapps.com/start","codewhispererSuggestionState":"Discard","codewhispererCompletionType":"Block","codewhispererLanguage":"typescript","codewhispererTriggerType":"AutoTrigger","codewhispererAutomatedTriggerType":"Enter","codewhispererLineNumber":1,"codewhispererCursorOffset":0,"codewhispererSuggestionCount":1,"codewhispererClassifierResult":0.20020436251349594,"codewhispererClassifierThreshold":0.43,"codewhispererTotalShownTime":0,"codewhispererTypeaheadLength":0,"codewhispererTimeSinceLastDocumentChange":43108,"codewhispererTimeSinceLastUserDecision":51160,"codewhispererTimeToFirstRecommendation":2487,"codewhispererPreviousSuggestionState":"Empty"}}
+[Trace - 12:15:13] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_userDecision",
+    "data": {
+        "codewhispererRequestId": "e41383ef-6e70-45bd-81f6-8eb27a13dc4b",
+        "codewhispererSessionId": "14aacd98-4d30-487e-874b-c46cfa7272af",
+        "codewhispererCompletionType": "Block",
+        "codewhispererTriggerType": "AutoTrigger",
+        "codewhispererLanguage": "typescript",
+        "credentialStartUrl": "https://amzn.awsapps.com/start",
+        "codewhispererSuggestionIndex": 0,
+        "codewhispererSuggestionState": "Discard",
+        "codewhispererSuggestionReferences": [],
+        "codewhispererSuggestionReferenceCount": 0
+    }
+}
+
+
+[Info  - 12:15:13] vscode client: Received telemetry event from server {"name":"codewhisperer_userDecision","data":{"codewhispererRequestId":"e41383ef-6e70-45bd-81f6-8eb27a13dc4b","codewhispererSessionId":"14aacd98-4d30-487e-874b-c46cfa7272af","codewhispererCompletionType":"Block","codewhispererTriggerType":"AutoTrigger","codewhispererLanguage":"typescript","credentialStartUrl":"https://amzn.awsapps.com/start","codewhispererSuggestionIndex":0,"codewhispererSuggestionState":"Discard","codewhispererSuggestionReferences":[],"codewhispererSuggestionReferenceCount":0}}
+[Trace - 12:15:15] Sending notification 'textDocument/didChange'.
+Params: {
+    "textDocument": {
+        "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.ts",
+        "version": 5
+    },
+    "contentChanges": [
+        {
+            "range": {
+                "start": {
+                    "line": 1,
+                    "character": 0
+                },
+                "end": {
+                    "line": 1,
+                    "character": 0
+                }
+            },
+            "rangeLength": 0,
+            "text": "class Person {\n  private name: string;\n\n  constructor(name: string) {\n    this.name = name;\n  }\n\n  getName(): string {\n    return this.name;\n  }\n}\n\n// Create Student class that extends Person and overrides getName method\nclass Student extends Person {\n  private school: string;\n\n  constructor(name: string, school: string) {\n    super(name);\n    this.school = school;\n  }\n\n  getName(): string {\n    return `${super.getName()} from ${this.school}`;\n  }\n}\n\n// Example usage\nconst person = new Person(\"John\");\nconsole.log(person.getName()); // Output: John\n\nconst student = new Student(\"Jane\", \"XYZ University\");\nconsole.log(student.getName()); // Output: Jane from XYZ University"
+        }
+    ]
+}
+
+
+[Trace - 12:15:15] Sending notification '$/cancelRequest'.
+Params: {
+    "id": 79
+}
+
+
+[Trace - 12:15:16] Sending request 'aws/textDocument/inlineCompletionWithReferences - (80)'.
+Params: {
+    "textDocument": {
+        "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.ts"
+    },
+    "position": {
+        "line": 32,
+        "character": 67
+    },
+    "context": {
+        "triggerKind": 1
+    }
+}
+
+
+[Trace - 12:15:16] Received response 'aws/textDocument/inlineCompletionWithReferences - (80)' in 2ms.
+Result: {
+    "sessionId": "",
+    "items": []
+}
+
+
+[Info  - 12:15:16] Client: Received 0 suggestions
+[Trace - 12:15:16] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_serviceInvocation",
+    "result": "Succeeded",
+    "data": {
+        "codewhispererRequestId": "85c4734c-bc9c-4048-a718-b6a3f026ab51",
+        "codewhispererSessionId": "96ab39a7-2e3e-4d54-853a-983f871a9d69",
+        "codewhispererLastSuggestionIndex": 0,
+        "codewhispererCompletionType": "Block",
+        "codewhispererTriggerType": "OnDemand",
+        "duration": 2400,
+        "codewhispererLineNumber": 1,
+        "codewhispererCursorOffset": 0,
+        "codewhispererLanguage": "typescript",
+        "credentialStartUrl": "https://amzn.awsapps.com/start"
+    }
+}
+
+
+[Info  - 12:15:16] vscode client: Received telemetry event from server {"name":"codewhisperer_serviceInvocation","result":"Succeeded","data":{"codewhispererRequestId":"85c4734c-bc9c-4048-a718-b6a3f026ab51","codewhispererSessionId":"96ab39a7-2e3e-4d54-853a-983f871a9d69","codewhispererLastSuggestionIndex":0,"codewhispererCompletionType":"Block","codewhispererTriggerType":"OnDemand","duration":2400,"codewhispererLineNumber":1,"codewhispererCursorOffset":0,"codewhispererLanguage":"typescript","credentialStartUrl":"https://amzn.awsapps.com/start"}}
+[Trace - 12:15:16] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_userTriggerDecision",
+    "data": {
+        "codewhispererSessionId": "96ab39a7-2e3e-4d54-853a-983f871a9d69",
+        "codewhispererFirstRequestId": "85c4734c-bc9c-4048-a718-b6a3f026ab51",
+        "credentialStartUrl": "https://amzn.awsapps.com/start",
+        "codewhispererSuggestionState": "Discard",
+        "codewhispererCompletionType": "Block",
+        "codewhispererLanguage": "typescript",
+        "codewhispererTriggerType": "OnDemand",
+        "codewhispererLineNumber": 1,
+        "codewhispererCursorOffset": 0,
+        "codewhispererSuggestionCount": 1,
+        "codewhispererClassifierResult": 0.20020436251349594,
+        "codewhispererClassifierThreshold": 0.43,
+        "codewhispererTotalShownTime": 0,
+        "codewhispererTypeaheadLength": 0,
+        "codewhispererTimeSinceLastDocumentChange": 4597,
+        "codewhispererTimeSinceLastUserDecision": 0,
+        "codewhispererTimeToFirstRecommendation": 2400,
+        "codewhispererPreviousSuggestionState": "Discard"
+    }
+}
+
+
+[Info  - 12:15:16] vscode client: Received telemetry event from server {"name":"codewhisperer_userTriggerDecision","data":{"codewhispererSessionId":"96ab39a7-2e3e-4d54-853a-983f871a9d69","codewhispererFirstRequestId":"85c4734c-bc9c-4048-a718-b6a3f026ab51","credentialStartUrl":"https://amzn.awsapps.com/start","codewhispererSuggestionState":"Discard","codewhispererCompletionType":"Block","codewhispererLanguage":"typescript","codewhispererTriggerType":"OnDemand","codewhispererLineNumber":1,"codewhispererCursorOffset":0,"codewhispererSuggestionCount":1,"codewhispererClassifierResult":0.20020436251349594,"codewhispererClassifierThreshold":0.43,"codewhispererTotalShownTime":0,"codewhispererTypeaheadLength":0,"codewhispererTimeSinceLastDocumentChange":4597,"codewhispererTimeSinceLastUserDecision":0,"codewhispererTimeToFirstRecommendation":2400,"codewhispererPreviousSuggestionState":"Discard"}}
+[Trace - 12:15:16] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_userDecision",
+    "data": {
+        "codewhispererRequestId": "85c4734c-bc9c-4048-a718-b6a3f026ab51",
+        "codewhispererSessionId": "96ab39a7-2e3e-4d54-853a-983f871a9d69",
+        "codewhispererCompletionType": "Block",
+        "codewhispererTriggerType": "OnDemand",
+        "codewhispererLanguage": "typescript",
+        "credentialStartUrl": "https://amzn.awsapps.com/start",
+        "codewhispererSuggestionIndex": 0,
+        "codewhispererSuggestionState": "Discard",
+        "codewhispererSuggestionReferences": [],
+        "codewhispererSuggestionReferenceCount": 0
+    }
+}
+
+
+[Info  - 12:15:16] vscode client: Received telemetry event from server {"name":"codewhisperer_userDecision","data":{"codewhispererRequestId":"85c4734c-bc9c-4048-a718-b6a3f026ab51","codewhispererSessionId":"96ab39a7-2e3e-4d54-853a-983f871a9d69","codewhispererCompletionType":"Block","codewhispererTriggerType":"OnDemand","codewhispererLanguage":"typescript","credentialStartUrl":"https://amzn.awsapps.com/start","codewhispererSuggestionIndex":0,"codewhispererSuggestionState":"Discard","codewhispererSuggestionReferences":[],"codewhispererSuggestionReferenceCount":0}}
+[Trace - 12:15:16] Received response 'aws/textDocument/inlineCompletionWithReferences - (79)' in 2419ms.
+Result: {
+    "sessionId": "",
+    "items": []
+}
+
+
+[Info  - 12:15:16] Client: Received 0 suggestions
+[Trace - 12:15:17] Sending notification 'workspace/didChangeWatchedFiles'.
+Params: {
+    "changes": [
+        {
+            "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.ts",
+            "type": 2
+        }
+    ]
+}
+
+
+[Trace - 12:15:23] Sending notification 'textDocument/didChange'.
+Params: {
+    "textDocument": {
+        "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.java",
+        "version": 4
+    },
+    "contentChanges": [
+        {
+            "range": {
+                "start": {
+                    "line": 0,
+                    "character": 42
+                },
+                "end": {
+                    "line": 0,
+                    "character": 42
+                }
+            },
+            "rangeLength": 0,
+            "text": "\n"
+        }
+    ]
+}
+
+
+[Trace - 12:15:23] Sending request 'aws/textDocument/inlineCompletionWithReferences - (81)'.
+Params: {
+    "textDocument": {
+        "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.java"
+    },
+    "position": {
+        "line": 1,
+        "character": 0
+    },
+    "context": {
+        "triggerKind": 1
+    }
+}
+
+
+[Trace - 12:15:26] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_serviceInvocation",
+    "result": "Succeeded",
+    "data": {
+        "codewhispererRequestId": "0bffdc8c-5ff3-4e92-9dcd-0409c5d9a58f",
+        "codewhispererSessionId": "1a537316-2b14-40c8-bae4-a323a403b63e",
+        "codewhispererLastSuggestionIndex": 0,
+        "codewhispererCompletionType": "Block",
+        "codewhispererTriggerType": "AutoTrigger",
+        "codewhispererAutomatedTriggerType": "Enter",
+        "duration": 2746,
+        "codewhispererLineNumber": 1,
+        "codewhispererCursorOffset": 0,
+        "codewhispererLanguage": "java",
+        "credentialStartUrl": "https://amzn.awsapps.com/start"
+    }
+}
+
+
+[Info  - 12:15:26] vscode client: Received telemetry event from server {"name":"codewhisperer_serviceInvocation","result":"Succeeded","data":{"codewhispererRequestId":"0bffdc8c-5ff3-4e92-9dcd-0409c5d9a58f","codewhispererSessionId":"1a537316-2b14-40c8-bae4-a323a403b63e","codewhispererLastSuggestionIndex":0,"codewhispererCompletionType":"Block","codewhispererTriggerType":"AutoTrigger","codewhispererAutomatedTriggerType":"Enter","duration":2746,"codewhispererLineNumber":1,"codewhispererCursorOffset":0,"codewhispererLanguage":"java","credentialStartUrl":"https://amzn.awsapps.com/start"}}
+[Trace - 12:15:26] Received response 'aws/textDocument/inlineCompletionWithReferences - (81)' in 2751ms.
+Result: {
+    "items": [
+        {
+            "itemId": "bf2a9323-f3fd-42dd-ac18-d45bb3355b54",
+            "insertText": "class Person {\n    private String name;\n\n    public Person(String name) {\n        this.name = name;\n    }\n\n    public String getName() {\n        return name;\n    }\n}\n\n// Create Student class extending Person and overriding getName method\nclass Student extends Person {\n    private int id;\n\n    public Student(String name, int id) {\n        super(name);\n        this.id = id;\n    }\n\n    @Override\n    public String getName() {\n        return super.getName() + \" (Student)\";\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Person person = new Person(\"John\");\n        System.out.println(person.getName()); // Output: John\n\n        Student student = new Student(\"Jane\", 1234);\n        System.out.println(student.getName()); // Output: Jane (Student)\n    }\n}"
+        }
+    ],
+    "sessionId": "37799974-e957-41c2-b3ab-a151f246e15a"
+}
+
+
+[Info  - 12:15:26] Client: Received 1 suggestions
+[Trace - 12:15:26] Sending request 'aws/textDocument/inlineCompletionWithReferences - (82)'.
+Params: {
+    "textDocument": {
+        "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.java"
+    },
+    "position": {
+        "line": 1,
+        "character": 0
+    },
+    "context": {
+        "triggerKind": 0
+    }
+}
+
+
+[Trace - 12:15:26] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_userTriggerDecision",
+    "data": {
+        "codewhispererSessionId": "1a537316-2b14-40c8-bae4-a323a403b63e",
+        "codewhispererFirstRequestId": "0bffdc8c-5ff3-4e92-9dcd-0409c5d9a58f",
+        "credentialStartUrl": "https://amzn.awsapps.com/start",
+        "codewhispererSuggestionState": "Discard",
+        "codewhispererCompletionType": "Block",
+        "codewhispererLanguage": "java",
+        "codewhispererTriggerType": "AutoTrigger",
+        "codewhispererAutomatedTriggerType": "Enter",
+        "codewhispererLineNumber": 1,
+        "codewhispererCursorOffset": 0,
+        "codewhispererSuggestionCount": 1,
+        "codewhispererClassifierResult": 0.346404362513496,
+        "codewhispererClassifierThreshold": 0.43,
+        "codewhispererTotalShownTime": 0,
+        "codewhispererTypeaheadLength": 0,
+        "codewhispererTimeSinceLastDocumentChange": 7390,
+        "codewhispererTimeSinceLastUserDecision": 7388,
+        "codewhispererTimeToFirstRecommendation": 2746,
+        "codewhispererPreviousSuggestionState": "Discard"
+    }
+}
+
+
+[Info  - 12:15:26] vscode client: Received telemetry event from server {"name":"codewhisperer_userTriggerDecision","data":{"codewhispererSessionId":"1a537316-2b14-40c8-bae4-a323a403b63e","codewhispererFirstRequestId":"0bffdc8c-5ff3-4e92-9dcd-0409c5d9a58f","credentialStartUrl":"https://amzn.awsapps.com/start","codewhispererSuggestionState":"Discard","codewhispererCompletionType":"Block","codewhispererLanguage":"java","codewhispererTriggerType":"AutoTrigger","codewhispererAutomatedTriggerType":"Enter","codewhispererLineNumber":1,"codewhispererCursorOffset":0,"codewhispererSuggestionCount":1,"codewhispererClassifierResult":0.346404362513496,"codewhispererClassifierThreshold":0.43,"codewhispererTotalShownTime":0,"codewhispererTypeaheadLength":0,"codewhispererTimeSinceLastDocumentChange":7390,"codewhispererTimeSinceLastUserDecision":7388,"codewhispererTimeToFirstRecommendation":2746,"codewhispererPreviousSuggestionState":"Discard"}}
+[Trace - 12:15:26] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_userDecision",
+    "data": {
+        "codewhispererRequestId": "0bffdc8c-5ff3-4e92-9dcd-0409c5d9a58f",
+        "codewhispererSessionId": "1a537316-2b14-40c8-bae4-a323a403b63e",
+        "codewhispererCompletionType": "Block",
+        "codewhispererTriggerType": "AutoTrigger",
+        "codewhispererLanguage": "java",
+        "credentialStartUrl": "https://amzn.awsapps.com/start",
+        "codewhispererSuggestionIndex": 0,
+        "codewhispererSuggestionState": "Discard",
+        "codewhispererSuggestionReferences": [],
+        "codewhispererSuggestionReferenceCount": 0
+    }
+}
+
+
+[Info  - 12:15:26] vscode client: Received telemetry event from server {"name":"codewhisperer_userDecision","data":{"codewhispererRequestId":"0bffdc8c-5ff3-4e92-9dcd-0409c5d9a58f","codewhispererSessionId":"1a537316-2b14-40c8-bae4-a323a403b63e","codewhispererCompletionType":"Block","codewhispererTriggerType":"AutoTrigger","codewhispererLanguage":"java","credentialStartUrl":"https://amzn.awsapps.com/start","codewhispererSuggestionIndex":0,"codewhispererSuggestionState":"Discard","codewhispererSuggestionReferences":[],"codewhispererSuggestionReferenceCount":0}}
+[Trace - 12:15:28] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_serviceInvocation",
+    "result": "Succeeded",
+    "data": {
+        "codewhispererRequestId": "9e0888e4-340f-410b-a806-2acd3dd7eae7",
+        "codewhispererSessionId": "5f238492-355f-42b9-829b-acd8ace4e51d",
+        "codewhispererLastSuggestionIndex": 0,
+        "codewhispererCompletionType": "Block",
+        "codewhispererTriggerType": "OnDemand",
+        "duration": 2607,
+        "codewhispererLineNumber": 1,
+        "codewhispererCursorOffset": 0,
+        "codewhispererLanguage": "java",
+        "credentialStartUrl": "https://amzn.awsapps.com/start"
+    }
+}
+
+
+[Info  - 12:15:28] vscode client: Received telemetry event from server {"name":"codewhisperer_serviceInvocation","result":"Succeeded","data":{"codewhispererRequestId":"9e0888e4-340f-410b-a806-2acd3dd7eae7","codewhispererSessionId":"5f238492-355f-42b9-829b-acd8ace4e51d","codewhispererLastSuggestionIndex":0,"codewhispererCompletionType":"Block","codewhispererTriggerType":"OnDemand","duration":2607,"codewhispererLineNumber":1,"codewhispererCursorOffset":0,"codewhispererLanguage":"java","credentialStartUrl":"https://amzn.awsapps.com/start"}}
+[Trace - 12:15:28] Received response 'aws/textDocument/inlineCompletionWithReferences - (82)' in 2621ms.
+Result: {
+    "items": [
+        {
+            "itemId": "1ad99f27-929a-4b8b-9258-f38182026bc1",
+            "insertText": "class Person {\n    private String name;\n\n    public Person(String name) {\n        this.name = name;\n    }\n\n    public String getName() {\n        return name;\n    }\n}\n\n// Create Student class extending Person and overriding getName method\nclass Student extends Person {\n    private int id;\n\n    public Student(String name, int id) {\n        super(name);\n        this.id = id;\n    }\n\n    @Override\n    public String getName() {\n        return super.getName() + \" (Student)\";\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Person person = new Person(\"John\");\n        System.out.println(person.getName()); // Output: John\n\n        Student student = new Student(\"Jane\", 1234);\n        System.out.println(student.getName()); // Output: Jane (Student)\n    }\n}"
+        }
+    ],
+    "sessionId": "b201c402-7084-4859-947e-cbcaad857893"
+}
+
+
+[Info  - 12:15:28] Client: Received 1 suggestions
+[Trace - 12:15:28] Sending notification 'textDocument/didChange'.
+Params: {
+    "textDocument": {
+        "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.java",
+        "version": 5
+    },
+    "contentChanges": [
+        {
+            "range": {
+                "start": {
+                    "line": 1,
+                    "character": 0
+                },
+                "end": {
+                    "line": 1,
+                    "character": 0
+                }
+            },
+            "rangeLength": 0,
+            "text": "class Person {\n    private String name;\n\n    public Person(String name) {\n        this.name = name;\n    }\n\n    public String getName() {\n        return name;\n    }\n}\n\n// Create Student class extending Person and overriding getName method\nclass Student extends Person {\n    private int id;\n\n    public Student(String name, int id) {\n        super(name);\n        this.id = id;\n    }\n\n    @Override\n    public String getName() {\n        return super.getName() + \" (Student)\";\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Person person = new Person(\"John\");\n        System.out.println(person.getName()); // Output: John\n\n        Student student = new Student(\"Jane\", 1234);\n        System.out.println(student.getName()); // Output: Jane (Student)\n    }\n}"
+        }
+    ]
+}
+
+
+[Trace - 12:15:28] Sending request 'aws/textDocument/inlineCompletionWithReferences - (83)'.
+Params: {
+    "textDocument": {
+        "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.java"
+    },
+    "position": {
+        "line": 36,
+        "character": 1
+    },
+    "context": {
+        "triggerKind": 1
+    }
+}
+
+
+[Trace - 12:15:28] Received response 'aws/textDocument/inlineCompletionWithReferences - (83)' in 3ms.
+Result: {
+    "sessionId": "",
+    "items": []
+}
+
+
+[Info  - 12:15:28] Client: Received 0 suggestions
+[Trace - 12:15:31] Sending notification 'workspace/didChangeWatchedFiles'.
+Params: {
+    "changes": [
+        {
+            "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.java",
+            "type": 2
+        }
+    ]
+}
+
+
+[Trace - 12:15:33] Sending notification 'textDocument/didChange'.
+Params: {
+    "textDocument": {
+        "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.cs",
+        "version": 4
+    },
+    "contentChanges": [
+        {
+            "range": {
+                "start": {
+                    "line": 0,
+                    "character": 42
+                },
+                "end": {
+                    "line": 0,
+                    "character": 42
+                }
+            },
+            "rangeLength": 0,
+            "text": "\n"
+        }
+    ]
+}
+
+
+[Trace - 12:15:33] Sending request 'aws/textDocument/inlineCompletionWithReferences - (84)'.
+Params: {
+    "textDocument": {
+        "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.cs"
+    },
+    "position": {
+        "line": 1,
+        "character": 0
+    },
+    "context": {
+        "triggerKind": 1
+    }
+}
+
+
+[Trace - 12:15:33] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_userTriggerDecision",
+    "data": {
+        "codewhispererSessionId": "5f238492-355f-42b9-829b-acd8ace4e51d",
+        "codewhispererFirstRequestId": "9e0888e4-340f-410b-a806-2acd3dd7eae7",
+        "credentialStartUrl": "https://amzn.awsapps.com/start",
+        "codewhispererSuggestionState": "Discard",
+        "codewhispererCompletionType": "Block",
+        "codewhispererLanguage": "java",
+        "codewhispererTriggerType": "OnDemand",
+        "codewhispererLineNumber": 1,
+        "codewhispererCursorOffset": 0,
+        "codewhispererSuggestionCount": 1,
+        "codewhispererClassifierResult": 0.346404362513496,
+        "codewhispererClassifierThreshold": 0.43,
+        "codewhispererTotalShownTime": 0,
+        "codewhispererTypeaheadLength": 0,
+        "codewhispererTimeSinceLastDocumentChange": 4259,
+        "codewhispererTimeSinceLastUserDecision": 0,
+        "codewhispererTimeToFirstRecommendation": 2607,
+        "codewhispererPreviousSuggestionState": "Discard"
+    }
+}
+
+
+[Info  - 12:15:33] vscode client: Received telemetry event from server {"name":"codewhisperer_userTriggerDecision","data":{"codewhispererSessionId":"5f238492-355f-42b9-829b-acd8ace4e51d","codewhispererFirstRequestId":"9e0888e4-340f-410b-a806-2acd3dd7eae7","credentialStartUrl":"https://amzn.awsapps.com/start","codewhispererSuggestionState":"Discard","codewhispererCompletionType":"Block","codewhispererLanguage":"java","codewhispererTriggerType":"OnDemand","codewhispererLineNumber":1,"codewhispererCursorOffset":0,"codewhispererSuggestionCount":1,"codewhispererClassifierResult":0.346404362513496,"codewhispererClassifierThreshold":0.43,"codewhispererTotalShownTime":0,"codewhispererTypeaheadLength":0,"codewhispererTimeSinceLastDocumentChange":4259,"codewhispererTimeSinceLastUserDecision":0,"codewhispererTimeToFirstRecommendation":2607,"codewhispererPreviousSuggestionState":"Discard"}}
+[Trace - 12:15:33] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_userDecision",
+    "data": {
+        "codewhispererRequestId": "9e0888e4-340f-410b-a806-2acd3dd7eae7",
+        "codewhispererSessionId": "5f238492-355f-42b9-829b-acd8ace4e51d",
+        "codewhispererCompletionType": "Block",
+        "codewhispererTriggerType": "OnDemand",
+        "codewhispererLanguage": "java",
+        "credentialStartUrl": "https://amzn.awsapps.com/start",
+        "codewhispererSuggestionIndex": 0,
+        "codewhispererSuggestionState": "Discard",
+        "codewhispererSuggestionReferences": [],
+        "codewhispererSuggestionReferenceCount": 0
+    }
+}
+
+
+[Info  - 12:15:33] vscode client: Received telemetry event from server {"name":"codewhisperer_userDecision","data":{"codewhispererRequestId":"9e0888e4-340f-410b-a806-2acd3dd7eae7","codewhispererSessionId":"5f238492-355f-42b9-829b-acd8ace4e51d","codewhispererCompletionType":"Block","codewhispererTriggerType":"OnDemand","codewhispererLanguage":"java","credentialStartUrl":"https://amzn.awsapps.com/start","codewhispererSuggestionIndex":0,"codewhispererSuggestionState":"Discard","codewhispererSuggestionReferences":[],"codewhispererSuggestionReferenceCount":0}}
+[Trace - 12:15:34] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_serviceInvocation",
+    "result": "Succeeded",
+    "data": {
+        "codewhispererRequestId": "7da0a272-a971-425c-b926-0beb0588445d",
+        "codewhispererSessionId": "2f410882-73ec-433a-a64b-f926af79a761",
+        "codewhispererLastSuggestionIndex": 0,
+        "codewhispererCompletionType": "Block",
+        "codewhispererTriggerType": "AutoTrigger",
+        "codewhispererAutomatedTriggerType": "Enter",
+        "duration": 1255,
+        "codewhispererLineNumber": 1,
+        "codewhispererCursorOffset": 0,
+        "codewhispererLanguage": "csharp",
+        "credentialStartUrl": "https://amzn.awsapps.com/start"
+    }
+}
+
+
+[Info  - 12:15:34] vscode client: Received telemetry event from server {"name":"codewhisperer_serviceInvocation","result":"Succeeded","data":{"codewhispererRequestId":"7da0a272-a971-425c-b926-0beb0588445d","codewhispererSessionId":"2f410882-73ec-433a-a64b-f926af79a761","codewhispererLastSuggestionIndex":0,"codewhispererCompletionType":"Block","codewhispererTriggerType":"AutoTrigger","codewhispererAutomatedTriggerType":"Enter","duration":1255,"codewhispererLineNumber":1,"codewhispererCursorOffset":0,"codewhispererLanguage":"csharp","credentialStartUrl":"https://amzn.awsapps.com/start"}}
+[Trace - 12:15:34] Received response 'aws/textDocument/inlineCompletionWithReferences - (84)' in 1258ms.
+Result: {
+    "items": [
+        {
+            "itemId": "3fa23854-b691-43ce-a07a-4895f8dd1f5b",
+            "insertText": "public class Person\n{\n    private string name;\n\n    public void SetName(string name)\n    {\n        this.name = name;\n    }\n\n    public string GetName()\n    {\n        return name;\n    }\n}"
+        }
+    ],
+    "sessionId": "d4077856-e6f9-4c4d-9947-0d77268117e0"
+}
+
+
+[Info  - 12:15:34] Client: Received 1 suggestions
+[Trace - 12:15:34] Sending request 'aws/textDocument/inlineCompletionWithReferences - (85)'.
+Params: {
+    "textDocument": {
+        "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.cs"
+    },
+    "position": {
+        "line": 1,
+        "character": 0
+    },
+    "context": {
+        "triggerKind": 0
+    }
+}
+
+
+[Trace - 12:15:34] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_userTriggerDecision",
+    "data": {
+        "codewhispererSessionId": "2f410882-73ec-433a-a64b-f926af79a761",
+        "codewhispererFirstRequestId": "7da0a272-a971-425c-b926-0beb0588445d",
+        "credentialStartUrl": "https://amzn.awsapps.com/start",
+        "codewhispererSuggestionState": "Discard",
+        "codewhispererCompletionType": "Block",
+        "codewhispererLanguage": "csharp",
+        "codewhispererTriggerType": "AutoTrigger",
+        "codewhispererAutomatedTriggerType": "Enter",
+        "codewhispererLineNumber": 1,
+        "codewhispererCursorOffset": 0,
+        "codewhispererSuggestionCount": 1,
+        "codewhispererClassifierResult": 0.46110436251349607,
+        "codewhispererClassifierThreshold": 0.43,
+        "codewhispererTotalShownTime": 0,
+        "codewhispererTypeaheadLength": 0,
+        "codewhispererTimeSinceLastDocumentChange": 4259,
+        "codewhispererTimeSinceLastUserDecision": 0,
+        "codewhispererTimeToFirstRecommendation": 1255,
+        "codewhispererPreviousSuggestionState": "Discard"
+    }
+}
+
+
+[Info  - 12:15:34] vscode client: Received telemetry event from server {"name":"codewhisperer_userTriggerDecision","data":{"codewhispererSessionId":"2f410882-73ec-433a-a64b-f926af79a761","codewhispererFirstRequestId":"7da0a272-a971-425c-b926-0beb0588445d","credentialStartUrl":"https://amzn.awsapps.com/start","codewhispererSuggestionState":"Discard","codewhispererCompletionType":"Block","codewhispererLanguage":"csharp","codewhispererTriggerType":"AutoTrigger","codewhispererAutomatedTriggerType":"Enter","codewhispererLineNumber":1,"codewhispererCursorOffset":0,"codewhispererSuggestionCount":1,"codewhispererClassifierResult":0.46110436251349607,"codewhispererClassifierThreshold":0.43,"codewhispererTotalShownTime":0,"codewhispererTypeaheadLength":0,"codewhispererTimeSinceLastDocumentChange":4259,"codewhispererTimeSinceLastUserDecision":0,"codewhispererTimeToFirstRecommendation":1255,"codewhispererPreviousSuggestionState":"Discard"}}
+[Trace - 12:15:34] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_userDecision",
+    "data": {
+        "codewhispererRequestId": "7da0a272-a971-425c-b926-0beb0588445d",
+        "codewhispererSessionId": "2f410882-73ec-433a-a64b-f926af79a761",
+        "codewhispererCompletionType": "Block",
+        "codewhispererTriggerType": "AutoTrigger",
+        "codewhispererLanguage": "csharp",
+        "credentialStartUrl": "https://amzn.awsapps.com/start",
+        "codewhispererSuggestionIndex": 0,
+        "codewhispererSuggestionState": "Discard",
+        "codewhispererSuggestionReferences": [],
+        "codewhispererSuggestionReferenceCount": 0
+    }
+}
+
+
+[Info  - 12:15:34] vscode client: Received telemetry event from server {"name":"codewhisperer_userDecision","data":{"codewhispererRequestId":"7da0a272-a971-425c-b926-0beb0588445d","codewhispererSessionId":"2f410882-73ec-433a-a64b-f926af79a761","codewhispererCompletionType":"Block","codewhispererTriggerType":"AutoTrigger","codewhispererLanguage":"csharp","credentialStartUrl":"https://amzn.awsapps.com/start","codewhispererSuggestionIndex":0,"codewhispererSuggestionState":"Discard","codewhispererSuggestionReferences":[],"codewhispererSuggestionReferenceCount":0}}
+[Trace - 12:15:35] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_serviceInvocation",
+    "result": "Succeeded",
+    "data": {
+        "codewhispererRequestId": "9c3fb7d6-5c12-4edc-a9c4-02da4e72734a",
+        "codewhispererSessionId": "e73a47af-93d3-4491-ba66-69ea62fdca27",
+        "codewhispererLastSuggestionIndex": 0,
+        "codewhispererCompletionType": "Block",
+        "codewhispererTriggerType": "OnDemand",
+        "duration": 1280,
+        "codewhispererLineNumber": 1,
+        "codewhispererCursorOffset": 0,
+        "codewhispererLanguage": "csharp",
+        "credentialStartUrl": "https://amzn.awsapps.com/start"
+    }
+}
+
+
+[Info  - 12:15:35] vscode client: Received telemetry event from server {"name":"codewhisperer_serviceInvocation","result":"Succeeded","data":{"codewhispererRequestId":"9c3fb7d6-5c12-4edc-a9c4-02da4e72734a","codewhispererSessionId":"e73a47af-93d3-4491-ba66-69ea62fdca27","codewhispererLastSuggestionIndex":0,"codewhispererCompletionType":"Block","codewhispererTriggerType":"OnDemand","duration":1280,"codewhispererLineNumber":1,"codewhispererCursorOffset":0,"codewhispererLanguage":"csharp","credentialStartUrl":"https://amzn.awsapps.com/start"}}
+[Trace - 12:15:35] Received response 'aws/textDocument/inlineCompletionWithReferences - (85)' in 1284ms.
+Result: {
+    "items": [
+        {
+            "itemId": "e9ce2996-50a9-45a4-8133-3642b53e4cf5",
+            "insertText": "public class Person\n{\n    private string name;\n\n    public void SetName(string name)\n    {\n        this.name = name;\n    }\n\n    public string GetName()\n    {\n        return name;\n    }\n}"
+        }
+    ],
+    "sessionId": "fe5bacc1-224a-4b66-9982-a7c03e15647c"
+}
+
+
+[Info  - 12:15:35] Client: Received 1 suggestions
+[Trace - 12:15:35] Sending notification 'textDocument/didChange'.
+Params: {
+    "textDocument": {
+        "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.cs",
+        "version": 5
+    },
+    "contentChanges": [
+        {
+            "range": {
+                "start": {
+                    "line": 1,
+                    "character": 0
+                },
+                "end": {
+                    "line": 1,
+                    "character": 0
+                }
+            },
+            "rangeLength": 0,
+            "text": "public class Person\n{\n    private string name;\n\n    public void SetName(string name)\n    {\n        this.name = name;\n    }\n\n    public string GetName()\n    {\n        return name;\n    }\n}"
+        }
+    ]
+}
+
+
+[Trace - 12:15:35] Sending request 'aws/textDocument/inlineCompletionWithReferences - (86)'.
+Params: {
+    "textDocument": {
+        "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.cs"
+    },
+    "position": {
+        "line": 14,
+        "character": 1
+    },
+    "context": {
+        "triggerKind": 1
+    }
+}
+
+
+[Trace - 12:15:35] Received response 'aws/textDocument/inlineCompletionWithReferences - (86)' in 4ms.
+Result: {
+    "sessionId": "",
+    "items": []
+}
+
+
+[Info  - 12:15:35] Client: Received 0 suggestions
+[Trace - 12:15:38] Sending notification 'textDocument/didChange'.
+Params: {
+    "textDocument": {
+        "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.js",
+        "version": 4
+    },
+    "contentChanges": [
+        {
+            "range": {
+                "start": {
+                    "line": 0,
+                    "character": 42
+                },
+                "end": {
+                    "line": 0,
+                    "character": 42
+                }
+            },
+            "rangeLength": 0,
+            "text": "\n"
+        }
+    ]
+}
+
+
+[Trace - 12:15:38] Sending request 'aws/textDocument/inlineCompletionWithReferences - (87)'.
+Params: {
+    "textDocument": {
+        "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.js"
+    },
+    "position": {
+        "line": 1,
+        "character": 0
+    },
+    "context": {
+        "triggerKind": 1
+    }
+}
+
+
+[Trace - 12:15:38] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_userTriggerDecision",
+    "data": {
+        "codewhispererSessionId": "e73a47af-93d3-4491-ba66-69ea62fdca27",
+        "codewhispererFirstRequestId": "9c3fb7d6-5c12-4edc-a9c4-02da4e72734a",
+        "credentialStartUrl": "https://amzn.awsapps.com/start",
+        "codewhispererSuggestionState": "Discard",
+        "codewhispererCompletionType": "Block",
+        "codewhispererLanguage": "csharp",
+        "codewhispererTriggerType": "OnDemand",
+        "codewhispererLineNumber": 1,
+        "codewhispererCursorOffset": 0,
+        "codewhispererSuggestionCount": 1,
+        "codewhispererClassifierResult": 0.46110436251349607,
+        "codewhispererClassifierThreshold": 0.43,
+        "codewhispererTotalShownTime": 0,
+        "codewhispererTypeaheadLength": 0,
+        "codewhispererTimeSinceLastDocumentChange": 2825,
+        "codewhispererTimeSinceLastUserDecision": 0,
+        "codewhispererTimeToFirstRecommendation": 1280,
+        "codewhispererPreviousSuggestionState": "Discard"
+    }
+}
+
+
+[Info  - 12:15:38] vscode client: Received telemetry event from server {"name":"codewhisperer_userTriggerDecision","data":{"codewhispererSessionId":"e73a47af-93d3-4491-ba66-69ea62fdca27","codewhispererFirstRequestId":"9c3fb7d6-5c12-4edc-a9c4-02da4e72734a","credentialStartUrl":"https://amzn.awsapps.com/start","codewhispererSuggestionState":"Discard","codewhispererCompletionType":"Block","codewhispererLanguage":"csharp","codewhispererTriggerType":"OnDemand","codewhispererLineNumber":1,"codewhispererCursorOffset":0,"codewhispererSuggestionCount":1,"codewhispererClassifierResult":0.46110436251349607,"codewhispererClassifierThreshold":0.43,"codewhispererTotalShownTime":0,"codewhispererTypeaheadLength":0,"codewhispererTimeSinceLastDocumentChange":2825,"codewhispererTimeSinceLastUserDecision":0,"codewhispererTimeToFirstRecommendation":1280,"codewhispererPreviousSuggestionState":"Discard"}}
+[Trace - 12:15:38] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_userDecision",
+    "data": {
+        "codewhispererRequestId": "9c3fb7d6-5c12-4edc-a9c4-02da4e72734a",
+        "codewhispererSessionId": "e73a47af-93d3-4491-ba66-69ea62fdca27",
+        "codewhispererCompletionType": "Block",
+        "codewhispererTriggerType": "OnDemand",
+        "codewhispererLanguage": "csharp",
+        "credentialStartUrl": "https://amzn.awsapps.com/start",
+        "codewhispererSuggestionIndex": 0,
+        "codewhispererSuggestionState": "Discard",
+        "codewhispererSuggestionReferences": [],
+        "codewhispererSuggestionReferenceCount": 0
+    }
+}
+
+
+[Info  - 12:15:38] vscode client: Received telemetry event from server {"name":"codewhisperer_userDecision","data":{"codewhispererRequestId":"9c3fb7d6-5c12-4edc-a9c4-02da4e72734a","codewhispererSessionId":"e73a47af-93d3-4491-ba66-69ea62fdca27","codewhispererCompletionType":"Block","codewhispererTriggerType":"OnDemand","codewhispererLanguage":"csharp","credentialStartUrl":"https://amzn.awsapps.com/start","codewhispererSuggestionIndex":0,"codewhispererSuggestionState":"Discard","codewhispererSuggestionReferences":[],"codewhispererSuggestionReferenceCount":0}}
+[Trace - 12:15:41] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_serviceInvocation",
+    "result": "Succeeded",
+    "data": {
+        "codewhispererRequestId": "4cd218ce-fa56-4c3b-a92d-3fa1ede5d9c3",
+        "codewhispererSessionId": "271a5c39-c967-4fc0-8240-0d32b5fec756",
+        "codewhispererLastSuggestionIndex": 0,
+        "codewhispererCompletionType": "Block",
+        "codewhispererTriggerType": "AutoTrigger",
+        "codewhispererAutomatedTriggerType": "Enter",
+        "duration": 2328,
+        "codewhispererLineNumber": 1,
+        "codewhispererCursorOffset": 0,
+        "codewhispererLanguage": "javascript",
+        "credentialStartUrl": "https://amzn.awsapps.com/start"
+    }
+}
+
+
+[Info  - 12:15:41] vscode client: Received telemetry event from server {"name":"codewhisperer_serviceInvocation","result":"Succeeded","data":{"codewhispererRequestId":"4cd218ce-fa56-4c3b-a92d-3fa1ede5d9c3","codewhispererSessionId":"271a5c39-c967-4fc0-8240-0d32b5fec756","codewhispererLastSuggestionIndex":0,"codewhispererCompletionType":"Block","codewhispererTriggerType":"AutoTrigger","codewhispererAutomatedTriggerType":"Enter","duration":2328,"codewhispererLineNumber":1,"codewhispererCursorOffset":0,"codewhispererLanguage":"javascript","credentialStartUrl":"https://amzn.awsapps.com/start"}}
+[Trace - 12:15:41] Received response 'aws/textDocument/inlineCompletionWithReferences - (87)' in 2332ms.
+Result: {
+    "items": [
+        {
+            "itemId": "4f9343a4-a757-49a9-97da-64fc8b3a28f7",
+            "insertText": "class Person {\n  constructor(name) {\n    this.name = name;\n  }\n\n  getName() {\n    return this.name;\n  }\n}\n\n// Create Student class that inherits from Person and overrides getName method\nclass Student extends Person {\n  constructor(name, studentId) {\n    super(name);\n    this.studentId = studentId;\n  }\n\n  getName() {\n    return `${this.name} (Student ID: ${this.studentId})`;\n  }\n}\n\n// Example usage\nconst person = new Person(\"John\");\nconsole.log(person.getName()); // Output: John\n\nconst student = new Student(\"Jane\", 12345);\nconsole.log(student.getName()); // Output: Jane (Student ID: 12345)"
+        }
+    ],
+    "sessionId": "eea85f97-6794-4667-8d87-e556332a7058"
+}
+
+
+[Info  - 12:15:41] Client: Received 1 suggestions
+[Trace - 12:15:41] Sending request 'aws/textDocument/inlineCompletionWithReferences - (88)'.
+Params: {
+    "textDocument": {
+        "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.js"
+    },
+    "position": {
+        "line": 1,
+        "character": 0
+    },
+    "context": {
+        "triggerKind": 0
+    }
+}
+
+
+[Trace - 12:15:41] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_userTriggerDecision",
+    "data": {
+        "codewhispererSessionId": "271a5c39-c967-4fc0-8240-0d32b5fec756",
+        "codewhispererFirstRequestId": "4cd218ce-fa56-4c3b-a92d-3fa1ede5d9c3",
+        "credentialStartUrl": "https://amzn.awsapps.com/start",
+        "codewhispererSuggestionState": "Discard",
+        "codewhispererCompletionType": "Block",
+        "codewhispererLanguage": "javascript",
+        "codewhispererTriggerType": "AutoTrigger",
+        "codewhispererAutomatedTriggerType": "Enter",
+        "codewhispererLineNumber": 1,
+        "codewhispererCursorOffset": 0,
+        "codewhispererSuggestionCount": 1,
+        "codewhispererClassifierResult": 0.339804362513496,
+        "codewhispererClassifierThreshold": 0.43,
+        "codewhispererTotalShownTime": 0,
+        "codewhispererTypeaheadLength": 0,
+        "codewhispererTimeSinceLastDocumentChange": 2825,
+        "codewhispererTimeSinceLastUserDecision": 0,
+        "codewhispererTimeToFirstRecommendation": 2328,
+        "codewhispererPreviousSuggestionState": "Discard"
+    }
+}
+
+
+[Info  - 12:15:41] vscode client: Received telemetry event from server {"name":"codewhisperer_userTriggerDecision","data":{"codewhispererSessionId":"271a5c39-c967-4fc0-8240-0d32b5fec756","codewhispererFirstRequestId":"4cd218ce-fa56-4c3b-a92d-3fa1ede5d9c3","credentialStartUrl":"https://amzn.awsapps.com/start","codewhispererSuggestionState":"Discard","codewhispererCompletionType":"Block","codewhispererLanguage":"javascript","codewhispererTriggerType":"AutoTrigger","codewhispererAutomatedTriggerType":"Enter","codewhispererLineNumber":1,"codewhispererCursorOffset":0,"codewhispererSuggestionCount":1,"codewhispererClassifierResult":0.339804362513496,"codewhispererClassifierThreshold":0.43,"codewhispererTotalShownTime":0,"codewhispererTypeaheadLength":0,"codewhispererTimeSinceLastDocumentChange":2825,"codewhispererTimeSinceLastUserDecision":0,"codewhispererTimeToFirstRecommendation":2328,"codewhispererPreviousSuggestionState":"Discard"}}
+[Trace - 12:15:41] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_userDecision",
+    "data": {
+        "codewhispererRequestId": "4cd218ce-fa56-4c3b-a92d-3fa1ede5d9c3",
+        "codewhispererSessionId": "271a5c39-c967-4fc0-8240-0d32b5fec756",
+        "codewhispererCompletionType": "Block",
+        "codewhispererTriggerType": "AutoTrigger",
+        "codewhispererLanguage": "javascript",
+        "credentialStartUrl": "https://amzn.awsapps.com/start",
+        "codewhispererSuggestionIndex": 0,
+        "codewhispererSuggestionState": "Discard",
+        "codewhispererSuggestionReferences": [],
+        "codewhispererSuggestionReferenceCount": 0
+    }
+}
+
+
+[Info  - 12:15:41] vscode client: Received telemetry event from server {"name":"codewhisperer_userDecision","data":{"codewhispererRequestId":"4cd218ce-fa56-4c3b-a92d-3fa1ede5d9c3","codewhispererSessionId":"271a5c39-c967-4fc0-8240-0d32b5fec756","codewhispererCompletionType":"Block","codewhispererTriggerType":"AutoTrigger","codewhispererLanguage":"javascript","credentialStartUrl":"https://amzn.awsapps.com/start","codewhispererSuggestionIndex":0,"codewhispererSuggestionState":"Discard","codewhispererSuggestionReferences":[],"codewhispererSuggestionReferenceCount":0}}
+[Trace - 12:15:42] Sending notification 'textDocument/didChange'.
+Params: {
+    "textDocument": {
+        "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.js",
+        "version": 5
+    },
+    "contentChanges": [
+        {
+            "range": {
+                "start": {
+                    "line": 1,
+                    "character": 0
+                },
+                "end": {
+                    "line": 1,
+                    "character": 0
+                }
+            },
+            "rangeLength": 0,
+            "text": "class Person {\n  constructor(name) {\n    this.name = name;\n  }\n\n  getName() {\n    return this.name;\n  }\n}\n\n// Create Student class that inherits from Person and overrides getName method\nclass Student extends Person {\n  constructor(name, studentId) {\n    super(name);\n    this.studentId = studentId;\n  }\n\n  getName() {\n    return `${this.name} (Student ID: ${this.studentId})`;\n  }\n}\n\n// Example usage\nconst person = new Person(\"John\");\nconsole.log(person.getName()); // Output: John\n\nconst student = new Student(\"Jane\", 12345);\nconsole.log(student.getName()); // Output: Jane (Student ID: 12345)"
+        }
+    ]
+}
+
+
+[Trace - 12:15:42] Sending notification '$/cancelRequest'.
+Params: {
+    "id": 88
+}
+
+
+[Trace - 12:15:42] Sending request 'aws/textDocument/inlineCompletionWithReferences - (89)'.
+Params: {
+    "textDocument": {
+        "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.js"
+    },
+    "position": {
+        "line": 28,
+        "character": 67
+    },
+    "context": {
+        "triggerKind": 1
+    }
+}
+
+
+[Trace - 12:15:42] Received response 'aws/textDocument/inlineCompletionWithReferences - (89)' in 2ms.
+Result: {
+    "sessionId": "",
+    "items": []
+}
+
+
+[Info  - 12:15:42] Client: Received 0 suggestions
+[Trace - 12:15:43] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_serviceInvocation",
+    "result": "Succeeded",
+    "data": {
+        "codewhispererRequestId": "c30b036f-0047-4621-aff4-de7e5a565250",
+        "codewhispererSessionId": "fbfea589-199c-4b09-ab2f-6aaa56c4f56d",
+        "codewhispererLastSuggestionIndex": 0,
+        "codewhispererCompletionType": "Block",
+        "codewhispererTriggerType": "OnDemand",
+        "duration": 2302,
+        "codewhispererLineNumber": 1,
+        "codewhispererCursorOffset": 0,
+        "codewhispererLanguage": "javascript",
+        "credentialStartUrl": "https://amzn.awsapps.com/start"
+    }
+}
+
+
+[Info  - 12:15:43] vscode client: Received telemetry event from server {"name":"codewhisperer_serviceInvocation","result":"Succeeded","data":{"codewhispererRequestId":"c30b036f-0047-4621-aff4-de7e5a565250","codewhispererSessionId":"fbfea589-199c-4b09-ab2f-6aaa56c4f56d","codewhispererLastSuggestionIndex":0,"codewhispererCompletionType":"Block","codewhispererTriggerType":"OnDemand","duration":2302,"codewhispererLineNumber":1,"codewhispererCursorOffset":0,"codewhispererLanguage":"javascript","credentialStartUrl":"https://amzn.awsapps.com/start"}}
+[Trace - 12:15:43] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_userTriggerDecision",
+    "data": {
+        "codewhispererSessionId": "fbfea589-199c-4b09-ab2f-6aaa56c4f56d",
+        "codewhispererFirstRequestId": "c30b036f-0047-4621-aff4-de7e5a565250",
+        "credentialStartUrl": "https://amzn.awsapps.com/start",
+        "codewhispererSuggestionState": "Discard",
+        "codewhispererCompletionType": "Block",
+        "codewhispererLanguage": "javascript",
+        "codewhispererTriggerType": "OnDemand",
+        "codewhispererLineNumber": 1,
+        "codewhispererCursorOffset": 0,
+        "codewhispererSuggestionCount": 1,
+        "codewhispererClassifierResult": 0.339804362513496,
+        "codewhispererClassifierThreshold": 0.43,
+        "codewhispererTotalShownTime": 0,
+        "codewhispererTypeaheadLength": 0,
+        "codewhispererTimeSinceLastDocumentChange": 3637,
+        "codewhispererTimeSinceLastUserDecision": 0,
+        "codewhispererTimeToFirstRecommendation": 2302,
+        "codewhispererPreviousSuggestionState": "Discard"
+    }
+}
+
+
+[Info  - 12:15:43] vscode client: Received telemetry event from server {"name":"codewhisperer_userTriggerDecision","data":{"codewhispererSessionId":"fbfea589-199c-4b09-ab2f-6aaa56c4f56d","codewhispererFirstRequestId":"c30b036f-0047-4621-aff4-de7e5a565250","credentialStartUrl":"https://amzn.awsapps.com/start","codewhispererSuggestionState":"Discard","codewhispererCompletionType":"Block","codewhispererLanguage":"javascript","codewhispererTriggerType":"OnDemand","codewhispererLineNumber":1,"codewhispererCursorOffset":0,"codewhispererSuggestionCount":1,"codewhispererClassifierResult":0.339804362513496,"codewhispererClassifierThreshold":0.43,"codewhispererTotalShownTime":0,"codewhispererTypeaheadLength":0,"codewhispererTimeSinceLastDocumentChange":3637,"codewhispererTimeSinceLastUserDecision":0,"codewhispererTimeToFirstRecommendation":2302,"codewhispererPreviousSuggestionState":"Discard"}}
+[Trace - 12:15:43] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_userDecision",
+    "data": {
+        "codewhispererRequestId": "c30b036f-0047-4621-aff4-de7e5a565250",
+        "codewhispererSessionId": "fbfea589-199c-4b09-ab2f-6aaa56c4f56d",
+        "codewhispererCompletionType": "Block",
+        "codewhispererTriggerType": "OnDemand",
+        "codewhispererLanguage": "javascript",
+        "credentialStartUrl": "https://amzn.awsapps.com/start",
+        "codewhispererSuggestionIndex": 0,
+        "codewhispererSuggestionState": "Discard",
+        "codewhispererSuggestionReferences": [],
+        "codewhispererSuggestionReferenceCount": 0
+    }
+}
+
+
+[Info  - 12:15:43] vscode client: Received telemetry event from server {"name":"codewhisperer_userDecision","data":{"codewhispererRequestId":"c30b036f-0047-4621-aff4-de7e5a565250","codewhispererSessionId":"fbfea589-199c-4b09-ab2f-6aaa56c4f56d","codewhispererCompletionType":"Block","codewhispererTriggerType":"OnDemand","codewhispererLanguage":"javascript","credentialStartUrl":"https://amzn.awsapps.com/start","codewhispererSuggestionIndex":0,"codewhispererSuggestionState":"Discard","codewhispererSuggestionReferences":[],"codewhispererSuggestionReferenceCount":0}}
+[Trace - 12:15:43] Received response 'aws/textDocument/inlineCompletionWithReferences - (88)' in 2308ms.
+Result: {
+    "sessionId": "",
+    "items": []
+}
+
+
+[Info  - 12:15:43] Client: Received 0 suggestions
+[Trace - 12:15:44] Sending notification 'textDocument/didChange'.
+Params: {
+    "textDocument": {
+        "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.py",
+        "version": 4
+    },
+    "contentChanges": [
+        {
+            "range": {
+                "start": {
+                    "line": 0,
+                    "character": 41
+                },
+                "end": {
+                    "line": 0,
+                    "character": 41
+                }
+            },
+            "rangeLength": 0,
+            "text": "\n"
+        }
+    ]
+}
+
+
+[Trace - 12:15:44] Sending request 'aws/textDocument/inlineCompletionWithReferences - (90)'.
+Params: {
+    "textDocument": {
+        "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.py"
+    },
+    "position": {
+        "line": 1,
+        "character": 0
+    },
+    "context": {
+        "triggerKind": 1
+    }
+}
+
+
+[Trace - 12:15:47] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_serviceInvocation",
+    "result": "Succeeded",
+    "data": {
+        "codewhispererRequestId": "c1444126-8e77-4ad4-8d1d-ee9fbc9b7e6c",
+        "codewhispererSessionId": "523b192f-9bf4-448d-aec8-f6204304a86a",
+        "codewhispererLastSuggestionIndex": 2,
+        "codewhispererCompletionType": "Block",
+        "codewhispererTriggerType": "AutoTrigger",
+        "codewhispererAutomatedTriggerType": "Enter",
+        "duration": 3064,
+        "codewhispererLineNumber": 1,
+        "codewhispererCursorOffset": 0,
+        "codewhispererLanguage": "python",
+        "credentialStartUrl": "https://amzn.awsapps.com/start"
+    }
+}
+
+
+[Info  - 12:15:47] vscode client: Received telemetry event from server {"name":"codewhisperer_serviceInvocation","result":"Succeeded","data":{"codewhispererRequestId":"c1444126-8e77-4ad4-8d1d-ee9fbc9b7e6c","codewhispererSessionId":"523b192f-9bf4-448d-aec8-f6204304a86a","codewhispererLastSuggestionIndex":2,"codewhispererCompletionType":"Block","codewhispererTriggerType":"AutoTrigger","codewhispererAutomatedTriggerType":"Enter","duration":3064,"codewhispererLineNumber":1,"codewhispererCursorOffset":0,"codewhispererLanguage":"python","credentialStartUrl":"https://amzn.awsapps.com/start"}}
+[Trace - 12:15:47] Received response 'aws/textDocument/inlineCompletionWithReferences - (90)' in 3067ms.
+Result: {
+    "items": [
+        {
+            "itemId": "5bdb9fc9-3b88-4274-871b-a9387e7f2970",
+            "insertText": "class Person:\n    def __init__(self, name):\n        self.name = name\n        \n    def getName(self):\n        return self.name\n\n# Create Student class that inherits from Person and has getGrade method        \nclass Student(Person):\n    def __init__(self, name, grade):\n        super().__init__(name)\n        self.grade = grade\n        \n    def getGrade(self):\n        return self.grade\n\n# Create object of the Student class        \nx = Student(\"John\", 85)\n\n# Call methods from Person and Student classes\nprint(x.getName()) # Output: John\nprint(x.getGrade()) # Output: 85"
+        },
+        {
+            "itemId": "5de95afa-89b4-4da8-a719-e32c62914aeb",
+            "insertText": "class Person:\n    def __init__(self, name):\n        self.name = name\n        \n    def getName(self):\n        return self.name\n\n# Create Student class that inherits from Person and has getGrade method        \nclass Student(Person):\n    def __init__(self, name, grade):\n        super().__init__(name)\n        self.grade = grade\n        \n    def getGrade(self):\n        return self.grade\n\n# Create object of the Student class        \nstudent1 = Student(\"John Doe\", 85)\n\n# Call methods\nprint(student1.getName())    # Output: John Doe\nprint(student1.getGrade())   # Output: 85"
+        },
+        {
+            "itemId": "e2f0f7f5-4e3d-4c5a-a921-5da5e23332ce",
+            "insertText": "class Person:\n    def __init__(self, name):\n        self.name = name\n        \n    def getName(self):\n        return self.name\n\n# Create Student class that inherits from Person and has getGrade method        \nclass Student(Person):\n    def __init__(self, name, grade):\n        super().__init__(name)\n        self.grade = grade\n        \n    def getGrade(self):\n        return self.grade\n\n# Create object of Student class and print its name and grade        \nstudent1 = Student(\"John Doe\", 85)        \nprint(student1.getName()) # Output: John Doe\nprint(student1.getGrade()) # Output: 85"
+        }
+    ],
+    "sessionId": "8891500d-8eb6-4524-a417-f2beb4a88263"
+}
+
+
+[Info  - 12:15:47] Client: Received 3 suggestions
+[Trace - 12:15:48] Sending request 'aws/textDocument/inlineCompletionWithReferences - (91)'.
+Params: {
+    "textDocument": {
+        "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.py"
+    },
+    "position": {
+        "line": 1,
+        "character": 0
+    },
+    "context": {
+        "triggerKind": 0
+    }
+}
+
+
+[Trace - 12:15:48] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_userTriggerDecision",
+    "data": {
+        "codewhispererSessionId": "523b192f-9bf4-448d-aec8-f6204304a86a",
+        "codewhispererFirstRequestId": "c1444126-8e77-4ad4-8d1d-ee9fbc9b7e6c",
+        "credentialStartUrl": "https://amzn.awsapps.com/start",
+        "codewhispererSuggestionState": "Discard",
+        "codewhispererCompletionType": "Block",
+        "codewhispererLanguage": "python",
+        "codewhispererTriggerType": "AutoTrigger",
+        "codewhispererAutomatedTriggerType": "Enter",
+        "codewhispererLineNumber": 1,
+        "codewhispererCursorOffset": 0,
+        "codewhispererSuggestionCount": 3,
+        "codewhispererClassifierResult": 0.5011128852407687,
+        "codewhispererClassifierThreshold": 0.43,
+        "codewhispererTotalShownTime": 0,
+        "codewhispererTypeaheadLength": 0,
+        "codewhispererTimeSinceLastDocumentChange": 2614,
+        "codewhispererTimeSinceLastUserDecision": 2612,
+        "codewhispererTimeToFirstRecommendation": 3064,
+        "codewhispererPreviousSuggestionState": "Discard"
+    }
+}
+
+
+[Info  - 12:15:48] vscode client: Received telemetry event from server {"name":"codewhisperer_userTriggerDecision","data":{"codewhispererSessionId":"523b192f-9bf4-448d-aec8-f6204304a86a","codewhispererFirstRequestId":"c1444126-8e77-4ad4-8d1d-ee9fbc9b7e6c","credentialStartUrl":"https://amzn.awsapps.com/start","codewhispererSuggestionState":"Discard","codewhispererCompletionType":"Block","codewhispererLanguage":"python","codewhispererTriggerType":"AutoTrigger","codewhispererAutomatedTriggerType":"Enter","codewhispererLineNumber":1,"codewhispererCursorOffset":0,"codewhispererSuggestionCount":3,"codewhispererClassifierResult":0.5011128852407687,"codewhispererClassifierThreshold":0.43,"codewhispererTotalShownTime":0,"codewhispererTypeaheadLength":0,"codewhispererTimeSinceLastDocumentChange":2614,"codewhispererTimeSinceLastUserDecision":2612,"codewhispererTimeToFirstRecommendation":3064,"codewhispererPreviousSuggestionState":"Discard"}}
+[Trace - 12:15:48] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_userDecision",
+    "data": {
+        "codewhispererRequestId": "c1444126-8e77-4ad4-8d1d-ee9fbc9b7e6c",
+        "codewhispererSessionId": "523b192f-9bf4-448d-aec8-f6204304a86a",
+        "codewhispererCompletionType": "Block",
+        "codewhispererTriggerType": "AutoTrigger",
+        "codewhispererLanguage": "python",
+        "credentialStartUrl": "https://amzn.awsapps.com/start",
+        "codewhispererSuggestionIndex": 0,
+        "codewhispererSuggestionState": "Discard",
+        "codewhispererSuggestionReferences": [],
+        "codewhispererSuggestionReferenceCount": 0
+    }
+}
+
+
+[Info  - 12:15:48] vscode client: Received telemetry event from server {"name":"codewhisperer_userDecision","data":{"codewhispererRequestId":"c1444126-8e77-4ad4-8d1d-ee9fbc9b7e6c","codewhispererSessionId":"523b192f-9bf4-448d-aec8-f6204304a86a","codewhispererCompletionType":"Block","codewhispererTriggerType":"AutoTrigger","codewhispererLanguage":"python","credentialStartUrl":"https://amzn.awsapps.com/start","codewhispererSuggestionIndex":0,"codewhispererSuggestionState":"Discard","codewhispererSuggestionReferences":[],"codewhispererSuggestionReferenceCount":0}}
+[Trace - 12:15:48] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_userDecision",
+    "data": {
+        "codewhispererRequestId": "c1444126-8e77-4ad4-8d1d-ee9fbc9b7e6c",
+        "codewhispererSessionId": "523b192f-9bf4-448d-aec8-f6204304a86a",
+        "codewhispererCompletionType": "Block",
+        "codewhispererTriggerType": "AutoTrigger",
+        "codewhispererLanguage": "python",
+        "credentialStartUrl": "https://amzn.awsapps.com/start",
+        "codewhispererSuggestionIndex": 1,
+        "codewhispererSuggestionState": "Discard",
+        "codewhispererSuggestionReferences": [],
+        "codewhispererSuggestionReferenceCount": 0
+    }
+}
+
+
+[Info  - 12:15:48] vscode client: Received telemetry event from server {"name":"codewhisperer_userDecision","data":{"codewhispererRequestId":"c1444126-8e77-4ad4-8d1d-ee9fbc9b7e6c","codewhispererSessionId":"523b192f-9bf4-448d-aec8-f6204304a86a","codewhispererCompletionType":"Block","codewhispererTriggerType":"AutoTrigger","codewhispererLanguage":"python","credentialStartUrl":"https://amzn.awsapps.com/start","codewhispererSuggestionIndex":1,"codewhispererSuggestionState":"Discard","codewhispererSuggestionReferences":[],"codewhispererSuggestionReferenceCount":0}}
+[Trace - 12:15:48] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_userDecision",
+    "data": {
+        "codewhispererRequestId": "c1444126-8e77-4ad4-8d1d-ee9fbc9b7e6c",
+        "codewhispererSessionId": "523b192f-9bf4-448d-aec8-f6204304a86a",
+        "codewhispererCompletionType": "Block",
+        "codewhispererTriggerType": "AutoTrigger",
+        "codewhispererLanguage": "python",
+        "credentialStartUrl": "https://amzn.awsapps.com/start",
+        "codewhispererSuggestionIndex": 2,
+        "codewhispererSuggestionState": "Discard",
+        "codewhispererSuggestionReferences": [],
+        "codewhispererSuggestionReferenceCount": 0
+    }
+}
+
+
+[Info  - 12:15:48] vscode client: Received telemetry event from server {"name":"codewhisperer_userDecision","data":{"codewhispererRequestId":"c1444126-8e77-4ad4-8d1d-ee9fbc9b7e6c","codewhispererSessionId":"523b192f-9bf4-448d-aec8-f6204304a86a","codewhispererCompletionType":"Block","codewhispererTriggerType":"AutoTrigger","codewhispererLanguage":"python","credentialStartUrl":"https://amzn.awsapps.com/start","codewhispererSuggestionIndex":2,"codewhispererSuggestionState":"Discard","codewhispererSuggestionReferences":[],"codewhispererSuggestionReferenceCount":0}}
+[Trace - 12:15:48] Sending notification 'textDocument/didChange'.
+Params: {
+    "textDocument": {
+        "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.py",
+        "version": 5
+    },
+    "contentChanges": [
+        {
+            "range": {
+                "start": {
+                    "line": 1,
+                    "character": 0
+                },
+                "end": {
+                    "line": 1,
+                    "character": 0
+                }
+            },
+            "rangeLength": 0,
+            "text": "class Person:\n    def __init__(self, name):\n        self.name = name\n        \n    def getName(self):\n        return self.name\n\n# Create Student class that inherits from Person and has getGrade method        \nclass Student(Person):\n    def __init__(self, name, grade):\n        super().__init__(name)\n        self.grade = grade\n        \n    def getGrade(self):\n        return self.grade\n\n# Create object of the Student class        \nx = Student(\"John\", 85)\n\n# Call methods from Person and Student classes\nprint(x.getName()) # Output: John\nprint(x.getGrade()) # Output: 85"
+        }
+    ]
+}
+
+
+[Trace - 12:15:48] Sending notification '$/cancelRequest'.
+Params: {
+    "id": 91
+}
+
+
+[Trace - 12:15:48] Sending request 'aws/textDocument/inlineCompletionWithReferences - (92)'.
+Params: {
+    "textDocument": {
+        "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.py"
+    },
+    "position": {
+        "line": 22,
+        "character": 32
+    },
+    "context": {
+        "triggerKind": 1
+    }
+}
+
+
+[Trace - 12:15:48] Received response 'aws/textDocument/inlineCompletionWithReferences - (92)' in 2ms.
+Result: {
+    "sessionId": "",
+    "items": []
+}
+
+
+[Info  - 12:15:48] Client: Received 0 suggestions
+[Trace - 12:15:50] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_serviceInvocation",
+    "result": "Succeeded",
+    "data": {
+        "codewhispererRequestId": "f212dcff-3f7b-4045-b0ca-ee94c57a2807",
+        "codewhispererSessionId": "24da579f-86c6-4c8a-a48e-ca711d0e5134",
+        "codewhispererLastSuggestionIndex": 2,
+        "codewhispererCompletionType": "Block",
+        "codewhispererTriggerType": "OnDemand",
+        "duration": 2884,
+        "codewhispererLineNumber": 1,
+        "codewhispererCursorOffset": 0,
+        "codewhispererLanguage": "python",
+        "credentialStartUrl": "https://amzn.awsapps.com/start"
+    }
+}
+
+
+[Info  - 12:15:50] vscode client: Received telemetry event from server {"name":"codewhisperer_serviceInvocation","result":"Succeeded","data":{"codewhispererRequestId":"f212dcff-3f7b-4045-b0ca-ee94c57a2807","codewhispererSessionId":"24da579f-86c6-4c8a-a48e-ca711d0e5134","codewhispererLastSuggestionIndex":2,"codewhispererCompletionType":"Block","codewhispererTriggerType":"OnDemand","duration":2884,"codewhispererLineNumber":1,"codewhispererCursorOffset":0,"codewhispererLanguage":"python","credentialStartUrl":"https://amzn.awsapps.com/start"}}
+[Trace - 12:15:50] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_userTriggerDecision",
+    "data": {
+        "codewhispererSessionId": "24da579f-86c6-4c8a-a48e-ca711d0e5134",
+        "codewhispererFirstRequestId": "f212dcff-3f7b-4045-b0ca-ee94c57a2807",
+        "credentialStartUrl": "https://amzn.awsapps.com/start",
+        "codewhispererSuggestionState": "Discard",
+        "codewhispererCompletionType": "Block",
+        "codewhispererLanguage": "python",
+        "codewhispererTriggerType": "OnDemand",
+        "codewhispererLineNumber": 1,
+        "codewhispererCursorOffset": 0,
+        "codewhispererSuggestionCount": 3,
+        "codewhispererClassifierResult": 0.5011128852407687,
+        "codewhispererClassifierThreshold": 0.43,
+        "codewhispererTotalShownTime": 0,
+        "codewhispererTypeaheadLength": 0,
+        "codewhispererTimeSinceLastDocumentChange": 3795,
+        "codewhispererTimeSinceLastUserDecision": 1,
+        "codewhispererTimeToFirstRecommendation": 2884,
+        "codewhispererPreviousSuggestionState": "Discard"
+    }
+}
+
+
+[Info  - 12:15:50] vscode client: Received telemetry event from server {"name":"codewhisperer_userTriggerDecision","data":{"codewhispererSessionId":"24da579f-86c6-4c8a-a48e-ca711d0e5134","codewhispererFirstRequestId":"f212dcff-3f7b-4045-b0ca-ee94c57a2807","credentialStartUrl":"https://amzn.awsapps.com/start","codewhispererSuggestionState":"Discard","codewhispererCompletionType":"Block","codewhispererLanguage":"python","codewhispererTriggerType":"OnDemand","codewhispererLineNumber":1,"codewhispererCursorOffset":0,"codewhispererSuggestionCount":3,"codewhispererClassifierResult":0.5011128852407687,"codewhispererClassifierThreshold":0.43,"codewhispererTotalShownTime":0,"codewhispererTypeaheadLength":0,"codewhispererTimeSinceLastDocumentChange":3795,"codewhispererTimeSinceLastUserDecision":1,"codewhispererTimeToFirstRecommendation":2884,"codewhispererPreviousSuggestionState":"Discard"}}
+[Trace - 12:15:50] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_userDecision",
+    "data": {
+        "codewhispererRequestId": "f212dcff-3f7b-4045-b0ca-ee94c57a2807",
+        "codewhispererSessionId": "24da579f-86c6-4c8a-a48e-ca711d0e5134",
+        "codewhispererCompletionType": "Block",
+        "codewhispererTriggerType": "OnDemand",
+        "codewhispererLanguage": "python",
+        "credentialStartUrl": "https://amzn.awsapps.com/start",
+        "codewhispererSuggestionIndex": 0,
+        "codewhispererSuggestionState": "Discard",
+        "codewhispererSuggestionReferences": [],
+        "codewhispererSuggestionReferenceCount": 0
+    }
+}
+
+
+[Info  - 12:15:50] vscode client: Received telemetry event from server {"name":"codewhisperer_userDecision","data":{"codewhispererRequestId":"f212dcff-3f7b-4045-b0ca-ee94c57a2807","codewhispererSessionId":"24da579f-86c6-4c8a-a48e-ca711d0e5134","codewhispererCompletionType":"Block","codewhispererTriggerType":"OnDemand","codewhispererLanguage":"python","credentialStartUrl":"https://amzn.awsapps.com/start","codewhispererSuggestionIndex":0,"codewhispererSuggestionState":"Discard","codewhispererSuggestionReferences":[],"codewhispererSuggestionReferenceCount":0}}
+[Trace - 12:15:50] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_userDecision",
+    "data": {
+        "codewhispererRequestId": "f212dcff-3f7b-4045-b0ca-ee94c57a2807",
+        "codewhispererSessionId": "24da579f-86c6-4c8a-a48e-ca711d0e5134",
+        "codewhispererCompletionType": "Block",
+        "codewhispererTriggerType": "OnDemand",
+        "codewhispererLanguage": "python",
+        "credentialStartUrl": "https://amzn.awsapps.com/start",
+        "codewhispererSuggestionIndex": 1,
+        "codewhispererSuggestionState": "Discard",
+        "codewhispererSuggestionReferences": [],
+        "codewhispererSuggestionReferenceCount": 0
+    }
+}
+
+
+[Info  - 12:15:50] vscode client: Received telemetry event from server {"name":"codewhisperer_userDecision","data":{"codewhispererRequestId":"f212dcff-3f7b-4045-b0ca-ee94c57a2807","codewhispererSessionId":"24da579f-86c6-4c8a-a48e-ca711d0e5134","codewhispererCompletionType":"Block","codewhispererTriggerType":"OnDemand","codewhispererLanguage":"python","credentialStartUrl":"https://amzn.awsapps.com/start","codewhispererSuggestionIndex":1,"codewhispererSuggestionState":"Discard","codewhispererSuggestionReferences":[],"codewhispererSuggestionReferenceCount":0}}
+[Trace - 12:15:50] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_userDecision",
+    "data": {
+        "codewhispererRequestId": "f212dcff-3f7b-4045-b0ca-ee94c57a2807",
+        "codewhispererSessionId": "24da579f-86c6-4c8a-a48e-ca711d0e5134",
+        "codewhispererCompletionType": "Block",
+        "codewhispererTriggerType": "OnDemand",
+        "codewhispererLanguage": "python",
+        "credentialStartUrl": "https://amzn.awsapps.com/start",
+        "codewhispererSuggestionIndex": 2,
+        "codewhispererSuggestionState": "Discard",
+        "codewhispererSuggestionReferences": [],
+        "codewhispererSuggestionReferenceCount": 0
+    }
+}
+
+
+[Info  - 12:15:50] vscode client: Received telemetry event from server {"name":"codewhisperer_userDecision","data":{"codewhispererRequestId":"f212dcff-3f7b-4045-b0ca-ee94c57a2807","codewhispererSessionId":"24da579f-86c6-4c8a-a48e-ca711d0e5134","codewhispererCompletionType":"Block","codewhispererTriggerType":"OnDemand","codewhispererLanguage":"python","credentialStartUrl":"https://amzn.awsapps.com/start","codewhispererSuggestionIndex":2,"codewhispererSuggestionState":"Discard","codewhispererSuggestionReferences":[],"codewhispererSuggestionReferenceCount":0}}
+[Trace - 12:15:50] Received response 'aws/textDocument/inlineCompletionWithReferences - (91)' in 2891ms.
+Result: {
+    "sessionId": "",
+    "items": []
+}
+
+
+[Info  - 12:15:50] Client: Received 0 suggestions
+[Trace - 12:15:53] Sending notification 'textDocument/didChange'.
+Params: {
+    "textDocument": {
+        "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.py",
+        "version": 6
+    },
+    "contentChanges": [
+        {
+            "range": {
+                "start": {
+                    "line": 7,
+                    "character": 0
+                },
+                "end": {
+                    "line": 22,
+                    "character": 32
+                }
+            },
+            "rangeLength": 443,
+            "text": ""
+        }
+    ]
+}
+
+
+[Trace - 12:15:53] Sending request 'aws/textDocument/inlineCompletionWithReferences - (93)'.
+Params: {
+    "textDocument": {
+        "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.py"
+    },
+    "position": {
+        "line": 7,
+        "character": 0
+    },
+    "context": {
+        "triggerKind": 1
+    }
+}
+
+
+[Trace - 12:15:53] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_serviceInvocation",
+    "result": "Succeeded",
+    "data": {
+        "codewhispererRequestId": "d9f530b3-2496-4c59-95a6-4418615a5205",
+        "codewhispererSessionId": "258c1b0f-cdc4-4b25-b65e-a651dfb84ad0",
+        "codewhispererLastSuggestionIndex": -1,
+        "codewhispererTriggerType": "AutoTrigger",
+        "codewhispererAutomatedTriggerType": "Enter",
+        "duration": 610,
+        "codewhispererLineNumber": 7,
+        "codewhispererCursorOffset": 0,
+        "codewhispererLanguage": "python",
+        "credentialStartUrl": "https://amzn.awsapps.com/start"
+    }
+}
+
+
+[Info  - 12:15:53] vscode client: Received telemetry event from server {"name":"codewhisperer_serviceInvocation","result":"Succeeded","data":{"codewhispererRequestId":"d9f530b3-2496-4c59-95a6-4418615a5205","codewhispererSessionId":"258c1b0f-cdc4-4b25-b65e-a651dfb84ad0","codewhispererLastSuggestionIndex":-1,"codewhispererTriggerType":"AutoTrigger","codewhispererAutomatedTriggerType":"Enter","duration":610,"codewhispererLineNumber":7,"codewhispererCursorOffset":0,"codewhispererLanguage":"python","credentialStartUrl":"https://amzn.awsapps.com/start"}}
+[Trace - 12:15:53] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_userTriggerDecision",
+    "data": {
+        "codewhispererSessionId": "258c1b0f-cdc4-4b25-b65e-a651dfb84ad0",
+        "codewhispererFirstRequestId": "d9f530b3-2496-4c59-95a6-4418615a5205",
+        "credentialStartUrl": "https://amzn.awsapps.com/start",
+        "codewhispererSuggestionState": "Empty",
+        "codewhispererLanguage": "python",
+        "codewhispererTriggerType": "AutoTrigger",
+        "codewhispererAutomatedTriggerType": "Enter",
+        "codewhispererLineNumber": 7,
+        "codewhispererCursorOffset": 0,
+        "codewhispererSuggestionCount": 0,
+        "codewhispererClassifierResult": 0.7051038739581085,
+        "codewhispererClassifierThreshold": 0.43,
+        "codewhispererTotalShownTime": 0,
+        "codewhispererTypeaheadLength": 0,
+        "codewhispererTimeSinceLastDocumentChange": 4588,
+        "codewhispererTimeSinceLastUserDecision": 4601,
+        "codewhispererTimeToFirstRecommendation": 610,
+        "codewhispererPreviousSuggestionState": "Discard"
+    }
+}
+
+
+[Info  - 12:15:53] vscode client: Received telemetry event from server {"name":"codewhisperer_userTriggerDecision","data":{"codewhispererSessionId":"258c1b0f-cdc4-4b25-b65e-a651dfb84ad0","codewhispererFirstRequestId":"d9f530b3-2496-4c59-95a6-4418615a5205","credentialStartUrl":"https://amzn.awsapps.com/start","codewhispererSuggestionState":"Empty","codewhispererLanguage":"python","codewhispererTriggerType":"AutoTrigger","codewhispererAutomatedTriggerType":"Enter","codewhispererLineNumber":7,"codewhispererCursorOffset":0,"codewhispererSuggestionCount":0,"codewhispererClassifierResult":0.7051038739581085,"codewhispererClassifierThreshold":0.43,"codewhispererTotalShownTime":0,"codewhispererTypeaheadLength":0,"codewhispererTimeSinceLastDocumentChange":4588,"codewhispererTimeSinceLastUserDecision":4601,"codewhispererTimeToFirstRecommendation":610,"codewhispererPreviousSuggestionState":"Discard"}}
+[Trace - 12:15:53] Received response 'aws/textDocument/inlineCompletionWithReferences - (93)' in 616ms.
+Result: {
+    "sessionId": "",
+    "items": []
+}
+
+
+[Info  - 12:15:53] Client: Received 0 suggestions
+[Trace - 12:15:57] Sending notification 'textDocument/didChange'.
+Params: {
+    "textDocument": {
+        "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.js",
+        "version": 6
+    },
+    "contentChanges": [
+        {
+            "range": {
+                "start": {
+                    "line": 10,
+                    "character": 0
+                },
+                "end": {
+                    "line": 28,
+                    "character": 67
+                }
+            },
+            "rangeLength": 489,
+            "text": ""
+        }
+    ]
+}
+
+
+[Trace - 12:15:57] Sending request 'aws/textDocument/inlineCompletionWithReferences - (94)'.
+Params: {
+    "textDocument": {
+        "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.js"
+    },
+    "position": {
+        "line": 10,
+        "character": 0
+    },
+    "context": {
+        "triggerKind": 1
+    }
+}
+
+
+[Trace - 12:15:58] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_serviceInvocation",
+    "result": "Succeeded",
+    "data": {
+        "codewhispererRequestId": "cbbaf518-7588-4c97-994b-15e31f9f22b0",
+        "codewhispererSessionId": "859f0eef-5c50-4480-8f31-a2fbbd103d81",
+        "codewhispererLastSuggestionIndex": -1,
+        "codewhispererTriggerType": "AutoTrigger",
+        "codewhispererAutomatedTriggerType": "Enter",
+        "duration": 531,
+        "codewhispererLineNumber": 10,
+        "codewhispererCursorOffset": 0,
+        "codewhispererLanguage": "javascript",
+        "credentialStartUrl": "https://amzn.awsapps.com/start"
+    }
+}
+
+
+[Info  - 12:15:58] vscode client: Received telemetry event from server {"name":"codewhisperer_serviceInvocation","result":"Succeeded","data":{"codewhispererRequestId":"cbbaf518-7588-4c97-994b-15e31f9f22b0","codewhispererSessionId":"859f0eef-5c50-4480-8f31-a2fbbd103d81","codewhispererLastSuggestionIndex":-1,"codewhispererTriggerType":"AutoTrigger","codewhispererAutomatedTriggerType":"Enter","duration":531,"codewhispererLineNumber":10,"codewhispererCursorOffset":0,"codewhispererLanguage":"javascript","credentialStartUrl":"https://amzn.awsapps.com/start"}}
+[Trace - 12:15:58] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_userTriggerDecision",
+    "data": {
+        "codewhispererSessionId": "859f0eef-5c50-4480-8f31-a2fbbd103d81",
+        "codewhispererFirstRequestId": "cbbaf518-7588-4c97-994b-15e31f9f22b0",
+        "credentialStartUrl": "https://amzn.awsapps.com/start",
+        "codewhispererSuggestionState": "Empty",
+        "codewhispererLanguage": "javascript",
+        "codewhispererTriggerType": "AutoTrigger",
+        "codewhispererAutomatedTriggerType": "Enter",
+        "codewhispererLineNumber": 10,
+        "codewhispererCursorOffset": 0,
+        "codewhispererSuggestionCount": 0,
+        "codewhispererClassifierResult": -0.6544270521377672,
+        "codewhispererClassifierThreshold": 0.43,
+        "codewhispererTotalShownTime": 0,
+        "codewhispererTypeaheadLength": 0,
+        "codewhispererTimeSinceLastDocumentChange": 4637,
+        "codewhispererTimeSinceLastUserDecision": 4018,
+        "codewhispererTimeToFirstRecommendation": 531,
+        "codewhispererPreviousSuggestionState": "Empty"
+    }
+}
+
+
+[Info  - 12:15:58] vscode client: Received telemetry event from server {"name":"codewhisperer_userTriggerDecision","data":{"codewhispererSessionId":"859f0eef-5c50-4480-8f31-a2fbbd103d81","codewhispererFirstRequestId":"cbbaf518-7588-4c97-994b-15e31f9f22b0","credentialStartUrl":"https://amzn.awsapps.com/start","codewhispererSuggestionState":"Empty","codewhispererLanguage":"javascript","codewhispererTriggerType":"AutoTrigger","codewhispererAutomatedTriggerType":"Enter","codewhispererLineNumber":10,"codewhispererCursorOffset":0,"codewhispererSuggestionCount":0,"codewhispererClassifierResult":-0.6544270521377672,"codewhispererClassifierThreshold":0.43,"codewhispererTotalShownTime":0,"codewhispererTypeaheadLength":0,"codewhispererTimeSinceLastDocumentChange":4637,"codewhispererTimeSinceLastUserDecision":4018,"codewhispererTimeToFirstRecommendation":531,"codewhispererPreviousSuggestionState":"Empty"}}
+[Trace - 12:15:58] Received response 'aws/textDocument/inlineCompletionWithReferences - (94)' in 536ms.
+Result: {
+    "sessionId": "",
+    "items": []
+}
+
+
+[Info  - 12:15:58] Client: Received 0 suggestions
+[Trace - 12:16:06] Sending notification 'textDocument/didChange'.
+Params: {
+    "textDocument": {
+        "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.java",
+        "version": 6
+    },
+    "contentChanges": [
+        {
+            "range": {
+                "start": {
+                    "line": 12,
+                    "character": 0
+                },
+                "end": {
+                    "line": 36,
+                    "character": 1
+                }
+            },
+            "rangeLength": 621,
+            "text": ""
+        }
+    ]
+}
+
+
+[Trace - 12:16:06] Sending request 'aws/textDocument/inlineCompletionWithReferences - (95)'.
+Params: {
+    "textDocument": {
+        "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.java"
+    },
+    "position": {
+        "line": 12,
+        "character": 0
+    },
+    "context": {
+        "triggerKind": 1
+    }
+}
+
+
+[Trace - 12:16:07] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_serviceInvocation",
+    "result": "Succeeded",
+    "data": {
+        "codewhispererRequestId": "23a02c21-f9bf-408c-a272-0a95c50aab54",
+        "codewhispererSessionId": "1ad677df-52e2-4db6-ba9e-7cf93e3c7203",
+        "codewhispererLastSuggestionIndex": 0,
+        "codewhispererCompletionType": "Line",
+        "codewhispererTriggerType": "AutoTrigger",
+        "codewhispererAutomatedTriggerType": "Enter",
+        "duration": 764,
+        "codewhispererLineNumber": 12,
+        "codewhispererCursorOffset": 0,
+        "codewhispererLanguage": "java",
+        "credentialStartUrl": "https://amzn.awsapps.com/start"
+    }
+}
+
+
+[Info  - 12:16:07] vscode client: Received telemetry event from server {"name":"codewhisperer_serviceInvocation","result":"Succeeded","data":{"codewhispererRequestId":"23a02c21-f9bf-408c-a272-0a95c50aab54","codewhispererSessionId":"1ad677df-52e2-4db6-ba9e-7cf93e3c7203","codewhispererLastSuggestionIndex":0,"codewhispererCompletionType":"Line","codewhispererTriggerType":"AutoTrigger","codewhispererAutomatedTriggerType":"Enter","duration":764,"codewhispererLineNumber":12,"codewhispererCursorOffset":0,"codewhispererLanguage":"java","credentialStartUrl":"https://amzn.awsapps.com/start"}}
+[Trace - 12:16:07] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_userTriggerDecision",
+    "data": {
+        "codewhispererSessionId": "1ad677df-52e2-4db6-ba9e-7cf93e3c7203",
+        "codewhispererFirstRequestId": "23a02c21-f9bf-408c-a272-0a95c50aab54",
+        "credentialStartUrl": "https://amzn.awsapps.com/start",
+        "codewhispererSuggestionState": "Empty",
+        "codewhispererCompletionType": "Line",
+        "codewhispererLanguage": "java",
+        "codewhispererTriggerType": "AutoTrigger",
+        "codewhispererAutomatedTriggerType": "Enter",
+        "codewhispererLineNumber": 12,
+        "codewhispererCursorOffset": 0,
+        "codewhispererSuggestionCount": 1,
+        "codewhispererClassifierResult": -0.647845018019866,
+        "codewhispererClassifierThreshold": 0.43,
+        "codewhispererTotalShownTime": 0,
+        "codewhispererTypeaheadLength": 0,
+        "codewhispererTimeSinceLastDocumentChange": 8603,
+        "codewhispererTimeSinceLastUserDecision": 8066,
+        "codewhispererTimeToFirstRecommendation": 764,
+        "codewhispererPreviousSuggestionState": "Empty"
+    }
+}
+
+
+[Info  - 12:16:07] vscode client: Received telemetry event from server {"name":"codewhisperer_userTriggerDecision","data":{"codewhispererSessionId":"1ad677df-52e2-4db6-ba9e-7cf93e3c7203","codewhispererFirstRequestId":"23a02c21-f9bf-408c-a272-0a95c50aab54","credentialStartUrl":"https://amzn.awsapps.com/start","codewhispererSuggestionState":"Empty","codewhispererCompletionType":"Line","codewhispererLanguage":"java","codewhispererTriggerType":"AutoTrigger","codewhispererAutomatedTriggerType":"Enter","codewhispererLineNumber":12,"codewhispererCursorOffset":0,"codewhispererSuggestionCount":1,"codewhispererClassifierResult":-0.647845018019866,"codewhispererClassifierThreshold":0.43,"codewhispererTotalShownTime":0,"codewhispererTypeaheadLength":0,"codewhispererTimeSinceLastDocumentChange":8603,"codewhispererTimeSinceLastUserDecision":8066,"codewhispererTimeToFirstRecommendation":764,"codewhispererPreviousSuggestionState":"Empty"}}
+[Trace - 12:16:07] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_userDecision",
+    "data": {
+        "codewhispererRequestId": "23a02c21-f9bf-408c-a272-0a95c50aab54",
+        "codewhispererSessionId": "1ad677df-52e2-4db6-ba9e-7cf93e3c7203",
+        "codewhispererCompletionType": "Line",
+        "codewhispererTriggerType": "AutoTrigger",
+        "codewhispererLanguage": "java",
+        "credentialStartUrl": "https://amzn.awsapps.com/start",
+        "codewhispererSuggestionIndex": 0,
+        "codewhispererSuggestionState": "Empty",
+        "codewhispererSuggestionReferences": [],
+        "codewhispererSuggestionReferenceCount": 0
+    }
+}
+
+
+[Info  - 12:16:07] vscode client: Received telemetry event from server {"name":"codewhisperer_userDecision","data":{"codewhispererRequestId":"23a02c21-f9bf-408c-a272-0a95c50aab54","codewhispererSessionId":"1ad677df-52e2-4db6-ba9e-7cf93e3c7203","codewhispererCompletionType":"Line","codewhispererTriggerType":"AutoTrigger","codewhispererLanguage":"java","credentialStartUrl":"https://amzn.awsapps.com/start","codewhispererSuggestionIndex":0,"codewhispererSuggestionState":"Empty","codewhispererSuggestionReferences":[],"codewhispererSuggestionReferenceCount":0}}
+[Trace - 12:16:07] Received response 'aws/textDocument/inlineCompletionWithReferences - (95)' in 771ms.
+Result: {
+    "sessionId": "",
+    "items": []
+}
+
+
+[Info  - 12:16:07] Client: Received 0 suggestions
+[Trace - 12:16:07] Sending notification 'workspace/didChangeWatchedFiles'.
+Params: {
+    "changes": [
+        {
+            "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.java",
+            "type": 2
+        }
+    ]
+}
+
+
+[Trace - 12:16:15] Sending notification 'textDocument/didChange'.
+Params: {
+    "textDocument": {
+        "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.ts",
+        "version": 6
+    },
+    "contentChanges": [
+        {
+            "range": {
+                "start": {
+                    "line": 12,
+                    "character": 0
+                },
+                "end": {
+                    "line": 32,
+                    "character": 67
+                }
+            },
+            "rangeLength": 530,
+            "text": ""
+        }
+    ]
+}
+
+
+[Trace - 12:16:15] Sending request 'aws/textDocument/inlineCompletionWithReferences - (96)'.
+Params: {
+    "textDocument": {
+        "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.ts"
+    },
+    "position": {
+        "line": 12,
+        "character": 0
+    },
+    "context": {
+        "triggerKind": 1
+    }
+}
+
+
+[Trace - 12:16:16] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_serviceInvocation",
+    "result": "Succeeded",
+    "data": {
+        "codewhispererRequestId": "1e301baf-3aca-4883-bac4-f3f927a16725",
+        "codewhispererSessionId": "bfce92a1-0227-4ae7-bf1c-012bc0370f42",
+        "codewhispererLastSuggestionIndex": -1,
+        "codewhispererTriggerType": "AutoTrigger",
+        "codewhispererAutomatedTriggerType": "Enter",
+        "duration": 597,
+        "codewhispererLineNumber": 12,
+        "codewhispererCursorOffset": 0,
+        "codewhispererLanguage": "typescript",
+        "credentialStartUrl": "https://amzn.awsapps.com/start"
+    }
+}
+
+
+[Info  - 12:16:16] vscode client: Received telemetry event from server {"name":"codewhisperer_serviceInvocation","result":"Succeeded","data":{"codewhispererRequestId":"1e301baf-3aca-4883-bac4-f3f927a16725","codewhispererSessionId":"bfce92a1-0227-4ae7-bf1c-012bc0370f42","codewhispererLastSuggestionIndex":-1,"codewhispererTriggerType":"AutoTrigger","codewhispererAutomatedTriggerType":"Enter","duration":597,"codewhispererLineNumber":12,"codewhispererCursorOffset":0,"codewhispererLanguage":"typescript","credentialStartUrl":"https://amzn.awsapps.com/start"}}
+[Trace - 12:16:16] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_userTriggerDecision",
+    "data": {
+        "codewhispererSessionId": "bfce92a1-0227-4ae7-bf1c-012bc0370f42",
+        "codewhispererFirstRequestId": "1e301baf-3aca-4883-bac4-f3f927a16725",
+        "credentialStartUrl": "https://amzn.awsapps.com/start",
+        "codewhispererSuggestionState": "Empty",
+        "codewhispererLanguage": "typescript",
+        "codewhispererTriggerType": "AutoTrigger",
+        "codewhispererAutomatedTriggerType": "Enter",
+        "codewhispererLineNumber": 12,
+        "codewhispererCursorOffset": 0,
+        "codewhispererSuggestionCount": 0,
+        "codewhispererClassifierResult": -0.7940450180198662,
+        "codewhispererClassifierThreshold": 0.43,
+        "codewhispererTotalShownTime": 0,
+        "codewhispererTypeaheadLength": 0,
+        "codewhispererTimeSinceLastDocumentChange": 8885,
+        "codewhispererTimeSinceLastUserDecision": 8121,
+        "codewhispererTimeToFirstRecommendation": 597,
+        "codewhispererPreviousSuggestionState": "Empty"
+    }
+}
+
+
+[Info  - 12:16:16] vscode client: Received telemetry event from server {"name":"codewhisperer_userTriggerDecision","data":{"codewhispererSessionId":"bfce92a1-0227-4ae7-bf1c-012bc0370f42","codewhispererFirstRequestId":"1e301baf-3aca-4883-bac4-f3f927a16725","credentialStartUrl":"https://amzn.awsapps.com/start","codewhispererSuggestionState":"Empty","codewhispererLanguage":"typescript","codewhispererTriggerType":"AutoTrigger","codewhispererAutomatedTriggerType":"Enter","codewhispererLineNumber":12,"codewhispererCursorOffset":0,"codewhispererSuggestionCount":0,"codewhispererClassifierResult":-0.7940450180198662,"codewhispererClassifierThreshold":0.43,"codewhispererTotalShownTime":0,"codewhispererTypeaheadLength":0,"codewhispererTimeSinceLastDocumentChange":8885,"codewhispererTimeSinceLastUserDecision":8121,"codewhispererTimeToFirstRecommendation":597,"codewhispererPreviousSuggestionState":"Empty"}}
+[Trace - 12:16:16] Received response 'aws/textDocument/inlineCompletionWithReferences - (96)' in 603ms.
+Result: {
+    "sessionId": "",
+    "items": []
+}
+
+
+[Info  - 12:16:16] Client: Received 0 suggestions
+[Trace - 12:16:16] Sending notification 'workspace/didChangeWatchedFiles'.
+Params: {
+    "changes": [
+        {
+            "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.ts",
+            "type": 2
+        },
+        {
+            "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.ts",
+            "type": 2
+        }
+    ]
+}
+
+
+[Trace - 12:16:21] Sending notification 'textDocument/didChange'.
+Params: {
+    "textDocument": {
+        "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Student.java",
+        "version": 66
+    },
+    "contentChanges": [
+        {
+            "range": {
+                "start": {
+                    "line": 0,
+                    "character": 3
+                },
+                "end": {
+                    "line": 0,
+                    "character": 50
+                }
+            },
+            "rangeLength": 47,
+            "text": "Create Student class that extends Person and overrides getName method"
+        }
+    ]
+}
+
+
+[Trace - 12:16:27] Sending notification 'workspace/didChangeWatchedFiles'.
+Params: {
+    "changes": [
+        {
+            "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Student.java",
+            "type": 2
+        }
+    ]
+}
+
+
+[Trace - 12:16:28] Sending notification 'textDocument/didChange'.
+Params: {
+    "textDocument": {
+        "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Student.java",
+        "version": 67
+    },
+    "contentChanges": [
+        {
+            "range": {
+                "start": {
+                    "line": 0,
+                    "character": 72
+                },
+                "end": {
+                    "line": 0,
+                    "character": 72
+                }
+            },
+            "rangeLength": 0,
+            "text": "\n"
+        }
+    ]
+}
+
+
+[Trace - 12:16:28] Sending request 'aws/textDocument/inlineCompletionWithReferences - (97)'.
+Params: {
+    "textDocument": {
+        "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Student.java"
+    },
+    "position": {
+        "line": 1,
+        "character": 0
+    },
+    "context": {
+        "triggerKind": 1
+    }
+}
+
+
+[Trace - 12:16:31] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_serviceInvocation",
+    "result": "Succeeded",
+    "data": {
+        "codewhispererRequestId": "6fceda33-098c-41d6-b647-28516f700ca3",
+        "codewhispererSessionId": "0a58ec87-0808-4961-8197-a30e83f29f43",
+        "codewhispererLastSuggestionIndex": 0,
+        "codewhispererCompletionType": "Block",
+        "codewhispererTriggerType": "AutoTrigger",
+        "codewhispererAutomatedTriggerType": "Enter",
+        "duration": 2827,
+        "codewhispererLineNumber": 1,
+        "codewhispererCursorOffset": 0,
+        "codewhispererLanguage": "java",
+        "credentialStartUrl": "https://amzn.awsapps.com/start"
+    }
+}
+
+
+[Info  - 12:16:31] vscode client: Received telemetry event from server {"name":"codewhisperer_serviceInvocation","result":"Succeeded","data":{"codewhispererRequestId":"6fceda33-098c-41d6-b647-28516f700ca3","codewhispererSessionId":"0a58ec87-0808-4961-8197-a30e83f29f43","codewhispererLastSuggestionIndex":0,"codewhispererCompletionType":"Block","codewhispererTriggerType":"AutoTrigger","codewhispererAutomatedTriggerType":"Enter","duration":2827,"codewhispererLineNumber":1,"codewhispererCursorOffset":0,"codewhispererLanguage":"java","credentialStartUrl":"https://amzn.awsapps.com/start"}}
+[Trace - 12:16:31] Received response 'aws/textDocument/inlineCompletionWithReferences - (97)' in 2831ms.
+Result: {
+    "items": [
+        {
+            "itemId": "0ac28e3e-6170-44ec-9040-903af6190f38",
+            "insertText": "class Person {\n    String name;\n\n    public Person(String name) {\n        this.name = name;\n    }\n\n    public String getName() {\n        return name;\n    }\n}\n\nclass Student extends Person {\n    int id;\n\n    public Student(String name, int id) {\n        super(name);\n        this.id = id;\n    }\n\n    @Override\n    public String getName() {\n        return super.getName() + \" (Student ID: \" + id + \")\";\n    }\n}\n\n// Example usage\npublic class Main {\n    public static void main(String[] args) {\n        Person person = new Person(\"John Doe\");\n        System.out.println(person.getName()); // Output: John Doe\n\n        Student student = new Student(\"Jane Smith\", 12345);\n        System.out.println(student.getName()); // Output: Jane Smith (Student ID: 12345)\n    }\n}"
+        }
+    ],
+    "sessionId": "9391ff1b-5dc2-4058-b3e5-19ad48be9d3a"
+}
+
+
+[Info  - 12:16:31] Client: Received 1 suggestions
+[Trace - 12:16:31] Sending request 'aws/textDocument/inlineCompletionWithReferences - (98)'.
+Params: {
+    "textDocument": {
+        "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Student.java"
+    },
+    "position": {
+        "line": 1,
+        "character": 0
+    },
+    "context": {
+        "triggerKind": 0
+    }
+}
+
+
+[Trace - 12:16:31] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_userTriggerDecision",
+    "data": {
+        "codewhispererSessionId": "0a58ec87-0808-4961-8197-a30e83f29f43",
+        "codewhispererFirstRequestId": "6fceda33-098c-41d6-b647-28516f700ca3",
+        "credentialStartUrl": "https://amzn.awsapps.com/start",
+        "codewhispererSuggestionState": "Discard",
+        "codewhispererCompletionType": "Block",
+        "codewhispererLanguage": "java",
+        "codewhispererTriggerType": "AutoTrigger",
+        "codewhispererAutomatedTriggerType": "Enter",
+        "codewhispererLineNumber": 1,
+        "codewhispererCursorOffset": 0,
+        "codewhispererSuggestionCount": 1,
+        "codewhispererClassifierResult": 0.5622486806953144,
+        "codewhispererClassifierThreshold": 0.43,
+        "codewhispererTotalShownTime": 0,
+        "codewhispererTypeaheadLength": 0,
+        "codewhispererTimeSinceLastDocumentChange": 7433,
+        "codewhispererTimeSinceLastUserDecision": 12455,
+        "codewhispererTimeToFirstRecommendation": 2827,
+        "codewhispererPreviousSuggestionState": "Empty"
+    }
+}
+
+
+[Info  - 12:16:31] vscode client: Received telemetry event from server {"name":"codewhisperer_userTriggerDecision","data":{"codewhispererSessionId":"0a58ec87-0808-4961-8197-a30e83f29f43","codewhispererFirstRequestId":"6fceda33-098c-41d6-b647-28516f700ca3","credentialStartUrl":"https://amzn.awsapps.com/start","codewhispererSuggestionState":"Discard","codewhispererCompletionType":"Block","codewhispererLanguage":"java","codewhispererTriggerType":"AutoTrigger","codewhispererAutomatedTriggerType":"Enter","codewhispererLineNumber":1,"codewhispererCursorOffset":0,"codewhispererSuggestionCount":1,"codewhispererClassifierResult":0.5622486806953144,"codewhispererClassifierThreshold":0.43,"codewhispererTotalShownTime":0,"codewhispererTypeaheadLength":0,"codewhispererTimeSinceLastDocumentChange":7433,"codewhispererTimeSinceLastUserDecision":12455,"codewhispererTimeToFirstRecommendation":2827,"codewhispererPreviousSuggestionState":"Empty"}}
+[Trace - 12:16:31] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_userDecision",
+    "data": {
+        "codewhispererRequestId": "6fceda33-098c-41d6-b647-28516f700ca3",
+        "codewhispererSessionId": "0a58ec87-0808-4961-8197-a30e83f29f43",
+        "codewhispererCompletionType": "Block",
+        "codewhispererTriggerType": "AutoTrigger",
+        "codewhispererLanguage": "java",
+        "credentialStartUrl": "https://amzn.awsapps.com/start",
+        "codewhispererSuggestionIndex": 0,
+        "codewhispererSuggestionState": "Discard",
+        "codewhispererSuggestionReferences": [],
+        "codewhispererSuggestionReferenceCount": 0
+    }
+}
+
+
+[Info  - 12:16:31] vscode client: Received telemetry event from server {"name":"codewhisperer_userDecision","data":{"codewhispererRequestId":"6fceda33-098c-41d6-b647-28516f700ca3","codewhispererSessionId":"0a58ec87-0808-4961-8197-a30e83f29f43","codewhispererCompletionType":"Block","codewhispererTriggerType":"AutoTrigger","codewhispererLanguage":"java","credentialStartUrl":"https://amzn.awsapps.com/start","codewhispererSuggestionIndex":0,"codewhispererSuggestionState":"Discard","codewhispererSuggestionReferences":[],"codewhispererSuggestionReferenceCount":0}}
+[Trace - 12:16:34] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_serviceInvocation",
+    "result": "Succeeded",
+    "data": {
+        "codewhispererRequestId": "396b856d-8530-4f4a-b13f-8d80851ac059",
+        "codewhispererSessionId": "85521d70-ac94-4db2-b4ca-223519e4b661",
+        "codewhispererLastSuggestionIndex": 0,
+        "codewhispererCompletionType": "Block",
+        "codewhispererTriggerType": "OnDemand",
+        "duration": 2958,
+        "codewhispererLineNumber": 1,
+        "codewhispererCursorOffset": 0,
+        "codewhispererLanguage": "java",
+        "credentialStartUrl": "https://amzn.awsapps.com/start"
+    }
+}
+
+
+[Info  - 12:16:34] vscode client: Received telemetry event from server {"name":"codewhisperer_serviceInvocation","result":"Succeeded","data":{"codewhispererRequestId":"396b856d-8530-4f4a-b13f-8d80851ac059","codewhispererSessionId":"85521d70-ac94-4db2-b4ca-223519e4b661","codewhispererLastSuggestionIndex":0,"codewhispererCompletionType":"Block","codewhispererTriggerType":"OnDemand","duration":2958,"codewhispererLineNumber":1,"codewhispererCursorOffset":0,"codewhispererLanguage":"java","credentialStartUrl":"https://amzn.awsapps.com/start"}}
+[Trace - 12:16:34] Received response 'aws/textDocument/inlineCompletionWithReferences - (98)' in 2961ms.
+Result: {
+    "items": [
+        {
+            "itemId": "60ec2c58-ec92-49de-a13a-c815cbfaaa01",
+            "insertText": "class Person {\n    String name;\n\n    public Person(String name) {\n        this.name = name;\n    }\n\n    public String getName() {\n        return name;\n    }\n}\n\nclass Student extends Person {\n    int id;\n\n    public Student(String name, int id) {\n        super(name);\n        this.id = id;\n    }\n\n    @Override\n    public String getName() {\n        return super.getName() + \" (Student ID: \" + id + \")\";\n    }\n}\n\n// Example usage\npublic class Main {\n    public static void main(String[] args) {\n        Person person = new Person(\"John Doe\");\n        System.out.println(person.getName()); // Output: John Doe\n\n        Student student = new Student(\"Jane Smith\", 12345);\n        System.out.println(student.getName()); // Output: Jane Smith (Student ID: 12345)\n    }\n}"
+        }
+    ],
+    "sessionId": "4fc9b854-a5fa-4c0d-96bd-a65201ff228b"
+}
+
+
+[Info  - 12:16:34] Client: Received 1 suggestions
+[Trace - 12:16:36] Sending notification 'textDocument/didChange'.
+Params: {
+    "textDocument": {
+        "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Student.java",
+        "version": 68
+    },
+    "contentChanges": [
+        {
+            "range": {
+                "start": {
+                    "line": 1,
+                    "character": 0
+                },
+                "end": {
+                    "line": 1,
+                    "character": 0
+                }
+            },
+            "rangeLength": 0,
+            "text": "class Person {\n    String name;\n\n    public Person(String name) {\n        this.name = name;\n    }\n\n    public String getName() {\n        return name;\n    }\n}\n\nclass Student extends Person {\n    int id;\n\n    public Student(String name, int id) {\n        super(name);\n        this.id = id;\n    }\n\n    @Override\n    public String getName() {\n        return super.getName() + \" (Student ID: \" + id + \")\";\n    }\n}\n\n// Example usage\npublic class Main {\n    public static void main(String[] args) {\n        Person person = new Person(\"John Doe\");\n        System.out.println(person.getName()); // Output: John Doe\n\n        Student student = new Student(\"Jane Smith\", 12345);\n        System.out.println(student.getName()); // Output: Jane Smith (Student ID: 12345)\n    }\n}"
+        }
+    ]
+}
+
+
+[Trace - 12:16:36] Sending request 'aws/textDocument/inlineCompletionWithReferences - (99)'.
+Params: {
+    "textDocument": {
+        "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Student.java"
+    },
+    "position": {
+        "line": 36,
+        "character": 1
+    },
+    "context": {
+        "triggerKind": 1
+    }
+}
+
+
+[Trace - 12:16:36] Received response 'aws/textDocument/inlineCompletionWithReferences - (99)' in 1ms.
+Result: {
+    "sessionId": "",
+    "items": []
+}
+
+
+[Info  - 12:16:36] Client: Received 0 suggestions
+[Trace - 12:16:37] Sending notification 'workspace/didChangeWatchedFiles'.
+Params: {
+    "changes": [
+        {
+            "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Student.java",
+            "type": 2
+        }
+    ]
+}
+
+
+[Trace - 12:16:40] Sending notification 'textDocument/didChange'.
+Params: {
+    "textDocument": {
+        "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Student.ts",
+        "version": 3
+    },
+    "contentChanges": [
+        {
+            "range": {
+                "start": {
+                    "line": 0,
+                    "character": 3
+                },
+                "end": {
+                    "line": 0,
+                    "character": 50
+                }
+            },
+            "rangeLength": 47,
+            "text": "Create Student class that extends Person and overrides getName method"
+        }
+    ]
+}
+
+
+[Trace - 12:16:40] Sending notification 'textDocument/didChange'.
+Params: {
+    "textDocument": {
+        "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Student.ts",
+        "version": 4
+    },
+    "contentChanges": [
+        {
+            "range": {
+                "start": {
+                    "line": 0,
+                    "character": 72
+                },
+                "end": {
+                    "line": 0,
+                    "character": 72
+                }
+            },
+            "rangeLength": 0,
+            "text": "\n"
+        }
+    ]
+}
+
+
+[Trace - 12:16:41] Sending request 'aws/textDocument/inlineCompletionWithReferences - (100)'.
+Params: {
+    "textDocument": {
+        "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Student.ts"
+    },
+    "position": {
+        "line": 1,
+        "character": 0
+    },
+    "context": {
+        "triggerKind": 1
+    }
+}
+
+
+[Trace - 12:16:41] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_userTriggerDecision",
+    "data": {
+        "codewhispererSessionId": "85521d70-ac94-4db2-b4ca-223519e4b661",
+        "codewhispererFirstRequestId": "396b856d-8530-4f4a-b13f-8d80851ac059",
+        "credentialStartUrl": "https://amzn.awsapps.com/start",
+        "codewhispererSuggestionState": "Discard",
+        "codewhispererCompletionType": "Block",
+        "codewhispererLanguage": "java",
+        "codewhispererTriggerType": "OnDemand",
+        "codewhispererLineNumber": 1,
+        "codewhispererCursorOffset": 0,
+        "codewhispererSuggestionCount": 1,
+        "codewhispererClassifierResult": 0.5622486806953144,
+        "codewhispererClassifierThreshold": 0.43,
+        "codewhispererTotalShownTime": 0,
+        "codewhispererTypeaheadLength": 0,
+        "codewhispererTimeSinceLastDocumentChange": 444,
+        "codewhispererTimeSinceLastUserDecision": 0,
+        "codewhispererTimeToFirstRecommendation": 2958,
+        "codewhispererPreviousSuggestionState": "Discard"
+    }
+}
+
+
+[Info  - 12:16:41] vscode client: Received telemetry event from server {"name":"codewhisperer_userTriggerDecision","data":{"codewhispererSessionId":"85521d70-ac94-4db2-b4ca-223519e4b661","codewhispererFirstRequestId":"396b856d-8530-4f4a-b13f-8d80851ac059","credentialStartUrl":"https://amzn.awsapps.com/start","codewhispererSuggestionState":"Discard","codewhispererCompletionType":"Block","codewhispererLanguage":"java","codewhispererTriggerType":"OnDemand","codewhispererLineNumber":1,"codewhispererCursorOffset":0,"codewhispererSuggestionCount":1,"codewhispererClassifierResult":0.5622486806953144,"codewhispererClassifierThreshold":0.43,"codewhispererTotalShownTime":0,"codewhispererTypeaheadLength":0,"codewhispererTimeSinceLastDocumentChange":444,"codewhispererTimeSinceLastUserDecision":0,"codewhispererTimeToFirstRecommendation":2958,"codewhispererPreviousSuggestionState":"Discard"}}
+[Trace - 12:16:41] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_userDecision",
+    "data": {
+        "codewhispererRequestId": "396b856d-8530-4f4a-b13f-8d80851ac059",
+        "codewhispererSessionId": "85521d70-ac94-4db2-b4ca-223519e4b661",
+        "codewhispererCompletionType": "Block",
+        "codewhispererTriggerType": "OnDemand",
+        "codewhispererLanguage": "java",
+        "credentialStartUrl": "https://amzn.awsapps.com/start",
+        "codewhispererSuggestionIndex": 0,
+        "codewhispererSuggestionState": "Discard",
+        "codewhispererSuggestionReferences": [],
+        "codewhispererSuggestionReferenceCount": 0
+    }
+}
+
+
+[Info  - 12:16:41] vscode client: Received telemetry event from server {"name":"codewhisperer_userDecision","data":{"codewhispererRequestId":"396b856d-8530-4f4a-b13f-8d80851ac059","codewhispererSessionId":"85521d70-ac94-4db2-b4ca-223519e4b661","codewhispererCompletionType":"Block","codewhispererTriggerType":"OnDemand","codewhispererLanguage":"java","credentialStartUrl":"https://amzn.awsapps.com/start","codewhispererSuggestionIndex":0,"codewhispererSuggestionState":"Discard","codewhispererSuggestionReferences":[],"codewhispererSuggestionReferenceCount":0}}
+[Trace - 12:16:43] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_serviceInvocation",
+    "result": "Succeeded",
+    "data": {
+        "codewhispererRequestId": "5a78a707-0d39-4a48-818d-9df2f1828b69",
+        "codewhispererSessionId": "9d08cd01-00f0-4b84-b2de-89836abd01bf",
+        "codewhispererLastSuggestionIndex": 1,
+        "codewhispererCompletionType": "Block",
+        "codewhispererTriggerType": "AutoTrigger",
+        "codewhispererAutomatedTriggerType": "Enter",
+        "duration": 2472,
+        "codewhispererLineNumber": 1,
+        "codewhispererCursorOffset": 0,
+        "codewhispererLanguage": "typescript",
+        "credentialStartUrl": "https://amzn.awsapps.com/start"
+    }
+}
+
+
+[Info  - 12:16:43] vscode client: Received telemetry event from server {"name":"codewhisperer_serviceInvocation","result":"Succeeded","data":{"codewhispererRequestId":"5a78a707-0d39-4a48-818d-9df2f1828b69","codewhispererSessionId":"9d08cd01-00f0-4b84-b2de-89836abd01bf","codewhispererLastSuggestionIndex":1,"codewhispererCompletionType":"Block","codewhispererTriggerType":"AutoTrigger","codewhispererAutomatedTriggerType":"Enter","duration":2472,"codewhispererLineNumber":1,"codewhispererCursorOffset":0,"codewhispererLanguage":"typescript","credentialStartUrl":"https://amzn.awsapps.com/start"}}
+[Trace - 12:16:43] Received response 'aws/textDocument/inlineCompletionWithReferences - (100)' in 2476ms.
+Result: {
+    "items": [
+        {
+            "itemId": "b59267ca-864e-495b-88f9-de7c683d3e81",
+            "insertText": "class Person {\n  protected name: string;\n\n  constructor(name: string) {\n    this.name = name;\n  }\n\n  getName(): string {\n    return this.name;\n  }\n}\n\nclass Student extends Person {\n  private studentId: number;\n\n  constructor(name: string, studentId: number) {\n    super(name);\n    this.studentId = studentId;\n  }\n\n  getName(): string {\n    return `Student: ${super.getName()}`;\n  }\n}\n\n// Example usage\nconst person = new Person(\"John Doe\");\nconsole.log(person.getName()); // Output: John Doe\n\nconst student = new Student(\"Jane Smith\", 12345);\nconsole.log(student.getName()); // Output: Student: Jane Smith"
+        },
+        {
+            "itemId": "bb6f37a6-5f8e-46fe-ba1d-fa0e40f855f2",
+            "insertText": "class Person {\n  protected name: string;\n\n  constructor(name: string) {\n    this.name = name;\n  }\n\n  getName(): string {\n    return this.name;\n  }\n}\n\nclass Student extends Person {\n  private studentId: number;\n\n  constructor(name: string, studentId: number) {\n    super(name);\n    this.studentId = studentId;\n  }\n\n  // Override getName method\n  getName(): string {\n    return `Student: ${super.getName()}`;\n  }\n}\n\n// Create an instance of Student and demonstrate overriding\nconst student = new Student(\"John Doe\", 12345);\nconsole.log(student.getName()); // Output: Student: John Doe"
+        }
+    ],
+    "sessionId": "cb54b46f-2367-4c5a-8996-6acf59730b87"
+}
+
+
+[Info  - 12:16:43] Client: Received 2 suggestions
+[Trace - 12:16:43] Sending request 'aws/textDocument/inlineCompletionWithReferences - (101)'.
+Params: {
+    "textDocument": {
+        "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Student.ts"
+    },
+    "position": {
+        "line": 1,
+        "character": 0
+    },
+    "context": {
+        "triggerKind": 0
+    }
+}
+
+
+[Trace - 12:16:43] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_userTriggerDecision",
+    "data": {
+        "codewhispererSessionId": "9d08cd01-00f0-4b84-b2de-89836abd01bf",
+        "codewhispererFirstRequestId": "5a78a707-0d39-4a48-818d-9df2f1828b69",
+        "credentialStartUrl": "https://amzn.awsapps.com/start",
+        "codewhispererSuggestionState": "Discard",
+        "codewhispererCompletionType": "Block",
+        "codewhispererLanguage": "typescript",
+        "codewhispererTriggerType": "AutoTrigger",
+        "codewhispererAutomatedTriggerType": "Enter",
+        "codewhispererLineNumber": 1,
+        "codewhispererCursorOffset": 0,
+        "codewhispererSuggestionCount": 2,
+        "codewhispererClassifierResult": 0.4160486806953143,
+        "codewhispererClassifierThreshold": 0.43,
+        "codewhispererTotalShownTime": 0,
+        "codewhispererTypeaheadLength": 0,
+        "codewhispererTimeSinceLastDocumentChange": 444,
+        "codewhispererTimeSinceLastUserDecision": 0,
+        "codewhispererTimeToFirstRecommendation": 2472,
+        "codewhispererPreviousSuggestionState": "Discard"
+    }
+}
+
+
+[Info  - 12:16:43] vscode client: Received telemetry event from server {"name":"codewhisperer_userTriggerDecision","data":{"codewhispererSessionId":"9d08cd01-00f0-4b84-b2de-89836abd01bf","codewhispererFirstRequestId":"5a78a707-0d39-4a48-818d-9df2f1828b69","credentialStartUrl":"https://amzn.awsapps.com/start","codewhispererSuggestionState":"Discard","codewhispererCompletionType":"Block","codewhispererLanguage":"typescript","codewhispererTriggerType":"AutoTrigger","codewhispererAutomatedTriggerType":"Enter","codewhispererLineNumber":1,"codewhispererCursorOffset":0,"codewhispererSuggestionCount":2,"codewhispererClassifierResult":0.4160486806953143,"codewhispererClassifierThreshold":0.43,"codewhispererTotalShownTime":0,"codewhispererTypeaheadLength":0,"codewhispererTimeSinceLastDocumentChange":444,"codewhispererTimeSinceLastUserDecision":0,"codewhispererTimeToFirstRecommendation":2472,"codewhispererPreviousSuggestionState":"Discard"}}
+[Trace - 12:16:43] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_userDecision",
+    "data": {
+        "codewhispererRequestId": "5a78a707-0d39-4a48-818d-9df2f1828b69",
+        "codewhispererSessionId": "9d08cd01-00f0-4b84-b2de-89836abd01bf",
+        "codewhispererCompletionType": "Block",
+        "codewhispererTriggerType": "AutoTrigger",
+        "codewhispererLanguage": "typescript",
+        "credentialStartUrl": "https://amzn.awsapps.com/start",
+        "codewhispererSuggestionIndex": 0,
+        "codewhispererSuggestionState": "Discard",
+        "codewhispererSuggestionReferences": [],
+        "codewhispererSuggestionReferenceCount": 0
+    }
+}
+
+
+[Info  - 12:16:43] vscode client: Received telemetry event from server {"name":"codewhisperer_userDecision","data":{"codewhispererRequestId":"5a78a707-0d39-4a48-818d-9df2f1828b69","codewhispererSessionId":"9d08cd01-00f0-4b84-b2de-89836abd01bf","codewhispererCompletionType":"Block","codewhispererTriggerType":"AutoTrigger","codewhispererLanguage":"typescript","credentialStartUrl":"https://amzn.awsapps.com/start","codewhispererSuggestionIndex":0,"codewhispererSuggestionState":"Discard","codewhispererSuggestionReferences":[],"codewhispererSuggestionReferenceCount":0}}
+[Trace - 12:16:43] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_userDecision",
+    "data": {
+        "codewhispererRequestId": "5a78a707-0d39-4a48-818d-9df2f1828b69",
+        "codewhispererSessionId": "9d08cd01-00f0-4b84-b2de-89836abd01bf",
+        "codewhispererCompletionType": "Block",
+        "codewhispererTriggerType": "AutoTrigger",
+        "codewhispererLanguage": "typescript",
+        "credentialStartUrl": "https://amzn.awsapps.com/start",
+        "codewhispererSuggestionIndex": 1,
+        "codewhispererSuggestionState": "Discard",
+        "codewhispererSuggestionReferences": [],
+        "codewhispererSuggestionReferenceCount": 0
+    }
+}
+
+
+[Info  - 12:16:43] vscode client: Received telemetry event from server {"name":"codewhisperer_userDecision","data":{"codewhispererRequestId":"5a78a707-0d39-4a48-818d-9df2f1828b69","codewhispererSessionId":"9d08cd01-00f0-4b84-b2de-89836abd01bf","codewhispererCompletionType":"Block","codewhispererTriggerType":"AutoTrigger","codewhispererLanguage":"typescript","credentialStartUrl":"https://amzn.awsapps.com/start","codewhispererSuggestionIndex":1,"codewhispererSuggestionState":"Discard","codewhispererSuggestionReferences":[],"codewhispererSuggestionReferenceCount":0}}
+[Trace - 12:16:44] Sending notification 'textDocument/didChange'.
+Params: {
+    "textDocument": {
+        "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Student.ts",
+        "version": 5
+    },
+    "contentChanges": [
+        {
+            "range": {
+                "start": {
+                    "line": 1,
+                    "character": 0
+                },
+                "end": {
+                    "line": 1,
+                    "character": 0
+                }
+            },
+            "rangeLength": 0,
+            "text": "class Person {\n  protected name: string;\n\n  constructor(name: string) {\n    this.name = name;\n  }\n\n  getName(): string {\n    return this.name;\n  }\n}\n\nclass Student extends Person {\n  private studentId: number;\n\n  constructor(name: string, studentId: number) {\n    super(name);\n    this.studentId = studentId;\n  }\n\n  getName(): string {\n    return `Student: ${super.getName()}`;\n  }\n}\n\n// Example usage\nconst person = new Person(\"John Doe\");\nconsole.log(person.getName()); // Output: John Doe\n\nconst student = new Student(\"Jane Smith\", 12345);\nconsole.log(student.getName()); // Output: Student: Jane Smith"
+        }
+    ]
+}
+
+
+[Trace - 12:16:44] Sending notification '$/cancelRequest'.
+Params: {
+    "id": 101
+}
+
+
+[Trace - 12:16:44] Sending request 'aws/textDocument/inlineCompletionWithReferences - (102)'.
+Params: {
+    "textDocument": {
+        "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Student.ts"
+    },
+    "position": {
+        "line": 31,
+        "character": 62
+    },
+    "context": {
+        "triggerKind": 1
+    }
+}
+
+
+[Trace - 12:16:44] Received response 'aws/textDocument/inlineCompletionWithReferences - (102)' in 3ms.
+Result: {
+    "sessionId": "",
+    "items": []
+}
+
+
+[Info  - 12:16:44] Client: Received 0 suggestions
+[Trace - 12:16:45] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_serviceInvocation",
+    "result": "Succeeded",
+    "data": {
+        "codewhispererRequestId": "43dc7926-72ed-486d-af75-d9cda9f42963",
+        "codewhispererSessionId": "bb9da46f-750a-4f57-9728-1c3baff3093a",
+        "codewhispererLastSuggestionIndex": 1,
+        "codewhispererCompletionType": "Block",
+        "codewhispererTriggerType": "OnDemand",
+        "duration": 2407,
+        "codewhispererLineNumber": 1,
+        "codewhispererCursorOffset": 0,
+        "codewhispererLanguage": "typescript",
+        "credentialStartUrl": "https://amzn.awsapps.com/start"
+    }
+}
+
+
+[Info  - 12:16:45] vscode client: Received telemetry event from server {"name":"codewhisperer_serviceInvocation","result":"Succeeded","data":{"codewhispererRequestId":"43dc7926-72ed-486d-af75-d9cda9f42963","codewhispererSessionId":"bb9da46f-750a-4f57-9728-1c3baff3093a","codewhispererLastSuggestionIndex":1,"codewhispererCompletionType":"Block","codewhispererTriggerType":"OnDemand","duration":2407,"codewhispererLineNumber":1,"codewhispererCursorOffset":0,"codewhispererLanguage":"typescript","credentialStartUrl":"https://amzn.awsapps.com/start"}}
+[Trace - 12:16:45] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_userTriggerDecision",
+    "data": {
+        "codewhispererSessionId": "bb9da46f-750a-4f57-9728-1c3baff3093a",
+        "codewhispererFirstRequestId": "43dc7926-72ed-486d-af75-d9cda9f42963",
+        "credentialStartUrl": "https://amzn.awsapps.com/start",
+        "codewhispererSuggestionState": "Discard",
+        "codewhispererCompletionType": "Block",
+        "codewhispererLanguage": "typescript",
+        "codewhispererTriggerType": "OnDemand",
+        "codewhispererLineNumber": 1,
+        "codewhispererCursorOffset": 0,
+        "codewhispererSuggestionCount": 2,
+        "codewhispererClassifierResult": 0.4160486806953143,
+        "codewhispererClassifierThreshold": 0.43,
+        "codewhispererTotalShownTime": 0,
+        "codewhispererTypeaheadLength": 0,
+        "codewhispererTimeSinceLastDocumentChange": 3936,
+        "codewhispererTimeSinceLastUserDecision": 0,
+        "codewhispererTimeToFirstRecommendation": 2407,
+        "codewhispererPreviousSuggestionState": "Discard"
+    }
+}
+
+
+[Info  - 12:16:45] vscode client: Received telemetry event from server {"name":"codewhisperer_userTriggerDecision","data":{"codewhispererSessionId":"bb9da46f-750a-4f57-9728-1c3baff3093a","codewhispererFirstRequestId":"43dc7926-72ed-486d-af75-d9cda9f42963","credentialStartUrl":"https://amzn.awsapps.com/start","codewhispererSuggestionState":"Discard","codewhispererCompletionType":"Block","codewhispererLanguage":"typescript","codewhispererTriggerType":"OnDemand","codewhispererLineNumber":1,"codewhispererCursorOffset":0,"codewhispererSuggestionCount":2,"codewhispererClassifierResult":0.4160486806953143,"codewhispererClassifierThreshold":0.43,"codewhispererTotalShownTime":0,"codewhispererTypeaheadLength":0,"codewhispererTimeSinceLastDocumentChange":3936,"codewhispererTimeSinceLastUserDecision":0,"codewhispererTimeToFirstRecommendation":2407,"codewhispererPreviousSuggestionState":"Discard"}}
+[Trace - 12:16:45] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_userDecision",
+    "data": {
+        "codewhispererRequestId": "43dc7926-72ed-486d-af75-d9cda9f42963",
+        "codewhispererSessionId": "bb9da46f-750a-4f57-9728-1c3baff3093a",
+        "codewhispererCompletionType": "Block",
+        "codewhispererTriggerType": "OnDemand",
+        "codewhispererLanguage": "typescript",
+        "credentialStartUrl": "https://amzn.awsapps.com/start",
+        "codewhispererSuggestionIndex": 0,
+        "codewhispererSuggestionState": "Discard",
+        "codewhispererSuggestionReferences": [],
+        "codewhispererSuggestionReferenceCount": 0
+    }
+}
+
+
+[Info  - 12:16:45] vscode client: Received telemetry event from server {"name":"codewhisperer_userDecision","data":{"codewhispererRequestId":"43dc7926-72ed-486d-af75-d9cda9f42963","codewhispererSessionId":"bb9da46f-750a-4f57-9728-1c3baff3093a","codewhispererCompletionType":"Block","codewhispererTriggerType":"OnDemand","codewhispererLanguage":"typescript","credentialStartUrl":"https://amzn.awsapps.com/start","codewhispererSuggestionIndex":0,"codewhispererSuggestionState":"Discard","codewhispererSuggestionReferences":[],"codewhispererSuggestionReferenceCount":0}}
+[Trace - 12:16:45] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_userDecision",
+    "data": {
+        "codewhispererRequestId": "43dc7926-72ed-486d-af75-d9cda9f42963",
+        "codewhispererSessionId": "bb9da46f-750a-4f57-9728-1c3baff3093a",
+        "codewhispererCompletionType": "Block",
+        "codewhispererTriggerType": "OnDemand",
+        "codewhispererLanguage": "typescript",
+        "credentialStartUrl": "https://amzn.awsapps.com/start",
+        "codewhispererSuggestionIndex": 1,
+        "codewhispererSuggestionState": "Discard",
+        "codewhispererSuggestionReferences": [],
+        "codewhispererSuggestionReferenceCount": 0
+    }
+}
+
+
+[Info  - 12:16:45] vscode client: Received telemetry event from server {"name":"codewhisperer_userDecision","data":{"codewhispererRequestId":"43dc7926-72ed-486d-af75-d9cda9f42963","codewhispererSessionId":"bb9da46f-750a-4f57-9728-1c3baff3093a","codewhispererCompletionType":"Block","codewhispererTriggerType":"OnDemand","codewhispererLanguage":"typescript","credentialStartUrl":"https://amzn.awsapps.com/start","codewhispererSuggestionIndex":1,"codewhispererSuggestionState":"Discard","codewhispererSuggestionReferences":[],"codewhispererSuggestionReferenceCount":0}}
+[Trace - 12:16:45] Received response 'aws/textDocument/inlineCompletionWithReferences - (101)' in 2418ms.
+Result: {
+    "sessionId": "",
+    "items": []
+}
+
+
+[Info  - 12:16:45] Client: Received 0 suggestions
+[Trace - 12:16:46] Sending notification 'workspace/didChangeWatchedFiles'.
+Params: {
+    "changes": [
+        {
+            "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Student.ts",
+            "type": 2
+        },
+        {
+            "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Student.ts",
+            "type": 2
+        }
+    ]
+}
+
+
+[Trace - 12:16:49] Sending notification 'textDocument/didChange'.
+Params: {
+    "textDocument": {
+        "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Student.py",
+        "version": 7
+    },
+    "contentChanges": [
+        {
+            "range": {
+                "start": {
+                    "line": 0,
+                    "character": 2
+                },
+                "end": {
+                    "line": 0,
+                    "character": 49
+                }
+            },
+            "rangeLength": 47,
+            "text": ""
+        }
+    ]
+}
+
+
+[Trace - 12:16:50] Sending request 'aws/textDocument/inlineCompletionWithReferences - (103)'.
+Params: {
+    "textDocument": {
+        "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Student.py"
+    },
+    "position": {
+        "line": 0,
+        "character": 2
+    },
+    "context": {
+        "triggerKind": 1
+    }
+}
+
+
+[Trace - 12:16:50] Received response 'aws/textDocument/inlineCompletionWithReferences - (103)' in 5ms.
+Result: {
+    "sessionId": "",
+    "items": []
+}
+
+
+[Info  - 12:16:50] Client: Received 0 suggestions
+[Trace - 12:16:50] Sending notification 'textDocument/didChange'.
+Params: {
+    "textDocument": {
+        "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Student.py",
+        "version": 8
+    },
+    "contentChanges": [
+        {
+            "range": {
+                "start": {
+                    "line": 0,
+                    "character": 2
+                },
+                "end": {
+                    "line": 0,
+                    "character": 2
+                }
+            },
+            "rangeLength": 0,
+            "text": "Create Student class that extends Person and overrides getName method"
+        }
+    ]
+}
+
+
+[Trace - 12:16:50] Sending request 'aws/textDocument/inlineCompletionWithReferences - (104)'.
+Params: {
+    "textDocument": {
+        "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Student.py"
+    },
+    "position": {
+        "line": 0,
+        "character": 71
+    },
+    "context": {
+        "triggerKind": 1
+    }
+}
+
+
+[Trace - 12:16:50] Sending notification 'textDocument/didChange'.
+Params: {
+    "textDocument": {
+        "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Student.py",
+        "version": 9
+    },
+    "contentChanges": [
+        {
+            "range": {
+                "start": {
+                    "line": 0,
+                    "character": 71
+                },
+                "end": {
+                    "line": 0,
+                    "character": 71
+                }
+            },
+            "rangeLength": 0,
+            "text": "\n"
+        }
+    ]
+}
+
+
+[Trace - 12:16:50] Sending notification '$/cancelRequest'.
+Params: {
+    "id": 104
+}
+
+
+[Trace - 12:16:50] Sending request 'aws/textDocument/inlineCompletionWithReferences - (105)'.
+Params: {
+    "textDocument": {
+        "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Student.py"
+    },
+    "position": {
+        "line": 1,
+        "character": 0
+    },
+    "context": {
+        "triggerKind": 1
+    }
+}
+
+
+[Trace - 12:16:52] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_serviceInvocation",
+    "result": "Succeeded",
+    "data": {
+        "codewhispererRequestId": "8d62fd7b-c445-4fdd-894a-535c9246eb23",
+        "codewhispererSessionId": "bdf9d68c-000e-494c-9ce2-2cc663a1aa5b",
+        "codewhispererLastSuggestionIndex": 0,
+        "codewhispererCompletionType": "Block",
+        "codewhispererTriggerType": "AutoTrigger",
+        "codewhispererAutomatedTriggerType": "Classifier",
+        "duration": 2154,
+        "codewhispererLineNumber": 0,
+        "codewhispererCursorOffset": 71,
+        "codewhispererLanguage": "python",
+        "credentialStartUrl": "https://amzn.awsapps.com/start"
+    }
+}
+
+
+[Info  - 12:16:52] vscode client: Received telemetry event from server {"name":"codewhisperer_serviceInvocation","result":"Succeeded","data":{"codewhispererRequestId":"8d62fd7b-c445-4fdd-894a-535c9246eb23","codewhispererSessionId":"bdf9d68c-000e-494c-9ce2-2cc663a1aa5b","codewhispererLastSuggestionIndex":0,"codewhispererCompletionType":"Block","codewhispererTriggerType":"AutoTrigger","codewhispererAutomatedTriggerType":"Classifier","duration":2154,"codewhispererLineNumber":0,"codewhispererCursorOffset":71,"codewhispererLanguage":"python","credentialStartUrl":"https://amzn.awsapps.com/start"}}
+[Trace - 12:16:52] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_userTriggerDecision",
+    "data": {
+        "codewhispererSessionId": "bdf9d68c-000e-494c-9ce2-2cc663a1aa5b",
+        "codewhispererFirstRequestId": "8d62fd7b-c445-4fdd-894a-535c9246eb23",
+        "credentialStartUrl": "https://amzn.awsapps.com/start",
+        "codewhispererSuggestionState": "Discard",
+        "codewhispererCompletionType": "Block",
+        "codewhispererLanguage": "python",
+        "codewhispererTriggerType": "AutoTrigger",
+        "codewhispererAutomatedTriggerType": "Classifier",
+        "codewhispererLineNumber": 0,
+        "codewhispererCursorOffset": 71,
+        "codewhispererSuggestionCount": 1,
+        "codewhispererClassifierResult": -0.2622624579617835,
+        "codewhispererClassifierThreshold": 0.43,
+        "codewhispererTotalShownTime": 0,
+        "codewhispererTypeaheadLength": 0,
+        "codewhispererTimeSinceLastDocumentChange": 630,
+        "codewhispererTimeSinceLastUserDecision": 5298,
+        "codewhispererTimeToFirstRecommendation": 2154,
+        "codewhispererPreviousSuggestionState": "Discard"
+    }
+}
+
+
+[Info  - 12:16:52] vscode client: Received telemetry event from server {"name":"codewhisperer_userTriggerDecision","data":{"codewhispererSessionId":"bdf9d68c-000e-494c-9ce2-2cc663a1aa5b","codewhispererFirstRequestId":"8d62fd7b-c445-4fdd-894a-535c9246eb23","credentialStartUrl":"https://amzn.awsapps.com/start","codewhispererSuggestionState":"Discard","codewhispererCompletionType":"Block","codewhispererLanguage":"python","codewhispererTriggerType":"AutoTrigger","codewhispererAutomatedTriggerType":"Classifier","codewhispererLineNumber":0,"codewhispererCursorOffset":71,"codewhispererSuggestionCount":1,"codewhispererClassifierResult":-0.2622624579617835,"codewhispererClassifierThreshold":0.43,"codewhispererTotalShownTime":0,"codewhispererTypeaheadLength":0,"codewhispererTimeSinceLastDocumentChange":630,"codewhispererTimeSinceLastUserDecision":5298,"codewhispererTimeToFirstRecommendation":2154,"codewhispererPreviousSuggestionState":"Discard"}}
+[Trace - 12:16:52] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_userDecision",
+    "data": {
+        "codewhispererRequestId": "8d62fd7b-c445-4fdd-894a-535c9246eb23",
+        "codewhispererSessionId": "bdf9d68c-000e-494c-9ce2-2cc663a1aa5b",
+        "codewhispererCompletionType": "Block",
+        "codewhispererTriggerType": "AutoTrigger",
+        "codewhispererLanguage": "python",
+        "credentialStartUrl": "https://amzn.awsapps.com/start",
+        "codewhispererSuggestionIndex": 0,
+        "codewhispererSuggestionState": "Discard",
+        "codewhispererSuggestionReferences": [],
+        "codewhispererSuggestionReferenceCount": 0
+    }
+}
+
+
+[Info  - 12:16:52] vscode client: Received telemetry event from server {"name":"codewhisperer_userDecision","data":{"codewhispererRequestId":"8d62fd7b-c445-4fdd-894a-535c9246eb23","codewhispererSessionId":"bdf9d68c-000e-494c-9ce2-2cc663a1aa5b","codewhispererCompletionType":"Block","codewhispererTriggerType":"AutoTrigger","codewhispererLanguage":"python","credentialStartUrl":"https://amzn.awsapps.com/start","codewhispererSuggestionIndex":0,"codewhispererSuggestionState":"Discard","codewhispererSuggestionReferences":[],"codewhispererSuggestionReferenceCount":0}}
+[Trace - 12:16:52] Received response 'aws/textDocument/inlineCompletionWithReferences - (104)' in 2158ms.
+Result: {
+    "sessionId": "",
+    "items": []
+}
+
+
+[Info  - 12:16:52] Client: Received 0 suggestions
+[Trace - 12:16:52] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_serviceInvocation",
+    "result": "Succeeded",
+    "data": {
+        "codewhispererRequestId": "47a4796c-e46e-476f-a0e4-f155ca7ea4f6",
+        "codewhispererSessionId": "214683b3-06af-42e5-a62b-dc2f535e67e0",
+        "codewhispererLastSuggestionIndex": 2,
+        "codewhispererCompletionType": "Block",
+        "codewhispererTriggerType": "AutoTrigger",
+        "codewhispererAutomatedTriggerType": "Enter",
+        "duration": 2069,
+        "codewhispererLineNumber": 1,
+        "codewhispererCursorOffset": 0,
+        "codewhispererLanguage": "python",
+        "credentialStartUrl": "https://amzn.awsapps.com/start"
+    }
+}
+
+
+[Info  - 12:16:52] vscode client: Received telemetry event from server {"name":"codewhisperer_serviceInvocation","result":"Succeeded","data":{"codewhispererRequestId":"47a4796c-e46e-476f-a0e4-f155ca7ea4f6","codewhispererSessionId":"214683b3-06af-42e5-a62b-dc2f535e67e0","codewhispererLastSuggestionIndex":2,"codewhispererCompletionType":"Block","codewhispererTriggerType":"AutoTrigger","codewhispererAutomatedTriggerType":"Enter","duration":2069,"codewhispererLineNumber":1,"codewhispererCursorOffset":0,"codewhispererLanguage":"python","credentialStartUrl":"https://amzn.awsapps.com/start"}}
+[Trace - 12:16:52] Received response 'aws/textDocument/inlineCompletionWithReferences - (105)' in 2076ms.
+Result: {
+    "items": [
+        {
+            "itemId": "6259c464-618b-4405-ba55-c2b07d9ce5e0",
+            "insertText": "class Person:\n    def __init__(self, name):\n        self.name = name\n\n    def getName(self):\n        return self.name\n\nclass Student(Person):\n    def __init__(self, name, id):\n        super().__init__(name)\n        self.id = id\n\n    def getName(self):\n        return f\"Student's name: {self.name}, ID: {self.id}\""
+        },
+        {
+            "itemId": "38d37130-17fa-4e09-a3b1-31cdced3b190",
+            "insertText": "class Person:\n    def __init__(self, name):\n        self.name = name\n\n    def getName(self):\n        return self.name\n\nclass Student(Person):\n    def __init__(self, name, id):\n        super().__init__(name)\n        self.id = id\n\n    def getName(self):\n        return f\"Student Name: {self.name}, ID: {self.id}\""
+        },
+        {
+            "itemId": "c51c99d6-7132-4a2b-a087-598a08f07574",
+            "insertText": "class Person:\n    def __init__(self, firstName, lastName):\n        self.firstName = firstName\n        self.lastName = lastName\n\n    def getName(self):\n        return self.firstName + \" \" + self.lastName\n\nclass Student(Person):\n    def __init__(self, firstName, lastName, schoolName):\n        super().__init__(firstName, lastName)\n        self.schoolName = schoolName\n\n    def getName(self):\n        return self.firstName + \" \" + self.lastName + \" (\" + self.schoolName + \")\""
+        }
+    ],
+    "sessionId": "7c78ec20-9a32-4dff-9f34-3e5b5fcf8f05"
+}
+
+
+[Info  - 12:16:52] Client: Received 3 suggestions
+[Trace - 12:16:52] Sending request 'aws/textDocument/inlineCompletionWithReferences - (106)'.
+Params: {
+    "textDocument": {
+        "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Student.py"
+    },
+    "position": {
+        "line": 1,
+        "character": 0
+    },
+    "context": {
+        "triggerKind": 0
+    }
+}
+
+
+[Trace - 12:16:52] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_userTriggerDecision",
+    "data": {
+        "codewhispererSessionId": "214683b3-06af-42e5-a62b-dc2f535e67e0",
+        "codewhispererFirstRequestId": "47a4796c-e46e-476f-a0e4-f155ca7ea4f6",
+        "credentialStartUrl": "https://amzn.awsapps.com/start",
+        "codewhispererSuggestionState": "Discard",
+        "codewhispererCompletionType": "Block",
+        "codewhispererLanguage": "python",
+        "codewhispererTriggerType": "AutoTrigger",
+        "codewhispererAutomatedTriggerType": "Enter",
+        "codewhispererLineNumber": 1,
+        "codewhispererCursorOffset": 0,
+        "codewhispererSuggestionCount": 3,
+        "codewhispererClassifierResult": 0.716957203422587,
+        "codewhispererClassifierThreshold": 0.43,
+        "codewhispererTotalShownTime": 0,
+        "codewhispererTypeaheadLength": 0,
+        "codewhispererTimeSinceLastDocumentChange": 630,
+        "codewhispererTimeSinceLastUserDecision": 0,
+        "codewhispererTimeToFirstRecommendation": 2069,
+        "codewhispererPreviousSuggestionState": "Discard"
+    }
+}
+
+
+[Info  - 12:16:52] vscode client: Received telemetry event from server {"name":"codewhisperer_userTriggerDecision","data":{"codewhispererSessionId":"214683b3-06af-42e5-a62b-dc2f535e67e0","codewhispererFirstRequestId":"47a4796c-e46e-476f-a0e4-f155ca7ea4f6","credentialStartUrl":"https://amzn.awsapps.com/start","codewhispererSuggestionState":"Discard","codewhispererCompletionType":"Block","codewhispererLanguage":"python","codewhispererTriggerType":"AutoTrigger","codewhispererAutomatedTriggerType":"Enter","codewhispererLineNumber":1,"codewhispererCursorOffset":0,"codewhispererSuggestionCount":3,"codewhispererClassifierResult":0.716957203422587,"codewhispererClassifierThreshold":0.43,"codewhispererTotalShownTime":0,"codewhispererTypeaheadLength":0,"codewhispererTimeSinceLastDocumentChange":630,"codewhispererTimeSinceLastUserDecision":0,"codewhispererTimeToFirstRecommendation":2069,"codewhispererPreviousSuggestionState":"Discard"}}
+[Trace - 12:16:52] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_userDecision",
+    "data": {
+        "codewhispererRequestId": "47a4796c-e46e-476f-a0e4-f155ca7ea4f6",
+        "codewhispererSessionId": "214683b3-06af-42e5-a62b-dc2f535e67e0",
+        "codewhispererCompletionType": "Block",
+        "codewhispererTriggerType": "AutoTrigger",
+        "codewhispererLanguage": "python",
+        "credentialStartUrl": "https://amzn.awsapps.com/start",
+        "codewhispererSuggestionIndex": 0,
+        "codewhispererSuggestionState": "Discard",
+        "codewhispererSuggestionReferences": [],
+        "codewhispererSuggestionReferenceCount": 0
+    }
+}
+
+
+[Info  - 12:16:52] vscode client: Received telemetry event from server {"name":"codewhisperer_userDecision","data":{"codewhispererRequestId":"47a4796c-e46e-476f-a0e4-f155ca7ea4f6","codewhispererSessionId":"214683b3-06af-42e5-a62b-dc2f535e67e0","codewhispererCompletionType":"Block","codewhispererTriggerType":"AutoTrigger","codewhispererLanguage":"python","credentialStartUrl":"https://amzn.awsapps.com/start","codewhispererSuggestionIndex":0,"codewhispererSuggestionState":"Discard","codewhispererSuggestionReferences":[],"codewhispererSuggestionReferenceCount":0}}
+[Trace - 12:16:52] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_userDecision",
+    "data": {
+        "codewhispererRequestId": "47a4796c-e46e-476f-a0e4-f155ca7ea4f6",
+        "codewhispererSessionId": "214683b3-06af-42e5-a62b-dc2f535e67e0",
+        "codewhispererCompletionType": "Block",
+        "codewhispererTriggerType": "AutoTrigger",
+        "codewhispererLanguage": "python",
+        "credentialStartUrl": "https://amzn.awsapps.com/start",
+        "codewhispererSuggestionIndex": 1,
+        "codewhispererSuggestionState": "Discard",
+        "codewhispererSuggestionReferences": [],
+        "codewhispererSuggestionReferenceCount": 0
+    }
+}
+
+
+[Info  - 12:16:52] vscode client: Received telemetry event from server {"name":"codewhisperer_userDecision","data":{"codewhispererRequestId":"47a4796c-e46e-476f-a0e4-f155ca7ea4f6","codewhispererSessionId":"214683b3-06af-42e5-a62b-dc2f535e67e0","codewhispererCompletionType":"Block","codewhispererTriggerType":"AutoTrigger","codewhispererLanguage":"python","credentialStartUrl":"https://amzn.awsapps.com/start","codewhispererSuggestionIndex":1,"codewhispererSuggestionState":"Discard","codewhispererSuggestionReferences":[],"codewhispererSuggestionReferenceCount":0}}
+[Trace - 12:16:52] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_userDecision",
+    "data": {
+        "codewhispererRequestId": "47a4796c-e46e-476f-a0e4-f155ca7ea4f6",
+        "codewhispererSessionId": "214683b3-06af-42e5-a62b-dc2f535e67e0",
+        "codewhispererCompletionType": "Block",
+        "codewhispererTriggerType": "AutoTrigger",
+        "codewhispererLanguage": "python",
+        "credentialStartUrl": "https://amzn.awsapps.com/start",
+        "codewhispererSuggestionIndex": 2,
+        "codewhispererSuggestionState": "Discard",
+        "codewhispererSuggestionReferences": [],
+        "codewhispererSuggestionReferenceCount": 0
+    }
+}
+
+
+[Info  - 12:16:52] vscode client: Received telemetry event from server {"name":"codewhisperer_userDecision","data":{"codewhispererRequestId":"47a4796c-e46e-476f-a0e4-f155ca7ea4f6","codewhispererSessionId":"214683b3-06af-42e5-a62b-dc2f535e67e0","codewhispererCompletionType":"Block","codewhispererTriggerType":"AutoTrigger","codewhispererLanguage":"python","credentialStartUrl":"https://amzn.awsapps.com/start","codewhispererSuggestionIndex":2,"codewhispererSuggestionState":"Discard","codewhispererSuggestionReferences":[],"codewhispererSuggestionReferenceCount":0}}
+[Trace - 12:16:54] Sending notification 'textDocument/didChange'.
+Params: {
+    "textDocument": {
+        "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Student.py",
+        "version": 10
+    },
+    "contentChanges": [
+        {
+            "range": {
+                "start": {
+                    "line": 1,
+                    "character": 0
+                },
+                "end": {
+                    "line": 1,
+                    "character": 0
+                }
+            },
+            "rangeLength": 0,
+            "text": "class Person:\n    def __init__(self, name):\n        self.name = name\n\n    def getName(self):\n        return self.name\n\nclass Student(Person):\n    def __init__(self, name, id):\n        super().__init__(name)\n        self.id = id\n\n    def getName(self):\n        return f\"Student's name: {self.name}, ID: {self.id}\""
+        }
+    ]
+}
+
+
+[Trace - 12:16:54] Sending notification '$/cancelRequest'.
+Params: {
+    "id": 106
+}
+
+
+[Trace - 12:16:54] Sending request 'aws/textDocument/inlineCompletionWithReferences - (107)'.
+Params: {
+    "textDocument": {
+        "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Student.py"
+    },
+    "position": {
+        "line": 14,
+        "character": 60
+    },
+    "context": {
+        "triggerKind": 1
+    }
+}
+
+
+[Trace - 12:16:54] Received response 'aws/textDocument/inlineCompletionWithReferences - (107)' in 8ms.
+Result: {
+    "sessionId": "",
+    "items": []
+}
+
+
+[Info  - 12:16:54] Client: Received 0 suggestions
+[Trace - 12:16:55] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_serviceInvocation",
+    "result": "Succeeded",
+    "data": {
+        "codewhispererRequestId": "89a0f739-63e7-4172-ae8b-bf8caa9466b9",
+        "codewhispererSessionId": "bfe3cf11-8e00-4b91-970d-43ec51dba382",
+        "codewhispererLastSuggestionIndex": 2,
+        "codewhispererCompletionType": "Block",
+        "codewhispererTriggerType": "OnDemand",
+        "duration": 2167,
+        "codewhispererLineNumber": 1,
+        "codewhispererCursorOffset": 0,
+        "codewhispererLanguage": "python",
+        "credentialStartUrl": "https://amzn.awsapps.com/start"
+    }
+}
+
+
+[Info  - 12:16:55] vscode client: Received telemetry event from server {"name":"codewhisperer_serviceInvocation","result":"Succeeded","data":{"codewhispererRequestId":"89a0f739-63e7-4172-ae8b-bf8caa9466b9","codewhispererSessionId":"bfe3cf11-8e00-4b91-970d-43ec51dba382","codewhispererLastSuggestionIndex":2,"codewhispererCompletionType":"Block","codewhispererTriggerType":"OnDemand","duration":2167,"codewhispererLineNumber":1,"codewhispererCursorOffset":0,"codewhispererLanguage":"python","credentialStartUrl":"https://amzn.awsapps.com/start"}}
+[Trace - 12:16:55] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_userTriggerDecision",
+    "data": {
+        "codewhispererSessionId": "bfe3cf11-8e00-4b91-970d-43ec51dba382",
+        "codewhispererFirstRequestId": "89a0f739-63e7-4172-ae8b-bf8caa9466b9",
+        "credentialStartUrl": "https://amzn.awsapps.com/start",
+        "codewhispererSuggestionState": "Discard",
+        "codewhispererCompletionType": "Block",
+        "codewhispererLanguage": "python",
+        "codewhispererTriggerType": "OnDemand",
+        "codewhispererLineNumber": 1,
+        "codewhispererCursorOffset": 0,
+        "codewhispererSuggestionCount": 3,
+        "codewhispererClassifierResult": 0.716957203422587,
+        "codewhispererClassifierThreshold": 0.43,
+        "codewhispererTotalShownTime": 0,
+        "codewhispererTypeaheadLength": 0,
+        "codewhispererTimeSinceLastDocumentChange": 3222,
+        "codewhispererTimeSinceLastUserDecision": 0,
+        "codewhispererTimeToFirstRecommendation": 2167,
+        "codewhispererPreviousSuggestionState": "Discard"
+    }
+}
+
+
+[Info  - 12:16:55] vscode client: Received telemetry event from server {"name":"codewhisperer_userTriggerDecision","data":{"codewhispererSessionId":"bfe3cf11-8e00-4b91-970d-43ec51dba382","codewhispererFirstRequestId":"89a0f739-63e7-4172-ae8b-bf8caa9466b9","credentialStartUrl":"https://amzn.awsapps.com/start","codewhispererSuggestionState":"Discard","codewhispererCompletionType":"Block","codewhispererLanguage":"python","codewhispererTriggerType":"OnDemand","codewhispererLineNumber":1,"codewhispererCursorOffset":0,"codewhispererSuggestionCount":3,"codewhispererClassifierResult":0.716957203422587,"codewhispererClassifierThreshold":0.43,"codewhispererTotalShownTime":0,"codewhispererTypeaheadLength":0,"codewhispererTimeSinceLastDocumentChange":3222,"codewhispererTimeSinceLastUserDecision":0,"codewhispererTimeToFirstRecommendation":2167,"codewhispererPreviousSuggestionState":"Discard"}}
+[Trace - 12:16:55] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_userDecision",
+    "data": {
+        "codewhispererRequestId": "89a0f739-63e7-4172-ae8b-bf8caa9466b9",
+        "codewhispererSessionId": "bfe3cf11-8e00-4b91-970d-43ec51dba382",
+        "codewhispererCompletionType": "Block",
+        "codewhispererTriggerType": "OnDemand",
+        "codewhispererLanguage": "python",
+        "credentialStartUrl": "https://amzn.awsapps.com/start",
+        "codewhispererSuggestionIndex": 0,
+        "codewhispererSuggestionState": "Discard",
+        "codewhispererSuggestionReferences": [],
+        "codewhispererSuggestionReferenceCount": 0
+    }
+}
+
+
+[Info  - 12:16:55] vscode client: Received telemetry event from server {"name":"codewhisperer_userDecision","data":{"codewhispererRequestId":"89a0f739-63e7-4172-ae8b-bf8caa9466b9","codewhispererSessionId":"bfe3cf11-8e00-4b91-970d-43ec51dba382","codewhispererCompletionType":"Block","codewhispererTriggerType":"OnDemand","codewhispererLanguage":"python","credentialStartUrl":"https://amzn.awsapps.com/start","codewhispererSuggestionIndex":0,"codewhispererSuggestionState":"Discard","codewhispererSuggestionReferences":[],"codewhispererSuggestionReferenceCount":0}}
+[Trace - 12:16:55] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_userDecision",
+    "data": {
+        "codewhispererRequestId": "89a0f739-63e7-4172-ae8b-bf8caa9466b9",
+        "codewhispererSessionId": "bfe3cf11-8e00-4b91-970d-43ec51dba382",
+        "codewhispererCompletionType": "Block",
+        "codewhispererTriggerType": "OnDemand",
+        "codewhispererLanguage": "python",
+        "credentialStartUrl": "https://amzn.awsapps.com/start",
+        "codewhispererSuggestionIndex": 1,
+        "codewhispererSuggestionState": "Discard",
+        "codewhispererSuggestionReferences": [],
+        "codewhispererSuggestionReferenceCount": 0
+    }
+}
+
+
+[Info  - 12:16:55] vscode client: Received telemetry event from server {"name":"codewhisperer_userDecision","data":{"codewhispererRequestId":"89a0f739-63e7-4172-ae8b-bf8caa9466b9","codewhispererSessionId":"bfe3cf11-8e00-4b91-970d-43ec51dba382","codewhispererCompletionType":"Block","codewhispererTriggerType":"OnDemand","codewhispererLanguage":"python","credentialStartUrl":"https://amzn.awsapps.com/start","codewhispererSuggestionIndex":1,"codewhispererSuggestionState":"Discard","codewhispererSuggestionReferences":[],"codewhispererSuggestionReferenceCount":0}}
+[Trace - 12:16:55] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_userDecision",
+    "data": {
+        "codewhispererRequestId": "89a0f739-63e7-4172-ae8b-bf8caa9466b9",
+        "codewhispererSessionId": "bfe3cf11-8e00-4b91-970d-43ec51dba382",
+        "codewhispererCompletionType": "Block",
+        "codewhispererTriggerType": "OnDemand",
+        "codewhispererLanguage": "python",
+        "credentialStartUrl": "https://amzn.awsapps.com/start",
+        "codewhispererSuggestionIndex": 2,
+        "codewhispererSuggestionState": "Discard",
+        "codewhispererSuggestionReferences": [],
+        "codewhispererSuggestionReferenceCount": 0
+    }
+}
+
+
+[Info  - 12:16:55] vscode client: Received telemetry event from server {"name":"codewhisperer_userDecision","data":{"codewhispererRequestId":"89a0f739-63e7-4172-ae8b-bf8caa9466b9","codewhispererSessionId":"bfe3cf11-8e00-4b91-970d-43ec51dba382","codewhispererCompletionType":"Block","codewhispererTriggerType":"OnDemand","codewhispererLanguage":"python","credentialStartUrl":"https://amzn.awsapps.com/start","codewhispererSuggestionIndex":2,"codewhispererSuggestionState":"Discard","codewhispererSuggestionReferences":[],"codewhispererSuggestionReferenceCount":0}}
+[Trace - 12:16:55] Received response 'aws/textDocument/inlineCompletionWithReferences - (106)' in 2176ms.
+Result: {
+    "sessionId": "",
+    "items": []
+}
+
+
+[Info  - 12:16:55] Client: Received 0 suggestions
+[Trace - 12:16:58] Sending notification 'textDocument/didChange'.
+Params: {
+    "textDocument": {
+        "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Student.js",
+        "version": 3
+    },
+    "contentChanges": [
+        {
+            "range": {
+                "start": {
+                    "line": 0,
+                    "character": 3
+                },
+                "end": {
+                    "line": 0,
+                    "character": 50
+                }
+            },
+            "rangeLength": 47,
+            "text": ""
+        }
+    ]
+}
+
+
+[Trace - 12:16:58] Sending request 'aws/textDocument/inlineCompletionWithReferences - (108)'.
+Params: {
+    "textDocument": {
+        "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Student.js"
+    },
+    "position": {
+        "line": 0,
+        "character": 3
+    },
+    "context": {
+        "triggerKind": 1
+    }
+}
+
+
+[Trace - 12:16:58] Received response 'aws/textDocument/inlineCompletionWithReferences - (108)' in 2ms.
+Result: {
+    "sessionId": "",
+    "items": []
+}
+
+
+[Info  - 12:16:58] Client: Received 0 suggestions
+[Trace - 12:16:59] Sending notification 'textDocument/didChange'.
+Params: {
+    "textDocument": {
+        "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Student.js",
+        "version": 4
+    },
+    "contentChanges": [
+        {
+            "range": {
+                "start": {
+                    "line": 0,
+                    "character": 3
+                },
+                "end": {
+                    "line": 0,
+                    "character": 3
+                }
+            },
+            "rangeLength": 0,
+            "text": "Create Student class that extends Person and overrides getName method"
+        }
+    ]
+}
+
+
+[Trace - 12:16:59] Sending request 'aws/textDocument/inlineCompletionWithReferences - (109)'.
+Params: {
+    "textDocument": {
+        "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Student.js"
+    },
+    "position": {
+        "line": 0,
+        "character": 72
+    },
+    "context": {
+        "triggerKind": 1
+    }
+}
+
+
+[Trace - 12:16:59] Received response 'aws/textDocument/inlineCompletionWithReferences - (109)' in 2ms.
+Result: {
+    "sessionId": "",
+    "items": []
+}
+
+
+[Info  - 12:16:59] Client: Received 0 suggestions
+[Trace - 12:16:59] Sending notification 'textDocument/didChange'.
+Params: {
+    "textDocument": {
+        "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Student.js",
+        "version": 5
+    },
+    "contentChanges": [
+        {
+            "range": {
+                "start": {
+                    "line": 0,
+                    "character": 72
+                },
+                "end": {
+                    "line": 0,
+                    "character": 72
+                }
+            },
+            "rangeLength": 0,
+            "text": "\n"
+        }
+    ]
+}
+
+
+[Trace - 12:16:59] Sending request 'aws/textDocument/inlineCompletionWithReferences - (110)'.
+Params: {
+    "textDocument": {
+        "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Student.js"
+    },
+    "position": {
+        "line": 1,
+        "character": 0
+    },
+    "context": {
+        "triggerKind": 1
+    }
+}
+
+
+[Trace - 12:17:02] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_serviceInvocation",
+    "result": "Succeeded",
+    "data": {
+        "codewhispererRequestId": "c871d521-daea-4207-8492-f89119b8f8f1",
+        "codewhispererSessionId": "fd22d67f-f0ff-48bb-ad89-311a28b2aff5",
+        "codewhispererLastSuggestionIndex": 2,
+        "codewhispererCompletionType": "Block",
+        "codewhispererTriggerType": "AutoTrigger",
+        "codewhispererAutomatedTriggerType": "Enter",
+        "duration": 2354,
+        "codewhispererLineNumber": 1,
+        "codewhispererCursorOffset": 0,
+        "codewhispererLanguage": "javascript",
+        "credentialStartUrl": "https://amzn.awsapps.com/start"
+    }
+}
+
+
+[Info  - 12:17:02] vscode client: Received telemetry event from server {"name":"codewhisperer_serviceInvocation","result":"Succeeded","data":{"codewhispererRequestId":"c871d521-daea-4207-8492-f89119b8f8f1","codewhispererSessionId":"fd22d67f-f0ff-48bb-ad89-311a28b2aff5","codewhispererLastSuggestionIndex":2,"codewhispererCompletionType":"Block","codewhispererTriggerType":"AutoTrigger","codewhispererAutomatedTriggerType":"Enter","duration":2354,"codewhispererLineNumber":1,"codewhispererCursorOffset":0,"codewhispererLanguage":"javascript","credentialStartUrl":"https://amzn.awsapps.com/start"}}
+[Trace - 12:17:02] Received response 'aws/textDocument/inlineCompletionWithReferences - (110)' in 2358ms.
+Result: {
+    "items": [
+        {
+            "itemId": "6fb95bdd-2203-4c37-955a-6d9ea40712e5",
+            "insertText": "class Person {\n  constructor(name) {\n    this.name = name;\n  }\n\n  getName() {\n    return this.name;\n  }\n}\n\nclass Student extends Person {\n  constructor(name, studentId) {\n    super(name);\n    this.studentId = studentId;\n  }\n\n  getName() {\n    return `${this.name} (Student ID: ${this.studentId})`;\n  }\n}\n\n// Example usage\nlet person = new Person(\"John Doe\");\nconsole.log(person.getName()); // Output: John Doe\n\nlet student = new Student(\"Jane Smith\", 12345);\nconsole.log(student.getName()); // Output: Jane Smith (Student ID: 12345)"
+        },
+        {
+            "itemId": "9cbb800d-4f82-42d6-8dc9-3edf6eaa0b14",
+            "insertText": "class Person {\n  constructor(name) {\n    this.name = name;\n  }\n\n  getName() {\n    return this.name;\n  }\n}\n\nclass Student extends Person {\n  constructor(name, id) {\n    super(name);\n    this.id = id;\n  }\n\n  // Override getName method\n  getName() {\n    return `Student's name is ${this.name} and ID is ${this.id}`;\n  }\n}\n\n// Create an instance of Student and call getName method\nconst student = new Student(\"John Doe\", 12345);\nconsole.log(student.getName()); // Output: Student's name is John Doe and ID is 12345"
+        },
+        {
+            "itemId": "b8f65ad1-333b-438b-baf6-96d10d44d05f",
+            "insertText": "class Person {\n  constructor(name) {\n    this.name = name;\n  }\n\n  getName() {\n    return this.name;\n  }\n}\n\nclass Student extends Person {\n  constructor(name, id) {\n    super(name);\n    this.id = id;\n  }\n\n  // Override getName method\n  getName() {\n    return `Student's name is ${this.name} and ID is ${this.id}`;\n  }\n}\n\n// Create an instance of Student and call getName method\nlet student = new Student(\"John Doe\", 12345);\nconsole.log(student.getName()); // Output: Student's name is John Doe and ID is 12345"
+        }
+    ],
+    "sessionId": "193e14ac-2136-49ce-baa7-1cfd4545baba"
+}
+
+
+[Info  - 12:17:02] Client: Received 3 suggestions
+[Trace - 12:17:02] Sending request 'aws/textDocument/inlineCompletionWithReferences - (111)'.
+Params: {
+    "textDocument": {
+        "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Student.js"
+    },
+    "position": {
+        "line": 1,
+        "character": 0
+    },
+    "context": {
+        "triggerKind": 0
+    }
+}
+
+
+[Trace - 12:17:02] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_userTriggerDecision",
+    "data": {
+        "codewhispererSessionId": "fd22d67f-f0ff-48bb-ad89-311a28b2aff5",
+        "codewhispererFirstRequestId": "c871d521-daea-4207-8492-f89119b8f8f1",
+        "credentialStartUrl": "https://amzn.awsapps.com/start",
+        "codewhispererSuggestionState": "Discard",
+        "codewhispererCompletionType": "Block",
+        "codewhispererLanguage": "javascript",
+        "codewhispererTriggerType": "AutoTrigger",
+        "codewhispererAutomatedTriggerType": "Enter",
+        "codewhispererLineNumber": 1,
+        "codewhispererCursorOffset": 0,
+        "codewhispererSuggestionCount": 3,
+        "codewhispererClassifierResult": 0.5556486806953144,
+        "codewhispererClassifierThreshold": 0.43,
+        "codewhispererTotalShownTime": 0,
+        "codewhispererTypeaheadLength": 0,
+        "codewhispererTimeSinceLastDocumentChange": 530,
+        "codewhispererTimeSinceLastUserDecision": 5701,
+        "codewhispererTimeToFirstRecommendation": 2354,
+        "codewhispererPreviousSuggestionState": "Discard"
+    }
+}
+
+
+[Info  - 12:17:02] vscode client: Received telemetry event from server {"name":"codewhisperer_userTriggerDecision","data":{"codewhispererSessionId":"fd22d67f-f0ff-48bb-ad89-311a28b2aff5","codewhispererFirstRequestId":"c871d521-daea-4207-8492-f89119b8f8f1","credentialStartUrl":"https://amzn.awsapps.com/start","codewhispererSuggestionState":"Discard","codewhispererCompletionType":"Block","codewhispererLanguage":"javascript","codewhispererTriggerType":"AutoTrigger","codewhispererAutomatedTriggerType":"Enter","codewhispererLineNumber":1,"codewhispererCursorOffset":0,"codewhispererSuggestionCount":3,"codewhispererClassifierResult":0.5556486806953144,"codewhispererClassifierThreshold":0.43,"codewhispererTotalShownTime":0,"codewhispererTypeaheadLength":0,"codewhispererTimeSinceLastDocumentChange":530,"codewhispererTimeSinceLastUserDecision":5701,"codewhispererTimeToFirstRecommendation":2354,"codewhispererPreviousSuggestionState":"Discard"}}
+[Trace - 12:17:02] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_userDecision",
+    "data": {
+        "codewhispererRequestId": "c871d521-daea-4207-8492-f89119b8f8f1",
+        "codewhispererSessionId": "fd22d67f-f0ff-48bb-ad89-311a28b2aff5",
+        "codewhispererCompletionType": "Block",
+        "codewhispererTriggerType": "AutoTrigger",
+        "codewhispererLanguage": "javascript",
+        "credentialStartUrl": "https://amzn.awsapps.com/start",
+        "codewhispererSuggestionIndex": 0,
+        "codewhispererSuggestionState": "Discard",
+        "codewhispererSuggestionReferences": [],
+        "codewhispererSuggestionReferenceCount": 0
+    }
+}
+
+
+[Info  - 12:17:02] vscode client: Received telemetry event from server {"name":"codewhisperer_userDecision","data":{"codewhispererRequestId":"c871d521-daea-4207-8492-f89119b8f8f1","codewhispererSessionId":"fd22d67f-f0ff-48bb-ad89-311a28b2aff5","codewhispererCompletionType":"Block","codewhispererTriggerType":"AutoTrigger","codewhispererLanguage":"javascript","credentialStartUrl":"https://amzn.awsapps.com/start","codewhispererSuggestionIndex":0,"codewhispererSuggestionState":"Discard","codewhispererSuggestionReferences":[],"codewhispererSuggestionReferenceCount":0}}
+[Trace - 12:17:02] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_userDecision",
+    "data": {
+        "codewhispererRequestId": "c871d521-daea-4207-8492-f89119b8f8f1",
+        "codewhispererSessionId": "fd22d67f-f0ff-48bb-ad89-311a28b2aff5",
+        "codewhispererCompletionType": "Block",
+        "codewhispererTriggerType": "AutoTrigger",
+        "codewhispererLanguage": "javascript",
+        "credentialStartUrl": "https://amzn.awsapps.com/start",
+        "codewhispererSuggestionIndex": 1,
+        "codewhispererSuggestionState": "Discard",
+        "codewhispererSuggestionReferences": [],
+        "codewhispererSuggestionReferenceCount": 0
+    }
+}
+
+
+[Info  - 12:17:02] vscode client: Received telemetry event from server {"name":"codewhisperer_userDecision","data":{"codewhispererRequestId":"c871d521-daea-4207-8492-f89119b8f8f1","codewhispererSessionId":"fd22d67f-f0ff-48bb-ad89-311a28b2aff5","codewhispererCompletionType":"Block","codewhispererTriggerType":"AutoTrigger","codewhispererLanguage":"javascript","credentialStartUrl":"https://amzn.awsapps.com/start","codewhispererSuggestionIndex":1,"codewhispererSuggestionState":"Discard","codewhispererSuggestionReferences":[],"codewhispererSuggestionReferenceCount":0}}
+[Trace - 12:17:02] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_userDecision",
+    "data": {
+        "codewhispererRequestId": "c871d521-daea-4207-8492-f89119b8f8f1",
+        "codewhispererSessionId": "fd22d67f-f0ff-48bb-ad89-311a28b2aff5",
+        "codewhispererCompletionType": "Block",
+        "codewhispererTriggerType": "AutoTrigger",
+        "codewhispererLanguage": "javascript",
+        "credentialStartUrl": "https://amzn.awsapps.com/start",
+        "codewhispererSuggestionIndex": 2,
+        "codewhispererSuggestionState": "Discard",
+        "codewhispererSuggestionReferences": [],
+        "codewhispererSuggestionReferenceCount": 0
+    }
+}
+
+
+[Info  - 12:17:02] vscode client: Received telemetry event from server {"name":"codewhisperer_userDecision","data":{"codewhispererRequestId":"c871d521-daea-4207-8492-f89119b8f8f1","codewhispererSessionId":"fd22d67f-f0ff-48bb-ad89-311a28b2aff5","codewhispererCompletionType":"Block","codewhispererTriggerType":"AutoTrigger","codewhispererLanguage":"javascript","credentialStartUrl":"https://amzn.awsapps.com/start","codewhispererSuggestionIndex":2,"codewhispererSuggestionState":"Discard","codewhispererSuggestionReferences":[],"codewhispererSuggestionReferenceCount":0}}
+[Trace - 12:17:03] Sending notification 'textDocument/didChange'.
+Params: {
+    "textDocument": {
+        "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Student.js",
+        "version": 6
+    },
+    "contentChanges": [
+        {
+            "range": {
+                "start": {
+                    "line": 1,
+                    "character": 0
+                },
+                "end": {
+                    "line": 1,
+                    "character": 0
+                }
+            },
+            "rangeLength": 0,
+            "text": "class Person {\n  constructor(name) {\n    this.name = name;\n  }\n\n  getName() {\n    return this.name;\n  }\n}\n\nclass Student extends Person {\n  constructor(name, studentId) {\n    super(name);\n    this.studentId = studentId;\n  }\n\n  getName() {\n    return `${this.name} (Student ID: ${this.studentId})`;\n  }\n}\n\n// Example usage\nlet person = new Person(\"John Doe\");\nconsole.log(person.getName()); // Output: John Doe\n\nlet student = new Student(\"Jane Smith\", 12345);\nconsole.log(student.getName()); // Output: Jane Smith (Student ID: 12345)"
+        }
+    ]
+}
+
+
+[Trace - 12:17:03] Sending notification '$/cancelRequest'.
+Params: {
+    "id": 111
+}
+
+
+[Trace - 12:17:04] Sending request 'aws/textDocument/inlineCompletionWithReferences - (112)'.
+Params: {
+    "textDocument": {
+        "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Student.js"
+    },
+    "position": {
+        "line": 27,
+        "character": 73
+    },
+    "context": {
+        "triggerKind": 1
+    }
+}
+
+
+[Trace - 12:17:04] Received response 'aws/textDocument/inlineCompletionWithReferences - (112)' in 2ms.
+Result: {
+    "sessionId": "",
+    "items": []
+}
+
+
+[Info  - 12:17:04] Client: Received 0 suggestions
+[Trace - 12:17:04] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_serviceInvocation",
+    "result": "Succeeded",
+    "data": {
+        "codewhispererRequestId": "228fc952-f80a-470c-a26b-97b4350b9c44",
+        "codewhispererSessionId": "2e97b84e-7eca-4b4a-aed8-912672e4a167",
+        "codewhispererLastSuggestionIndex": 2,
+        "codewhispererCompletionType": "Block",
+        "codewhispererTriggerType": "OnDemand",
+        "duration": 2376,
+        "codewhispererLineNumber": 1,
+        "codewhispererCursorOffset": 0,
+        "codewhispererLanguage": "javascript",
+        "credentialStartUrl": "https://amzn.awsapps.com/start"
+    }
+}
+
+
+[Info  - 12:17:04] vscode client: Received telemetry event from server {"name":"codewhisperer_serviceInvocation","result":"Succeeded","data":{"codewhispererRequestId":"228fc952-f80a-470c-a26b-97b4350b9c44","codewhispererSessionId":"2e97b84e-7eca-4b4a-aed8-912672e4a167","codewhispererLastSuggestionIndex":2,"codewhispererCompletionType":"Block","codewhispererTriggerType":"OnDemand","duration":2376,"codewhispererLineNumber":1,"codewhispererCursorOffset":0,"codewhispererLanguage":"javascript","credentialStartUrl":"https://amzn.awsapps.com/start"}}
+[Trace - 12:17:04] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_userTriggerDecision",
+    "data": {
+        "codewhispererSessionId": "2e97b84e-7eca-4b4a-aed8-912672e4a167",
+        "codewhispererFirstRequestId": "228fc952-f80a-470c-a26b-97b4350b9c44",
+        "credentialStartUrl": "https://amzn.awsapps.com/start",
+        "codewhispererSuggestionState": "Discard",
+        "codewhispererCompletionType": "Block",
+        "codewhispererLanguage": "javascript",
+        "codewhispererTriggerType": "OnDemand",
+        "codewhispererLineNumber": 1,
+        "codewhispererCursorOffset": 0,
+        "codewhispererSuggestionCount": 3,
+        "codewhispererClassifierResult": 0.5556486806953144,
+        "codewhispererClassifierThreshold": 0.43,
+        "codewhispererTotalShownTime": 0,
+        "codewhispererTypeaheadLength": 0,
+        "codewhispererTimeSinceLastDocumentChange": 4199,
+        "codewhispererTimeSinceLastUserDecision": 0,
+        "codewhispererTimeToFirstRecommendation": 2376,
+        "codewhispererPreviousSuggestionState": "Discard"
+    }
+}
+
+
+[Info  - 12:17:04] vscode client: Received telemetry event from server {"name":"codewhisperer_userTriggerDecision","data":{"codewhispererSessionId":"2e97b84e-7eca-4b4a-aed8-912672e4a167","codewhispererFirstRequestId":"228fc952-f80a-470c-a26b-97b4350b9c44","credentialStartUrl":"https://amzn.awsapps.com/start","codewhispererSuggestionState":"Discard","codewhispererCompletionType":"Block","codewhispererLanguage":"javascript","codewhispererTriggerType":"OnDemand","codewhispererLineNumber":1,"codewhispererCursorOffset":0,"codewhispererSuggestionCount":3,"codewhispererClassifierResult":0.5556486806953144,"codewhispererClassifierThreshold":0.43,"codewhispererTotalShownTime":0,"codewhispererTypeaheadLength":0,"codewhispererTimeSinceLastDocumentChange":4199,"codewhispererTimeSinceLastUserDecision":0,"codewhispererTimeToFirstRecommendation":2376,"codewhispererPreviousSuggestionState":"Discard"}}
+[Trace - 12:17:04] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_userDecision",
+    "data": {
+        "codewhispererRequestId": "228fc952-f80a-470c-a26b-97b4350b9c44",
+        "codewhispererSessionId": "2e97b84e-7eca-4b4a-aed8-912672e4a167",
+        "codewhispererCompletionType": "Block",
+        "codewhispererTriggerType": "OnDemand",
+        "codewhispererLanguage": "javascript",
+        "credentialStartUrl": "https://amzn.awsapps.com/start",
+        "codewhispererSuggestionIndex": 0,
+        "codewhispererSuggestionState": "Discard",
+        "codewhispererSuggestionReferences": [],
+        "codewhispererSuggestionReferenceCount": 0
+    }
+}
+
+
+[Info  - 12:17:04] vscode client: Received telemetry event from server {"name":"codewhisperer_userDecision","data":{"codewhispererRequestId":"228fc952-f80a-470c-a26b-97b4350b9c44","codewhispererSessionId":"2e97b84e-7eca-4b4a-aed8-912672e4a167","codewhispererCompletionType":"Block","codewhispererTriggerType":"OnDemand","codewhispererLanguage":"javascript","credentialStartUrl":"https://amzn.awsapps.com/start","codewhispererSuggestionIndex":0,"codewhispererSuggestionState":"Discard","codewhispererSuggestionReferences":[],"codewhispererSuggestionReferenceCount":0}}
+[Trace - 12:17:04] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_userDecision",
+    "data": {
+        "codewhispererRequestId": "228fc952-f80a-470c-a26b-97b4350b9c44",
+        "codewhispererSessionId": "2e97b84e-7eca-4b4a-aed8-912672e4a167",
+        "codewhispererCompletionType": "Block",
+        "codewhispererTriggerType": "OnDemand",
+        "codewhispererLanguage": "javascript",
+        "credentialStartUrl": "https://amzn.awsapps.com/start",
+        "codewhispererSuggestionIndex": 1,
+        "codewhispererSuggestionState": "Discard",
+        "codewhispererSuggestionReferences": [],
+        "codewhispererSuggestionReferenceCount": 0
+    }
+}
+
+
+[Info  - 12:17:04] vscode client: Received telemetry event from server {"name":"codewhisperer_userDecision","data":{"codewhispererRequestId":"228fc952-f80a-470c-a26b-97b4350b9c44","codewhispererSessionId":"2e97b84e-7eca-4b4a-aed8-912672e4a167","codewhispererCompletionType":"Block","codewhispererTriggerType":"OnDemand","codewhispererLanguage":"javascript","credentialStartUrl":"https://amzn.awsapps.com/start","codewhispererSuggestionIndex":1,"codewhispererSuggestionState":"Discard","codewhispererSuggestionReferences":[],"codewhispererSuggestionReferenceCount":0}}
+[Trace - 12:17:04] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_userDecision",
+    "data": {
+        "codewhispererRequestId": "228fc952-f80a-470c-a26b-97b4350b9c44",
+        "codewhispererSessionId": "2e97b84e-7eca-4b4a-aed8-912672e4a167",
+        "codewhispererCompletionType": "Block",
+        "codewhispererTriggerType": "OnDemand",
+        "codewhispererLanguage": "javascript",
+        "credentialStartUrl": "https://amzn.awsapps.com/start",
+        "codewhispererSuggestionIndex": 2,
+        "codewhispererSuggestionState": "Discard",
+        "codewhispererSuggestionReferences": [],
+        "codewhispererSuggestionReferenceCount": 0
+    }
+}
+
+
+[Info  - 12:17:04] vscode client: Received telemetry event from server {"name":"codewhisperer_userDecision","data":{"codewhispererRequestId":"228fc952-f80a-470c-a26b-97b4350b9c44","codewhispererSessionId":"2e97b84e-7eca-4b4a-aed8-912672e4a167","codewhispererCompletionType":"Block","codewhispererTriggerType":"OnDemand","codewhispererLanguage":"javascript","credentialStartUrl":"https://amzn.awsapps.com/start","codewhispererSuggestionIndex":2,"codewhispererSuggestionState":"Discard","codewhispererSuggestionReferences":[],"codewhispererSuggestionReferenceCount":0}}
+[Trace - 12:17:04] Received response 'aws/textDocument/inlineCompletionWithReferences - (111)' in 2382ms.
+Result: {
+    "sessionId": "",
+    "items": []
+}
+
+
+[Info  - 12:17:04] Client: Received 0 suggestions

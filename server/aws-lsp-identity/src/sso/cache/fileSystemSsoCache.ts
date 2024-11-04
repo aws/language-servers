@@ -5,21 +5,20 @@ import { AwsError } from '../../awsError'
 import { AwsErrorCodes, SsoSession } from '@aws/language-server-runtimes/server-interface'
 import { throwOnInvalidClientName, throwOnInvalidSsoSession, throwOnInvalidSsoSessionName } from '../utils'
 import path from 'path'
-
-// As this is a cache, we tend to swallow a lot of the errors as it is ok to just recreate the items each
-// time, though recreating the SSO token without a refresh token will be every hour.  This is a better
-// situation that failing to get an SSO token at all.
+import { Observability } from '../../language-server/utils'
 
 export class FileSystemSsoCache implements SsoCache {
+    constructor(private readonly observability: Observability) {}
+
     async getSsoClientRegistration(
         clientName: string,
         ssoSession: SsoSession
     ): Promise<SsoClientRegistration | undefined> {
-        const id = toSsoClientRegistrationCacheId(clientName, ssoSession)
+        const id = this.toSsoClientRegistrationCacheId(clientName, ssoSession)
 
-        return await await getSsoClientRegistrationFromFile(id)
+        return await getSsoClientRegistrationFromFile(id)
             .then(registration => (ssoClientRegistrationDuckTyper.eval(registration) ? registration : undefined))
-            .catch(reason => ignoreDoesNotExistOrThrow(reason))
+            .catch(reason => this.ignoreDoesNotExistOrThrow(reason))
     }
 
     async setSsoClientRegistration(
@@ -27,9 +26,10 @@ export class FileSystemSsoCache implements SsoCache {
         ssoSession: SsoSession,
         clientRegistration: SsoClientRegistration
     ): Promise<void> {
-        const id = toSsoClientRegistrationCacheId(clientName, ssoSession)
+        const id = this.toSsoClientRegistrationCacheId(clientName, ssoSession)
 
         await writeSsoObjectToFile(id, clientRegistration).catch(reason => {
+            this.observability.logging.log('Cannot write to SSO cache.')
             throw AwsError.wrap(reason, AwsErrorCodes.E_CANNOT_WRITE_SSO_CACHE)
         })
     }
@@ -37,7 +37,7 @@ export class FileSystemSsoCache implements SsoCache {
     async removeSsoToken(ssoSessionName: string): Promise<void> {
         throwOnInvalidSsoSessionName(ssoSessionName)
 
-        await unlink(getSSOTokenFilepath(ssoSessionName)).catch(reason => ignoreDoesNotExistOrThrow(reason))
+        await unlink(getSSOTokenFilepath(ssoSessionName)).catch(reason => this.ignoreDoesNotExistOrThrow(reason))
     }
 
     async getSsoToken(clientName: string, ssoSession: SsoSession): Promise<SSOToken | undefined> {
@@ -45,13 +45,14 @@ export class FileSystemSsoCache implements SsoCache {
 
         return await getSSOTokenFromFile(ssoSession.name)
             .then(ssoToken => (ssoTokenDuckTyper.eval(ssoToken) ? ssoToken : undefined))
-            .catch(reason => ignoreDoesNotExistOrThrow(reason))
+            .catch(reason => this.ignoreDoesNotExistOrThrow(reason))
     }
 
     async setSsoToken(clientName: string, ssoSession: SsoSession, ssoToken: SSOToken): Promise<void> {
         throwOnInvalidSsoSession(ssoSession)
 
         if (!ssoTokenDuckTyper.eval(ssoToken)) {
+            this.observability.logging.log('File read from SSO cache is not an SSO token.')
             return
         }
 
@@ -59,27 +60,28 @@ export class FileSystemSsoCache implements SsoCache {
             throw AwsError.wrap(reason, AwsErrorCodes.E_CANNOT_WRITE_SSO_CACHE)
         })
     }
-}
 
-function ignoreDoesNotExistOrThrow(error: unknown): Promise<undefined> {
-    // Error codes are consistent across OSes (Windows is converted to libuv error codes)
-    // https://nodejs.org/api/errors.html#errorerrno
-    if ((error as SystemError)?.code === 'ENOENT') {
-        return Promise.resolve(undefined)
+    private ignoreDoesNotExistOrThrow(error: unknown): Promise<undefined> {
+        // Error codes are consistent across OSes (Windows is converted to libuv error codes)
+        // https://nodejs.org/api/errors.html#errorerrno
+        if ((error as SystemError)?.code === 'ENOENT') {
+            return Promise.resolve(undefined)
+        }
+
+        this.observability.logging.log('Cannot read SSO cache.')
+        throw AwsError.wrap(error as Error, AwsErrorCodes.E_CANNOT_READ_SSO_CACHE)
     }
 
-    throw AwsError.wrap(error as Error, AwsErrorCodes.E_CANNOT_READ_SSO_CACHE)
-}
+    private toSsoClientRegistrationCacheId(clientName: string, ssoSession: SsoSession): string {
+        throwOnInvalidClientName(clientName)
+        throwOnInvalidSsoSession(ssoSession)
 
-function toSsoClientRegistrationCacheId(clientName: string, ssoSession: SsoSession): string {
-    throwOnInvalidClientName(clientName)
-    throwOnInvalidSsoSession(ssoSession)
-
-    return JSON.stringify({
-        region: ssoSession.settings.sso_region,
-        startUrl: ssoSession.settings.sso_start_url,
-        tool: clientName,
-    })
+        return JSON.stringify({
+            region: ssoSession.settings.sso_region,
+            startUrl: ssoSession.settings.sso_start_url,
+            tool: clientName,
+        })
+    }
 }
 
 // Based on:

@@ -1,0 +1,1187 @@
+[Trace - 15:55:52] Sending notification 'textDocument/didChange'.
+Params: {
+    "textDocument": {
+        "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.java",
+        "version": 4
+    },
+    "contentChanges": [
+        {
+            "range": {
+                "start": {
+                    "line": 0,
+                    "character": 42
+                },
+                "end": {
+                    "line": 0,
+                    "character": 42
+                }
+            },
+            "rangeLength": 0,
+            "text": "\n"
+        }
+    ]
+}
+
+
+[Trace - 15:55:52] Sending request 'aws/textDocument/inlineCompletionWithReferences - (7)'.
+Params: {
+    "textDocument": {
+        "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.java"
+    },
+    "position": {
+        "line": 1,
+        "character": 0
+    },
+    "context": {
+        "triggerKind": 1
+    }
+}
+
+
+[Trace - 15:55:52] Received notification 'window/logMessage'.
+Params: {
+    "type": 3,
+    "message": "[2024-10-18T13:55:52.736Z] [DebugInlineCompletion][0wsy] Start InlineCompletion request at 1729259752736"
+}
+
+
+[Info  - 15:55:52] [2024-10-18T13:55:52.736Z] [DebugInlineCompletion][0wsy] Start InlineCompletion request at 1729259752736
+[Trace - 15:55:52] Received notification 'window/logMessage'.
+Params: {
+    "type": 3,
+    "message": "[2024-10-18T13:55:52.736Z] [DebugInlineCompletion][0wsy] time took: +0ms, total time: 0ms, message: Read file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.java content"
+}
+
+
+[Info  - 15:55:52] [2024-10-18T13:55:52.736Z] [DebugInlineCompletion][0wsy] time took: +0ms, total time: 0ms, message: Read file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.java content
+[Trace - 15:55:52] Received notification 'window/logMessage'.
+Params: {
+    "type": 3,
+    "message": "[2024-10-18T13:55:52.736Z] [DebugInlineCompletion][0wsy] time took: +0ms, total time: 0ms, message: Got file context {\"filename\":\"file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.java\",\"programmingLanguage\":{\"languageName\":\"java\"},\"leftFileContent\":\"// Create Person class with getName method\\n\",\"rightFileContent\":\"\"}"
+}
+
+
+[Info  - 15:55:52] [2024-10-18T13:55:52.736Z] [DebugInlineCompletion][0wsy] time took: +0ms, total time: 0ms, message: Got file context {"filename":"file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.java","programmingLanguage":{"languageName":"java"},"leftFileContent":"// Create Person class with getName method\n","rightFileContent":""}
+[Trace - 15:55:52] Received notification 'window/logMessage'.
+Params: {
+    "type": 3,
+    "message": "[2024-10-18T13:55:52.736Z] [DebugInlineCompletion][0wsy] time took: +0ms, total time: 0ms, message: Autotrigger result: {\"shouldTrigger\":true,\"classifierResult\":0.346404362513496,\"classifierThreshold\":0.43}"
+}
+
+
+[Info  - 15:55:52] [2024-10-18T13:55:52.736Z] [DebugInlineCompletion][0wsy] time took: +0ms, total time: 0ms, message: Autotrigger result: {"shouldTrigger":true,"classifierResult":0.346404362513496,"classifierThreshold":0.43}
+[Trace - 15:55:52] Received notification 'window/logMessage'.
+Params: {
+    "type": 3,
+    "message": "[2024-10-18T13:55:52.737Z] [DebugInlineCompletion][0wsy] time took: +1ms, total time: 1ms, message: Collected supplemental context: {\"isUtg\":false,\"isProcessTimeout\":false,\"supplementalContextItems\":[],\"contentsLength\":0,\"latency\":0.22726899999543093,\"strategy\":\"OpenTabs_BM25\"}"
+}
+
+
+[Info  - 15:55:52] [2024-10-18T13:55:52.737Z] [DebugInlineCompletion][0wsy] time took: +1ms, total time: 1ms, message: Collected supplemental context: {"isUtg":false,"isProcessTimeout":false,"supplementalContextItems":[],"contentsLength":0,"latency":0.22726899999543093,"strategy":"OpenTabs_BM25"}
+[Trace - 15:55:52] Received notification 'window/logMessage'.
+Params: {
+    "type": 3,
+    "message": "[2024-10-18T13:55:52.737Z] [DebugInlineCompletion][0wsy] time took: +0ms, total time: 1ms, message: Created new completion session. Calling codeWhispererService.generateSuggestions"
+}
+
+
+[Info  - 15:55:52] [2024-10-18T13:55:52.737Z] [DebugInlineCompletion][0wsy] time took: +0ms, total time: 1ms, message: Created new completion session. Calling codeWhispererService.generateSuggestions
+[Trace - 15:55:55] Sending notification '$/cancelRequest'.
+Params: {
+    "id": 7
+}
+
+
+[Trace - 15:55:55] Received notification 'window/logMessage'.
+Params: {
+    "type": 3,
+    "message": "[2024-10-18T13:55:55.460Z] [DebugInlineCompletion][0wsy] time took: +2723ms, total time: 2724ms, message: Received inline suggestions {\"suggestions\":[{\"content\":\"class Person {\\n    private String name;\\n\\n    public Person(String name) {\\n        this.name = name;\\n    }\\n\\n    public String getName() {\\n        return name;\\n    }\\n}\\n\\n// Create Student class extending Person and overriding getName method\\nclass Student extends Person {\\n    private int id;\\n\\n    public Student(String name, int id) {\\n        super(name);\\n        this.id = id;\\n    }\\n\\n    @Override\\n    public String getName() {\\n        return super.getName() + \\\" (Student)\\\";\\n    }\\n}\\n\\npublic class Main {\\n    public static void main(String[] args) {\\n        Person person = new Person(\\\"John\\\");\\n        System.out.println(person.getName()); // Output: John\\n\\n        Student student = new Student(\\\"Jane\\\", 1234);\\n        System.out.println(student.getName()); // Output: Jane (Student)\\n    }\\n}\",\"references\":[],\"mostRelevantMissingImports\":[],\"itemId\":\"3faea262-b9dc-4020-b116-f644d7c16d7f\"}],\"responseContext\":{\"requestId\":\"615c0281-d85e-4097-a0f3-83849aa3821e\",\"codewhispererSessionId\":\"4c8e30a2-e729-46c8-913b-a1f2311db555\",\"nextToken\":\"AQICAHjJ+owcWKrF3BH7O0aWvExxjG4pDo3pANuE8X23CezPVwH82pFfIhOFj66wdGFfk/mQAAABrDCCAagGCSqGSIb3DQEHBqCCAZkwggGVAgEAMIIBjgYJKoZIhvcNAQcBMB4GCWCGSAFlAwQBLjARBAzjwSMfx13Oc7642SUCARCAggFfQvL1pzu0QnPkU8J6M28F4M/oLd9qqoC3kOClsz8clC7WlwtnY8Z18wwLN3ziuobS+2lGxKz9LbjGyljawizW1GNcYtxXfVbMcgNCZJkD3SQdHrWLDdLv3QXr8OxDZMScDC8enRA8K3oaX4h8bmmTMqREor23o2+kBCPYZqSIHDfIaVHKEgt733SuXozCApJy+VPYIpSjM0AMktrfFGrO8wGY6u7peN4kI8KkpKCDQoP/F5gZ2Hdg5nsjE1iciX2rmdz6lpuRpvWhJV0ZIaXTk6pyD1OT610z+XXFAy8xQ0P4yXPv3BDkQQWKhezulTCvXnpLHk5SBySdPnc0jQ8XdJHGAAii3vjHpOgItKBu9PD/FLPxmCzXiN1mygaNG6N9ryswmx8hQymptbSJ6wrhyfVG/OIrhr10CupBZc6AipeF311phVDPRADd0SPBFq+d07P1IfTNZCtJcQgAfm8+\"}}"
+}
+
+
+[Info  - 15:55:55] [2024-10-18T13:55:55.460Z] [DebugInlineCompletion][0wsy] time took: +2723ms, total time: 2724ms, message: Received inline suggestions {"suggestions":[{"content":"class Person {\n    private String name;\n\n    public Person(String name) {\n        this.name = name;\n    }\n\n    public String getName() {\n        return name;\n    }\n}\n\n// Create Student class extending Person and overriding getName method\nclass Student extends Person {\n    private int id;\n\n    public Student(String name, int id) {\n        super(name);\n        this.id = id;\n    }\n\n    @Override\n    public String getName() {\n        return super.getName() + \" (Student)\";\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Person person = new Person(\"John\");\n        System.out.println(person.getName()); // Output: John\n\n        Student student = new Student(\"Jane\", 1234);\n        System.out.println(student.getName()); // Output: Jane (Student)\n    }\n}","references":[],"mostRelevantMissingImports":[],"itemId":"3faea262-b9dc-4020-b116-f644d7c16d7f"}],"responseContext":{"requestId":"615c0281-d85e-4097-a0f3-83849aa3821e","codewhispererSessionId":"4c8e30a2-e729-46c8-913b-a1f2311db555","nextToken":"AQICAHjJ+owcWKrF3BH7O0aWvExxjG4pDo3pANuE8X23CezPVwH82pFfIhOFj66wdGFfk/mQAAABrDCCAagGCSqGSIb3DQEHBqCCAZkwggGVAgEAMIIBjgYJKoZIhvcNAQcBMB4GCWCGSAFlAwQBLjARBAzjwSMfx13Oc7642SUCARCAggFfQvL1pzu0QnPkU8J6M28F4M/oLd9qqoC3kOClsz8clC7WlwtnY8Z18wwLN3ziuobS+2lGxKz9LbjGyljawizW1GNcYtxXfVbMcgNCZJkD3SQdHrWLDdLv3QXr8OxDZMScDC8enRA8K3oaX4h8bmmTMqREor23o2+kBCPYZqSIHDfIaVHKEgt733SuXozCApJy+VPYIpSjM0AMktrfFGrO8wGY6u7peN4kI8KkpKCDQoP/F5gZ2Hdg5nsjE1iciX2rmdz6lpuRpvWhJV0ZIaXTk6pyD1OT610z+XXFAy8xQ0P4yXPv3BDkQQWKhezulTCvXnpLHk5SBySdPnc0jQ8XdJHGAAii3vjHpOgItKBu9PD/FLPxmCzXiN1mygaNG6N9ryswmx8hQymptbSJ6wrhyfVG/OIrhr10CupBZc6AipeF311phVDPRADd0SPBFq+d07P1IfTNZCtJcQgAfm8+"}}
+[Trace - 15:55:55] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_serviceInvocation",
+    "result": "Succeeded",
+    "data": {
+        "codewhispererRequestId": "615c0281-d85e-4097-a0f3-83849aa3821e",
+        "codewhispererSessionId": "4c8e30a2-e729-46c8-913b-a1f2311db555",
+        "codewhispererLastSuggestionIndex": 0,
+        "codewhispererCompletionType": "Block",
+        "codewhispererTriggerType": "AutoTrigger",
+        "codewhispererAutomatedTriggerType": "Enter",
+        "duration": 2723,
+        "codewhispererLineNumber": 1,
+        "codewhispererCursorOffset": 0,
+        "codewhispererLanguage": "java",
+        "credentialStartUrl": "https://amzn.awsapps.com/start",
+        "codewhispererSupplementalContextTimeout": false,
+        "codewhispererSupplementalContextIsUtg": false,
+        "codewhispererSupplementalContextLatency": 0.22726899999543093,
+        "codewhispererSupplementalContextLength": 0
+    }
+}
+
+
+[Info  - 15:55:55] vscode client: Received telemetry event from server {"name":"codewhisperer_serviceInvocation","result":"Succeeded","data":{"codewhispererRequestId":"615c0281-d85e-4097-a0f3-83849aa3821e","codewhispererSessionId":"4c8e30a2-e729-46c8-913b-a1f2311db555","codewhispererLastSuggestionIndex":0,"codewhispererCompletionType":"Block","codewhispererTriggerType":"AutoTrigger","codewhispererAutomatedTriggerType":"Enter","duration":2723,"codewhispererLineNumber":1,"codewhispererCursorOffset":0,"codewhispererLanguage":"java","credentialStartUrl":"https://amzn.awsapps.com/start","codewhispererSupplementalContextTimeout":false,"codewhispererSupplementalContextIsUtg":false,"codewhispererSupplementalContextLatency":0.22726899999543093,"codewhispererSupplementalContextLength":0}}
+[Trace - 15:55:55] Received notification 'window/logMessage'.
+Params: {
+    "type": 3,
+    "message": "[2024-10-18T13:55:55.460Z] [DebugInlineCompletion][0wsy] time took: +0ms, total time: 2724ms, message: Return InlineCompletion response to client"
+}
+
+
+[Info  - 15:55:55] [2024-10-18T13:55:55.460Z] [DebugInlineCompletion][0wsy] time took: +0ms, total time: 2724ms, message: Return InlineCompletion response to client
+[Trace - 15:55:55] Received response 'aws/textDocument/inlineCompletionWithReferences - (7)' in 2728ms.
+Result: {
+    "items": [
+        {
+            "itemId": "3faea262-b9dc-4020-b116-f644d7c16d7f",
+            "insertText": "class Person {\n    private String name;\n\n    public Person(String name) {\n        this.name = name;\n    }\n\n    public String getName() {\n        return name;\n    }\n}\n\n// Create Student class extending Person and overriding getName method\nclass Student extends Person {\n    private int id;\n\n    public Student(String name, int id) {\n        super(name);\n        this.id = id;\n    }\n\n    @Override\n    public String getName() {\n        return super.getName() + \" (Student)\";\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Person person = new Person(\"John\");\n        System.out.println(person.getName()); // Output: John\n\n        Student student = new Student(\"Jane\", 1234);\n        System.out.println(student.getName()); // Output: Jane (Student)\n    }\n}"
+        }
+    ],
+    "sessionId": "39a432a6-3afc-48a7-8472-72c19f7d1ca0"
+}
+
+
+[Info  - 15:55:55] Client: Received 1 suggestions
+[Trace - 15:56:14] Sending notification 'textDocument/didChange'.
+Params: {
+    "textDocument": {
+        "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.java",
+        "version": 5
+    },
+    "contentChanges": [
+        {
+            "range": {
+                "start": {
+                    "line": 0,
+                    "character": 42
+                },
+                "end": {
+                    "line": 0,
+                    "character": 42
+                }
+            },
+            "rangeLength": 0,
+            "text": "\n"
+        }
+    ]
+}
+
+
+[Trace - 15:56:14] Sending request 'aws/textDocument/inlineCompletionWithReferences - (8)'.
+Params: {
+    "textDocument": {
+        "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.java"
+    },
+    "position": {
+        "line": 1,
+        "character": 0
+    },
+    "context": {
+        "triggerKind": 1
+    }
+}
+
+
+[Trace - 15:56:14] Received notification 'window/logMessage'.
+Params: {
+    "type": 3,
+    "message": "[2024-10-18T13:56:14.635Z] [DebugInlineCompletion][etue] Start InlineCompletion request at 1729259774634"
+}
+
+
+[Info  - 15:56:14] [2024-10-18T13:56:14.635Z] [DebugInlineCompletion][etue] Start InlineCompletion request at 1729259774634
+[Trace - 15:56:14] Received notification 'window/logMessage'.
+Params: {
+    "type": 3,
+    "message": "[2024-10-18T13:56:14.635Z] [DebugInlineCompletion][etue] time took: +1ms, total time: 1ms, message: Read file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.java content"
+}
+
+
+[Info  - 15:56:14] [2024-10-18T13:56:14.635Z] [DebugInlineCompletion][etue] time took: +1ms, total time: 1ms, message: Read file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.java content
+[Trace - 15:56:14] Received notification 'window/logMessage'.
+Params: {
+    "type": 3,
+    "message": "[2024-10-18T13:56:14.635Z] [DebugInlineCompletion][etue] time took: +0ms, total time: 1ms, message: Got file context {\"filename\":\"file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.java\",\"programmingLanguage\":{\"languageName\":\"java\"},\"leftFileContent\":\"// Create Person class with getName method\\n\",\"rightFileContent\":\"\\n\"}"
+}
+
+
+[Info  - 15:56:14] [2024-10-18T13:56:14.635Z] [DebugInlineCompletion][etue] time took: +0ms, total time: 1ms, message: Got file context {"filename":"file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.java","programmingLanguage":{"languageName":"java"},"leftFileContent":"// Create Person class with getName method\n","rightFileContent":"\n"}
+[Trace - 15:56:14] Received notification 'window/logMessage'.
+Params: {
+    "type": 3,
+    "message": "[2024-10-18T13:56:14.635Z] [DebugInlineCompletion][etue] time took: +0ms, total time: 1ms, message: Autotrigger result: {\"shouldTrigger\":true,\"classifierResult\":0.346404362513496,\"classifierThreshold\":0.43}"
+}
+
+
+[Info  - 15:56:14] [2024-10-18T13:56:14.635Z] [DebugInlineCompletion][etue] time took: +0ms, total time: 1ms, message: Autotrigger result: {"shouldTrigger":true,"classifierResult":0.346404362513496,"classifierThreshold":0.43}
+[Trace - 15:56:14] Received notification 'window/logMessage'.
+Params: {
+    "type": 3,
+    "message": "[2024-10-18T13:56:14.635Z] [DebugInlineCompletion][etue] time took: +0ms, total time: 1ms, message: Collected supplemental context: {\"isUtg\":false,\"isProcessTimeout\":false,\"supplementalContextItems\":[],\"contentsLength\":0,\"latency\":0.16561300001922064,\"strategy\":\"OpenTabs_BM25\"}"
+}
+
+
+[Info  - 15:56:14] [2024-10-18T13:56:14.635Z] [DebugInlineCompletion][etue] time took: +0ms, total time: 1ms, message: Collected supplemental context: {"isUtg":false,"isProcessTimeout":false,"supplementalContextItems":[],"contentsLength":0,"latency":0.16561300001922064,"strategy":"OpenTabs_BM25"}
+[Trace - 15:56:14] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_userTriggerDecision",
+    "data": {
+        "codewhispererSessionId": "4c8e30a2-e729-46c8-913b-a1f2311db555",
+        "codewhispererFirstRequestId": "615c0281-d85e-4097-a0f3-83849aa3821e",
+        "credentialStartUrl": "https://amzn.awsapps.com/start",
+        "codewhispererSuggestionState": "Discard",
+        "codewhispererCompletionType": "Block",
+        "codewhispererLanguage": "java",
+        "codewhispererTriggerType": "AutoTrigger",
+        "codewhispererAutomatedTriggerType": "Enter",
+        "codewhispererLineNumber": 1,
+        "codewhispererCursorOffset": 0,
+        "codewhispererSuggestionCount": 1,
+        "codewhispererClassifierResult": 0.346404362513496,
+        "codewhispererClassifierThreshold": 0.43,
+        "codewhispererTotalShownTime": 0,
+        "codewhispererTypeaheadLength": 0,
+        "codewhispererTimeSinceLastDocumentChange": 21898,
+        "codewhispererTimeSinceLastUserDecision": 5527,
+        "codewhispererTimeToFirstRecommendation": 2723,
+        "codewhispererPreviousSuggestionState": "Discard",
+        "codewhispererSupplementalContextTimeout": false,
+        "codewhispererSupplementalContextIsUtg": false,
+        "codewhispererSupplementalContextLength": 0
+    }
+}
+
+
+[Info  - 15:56:14] vscode client: Received telemetry event from server {"name":"codewhisperer_userTriggerDecision","data":{"codewhispererSessionId":"4c8e30a2-e729-46c8-913b-a1f2311db555","codewhispererFirstRequestId":"615c0281-d85e-4097-a0f3-83849aa3821e","credentialStartUrl":"https://amzn.awsapps.com/start","codewhispererSuggestionState":"Discard","codewhispererCompletionType":"Block","codewhispererLanguage":"java","codewhispererTriggerType":"AutoTrigger","codewhispererAutomatedTriggerType":"Enter","codewhispererLineNumber":1,"codewhispererCursorOffset":0,"codewhispererSuggestionCount":1,"codewhispererClassifierResult":0.346404362513496,"codewhispererClassifierThreshold":0.43,"codewhispererTotalShownTime":0,"codewhispererTypeaheadLength":0,"codewhispererTimeSinceLastDocumentChange":21898,"codewhispererTimeSinceLastUserDecision":5527,"codewhispererTimeToFirstRecommendation":2723,"codewhispererPreviousSuggestionState":"Discard","codewhispererSupplementalContextTimeout":false,"codewhispererSupplementalContextIsUtg":false,"codewhispererSupplementalContextLength":0}}
+[Trace - 15:56:14] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_userDecision",
+    "data": {
+        "codewhispererRequestId": "615c0281-d85e-4097-a0f3-83849aa3821e",
+        "codewhispererSessionId": "4c8e30a2-e729-46c8-913b-a1f2311db555",
+        "codewhispererCompletionType": "Block",
+        "codewhispererTriggerType": "AutoTrigger",
+        "codewhispererLanguage": "java",
+        "credentialStartUrl": "https://amzn.awsapps.com/start",
+        "codewhispererSuggestionIndex": 0,
+        "codewhispererSuggestionState": "Discard",
+        "codewhispererSuggestionReferences": [],
+        "codewhispererSuggestionReferenceCount": 0,
+        "codewhispererSupplementalContextTimeout": false,
+        "codewhispererSupplementalContextIsUtg": false,
+        "codewhispererSupplementalContextLength": 0
+    }
+}
+
+
+[Info  - 15:56:14] vscode client: Received telemetry event from server {"name":"codewhisperer_userDecision","data":{"codewhispererRequestId":"615c0281-d85e-4097-a0f3-83849aa3821e","codewhispererSessionId":"4c8e30a2-e729-46c8-913b-a1f2311db555","codewhispererCompletionType":"Block","codewhispererTriggerType":"AutoTrigger","codewhispererLanguage":"java","credentialStartUrl":"https://amzn.awsapps.com/start","codewhispererSuggestionIndex":0,"codewhispererSuggestionState":"Discard","codewhispererSuggestionReferences":[],"codewhispererSuggestionReferenceCount":0,"codewhispererSupplementalContextTimeout":false,"codewhispererSupplementalContextIsUtg":false,"codewhispererSupplementalContextLength":0}}
+[Trace - 15:56:14] Received notification 'window/logMessage'.
+Params: {
+    "type": 3,
+    "message": "[2024-10-18T13:56:14.635Z] [DebugInlineCompletion][etue] time took: +0ms, total time: 1ms, message: Created new completion session. Calling codeWhispererService.generateSuggestions"
+}
+
+
+[Info  - 15:56:14] [2024-10-18T13:56:14.635Z] [DebugInlineCompletion][etue] time took: +0ms, total time: 1ms, message: Created new completion session. Calling codeWhispererService.generateSuggestions
+[Trace - 15:56:17] Received notification 'window/logMessage'.
+Params: {
+    "type": 3,
+    "message": "[2024-10-18T13:56:17.306Z] [DebugInlineCompletion][etue] time took: +2671ms, total time: 2672ms, message: Received inline suggestions {\"suggestions\":[{\"content\":\"class Person {\\n    private String name;\\n\\n    public Person(String name) {\\n        this.name = name;\\n    }\\n\\n    public String getName() {\\n        return name;\\n    }\\n}\\n\\n// Create Student class extending Person and overriding getName method\\nclass Student extends Person {\\n    private int id;\\n\\n    public Student(String name, int id) {\\n        super(name);\\n        this.id = id;\\n    }\\n\\n    @Override\\n    public String getName() {\\n        return super.getName() + \\\" (Student)\\\";\\n    }\\n}\\n\\npublic class Main {\\n    public static void main(String[] args) {\\n        Person person = new Person(\\\"John\\\");\\n        System.out.println(person.getName()); // Output: John\\n\\n        Student student = new Student(\\\"Jane\\\", 1234);\\n        System.out.println(student.getName()); // Output: Jane (Student)\\n    }\\n}\",\"references\":[],\"mostRelevantMissingImports\":[],\"itemId\":\"4451e66b-3d30-405c-960a-5974c3505d9a\"}],\"responseContext\":{\"requestId\":\"47bd7f64-11a7-44c2-a134-57a39eab7e40\",\"codewhispererSessionId\":\"525621f2-e70c-4889-857a-338009325d36\",\"nextToken\":\"AQICAHjJ+owcWKrF3BH7O0aWvExxjG4pDo3pANuE8X23CezPVwE+LNVUCLv+RBzlrsm8en54AAABrDCCAagGCSqGSIb3DQEHBqCCAZkwggGVAgEAMIIBjgYJKoZIhvcNAQcBMB4GCWCGSAFlAwQBLjARBAzOxDftls2QHQWsohYCARCAggFf7NL3NC+haxvVqlVTB8SZlPInGv1e5rtYrk795NSHW+98OCzxJ++9Fsh7lUsVpL35+C96NuRSAV+X7ursP8tFHpAXpVfQaU0azeb9tALDAvjRtB0m2LUmBE0W42pipHOd8dehKVpK+6sjJ/SAC/ekuWx9JgNwBR5wGTigP0H8DgazpNR6Rp0l9cG2OBumICGng89ZLOwyCFwulc4fvKewEnTnuTRIyZ4COMXGiSQ1QdQULmIu4RfNI2o3SEN1Ql1jlsfji0kNmk47QaVBpf9UA1aQx65pQRDvtupD+DAMaVDR80fs1Hf1OMq9LAfc+uJBhBr9vlRL5GPhNOqAGfBA08+ywfg4HPOVxSnBVFQpHeZxcfQ2f0WBgQyH8/TkShx9V/u4Avs/VOggZB3ZJttsHDE8jcvp3nnHrTXKsFb0xgp40MHhnvNHwW8sqvXQKlR4ZIUJ+TtCVyTHeJG5AX7z\"}}"
+}
+
+
+[Info  - 15:56:17] [2024-10-18T13:56:17.306Z] [DebugInlineCompletion][etue] time took: +2671ms, total time: 2672ms, message: Received inline suggestions {"suggestions":[{"content":"class Person {\n    private String name;\n\n    public Person(String name) {\n        this.name = name;\n    }\n\n    public String getName() {\n        return name;\n    }\n}\n\n// Create Student class extending Person and overriding getName method\nclass Student extends Person {\n    private int id;\n\n    public Student(String name, int id) {\n        super(name);\n        this.id = id;\n    }\n\n    @Override\n    public String getName() {\n        return super.getName() + \" (Student)\";\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Person person = new Person(\"John\");\n        System.out.println(person.getName()); // Output: John\n\n        Student student = new Student(\"Jane\", 1234);\n        System.out.println(student.getName()); // Output: Jane (Student)\n    }\n}","references":[],"mostRelevantMissingImports":[],"itemId":"4451e66b-3d30-405c-960a-5974c3505d9a"}],"responseContext":{"requestId":"47bd7f64-11a7-44c2-a134-57a39eab7e40","codewhispererSessionId":"525621f2-e70c-4889-857a-338009325d36","nextToken":"AQICAHjJ+owcWKrF3BH7O0aWvExxjG4pDo3pANuE8X23CezPVwE+LNVUCLv+RBzlrsm8en54AAABrDCCAagGCSqGSIb3DQEHBqCCAZkwggGVAgEAMIIBjgYJKoZIhvcNAQcBMB4GCWCGSAFlAwQBLjARBAzOxDftls2QHQWsohYCARCAggFf7NL3NC+haxvVqlVTB8SZlPInGv1e5rtYrk795NSHW+98OCzxJ++9Fsh7lUsVpL35+C96NuRSAV+X7ursP8tFHpAXpVfQaU0azeb9tALDAvjRtB0m2LUmBE0W42pipHOd8dehKVpK+6sjJ/SAC/ekuWx9JgNwBR5wGTigP0H8DgazpNR6Rp0l9cG2OBumICGng89ZLOwyCFwulc4fvKewEnTnuTRIyZ4COMXGiSQ1QdQULmIu4RfNI2o3SEN1Ql1jlsfji0kNmk47QaVBpf9UA1aQx65pQRDvtupD+DAMaVDR80fs1Hf1OMq9LAfc+uJBhBr9vlRL5GPhNOqAGfBA08+ywfg4HPOVxSnBVFQpHeZxcfQ2f0WBgQyH8/TkShx9V/u4Avs/VOggZB3ZJttsHDE8jcvp3nnHrTXKsFb0xgp40MHhnvNHwW8sqvXQKlR4ZIUJ+TtCVyTHeJG5AX7z"}}
+[Trace - 15:56:17] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_serviceInvocation",
+    "result": "Succeeded",
+    "data": {
+        "codewhispererRequestId": "47bd7f64-11a7-44c2-a134-57a39eab7e40",
+        "codewhispererSessionId": "525621f2-e70c-4889-857a-338009325d36",
+        "codewhispererLastSuggestionIndex": 0,
+        "codewhispererCompletionType": "Block",
+        "codewhispererTriggerType": "AutoTrigger",
+        "codewhispererAutomatedTriggerType": "Enter",
+        "duration": 2671,
+        "codewhispererLineNumber": 1,
+        "codewhispererCursorOffset": 0,
+        "codewhispererLanguage": "java",
+        "credentialStartUrl": "https://amzn.awsapps.com/start",
+        "codewhispererSupplementalContextTimeout": false,
+        "codewhispererSupplementalContextIsUtg": false,
+        "codewhispererSupplementalContextLatency": 0.16561300001922064,
+        "codewhispererSupplementalContextLength": 0
+    }
+}
+
+
+[Info  - 15:56:17] vscode client: Received telemetry event from server {"name":"codewhisperer_serviceInvocation","result":"Succeeded","data":{"codewhispererRequestId":"47bd7f64-11a7-44c2-a134-57a39eab7e40","codewhispererSessionId":"525621f2-e70c-4889-857a-338009325d36","codewhispererLastSuggestionIndex":0,"codewhispererCompletionType":"Block","codewhispererTriggerType":"AutoTrigger","codewhispererAutomatedTriggerType":"Enter","duration":2671,"codewhispererLineNumber":1,"codewhispererCursorOffset":0,"codewhispererLanguage":"java","credentialStartUrl":"https://amzn.awsapps.com/start","codewhispererSupplementalContextTimeout":false,"codewhispererSupplementalContextIsUtg":false,"codewhispererSupplementalContextLatency":0.16561300001922064,"codewhispererSupplementalContextLength":0}}
+[Trace - 15:56:17] Received notification 'window/logMessage'.
+Params: {
+    "type": 3,
+    "message": "[2024-10-18T13:56:17.306Z] [DebugInlineCompletion][etue] time took: +0ms, total time: 2672ms, message: Return InlineCompletion response to client"
+}
+
+
+[Info  - 15:56:17] [2024-10-18T13:56:17.306Z] [DebugInlineCompletion][etue] time took: +0ms, total time: 2672ms, message: Return InlineCompletion response to client
+[Trace - 15:56:17] Received response 'aws/textDocument/inlineCompletionWithReferences - (8)' in 2676ms.
+Result: {
+    "items": [
+        {
+            "itemId": "4451e66b-3d30-405c-960a-5974c3505d9a",
+            "insertText": "class Person {\n    private String name;\n\n    public Person(String name) {\n        this.name = name;\n    }\n\n    public String getName() {\n        return name;\n    }\n}\n\n// Create Student class extending Person and overriding getName method\nclass Student extends Person {\n    private int id;\n\n    public Student(String name, int id) {\n        super(name);\n        this.id = id;\n    }\n\n    @Override\n    public String getName() {\n        return super.getName() + \" (Student)\";\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Person person = new Person(\"John\");\n        System.out.println(person.getName()); // Output: John\n\n        Student student = new Student(\"Jane\", 1234);\n        System.out.println(student.getName()); // Output: Jane (Student)\n    }\n}"
+        }
+    ],
+    "sessionId": "49d5e17d-2cb4-421d-8b7f-ed634b37bc98"
+}
+
+
+[Info  - 15:56:17] Client: Received 1 suggestions
+[Trace - 15:56:17] Sending request 'aws/textDocument/inlineCompletionWithReferences - (9)'.
+Params: {
+    "textDocument": {
+        "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.java"
+    },
+    "position": {
+        "line": 1,
+        "character": 0
+    },
+    "context": {
+        "triggerKind": 0
+    }
+}
+
+
+[Trace - 15:56:17] Received notification 'window/logMessage'.
+Params: {
+    "type": 3,
+    "message": "[2024-10-18T13:56:17.323Z] [DebugInlineCompletion][b2rj] Start InlineCompletion request at 1729259777323"
+}
+
+
+[Info  - 15:56:17] [2024-10-18T13:56:17.323Z] [DebugInlineCompletion][b2rj] Start InlineCompletion request at 1729259777323
+[Trace - 15:56:17] Received notification 'window/logMessage'.
+Params: {
+    "type": 3,
+    "message": "[2024-10-18T13:56:17.323Z] [DebugInlineCompletion][b2rj] time took: +0ms, total time: 0ms, message: Read file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.java content"
+}
+
+
+[Info  - 15:56:17] [2024-10-18T13:56:17.323Z] [DebugInlineCompletion][b2rj] time took: +0ms, total time: 0ms, message: Read file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.java content
+[Trace - 15:56:17] Received notification 'window/logMessage'.
+Params: {
+    "type": 3,
+    "message": "[2024-10-18T13:56:17.323Z] [DebugInlineCompletion][b2rj] time took: +0ms, total time: 0ms, message: Got file context {\"filename\":\"file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.java\",\"programmingLanguage\":{\"languageName\":\"java\"},\"leftFileContent\":\"// Create Person class with getName method\\n\",\"rightFileContent\":\"\\n\"}"
+}
+
+
+[Info  - 15:56:17] [2024-10-18T13:56:17.323Z] [DebugInlineCompletion][b2rj] time took: +0ms, total time: 0ms, message: Got file context {"filename":"file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.java","programmingLanguage":{"languageName":"java"},"leftFileContent":"// Create Person class with getName method\n","rightFileContent":"\n"}
+[Trace - 15:56:17] Received notification 'window/logMessage'.
+Params: {
+    "type": 3,
+    "message": "[2024-10-18T13:56:17.324Z] [DebugInlineCompletion][b2rj] time took: +1ms, total time: 1ms, message: Autotrigger result: {\"shouldTrigger\":true,\"classifierResult\":0.346404362513496,\"classifierThreshold\":0.43}"
+}
+
+
+[Info  - 15:56:17] [2024-10-18T13:56:17.324Z] [DebugInlineCompletion][b2rj] time took: +1ms, total time: 1ms, message: Autotrigger result: {"shouldTrigger":true,"classifierResult":0.346404362513496,"classifierThreshold":0.43}
+[Trace - 15:56:17] Received notification 'window/logMessage'.
+Params: {
+    "type": 3,
+    "message": "[2024-10-18T13:56:17.324Z] [DebugInlineCompletion][b2rj] time took: +0ms, total time: 1ms, message: Collected supplemental context: {\"isUtg\":false,\"isProcessTimeout\":false,\"supplementalContextItems\":[],\"contentsLength\":0,\"latency\":0.12125399999786168,\"strategy\":\"OpenTabs_BM25\"}"
+}
+
+
+[Info  - 15:56:17] [2024-10-18T13:56:17.324Z] [DebugInlineCompletion][b2rj] time took: +0ms, total time: 1ms, message: Collected supplemental context: {"isUtg":false,"isProcessTimeout":false,"supplementalContextItems":[],"contentsLength":0,"latency":0.12125399999786168,"strategy":"OpenTabs_BM25"}
+[Trace - 15:56:17] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_userTriggerDecision",
+    "data": {
+        "codewhispererSessionId": "525621f2-e70c-4889-857a-338009325d36",
+        "codewhispererFirstRequestId": "47bd7f64-11a7-44c2-a134-57a39eab7e40",
+        "credentialStartUrl": "https://amzn.awsapps.com/start",
+        "codewhispererSuggestionState": "Discard",
+        "codewhispererCompletionType": "Block",
+        "codewhispererLanguage": "java",
+        "codewhispererTriggerType": "AutoTrigger",
+        "codewhispererAutomatedTriggerType": "Enter",
+        "codewhispererLineNumber": 1,
+        "codewhispererCursorOffset": 0,
+        "codewhispererSuggestionCount": 1,
+        "codewhispererClassifierResult": 0.346404362513496,
+        "codewhispererClassifierThreshold": 0.43,
+        "codewhispererTotalShownTime": 0,
+        "codewhispererTypeaheadLength": 0,
+        "codewhispererTimeSinceLastDocumentChange": 21898,
+        "codewhispererTimeSinceLastUserDecision": 0,
+        "codewhispererTimeToFirstRecommendation": 2671,
+        "codewhispererPreviousSuggestionState": "Discard",
+        "codewhispererSupplementalContextTimeout": false,
+        "codewhispererSupplementalContextIsUtg": false,
+        "codewhispererSupplementalContextLength": 0
+    }
+}
+
+
+[Info  - 15:56:17] vscode client: Received telemetry event from server {"name":"codewhisperer_userTriggerDecision","data":{"codewhispererSessionId":"525621f2-e70c-4889-857a-338009325d36","codewhispererFirstRequestId":"47bd7f64-11a7-44c2-a134-57a39eab7e40","credentialStartUrl":"https://amzn.awsapps.com/start","codewhispererSuggestionState":"Discard","codewhispererCompletionType":"Block","codewhispererLanguage":"java","codewhispererTriggerType":"AutoTrigger","codewhispererAutomatedTriggerType":"Enter","codewhispererLineNumber":1,"codewhispererCursorOffset":0,"codewhispererSuggestionCount":1,"codewhispererClassifierResult":0.346404362513496,"codewhispererClassifierThreshold":0.43,"codewhispererTotalShownTime":0,"codewhispererTypeaheadLength":0,"codewhispererTimeSinceLastDocumentChange":21898,"codewhispererTimeSinceLastUserDecision":0,"codewhispererTimeToFirstRecommendation":2671,"codewhispererPreviousSuggestionState":"Discard","codewhispererSupplementalContextTimeout":false,"codewhispererSupplementalContextIsUtg":false,"codewhispererSupplementalContextLength":0}}
+[Trace - 15:56:17] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_userDecision",
+    "data": {
+        "codewhispererRequestId": "47bd7f64-11a7-44c2-a134-57a39eab7e40",
+        "codewhispererSessionId": "525621f2-e70c-4889-857a-338009325d36",
+        "codewhispererCompletionType": "Block",
+        "codewhispererTriggerType": "AutoTrigger",
+        "codewhispererLanguage": "java",
+        "credentialStartUrl": "https://amzn.awsapps.com/start",
+        "codewhispererSuggestionIndex": 0,
+        "codewhispererSuggestionState": "Discard",
+        "codewhispererSuggestionReferences": [],
+        "codewhispererSuggestionReferenceCount": 0,
+        "codewhispererSupplementalContextTimeout": false,
+        "codewhispererSupplementalContextIsUtg": false,
+        "codewhispererSupplementalContextLength": 0
+    }
+}
+
+
+[Info  - 15:56:17] vscode client: Received telemetry event from server {"name":"codewhisperer_userDecision","data":{"codewhispererRequestId":"47bd7f64-11a7-44c2-a134-57a39eab7e40","codewhispererSessionId":"525621f2-e70c-4889-857a-338009325d36","codewhispererCompletionType":"Block","codewhispererTriggerType":"AutoTrigger","codewhispererLanguage":"java","credentialStartUrl":"https://amzn.awsapps.com/start","codewhispererSuggestionIndex":0,"codewhispererSuggestionState":"Discard","codewhispererSuggestionReferences":[],"codewhispererSuggestionReferenceCount":0,"codewhispererSupplementalContextTimeout":false,"codewhispererSupplementalContextIsUtg":false,"codewhispererSupplementalContextLength":0}}
+[Trace - 15:56:17] Received notification 'window/logMessage'.
+Params: {
+    "type": 3,
+    "message": "[2024-10-18T13:56:17.324Z] [DebugInlineCompletion][b2rj] time took: +0ms, total time: 1ms, message: Created new completion session. Calling codeWhispererService.generateSuggestions"
+}
+
+
+[Info  - 15:56:17] [2024-10-18T13:56:17.324Z] [DebugInlineCompletion][b2rj] time took: +0ms, total time: 1ms, message: Created new completion session. Calling codeWhispererService.generateSuggestions
+[Trace - 15:56:18] Sending notification 'textDocument/didChange'.
+Params: {
+    "textDocument": {
+        "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.java",
+        "version": 6
+    },
+    "contentChanges": [
+        {
+            "range": {
+                "start": {
+                    "line": 1,
+                    "character": 0
+                },
+                "end": {
+                    "line": 1,
+                    "character": 0
+                }
+            },
+            "rangeLength": 0,
+            "text": "class Person {\n    private String name;\n\n    public Person(String name) {\n        this.name = name;\n    }\n\n    public String getName() {\n        return name;\n    }\n}\n\n// Create Student class extending Person and overriding getName method\nclass Student extends Person {\n    private int id;\n\n    public Student(String name, int id) {\n        super(name);\n        this.id = id;\n    }\n\n    @Override\n    public String getName() {\n        return super.getName() + \" (Student)\";\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Person person = new Person(\"John\");\n        System.out.println(person.getName()); // Output: John\n\n        Student student = new Student(\"Jane\", 1234);\n        System.out.println(student.getName()); // Output: Jane (Student)\n    }\n}"
+        }
+    ]
+}
+
+
+[Trace - 15:56:18] Sending notification '$/cancelRequest'.
+Params: {
+    "id": 9
+}
+
+
+[Trace - 15:56:18] Sending request 'aws/textDocument/inlineCompletionWithReferences - (10)'.
+Params: {
+    "textDocument": {
+        "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.java"
+    },
+    "position": {
+        "line": 36,
+        "character": 1
+    },
+    "context": {
+        "triggerKind": 1
+    }
+}
+
+
+[Trace - 15:56:18] Received notification 'window/logMessage'.
+Params: {
+    "type": 3,
+    "message": "[2024-10-18T13:56:18.635Z] [DebugInlineCompletion][qxl7] Start InlineCompletion request at 1729259778635"
+}
+
+
+[Info  - 15:56:18] [2024-10-18T13:56:18.635Z] [DebugInlineCompletion][qxl7] Start InlineCompletion request at 1729259778635
+[Trace - 15:56:18] Received notification 'window/logMessage'.
+Params: {
+    "type": 3,
+    "message": "[2024-10-18T13:56:18.635Z] [DebugInlineCompletion][qxl7] time took: +0ms, total time: 0ms, message: Read file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.java content"
+}
+
+
+[Info  - 15:56:18] [2024-10-18T13:56:18.635Z] [DebugInlineCompletion][qxl7] time took: +0ms, total time: 0ms, message: Read file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.java content
+[Trace - 15:56:18] Received notification 'window/logMessage'.
+Params: {
+    "type": 3,
+    "message": "[2024-10-18T13:56:18.635Z] [DebugInlineCompletion][qxl7] time took: +0ms, total time: 0ms, message: Got file context {\"filename\":\"file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.java\",\"programmingLanguage\":{\"languageName\":\"java\"},\"leftFileContent\":\"// Create Person class with getName method\\nclass Person {\\n    private String name;\\n\\n    public Person(String name) {\\n        this.name = name;\\n    }\\n\\n    public String getName() {\\n        return name;\\n    }\\n}\\n\\n// Create Student class extending Person and overriding getName method\\nclass Student extends Person {\\n    private int id;\\n\\n    public Student(String name, int id) {\\n        super(name);\\n        this.id = id;\\n    }\\n\\n    @Override\\n    public String getName() {\\n        return super.getName() + \\\" (Student)\\\";\\n    }\\n}\\n\\npublic class Main {\\n    public static void main(String[] args) {\\n        Person person = new Person(\\\"John\\\");\\n        System.out.println(person.getName()); // Output: John\\n\\n        Student student = new Student(\\\"Jane\\\", 1234);\\n        System.out.println(student.getName()); // Output: Jane (Student)\\n    }\\n}\",\"rightFileContent\":\"\\n\"}"
+}
+
+
+[Info  - 15:56:18] [2024-10-18T13:56:18.635Z] [DebugInlineCompletion][qxl7] time took: +0ms, total time: 0ms, message: Got file context {"filename":"file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.java","programmingLanguage":{"languageName":"java"},"leftFileContent":"// Create Person class with getName method\nclass Person {\n    private String name;\n\n    public Person(String name) {\n        this.name = name;\n    }\n\n    public String getName() {\n        return name;\n    }\n}\n\n// Create Student class extending Person and overriding getName method\nclass Student extends Person {\n    private int id;\n\n    public Student(String name, int id) {\n        super(name);\n        this.id = id;\n    }\n\n    @Override\n    public String getName() {\n        return super.getName() + \" (Student)\";\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Person person = new Person(\"John\");\n        System.out.println(person.getName()); // Output: John\n\n        Student student = new Student(\"Jane\", 1234);\n        System.out.println(student.getName()); // Output: Jane (Student)\n    }\n}","rightFileContent":"\n"}
+[Trace - 15:56:18] Received notification 'window/logMessage'.
+Params: {
+    "type": 3,
+    "message": "[2024-10-18T13:56:18.635Z] [DebugInlineCompletion][qxl7] time took: +0ms, total time: 0ms, message: Autotrigger result: {\"shouldTrigger\":false,\"classifierResult\":-0.9316768651192393,\"classifierThreshold\":0.43}"
+}
+
+
+[Info  - 15:56:18] [2024-10-18T13:56:18.635Z] [DebugInlineCompletion][qxl7] time took: +0ms, total time: 0ms, message: Autotrigger result: {"shouldTrigger":false,"classifierResult":-0.9316768651192393,"classifierThreshold":0.43}
+[Trace - 15:56:18] Received response 'aws/textDocument/inlineCompletionWithReferences - (10)' in 33ms.
+Result: {
+    "sessionId": "",
+    "items": []
+}
+
+
+[Info  - 15:56:18] Client: Received 0 suggestions
+[Trace - 15:56:20] Received notification 'window/logMessage'.
+Params: {
+    "type": 3,
+    "message": "[2024-10-18T13:56:20.028Z] [DebugInlineCompletion][b2rj] time took: +2704ms, total time: 2705ms, message: Received inline suggestions {\"suggestions\":[{\"content\":\"class Person {\\n    private String name;\\n\\n    public Person(String name) {\\n        this.name = name;\\n    }\\n\\n    public String getName() {\\n        return name;\\n    }\\n}\\n\\n// Create Student class extending Person and overriding getName method\\nclass Student extends Person {\\n    private int id;\\n\\n    public Student(String name, int id) {\\n        super(name);\\n        this.id = id;\\n    }\\n\\n    @Override\\n    public String getName() {\\n        return super.getName() + \\\" (Student)\\\";\\n    }\\n}\\n\\npublic class Main {\\n    public static void main(String[] args) {\\n        Person person = new Person(\\\"John\\\");\\n        System.out.println(person.getName()); // Output: John\\n\\n        Student student = new Student(\\\"Jane\\\", 1234);\\n        System.out.println(student.getName()); // Output: Jane (Student)\\n    }\\n}\",\"references\":[],\"mostRelevantMissingImports\":[],\"itemId\":\"ffb8acc2-6966-4d10-a934-c96238db5627\"}],\"responseContext\":{\"requestId\":\"d091be1d-4616-423c-b733-8e076040c901\",\"codewhispererSessionId\":\"fa386bdc-5494-462c-bc9c-5d8e7f5f18d2\",\"nextToken\":\"AQICAHjJ+owcWKrF3BH7O0aWvExxjG4pDo3pANuE8X23CezPVwHTcTsBlDpMFbYy/jyLJqgwAAABrDCCAagGCSqGSIb3DQEHBqCCAZkwggGVAgEAMIIBjgYJKoZIhvcNAQcBMB4GCWCGSAFlAwQBLjARBAzJzeTItTdNqgnlTFwCARCAggFfhFoD2z04KQJD6gXhMKl4mAymB6QYEZ3TEyNBFbKaJoTt3httzexKSCITKIdBbcPEfWYDUuorBgmxWSFLZwx2z7ZR5b3TxIYfJWt2Sb0VxpL9GIqYKD4+H/BLu3iQBL/1k/BQ1Rn+Y1zmB3m33NuY1jGPslbTBxtpvryNQtsw4I7Vvh6KV7EfaPWHiTzE1NjxwWaNQqvWxSYKLJxPgh1Idn+SXf0rj1aqk4S9PRGGTcClFRiyatbbimFgju9IX4JCO/uKCgl0t8YrxYXYb3KaQkvRqLDQxTIX6ynEh3GnDlGCR4vypX8Evas4Lt708DWEAV62nZx0gfGXF1hHTZ1tizECd6khi9/873fQj2cxMW36Mh4CdfC4YJphEe6Jpw4loztCYGG6BNC/wRQV7xOJo3tDquDGVZJ9z3Wj12nh1Rtkz2EI03D2hn+4mh8abHt+arQczxngbhQaM8lXgavk\"}}"
+}
+
+
+[Info  - 15:56:20] [2024-10-18T13:56:20.028Z] [DebugInlineCompletion][b2rj] time took: +2704ms, total time: 2705ms, message: Received inline suggestions {"suggestions":[{"content":"class Person {\n    private String name;\n\n    public Person(String name) {\n        this.name = name;\n    }\n\n    public String getName() {\n        return name;\n    }\n}\n\n// Create Student class extending Person and overriding getName method\nclass Student extends Person {\n    private int id;\n\n    public Student(String name, int id) {\n        super(name);\n        this.id = id;\n    }\n\n    @Override\n    public String getName() {\n        return super.getName() + \" (Student)\";\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Person person = new Person(\"John\");\n        System.out.println(person.getName()); // Output: John\n\n        Student student = new Student(\"Jane\", 1234);\n        System.out.println(student.getName()); // Output: Jane (Student)\n    }\n}","references":[],"mostRelevantMissingImports":[],"itemId":"ffb8acc2-6966-4d10-a934-c96238db5627"}],"responseContext":{"requestId":"d091be1d-4616-423c-b733-8e076040c901","codewhispererSessionId":"fa386bdc-5494-462c-bc9c-5d8e7f5f18d2","nextToken":"AQICAHjJ+owcWKrF3BH7O0aWvExxjG4pDo3pANuE8X23CezPVwHTcTsBlDpMFbYy/jyLJqgwAAABrDCCAagGCSqGSIb3DQEHBqCCAZkwggGVAgEAMIIBjgYJKoZIhvcNAQcBMB4GCWCGSAFlAwQBLjARBAzJzeTItTdNqgnlTFwCARCAggFfhFoD2z04KQJD6gXhMKl4mAymB6QYEZ3TEyNBFbKaJoTt3httzexKSCITKIdBbcPEfWYDUuorBgmxWSFLZwx2z7ZR5b3TxIYfJWt2Sb0VxpL9GIqYKD4+H/BLu3iQBL/1k/BQ1Rn+Y1zmB3m33NuY1jGPslbTBxtpvryNQtsw4I7Vvh6KV7EfaPWHiTzE1NjxwWaNQqvWxSYKLJxPgh1Idn+SXf0rj1aqk4S9PRGGTcClFRiyatbbimFgju9IX4JCO/uKCgl0t8YrxYXYb3KaQkvRqLDQxTIX6ynEh3GnDlGCR4vypX8Evas4Lt708DWEAV62nZx0gfGXF1hHTZ1tizECd6khi9/873fQj2cxMW36Mh4CdfC4YJphEe6Jpw4loztCYGG6BNC/wRQV7xOJo3tDquDGVZJ9z3Wj12nh1Rtkz2EI03D2hn+4mh8abHt+arQczxngbhQaM8lXgavk"}}
+[Trace - 15:56:20] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_serviceInvocation",
+    "result": "Succeeded",
+    "data": {
+        "codewhispererRequestId": "d091be1d-4616-423c-b733-8e076040c901",
+        "codewhispererSessionId": "fa386bdc-5494-462c-bc9c-5d8e7f5f18d2",
+        "codewhispererLastSuggestionIndex": 0,
+        "codewhispererCompletionType": "Block",
+        "codewhispererTriggerType": "OnDemand",
+        "duration": 2704,
+        "codewhispererLineNumber": 1,
+        "codewhispererCursorOffset": 0,
+        "codewhispererLanguage": "java",
+        "credentialStartUrl": "https://amzn.awsapps.com/start",
+        "codewhispererSupplementalContextTimeout": false,
+        "codewhispererSupplementalContextIsUtg": false,
+        "codewhispererSupplementalContextLatency": 0.12125399999786168,
+        "codewhispererSupplementalContextLength": 0
+    }
+}
+
+
+[Info  - 15:56:20] vscode client: Received telemetry event from server {"name":"codewhisperer_serviceInvocation","result":"Succeeded","data":{"codewhispererRequestId":"d091be1d-4616-423c-b733-8e076040c901","codewhispererSessionId":"fa386bdc-5494-462c-bc9c-5d8e7f5f18d2","codewhispererLastSuggestionIndex":0,"codewhispererCompletionType":"Block","codewhispererTriggerType":"OnDemand","duration":2704,"codewhispererLineNumber":1,"codewhispererCursorOffset":0,"codewhispererLanguage":"java","credentialStartUrl":"https://amzn.awsapps.com/start","codewhispererSupplementalContextTimeout":false,"codewhispererSupplementalContextIsUtg":false,"codewhispererSupplementalContextLatency":0.12125399999786168,"codewhispererSupplementalContextLength":0}}
+[Trace - 15:56:20] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_userTriggerDecision",
+    "data": {
+        "codewhispererSessionId": "fa386bdc-5494-462c-bc9c-5d8e7f5f18d2",
+        "codewhispererFirstRequestId": "d091be1d-4616-423c-b733-8e076040c901",
+        "credentialStartUrl": "https://amzn.awsapps.com/start",
+        "codewhispererSuggestionState": "Discard",
+        "codewhispererCompletionType": "Block",
+        "codewhispererLanguage": "java",
+        "codewhispererTriggerType": "OnDemand",
+        "codewhispererLineNumber": 1,
+        "codewhispererCursorOffset": 0,
+        "codewhispererSuggestionCount": 1,
+        "codewhispererClassifierResult": 0.346404362513496,
+        "codewhispererClassifierThreshold": 0.43,
+        "codewhispererTotalShownTime": 0,
+        "codewhispererTypeaheadLength": 0,
+        "codewhispererTimeSinceLastDocumentChange": 3990,
+        "codewhispererTimeSinceLastUserDecision": 0,
+        "codewhispererTimeToFirstRecommendation": 2704,
+        "codewhispererPreviousSuggestionState": "Discard",
+        "codewhispererSupplementalContextTimeout": false,
+        "codewhispererSupplementalContextIsUtg": false,
+        "codewhispererSupplementalContextLength": 0
+    }
+}
+
+
+[Info  - 15:56:20] vscode client: Received telemetry event from server {"name":"codewhisperer_userTriggerDecision","data":{"codewhispererSessionId":"fa386bdc-5494-462c-bc9c-5d8e7f5f18d2","codewhispererFirstRequestId":"d091be1d-4616-423c-b733-8e076040c901","credentialStartUrl":"https://amzn.awsapps.com/start","codewhispererSuggestionState":"Discard","codewhispererCompletionType":"Block","codewhispererLanguage":"java","codewhispererTriggerType":"OnDemand","codewhispererLineNumber":1,"codewhispererCursorOffset":0,"codewhispererSuggestionCount":1,"codewhispererClassifierResult":0.346404362513496,"codewhispererClassifierThreshold":0.43,"codewhispererTotalShownTime":0,"codewhispererTypeaheadLength":0,"codewhispererTimeSinceLastDocumentChange":3990,"codewhispererTimeSinceLastUserDecision":0,"codewhispererTimeToFirstRecommendation":2704,"codewhispererPreviousSuggestionState":"Discard","codewhispererSupplementalContextTimeout":false,"codewhispererSupplementalContextIsUtg":false,"codewhispererSupplementalContextLength":0}}
+[Trace - 15:56:20] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_userDecision",
+    "data": {
+        "codewhispererRequestId": "d091be1d-4616-423c-b733-8e076040c901",
+        "codewhispererSessionId": "fa386bdc-5494-462c-bc9c-5d8e7f5f18d2",
+        "codewhispererCompletionType": "Block",
+        "codewhispererTriggerType": "OnDemand",
+        "codewhispererLanguage": "java",
+        "credentialStartUrl": "https://amzn.awsapps.com/start",
+        "codewhispererSuggestionIndex": 0,
+        "codewhispererSuggestionState": "Discard",
+        "codewhispererSuggestionReferences": [],
+        "codewhispererSuggestionReferenceCount": 0,
+        "codewhispererSupplementalContextTimeout": false,
+        "codewhispererSupplementalContextIsUtg": false,
+        "codewhispererSupplementalContextLength": 0
+    }
+}
+
+
+[Info  - 15:56:20] vscode client: Received telemetry event from server {"name":"codewhisperer_userDecision","data":{"codewhispererRequestId":"d091be1d-4616-423c-b733-8e076040c901","codewhispererSessionId":"fa386bdc-5494-462c-bc9c-5d8e7f5f18d2","codewhispererCompletionType":"Block","codewhispererTriggerType":"OnDemand","codewhispererLanguage":"java","credentialStartUrl":"https://amzn.awsapps.com/start","codewhispererSuggestionIndex":0,"codewhispererSuggestionState":"Discard","codewhispererSuggestionReferences":[],"codewhispererSuggestionReferenceCount":0,"codewhispererSupplementalContextTimeout":false,"codewhispererSupplementalContextIsUtg":false,"codewhispererSupplementalContextLength":0}}
+[Trace - 15:56:20] Received response 'aws/textDocument/inlineCompletionWithReferences - (9)' in 2711ms.
+Result: {
+    "sessionId": "",
+    "items": []
+}
+
+
+[Info  - 15:56:20] Client: Received 0 suggestions
+[Trace - 15:56:41] Sending notification 'textDocument/didChange'.
+Params: {
+    "textDocument": {
+        "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.java",
+        "version": 7
+    },
+    "contentChanges": [
+        {
+            "range": {
+                "start": {
+                    "line": 5,
+                    "character": 25
+                },
+                "end": {
+                    "line": 5,
+                    "character": 25
+                }
+            },
+            "rangeLength": 0,
+            "text": "\n        "
+        }
+    ]
+}
+
+
+[Trace - 15:56:41] Sending request 'aws/textDocument/inlineCompletionWithReferences - (11)'.
+Params: {
+    "textDocument": {
+        "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.java"
+    },
+    "position": {
+        "line": 6,
+        "character": 8
+    },
+    "context": {
+        "triggerKind": 1
+    }
+}
+
+
+[Trace - 15:56:41] Received notification 'window/logMessage'.
+Params: {
+    "type": 3,
+    "message": "[2024-10-18T13:56:41.138Z] [DebugInlineCompletion][j79b] Start InlineCompletion request at 1729259801138"
+}
+
+
+[Info  - 15:56:41] [2024-10-18T13:56:41.138Z] [DebugInlineCompletion][j79b] Start InlineCompletion request at 1729259801138
+[Trace - 15:56:41] Received notification 'window/logMessage'.
+Params: {
+    "type": 3,
+    "message": "[2024-10-18T13:56:41.138Z] [DebugInlineCompletion][j79b] time took: +0ms, total time: 0ms, message: Read file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.java content"
+}
+
+
+[Info  - 15:56:41] [2024-10-18T13:56:41.138Z] [DebugInlineCompletion][j79b] time took: +0ms, total time: 0ms, message: Read file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.java content
+[Trace - 15:56:41] Received notification 'window/logMessage'.
+Params: {
+    "type": 3,
+    "message": "[2024-10-18T13:56:41.138Z] [DebugInlineCompletion][j79b] time took: +0ms, total time: 0ms, message: Got file context {\"filename\":\"file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.java\",\"programmingLanguage\":{\"languageName\":\"java\"},\"leftFileContent\":\"// Create Person class with getName method\\nclass Person {\\n    private String name;\\n\\n    public Person(String name) {\\n        this.name = name;\\n        \",\"rightFileContent\":\"\\n    }\\n\\n    public String getName() {\\n        return name;\\n    }\\n}\\n\\n// Create Student class extending Person and overriding getName method\\nclass Student extends Person {\\n    private int id;\\n\\n    public Student(String name, int id) {\\n        super(name);\\n        this.id = id;\\n    }\\n\\n    @Override\\n    public String getName() {\\n        return super.getName() + \\\" (Student)\\\";\\n    }\\n}\\n\\npublic class Main {\\n    public static void main(String[] args) {\\n        Person person = new Person(\\\"John\\\");\\n        System.out.println(person.getName()); // Output: John\\n\\n        Student student = new Student(\\\"Jane\\\", 1234);\\n        System.out.println(student.getName()); // Output: Jane (Student)\\n    }\\n}\\n\"}"
+}
+
+
+[Info  - 15:56:41] [2024-10-18T13:56:41.138Z] [DebugInlineCompletion][j79b] time took: +0ms, total time: 0ms, message: Got file context {"filename":"file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.java","programmingLanguage":{"languageName":"java"},"leftFileContent":"// Create Person class with getName method\nclass Person {\n    private String name;\n\n    public Person(String name) {\n        this.name = name;\n        ","rightFileContent":"\n    }\n\n    public String getName() {\n        return name;\n    }\n}\n\n// Create Student class extending Person and overriding getName method\nclass Student extends Person {\n    private int id;\n\n    public Student(String name, int id) {\n        super(name);\n        this.id = id;\n    }\n\n    @Override\n    public String getName() {\n        return super.getName() + \" (Student)\";\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Person person = new Person(\"John\");\n        System.out.println(person.getName()); // Output: John\n\n        Student student = new Student(\"Jane\", 1234);\n        System.out.println(student.getName()); // Output: Jane (Student)\n    }\n}\n"}
+[Trace - 15:56:41] Received notification 'window/logMessage'.
+Params: {
+    "type": 3,
+    "message": "[2024-10-18T13:56:41.138Z] [DebugInlineCompletion][j79b] time took: +0ms, total time: 0ms, message: Autotrigger result: {\"shouldTrigger\":false,\"classifierResult\":-1.0958059645921139,\"classifierThreshold\":0.43}"
+}
+
+
+[Info  - 15:56:41] [2024-10-18T13:56:41.138Z] [DebugInlineCompletion][j79b] time took: +0ms, total time: 0ms, message: Autotrigger result: {"shouldTrigger":false,"classifierResult":-1.0958059645921139,"classifierThreshold":0.43}
+[Trace - 15:56:41] Received notification 'window/logMessage'.
+Params: {
+    "type": 3,
+    "message": "[2024-10-18T13:56:41.138Z] [DebugInlineCompletion][j79b] time took: +0ms, total time: 0ms, message: Collected supplemental context: {\"isUtg\":false,\"isProcessTimeout\":false,\"supplementalContextItems\":[],\"contentsLength\":0,\"latency\":0.12404199998127297,\"strategy\":\"OpenTabs_BM25\"}"
+}
+
+
+[Info  - 15:56:41] [2024-10-18T13:56:41.138Z] [DebugInlineCompletion][j79b] time took: +0ms, total time: 0ms, message: Collected supplemental context: {"isUtg":false,"isProcessTimeout":false,"supplementalContextItems":[],"contentsLength":0,"latency":0.12404199998127297,"strategy":"OpenTabs_BM25"}
+[Trace - 15:56:41] Received notification 'window/logMessage'.
+Params: {
+    "type": 3,
+    "message": "[2024-10-18T13:56:41.138Z] [DebugInlineCompletion][j79b] time took: +0ms, total time: 0ms, message: Created new completion session. Calling codeWhispererService.generateSuggestions"
+}
+
+
+[Info  - 15:56:41] [2024-10-18T13:56:41.138Z] [DebugInlineCompletion][j79b] time took: +0ms, total time: 0ms, message: Created new completion session. Calling codeWhispererService.generateSuggestions
+[Trace - 15:56:41] Received notification 'window/logMessage'.
+Params: {
+    "type": 3,
+    "message": "[2024-10-18T13:56:41.979Z] [DebugInlineCompletion][j79b] time took: +841ms, total time: 841ms, message: Received inline suggestions {\"suggestions\":[],\"responseContext\":{\"requestId\":\"03ddd3bf-dbc6-4751-9c43-21ec9b3efc1a\",\"codewhispererSessionId\":\"a7525102-603b-4f39-946a-cb5015769698\",\"nextToken\":\"\"}}"
+}
+
+
+[Info  - 15:56:41] [2024-10-18T13:56:41.979Z] [DebugInlineCompletion][j79b] time took: +841ms, total time: 841ms, message: Received inline suggestions {"suggestions":[],"responseContext":{"requestId":"03ddd3bf-dbc6-4751-9c43-21ec9b3efc1a","codewhispererSessionId":"a7525102-603b-4f39-946a-cb5015769698","nextToken":""}}
+[Trace - 15:56:41] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_serviceInvocation",
+    "result": "Succeeded",
+    "data": {
+        "codewhispererRequestId": "03ddd3bf-dbc6-4751-9c43-21ec9b3efc1a",
+        "codewhispererSessionId": "a7525102-603b-4f39-946a-cb5015769698",
+        "codewhispererLastSuggestionIndex": -1,
+        "codewhispererTriggerType": "AutoTrigger",
+        "codewhispererAutomatedTriggerType": "Enter",
+        "duration": 841,
+        "codewhispererLineNumber": 6,
+        "codewhispererCursorOffset": 8,
+        "codewhispererLanguage": "java",
+        "credentialStartUrl": "https://amzn.awsapps.com/start",
+        "codewhispererSupplementalContextTimeout": false,
+        "codewhispererSupplementalContextIsUtg": false,
+        "codewhispererSupplementalContextLatency": 0.12404199998127297,
+        "codewhispererSupplementalContextLength": 0
+    }
+}
+
+
+[Info  - 15:56:41] vscode client: Received telemetry event from server {"name":"codewhisperer_serviceInvocation","result":"Succeeded","data":{"codewhispererRequestId":"03ddd3bf-dbc6-4751-9c43-21ec9b3efc1a","codewhispererSessionId":"a7525102-603b-4f39-946a-cb5015769698","codewhispererLastSuggestionIndex":-1,"codewhispererTriggerType":"AutoTrigger","codewhispererAutomatedTriggerType":"Enter","duration":841,"codewhispererLineNumber":6,"codewhispererCursorOffset":8,"codewhispererLanguage":"java","credentialStartUrl":"https://amzn.awsapps.com/start","codewhispererSupplementalContextTimeout":false,"codewhispererSupplementalContextIsUtg":false,"codewhispererSupplementalContextLatency":0.12404199998127297,"codewhispererSupplementalContextLength":0}}
+[Trace - 15:56:41] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_userTriggerDecision",
+    "data": {
+        "codewhispererSessionId": "a7525102-603b-4f39-946a-cb5015769698",
+        "codewhispererFirstRequestId": "03ddd3bf-dbc6-4751-9c43-21ec9b3efc1a",
+        "credentialStartUrl": "https://amzn.awsapps.com/start",
+        "codewhispererSuggestionState": "Empty",
+        "codewhispererLanguage": "java",
+        "codewhispererTriggerType": "AutoTrigger",
+        "codewhispererAutomatedTriggerType": "Enter",
+        "codewhispererLineNumber": 6,
+        "codewhispererCursorOffset": 8,
+        "codewhispererSuggestionCount": 0,
+        "codewhispererClassifierResult": -1.0958059645921139,
+        "codewhispererClassifierThreshold": 0.43,
+        "codewhispererTotalShownTime": 0,
+        "codewhispererTypeaheadLength": 0,
+        "codewhispererTimeSinceLastDocumentChange": 22511,
+        "codewhispererTimeSinceLastUserDecision": 22503,
+        "codewhispererTimeToFirstRecommendation": 841,
+        "codewhispererPreviousSuggestionState": "Discard",
+        "codewhispererSupplementalContextTimeout": false,
+        "codewhispererSupplementalContextIsUtg": false,
+        "codewhispererSupplementalContextLength": 0
+    }
+}
+
+
+[Info  - 15:56:41] vscode client: Received telemetry event from server {"name":"codewhisperer_userTriggerDecision","data":{"codewhispererSessionId":"a7525102-603b-4f39-946a-cb5015769698","codewhispererFirstRequestId":"03ddd3bf-dbc6-4751-9c43-21ec9b3efc1a","credentialStartUrl":"https://amzn.awsapps.com/start","codewhispererSuggestionState":"Empty","codewhispererLanguage":"java","codewhispererTriggerType":"AutoTrigger","codewhispererAutomatedTriggerType":"Enter","codewhispererLineNumber":6,"codewhispererCursorOffset":8,"codewhispererSuggestionCount":0,"codewhispererClassifierResult":-1.0958059645921139,"codewhispererClassifierThreshold":0.43,"codewhispererTotalShownTime":0,"codewhispererTypeaheadLength":0,"codewhispererTimeSinceLastDocumentChange":22511,"codewhispererTimeSinceLastUserDecision":22503,"codewhispererTimeToFirstRecommendation":841,"codewhispererPreviousSuggestionState":"Discard","codewhispererSupplementalContextTimeout":false,"codewhispererSupplementalContextIsUtg":false,"codewhispererSupplementalContextLength":0}}
+[Trace - 15:56:41] Received response 'aws/textDocument/inlineCompletionWithReferences - (11)' in 844ms.
+Result: {
+    "sessionId": "",
+    "items": []
+}
+
+
+[Info  - 15:56:41] Client: Received 0 suggestions
+[Trace - 15:56:55] Sending notification 'textDocument/didChange'.
+Params: {
+    "textDocument": {
+        "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.java",
+        "version": 8
+    },
+    "contentChanges": [
+        {
+            "range": {
+                "start": {
+                    "line": 5,
+                    "character": 8
+                },
+                "end": {
+                    "line": 6,
+                    "character": 8
+                }
+            },
+            "rangeLength": 26,
+            "text": ""
+        }
+    ]
+}
+
+
+[Trace - 15:56:55] Sending request 'aws/textDocument/inlineCompletionWithReferences - (12)'.
+Params: {
+    "textDocument": {
+        "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.java"
+    },
+    "position": {
+        "line": 5,
+        "character": 8
+    },
+    "context": {
+        "triggerKind": 1
+    }
+}
+
+
+[Trace - 15:56:55] Received notification 'window/logMessage'.
+Params: {
+    "type": 3,
+    "message": "[2024-10-18T13:56:55.469Z] [DebugInlineCompletion][gqc4] Start InlineCompletion request at 1729259815469"
+}
+
+
+[Info  - 15:56:55] [2024-10-18T13:56:55.469Z] [DebugInlineCompletion][gqc4] Start InlineCompletion request at 1729259815469
+[Trace - 15:56:55] Received notification 'window/logMessage'.
+Params: {
+    "type": 3,
+    "message": "[2024-10-18T13:56:55.469Z] [DebugInlineCompletion][gqc4] time took: +0ms, total time: 0ms, message: Read file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.java content"
+}
+
+
+[Info  - 15:56:55] [2024-10-18T13:56:55.469Z] [DebugInlineCompletion][gqc4] time took: +0ms, total time: 0ms, message: Read file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.java content
+[Trace - 15:56:55] Received notification 'window/logMessage'.
+Params: {
+    "type": 3,
+    "message": "[2024-10-18T13:56:55.469Z] [DebugInlineCompletion][gqc4] time took: +0ms, total time: 0ms, message: Got file context {\"filename\":\"file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.java\",\"programmingLanguage\":{\"languageName\":\"java\"},\"leftFileContent\":\"// Create Person class with getName method\\nclass Person {\\n    private String name;\\n\\n    public Person(String name) {\\n        \",\"rightFileContent\":\"\\n    }\\n\\n    public String getName() {\\n        return name;\\n    }\\n}\\n\\n// Create Student class extending Person and overriding getName method\\nclass Student extends Person {\\n    private int id;\\n\\n    public Student(String name, int id) {\\n        super(name);\\n        this.id = id;\\n    }\\n\\n    @Override\\n    public String getName() {\\n        return super.getName() + \\\" (Student)\\\";\\n    }\\n}\\n\\npublic class Main {\\n    public static void main(String[] args) {\\n        Person person = new Person(\\\"John\\\");\\n        System.out.println(person.getName()); // Output: John\\n\\n        Student student = new Student(\\\"Jane\\\", 1234);\\n        System.out.println(student.getName()); // Output: Jane (Student)\\n    }\\n}\\n\"}"
+}
+
+
+[Info  - 15:56:55] [2024-10-18T13:56:55.469Z] [DebugInlineCompletion][gqc4] time took: +0ms, total time: 0ms, message: Got file context {"filename":"file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.java","programmingLanguage":{"languageName":"java"},"leftFileContent":"// Create Person class with getName method\nclass Person {\n    private String name;\n\n    public Person(String name) {\n        ","rightFileContent":"\n    }\n\n    public String getName() {\n        return name;\n    }\n}\n\n// Create Student class extending Person and overriding getName method\nclass Student extends Person {\n    private int id;\n\n    public Student(String name, int id) {\n        super(name);\n        this.id = id;\n    }\n\n    @Override\n    public String getName() {\n        return super.getName() + \" (Student)\";\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Person person = new Person(\"John\");\n        System.out.println(person.getName()); // Output: John\n\n        Student student = new Student(\"Jane\", 1234);\n        System.out.println(student.getName()); // Output: Jane (Student)\n    }\n}\n"}
+[Trace - 15:56:55] Received notification 'window/logMessage'.
+Params: {
+    "type": 3,
+    "message": "[2024-10-18T13:56:55.470Z] [DebugInlineCompletion][gqc4] time took: +1ms, total time: 1ms, message: Autotrigger result: {\"shouldTrigger\":true,\"classifierResult\":0.19124335925802644,\"classifierThreshold\":0.43}"
+}
+
+
+[Info  - 15:56:55] [2024-10-18T13:56:55.470Z] [DebugInlineCompletion][gqc4] time took: +1ms, total time: 1ms, message: Autotrigger result: {"shouldTrigger":true,"classifierResult":0.19124335925802644,"classifierThreshold":0.43}
+[Trace - 15:56:55] Received notification 'window/logMessage'.
+Params: {
+    "type": 3,
+    "message": "[2024-10-18T13:56:55.470Z] [DebugInlineCompletion][gqc4] time took: +0ms, total time: 1ms, message: Collected supplemental context: {\"isUtg\":false,\"isProcessTimeout\":false,\"supplementalContextItems\":[],\"contentsLength\":0,\"latency\":0.15163000000757165,\"strategy\":\"OpenTabs_BM25\"}"
+}
+
+
+[Info  - 15:56:55] [2024-10-18T13:56:55.470Z] [DebugInlineCompletion][gqc4] time took: +0ms, total time: 1ms, message: Collected supplemental context: {"isUtg":false,"isProcessTimeout":false,"supplementalContextItems":[],"contentsLength":0,"latency":0.15163000000757165,"strategy":"OpenTabs_BM25"}
+[Trace - 15:56:55] Received notification 'window/logMessage'.
+Params: {
+    "type": 3,
+    "message": "[2024-10-18T13:56:55.470Z] [DebugInlineCompletion][gqc4] time took: +0ms, total time: 1ms, message: Created new completion session. Calling codeWhispererService.generateSuggestions"
+}
+
+
+[Info  - 15:56:55] [2024-10-18T13:56:55.470Z] [DebugInlineCompletion][gqc4] time took: +0ms, total time: 1ms, message: Created new completion session. Calling codeWhispererService.generateSuggestions
+[Trace - 15:56:56] Received notification 'window/logMessage'.
+Params: {
+    "type": 3,
+    "message": "[2024-10-18T13:56:56.234Z] [DebugInlineCompletion][gqc4] time took: +764ms, total time: 765ms, message: Received inline suggestions {\"suggestions\":[{\"content\":\"this.name = name;\",\"references\":[],\"mostRelevantMissingImports\":[],\"itemId\":\"6df1676b-92be-44ec-9217-58a1049bad7e\"}],\"responseContext\":{\"requestId\":\"5dfd1cdc-014f-4be5-9557-5b839ba5bf1c\",\"codewhispererSessionId\":\"c55beae4-997c-4278-8785-de66cca909e8\",\"nextToken\":\"\"}}"
+}
+
+
+[Info  - 15:56:56] [2024-10-18T13:56:56.234Z] [DebugInlineCompletion][gqc4] time took: +764ms, total time: 765ms, message: Received inline suggestions {"suggestions":[{"content":"this.name = name;","references":[],"mostRelevantMissingImports":[],"itemId":"6df1676b-92be-44ec-9217-58a1049bad7e"}],"responseContext":{"requestId":"5dfd1cdc-014f-4be5-9557-5b839ba5bf1c","codewhispererSessionId":"c55beae4-997c-4278-8785-de66cca909e8","nextToken":""}}
+[Trace - 15:56:56] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_serviceInvocation",
+    "result": "Succeeded",
+    "data": {
+        "codewhispererRequestId": "5dfd1cdc-014f-4be5-9557-5b839ba5bf1c",
+        "codewhispererSessionId": "c55beae4-997c-4278-8785-de66cca909e8",
+        "codewhispererLastSuggestionIndex": 0,
+        "codewhispererCompletionType": "Line",
+        "codewhispererTriggerType": "AutoTrigger",
+        "codewhispererAutomatedTriggerType": "SpecialCharacters",
+        "duration": 764,
+        "codewhispererLineNumber": 5,
+        "codewhispererCursorOffset": 8,
+        "codewhispererLanguage": "java",
+        "credentialStartUrl": "https://amzn.awsapps.com/start",
+        "codewhispererSupplementalContextTimeout": false,
+        "codewhispererSupplementalContextIsUtg": false,
+        "codewhispererSupplementalContextLatency": 0.15163000000757165,
+        "codewhispererSupplementalContextLength": 0
+    }
+}
+
+
+[Info  - 15:56:56] vscode client: Received telemetry event from server {"name":"codewhisperer_serviceInvocation","result":"Succeeded","data":{"codewhispererRequestId":"5dfd1cdc-014f-4be5-9557-5b839ba5bf1c","codewhispererSessionId":"c55beae4-997c-4278-8785-de66cca909e8","codewhispererLastSuggestionIndex":0,"codewhispererCompletionType":"Line","codewhispererTriggerType":"AutoTrigger","codewhispererAutomatedTriggerType":"SpecialCharacters","duration":764,"codewhispererLineNumber":5,"codewhispererCursorOffset":8,"codewhispererLanguage":"java","credentialStartUrl":"https://amzn.awsapps.com/start","codewhispererSupplementalContextTimeout":false,"codewhispererSupplementalContextIsUtg":false,"codewhispererSupplementalContextLatency":0.15163000000757165,"codewhispererSupplementalContextLength":0}}
+[Trace - 15:56:56] Received notification 'window/logMessage'.
+Params: {
+    "type": 3,
+    "message": "[2024-10-18T13:56:56.234Z] [DebugInlineCompletion][gqc4] time took: +0ms, total time: 765ms, message: Return InlineCompletion response to client"
+}
+
+
+[Info  - 15:56:56] [2024-10-18T13:56:56.234Z] [DebugInlineCompletion][gqc4] time took: +0ms, total time: 765ms, message: Return InlineCompletion response to client
+[Trace - 15:56:56] Received response 'aws/textDocument/inlineCompletionWithReferences - (12)' in 769ms.
+Result: {
+    "items": [
+        {
+            "itemId": "6df1676b-92be-44ec-9217-58a1049bad7e",
+            "insertText": "this.name = name;"
+        }
+    ],
+    "sessionId": "bcbfb11e-61c0-4b83-a508-8b7fe1c7af43"
+}
+
+
+[Info  - 15:56:56] Client: Received 1 suggestions
+[Trace - 15:56:56] Sending request 'aws/textDocument/inlineCompletionWithReferences - (13)'.
+Params: {
+    "textDocument": {
+        "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.java"
+    },
+    "position": {
+        "line": 5,
+        "character": 8
+    },
+    "context": {
+        "triggerKind": 0
+    }
+}
+
+
+[Trace - 15:56:56] Received notification 'window/logMessage'.
+Params: {
+    "type": 3,
+    "message": "[2024-10-18T13:56:56.247Z] [DebugInlineCompletion][906b] Start InlineCompletion request at 1729259816247"
+}
+
+
+[Info  - 15:56:56] [2024-10-18T13:56:56.247Z] [DebugInlineCompletion][906b] Start InlineCompletion request at 1729259816247
+[Trace - 15:56:56] Received notification 'window/logMessage'.
+Params: {
+    "type": 3,
+    "message": "[2024-10-18T13:56:56.247Z] [DebugInlineCompletion][906b] time took: +0ms, total time: 0ms, message: Read file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.java content"
+}
+
+
+[Info  - 15:56:56] [2024-10-18T13:56:56.247Z] [DebugInlineCompletion][906b] time took: +0ms, total time: 0ms, message: Read file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.java content
+[Trace - 15:56:56] Received notification 'window/logMessage'.
+Params: {
+    "type": 3,
+    "message": "[2024-10-18T13:56:56.247Z] [DebugInlineCompletion][906b] time took: +0ms, total time: 0ms, message: Got file context {\"filename\":\"file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.java\",\"programmingLanguage\":{\"languageName\":\"java\"},\"leftFileContent\":\"// Create Person class with getName method\\nclass Person {\\n    private String name;\\n\\n    public Person(String name) {\\n        \",\"rightFileContent\":\"\\n    }\\n\\n    public String getName() {\\n        return name;\\n    }\\n}\\n\\n// Create Student class extending Person and overriding getName method\\nclass Student extends Person {\\n    private int id;\\n\\n    public Student(String name, int id) {\\n        super(name);\\n        this.id = id;\\n    }\\n\\n    @Override\\n    public String getName() {\\n        return super.getName() + \\\" (Student)\\\";\\n    }\\n}\\n\\npublic class Main {\\n    public static void main(String[] args) {\\n        Person person = new Person(\\\"John\\\");\\n        System.out.println(person.getName()); // Output: John\\n\\n        Student student = new Student(\\\"Jane\\\", 1234);\\n        System.out.println(student.getName()); // Output: Jane (Student)\\n    }\\n}\\n\"}"
+}
+
+
+[Info  - 15:56:56] [2024-10-18T13:56:56.247Z] [DebugInlineCompletion][906b] time took: +0ms, total time: 0ms, message: Got file context {"filename":"file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.java","programmingLanguage":{"languageName":"java"},"leftFileContent":"// Create Person class with getName method\nclass Person {\n    private String name;\n\n    public Person(String name) {\n        ","rightFileContent":"\n    }\n\n    public String getName() {\n        return name;\n    }\n}\n\n// Create Student class extending Person and overriding getName method\nclass Student extends Person {\n    private int id;\n\n    public Student(String name, int id) {\n        super(name);\n        this.id = id;\n    }\n\n    @Override\n    public String getName() {\n        return super.getName() + \" (Student)\";\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Person person = new Person(\"John\");\n        System.out.println(person.getName()); // Output: John\n\n        Student student = new Student(\"Jane\", 1234);\n        System.out.println(student.getName()); // Output: Jane (Student)\n    }\n}\n"}
+[Trace - 15:56:56] Received notification 'window/logMessage'.
+Params: {
+    "type": 3,
+    "message": "[2024-10-18T13:56:56.247Z] [DebugInlineCompletion][906b] time took: +0ms, total time: 0ms, message: Autotrigger result: {\"shouldTrigger\":true,\"classifierResult\":0.19124335925802644,\"classifierThreshold\":0.43}"
+}
+
+
+[Info  - 15:56:56] [2024-10-18T13:56:56.247Z] [DebugInlineCompletion][906b] time took: +0ms, total time: 0ms, message: Autotrigger result: {"shouldTrigger":true,"classifierResult":0.19124335925802644,"classifierThreshold":0.43}
+[Trace - 15:56:56] Received notification 'window/logMessage'.
+Params: {
+    "type": 3,
+    "message": "[2024-10-18T13:56:56.247Z] [DebugInlineCompletion][906b] time took: +0ms, total time: 0ms, message: Collected supplemental context: {\"isUtg\":false,\"isProcessTimeout\":false,\"supplementalContextItems\":[],\"contentsLength\":0,\"latency\":0.4082990000024438,\"strategy\":\"OpenTabs_BM25\"}"
+}
+
+
+[Info  - 15:56:56] [2024-10-18T13:56:56.247Z] [DebugInlineCompletion][906b] time took: +0ms, total time: 0ms, message: Collected supplemental context: {"isUtg":false,"isProcessTimeout":false,"supplementalContextItems":[],"contentsLength":0,"latency":0.4082990000024438,"strategy":"OpenTabs_BM25"}
+[Trace - 15:56:56] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_userTriggerDecision",
+    "data": {
+        "codewhispererSessionId": "c55beae4-997c-4278-8785-de66cca909e8",
+        "codewhispererFirstRequestId": "5dfd1cdc-014f-4be5-9557-5b839ba5bf1c",
+        "credentialStartUrl": "https://amzn.awsapps.com/start",
+        "codewhispererSuggestionState": "Discard",
+        "codewhispererCompletionType": "Line",
+        "codewhispererLanguage": "java",
+        "codewhispererTriggerType": "AutoTrigger",
+        "codewhispererAutomatedTriggerType": "SpecialCharacters",
+        "codewhispererTriggerCharacter": "{",
+        "codewhispererLineNumber": 5,
+        "codewhispererCursorOffset": 8,
+        "codewhispererSuggestionCount": 1,
+        "codewhispererClassifierResult": 0.19124335925802644,
+        "codewhispererClassifierThreshold": 0.43,
+        "codewhispererTotalShownTime": 0,
+        "codewhispererTypeaheadLength": 0,
+        "codewhispererTimeSinceLastDocumentChange": 14333,
+        "codewhispererTimeSinceLastUserDecision": 13491,
+        "codewhispererTimeToFirstRecommendation": 764,
+        "codewhispererPreviousSuggestionState": "Empty",
+        "codewhispererSupplementalContextTimeout": false,
+        "codewhispererSupplementalContextIsUtg": false,
+        "codewhispererSupplementalContextLength": 0
+    }
+}
+
+
+[Info  - 15:56:56] vscode client: Received telemetry event from server {"name":"codewhisperer_userTriggerDecision","data":{"codewhispererSessionId":"c55beae4-997c-4278-8785-de66cca909e8","codewhispererFirstRequestId":"5dfd1cdc-014f-4be5-9557-5b839ba5bf1c","credentialStartUrl":"https://amzn.awsapps.com/start","codewhispererSuggestionState":"Discard","codewhispererCompletionType":"Line","codewhispererLanguage":"java","codewhispererTriggerType":"AutoTrigger","codewhispererAutomatedTriggerType":"SpecialCharacters","codewhispererTriggerCharacter":"{","codewhispererLineNumber":5,"codewhispererCursorOffset":8,"codewhispererSuggestionCount":1,"codewhispererClassifierResult":0.19124335925802644,"codewhispererClassifierThreshold":0.43,"codewhispererTotalShownTime":0,"codewhispererTypeaheadLength":0,"codewhispererTimeSinceLastDocumentChange":14333,"codewhispererTimeSinceLastUserDecision":13491,"codewhispererTimeToFirstRecommendation":764,"codewhispererPreviousSuggestionState":"Empty","codewhispererSupplementalContextTimeout":false,"codewhispererSupplementalContextIsUtg":false,"codewhispererSupplementalContextLength":0}}
+[Trace - 15:56:56] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_userDecision",
+    "data": {
+        "codewhispererRequestId": "5dfd1cdc-014f-4be5-9557-5b839ba5bf1c",
+        "codewhispererSessionId": "c55beae4-997c-4278-8785-de66cca909e8",
+        "codewhispererCompletionType": "Line",
+        "codewhispererTriggerType": "AutoTrigger",
+        "codewhispererLanguage": "java",
+        "credentialStartUrl": "https://amzn.awsapps.com/start",
+        "codewhispererSuggestionIndex": 0,
+        "codewhispererSuggestionState": "Discard",
+        "codewhispererSuggestionReferences": [],
+        "codewhispererSuggestionReferenceCount": 0,
+        "codewhispererSupplementalContextTimeout": false,
+        "codewhispererSupplementalContextIsUtg": false,
+        "codewhispererSupplementalContextLength": 0
+    }
+}
+
+
+[Info  - 15:56:56] vscode client: Received telemetry event from server {"name":"codewhisperer_userDecision","data":{"codewhispererRequestId":"5dfd1cdc-014f-4be5-9557-5b839ba5bf1c","codewhispererSessionId":"c55beae4-997c-4278-8785-de66cca909e8","codewhispererCompletionType":"Line","codewhispererTriggerType":"AutoTrigger","codewhispererLanguage":"java","credentialStartUrl":"https://amzn.awsapps.com/start","codewhispererSuggestionIndex":0,"codewhispererSuggestionState":"Discard","codewhispererSuggestionReferences":[],"codewhispererSuggestionReferenceCount":0,"codewhispererSupplementalContextTimeout":false,"codewhispererSupplementalContextIsUtg":false,"codewhispererSupplementalContextLength":0}}
+[Trace - 15:56:56] Received notification 'window/logMessage'.
+Params: {
+    "type": 3,
+    "message": "[2024-10-18T13:56:56.247Z] [DebugInlineCompletion][906b] time took: +0ms, total time: 0ms, message: Created new completion session. Calling codeWhispererService.generateSuggestions"
+}
+
+
+[Info  - 15:56:56] [2024-10-18T13:56:56.247Z] [DebugInlineCompletion][906b] time took: +0ms, total time: 0ms, message: Created new completion session. Calling codeWhispererService.generateSuggestions
+[Trace - 15:56:56] Received notification 'window/logMessage'.
+Params: {
+    "type": 3,
+    "message": "[2024-10-18T13:56:56.927Z] [DebugInlineCompletion][906b] time took: +680ms, total time: 680ms, message: Received inline suggestions {\"suggestions\":[{\"content\":\"this.name = name;\",\"references\":[],\"mostRelevantMissingImports\":[],\"itemId\":\"099fd469-2c98-49b5-bfa5-5e68e3750396\"}],\"responseContext\":{\"requestId\":\"6f8584ec-9e89-429b-9458-6dac8afb9690\",\"codewhispererSessionId\":\"69f39790-9121-4fbb-8ba5-6984db12e933\",\"nextToken\":\"\"}}"
+}
+
+
+[Info  - 15:56:56] [2024-10-18T13:56:56.927Z] [DebugInlineCompletion][906b] time took: +680ms, total time: 680ms, message: Received inline suggestions {"suggestions":[{"content":"this.name = name;","references":[],"mostRelevantMissingImports":[],"itemId":"099fd469-2c98-49b5-bfa5-5e68e3750396"}],"responseContext":{"requestId":"6f8584ec-9e89-429b-9458-6dac8afb9690","codewhispererSessionId":"69f39790-9121-4fbb-8ba5-6984db12e933","nextToken":""}}
+[Trace - 15:56:56] Received notification 'telemetry/event'.
+Params: {
+    "name": "codewhisperer_serviceInvocation",
+    "result": "Succeeded",
+    "data": {
+        "codewhispererRequestId": "6f8584ec-9e89-429b-9458-6dac8afb9690",
+        "codewhispererSessionId": "69f39790-9121-4fbb-8ba5-6984db12e933",
+        "codewhispererLastSuggestionIndex": 0,
+        "codewhispererCompletionType": "Line",
+        "codewhispererTriggerType": "OnDemand",
+        "duration": 680,
+        "codewhispererLineNumber": 5,
+        "codewhispererCursorOffset": 8,
+        "codewhispererLanguage": "java",
+        "credentialStartUrl": "https://amzn.awsapps.com/start",
+        "codewhispererSupplementalContextTimeout": false,
+        "codewhispererSupplementalContextIsUtg": false,
+        "codewhispererSupplementalContextLatency": 0.4082990000024438,
+        "codewhispererSupplementalContextLength": 0
+    }
+}
+
+
+[Info  - 15:56:56] vscode client: Received telemetry event from server {"name":"codewhisperer_serviceInvocation","result":"Succeeded","data":{"codewhispererRequestId":"6f8584ec-9e89-429b-9458-6dac8afb9690","codewhispererSessionId":"69f39790-9121-4fbb-8ba5-6984db12e933","codewhispererLastSuggestionIndex":0,"codewhispererCompletionType":"Line","codewhispererTriggerType":"OnDemand","duration":680,"codewhispererLineNumber":5,"codewhispererCursorOffset":8,"codewhispererLanguage":"java","credentialStartUrl":"https://amzn.awsapps.com/start","codewhispererSupplementalContextTimeout":false,"codewhispererSupplementalContextIsUtg":false,"codewhispererSupplementalContextLatency":0.4082990000024438,"codewhispererSupplementalContextLength":0}}
+[Trace - 15:56:56] Received notification 'window/logMessage'.
+Params: {
+    "type": 3,
+    "message": "[2024-10-18T13:56:56.927Z] [DebugInlineCompletion][906b] time took: +0ms, total time: 680ms, message: Return InlineCompletion response to client"
+}
+
+
+[Info  - 15:56:56] [2024-10-18T13:56:56.927Z] [DebugInlineCompletion][906b] time took: +0ms, total time: 680ms, message: Return InlineCompletion response to client
+[Trace - 15:56:56] Received response 'aws/textDocument/inlineCompletionWithReferences - (13)' in 684ms.
+Result: {
+    "items": [
+        {
+            "itemId": "099fd469-2c98-49b5-bfa5-5e68e3750396",
+            "insertText": "this.name = name;"
+        }
+    ],
+    "sessionId": "20a2878f-a2b9-4001-b111-a45fd4f7c89b"
+}
+
+
+[Info  - 15:56:56] Client: Received 1 suggestions
+[Trace - 15:56:57] Sending notification 'textDocument/didChange'.
+Params: {
+    "textDocument": {
+        "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.java",
+        "version": 9
+    },
+    "contentChanges": [
+        {
+            "range": {
+                "start": {
+                    "line": 5,
+                    "character": 8
+                },
+                "end": {
+                    "line": 5,
+                    "character": 8
+                }
+            },
+            "rangeLength": 0,
+            "text": "this.name = name;"
+        }
+    ]
+}
+
+
+[Trace - 15:56:57] Sending request 'aws/textDocument/inlineCompletionWithReferences - (14)'.
+Params: {
+    "textDocument": {
+        "uri": "file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.java"
+    },
+    "position": {
+        "line": 5,
+        "character": 25
+    },
+    "context": {
+        "triggerKind": 1
+    }
+}
+
+
+[Trace - 15:56:57] Received notification 'window/logMessage'.
+Params: {
+    "type": 3,
+    "message": "[2024-10-18T13:56:57.768Z] [DebugInlineCompletion][xklh] Start InlineCompletion request at 1729259817768"
+}
+
+
+[Info  - 15:56:57] [2024-10-18T13:56:57.768Z] [DebugInlineCompletion][xklh] Start InlineCompletion request at 1729259817768
+[Trace - 15:56:57] Received notification 'window/logMessage'.
+Params: {
+    "type": 3,
+    "message": "[2024-10-18T13:56:57.768Z] [DebugInlineCompletion][xklh] time took: +0ms, total time: 0ms, message: Read file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.java content"
+}
+
+
+[Info  - 15:56:57] [2024-10-18T13:56:57.768Z] [DebugInlineCompletion][xklh] time took: +0ms, total time: 0ms, message: Read file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.java content
+[Trace - 15:56:57] Received notification 'window/logMessage'.
+Params: {
+    "type": 3,
+    "message": "[2024-10-18T13:56:57.768Z] [DebugInlineCompletion][xklh] time took: +0ms, total time: 0ms, message: Got file context {\"filename\":\"file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.java\",\"programmingLanguage\":{\"languageName\":\"java\"},\"leftFileContent\":\"// Create Person class with getName method\\nclass Person {\\n    private String name;\\n\\n    public Person(String name) {\\n        this.name = name;\",\"rightFileContent\":\"\\n    }\\n\\n    public String getName() {\\n        return name;\\n    }\\n}\\n\\n// Create Student class extending Person and overriding getName method\\nclass Student extends Person {\\n    private int id;\\n\\n    public Student(String name, int id) {\\n        super(name);\\n        this.id = id;\\n    }\\n\\n    @Override\\n    public String getName() {\\n        return super.getName() + \\\" (Student)\\\";\\n    }\\n}\\n\\npublic class Main {\\n    public static void main(String[] args) {\\n        Person person = new Person(\\\"John\\\");\\n        System.out.println(person.getName()); // Output: John\\n\\n        Student student = new Student(\\\"Jane\\\", 1234);\\n        System.out.println(student.getName()); // Output: Jane (Student)\\n    }\\n}\\n\"}"
+}
+
+
+[Info  - 15:56:57] [2024-10-18T13:56:57.768Z] [DebugInlineCompletion][xklh] time took: +0ms, total time: 0ms, message: Got file context {"filename":"file:///Users/vshcherb/Projects/DEXP/language-servers/server/aws-lsp-codewhisperer/test_files/Person.java","programmingLanguage":{"languageName":"java"},"leftFileContent":"// Create Person class with getName method\nclass Person {\n    private String name;\n\n    public Person(String name) {\n        this.name = name;","rightFileContent":"\n    }\n\n    public String getName() {\n        return name;\n    }\n}\n\n// Create Student class extending Person and overriding getName method\nclass Student extends Person {\n    private int id;\n\n    public Student(String name, int id) {\n        super(name);\n        this.id = id;\n    }\n\n    @Override\n    public String getName() {\n        return super.getName() + \" (Student)\";\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Person person = new Person(\"John\");\n        System.out.println(person.getName()); // Output: John\n\n        Student student = new Student(\"Jane\", 1234);\n        System.out.println(student.getName()); // Output: Jane (Student)\n    }\n}\n"}
+[Trace - 15:56:57] Received notification 'window/logMessage'.
+Params: {
+    "type": 3,
+    "message": "[2024-10-18T13:56:57.768Z] [DebugInlineCompletion][xklh] time took: +0ms, total time: 0ms, message: Autotrigger result: {\"shouldTrigger\":false,\"classifierResult\":-1.4922534560285978,\"classifierThreshold\":0.43}"
+}
+
+
+[Info  - 15:56:57] [2024-10-18T13:56:57.768Z] [DebugInlineCompletion][xklh] time took: +0ms, total time: 0ms, message: Autotrigger result: {"shouldTrigger":false,"classifierResult":-1.4922534560285978,"classifierThreshold":0.43}
+[Trace - 15:56:57] Received response 'aws/textDocument/inlineCompletionWithReferences - (14)' in 4ms.
+Result: {
+    "sessionId": "",
+    "items": []
+}
+
+
+[Info  - 15:56:57] Client: Received 0 suggestions

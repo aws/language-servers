@@ -28,10 +28,7 @@ export function throwOnInvalidClientRegistration(
         !clientRegistration.scopes ||
         !clientRegistration.scopes.length
     ) {
-        throw new AwsError(
-            `Client registration [${clientRegistration?.clientId}] is invalid.`,
-            AwsErrorCodes.E_INVALID_SSO_CLIENT
-        )
+        throw new AwsError('Client registration is invalid.', AwsErrorCodes.E_INVALID_SSO_CLIENT)
     }
 }
 
@@ -51,7 +48,7 @@ export function throwOnInvalidSsoSession(
         !ssoSession.settings.sso_region?.trim() ||
         !ssoSession.settings.sso_start_url?.trim()
     ) {
-        throw new AwsError(`SSO session [${ssoSession?.name}] is invalid.`, AwsErrorCodes.E_INVALID_SSO_SESSION)
+        throw new AwsError('SSO session is invalid.', AwsErrorCodes.E_INVALID_SSO_SESSION)
     }
 }
 

@@ -1,8 +1,8 @@
 import {
     CodeWhispererStreaming,
     CodeWhispererStreamingClientConfig,
-    GenerateAssistantResponseCommandInput,
-    GenerateAssistantResponseCommandOutput,
+    SendMessageCommandInput,
+    SendMessageCommandOutput,
 } from '@amzn/codewhisperer-streaming'
 import { ConfiguredRetryStrategy } from '@aws-sdk/util-retry'
 import { CredentialsProvider } from '@aws/language-server-runtimes/server-interface'
@@ -17,14 +17,14 @@ export class ChatSessionService {
     #abortController?: AbortController
     #credentialsProvider: CredentialsProvider
     #config?: CodeWhispererStreamingClientConfig
-    #sessionId?: string
+    #conversationId?: string
 
-    public get sessionId(): string | undefined {
-        return this.#sessionId
+    public get conversationId(): string | undefined {
+        return this.#conversationId
     }
 
-    public set sessionId(value: string | undefined) {
-        this.#sessionId = value
+    public set conversationId(value: string | undefined) {
+        this.#conversationId = value
     }
 
     constructor(credentialsProvider: CredentialsProvider, config?: CodeWhispererStreamingClientConfig) {
@@ -32,13 +32,11 @@ export class ChatSessionService {
         this.#config = config
     }
 
-    public async generateAssistantResponse(
-        request: GenerateAssistantResponseCommandInput
-    ): Promise<GenerateAssistantResponseCommandOutput> {
+    public async sendMessage(request: SendMessageCommandInput): Promise<SendMessageCommandOutput> {
         this.#abortController = new AbortController()
 
-        if (this.#sessionId && request.conversationState) {
-            request.conversationState.conversationId = this.#sessionId
+        if (this.#conversationId && request.conversationState) {
+            request.conversationState.conversationId = this.#conversationId
         }
 
         const client = new CodeWhispererStreaming({
@@ -49,18 +47,16 @@ export class ChatSessionService {
             ...this.#config,
         })
 
-        const response = await client.generateAssistantResponse(request, {
+        const response = await client.sendMessage(request, {
             abortSignal: this.#abortController?.signal,
         })
-
-        this.#sessionId = response.conversationId
 
         return response
     }
 
     public clear(): void {
         this.#abortController?.abort()
-        this.#sessionId = undefined
+        this.#conversationId = undefined
     }
 
     public dispose(): void {
