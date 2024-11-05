@@ -63,6 +63,7 @@ const sampleUserInputRequest: StartTransformRequest = {
             SourceCodeFilePaths: [],
         },
     ],
+    TransformNetStandardProjects: false,
     command: '',
 }
 
