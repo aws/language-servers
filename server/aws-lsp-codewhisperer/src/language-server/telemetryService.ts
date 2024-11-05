@@ -16,6 +16,7 @@ import {
     ChatMessageInteractionType,
     CodeCoverageEvent,
     TelemetryEvent,
+    ChatUserModificationEvent,
     ChatAddMessageEvent,
     UserIntent,
 } from '../client/token/codewhispererbearertokenclient'
@@ -215,6 +216,44 @@ export class TelemetryService extends CodeWhispererServiceToken {
         }
         this.invokeSendTelemetryEvent({
             chatInteractWithMessageEvent: event,
+        })
+    }
+
+    public emitChatUserModificationEvent(params: {
+        conversationId: string
+        messageId: string
+        modificationPercentage: number
+        customizationArn?: string
+    }) {
+        this.invokeSendTelemetryEvent({
+            chatUserModificationEvent: params,
+        })
+    }
+
+    public emitUserModificationEvent(params: {
+        sessionId: string
+        requestId: string
+        languageId: CodewhispererLanguage
+        customizationArn?: string
+        timestamp: Date
+        modificationPercentage: number
+        acceptedCharacterCount: number
+        unmodifiedAcceptedCharacterCount: number
+    }) {
+        this.invokeSendTelemetryEvent({
+            userModificationEvent: {
+                sessionId: params.sessionId,
+                requestId: params.requestId,
+                programmingLanguage: {
+                    languageName: getRuntimeLanguage(params.languageId),
+                },
+                // deprecated % value and should not be used by service side
+                modificationPercentage: params.modificationPercentage,
+                customizationArn: params.customizationArn,
+                timestamp: params.timestamp,
+                acceptedCharacterCount: params.acceptedCharacterCount,
+                unmodifiedAcceptedCharacterCount: params.unmodifiedAcceptedCharacterCount,
+            },
         })
     }
 

@@ -32,12 +32,18 @@ import {
     CodeWhispererUserDecisionEvent,
     CodeWhispererUserTriggerDecisionEvent,
 } from './telemetry/types'
-import { getCompletionType, isAwsError } from './utils'
+import {
+    getCompletionType,
+    getEndPositionForAcceptedSuggestion,
+    getUnmodifiedAcceptedTokens,
+    isAwsError,
+} from './utils'
 import { getUserAgent, makeUserContextObject } from './utilities/telemetryUtils'
 import { Q_CONFIGURATION_SECTION } from './configuration/qConfigurationServer'
 import { fetchSupplementalContext } from './utilities/supplementalContextUtil/supplementalContextUtil'
 import { undefinedIfEmpty } from './utilities/textUtils'
 import { TelemetryService } from './telemetryService'
+import { AcceptedSuggestionEntry, CodeDiffTracker } from './telemetry/codeDiffTracker'
 
 const EMPTY_RESULT = { sessionId: '', items: [] }
 export const CONTEXT_CHARACTERS_LIMIT = 10240
@@ -287,6 +293,13 @@ const mergeSuggestionsWithRightContext = (
     })
 }
 
+interface AcceptedInlineSuggestionEntry extends AcceptedSuggestionEntry {
+    sessionId: string
+    requestId: string
+    languageId: CodewhispererLanguage
+    customizationArn?: string
+}
+
 export const CodewhispererServerFactory =
     (service: (credentials: CredentialsProvider) => CodeWhispererServiceBase): Server =>
     ({ credentialsProvider, lsp, workspace, telemetry, logging, runtime }) => {
@@ -323,6 +336,23 @@ export const CodewhispererServerFactory =
         let includeSuggestionsWithCodeReferences = false
 
         const codePercentageTracker = new CodePercentageTracker(telemetry, telemetryService)
+
+        const codeDiffTracker: CodeDiffTracker<AcceptedInlineSuggestionEntry> = new CodeDiffTracker(
+            workspace,
+            logging,
+            (entry: AcceptedInlineSuggestionEntry, percentage, unmodifiedAcceptedCharacterCount) => {
+                telemetryService.emitUserModificationEvent({
+                    sessionId: entry.sessionId,
+                    requestId: entry.requestId,
+                    languageId: entry.languageId,
+                    customizationArn: entry.customizationArn,
+                    timestamp: new Date(),
+                    acceptedCharacterCount: entry.originalString.length,
+                    modificationPercentage: percentage,
+                    unmodifiedAcceptedCharacterCount: unmodifiedAcceptedCharacterCount,
+                })
+            }
+        )
 
         const onInlineCompletionHandler = async (
             params: InlineCompletionWithReferencesParams,
@@ -409,6 +439,7 @@ export const CodewhispererServerFactory =
                     )
                 }
                 const newSession = sessionManager.createSession({
+                    document: textDocument,
                     startPosition: params.position,
                     triggerType: isAutomaticLspTriggerKind ? 'AutoTrigger' : 'OnDemand',
                     language: fileContext.programmingLanguage.languageName,
@@ -534,6 +565,23 @@ export const CodewhispererServerFactory =
             })
         }
 
+        // Schedule tracker for UserModification Telemetry event
+        const enqueueCodeDiffEntry = (session: CodeWhispererSession, acceptedSuggestion: Suggestion) => {
+            const endPosition = getEndPositionForAcceptedSuggestion(acceptedSuggestion.content, session.startPosition)
+
+            codeDiffTracker.enqueue({
+                sessionId: session.codewhispererSessionId || '',
+                requestId: session.responseContext?.requestId || '',
+                fileUrl: session.document.uri,
+                languageId: session.language,
+                time: Date.now(),
+                originalString: acceptedSuggestion.content,
+                startPosition: session.startPosition,
+                endPosition: endPosition,
+                customizationArn: session.customizationArn,
+            })
+        }
+
         const onLogInlineCompletionSessionResultsHandler = async (params: LogInlineCompletionSessionResultsParams) => {
             const {
                 sessionId,
@@ -564,6 +612,8 @@ export const CodewhispererServerFactory =
                 if (acceptedSuggestion) {
                     codePercentageTracker.countSuccess(session.language)
                     codePercentageTracker.countAcceptedTokens(session.language, acceptedSuggestion.content)
+
+                    enqueueCodeDiffEntry(session, acceptedSuggestion)
                 }
             }
 
@@ -642,6 +692,7 @@ export const CodewhispererServerFactory =
 
         return () => {
             codePercentageTracker.dispose()
+            codeDiffTracker.shutdown()
         }
     }
 
