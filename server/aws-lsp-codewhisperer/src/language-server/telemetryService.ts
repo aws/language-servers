@@ -225,6 +225,18 @@ export class TelemetryService extends CodeWhispererServiceToken {
         modificationPercentage: number
         customizationArn?: string
     }) {
+        if (this.enableTelemetryEventsToDestination) {
+            this.telemetry.emitMetric({
+                name: ChatTelemetryEventName.ModifyCode,
+                data: {
+                    [CONVERSATION_ID_METRIC_KEY]: params.conversationId,
+                    cwsprChatMessageId: params.messageId,
+                    cwsprChatModificationPercentage: params.modificationPercentage,
+                    codewhispererCustomizationArn: params.customizationArn,
+                    credentialStartUrl: this.credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
+                },
+            })
+        }
         this.invokeSendTelemetryEvent({
             chatUserModificationEvent: params,
         })

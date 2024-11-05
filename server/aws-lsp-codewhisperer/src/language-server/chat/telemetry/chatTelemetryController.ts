@@ -121,16 +121,6 @@ export class ChatTelemetryController {
     }
 
     public emitModifyCodeMetric(entry: AcceptedSuggestionChatEntry, percentage: number) {
-        const data: Omit<ModifyCodeEvent, 'cwsprChatConversationId'> = {
-            cwsprChatMessageId: entry.messageId,
-            cwsprChatModificationPercentage: percentage,
-            codewhispererCustomizationArn: entry.customizationArn,
-        }
-
-        this.emitConversationMetric({
-            name: ChatTelemetryEventName.ModifyCode,
-            data,
-        })
         this.#telemetryService.emitChatUserModificationEvent({
             conversationId: entry.conversationId,
             messageId: entry.messageId,

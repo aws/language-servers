@@ -47,6 +47,7 @@ class MockCredentialsProvider implements CredentialsProvider {
 }
 
 describe('TelemetryService', () => {
+    let telemetry: Telemetry
     let clock: sinon.SinonFakeTimers
     let telemetryService: TelemetryService
     let mockCredentialsProvider: MockCredentialsProvider
@@ -88,6 +89,10 @@ describe('TelemetryService', () => {
             now: 1483228800000,
         })
         mockCredentialsProvider = new MockCredentialsProvider()
+        telemetry = {
+            emitMetric: sinon.stub(),
+            onClientTelemetry: sinon.stub(),
+        }
     })
 
     afterEach(() => {
@@ -258,7 +263,6 @@ describe('TelemetryService', () => {
     })
 
     describe('Chat interact with message', () => {
-        let telemetry: Telemetry
         let telemetryService: TelemetryService
         let mockCredentialsProvider: MockCredentialsProvider
         let invokeSendTelemetryEventStub: sinon.SinonStub
@@ -270,10 +274,6 @@ describe('TelemetryService', () => {
                     startUrl: 'idc-start-url',
                 },
             })
-            telemetry = {
-                emitMetric: sinon.stub(),
-                onClientTelemetry: sinon.stub(),
-            }
             telemetryService = new TelemetryService(mockCredentialsProvider, 'bearer', telemetry, logging, {})
             invokeSendTelemetryEventStub = sinon
                 .stub(telemetryService, 'sendTelemetryEvent' as any)
@@ -497,13 +497,14 @@ describe('TelemetryService', () => {
         sinon.assert.calledOnceWithExactly(invokeSendTelemetryEventStub, expectedEvent)
     })
 
-    it('should emit chatUserModificationEvent event', () => {
+    it('should emit chatUserModificationEvent event including emitting event to destination', () => {
         mockCredentialsProvider.setConnectionMetadata({
             sso: {
                 startUrl: 'idc-start-url',
             },
         })
-        telemetryService = new TelemetryService(mockCredentialsProvider, 'bearer', {} as Telemetry, logging, {})
+        telemetryService = new TelemetryService(mockCredentialsProvider, 'bearer', telemetry, logging, {})
+        telemetryService.updateEnableTelemetryEventsToDestination(true)
         const invokeSendTelemetryEventStub: sinon.SinonStub = sinon
             .stub(telemetryService, 'sendTelemetryEvent' as any)
             .returns(Promise.resolve())
@@ -528,10 +529,19 @@ describe('TelemetryService', () => {
             optOutPreference: 'OPTIN',
         }
         sinon.assert.calledOnceWithExactly(invokeSendTelemetryEventStub, expectedEvent)
+        sinon.assert.calledOnceWithExactly(telemetry.emitMetric as sinon.SinonStub, {
+            name: 'amazonq_modifyCode',
+            data: {
+                cwsprChatConversationId: 'test-conversation-id',
+                cwsprChatMessageId: 'test-message-id',
+                cwsprChatModificationPercentage: 0.2,
+                codewhispererCustomizationArn: 'test-arn',
+                credentialStartUrl: 'idc-start-url',
+            },
+        })
     })
 
     describe('Chat add message', () => {
-        let telemetry: Telemetry
         let telemetryService: TelemetryService
         let mockCredentialsProvider: MockCredentialsProvider
         let invokeSendTelemetryEventStub: sinon.SinonStub
@@ -543,10 +553,6 @@ describe('TelemetryService', () => {
                     startUrl: 'idc-start-url',
                 },
             })
-            telemetry = {
-                emitMetric: sinon.stub(),
-                onClientTelemetry: sinon.stub(),
-            }
             telemetryService = new TelemetryService(mockCredentialsProvider, 'bearer', telemetry, logging, {})
             invokeSendTelemetryEventStub = sinon
                 .stub(telemetryService, 'sendTelemetryEvent' as any)
