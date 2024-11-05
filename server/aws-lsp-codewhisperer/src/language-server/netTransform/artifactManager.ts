@@ -111,6 +111,7 @@ export class ArtifactManager {
         return {
             EntryPath: this.normalizeSourceFileRelativePath(request.SolutionRootPath, request.SelectedProjectPath),
             Projects: projects,
+            TransformNetStandardProjects: request.TransformNetStandardProjects
         } as RequirementJson
     }
 

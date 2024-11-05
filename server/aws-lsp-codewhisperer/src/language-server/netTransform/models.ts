@@ -7,7 +7,8 @@ export interface StartTransformRequest extends ExecuteCommandParams {
     ProgramLanguage: string
     TargetFramework: string
     SolutionConfigPaths: string[]
-    ProjectMetadata: TransformProjectMetadata[]
+    ProjectMetadata: TransformProjectMetadata[],
+    TransformNetStandardProjects: boolean
 }
 
 export interface StartTransformResponse {
@@ -71,7 +72,8 @@ export interface DownloadArtifactsResponse {
 
 export interface RequirementJson {
     EntryPath: string
-    Projects: Project[]
+    Projects: Project[],
+    TransformNetStandardProjects: boolean
 }
 
 export interface ExternalReference {
