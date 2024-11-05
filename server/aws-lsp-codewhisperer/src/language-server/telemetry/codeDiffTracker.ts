@@ -1,7 +1,7 @@
 import { distance } from 'fastest-levenshtein'
 import { Position } from '@aws/language-server-runtimes/server-interface'
 import { Features } from '../types'
-import { getErrorMessage } from '../utils'
+import { getErrorMessage, getUnmodifiedAcceptedTokens } from '../utils'
 
 export interface AcceptedSuggestionEntry {
     fileUrl: string
@@ -37,7 +37,7 @@ export class CodeDiffTracker<T extends AcceptedSuggestionEntry = AcceptedSuggest
     #interval?: NodeJS.Timeout
     #workspace: Features['workspace']
     #logging: Features['logging']
-    #recordMetric: (entry: T, codeModificationPercentage: number) => void
+    #recordMetric: (entry: T, codeModificationPercentage: number, unmodifiedAcceptedCharacterCount: number) => void
     #flushInterval: number
     #timeElapsedThreshold: number
     #maxQueueSize: number
@@ -60,7 +60,7 @@ export class CodeDiffTracker<T extends AcceptedSuggestionEntry = AcceptedSuggest
     constructor(
         workspace: Features['workspace'],
         logging: Features['logging'],
-        recordMetric: (entry: T, codeModificationPercentage: number) => void,
+        recordMetric: (entry: T, codeModificationPercentage: number, unmodifiedAcceptedCharacterCount: number) => void,
         options?: CodeDiffTrackerOptions
     ) {
         this.#eventQueue = []
@@ -129,8 +129,11 @@ export class CodeDiffTracker<T extends AcceptedSuggestionEntry = AcceptedSuggest
                     end: suggestion.endPosition,
                 })
                 const percentage = CodeDiffTracker.checkDiff(currString, suggestion.originalString)
-
-                this.#recordMetric(suggestion, percentage)
+                const unmodifiedAcceptedCharacterCount = getUnmodifiedAcceptedTokens(
+                    suggestion.originalString,
+                    currString
+                )
+                this.#recordMetric(suggestion, percentage, unmodifiedAcceptedCharacterCount)
             }
         } catch (e) {
             this.#logging.log(`Exception Thrown from CodeDiffTracker: ${e}`)

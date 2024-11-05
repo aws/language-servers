@@ -1,4 +1,4 @@
-import { InlineCompletionStates, Position } from '@aws/language-server-runtimes/server-interface'
+import { InlineCompletionStates, Position, TextDocument } from '@aws/language-server-runtimes/server-interface'
 import { v4 as uuidv4 } from 'uuid'
 import { CodewhispererAutomatedTriggerType, CodewhispererTriggerType } from '../auto-trigger/autoTrigger'
 import { GenerateSuggestionsRequest, ResponseContext, Suggestion } from '../codeWhispererService'
@@ -10,6 +10,7 @@ export type UserDecision = 'Empty' | 'Filter' | 'Discard' | 'Accept' | 'Ignore' 
 type UserTriggerDecision = 'Accept' | 'Reject' | 'Empty' | 'Discard'
 
 export interface SessionData {
+    document: TextDocument
     startPosition: Position
     triggerType: CodewhispererTriggerType
     autoTriggerType?: CodewhispererAutomatedTriggerType
@@ -25,6 +26,7 @@ export interface SessionData {
 
 export class CodeWhispererSession {
     id: string
+    document: TextDocument
     startTime: number
     // Time when Session was closed and final state of user decisions is recorded in suggestionsStates
     closeTime?: number = 0
@@ -61,6 +63,7 @@ export class CodeWhispererSession {
 
     constructor(data: SessionData) {
         this.id = this.generateSessionId()
+        this.document = data.document
         this.credentialStartUrl = data.credentialStartUrl
         this.startPosition = data.startPosition
         this.triggerType = data.triggerType

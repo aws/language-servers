@@ -34,6 +34,8 @@ import {
     SOME_SINGLE_LINE_FILE,
     SOME_UNSUPPORTED_FILE,
 } from './testUtils'
+import { CodeDiffTracker } from './telemetry/codeDiffTracker'
+import { TelemetryService } from './telemetryService'
 
 describe('CodeWhisperer Server', () => {
     const sandbox = sinon.createSandbox()
@@ -980,6 +982,7 @@ describe('CodeWhisperer Server', () => {
         }
 
         const sessionData: SessionData = {
+            document: TextDocument.create('file:///rightContext.cs', 'csharp', 1, HELLO_WORLD_IN_CSHARP),
             startPosition: { line: 0, character: 0 },
             triggerType: 'OnDemand',
             language: 'csharp',
@@ -1448,6 +1451,91 @@ describe('CodeWhisperer Server', () => {
                 )
 
                 assert.equal(features.telemetry.emitMetric.getCall(0).args[0].data.credentialStartUrl, undefined)
+            })
+        })
+
+        describe('Emit UserModification event with CodeDiffTracker', () => {
+            let codeDiffTrackerSpy: sinon.SinonSpy
+            let telemetryServiceSpy: sinon.SinonSpy
+
+            afterEach(() => {
+                sinon.restore()
+            })
+
+            it('should enqueue a code diff entry when session results are returned with accepted completion', async () => {
+                const sessionResultData = {
+                    sessionId: 'some-random-session-uuid-0',
+                    completionSessionResult: {
+                        'cwspr-item-id': {
+                            seen: true,
+                            accepted: true,
+                            discarded: false,
+                        },
+                    },
+                }
+                codeDiffTrackerSpy = sinon.spy(CodeDiffTracker.prototype, 'enqueue')
+
+                await features.doInlineCompletionWithReferences(
+                    {
+                        textDocument: { uri: SOME_FILE.uri },
+                        position: { line: 0, character: 0 },
+                        context: { triggerKind: InlineCompletionTriggerKind.Invoked },
+                    },
+                    CancellationToken.None
+                )
+
+                await features.doLogInlineCompletionSessionResults(sessionResultData)
+
+                sinon.assert.calledOnceWithExactly(codeDiffTrackerSpy, {
+                    sessionId: 'cwspr-session-id',
+                    requestId: 'cwspr-request-id',
+                    fileUrl: 'file:///test.cs',
+                    languageId: 'csharp',
+                    time: 1483228800000,
+                    originalString: 'recommendation',
+                    startPosition: { line: 0, character: 0 },
+                    endPosition: { line: 0, character: 14 },
+                    customizationArn: undefined,
+                })
+            })
+
+            it('should emit telemetryService.emitUserModificationEvent on schedule by CodeDiffTracker', async () => {
+                const startTime = new Date()
+                const sessionResultData = {
+                    sessionId: 'some-random-session-uuid-0',
+                    completionSessionResult: {
+                        'cwspr-item-id': {
+                            seen: true,
+                            accepted: true,
+                            discarded: false,
+                        },
+                    },
+                }
+                telemetryServiceSpy = sinon.spy(TelemetryService.prototype, 'emitUserModificationEvent')
+
+                await features.doInlineCompletionWithReferences(
+                    {
+                        textDocument: { uri: SOME_FILE.uri },
+                        position: { line: 0, character: 0 },
+                        context: { triggerKind: InlineCompletionTriggerKind.Invoked },
+                    },
+                    CancellationToken.None
+                )
+
+                await features.doLogInlineCompletionSessionResults(sessionResultData)
+
+                await clock.tickAsync(5 * 60 * 1000 + 30)
+
+                sinon.assert.calledOnceWithExactly(telemetryServiceSpy, {
+                    sessionId: 'cwspr-session-id',
+                    requestId: 'cwspr-request-id',
+                    languageId: 'csharp',
+                    customizationArn: undefined,
+                    timestamp: new Date(startTime.getTime() + 5 * 60 * 1000),
+                    acceptedCharacterCount: 14,
+                    modificationPercentage: 0.9285714285714286,
+                    unmodifiedAcceptedCharacterCount: 1,
+                })
             })
         })
     })

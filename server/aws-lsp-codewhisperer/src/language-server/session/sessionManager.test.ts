@@ -2,6 +2,8 @@ import * as assert from 'assert'
 import sinon from 'ts-sinon'
 import { Suggestion } from '../codeWhispererService'
 import { CodeWhispererSession, SessionData, SessionManager } from './sessionManager'
+import { TextDocument } from '@aws/language-server-runtimes/server-interface'
+import { HELLO_WORLD_IN_CSHARP } from '../testUtils'
 
 describe('CodeWhispererSession', function () {
     const requestContext = {
@@ -25,6 +27,7 @@ describe('CodeWhispererSession', function () {
     ]
 
     const data: SessionData = {
+        document: TextDocument.create('file:///rightContext.cs', 'csharp', 1, HELLO_WORLD_IN_CSHARP),
         startPosition: { line: 0, character: 0 },
         triggerType: 'OnDemand',
         language: 'csharp',
@@ -506,6 +509,7 @@ describe('SessionManager', function () {
         },
     }
     const data: SessionData = {
+        document: TextDocument.create('file:///rightContext.cs', 'csharp', 1, HELLO_WORLD_IN_CSHARP),
         startPosition: { line: 0, character: 0 },
         triggerType: 'OnDemand',
         language: 'csharp',

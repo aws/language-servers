@@ -443,6 +443,82 @@ describe('TelemetryService', () => {
         sinon.assert.calledOnceWithExactly(invokeSendTelemetryEventStub, expectedEvent)
     })
 
+    it('should emit userModificationEvent event', () => {
+        mockCredentialsProvider.setConnectionMetadata({
+            sso: {
+                startUrl: 'idc-start-url',
+            },
+        })
+        telemetryService = new TelemetryService(mockCredentialsProvider, 'bearer', {} as Telemetry, logging, {})
+        const invokeSendTelemetryEventStub: sinon.SinonStub = sinon
+            .stub(telemetryService, 'sendTelemetryEvent' as any)
+            .returns(Promise.resolve())
+        telemetryService.updateOptOutPreference('OPTIN')
+
+        telemetryService.emitUserModificationEvent({
+            sessionId: 'test-session-id',
+            requestId: 'test-request-id',
+            languageId: 'typescript',
+            customizationArn: 'test-arn',
+            timestamp: new Date(),
+            modificationPercentage: 0.2,
+            acceptedCharacterCount: 100,
+            unmodifiedAcceptedCharacterCount: 80,
+        })
+
+        const expectedEvent = {
+            telemetryEvent: {
+                userModificationEvent: {
+                    sessionId: 'test-session-id',
+                    requestId: 'test-request-id',
+                    programmingLanguage: {
+                        languageName: 'typescript',
+                    },
+                    modificationPercentage: 0.2,
+                    customizationArn: 'test-arn',
+                    timestamp: new Date(),
+                    acceptedCharacterCount: 100,
+                    unmodifiedAcceptedCharacterCount: 80,
+                },
+            },
+            optOutPreference: 'OPTIN',
+        }
+        sinon.assert.calledOnceWithExactly(invokeSendTelemetryEventStub, expectedEvent)
+    })
+
+    it('should emit chatUserModificationEvent event', () => {
+        mockCredentialsProvider.setConnectionMetadata({
+            sso: {
+                startUrl: 'idc-start-url',
+            },
+        })
+        telemetryService = new TelemetryService(mockCredentialsProvider, 'bearer', {} as Telemetry, logging, {})
+        const invokeSendTelemetryEventStub: sinon.SinonStub = sinon
+            .stub(telemetryService, 'sendTelemetryEvent' as any)
+            .returns(Promise.resolve())
+        telemetryService.updateOptOutPreference('OPTIN')
+
+        telemetryService.emitChatUserModificationEvent({
+            conversationId: 'test-conversation-id',
+            messageId: 'test-message-id',
+            customizationArn: 'test-arn',
+            modificationPercentage: 0.2,
+        })
+
+        const expectedEvent = {
+            telemetryEvent: {
+                chatUserModificationEvent: {
+                    conversationId: 'test-conversation-id',
+                    messageId: 'test-message-id',
+                    customizationArn: 'test-arn',
+                    modificationPercentage: 0.2,
+                },
+            },
+            optOutPreference: 'OPTIN',
+        }
+        sinon.assert.calledOnceWithExactly(invokeSendTelemetryEventStub, expectedEvent)
+    })
+
     describe('Chat add message', () => {
         let telemetryService: TelemetryService
         let mockCredentialsProvider: MockCredentialsProvider
