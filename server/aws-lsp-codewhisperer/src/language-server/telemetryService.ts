@@ -20,8 +20,14 @@ import {
     UserIntent,
 } from '../client/token/codewhispererbearertokenclient'
 import { getCompletionType, getSsoConnectionType, isAwsError } from './utils'
-import { ChatInteractionType, InteractWithMessageEvent } from './telemetry/types'
+import {
+    ChatConversationType,
+    ChatInteractionType,
+    ChatTelemetryEventName,
+    InteractWithMessageEvent,
+} from './telemetry/types'
 import { CodewhispererLanguage, getRuntimeLanguage } from './languageDetection'
+import { CONVERSATION_ID_METRIC_KEY } from './chat/telemetry/chatTelemetryController'
 
 export class TelemetryService extends CodeWhispererServiceToken {
     private userContext: UserContext | undefined
@@ -184,6 +190,16 @@ export class TelemetryService extends CodeWhispererServiceToken {
         if (options?.conversationId === undefined) {
             return
         }
+        if (this.enableTelemetryEventsToDestination) {
+            this.telemetry.emitMetric({
+                name: ChatTelemetryEventName.InteractWithMessage,
+                data: {
+                    ...metric,
+                    [CONVERSATION_ID_METRIC_KEY]: options.conversationId,
+                    credentialStartUrl: this.credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
+                },
+            })
+        }
         const event: ChatInteractWithMessageEvent = {
             conversationId: options.conversationId,
             messageId: metric.cwsprChatMessageId,
@@ -223,25 +239,66 @@ export class TelemetryService extends CodeWhispererServiceToken {
         })
     }
 
-    public emitChatAddMessage(params: {
-        conversationId?: string
-        messageId?: string
-        customizationArn?: string
-        userIntent?: UserIntent
-        hasCodeSnippet?: boolean
-        programmingLanguage?: CodewhispererLanguage
-        activeEditorTotalCharacters?: number
-        timeToFirstChunkMilliseconds?: number
-        timeBetweenChunks?: number[]
-        fullResponselatency?: number
-        requestLength?: number
-        responseLength?: number
-        numberOfCodeBlocks?: number
-        hasProjectLevelContext?: number
-    }) {
+    public emitChatAddMessage(
+        params: {
+            conversationId?: string
+            messageId?: string
+            customizationArn?: string
+            userIntent?: UserIntent
+            hasCodeSnippet?: boolean
+            programmingLanguage?: CodewhispererLanguage
+            activeEditorTotalCharacters?: number
+            timeToFirstChunkMilliseconds?: number
+            timeBetweenChunks?: number[]
+            fullResponselatency?: number
+            requestLength?: number
+            responseLength?: number
+            numberOfCodeBlocks?: number
+            hasProjectLevelContext?: number
+        },
+        additionalParams: Partial<{
+            chatTriggerInteraction: string
+            chatResponseCode: number
+            chatSourceLinkCount?: number
+            chatReferencesCount?: number
+            chatFollowUpCount?: number
+            chatConversationType: ChatConversationType
+            chatActiveEditorImportCount?: number
+        }>
+    ) {
         if (!params.conversationId || !params.messageId) {
             return
         }
+
+        if (this.enableTelemetryEventsToDestination) {
+            this.telemetry.emitMetric({
+                name: ChatTelemetryEventName.AddMessage,
+                data: {
+                    credentialStartUrl: this.credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
+                    [CONVERSATION_ID_METRIC_KEY]: params.conversationId,
+                    cwsprChatHasCodeSnippet: params.hasCodeSnippet,
+                    cwsprChatTriggerInteraction: additionalParams.chatTriggerInteraction,
+                    cwsprChatMessageId: params.messageId,
+                    cwsprChatUserIntent: params.userIntent,
+                    cwsprChatProgrammingLanguage: params.programmingLanguage,
+                    cwsprChatResponseCodeSnippetCount: params.numberOfCodeBlocks,
+                    cwsprChatResponseCode: additionalParams.chatResponseCode,
+                    cwsprChatSourceLinkCount: additionalParams.chatSourceLinkCount,
+                    cwsprChatReferencesCount: additionalParams.chatReferencesCount,
+                    cwsprChatFollowUpCount: additionalParams.chatFollowUpCount,
+                    cwsprTimeToFirstChunk: params.timeToFirstChunkMilliseconds,
+                    cwsprChatFullResponseLatency: params.fullResponselatency,
+                    cwsprChatTimeBetweenChunks: params.timeBetweenChunks,
+                    cwsprChatRequestLength: params.requestLength,
+                    cwsprChatResponseLength: params.responseLength,
+                    cwsprChatConversationType: additionalParams.chatConversationType,
+                    cwsprChatActiveEditorTotalCharacters: params.activeEditorTotalCharacters,
+                    cwsprChatActiveEditorImportCount: additionalParams.chatActiveEditorImportCount,
+                    codewhispererCustomizationArn: params.customizationArn,
+                },
+            })
+        }
+
         const event: ChatAddMessageEvent = {
             conversationId: params.conversationId,
             messageId: params.messageId,

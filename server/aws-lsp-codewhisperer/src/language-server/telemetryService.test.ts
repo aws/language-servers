@@ -8,18 +8,11 @@ import {
     Logging,
     Telemetry,
 } from '@aws/language-server-runtimes/server-interface'
-import {
-    UserContext,
-    OptOutPreference,
-    UserIntent,
-    Boolean,
-    timeBetweenChunks,
-} from '../client/token/codewhispererbearertokenclient'
+import { UserContext, OptOutPreference } from '../client/token/codewhispererbearertokenclient'
 import { CodeWhispererSession } from './session/sessionManager'
 import sinon from 'ts-sinon'
 import { BUILDER_ID_START_URL } from './constants'
 import { ChatInteractionType } from './telemetry/types'
-import { CodewhispererLanguage } from './languageDetection'
 
 class MockCredentialsProvider implements CredentialsProvider {
     private mockIamCredentials: IamCredentials | undefined
@@ -265,6 +258,7 @@ describe('TelemetryService', () => {
     })
 
     describe('Chat interact with message', () => {
+        let telemetry: Telemetry
         let telemetryService: TelemetryService
         let mockCredentialsProvider: MockCredentialsProvider
         let invokeSendTelemetryEventStub: sinon.SinonStub
@@ -276,7 +270,11 @@ describe('TelemetryService', () => {
                     startUrl: 'idc-start-url',
                 },
             })
-            telemetryService = new TelemetryService(mockCredentialsProvider, 'bearer', {} as Telemetry, logging, {})
+            telemetry = {
+                emitMetric: sinon.stub(),
+                onClientTelemetry: sinon.stub(),
+            }
+            telemetryService = new TelemetryService(mockCredentialsProvider, 'bearer', telemetry, logging, {})
             invokeSendTelemetryEventStub = sinon
                 .stub(telemetryService, 'sendTelemetryEvent' as any)
                 .returns(Promise.resolve())
@@ -286,7 +284,7 @@ describe('TelemetryService', () => {
             sinon.restore()
         })
 
-        it('should send InteractWithMessage event with correct parameters', () => {
+        it('should send InteractWithMessage event with correct parameters and emit metric to destination', () => {
             const metric = {
                 cwsprChatMessageId: 'message123',
                 codewhispererCustomizationArn: 'arn:123',
@@ -296,6 +294,7 @@ describe('TelemetryService', () => {
             }
             const conversationId = 'conv123'
             const acceptedLineCount = 5
+            telemetryService.updateEnableTelemetryEventsToDestination(true)
             telemetryService.emitChatInteractWithMessage(metric, {
                 conversationId,
                 acceptedLineCount,
@@ -318,6 +317,18 @@ describe('TelemetryService', () => {
             }
 
             sinon.assert.calledOnceWithExactly(invokeSendTelemetryEventStub, expectedEvent)
+            sinon.assert.calledOnceWithExactly(telemetry.emitMetric as sinon.SinonStub, {
+                name: 'amazonq_interactWithMessage',
+                data: {
+                    cwsprChatMessageId: 'message123',
+                    codewhispererCustomizationArn: 'arn:123',
+                    cwsprChatInteractionType: 'insertAtCursor',
+                    cwsprChatInteractionTarget: 'CODE',
+                    cwsprChatAcceptedCharactersLength: 100,
+                    cwsprChatConversationId: 'conv123',
+                    credentialStartUrl: 'idc-start-url',
+                },
+            })
         })
 
         it('should not send InteractWithMessage when conversationId is undefined', () => {
@@ -444,9 +455,11 @@ describe('TelemetryService', () => {
     })
 
     describe('Chat add message', () => {
+        let telemetry: Telemetry
         let telemetryService: TelemetryService
         let mockCredentialsProvider: MockCredentialsProvider
         let invokeSendTelemetryEventStub: sinon.SinonStub
+        let invokeEmitMetricStub: sinon.SinonStub
 
         beforeEach(() => {
             mockCredentialsProvider = new MockCredentialsProvider()
@@ -455,7 +468,11 @@ describe('TelemetryService', () => {
                     startUrl: 'idc-start-url',
                 },
             })
-            telemetryService = new TelemetryService(mockCredentialsProvider, 'bearer', {} as Telemetry, logging, {})
+            telemetry = {
+                emitMetric: sinon.stub(),
+                onClientTelemetry: sinon.stub(),
+            }
+            telemetryService = new TelemetryService(mockCredentialsProvider, 'bearer', telemetry, logging, {})
             invokeSendTelemetryEventStub = sinon
                 .stub(telemetryService, 'sendTelemetryEvent' as any)
                 .returns(Promise.resolve())
@@ -465,21 +482,25 @@ describe('TelemetryService', () => {
             sinon.restore()
         })
 
-        it('should send ChatAddMessage event with correct parameters', () => {
-            telemetryService.emitChatAddMessage({
-                conversationId: 'conv123',
-                messageId: 'message123',
-                customizationArn: 'cust-123',
-                programmingLanguage: 'jsx',
-                userIntent: 'SUGGEST_ALTERNATE_IMPLEMENTATION',
-                hasCodeSnippet: false,
-                timeToFirstChunkMilliseconds: 100,
-                activeEditorTotalCharacters: 250,
-                fullResponselatency: 400,
-                requestLength: 100,
-                responseLength: 3000,
-                numberOfCodeBlocks: 0,
-            })
+        it('should send ChatAddMessage event with correct parameters and emit metric to destination', () => {
+            telemetryService.updateEnableTelemetryEventsToDestination(true)
+            telemetryService.emitChatAddMessage(
+                {
+                    conversationId: 'conv123',
+                    messageId: 'message123',
+                    customizationArn: 'cust-123',
+                    programmingLanguage: 'jsx',
+                    userIntent: 'SUGGEST_ALTERNATE_IMPLEMENTATION',
+                    hasCodeSnippet: false,
+                    timeToFirstChunkMilliseconds: 100,
+                    activeEditorTotalCharacters: 250,
+                    fullResponselatency: 400,
+                    requestLength: 100,
+                    responseLength: 3000,
+                    numberOfCodeBlocks: 0,
+                },
+                {}
+            )
 
             const expectedEvent = {
                 telemetryEvent: {
@@ -505,32 +526,67 @@ describe('TelemetryService', () => {
             }
 
             sinon.assert.calledOnceWithExactly(invokeSendTelemetryEventStub, expectedEvent)
+            sinon.assert.calledOnceWithExactly(telemetry.emitMetric as sinon.SinonStub, {
+                name: 'amazonq_addMessage',
+                data: {
+                    credentialStartUrl: 'idc-start-url',
+                    cwsprChatConversationId: 'conv123',
+                    cwsprChatHasCodeSnippet: false,
+                    cwsprChatTriggerInteraction: undefined,
+                    cwsprChatMessageId: 'message123',
+                    cwsprChatUserIntent: 'SUGGEST_ALTERNATE_IMPLEMENTATION',
+                    cwsprChatProgrammingLanguage: 'jsx',
+                    cwsprChatResponseCodeSnippetCount: 0,
+                    cwsprChatResponseCode: undefined,
+                    cwsprChatSourceLinkCount: undefined,
+                    cwsprChatReferencesCount: undefined,
+                    cwsprChatFollowUpCount: undefined,
+                    cwsprTimeToFirstChunk: 100,
+                    cwsprChatFullResponseLatency: 400,
+                    cwsprChatTimeBetweenChunks: undefined,
+                    cwsprChatRequestLength: 100,
+                    cwsprChatResponseLength: 3000,
+                    cwsprChatConversationType: undefined,
+                    cwsprChatActiveEditorTotalCharacters: 250,
+                    cwsprChatActiveEditorImportCount: undefined,
+                    codewhispererCustomizationArn: 'cust-123',
+                },
+            })
         })
 
         it('should not send ChatAddMessage when conversationId is undefined', () => {
-            telemetryService.emitChatAddMessage({
-                messageId: 'message123',
-                customizationArn: 'cust-123',
-            })
+            telemetryService.emitChatAddMessage(
+                {
+                    messageId: 'message123',
+                    customizationArn: 'cust-123',
+                },
+                {}
+            )
             sinon.assert.notCalled(invokeSendTelemetryEventStub)
         })
 
         it('should not send ChatAddMessage when messageId is undefined', () => {
-            telemetryService.emitChatAddMessage({
-                conversationId: 'conv123',
-                customizationArn: 'cust-123',
-            })
+            telemetryService.emitChatAddMessage(
+                {
+                    conversationId: 'conv123',
+                    customizationArn: 'cust-123',
+                },
+                {}
+            )
             sinon.assert.notCalled(invokeSendTelemetryEventStub)
         })
 
         it('should not send ChatAddMessage when credentialsType is IAM', () => {
             telemetryService = new TelemetryService(mockCredentialsProvider, 'iam', {} as Telemetry, logging, {})
             invokeSendTelemetryEventStub = sinon.stub(telemetryService, 'sendTelemetryEvent' as any)
-            telemetryService.emitChatAddMessage({
-                conversationId: 'conv123',
-                messageId: 'message123',
-                customizationArn: 'cust-123',
-            })
+            telemetryService.emitChatAddMessage(
+                {
+                    conversationId: 'conv123',
+                    messageId: 'message123',
+                    customizationArn: 'cust-123',
+                },
+                {}
+            )
             sinon.assert.notCalled(invokeSendTelemetryEventStub)
         })
 
@@ -543,11 +599,14 @@ describe('TelemetryService', () => {
             telemetryService = new TelemetryService(mockCredentialsProvider, 'bearer', {} as Telemetry, logging, {})
             invokeSendTelemetryEventStub = sinon.stub(telemetryService, 'sendTelemetryEvent' as any)
             telemetryService.updateOptOutPreference('OPTOUT')
-            telemetryService.emitChatAddMessage({
-                conversationId: 'conv123',
-                messageId: 'message123',
-                customizationArn: 'cust-123',
-            })
+            telemetryService.emitChatAddMessage(
+                {
+                    conversationId: 'conv123',
+                    messageId: 'message123',
+                    customizationArn: 'cust-123',
+                },
+                {}
+            )
             sinon.assert.notCalled(invokeSendTelemetryEventStub)
         })
     })
