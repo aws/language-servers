@@ -1,5 +1,3 @@
-// TODO Remove this class and use its counterpart in aws-lsp-core instead.
-
 // This class should be used when throwing errors in most of the codebase.  Only the server class should
 // work directly with the LSP-specific AwsResponseError class.  This allows passing an awsErrorCode along
 // with the error to be reported back to the client via AwsResponseError.

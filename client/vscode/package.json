@@ -94,6 +94,11 @@
                 "command": "aws.aws-lsp-identity.test",
                 "title": "Test Command",
                 "category": "Identity"
+            },
+            {
+                "command": "aws.aws-lsp-notification.test",
+                "title": "Test Command",
+                "category": "Notification"
             }
         ],
         "menus": {

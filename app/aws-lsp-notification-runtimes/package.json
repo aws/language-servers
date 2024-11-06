@@ -1,0 +1,13 @@
+{
+    "name": "@aws/lsp-notification-runtimes",
+    "version": "0.1.0",
+    "description": "Notification Server Runtimes",
+    "main": "out/standalone.js",
+    "scripts": {
+        "compile": "tsc --build"
+    },
+    "dependencies": {
+        "@aws/language-server-runtimes": "^0.2.24",
+        "@aws/lsp-notification": "^0.0.1"
+    }
+}

@@ -154,6 +154,25 @@
             "autoAttachChildProcesses": true
         },
         {
+            "name": "Notification Server + VSCode Extension",
+            "type": "extensionHost",
+            "request": "launch",
+            "preLaunchTask": "watch",
+            "runtimeExecutable": "${execPath}",
+            "args": ["--extensionDevelopmentPath=${workspaceFolder}/client/vscode", "--disable-extensions"],
+            "env": {
+                "LSP_SERVER": "${workspaceFolder}/app/aws-lsp-notification-runtimes/out/standalone.js",
+                "ENABLE_NOTIFICATION": "true",
+                "ENABLE_TOKEN_PROVIDER": "true"
+            },
+            "outFiles": [
+                "${workspaceFolder}/client/vscode/out/**/*.js",
+                "${workspaceFolder}/app/aws-lsp-notification-runtimes/out/**/*.js",
+                "${workspaceFolder}/server/aws-lsp-notification/out/**/*.js"
+            ],
+            "autoAttachChildProcesses": true
+        },
+        {
             "name": "Unit Tests",
             "type": "node",
             "request": "launch",

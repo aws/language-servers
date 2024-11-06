@@ -12,19 +12,11 @@ import {
     InitializeParams,
     HandlerResult,
     InitializeError,
+    AwsErrorCodes,
+    AwsResponseError,
+    InitializedParams,
 } from '@aws/language-server-runtimes/server-interface'
-
-export function ensureSsoAccountAccessScope(scopes?: string[]): string[] {
-    const ssoAccountAccessScope = 'sso:account:access'
-
-    if (!scopes) {
-        scopes = [ssoAccountAccessScope]
-    } else if (!scopes.includes(ssoAccountAccessScope)) {
-        scopes.push(ssoAccountAccessScope)
-    }
-
-    return scopes
-}
+import { AwsError } from '../util/awsError'
 
 // TODO In a future PR when schedule permits, migrate this to language-server-runtimes/server-interface/server
 // for reuse in Server type parameter
@@ -40,7 +32,6 @@ export interface ServerFeatures {
     workspace: Workspace
 }
 
-// TODO Migrate to use aws-lsp-core versions of these types
 export interface Observability {
     logging: Logging
     telemetry: Telemetry
@@ -52,6 +43,7 @@ export abstract class ServerBase implements Disposable {
 
     constructor(protected readonly features: ServerFeatures) {
         this.features.lsp.addInitializer(params => this.initialize(params))
+        this.features.lsp.onInitialized(params => this.initialized(params))
         this.observability = { logging: this.features.logging, telemetry: this.features.telemetry }
     }
 
@@ -69,4 +61,17 @@ export abstract class ServerBase implements Disposable {
     protected abstract initialize(
         params: InitializeParams
     ): HandlerResult<PartialInitializeResult<any>, InitializeError>
+
+    protected abstract initialized(params: InitializedParams): void
+
+    // AwsResponseError should only be instantied and used at the server class level.  All other code should use
+    // the LSP-agnostic AwsError class instead.  Each handler call should use this function to wrap the functional
+    // call and emit an AwsResponseError in all failure cases.  If a better awsErrorCode than E_UNKNOWN can be
+    // assumed at the call site, it can be provided as an arg, otherwise E_UNKNOWN as default is fine.
+    // Following the error pattern, the inner most error message and awsErrorCode should be returned.
+    protected wrapInAwsResponseError(error: Error, awsErrorCode: string = AwsErrorCodes.E_UNKNOWN): AwsResponseError {
+        return new AwsResponseError(error?.message ?? 'Unknown error', {
+            awsErrorCode: error instanceof AwsError ? error.awsErrorCode : awsErrorCode,
+        })
+    }
 }
