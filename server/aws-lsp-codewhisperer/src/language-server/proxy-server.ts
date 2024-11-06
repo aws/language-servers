@@ -7,76 +7,48 @@ import { QNetTransformServerToken } from './netTransformServer'
 import { QChatServer } from './qChatServer'
 import { QConfigurationServerToken } from './configuration/qConfigurationServer'
 import { readFileSync } from 'fs'
+import { ConfigurationOptions } from 'aws-sdk'
 
-export const CodeWhispererServerTokenProxy = CodewhispererServerFactory(credentialsProvider => {
-    let additionalAwsConfig = {}
+const makeProxyConfig = () => {
+    let additionalAwsConfig: ConfigurationOptions = {}
     const proxyUrl = process.env.HTTPS_PROXY ?? process.env.https_proxy
-    const certs = process.env.AWS_CA_BUNDLE ? [readFileSync(process.env.AWS_CA_BUNDLE)] : undefined
 
     if (proxyUrl) {
-        const { getProxyHttpAgent } = require('proxy-http-agent')
-        const proxyAgent = getProxyHttpAgent({
+        const certs = process.env.AWS_CA_BUNDLE ? [readFileSync(process.env.AWS_CA_BUNDLE)] : undefined
+        const { HttpsProxyAgent } = require('hpagent')
+        const agent = new HttpsProxyAgent({
             proxy: proxyUrl,
             ca: certs,
         })
+
         additionalAwsConfig = {
-            httpOptions: proxyAgent,
+            httpOptions: {
+                agent: agent,
+            },
         }
     }
+
+    return additionalAwsConfig
+}
+
+export const CodeWhispererServerTokenProxy = CodewhispererServerFactory(credentialsProvider => {
+    const additionalAwsConfig = makeProxyConfig()
+
     return new CodeWhispererServiceToken(credentialsProvider, additionalAwsConfig)
 })
 
 export const CodeWhispererServerIAMProxy = CodewhispererServerFactory(credentialsProvider => {
-    let additionalAwsConfig = {}
-    const proxyUrl = process.env.HTTPS_PROXY ?? process.env.https_proxy
-    const certs = process.env.AWS_CA_BUNDLE ? [readFileSync(process.env.AWS_CA_BUNDLE)] : undefined
-
-    if (proxyUrl) {
-        const { getProxyHttpAgent } = require('proxy-http-agent')
-        const proxyAgent = getProxyHttpAgent({
-            proxy: proxyUrl,
-            ca: certs,
-        })
-        additionalAwsConfig = {
-            httpOptions: proxyAgent,
-        }
-    }
+    const additionalAwsConfig = makeProxyConfig()
     return new CodeWhispererServiceIAM(credentialsProvider, additionalAwsConfig)
 })
 
 export const CodeWhispererSecurityScanServerTokenProxy = SecurityScanServerToken(credentialsProvider => {
-    let additionalAwsConfig = {}
-    const proxyUrl = process.env.HTTPS_PROXY ?? process.env.https_proxy
-    const certs = process.env.AWS_CA_BUNDLE ? [readFileSync(process.env.AWS_CA_BUNDLE)] : undefined
-
-    if (proxyUrl) {
-        const { getProxyHttpAgent } = require('proxy-http-agent')
-        const proxyAgent = getProxyHttpAgent({
-            proxy: proxyUrl,
-            ca: certs,
-        })
-        additionalAwsConfig = {
-            httpOptions: proxyAgent,
-        }
-    }
+    const additionalAwsConfig = makeProxyConfig()
     return new CodeWhispererServiceToken(credentialsProvider, additionalAwsConfig)
 })
 
 export const QNetTransformServerTokenProxy = QNetTransformServerToken(credentialsProvider => {
-    let additionalAwsConfig = {}
-    const proxyUrl = process.env.HTTPS_PROXY ?? process.env.https_proxy
-    const certs = process.env.AWS_CA_BUNDLE ? [readFileSync(process.env.AWS_CA_BUNDLE)] : undefined
-
-    if (proxyUrl) {
-        const { getProxyHttpAgent } = require('proxy-http-agent')
-        const proxyAgent = getProxyHttpAgent({
-            proxy: proxyUrl,
-            ca: certs,
-        })
-        additionalAwsConfig = {
-            httpOptions: proxyAgent,
-        }
-    }
+    const additionalAwsConfig = makeProxyConfig()
     return new CodeWhispererServiceToken(credentialsProvider, additionalAwsConfig)
 })
 
@@ -122,19 +94,6 @@ export const QChatServerProxy = QChatServer(credentialsProvider => {
 })
 
 export const QConfigurationServerTokenProxy = QConfigurationServerToken(credentialsProvider => {
-    let additionalAwsConfig = {}
-    const proxyUrl = process.env.HTTPS_PROXY ?? process.env.https_proxy
-    const certs = process.env.AWS_CA_BUNDLE ? [readFileSync(process.env.AWS_CA_BUNDLE)] : undefined
-
-    if (proxyUrl) {
-        const { getProxyHttpAgent } = require('proxy-http-agent')
-        const proxyAgent = getProxyHttpAgent({
-            proxy: proxyUrl,
-            ca: certs,
-        })
-        additionalAwsConfig = {
-            httpOptions: proxyAgent,
-        }
-    }
+    const additionalAwsConfig = makeProxyConfig()
     return new CodeWhispererServiceToken(credentialsProvider, additionalAwsConfig)
 })
