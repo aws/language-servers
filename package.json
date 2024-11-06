@@ -17,7 +17,7 @@
         "check:formatting": "prettier --check .",
         "format": "prettier --write .",
         "format-staged": "npx pretty-quick --staged",
-        "clean": "ts-node ./script/clean.ts && npm run clean --workspaces --if-present",
+        "clean": "ts-node ./script/clean.ts && npm run clean --workspaces --if-present && sh ./script/git-clean.sh",
         "precompile": "npm run precompile --workspaces --if-present",
         "compile": "tsc --build --verbose && npm run compile:servers && npm run compile --workspaces --if-present",
         "compile:servers": "npm run compile --workspace=server --if-present",
