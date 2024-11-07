@@ -114,11 +114,11 @@ export class TelemetryService extends CodeWhispererServiceToken {
         }
 
         this.logging.log(
-            `Failed to sendTelemetryEvent to CodeWhisperer, requestId: ${requestId ?? ''}, message: ${error.message}`
+            `Failed to sendTelemetryEvent to CodeWhisperer, requestId: ${requestId ?? ''}, message: ${error?.message}`
         )
     }
 
-    private invokeSendTelemetryEvent(event: TelemetryEvent) {
+    private async invokeSendTelemetryEvent(event: TelemetryEvent) {
         if (!this.shouldSendTelemetry()) {
             return
         }
@@ -131,8 +131,11 @@ export class TelemetryService extends CodeWhispererServiceToken {
         if (this.optOutPreference !== undefined) {
             request.optOutPreference = this.optOutPreference
         }
-
-        this.sendTelemetryEvent(request).then().catch(this.logSendTelemetryEventFailure)
+        try {
+            await this.sendTelemetryEvent(request)
+        } catch (error) {
+            this.logSendTelemetryEventFailure(error)
+        }
     }
 
     private getCWClientTelemetryInteractionType(interactionType: ChatInteractionType): ChatMessageInteractionType {
