@@ -38,7 +38,7 @@ import { emitWarningIfUnsupportedVersion } from "@smithy/smithy-client";
 /**
  * @internal
  */
-export const getRuntimeConfig = (config: CodeWhispererStreamingClientConfig) => {
+export const getRuntimeConfig: any = (config: CodeWhispererStreamingClientConfig) => {
   emitWarningIfUnsupportedVersion(process.version);
   const defaultsMode = resolveDefaultsModeConfig(config);
   const defaultConfigProvider = () => defaultsMode().then(loadConfigsForDefaultMode);
