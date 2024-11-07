@@ -83,6 +83,7 @@ describe('ChatController', () => {
     let chatController: ChatController
     let telemetryService: TelemetryService
     let invokeSendTelemetryEventStub: sinon.SinonStub
+    let telemetry: Telemetry
 
     beforeEach(() => {
         sendMessageStub = sinon.stub(CodeWhispererStreaming.prototype, 'sendMessage').callsFake(() => {
@@ -120,7 +121,11 @@ describe('ChatController', () => {
             }),
         }
 
-        telemetryService = new TelemetryService(mockCredentialsProvider, 'bearer', {} as Telemetry, logging, {})
+        telemetry = {
+            emitMetric: sinon.stub(),
+            onClientTelemetry: sinon.stub(),
+        }
+        telemetryService = new TelemetryService(mockCredentialsProvider, 'bearer', telemetry, logging, {})
         invokeSendTelemetryEventStub = sinon.stub(telemetryService, 'sendTelemetryEvent' as any)
         chatController = new ChatController(chatSessionManagementService, testFeatures, telemetryService)
     })

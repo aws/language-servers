@@ -415,7 +415,11 @@ export class ChatController implements ChatHandlers {
             if (qConfig) {
                 this.#customizationArn = undefinedIfEmpty(qConfig.customization)
                 this.#log(`Chat configuration updated to use ${this.#customizationArn}`)
-                const enableTelemetryEventsToDestination = qConfig['enableTelemetryEventsToDestination'] === true
+                /*
+                    The flag enableTelemetryEventsToDestination is set to true temporarily. It's value will be determined through destination
+                    configuration post all events migration to STE. It'll be replaced by qConfig['enableTelemetryEventsToDestination'] === true
+                */
+                const enableTelemetryEventsToDestination = true
                 this.#telemetryService.updateEnableTelemetryEventsToDestination(enableTelemetryEventsToDestination)
                 const optOutTelemetryPreference = qConfig['optOutTelemetry'] === true ? 'OPTOUT' : 'OPTIN'
                 this.#telemetryService.updateOptOutPreference(optOutTelemetryPreference)

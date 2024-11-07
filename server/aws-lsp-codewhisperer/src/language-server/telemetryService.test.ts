@@ -175,7 +175,7 @@ describe('TelemetryService', () => {
     })
 
     it('should not emit user trigger decision if login is invalid (IAM)', () => {
-        telemetryService = new TelemetryService(mockCredentialsProvider, 'iam', {} as Telemetry, logging, {})
+        telemetryService = new TelemetryService(mockCredentialsProvider, 'iam', telemetry, logging, {})
         const invokeSendTelemetryEventStub: sinon.SinonStub = sinon.stub(telemetryService, 'sendTelemetryEvent' as any)
 
         telemetryService.emitUserTriggerDecision(mockSession as CodeWhispererSession)
@@ -189,7 +189,7 @@ describe('TelemetryService', () => {
                 startUrl: BUILDER_ID_START_URL,
             },
         })
-        telemetryService = new TelemetryService(mockCredentialsProvider, 'bearer', {} as Telemetry, logging, {})
+        telemetryService = new TelemetryService(mockCredentialsProvider, 'bearer', telemetry, logging, {})
         const invokeSendTelemetryEventStub: sinon.SinonStub = sinon.stub(telemetryService, 'sendTelemetryEvent' as any)
         telemetryService.updateOptOutPreference('OPTOUT')
 
@@ -199,7 +199,7 @@ describe('TelemetryService', () => {
     })
 
     it('should handle SSO connection type change at runtime', () => {
-        telemetryService = new TelemetryService(mockCredentialsProvider, 'bearer', {} as Telemetry, logging, {})
+        telemetryService = new TelemetryService(mockCredentialsProvider, 'bearer', telemetry, logging, {})
         const sendTelemetryEventStub: sinon.SinonStub = sinon
             .stub(telemetryService, 'sendTelemetryEvent' as any)
             .returns(Promise.resolve())
@@ -423,7 +423,7 @@ describe('TelemetryService', () => {
         })
 
         it('should not send InteractWithMessage when credentialsType is IAM', () => {
-            telemetryService = new TelemetryService(mockCredentialsProvider, 'iam', {} as Telemetry, logging, {})
+            telemetryService = new TelemetryService(mockCredentialsProvider, 'iam', telemetry, logging, {})
             invokeSendTelemetryEventStub = sinon.stub(telemetryService, 'sendTelemetryEvent' as any)
             const metric = {
                 cwsprChatMessageId: 'message123',
@@ -446,7 +446,7 @@ describe('TelemetryService', () => {
                     startUrl: BUILDER_ID_START_URL,
                 },
             })
-            telemetryService = new TelemetryService(mockCredentialsProvider, 'bearer', {} as Telemetry, logging, {})
+            telemetryService = new TelemetryService(mockCredentialsProvider, 'bearer', telemetry, logging, {})
             invokeSendTelemetryEventStub = sinon.stub(telemetryService, 'sendTelemetryEvent' as any)
             telemetryService.updateOptOutPreference('OPTOUT')
             const metric = {
@@ -829,7 +829,7 @@ describe('TelemetryService', () => {
         })
 
         it('should not send ChatAddMessage when credentialsType is IAM', () => {
-            telemetryService = new TelemetryService(mockCredentialsProvider, 'iam', {} as Telemetry, logging, {})
+            telemetryService = new TelemetryService(mockCredentialsProvider, 'iam', telemetry, logging, {})
             invokeSendTelemetryEventStub = sinon.stub(telemetryService, 'sendTelemetryEvent' as any)
             telemetryService.emitChatAddMessage(
                 {
@@ -848,7 +848,7 @@ describe('TelemetryService', () => {
                     startUrl: BUILDER_ID_START_URL,
                 },
             })
-            telemetryService = new TelemetryService(mockCredentialsProvider, 'bearer', {} as Telemetry, logging, {})
+            telemetryService = new TelemetryService(mockCredentialsProvider, 'bearer', telemetry, logging, {})
             invokeSendTelemetryEventStub = sinon.stub(telemetryService, 'sendTelemetryEvent' as any)
             telemetryService.updateOptOutPreference('OPTOUT')
             telemetryService.emitChatAddMessage(

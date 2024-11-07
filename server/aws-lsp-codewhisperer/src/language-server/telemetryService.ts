@@ -64,7 +64,7 @@ export class TelemetryService extends CodeWhispererServiceToken {
         this.credentialsType = credentialsType
         this.telemetry = telemetry
         this.logging = logging
-        this.enableTelemetryEventsToDestination = false
+        this.enableTelemetryEventsToDestination = true
     }
 
     public updateUserContext(userContext: UserContext | undefined): void {
