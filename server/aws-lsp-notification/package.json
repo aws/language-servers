@@ -1,7 +1,7 @@
 {
-    "name": "@aws/lsp-identity",
+    "name": "@aws/lsp-notification",
     "version": "0.0.1",
-    "description": "Identity server",
+    "description": "Notification server",
     "main": "./out/index.js",
     "repository": {
         "type": "git",
@@ -15,18 +15,12 @@
     "scripts": {
         "clean": "rm -fr ./out tsconfig.tsbuildinfo",
         "compile": "tsc --build --verbose",
-        "copy": "copyfiles --error --flat ./src/sso/authorizationCodePkce/resources/* ./out/sso/authorizationCodePkce/resources/",
-        "package": "npm run compile && npm run copy",
-        "test": "npm run package && npm run test-unit",
+        "test": "npm run test-unit",
         "test-unit": "mocha 'out/**/*.test.js'"
     },
     "dependencies": {
-        "@aws-sdk/client-sso-oidc": "^3.616.0",
-        "@aws-sdk/token-providers": "^3.614.0",
         "@aws/language-server-runtimes": "^0.2.24",
-        "@smithy/node-http-handler": "^3.2.5",
-        "@smithy/shared-ini-file-loader": "^3.1.5",
-        "https-proxy-agent": "^7.0.5",
+        "@aws/lsp-core": "0.0.1",
         "vscode-languageserver": "^9.0.1"
     },
     "devDependencies": {
@@ -39,7 +33,6 @@
         "@types/sinon": "^17.0.3",
         "chai": "^4.3.7",
         "chai-as-promised": "^7.1.1",
-        "copyfiles": "^2.4.1",
         "mock-fs": "^5.2.0",
         "sinon": "^19.0.2",
         "ts-loader": "^9.5.1",

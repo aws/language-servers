@@ -48,7 +48,7 @@ import { TabFactory } from './tabs/tabFactory'
 const DEFAULT_TAB_DATA = {
     tabTitle: 'Chat',
     promptInputInfo:
-        'Use of Amazon Q is subject to the [AWS Responsible AI Policy](https://aws.amazon.com/machine-learning/responsible-ai/policy/).',
+        'Amazon Q Developer uses generative AI. You may need to verify responses. See the [AWS Responsible AI Policy](https://aws.amazon.com/machine-learning/responsible-ai/policy/).',
     promptInputPlaceholder: 'Ask a question or enter "/" for quick actions',
 }
 

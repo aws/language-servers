@@ -1,11 +1,28 @@
 import { AwsErrorCodes, SsoSession } from '@aws/language-server-runtimes/server-interface'
 import { AwsError } from '../awsError'
-import { CreateTokenCommandOutput, SSOOIDC } from '@aws-sdk/client-sso-oidc'
+import { CreateTokenCommandOutput, SSOOIDC, SSOOIDCClientConfig } from '@aws-sdk/client-sso-oidc'
 import { SsoClientRegistration } from './cache'
 import { SSOToken } from '@smithy/shared-ini-file-loader'
+import { readFileSync } from 'fs'
+import { NodeHttpHandler } from '@smithy/node-http-handler'
+import { HttpsProxyAgent } from 'https-proxy-agent'
+
+const proxyUrl = process.env.HTTPS_PROXY ?? process.env.https_proxy
+const certs = process.env.AWS_CA_BUNDLE ? readFileSync(process.env.AWS_CA_BUNDLE) : undefined
 
 export function getSsoOidc(ssoRegion: string): SSOOIDC & Disposable {
-    const oidc = new SSOOIDC({ region: ssoRegion })
+    const config: SSOOIDCClientConfig = { region: ssoRegion }
+    if (proxyUrl) {
+        // https://docs.aws.amazon.com/sdk-for-javascript/v3/developer-guide/node-configuring-proxies.html
+        const agent = new HttpsProxyAgent(proxyUrl, { ca: certs })
+        // If and when this server is ever used in a browser, need FetchHttpHandler instead, which means
+        // client proxy initialization should be handled generically for all servers in language-server-runtimes
+        // https://docs.aws.amazon.com/sdk-for-javascript/v3/developer-guide/migrate-client-constructors.html
+        config.requestHandler = new NodeHttpHandler({ httpAgent: agent, httpsAgent: agent })
+    }
+
+    const oidc = new SSOOIDC(config)
+
     return (
         Object.hasOwn(oidc, Symbol.dispose) ? oidc : Object.assign(oidc, { [Symbol.dispose]: () => oidc.destroy() })
     ) as SSOOIDC & Disposable

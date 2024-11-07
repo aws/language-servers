@@ -7,7 +7,7 @@
             "type": "node",
             "request": "attach",
             "port": 6012, // Hard defined in the vscode client activation.ts
-            "outFiles": ["${workspaceFolder}/out/src/server/**/*.js", "${workspaceFolder}/out/src/service/**/*.js"],
+            "outFiles": ["${workspaceFolder}/**/out/**/*.js"],
             "restart": {
                 "maxAttempts": 10,
                 "delay": 1000
@@ -150,6 +150,25 @@
                 "${workspaceFolder}/client/vscode/out/**/*.js",
                 "${workspaceFolder}/app/aws-lsp-identity-runtimes/out/**/*.js",
                 "${workspaceFolder}/server/aws-lsp-identity/out/**/*.js"
+            ],
+            "autoAttachChildProcesses": true
+        },
+        {
+            "name": "Notification Server + VSCode Extension",
+            "type": "extensionHost",
+            "request": "launch",
+            "preLaunchTask": "watch",
+            "runtimeExecutable": "${execPath}",
+            "args": ["--extensionDevelopmentPath=${workspaceFolder}/client/vscode", "--disable-extensions"],
+            "env": {
+                "LSP_SERVER": "${workspaceFolder}/app/aws-lsp-notification-runtimes/out/standalone.js",
+                "ENABLE_NOTIFICATION": "true",
+                "ENABLE_TOKEN_PROVIDER": "true"
+            },
+            "outFiles": [
+                "${workspaceFolder}/client/vscode/out/**/*.js",
+                "${workspaceFolder}/app/aws-lsp-notification-runtimes/out/**/*.js",
+                "${workspaceFolder}/server/aws-lsp-notification/out/**/*.js"
             ],
             "autoAttachChildProcesses": true
         },

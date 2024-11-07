@@ -22,6 +22,7 @@ import { registerLogCommand, registerTransformCommand } from './sampleCommandAct
 import { randomUUID } from 'crypto'
 import { registerCustomizations } from './customizationActivation'
 import { registerIdentity } from './identityActivation'
+import { registerNotification } from './notificationActivation'
 
 export async function activateDocumentsLanguageServer(extensionContext: ExtensionContext) {
     /**
@@ -189,6 +190,11 @@ export async function activateDocumentsLanguageServer(extensionContext: Extensio
     const enableIdentity = process.env.ENABLE_IDENTITY === 'true'
     if (enableIdentity) {
         await registerIdentity(client)
+    }
+
+    const enableNotification = process.env.ENABLE_NOTIFICATION === 'true'
+    if (enableNotification) {
+        await registerNotification(client)
     }
 
     return client
