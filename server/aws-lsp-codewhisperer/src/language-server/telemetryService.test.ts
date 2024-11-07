@@ -82,6 +82,10 @@ describe('TelemetryService', () => {
         firstCompletionDisplayLatency: 100,
         timeToFirstRecommendation: 200,
         getAggregatedUserTriggerDecision: () => 'Accept',
+        startPosition: {
+            line: 12,
+            character: 23,
+        },
     }
 
     beforeEach(() => {
@@ -224,7 +228,7 @@ describe('TelemetryService', () => {
         sinon.assert.notCalled(sendTelemetryEventStub)
     })
 
-    it('should emit userTriggerDecision event correctly', () => {
+    it('should emit userTriggerDecision event to STE and to the destination', () => {
         const expectedUserTriggerDecisionEvent = {
             telemetryEvent: {
                 userTriggerDecisionEvent: {
@@ -251,7 +255,8 @@ describe('TelemetryService', () => {
                 startUrl: 'idc-start-url',
             },
         })
-        telemetryService = new TelemetryService(mockCredentialsProvider, 'bearer', {} as Telemetry, logging, {})
+        telemetryService = new TelemetryService(mockCredentialsProvider, 'bearer', telemetry, logging, {})
+        telemetryService.updateEnableTelemetryEventsToDestination(true)
         const invokeSendTelemetryEventStub: sinon.SinonStub = sinon
             .stub(telemetryService, 'sendTelemetryEvent' as any)
             .returns(Promise.resolve())
@@ -260,6 +265,35 @@ describe('TelemetryService', () => {
         telemetryService.emitUserTriggerDecision(mockSession as CodeWhispererSession)
 
         sinon.assert.calledOnceWithExactly(invokeSendTelemetryEventStub, expectedUserTriggerDecisionEvent)
+        sinon.assert.calledOnceWithExactly(telemetry.emitMetric as sinon.SinonStub, {
+            name: 'codewhisperer_userTriggerDecision',
+            data: {
+                codewhispererSessionId: 'test-session-id',
+                codewhispererFirstRequestId: 'test-request-id',
+                credentialStartUrl: undefined,
+                codewhispererSuggestionState: 'Accept',
+                codewhispererCompletionType: 'Block',
+                codewhispererLanguage: 'tsx',
+                codewhispererTriggerType: undefined,
+                codewhispererAutomatedTriggerType: undefined,
+                codewhispererTriggerCharacter: undefined,
+                codewhispererLineNumber: 12,
+                codewhispererCursorOffset: 23,
+                codewhispererSuggestionCount: 1,
+                codewhispererClassifierResult: undefined,
+                codewhispererClassifierThreshold: undefined,
+                codewhispererTotalShownTime: 0,
+                codewhispererTypeaheadLength: 0,
+                codewhispererTimeSinceLastDocumentChange: undefined,
+                codewhispererTimeSinceLastUserDecision: undefined,
+                codewhispererTimeToFirstRecommendation: 200,
+                codewhispererPreviousSuggestionState: undefined,
+                codewhispererSupplementalContextTimeout: undefined,
+                codewhispererSupplementalContextIsUtg: undefined,
+                codewhispererSupplementalContextLength: undefined,
+                codewhispererCustomizationArn: 'test-arn',
+            },
+        })
     })
 
     describe('Chat interact with message', () => {
@@ -420,7 +454,7 @@ describe('TelemetryService', () => {
         })
     })
 
-    it('should emit CodeCoverageEvent event', () => {
+    it('should emit CodeCoverageEvent event to STE and to the destination', () => {
         const expectedEvent = {
             telemetryEvent: {
                 codeCoverageEvent: {
@@ -438,20 +472,37 @@ describe('TelemetryService', () => {
                 startUrl: 'idc-start-url',
             },
         })
-        telemetryService = new TelemetryService(mockCredentialsProvider, 'bearer', {} as Telemetry, logging, {})
+        telemetryService = new TelemetryService(mockCredentialsProvider, 'bearer', telemetry, logging, {})
         const invokeSendTelemetryEventStub: sinon.SinonStub = sinon
             .stub(telemetryService, 'sendTelemetryEvent' as any)
             .returns(Promise.resolve())
         telemetryService.updateOptOutPreference('OPTIN')
+        telemetryService.updateEnableTelemetryEventsToDestination(true)
 
-        telemetryService.emitCodeCoverageEvent({
-            languageId: 'typescript',
-            customizationArn: 'test-arn',
-            acceptedCharacterCount: 123,
-            totalCharacterCount: 456,
-        })
+        telemetryService.emitCodeCoverageEvent(
+            {
+                languageId: 'typescript',
+                customizationArn: 'test-arn',
+                acceptedCharacterCount: 123,
+                totalCharacterCount: 456,
+            },
+            {
+                percentage: 50,
+                successCount: 1,
+            }
+        )
 
         sinon.assert.calledOnceWithExactly(invokeSendTelemetryEventStub, expectedEvent)
+        sinon.assert.calledOnceWithExactly(telemetry.emitMetric as sinon.SinonStub, {
+            name: 'codewhisperer_codePercentage',
+            data: {
+                codewhispererTotalTokens: 456,
+                codewhispererLanguage: 'typescript',
+                codewhispererSuggestedTokens: 123,
+                codewhispererPercentage: 50,
+                successCount: 1,
+            },
+        })
     })
 
     it('should emit userModificationEvent event', () => {

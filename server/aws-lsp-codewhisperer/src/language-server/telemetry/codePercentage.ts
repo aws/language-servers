@@ -34,17 +34,18 @@ export class CodePercentageTracker {
     private startListening() {
         return setInterval(() => {
             this.getEventDataAndRotate().forEach(event => {
-                this.telemetry.emitMetric({
-                    name: CODE_PERCENTAGE_EVENT_NAME,
-                    data: event,
-                })
-
-                this.telemetryService.emitCodeCoverageEvent({
-                    languageId: event.codewhispererLanguage as CodewhispererLanguage,
-                    customizationArn: this.customizationArn,
-                    totalCharacterCount: event.codewhispererTotalTokens,
-                    acceptedCharacterCount: event.codewhispererSuggestedTokens,
-                })
+                this.telemetryService.emitCodeCoverageEvent(
+                    {
+                        languageId: event.codewhispererLanguage as CodewhispererLanguage,
+                        customizationArn: this.customizationArn,
+                        totalCharacterCount: event.codewhispererTotalTokens,
+                        acceptedCharacterCount: event.codewhispererSuggestedTokens,
+                    },
+                    {
+                        percentage: event.codewhispererPercentage,
+                        successCount: event.successCount,
+                    }
+                )
             })
         }, CODE_PERCENTAGE_INTERVAL)
     }

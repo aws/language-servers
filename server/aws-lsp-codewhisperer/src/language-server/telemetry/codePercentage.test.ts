@@ -44,12 +44,19 @@ describe('CodePercentage', () => {
 
         clock.tick(5000 * 60)
 
-        sinon.assert.calledWith(telemetryService.emitCodeCoverageEvent, {
-            languageId: LANGUAGE_ID,
-            totalCharacterCount: 20,
-            acceptedCharacterCount: 10,
-            customizationArn: undefined,
-        })
+        sinon.assert.calledWith(
+            telemetryService.emitCodeCoverageEvent,
+            {
+                languageId: LANGUAGE_ID,
+                totalCharacterCount: 20,
+                acceptedCharacterCount: 10,
+                customizationArn: undefined,
+            },
+            {
+                percentage: 50,
+                successCount: 1,
+            }
+        )
     })
 
     it('emits no metrics without invocations', () => {
@@ -77,29 +84,33 @@ describe('CodePercentage', () => {
 
         clock.tick(5000 * 60)
 
-        sinon.assert.calledWith(telemetryService.emitCodeCoverageEvent, {
-            languageId: LANGUAGE_ID,
-            totalCharacterCount: 20,
-            acceptedCharacterCount: 10,
-            customizationArn: undefined,
-        })
-
-        sinon.assert.calledWith(telemetry.emitMetric, {
-            name: 'codewhisperer_codePercentage',
-            data: {
-                codewhispererTotalTokens: 30,
-                codewhispererLanguage: OTHER_LANGUAGE_ID,
-                codewhispererSuggestedTokens: 10,
-                codewhispererPercentage: 33.33,
-                successCount: 1,
+        sinon.assert.calledWith(
+            telemetryService.emitCodeCoverageEvent,
+            {
+                languageId: LANGUAGE_ID,
+                totalCharacterCount: 20,
+                acceptedCharacterCount: 10,
+                customizationArn: undefined,
             },
-        })
-        sinon.assert.calledWith(telemetryService.emitCodeCoverageEvent, {
-            languageId: OTHER_LANGUAGE_ID,
-            totalCharacterCount: 30,
-            acceptedCharacterCount: 10,
-            customizationArn: undefined,
-        })
+            {
+                percentage: 50,
+                successCount: 1,
+            }
+        )
+
+        sinon.assert.calledWith(
+            telemetryService.emitCodeCoverageEvent,
+            {
+                languageId: OTHER_LANGUAGE_ID,
+                totalCharacterCount: 30,
+                acceptedCharacterCount: 10,
+                customizationArn: undefined,
+            },
+            {
+                percentage: 33.33,
+                successCount: 1,
+            }
+        )
     })
 
     it('emits metrics with customizationArn value', () => {
@@ -112,11 +123,18 @@ describe('CodePercentage', () => {
 
         clock.tick(5000 * 60)
 
-        sinon.assert.calledWith(telemetryService.emitCodeCoverageEvent, {
-            languageId: LANGUAGE_ID,
-            totalCharacterCount: 20,
-            acceptedCharacterCount: 10,
-            customizationArn: 'test-arn',
-        })
+        sinon.assert.calledWith(
+            telemetryService.emitCodeCoverageEvent,
+            {
+                languageId: LANGUAGE_ID,
+                totalCharacterCount: 20,
+                acceptedCharacterCount: 10,
+                customizationArn: 'test-arn',
+            },
+            {
+                percentage: 50,
+                successCount: 1,
+            }
+        )
     })
 })

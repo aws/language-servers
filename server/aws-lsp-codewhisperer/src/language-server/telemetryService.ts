@@ -25,6 +25,7 @@ import {
     ChatConversationType,
     ChatInteractionType,
     ChatTelemetryEventName,
+    CodeWhispererUserTriggerDecisionEvent,
     InteractWithMessageEvent,
 } from './telemetry/types'
 import { CodewhispererLanguage, getRuntimeLanguage } from './languageDetection'
@@ -33,7 +34,7 @@ import { CONVERSATION_ID_METRIC_KEY } from './chat/telemetry/chatTelemetryContro
 export class TelemetryService extends CodeWhispererServiceToken {
     private userContext: UserContext | undefined
     private optOutPreference!: OptOutPreference
-    private enableTelemetryEventsToDestination!: boolean
+    private enableTelemetryEventsToDestination: boolean
     private telemetry: Telemetry
     private credentialsType: CredentialsType
     private credentialsProvider: CredentialsProvider
@@ -63,6 +64,7 @@ export class TelemetryService extends CodeWhispererServiceToken {
         this.credentialsType = credentialsType
         this.telemetry = telemetry
         this.logging = logging
+        this.enableTelemetryEventsToDestination = false
     }
 
     public updateUserContext(userContext: UserContext | undefined): void {
@@ -138,6 +140,43 @@ export class TelemetryService extends CodeWhispererServiceToken {
     }
 
     public emitUserTriggerDecision(session: CodeWhispererSession, timeSinceLastUserModification?: number) {
+        if (this.enableTelemetryEventsToDestination) {
+            const data: CodeWhispererUserTriggerDecisionEvent = {
+                codewhispererSessionId: session.codewhispererSessionId || '',
+                codewhispererFirstRequestId: session.responseContext?.requestId || '',
+                credentialStartUrl: session.credentialStartUrl,
+                codewhispererSuggestionState: session.getAggregatedUserTriggerDecision(),
+                codewhispererCompletionType:
+                    session.suggestions.length > 0 ? getCompletionType(session.suggestions[0]) : undefined,
+                codewhispererLanguage: session.language,
+                codewhispererTriggerType: session.triggerType,
+                codewhispererAutomatedTriggerType: session.autoTriggerType,
+                codewhispererTriggerCharacter:
+                    session.autoTriggerType === 'SpecialCharacters' ? session.triggerCharacter : undefined,
+                codewhispererLineNumber: session.startPosition.line,
+                codewhispererCursorOffset: session.startPosition.character,
+                codewhispererSuggestionCount: session.suggestions.length,
+                codewhispererClassifierResult: session.classifierResult,
+                codewhispererClassifierThreshold: session.classifierThreshold,
+                codewhispererTotalShownTime: session.totalSessionDisplayTime || 0,
+                codewhispererTypeaheadLength: session.typeaheadLength || 0,
+                // Global time between any 2 document changes
+                codewhispererTimeSinceLastDocumentChange: timeSinceLastUserModification,
+                codewhispererTimeSinceLastUserDecision: session.previousTriggerDecisionTime
+                    ? session.startTime - session.previousTriggerDecisionTime
+                    : undefined,
+                codewhispererTimeToFirstRecommendation: session.timeToFirstRecommendation,
+                codewhispererPreviousSuggestionState: session.previousTriggerDecision,
+                codewhispererSupplementalContextTimeout: session.supplementalMetadata?.isProcessTimeout,
+                codewhispererSupplementalContextIsUtg: session.supplementalMetadata?.isUtg,
+                codewhispererSupplementalContextLength: session.supplementalMetadata?.contentsLength,
+                codewhispererCustomizationArn: session.customizationArn,
+            }
+            this.telemetry.emitMetric({
+                name: 'codewhisperer_userTriggerDecision',
+                data: data,
+            })
+        }
         const completionSessionResult = session.completionSessionResult ?? {}
         const acceptedSuggestion = session.suggestions.find(s => s.itemId === session.acceptedSuggestionId)
         const generatedLines =
@@ -269,12 +308,30 @@ export class TelemetryService extends CodeWhispererServiceToken {
         })
     }
 
-    public emitCodeCoverageEvent(params: {
-        languageId: CodewhispererLanguage
-        acceptedCharacterCount: number
-        totalCharacterCount: number
-        customizationArn?: string
-    }) {
+    public emitCodeCoverageEvent(
+        params: {
+            languageId: CodewhispererLanguage
+            acceptedCharacterCount: number
+            totalCharacterCount: number
+            customizationArn?: string
+        },
+        additionalParams: Partial<{
+            percentage: number
+            successCount: number
+        }>
+    ) {
+        if (this.enableTelemetryEventsToDestination) {
+            this.telemetry.emitMetric({
+                name: 'codewhisperer_codePercentage',
+                data: {
+                    codewhispererTotalTokens: params.totalCharacterCount,
+                    codewhispererLanguage: params.languageId,
+                    codewhispererSuggestedTokens: params.acceptedCharacterCount,
+                    codewhispererPercentage: additionalParams.percentage,
+                    successCount: additionalParams.successCount,
+                },
+            })
+        }
         const event: CodeCoverageEvent = {
             programmingLanguage: {
                 languageName: getRuntimeLanguage(params.languageId),
