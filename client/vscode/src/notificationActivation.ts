@@ -1,7 +1,6 @@
 import { commands, window } from 'vscode'
 import {
     AwsResponseError,
-    NotificationFollowupParams,
     notificationFollowupRequestType,
     NotificationParams,
     showNotificationRequestType,
@@ -28,10 +27,10 @@ function showNotificationHandler(params: NotificationParams): void {
 // Put whatever calls to the aws-lsp-notification server you want to experiment with/debug here
 async function execTestCommand(client: LanguageClient): Promise<void> {
     try {
-        const result = await client.sendRequest(notificationFollowupRequestType.method, {
+        const result = await client.sendNotification(notificationFollowupRequestType, {
             id: 'someid',
             actions: ['Acknowledge'],
-        } satisfies NotificationFollowupParams)
+        })
         window.showInformationMessage(`NotificationFollowup: ${JSON.stringify(result)}`)
     } catch (e) {
         const are = e as AwsResponseError
