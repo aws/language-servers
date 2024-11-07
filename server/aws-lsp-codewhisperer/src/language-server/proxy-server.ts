@@ -9,6 +9,7 @@ import { QConfigurationServerToken } from './configuration/qConfigurationServer'
 import { readFileSync } from 'fs'
 import { ConfigurationOptions } from 'aws-sdk'
 import { HttpsProxyAgent } from 'hpagent'
+import { NodeHttpHandler } from '@smithy/node-http-handler'
 
 const makeProxyConfig = () => {
     let additionalAwsConfig: ConfigurationOptions = {}
@@ -59,8 +60,6 @@ export const QChatServerProxy = QChatServer(credentialsProvider => {
     const certs = process.env.AWS_CA_BUNDLE ? [readFileSync(process.env.AWS_CA_BUNDLE)] : undefined
 
     if (proxyUrl) {
-        const { NodeHttpHandler } = require('@smithy/node-http-handler')
-
         clientOptions = () => {
             // this mimics aws-sdk-v3-js-proxy
             const agent = new HttpsProxyAgent({

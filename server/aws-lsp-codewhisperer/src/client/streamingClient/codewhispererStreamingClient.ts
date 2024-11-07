@@ -2,6 +2,8 @@ import { CodeWhispererStreaming, CodeWhispererStreamingClientConfig } from '@amz
 import { ConfiguredRetryStrategy } from '@aws-sdk/util-retry'
 import { readFileSync } from 'fs'
 import { AWS_Q_REGION, AWS_Q_ENDPOINT_URL } from '../../constants'
+import { NodeHttpHandler } from '@smithy/node-http-handler'
+import { HttpsProxyAgent } from 'hpagent'
 
 export class StreamingClient {
     public async getStreamingClient(credentialsProvider: any, config?: CodeWhispererStreamingClientConfig) {
@@ -19,9 +21,6 @@ export async function createStreamingClient(
     const certs = process.env.AWS_CA_BUNDLE ? [readFileSync(process.env.AWS_CA_BUNDLE)] : undefined
 
     if (proxyUrl) {
-        const { NodeHttpHandler } = require('@smithy/node-http-handler')
-        const { HttpsProxyAgent } = require('hpagent')
-
         const agent = new HttpsProxyAgent({
             proxy: proxyUrl,
             ca: certs,
