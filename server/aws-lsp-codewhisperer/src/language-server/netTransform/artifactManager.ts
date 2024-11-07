@@ -121,7 +121,7 @@ export class ArtifactManager {
             return ''
         }
         const zipPath = path.join(this.workspacePath, zipFileName)
-        this.logging.log('zipping files to' + zipPath)
+        this.logging.log('zipping files to ' + zipPath)
         await this.zipDirectory(folderPath, zipPath)
         return zipPath
     }

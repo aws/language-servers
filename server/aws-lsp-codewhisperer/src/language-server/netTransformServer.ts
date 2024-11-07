@@ -112,10 +112,8 @@ export const QNetTransformServerToken =
                         logging.log('Calling getTransformPlan request with job Id: ' + request.TransformationJobId)
                         const response = await transformHandler.getTransformationPlan(request)
                         logging.log(
-                            'Transformation plan for job Id' +
-                                request.TransformationJobId +
-                                ' is ' +
-                                JSON.stringify(response)
+                            'Received getTransformPlan response and updated transformation plan for job Id' +
+                                request.TransformationJobId
                         )
                         emitTransformationPlanReceivedTelemetry(telemetry, response, request.TransformationJobId)
                         return response

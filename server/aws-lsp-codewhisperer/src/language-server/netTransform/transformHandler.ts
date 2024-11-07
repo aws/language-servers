@@ -182,9 +182,13 @@ export class TransformHandler {
             const getCodeTransformationRequest = {
                 transformationJobId: request.TransformationJobId,
             } as GetTransformationRequest
-            this.logging.log('send request to get transform api: ' + JSON.stringify(getCodeTransformationRequest))
             const response = await this.client.codeModernizerGetCodeTransformation(getCodeTransformationRequest)
-            this.logging.log('response received from get transform api: ' + JSON.stringify(response))
+            this.logging.log(
+                'response received from get transform api, the job status for ' +
+                    response.transformationJob.jobId +
+                    ' is ' +
+                    response.transformationJob.status
+            )
             return {
                 TransformationJob: response.transformationJob,
             } as GetTransformResponse
@@ -202,13 +206,9 @@ export class TransformHandler {
                 const getCodeTransformationPlanRequest = {
                     transformationJobId: request.TransformationJobId,
                 } as GetTransformationRequest
-                this.logging.log(
-                    'send request to get transform plan api: ' + JSON.stringify(getCodeTransformationPlanRequest)
-                )
                 const response = await this.client.codeModernizerGetCodeTransformationPlan(
                     getCodeTransformationPlanRequest
                 )
-                this.logging.log('received response from get transform plan api: ' + JSON.stringify(response))
                 return {
                     TransformationPlan: response.transformationPlan,
                 } as GetTransformPlanResponse
@@ -294,7 +294,7 @@ export class TransformHandler {
         } as GetTransformationRequest
         this.logging.log('poll : send request to get transform  api: ' + JSON.stringify(getCodeTransformationRequest))
         let response = await this.client.codeModernizerGetCodeTransformation(getCodeTransformationRequest)
-        this.logging.log('poll : received response from get transform  api: ' + JSON.stringify(response))
+        this.logging.log('poll : received response from get transform api: ' + JSON.stringify(response))
         let status = response?.transformationJob?.status ?? PollTransformationStatus.NOT_FOUND
 
         this.logging.log('validExitStatus here are : ' + validExitStatus)
@@ -311,7 +311,7 @@ export class TransformHandler {
                     'poll : send request to get transform  api: ' + JSON.stringify(getCodeTransformationRequest)
                 )
                 response = await this.client.codeModernizerGetCodeTransformation(getCodeTransformationRequest)
-                this.logging.log('poll : received response from get transform  api: ' + JSON.stringify(response))
+                this.logging.log('poll : received response from get transform api: ' + JSON.stringify(response))
                 this.logging.log('poll : job status here : ' + response.transformationJob.status)
 
                 if (response.transformationJob?.status) {
