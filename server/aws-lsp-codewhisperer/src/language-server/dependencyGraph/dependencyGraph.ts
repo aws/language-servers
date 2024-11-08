@@ -186,7 +186,7 @@ export abstract class DependencyGraph {
      */
     protected async removeDir(dir: string) {
         if (await this.workspace.fs.exists(dir)) {
-            await this.workspace.fs.rm(dir, { force: true })
+            await this.workspace.fs.rm(dir, { force: true, recursive: true })
         }
     }
 
