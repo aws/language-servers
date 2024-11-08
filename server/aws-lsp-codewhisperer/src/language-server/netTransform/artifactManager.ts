@@ -37,7 +37,7 @@ export class ArtifactManager {
             fs.unlinkSync(zipFile)
             fs.rmSync(this.workspacePath, { recursive: true, force: true })
         } catch (error) {
-            this.logging.log('failed to cleanup:' + error)
+            this.logging.log('Failed to cleanup:' + error)
         }
     }
 
@@ -45,7 +45,7 @@ export class ArtifactManager {
         const fileContent = await this.createRequirementJsonContent(request)
         const dir = this.getRequirementJsonPath()
         await this.writeRequirmentJsonAsync(dir, JSON.stringify(fileContent))
-        this.logging.log('generated requirement.json at: ' + dir)
+        this.logging.log('Generated requirement.json at: ' + dir)
     }
 
     async copySolutionConfigFiles(request: StartTransformRequest) {
@@ -78,7 +78,7 @@ export class ArtifactManager {
                         relativePath: relativePath,
                     })
                 } catch (error) {
-                    this.logging.log('failed to process file: ' + error + filePath)
+                    this.logging.log('Failed to process file: ' + error + filePath)
                 }
             })
 
@@ -97,7 +97,7 @@ export class ArtifactManager {
                         relativePath: relativePath,
                     })
                 } catch (error) {
-                    this.logging.log('failed to process file: ' + error + reference.AssemblyFullPath)
+                    this.logging.log('Failed to process file: ' + error + reference.AssemblyFullPath)
                 }
             })
             projects.push({
@@ -107,7 +107,7 @@ export class ArtifactManager {
                 references: references,
             })
         })
-        this.logging.log('total project reference:' + projects.length)
+        this.logging.log('Total project reference: ' + projects.length)
         return {
             EntryPath: this.normalizeSourceFileRelativePath(request.SolutionRootPath, request.SelectedProjectPath),
             Projects: projects,
@@ -117,11 +117,11 @@ export class ArtifactManager {
     async zipArtifact(): Promise<string> {
         const folderPath = path.join(this.workspacePath, artifactFolderName)
         if (!fs.existsSync(folderPath)) {
-            this.logging.log('cannot find artifact folder')
+            this.logging.log('Cannot find artifact folder')
             return ''
         }
         const zipPath = path.join(this.workspacePath, zipFileName)
-        this.logging.log('zipping files to ' + zipPath)
+        this.logging.log('Zipping files to ' + zipPath)
         await this.zipDirectory(folderPath, zipPath)
         return zipPath
     }
@@ -192,7 +192,7 @@ export class ArtifactManager {
         this.createFolderIfNotExist(dir)
         fs.copyFile(sourceFilePath, destFilePath, error => {
             if (error) {
-                this.logging.log('failed to copy: ' + sourceFilePath + error)
+                this.logging.log('Failed to copy: ' + sourceFilePath + error)
             }
         })
     }
@@ -203,7 +203,7 @@ export class ArtifactManager {
             const hash = crypto.createHash('md5').update(data)
             return hash.digest('hex')
         } catch (error) {
-            this.logging.log('failed to calculate hashcode: ' + filePath + error)
+            this.logging.log('Failed to calculate hashcode: ' + filePath + error)
             return ''
         }
     }

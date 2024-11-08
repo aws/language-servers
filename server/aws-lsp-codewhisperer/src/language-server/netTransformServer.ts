@@ -59,14 +59,12 @@ export const QNetTransformServerToken =
                 switch (params.command) {
                     case StartTransformCommand: {
                         const request = params as StartTransformRequest
-                        logging.log('Calling startTransformRequest: ' + request.SolutionRootPath)
                         const response = await transformHandler.startTransformation(request)
                         emitTransformationJobStartedTelemetry(telemetry, response)
                         return response
                     }
                     case GetTransformCommand: {
                         const request = params as GetTransformRequest
-                        logging.log('Calling getTransform request with job Id: ' + request.TransformationJobId)
                         const response = await transformHandler.getTransformation(request)
                         if (response != null) {
                             emitTransformationJobReceivedTelemetry(telemetry, response)
@@ -75,52 +73,32 @@ export const QNetTransformServerToken =
                     }
                     case PollTransformCommand: {
                         const request = params as GetTransformRequest
-                        logging.log('Calling pollTransform request with job Id: ' + request.TransformationJobId)
                         const response = await transformHandler.pollTransformation(
                             request,
                             validStatesForComplete,
                             failureStates
-                        )
-                        logging.log(
-                            'Transformation job for job Id' +
-                                request.TransformationJobId +
-                                ' is ' +
-                                JSON.stringify(response)
                         )
                         emitTransformationJobPolledTelemetry(telemetry, response)
                         return response
                     }
                     case PollTransformForPlanCommand: {
                         const request = params as GetTransformRequest
-                        logging.log('Calling pollTransformForPlan request with job Id: ' + request.TransformationJobId)
                         const response = await transformHandler.pollTransformation(
                             request,
                             validStatesForGettingPlan,
                             failureStates
-                        )
-                        logging.log(
-                            'Transformation job for job Id' +
-                                request.TransformationJobId +
-                                ' is ' +
-                                JSON.stringify(response)
                         )
                         emitTransformationJobPolledForPlanTelemetry(telemetry, response)
                         return response
                     }
                     case GetTransformPlanCommand: {
                         const request = params as GetTransformPlanRequest
-                        logging.log('Calling getTransformPlan request with job Id: ' + request.TransformationJobId)
                         const response = await transformHandler.getTransformationPlan(request)
-                        logging.log(
-                            'Received getTransformPlan response and updated transformation plan for job Id' +
-                                request.TransformationJobId
-                        )
                         emitTransformationPlanReceivedTelemetry(telemetry, response, request.TransformationJobId)
                         return response
                     }
                     case CancelTransformCommand: {
                         const request = params as CancelTransformRequest
-                        logging.log('request job ID: ' + request.TransformationJobId)
                         const response = await transformHandler.cancelTransformation(request)
                         emitTransformationJobCancelledTelemetry(telemetry, response, request.TransformationJobId)
                         return response
@@ -132,7 +110,7 @@ export const QNetTransformServerToken =
                             credentialsProvider,
                             customCWClientConfig
                         )
-                        logging.log('Calling Download Archive  with job Id: ' + request.TransformationJobId)
+
                         const response = await transformHandler.downloadExportResultArchive(
                             cwStreamingClient,
                             request.TransformationJobId,
