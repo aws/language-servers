@@ -3,17 +3,12 @@ import * as assert from 'assert'
 import sinon from 'ts-sinon'
 import { TextDocument } from 'vscode-languageserver-textdocument'
 import { DocumentContext, DocumentContextExtractor } from './documentContext'
-import { DocumentFqnExtractor } from './documentFqnExtractor'
 
 describe('DocumentContext', () => {
     const mockTypescriptCodeBlock = `function test() {
     console.log('test')
 }`
     const mockTSDocument = TextDocument.create('file://test.ts', 'typescript', 1, mockTypescriptCodeBlock)
-
-    beforeEach(() => {
-        sinon.stub(DocumentFqnExtractor.prototype, 'extractDocumentSymbols').resolves([])
-    })
 
     afterEach(() => {
         sinon.restore()
@@ -25,7 +20,6 @@ describe('DocumentContext', () => {
             const expected: DocumentContext = {
                 programmingLanguage: { languageName: 'typescript' },
                 relativeFilePath: 'file://test.ts',
-                documentSymbols: [],
                 text: "console.log('test')",
                 hasCodeSnippet: true,
                 totalEditorCharacters: mockTypescriptCodeBlock.length,
@@ -65,7 +59,6 @@ describe('DocumentContext', () => {
             const expected: DocumentContext = {
                 programmingLanguage: { languageName: 'typescript' },
                 relativeFilePath: 'file://test.ts',
-                documentSymbols: [],
                 text: "console.log('test')",
                 hasCodeSnippet: true,
                 totalEditorCharacters: mockTypescriptCodeBlock.length,
@@ -112,7 +105,6 @@ describe('DocumentContext', () => {
         const expectedResult: DocumentContext = {
             programmingLanguage: { languageName: 'go' },
             relativeFilePath: 'file://test.go',
-            documentSymbols: [],
             text: 'fmt.Println("test")',
             totalEditorCharacters: mockGoCodeBLock.length,
             hasCodeSnippet: true,

@@ -452,7 +452,6 @@ describe('ChatController', () => {
                     {
                         cursorState: [],
                         document: {
-                            documentSymbols: undefined,
                             programmingLanguage: 'typescript',
                             relativeFilePath: 'file:///test.ts',
                             text: undefined,

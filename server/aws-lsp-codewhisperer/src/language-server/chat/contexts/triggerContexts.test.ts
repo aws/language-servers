@@ -14,7 +14,6 @@ describe('QChatTriggerContext', () => {
         text: '',
         programmingLanguage: { languageName: 'typescript' },
         relativeFilePath: 'file://test.ts',
-        documentSymbols: [],
         hasCodeSnippet: false,
         totalEditorCharacters: 0,
     }
