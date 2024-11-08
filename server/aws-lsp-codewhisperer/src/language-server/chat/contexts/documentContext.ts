@@ -3,7 +3,6 @@ import { CursorState } from '@aws/language-server-runtimes/server-interface'
 import { Range, TextDocument } from 'vscode-languageserver-textdocument'
 import { getLanguageId } from '../../languageDetection'
 import { Features } from '../../types'
-import { DocumentFqnExtractor, DocumentFqnExtractorConfig } from './documentFqnExtractor'
 import { getExtendedCodeBlockRange, getSelectionWithinExtendedRange } from './utils'
 
 export type DocumentContext = CwsprTextDocument & {
@@ -12,8 +11,7 @@ export type DocumentContext = CwsprTextDocument & {
     totalEditorCharacters: number
 }
 
-export interface DocumentContextExtractorConfig extends DocumentFqnExtractorConfig {
-    config?: DocumentFqnExtractorConfig
+export interface DocumentContextExtractorConfig {
     logger?: Features['logging']
     characterLimits?: number
 }
@@ -23,18 +21,10 @@ export class DocumentContextExtractor {
 
     #characterLimits: number
     #logger?: Features['logging']
-    #documentSymbolExtractor: DocumentFqnExtractor
 
     constructor(config?: DocumentContextExtractorConfig) {
-        const { characterLimits, ...fqnConfig } = config ?? {}
-
         this.#logger = config?.logger
-        this.#characterLimits = characterLimits ?? DocumentContextExtractor.DEFAULT_CHARACTER_LIMIT
-        this.#documentSymbolExtractor = new DocumentFqnExtractor(fqnConfig)
-    }
-
-    public dispose() {
-        this.#documentSymbolExtractor.dispose()
+        this.#characterLimits = config?.characterLimits ?? DocumentContextExtractor.DEFAULT_CHARACTER_LIMIT
     }
 
     /**
@@ -56,27 +46,11 @@ export class DocumentContextExtractor {
 
         const languageId = getLanguageId(document)
 
-        let documentSymbols: DocumentSymbol[] = []
-
-        try {
-            // best effort to extract symbols
-            documentSymbols = await this.#documentSymbolExtractor.extractDocumentSymbols(
-                document,
-                codeBlockRange,
-                languageId
-            )
-        } catch (e) {
-            this.#logger?.log(
-                `Error extracting document symbols but continuing on. ${e instanceof Error ? e.message : 'Unknown error'}`
-            )
-        }
-
         return {
             cursorState: rangeWithinCodeBlock ? { range: rangeWithinCodeBlock } : undefined,
             text: document.getText(codeBlockRange),
             programmingLanguage: languageId ? { languageName: languageId } : undefined,
             relativeFilePath: document.uri,
-            documentSymbols,
             hasCodeSnippet: Boolean(rangeWithinCodeBlock),
             totalEditorCharacters: document.getText().length,
         }
