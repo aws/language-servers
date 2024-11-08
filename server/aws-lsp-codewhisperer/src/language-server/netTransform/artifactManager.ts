@@ -107,7 +107,7 @@ export class ArtifactManager {
                 references: references,
             })
         })
-        this.logging.log('Total project reference: ' + projects.length)
+        this.logging.log('Total project references: ' + projects.length)
         return {
             EntryPath: this.normalizeSourceFileRelativePath(request.SolutionRootPath, request.SelectedProjectPath),
             Projects: projects,
@@ -117,7 +117,7 @@ export class ArtifactManager {
     async zipArtifact(): Promise<string> {
         const folderPath = path.join(this.workspacePath, artifactFolderName)
         if (!fs.existsSync(folderPath)) {
-            this.logging.log('Cannot find artifact folder')
+            this.logging.log('Cannot find artifacts folder')
             return ''
         }
         const zipPath = path.join(this.workspacePath, zipFileName)

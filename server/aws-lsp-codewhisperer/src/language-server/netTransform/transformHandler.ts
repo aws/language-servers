@@ -309,7 +309,6 @@ export class TransformHandler {
                 status = response.transformationJob.status!
                 await this.sleep(10 * 1000)
                 timer += 10
-                this.logging.log('Current polling timer ' + timer)
 
                 if (timer > 24 * 3600 * 1000) {
                     status = PollTransformationStatus.TIMEOUT
