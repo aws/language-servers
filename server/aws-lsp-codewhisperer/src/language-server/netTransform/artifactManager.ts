@@ -110,6 +110,7 @@ export class ArtifactManager {
         this.logging.log('total project reference:' + projects.length)
         return {
             EntryPath: this.normalizeSourceFileRelativePath(request.SolutionRootPath, request.SelectedProjectPath),
+            SolutionPath: this.normalizeSourceFileRelativePath(request.SolutionRootPath, request.SolutionFilePath),
             Projects: projects,
         } as RequirementJson
     }
