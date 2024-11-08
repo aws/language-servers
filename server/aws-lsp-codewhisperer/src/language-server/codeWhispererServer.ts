@@ -177,14 +177,13 @@ const emitUserTriggerDecisionTelemetry = (
         return
     }
 
-    emitAggregatedUserTriggerDecisionTelemetry(telemetry, telemetryService, session, timeSinceLastUserModification)
+    emitAggregatedUserTriggerDecisionTelemetry(telemetryService, session, timeSinceLastUserModification)
     emitUserDecisionTelemetry(telemetry, session)
 
     session.reportedUserDecision = true
 }
 
 const emitAggregatedUserTriggerDecisionTelemetry = (
-    telemetry: Telemetry,
     telemetryService: TelemetryService,
     session: CodeWhispererSession,
     timeSinceLastUserModification?: number
@@ -298,7 +297,7 @@ export const CodewhispererServerFactory =
         // the context of a single response.
         let includeSuggestionsWithCodeReferences = false
 
-        const codePercentageTracker = new CodePercentageTracker(telemetry, telemetryService)
+        const codePercentageTracker = new CodePercentageTracker(telemetryService)
 
         const codeDiffTracker: CodeDiffTracker<AcceptedInlineSuggestionEntry> = new CodeDiffTracker(
             workspace,
@@ -607,8 +606,8 @@ export const CodewhispererServerFactory =
                         The flag enableTelemetryEventsToDestination is set to true temporarily. It's value will be determined through destination
                         configuration post all events migration to STE. It'll be replaced by qConfig['enableTelemetryEventsToDestination'] === true
                      */
-                    const enableTelemetryEventsToDestination = true
-                    telemetryService.updateEnableTelemetryEventsToDestination(enableTelemetryEventsToDestination)
+                    // const enableTelemetryEventsToDestination = true
+                    // telemetryService.updateEnableTelemetryEventsToDestination(enableTelemetryEventsToDestination)
                     const optOutTelemetryPreference = qConfig['optOutTelemetry'] === true ? 'OPTOUT' : 'OPTIN'
                     telemetryService.updateOptOutPreference(optOutTelemetryPreference)
                 }

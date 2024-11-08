@@ -1,4 +1,3 @@
-import { Telemetry } from '@aws/language-server-runtimes/server-interface'
 import { CodeWhispererCodePercentageEvent } from './types'
 import { TelemetryService } from '../telemetryService'
 import { CodewhispererLanguage } from '../languageDetection'
@@ -19,13 +18,11 @@ type TelemetryBuckets = {
 export class CodePercentageTracker {
     private buckets: TelemetryBuckets
     private intervalId: NodeJS.Timeout
-    private telemetry: Telemetry
     private telemetryService: TelemetryService
     public customizationArn?: string
 
-    constructor(telemetry: Telemetry, telemetryService: TelemetryService) {
+    constructor(telemetryService: TelemetryService) {
         this.buckets = {}
-        this.telemetry = telemetry
         this.telemetryService = telemetryService
 
         this.intervalId = this.startListening()

@@ -180,7 +180,6 @@ export class TelemetryService extends CodeWhispererServiceToken {
                 data: data,
             })
         }
-        const completionSessionResult = session.completionSessionResult ?? {}
         const acceptedSuggestion = session.suggestions.find(s => s.itemId === session.acceptedSuggestionId)
         const generatedLines =
             acceptedSuggestion === undefined || acceptedSuggestion.content.trim() === ''

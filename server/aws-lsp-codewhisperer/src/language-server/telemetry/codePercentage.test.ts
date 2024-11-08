@@ -1,7 +1,5 @@
-import { Telemetry } from '@aws/language-server-runtimes/server-interface'
 import sinon, { StubbedInstance, stubInterface } from 'ts-sinon'
 import { CodePercentageTracker } from './codePercentage'
-import assert = require('assert')
 import { TelemetryService } from '../telemetryService'
 
 describe('CodePercentage', () => {
@@ -13,15 +11,13 @@ describe('CodePercentage', () => {
     const SOME_ACCEPTED_CONTENT = 'accepted.\n'
 
     let tracker: CodePercentageTracker
-    let telemetry: StubbedInstance<Telemetry>
     let telemetryService: StubbedInstance<TelemetryService>
     let clock: sinon.SinonFakeTimers
 
     beforeEach(() => {
         clock = sinon.useFakeTimers()
-        telemetry = stubInterface<Telemetry>()
         telemetryService = stubInterface<TelemetryService>()
-        tracker = new CodePercentageTracker(telemetry, telemetryService)
+        tracker = new CodePercentageTracker(telemetryService)
     })
 
     afterEach(() => {
@@ -31,7 +27,6 @@ describe('CodePercentage', () => {
 
     it('does not send telemetry without edits', () => {
         clock.tick(5000 * 60)
-        sinon.assert.notCalled(telemetry.emitMetric)
         sinon.assert.notCalled(telemetryService.emitCodeCoverageEvent)
     })
 
@@ -64,7 +59,6 @@ describe('CodePercentage', () => {
 
         clock.tick(5000 * 60)
 
-        sinon.assert.notCalled(telemetry.emitMetric)
         sinon.assert.notCalled(telemetryService.emitCodeCoverageEvent)
     })
 
