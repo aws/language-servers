@@ -31,7 +31,7 @@ export const targetFrameworkMap = new Map<string, string>([
     ['net6.0', 'NET_6_0'],
     ['net7.0', 'NET_7_0'],
     ['net8.0', 'NET_8_0'],
-    ['net9.0', 'NET_9_0'],
+    ['net9.0', 'NET_8_0'], // This is a temporary workaround.
     ['netstandard2.0', 'NET_STANDARD_2_0'],
 ])
 
