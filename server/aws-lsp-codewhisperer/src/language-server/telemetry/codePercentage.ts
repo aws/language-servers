@@ -15,6 +15,8 @@ type TelemetryBuckets = {
     }
 }
 
+const autoClosingKeystrokeInputs = ['[]', '{}', '()', '""', "''"]
+
 export class CodePercentageTracker {
     private buckets: TelemetryBuckets
     private intervalId: NodeJS.Timeout
@@ -89,9 +91,46 @@ export class CodePercentageTracker {
         return this.buckets[languageId]
     }
 
-    countTokens(languageId: string, tokens: string): void {
+    // Partial port of implementation in AWS Toolkit for VSCode
+    // https://github.com/aws/aws-toolkit-vscode/blob/81132884f4fb3319bda4be7d3d873265191f43ce/packages/core/src/codewhisperer/tracker/codewhispererCodeCoverageTracker.ts#L238
+    getCharacterCountFromComplexEvent(tokens: string) {
+        if ((tokens.startsWith('\n') || tokens.startsWith('\r\n')) && tokens.trim().length === 0) {
+            return 1
+        }
+        if (autoClosingKeystrokeInputs.includes(tokens)) {
+            return 2
+        }
+
+        return 0
+    }
+
+    countTotalTokens(languageId: string, tokens: string): void {
         const languageBucket = this.getLanguageBucket(languageId)
-        const tokenCount = tokens.length
+        let tokenCount = 0
+
+        // Partial port of implementation in AWS Toolkit for VSCode
+        // https://github.com/aws/aws-toolkit-vscode/blob/81132884f4fb3319bda4be7d3d873265191f43ce/packages/core/src/codewhisperer/tracker/codewhispererCodeCoverageTracker.ts#L267-L300
+        // ignore no contentChanges. ignore contentChanges from other plugins (formatters)
+        // only include contentChanges from user keystroke input (one character input).
+        // Also ignore deletion events due to a known issue of tracking deleted CodeWhiperer tokens.
+
+        // A user keystroke input can be:
+        // 1. content change with 1 character insertion
+        if (tokens.length === 1) {
+            tokenCount = 1
+        } else if (this.getCharacterCountFromComplexEvent(tokens) !== 0) {
+            // 2. newline character with indentation
+            // 3. 2 character insertion of closing brackets
+            tokenCount = this.getCharacterCountFromComplexEvent(tokens)
+            // also include multi character input within 50 characters (not from CWSPR)
+        } else if (tokens.length > 1) {
+            // select 50 as the cut-off threshold for counting user input.
+            // ignore all white space multi char input, this usually comes from reformat.
+            if (tokens.length < 50 && tokens.trim().length > 0) {
+                tokenCount = tokens.length
+            }
+        }
+
         languageBucket.totalTokens += tokenCount
     }
 
@@ -99,6 +138,7 @@ export class CodePercentageTracker {
         const languageBucket = this.getLanguageBucket(languageId)
         const tokenCount = tokens.length
         languageBucket.acceptedTokens += tokenCount
+        languageBucket.totalTokens += tokenCount
     }
 
     countInvocation(languageId: string): void {

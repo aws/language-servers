@@ -1,4 +1,9 @@
-import { InlineCompletionStates, Position, TextDocument } from '@aws/language-server-runtimes/server-interface'
+import {
+    InlineCompletionItemWithReferences,
+    InlineCompletionStates,
+    Position,
+    TextDocument,
+} from '@aws/language-server-runtimes/server-interface'
 import { v4 as uuidv4 } from 'uuid'
 import { CodewhispererAutomatedTriggerType, CodewhispererTriggerType } from '../auto-trigger/autoTrigger'
 import { GenerateSuggestionsRequest, ResponseContext, Suggestion } from '../codeWhispererService'
@@ -8,6 +13,10 @@ import { CodeWhispererSupplementalContext } from '../models/model'
 type SessionState = 'REQUESTING' | 'ACTIVE' | 'CLOSED' | 'ERROR' | 'DISCARD'
 export type UserDecision = 'Empty' | 'Filter' | 'Discard' | 'Accept' | 'Ignore' | 'Reject' | 'Unseen'
 type UserTriggerDecision = 'Accept' | 'Reject' | 'Empty' | 'Discard'
+
+interface CachedSuggestion extends Suggestion {
+    insertText?: string
+}
 
 export interface SessionData {
     document: TextDocument
@@ -36,7 +45,7 @@ export class CodeWhispererSession {
         line: 0,
         character: 0,
     }
-    suggestions: Suggestion[] = []
+    suggestions: CachedSuggestion[] = []
     suggestionsStates = new Map<string, UserDecision>()
     acceptedSuggestionId?: string = undefined
     responseContext?: ResponseContext

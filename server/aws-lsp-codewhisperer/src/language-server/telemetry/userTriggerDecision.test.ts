@@ -508,9 +508,9 @@ describe('Telemetry', () => {
                     state: 'DISCARD',
                     codewhispererSessionId: 'cwspr-session-id-1',
                     suggestions: [
-                        { itemId: 'cwspr-item-id-1', content: 'recommendation' },
-                        { itemId: 'cwspr-item-id-2', content: 'recommendation' },
-                        { itemId: 'cwspr-item-id-3', content: 'recommendation' },
+                        { itemId: 'cwspr-item-id-1', content: 'recommendation', insertText: 'recommendation' },
+                        { itemId: 'cwspr-item-id-2', content: 'recommendation', insertText: 'recommendation' },
+                        { itemId: 'cwspr-item-id-3', content: 'recommendation', insertText: 'recommendation' },
                     ],
                     suggestionsStates: new Map([
                         ['cwspr-item-id-1', 'Discard'],
@@ -579,9 +579,9 @@ describe('Telemetry', () => {
                         'cwspr-item-id-3': { seen: true, accepted: false, discarded: false },
                     },
                     suggestions: [
-                        { itemId: 'cwspr-item-id-1', content: 'recommendation' },
-                        { itemId: 'cwspr-item-id-2', content: 'recommendation' },
-                        { itemId: 'cwspr-item-id-3', content: 'recommendation' },
+                        { itemId: 'cwspr-item-id-1', content: 'recommendation', insertText: 'recommendation' },
+                        { itemId: 'cwspr-item-id-2', content: 'recommendation', insertText: 'recommendation' },
+                        { itemId: 'cwspr-item-id-3', content: 'recommendation', insertText: 'recommendation' },
                     ],
                     suggestionsStates: new Map([
                         ['cwspr-item-id-1', 'Ignore'],
@@ -624,9 +624,9 @@ describe('Telemetry', () => {
 
                 const expectedUserTriggerDecisionMetric = aUserTriggerDecision({
                     suggestions: [
-                        { itemId: 'cwspr-item-id-1', content: 'recommendation' },
-                        { itemId: 'cwspr-item-id-2', content: 'recommendation' },
-                        { itemId: 'cwspr-item-id-3', content: 'recommendation' },
+                        { itemId: 'cwspr-item-id-1', content: 'recommendation', insertText: 'recommendation' },
+                        { itemId: 'cwspr-item-id-2', content: 'recommendation', insertText: 'recommendation' },
+                        { itemId: 'cwspr-item-id-3', content: 'recommendation', insertText: 'recommendation' },
                     ],
                     suggestionsStates: new Map([
                         ['cwspr-item-id-1', 'Reject'],
@@ -673,9 +673,9 @@ describe('Telemetry', () => {
 
                 const expectedUserTriggerDecisionMetric = aUserTriggerDecision({
                     suggestions: [
-                        { itemId: 'cwspr-item-id-1', content: 'recommendation' },
-                        { itemId: 'cwspr-item-id-2', content: 'recommendation' },
-                        { itemId: 'cwspr-item-id-3', content: 'recommendation' },
+                        { itemId: 'cwspr-item-id-1', content: 'recommendation', insertText: 'recommendation' },
+                        { itemId: 'cwspr-item-id-2', content: 'recommendation', insertText: 'recommendation' },
+                        { itemId: 'cwspr-item-id-3', content: 'recommendation', insertText: 'recommendation' },
                     ],
                     suggestionsStates: new Map([
                         ['cwspr-item-id-1', 'Discard'],
@@ -721,9 +721,9 @@ describe('Telemetry', () => {
                         'cwspr-item-id-3': { seen: true, accepted: false, discarded: false },
                     },
                     suggestions: [
-                        { itemId: 'cwspr-item-id-1', content: 'recommendation' },
-                        { itemId: 'cwspr-item-id-2', content: 'recommendation' },
-                        { itemId: 'cwspr-item-id-3', content: 'recommendation' },
+                        { itemId: 'cwspr-item-id-1', content: 'recommendation', insertText: 'recommendation' },
+                        { itemId: 'cwspr-item-id-2', content: 'recommendation', insertText: 'recommendation' },
+                        { itemId: 'cwspr-item-id-3', content: 'recommendation', insertText: 'recommendation' },
                     ],
                     suggestionsStates: new Map([
                         ['cwspr-item-id-1', 'Reject'],
@@ -754,9 +754,9 @@ describe('Telemetry', () => {
                     state: 'DISCARD',
                     codewhispererSessionId: 'cwspr-session-id-1',
                     suggestions: [
-                        { itemId: 'cwspr-item-id-1', content: 'recommendation' },
-                        { itemId: 'cwspr-item-id-2', content: 'recommendation' },
-                        { itemId: 'cwspr-item-id-3', content: 'recommendation' },
+                        { itemId: 'cwspr-item-id-1', content: 'recommendation', insertText: 'recommendation' },
+                        { itemId: 'cwspr-item-id-2', content: 'recommendation', insertText: 'recommendation' },
+                        { itemId: 'cwspr-item-id-3', content: 'recommendation', insertText: 'recommendation' },
                     ],
                     suggestionsStates: new Map([
                         ['cwspr-item-id-1', 'Discard'],
@@ -795,9 +795,9 @@ describe('Telemetry', () => {
                     state: 'DISCARD',
                     codewhispererSessionId: 'cwspr-session-id-1',
                     suggestions: [
-                        { itemId: 'cwspr-item-id-1', content: 'recommendation' },
-                        { itemId: 'cwspr-item-id-2', content: 'recommendation' },
-                        { itemId: 'cwspr-item-id-3', content: 'recommendation' },
+                        { itemId: 'cwspr-item-id-1', content: 'recommendation', insertText: 'recommendation' },
+                        { itemId: 'cwspr-item-id-2', content: 'recommendation', insertText: 'recommendation' },
+                        { itemId: 'cwspr-item-id-3', content: 'recommendation', insertText: 'recommendation' },
                     ],
                     suggestionsStates: new Map([
                         ['cwspr-item-id-1', 'Discard'],
@@ -858,9 +858,9 @@ describe('Telemetry', () => {
                     codewhispererSessionId: 'cwspr-session-id-1',
                     startPosition: { line: 2, character: 21 },
                     suggestions: [
-                        { itemId: 'cwspr-item-id-1', content: 'recommendation' },
-                        { itemId: 'cwspr-item-id-2', content: 'recommendation' },
-                        { itemId: 'cwspr-item-id-3', content: 'recommendation' },
+                        { itemId: 'cwspr-item-id-1', content: 'recommendation', insertText: 'recommendation' },
+                        { itemId: 'cwspr-item-id-2', content: 'recommendation', insertText: 'recommendation' },
+                        { itemId: 'cwspr-item-id-3', content: 'recommendation', insertText: 'recommendation' },
                     ],
                     suggestionsStates: {},
                     responseContext: { requestId: 'cwspr-request-id', codewhispererSessionId: 'cwspr-session-id-1' },
@@ -899,9 +899,9 @@ describe('Telemetry', () => {
                         state: 'DISCARD',
                         codewhispererSessionId: 'cwspr-session-id-2',
                         suggestions: [
-                            { itemId: 'cwspr-item-id-1', content: 'recommendation' },
-                            { itemId: 'cwspr-item-id-2', content: 'recommendation' },
-                            { itemId: 'cwspr-item-id-3', content: 'recommendation' },
+                            { itemId: 'cwspr-item-id-1', content: 'recommendation', insertText: 'recommendation' },
+                            { itemId: 'cwspr-item-id-2', content: 'recommendation', insertText: 'recommendation' },
+                            { itemId: 'cwspr-item-id-3', content: 'recommendation', insertText: 'recommendation' },
                         ],
                         suggestionsStates: new Map([
                             ['cwspr-item-id-1', 'Discard'],
@@ -959,9 +959,9 @@ describe('Telemetry', () => {
                         state: 'CLOSED',
                         codewhispererSessionId: 'cwspr-session-id-1',
                         suggestions: [
-                            { itemId: 'cwspr-item-id-1', content: 'recommendation' },
-                            { itemId: 'cwspr-item-id-2', content: 'recommendation' },
-                            { itemId: 'cwspr-item-id-3', content: 'recommendation' },
+                            { itemId: 'cwspr-item-id-1', content: 'recommendation', insertText: 'recommendation' },
+                            { itemId: 'cwspr-item-id-2', content: 'recommendation', insertText: 'recommendation' },
+                            { itemId: 'cwspr-item-id-3', content: 'recommendation', insertText: 'recommendation' },
                         ],
                         suggestionsStates: new Map([
                             ['cwspr-item-id-1', 'Reject'],
@@ -997,14 +997,17 @@ describe('Telemetry', () => {
                         {
                             itemId: 'cwspr-item-id-1',
                             content: 'recommendation',
+                            insertText: 'recommendation',
                         },
                         {
                             itemId: 'cwspr-item-id-2',
                             content: 'recommendation',
+                            insertText: 'recommendation',
                         },
                         {
                             itemId: 'cwspr-item-id-3',
                             content: 'recommendation',
+                            insertText: 'recommendation',
                         },
                     ],
                     suggestionsStates: {},
@@ -1088,9 +1091,9 @@ describe('Telemetry', () => {
                         codewhispererSessionId: 'cwspr-session-id-0',
                         state: 'DISCARD',
                         suggestions: [
-                            { itemId: 'cwspr-item-id-1', content: 'recommendation' },
-                            { itemId: 'cwspr-item-id-2', content: 'recommendation' },
-                            { itemId: 'cwspr-item-id-3', content: 'recommendation' },
+                            { itemId: 'cwspr-item-id-1', content: 'recommendation', insertText: 'recommendation' },
+                            { itemId: 'cwspr-item-id-2', content: 'recommendation', insertText: 'recommendation' },
+                            { itemId: 'cwspr-item-id-3', content: 'recommendation', insertText: 'recommendation' },
                         ],
                         suggestionsStates: new Map([
                             ['cwspr-item-id-1', 'Discard'],
@@ -1121,9 +1124,9 @@ describe('Telemetry', () => {
                     codewhispererSessionId: 'cwspr-session-id-1',
                     startPosition: { line: 2, character: 21 },
                     suggestions: [
-                        { itemId: 'cwspr-item-id-1', content: 'recommendation' },
-                        { itemId: 'cwspr-item-id-2', content: 'recommendation' },
-                        { itemId: 'cwspr-item-id-3', content: 'recommendation' },
+                        { itemId: 'cwspr-item-id-1', content: 'recommendation', insertText: 'recommendation' },
+                        { itemId: 'cwspr-item-id-2', content: 'recommendation', insertText: 'recommendation' },
+                        { itemId: 'cwspr-item-id-3', content: 'recommendation', insertText: 'recommendation' },
                     ],
                     suggestionsStates: {},
                     responseContext: { requestId: 'cwspr-request-id', codewhispererSessionId: 'cwspr-session-id-1' },
@@ -1168,9 +1171,9 @@ describe('Telemetry', () => {
                         closeTime: 1483228803770,
                         codewhispererSessionId: 'cwspr-session-id-2',
                         suggestions: [
-                            { itemId: 'cwspr-item-id-1', content: 'recommendation' },
-                            { itemId: 'cwspr-item-id-2', content: 'recommendation' },
-                            { itemId: 'cwspr-item-id-3', content: 'recommendation' },
+                            { itemId: 'cwspr-item-id-1', content: 'recommendation', insertText: 'recommendation' },
+                            { itemId: 'cwspr-item-id-2', content: 'recommendation', insertText: 'recommendation' },
+                            { itemId: 'cwspr-item-id-3', content: 'recommendation', insertText: 'recommendation' },
                         ],
                         suggestionsStates: new Map([
                             ['cwspr-item-id-1', 'Reject'],
@@ -1212,9 +1215,9 @@ describe('Telemetry', () => {
                 aUserTriggerDecision({
                     codewhispererSessionId: 'cwspr-session-id-1',
                     suggestions: [
-                        { itemId: 'cwspr-item-id-1', content: 'recommendation' },
-                        { itemId: 'cwspr-item-id-2', content: 'recommendation' },
-                        { itemId: 'cwspr-item-id-3', content: 'recommendation' },
+                        { itemId: 'cwspr-item-id-1', content: 'recommendation', insertText: 'recommendation' },
+                        { itemId: 'cwspr-item-id-2', content: 'recommendation', insertText: 'recommendation' },
+                        { itemId: 'cwspr-item-id-3', content: 'recommendation', insertText: 'recommendation' },
                     ],
                     suggestionsStates: new Map([
                         ['cwspr-item-id-1', 'Reject'],

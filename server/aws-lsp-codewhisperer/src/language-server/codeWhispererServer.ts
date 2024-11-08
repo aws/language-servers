@@ -224,7 +224,7 @@ const mergeSuggestionsWithRightContext = (
     range?: Range
 ): InlineCompletionItemWithReferences[] => {
     return suggestions.map(suggestion => {
-        const insertText = truncateOverlapWithRightContext(rightFileContext, suggestion.content)
+        const insertText: string = truncateOverlapWithRightContext(rightFileContext, suggestion.content)
         let references = suggestion.references
             ?.filter(
                 ref =>
@@ -499,6 +499,11 @@ export const CodewhispererServerFactory =
                             return true
                         })
 
+                        suggestionsWithRightContext.forEach(suggestion => {
+                            const cachedSuggestion = newSession.suggestions.find(s => s.itemId === suggestion.itemId)
+                            if (cachedSuggestion) cachedSuggestion.insertText = suggestion.insertText.toString()
+                        })
+
                         // If after all server-side filtering no suggestions can be displayed, close session and return empty results
                         if (suggestionsWithRightContext.length === 0) {
                             sessionManager.closeSession(newSession)
@@ -569,11 +574,10 @@ export const CodewhispererServerFactory =
                 k => params.completionSessionResult[k].accepted
             )
             const acceptedSuggestion = session.suggestions.find(s => s.itemId === acceptedItemId)
-
-            if (acceptedSuggestion !== undefined) {
+            if (acceptedSuggestion !== undefined && acceptedSuggestion.insertText) {
                 if (acceptedSuggestion) {
                     codePercentageTracker.countSuccess(session.language)
-                    codePercentageTracker.countAcceptedTokens(session.language, acceptedSuggestion.content)
+                    codePercentageTracker.countAcceptedTokens(session.language, acceptedSuggestion.insertText)
 
                     enqueueCodeDiffEntry(session, acceptedSuggestion)
                 }
@@ -644,7 +648,7 @@ export const CodewhispererServerFactory =
             }
 
             p.contentChanges.forEach(change => {
-                codePercentageTracker.countTokens(languageId, change.text)
+                codePercentageTracker.countTotalTokens(languageId, change.text)
             })
 
             // Record last user modification time for any document

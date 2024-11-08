@@ -1602,7 +1602,7 @@ describe('CodeWhisperer Server', () => {
             const expectedSessionData = {
                 id: SESSION_IDS_LOG[0],
                 state: 'ACTIVE',
-                suggestions: [{ itemId: 'cwspr-item-id', content: 'recommendation' }],
+                suggestions: [{ itemId: 'cwspr-item-id', content: 'recommendation', insertText: 'recommendation' }],
                 responseContext: EXPECTED_RESPONSE_CONTEXT,
                 codewhispererSessionId: EXPECTED_RESPONSE_CONTEXT.codewhispererSessionId,
                 timeToFirstRecommendation: 0,
@@ -1670,7 +1670,7 @@ describe('CodeWhisperer Server', () => {
             const expectedSessionData = {
                 id: SESSION_IDS_LOG[2],
                 state: 'ACTIVE',
-                suggestions: [{ itemId: 'cwspr-item-id', content: 'recommendation' }],
+                suggestions: [{ itemId: 'cwspr-item-id', content: 'recommendation', insertText: 'recommendation' }],
             }
             assert(activeSession)
             sinon.assert.match(

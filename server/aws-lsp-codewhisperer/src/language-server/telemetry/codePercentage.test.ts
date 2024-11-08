@@ -31,8 +31,8 @@ describe('CodePercentage', () => {
     })
 
     it('emits metrics every 5 minutes while editing', () => {
-        tracker.countTokens(LANGUAGE_ID, SOME_CONTENT)
-        tracker.countTokens(LANGUAGE_ID, SOME_ACCEPTED_CONTENT)
+        tracker.countTotalTokens(LANGUAGE_ID, SOME_CONTENT)
+        tracker.countTotalTokens(LANGUAGE_ID, SOME_ACCEPTED_CONTENT)
         tracker.countAcceptedTokens(LANGUAGE_ID, SOME_ACCEPTED_CONTENT)
         tracker.countInvocation(LANGUAGE_ID)
         tracker.countSuccess(LANGUAGE_ID)
@@ -55,23 +55,23 @@ describe('CodePercentage', () => {
     })
 
     it('emits no metrics without invocations', () => {
-        tracker.countTokens(OTHER_LANGUAGE_ID, SOME_CONTENT)
+        tracker.countTotalTokens(OTHER_LANGUAGE_ID, SOME_CONTENT)
 
-        clock.tick(5000 * 60)
+        clock.tick(5000 * 60 + 1)
 
         sinon.assert.notCalled(telemetryService.emitCodeCoverageEvent)
     })
 
     it('emits separate metrics for different languages', () => {
-        tracker.countTokens(LANGUAGE_ID, SOME_CONTENT)
-        tracker.countTokens(LANGUAGE_ID, SOME_ACCEPTED_CONTENT)
+        tracker.countTotalTokens(LANGUAGE_ID, SOME_CONTENT)
+        tracker.countTotalTokens(LANGUAGE_ID, SOME_ACCEPTED_CONTENT)
         tracker.countAcceptedTokens(LANGUAGE_ID, SOME_ACCEPTED_CONTENT)
         tracker.countInvocation(LANGUAGE_ID)
         tracker.countSuccess(LANGUAGE_ID)
 
-        tracker.countTokens(OTHER_LANGUAGE_ID, SOME_CONTENT)
-        tracker.countTokens(OTHER_LANGUAGE_ID, SOME_CONTENT)
-        tracker.countTokens(OTHER_LANGUAGE_ID, SOME_ACCEPTED_CONTENT)
+        tracker.countTotalTokens(OTHER_LANGUAGE_ID, SOME_CONTENT)
+        tracker.countTotalTokens(OTHER_LANGUAGE_ID, SOME_CONTENT)
+        tracker.countTotalTokens(OTHER_LANGUAGE_ID, SOME_ACCEPTED_CONTENT)
         tracker.countAcceptedTokens(OTHER_LANGUAGE_ID, SOME_ACCEPTED_CONTENT)
         tracker.countInvocation(OTHER_LANGUAGE_ID)
         tracker.countSuccess(OTHER_LANGUAGE_ID)
@@ -108,8 +108,8 @@ describe('CodePercentage', () => {
     })
 
     it('emits metrics with customizationArn value', () => {
-        tracker.countTokens(LANGUAGE_ID, SOME_CONTENT)
-        tracker.countTokens(LANGUAGE_ID, SOME_ACCEPTED_CONTENT)
+        tracker.countTotalTokens(LANGUAGE_ID, SOME_CONTENT)
+        tracker.countTotalTokens(LANGUAGE_ID, SOME_ACCEPTED_CONTENT)
         tracker.countAcceptedTokens(LANGUAGE_ID, SOME_ACCEPTED_CONTENT)
         tracker.countInvocation(LANGUAGE_ID)
         tracker.countSuccess(LANGUAGE_ID)
