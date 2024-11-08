@@ -235,10 +235,10 @@ export class TransformHandler {
                     transformationJobId: request.TransformationJobId,
                 } as StopTransformationRequest
                 this.logging.log(
-                    'Sending request to cancel transform plan api: ' + JSON.stringify(stopCodeTransformationRequest)
+                    'Sending CancelTransformRequest with job Id: ' + stopCodeTransformationRequest.transformationJobId
                 )
                 const response = await this.client.codeModernizerStopCodeTransformation(stopCodeTransformationRequest)
-                this.logging.log('Received response from cancel transform plan api: ' + JSON.stringify(response))
+                this.logging.log('Transformation status: ' + response.transformationStatus)
                 let status: CancellationJobStatus
                 switch (response.transformationStatus) {
                     case 'STOPPED':
