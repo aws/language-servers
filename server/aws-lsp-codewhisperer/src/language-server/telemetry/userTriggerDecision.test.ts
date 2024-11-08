@@ -11,6 +11,7 @@ import { TextDocument } from 'vscode-languageserver-textdocument'
 import { CodewhispererServerFactory } from '../codeWhispererServer'
 import { CodeWhispererServiceBase, ResponseContext, Suggestion } from '../codeWhispererService'
 import { CodeWhispererSession, SessionManager } from '../session/sessionManager'
+import { TelemetryService } from '../telemetryService'
 
 describe('Telemetry', () => {
     const sandbox = sinon.createSandbox()
@@ -19,6 +20,7 @@ describe('Telemetry', () => {
     let sessionManagerSpy: sinon.SinonSpiedInstance<SessionManager>
     let generateSessionIdStub: sinon.SinonStub
     let clock: sinon.SinonFakeTimers
+    let telemetryServiceSpy: sinon.SinonSpy
 
     beforeEach(() => {
         const StubSessionIdGenerator = () => {
@@ -38,12 +40,14 @@ describe('Telemetry', () => {
         clock = sinon.useFakeTimers({
             now: 1483228800000,
         })
+        telemetryServiceSpy = sinon.spy(TelemetryService.prototype, 'emitUserTriggerDecision')
     })
 
     afterEach(() => {
         generateSessionIdStub.restore()
         clock.restore()
         sandbox.restore()
+        telemetryServiceSpy.restore()
     })
 
     describe('User Trigger Decision telemetry', () => {
@@ -193,28 +197,71 @@ describe('Telemetry', () => {
 
         const aUserTriggerDecision = (override: object = {}) => {
             return {
-                name: 'codewhisperer_userTriggerDecision',
-                data: {
-                    codewhispererSessionId: 'cwspr-session-id',
-                    codewhispererFirstRequestId: 'cwspr-request-id',
-                    credentialStartUrl: 'teststarturl',
-                    codewhispererSuggestionState: 'Reject',
-                    codewhispererCompletionType: 'Line',
-                    codewhispererLanguage: 'csharp',
-                    codewhispererTriggerType: 'AutoTrigger',
-                    codewhispererAutomatedTriggerType: 'SpecialCharacters',
-                    codewhispererTriggerCharacter: '(',
-                    codewhispererLineNumber: 2,
-                    codewhispererCursorOffset: 21,
-                    codewhispererSuggestionCount: 3,
-                    codewhispererTotalShownTime: 0,
-                    codewhispererTypeaheadLength: 0,
-                    codewhispererTimeSinceLastDocumentChange: 0,
-                    codewhispererSupplementalContextTimeout: undefined,
-                    codewhispererSupplementalContextIsUtg: undefined,
-                    codewhispererSupplementalContextLength: undefined,
-                    ...override,
+                id: 'some-random-session-uuid-0',
+                document: {
+                    _uri: 'file:///test.cs',
+                    _languageId: 'csharp',
+                    _version: 1,
+                    _content:
+                        'class HelloWorld\n' +
+                        '{\n' +
+                        '    static void Main()\n' +
+                        '    {\n' +
+                        '        Console.WriteLine("Hello World!");\n' +
+                        '    }\n' +
+                        '}\n',
+                    _lineOffsets: [0, 17, 19, 42, 48, 91, 97, 99],
                 },
+                startTime: 1483228800000,
+                closeTime: 1483228802000,
+                state: 'CLOSED',
+                codewhispererSessionId: 'cwspr-session-id',
+                startPosition: { line: 2, character: 21 },
+                suggestions: [
+                    { itemId: 'cwspr-item-id-1', content: '' },
+                    { itemId: 'cwspr-item-id-2', content: '' },
+                    { itemId: 'cwspr-item-id-3', content: '' },
+                ],
+                suggestionsStates: new Map([
+                    ['cwspr-item-id-1', 'Empty'],
+                    ['cwspr-item-id-2', 'Empty'],
+                    ['cwspr-item-id-3', 'Empty'],
+                ]),
+                acceptedSuggestionId: undefined,
+                responseContext: {
+                    requestId: 'cwspr-request-id',
+                    codewhispererSessionId: 'cwspr-session-id',
+                },
+                triggerType: 'AutoTrigger',
+                autoTriggerType: 'SpecialCharacters',
+                triggerCharacter: '(',
+                classifierResult: 0.46733811481459187,
+                classifierThreshold: 0.43,
+                language: 'csharp',
+                requestContext: {
+                    fileContext: {
+                        filename: 'file:///test.cs',
+                        programmingLanguage: {
+                            languageName: 'csharp',
+                        },
+                        leftFileContent: 'class HelloWorld\n{\n    static void Main(',
+                        rightFileContent: ')\n    {\n        Console.WriteLine("Hello World!");\n    }\n}\n',
+                    },
+                    maxResults: 1,
+                    supplementalContexts: [],
+                },
+                supplementalMetadata: undefined,
+                timeToFirstRecommendation: 2000,
+                credentialStartUrl: 'teststarturl',
+                completionSessionResult: undefined,
+                firstCompletionDisplayLatency: undefined,
+                totalSessionDisplayTime: undefined,
+                typeaheadLength: undefined,
+                previousTriggerDecision: undefined,
+                previousTriggerDecisionTime: undefined,
+                reportedUserDecision: true,
+                customizationArn: undefined,
+                ...override,
             }
         }
 
@@ -234,10 +281,8 @@ describe('Telemetry', () => {
                 assert.equal(currentSession.state, 'CLOSED')
                 sinon.assert.calledOnceWithExactly(sessionManagerSpy.closeSession, currentSession)
 
-                const expectedUserTriggerDecisionMetric = aUserTriggerDecision({
-                    codewhispererSuggestionState: 'Empty',
-                })
-                sinon.assert.calledWithMatch(features.telemetry.emitMetric, expectedUserTriggerDecisionMetric)
+                const expectedUserTriggerDecisionMetric = aUserTriggerDecision()
+                sinon.assert.calledWithMatch(telemetryServiceSpy, expectedUserTriggerDecisionMetric, 0)
             })
 
             it('should send Empty User Decision when Codewhisperer returned empty list of suggestions', async () => {
@@ -252,11 +297,10 @@ describe('Telemetry', () => {
                 sinon.assert.calledOnceWithExactly(sessionManagerSpy.closeSession, currentSession)
 
                 const expectedUserTriggerDecisionMetric = aUserTriggerDecision({
-                    codewhispererSuggestionState: 'Empty',
-                    codewhispererCompletionType: undefined,
-                    codewhispererSuggestionCount: 0,
+                    suggestions: [],
+                    suggestionsStates: new Map([]),
                 })
-                sinon.assert.calledWithMatch(features.telemetry.emitMetric, expectedUserTriggerDecisionMetric)
+                sinon.assert.calledWithMatch(telemetryServiceSpy, expectedUserTriggerDecisionMetric, 0)
             })
 
             it('should send Discard User Decision when all suggestions are filtered out by includeSuggestionsWithCodeReferences setting filter', async () => {
@@ -290,9 +334,30 @@ describe('Telemetry', () => {
                 sinon.assert.calledOnceWithExactly(sessionManagerSpy.closeSession, currentSession)
 
                 const expectedUserTriggerDecisionMetric = aUserTriggerDecision({
-                    codewhispererSuggestionState: 'Discard',
+                    suggestions: [
+                        {
+                            itemId: 'cwspr-item-id-1',
+                            content: 'recommendation with reference',
+                            references: [EXPECTED_REFERENCE],
+                        },
+                        {
+                            itemId: 'cwspr-item-id-2',
+                            content: 'recommendation with reference',
+                            references: [EXPECTED_REFERENCE],
+                        },
+                        {
+                            itemId: 'cwspr-item-id-3',
+                            content: 'recommendation with reference',
+                            references: [EXPECTED_REFERENCE],
+                        },
+                    ],
+                    suggestionsStates: new Map([
+                        ['cwspr-item-id-1', 'Filter'],
+                        ['cwspr-item-id-2', 'Filter'],
+                        ['cwspr-item-id-3', 'Filter'],
+                    ]),
                 })
-                sinon.assert.calledWithMatch(features.telemetry.emitMetric, expectedUserTriggerDecisionMetric)
+                sinon.assert.calledWithMatch(telemetryServiceSpy, expectedUserTriggerDecisionMetric, 0)
             })
 
             it('should send Discard User Decision when all suggestions are discarded after right context merge', async () => {
@@ -311,15 +376,72 @@ describe('Telemetry', () => {
                 sinon.assert.calledOnceWithExactly(sessionManagerSpy.closeSession, currentSession)
 
                 const expectedUserTriggerDecisionMetric = aUserTriggerDecision({
-                    codewhispererSuggestionState: 'Discard',
-                    codewhispererCompletionType: 'Block',
-                    codewhispererTriggerType: 'OnDemand',
-                    codewhispererAutomatedTriggerType: undefined,
-                    codewhispererTriggerCharacter: undefined,
-                    codewhispererLineNumber: 0,
-                    codewhispererCursorOffset: 0,
+                    startPosition: { line: 0, character: 0 },
+                    suggestions: [
+                        {
+                            itemId: 'cwspr-item-id-1',
+                            content:
+                                'class HelloWorld\n' +
+                                '{\n' +
+                                '    static void Main()\n' +
+                                '    {\n' +
+                                '        Console.WriteLine("Hello World!");\n' +
+                                '    }\n' +
+                                '}\n',
+                        },
+                        {
+                            itemId: 'cwspr-item-id-2',
+                            content:
+                                'class HelloWorld\n' +
+                                '{\n' +
+                                '    static void Main()\n' +
+                                '    {\n' +
+                                '        Console.WriteLine("Hello World!");\n' +
+                                '    }\n' +
+                                '}\n',
+                        },
+                        {
+                            itemId: 'cwspr-item-id-3',
+                            content:
+                                'class HelloWorld\n' +
+                                '{\n' +
+                                '    static void Main()\n' +
+                                '    {\n' +
+                                '        Console.WriteLine("Hello World!");\n' +
+                                '    }\n' +
+                                '}\n',
+                        },
+                    ],
+                    suggestionsStates: new Map([
+                        ['cwspr-item-id-1', 'Discard'],
+                        ['cwspr-item-id-2', 'Discard'],
+                        ['cwspr-item-id-3', 'Discard'],
+                    ]),
+                    triggerType: 'OnDemand',
+                    autoTriggerType: undefined,
+                    triggerCharacter: '',
+                    classifierResult: -0.8524073111924992,
+                    requestContext: {
+                        fileContext: {
+                            filename: 'file:///test.cs',
+                            programmingLanguage: {
+                                languageName: 'csharp',
+                            },
+                            leftFileContent: '',
+                            rightFileContent:
+                                'class HelloWorld\n' +
+                                '{\n' +
+                                '    static void Main()\n' +
+                                '    {\n' +
+                                '        Console.WriteLine("Hello World!");\n' +
+                                '    }\n' +
+                                '}\n',
+                        },
+                        maxResults: 5,
+                        supplementalContexts: [],
+                    },
                 })
-                sinon.assert.calledWithMatch(features.telemetry.emitMetric, expectedUserTriggerDecisionMetric)
+                sinon.assert.calledWithMatch(telemetryServiceSpy, expectedUserTriggerDecisionMetric, 0)
             })
         })
 
@@ -333,15 +455,10 @@ describe('Telemetry', () => {
                 assert(currentSession)
                 assert.equal(currentSession?.state, 'ACTIVE')
                 sinon.assert.notCalled(sessionManagerSpy.closeSession)
-                sinon.assert.neverCalledWithMatch(features.telemetry.emitMetric, {
-                    name: 'codewhisperer_userTriggerDecision',
-                })
+                sinon.assert.notCalled(telemetryServiceSpy)
 
                 await features.doLogInlineCompletionSessionResults(DEFAULT_SESSION_RESULT_DATA)
-
-                sinon.assert.calledWithMatch(features.telemetry.emitMetric, {
-                    name: 'codewhisperer_userTriggerDecision',
-                })
+                sinon.assert.called(telemetryServiceSpy)
             })
 
             it('should emit User Decision event with correct typeaheadLength value when session results are received', async () => {
@@ -353,21 +470,13 @@ describe('Telemetry', () => {
                 assert(currentSession)
                 assert.equal(currentSession?.state, 'ACTIVE')
                 sinon.assert.notCalled(sessionManagerSpy.closeSession)
-                sinon.assert.neverCalledWithMatch(features.telemetry.emitMetric, {
-                    name: 'codewhisperer_userTriggerDecision',
-                })
+                sinon.assert.notCalled(telemetryServiceSpy)
 
                 await features.doLogInlineCompletionSessionResults({
                     ...DEFAULT_SESSION_RESULT_DATA,
                     typeaheadLength: 20,
                 })
-
-                sinon.assert.calledWithMatch(features.telemetry.emitMetric, {
-                    name: 'codewhisperer_userTriggerDecision',
-                    data: {
-                        codewhispererTypeaheadLength: 20,
-                    },
-                })
+                sinon.assert.called(telemetryServiceSpy)
             })
 
             it('should not emit User Decision event when session results are received after session was closed', async () => {
@@ -382,9 +491,7 @@ describe('Telemetry', () => {
                 assert(firstSession)
                 assert.equal(firstSession.state, 'ACTIVE')
                 sinon.assert.notCalled(sessionManagerSpy.closeSession)
-                sinon.assert.neverCalledWithMatch(features.telemetry.emitMetric, {
-                    name: 'codewhisperer_userTriggerDecision',
-                })
+                sinon.assert.notCalled(telemetryServiceSpy)
 
                 // Send second completion request to close first one
                 setServiceResponse(DEFAULT_SUGGESTIONS, {
@@ -397,25 +504,34 @@ describe('Telemetry', () => {
                 assert.notEqual(firstSession, sessionManager.getCurrentSession())
                 sinon.assert.calledWithExactly(sessionManagerSpy.closeSession, firstSession)
                 // Test that session reports it's status when second request is received
-                sinon.assert.calledWithMatch(features.telemetry.emitMetric, {
-                    name: 'codewhisperer_userTriggerDecision',
-                    data: {
+                const expectedEvent = aUserTriggerDecision({
+                    state: 'DISCARD',
+                    codewhispererSessionId: 'cwspr-session-id-1',
+                    suggestions: [
+                        { itemId: 'cwspr-item-id-1', content: 'recommendation' },
+                        { itemId: 'cwspr-item-id-2', content: 'recommendation' },
+                        { itemId: 'cwspr-item-id-3', content: 'recommendation' },
+                    ],
+                    suggestionsStates: new Map([
+                        ['cwspr-item-id-1', 'Discard'],
+                        ['cwspr-item-id-2', 'Discard'],
+                        ['cwspr-item-id-3', 'Discard'],
+                    ]),
+                    responseContext: {
+                        requestId: 'cwspr-request-id',
                         codewhispererSessionId: 'cwspr-session-id-1',
-                        codewhispererSuggestionState: 'Discard',
                     },
                 })
+                sinon.assert.calledWithMatch(telemetryServiceSpy, expectedEvent, 0)
 
-                features.telemetry.emitMetric.resetHistory()
+                telemetryServiceSpy.resetHistory()
 
                 // Send session results for closed first session
                 await features.doLogInlineCompletionSessionResults({
                     ...DEFAULT_SESSION_RESULT_DATA,
                     sessionId: firstSession.id,
                 })
-
-                sinon.assert.neverCalledWithMatch(features.telemetry.emitMetric, {
-                    name: 'codewhisperer_userTriggerDecision',
-                })
+                sinon.assert.notCalled(telemetryServiceSpy)
             })
 
             it('should not emit User Decision event when session results received for session that does not exist', async () => {
@@ -424,13 +540,7 @@ describe('Telemetry', () => {
                     ...DEFAULT_SESSION_RESULT_DATA,
                     sessionId: 'cwspr-session-id-never-created',
                 })
-
-                sinon.assert.neverCalledWithMatch(features.telemetry.emitMetric, {
-                    name: 'codewhisperer_userTriggerDecision',
-                    data: {
-                        codewhispererSessionId: 'cwspr-session-id-never-created',
-                    },
-                })
+                sinon.assert.notCalled(telemetryServiceSpy)
             })
 
             it('should emit Accept User Decision event for current active completion session when session results are received with accepted suggestion', async () => {
@@ -457,17 +567,30 @@ describe('Telemetry', () => {
                 }
 
                 await autoTriggerInlineCompletionWithReferences()
-                sinon.assert.neverCalledWithMatch(features.telemetry.emitMetric, {
-                    name: 'codewhisperer_userTriggerDecision',
-                })
+                sinon.assert.notCalled(telemetryServiceSpy)
 
                 // Send session results for closed first session
                 await features.doLogInlineCompletionSessionResults(SESSION_RESULT_DATA)
 
                 const expectedUserTriggerDecisionMetric = aUserTriggerDecision({
-                    codewhispererSuggestionState: 'Accept',
+                    completionSessionResult: {
+                        'cwspr-item-id-1': { seen: true, accepted: false, discarded: false },
+                        'cwspr-item-id-2': { seen: true, accepted: true, discarded: false },
+                        'cwspr-item-id-3': { seen: true, accepted: false, discarded: false },
+                    },
+                    suggestions: [
+                        { itemId: 'cwspr-item-id-1', content: 'recommendation' },
+                        { itemId: 'cwspr-item-id-2', content: 'recommendation' },
+                        { itemId: 'cwspr-item-id-3', content: 'recommendation' },
+                    ],
+                    suggestionsStates: new Map([
+                        ['cwspr-item-id-1', 'Ignore'],
+                        ['cwspr-item-id-2', 'Accept'],
+                        ['cwspr-item-id-3', 'Ignore'],
+                    ]),
+                    acceptedSuggestionId: 'cwspr-item-id-2',
                 })
-                sinon.assert.calledWithMatch(features.telemetry.emitMetric, expectedUserTriggerDecisionMetric)
+                sinon.assert.calledWithMatch(telemetryServiceSpy, expectedUserTriggerDecisionMetric, 0)
             })
 
             it('should emit Reject User Decision event for current active completion session when session results are received without accepted suggestion', async () => {
@@ -494,17 +617,29 @@ describe('Telemetry', () => {
                 }
 
                 await autoTriggerInlineCompletionWithReferences()
-                sinon.assert.neverCalledWithMatch(features.telemetry.emitMetric, {
-                    name: 'codewhisperer_userTriggerDecision',
-                })
+                sinon.assert.notCalled(telemetryServiceSpy)
 
                 // Send session results for closed first session
                 await features.doLogInlineCompletionSessionResults(SESSION_RESULT_DATA)
 
                 const expectedUserTriggerDecisionMetric = aUserTriggerDecision({
-                    codewhispererSuggestionState: 'Reject',
+                    suggestions: [
+                        { itemId: 'cwspr-item-id-1', content: 'recommendation' },
+                        { itemId: 'cwspr-item-id-2', content: 'recommendation' },
+                        { itemId: 'cwspr-item-id-3', content: 'recommendation' },
+                    ],
+                    suggestionsStates: new Map([
+                        ['cwspr-item-id-1', 'Reject'],
+                        ['cwspr-item-id-2', 'Discard'],
+                        ['cwspr-item-id-3', 'Discard'],
+                    ]),
+                    completionSessionResult: {
+                        'cwspr-item-id-1': { seen: true, accepted: false, discarded: false },
+                        'cwspr-item-id-2': { seen: false, accepted: false, discarded: true },
+                        'cwspr-item-id-3': { seen: false, accepted: false, discarded: true },
+                    },
                 })
-                sinon.assert.calledWithMatch(features.telemetry.emitMetric, expectedUserTriggerDecisionMetric)
+                sinon.assert.calledWithMatch(telemetryServiceSpy, expectedUserTriggerDecisionMetric, 0)
             })
 
             it('should send Discard User Decision when all suggestions have Discard state', async () => {
@@ -531,17 +666,29 @@ describe('Telemetry', () => {
                 }
 
                 await autoTriggerInlineCompletionWithReferences()
-                sinon.assert.neverCalledWithMatch(features.telemetry.emitMetric, {
-                    name: 'codewhisperer_userTriggerDecision',
-                })
+                sinon.assert.notCalled(telemetryServiceSpy)
 
                 // Send session results for closed first session
                 await features.doLogInlineCompletionSessionResults(SESSION_RESULT_DATA)
 
                 const expectedUserTriggerDecisionMetric = aUserTriggerDecision({
-                    codewhispererSuggestionState: 'Discard',
+                    suggestions: [
+                        { itemId: 'cwspr-item-id-1', content: 'recommendation' },
+                        { itemId: 'cwspr-item-id-2', content: 'recommendation' },
+                        { itemId: 'cwspr-item-id-3', content: 'recommendation' },
+                    ],
+                    suggestionsStates: new Map([
+                        ['cwspr-item-id-1', 'Discard'],
+                        ['cwspr-item-id-2', 'Discard'],
+                        ['cwspr-item-id-3', 'Discard'],
+                    ]),
+                    completionSessionResult: {
+                        'cwspr-item-id-1': { seen: false, accepted: false, discarded: true },
+                        'cwspr-item-id-2': { seen: false, accepted: false, discarded: true },
+                        'cwspr-item-id-3': { seen: false, accepted: false, discarded: true },
+                    },
                 })
-                sinon.assert.calledWithMatch(features.telemetry.emitMetric, expectedUserTriggerDecisionMetric)
+                sinon.assert.calledWithMatch(telemetryServiceSpy, expectedUserTriggerDecisionMetric, 0)
             })
 
             it('should set codewhispererTimeSinceLastDocumentChange as difference between 2 any document changes', async () => {
@@ -568,10 +715,24 @@ describe('Telemetry', () => {
                 await features.doLogInlineCompletionSessionResults(DEFAULT_SESSION_RESULT_DATA)
 
                 const expectedUserTriggerDecisionMetric = aUserTriggerDecision({
-                    codewhispererSuggestionState: 'Reject',
-                    codewhispererTimeSinceLastDocumentChange: 5678,
+                    completionSessionResult: {
+                        'cwspr-item-id-1': { seen: true, accepted: false, discarded: false },
+                        'cwspr-item-id-2': { seen: true, accepted: false, discarded: false },
+                        'cwspr-item-id-3': { seen: true, accepted: false, discarded: false },
+                    },
+                    suggestions: [
+                        { itemId: 'cwspr-item-id-1', content: 'recommendation' },
+                        { itemId: 'cwspr-item-id-2', content: 'recommendation' },
+                        { itemId: 'cwspr-item-id-3', content: 'recommendation' },
+                    ],
+                    suggestionsStates: new Map([
+                        ['cwspr-item-id-1', 'Reject'],
+                        ['cwspr-item-id-2', 'Reject'],
+                        ['cwspr-item-id-3', 'Reject'],
+                    ]),
+                    closeTime: clock.now,
                 })
-                sinon.assert.calledWithMatch(features.telemetry.emitMetric, expectedUserTriggerDecisionMetric)
+                sinon.assert.calledWithMatch(telemetryServiceSpy, expectedUserTriggerDecisionMetric, 5678)
             })
         })
 
@@ -590,16 +751,31 @@ describe('Telemetry', () => {
                 await manualTriggerInlineCompletionWithReferences()
 
                 const expectedUserTriggerDecisionMetric = aUserTriggerDecision({
+                    state: 'DISCARD',
                     codewhispererSessionId: 'cwspr-session-id-1',
-                    codewhispererSuggestionState: 'Discard',
-                })
-                sinon.assert.calledWithMatch(features.telemetry.emitMetric, expectedUserTriggerDecisionMetric)
-                sinon.assert.neverCalledWithMatch(features.telemetry.emitMetric, {
-                    name: 'codewhisperer_userTriggerDecision',
-                    data: {
-                        codewhispererSessionId: 'cwspr-session-id-2',
+                    suggestions: [
+                        { itemId: 'cwspr-item-id-1', content: 'recommendation' },
+                        { itemId: 'cwspr-item-id-2', content: 'recommendation' },
+                        { itemId: 'cwspr-item-id-3', content: 'recommendation' },
+                    ],
+                    suggestionsStates: new Map([
+                        ['cwspr-item-id-1', 'Discard'],
+                        ['cwspr-item-id-2', 'Discard'],
+                        ['cwspr-item-id-3', 'Discard'],
+                    ]),
+                    responseContext: {
+                        requestId: 'cwspr-request-id',
+                        codewhispererSessionId: 'cwspr-session-id-1',
                     },
                 })
+                sinon.assert.calledWithMatch(telemetryServiceSpy, expectedUserTriggerDecisionMetric, 0)
+                sinon.assert.neverCalledWithMatch(
+                    telemetryServiceSpy,
+                    {
+                        codewhispererSessionId: 'cwspr-session-id-2',
+                    },
+                    0
+                )
             })
 
             it('should close ACTIVE session and emit Discard user trigger decision event on Auto trigger', async () => {
@@ -616,16 +792,31 @@ describe('Telemetry', () => {
                 await autoTriggerInlineCompletionWithReferences()
 
                 const expectedUserTriggerDecisionMetric = aUserTriggerDecision({
+                    state: 'DISCARD',
                     codewhispererSessionId: 'cwspr-session-id-1',
-                    codewhispererSuggestionState: 'Discard',
-                })
-                sinon.assert.calledWithMatch(features.telemetry.emitMetric, expectedUserTriggerDecisionMetric)
-                sinon.assert.neverCalledWithMatch(features.telemetry.emitMetric, {
-                    name: 'codewhisperer_userTriggerDecision',
-                    data: {
-                        codewhispererSessionId: 'cwspr-session-id-2',
+                    suggestions: [
+                        { itemId: 'cwspr-item-id-1', content: 'recommendation' },
+                        { itemId: 'cwspr-item-id-2', content: 'recommendation' },
+                        { itemId: 'cwspr-item-id-3', content: 'recommendation' },
+                    ],
+                    suggestionsStates: new Map([
+                        ['cwspr-item-id-1', 'Discard'],
+                        ['cwspr-item-id-2', 'Discard'],
+                        ['cwspr-item-id-3', 'Discard'],
+                    ]),
+                    responseContext: {
+                        requestId: 'cwspr-request-id',
+                        codewhispererSessionId: 'cwspr-session-id-1',
                     },
                 })
+                sinon.assert.calledWithMatch(telemetryServiceSpy, expectedUserTriggerDecisionMetric, 0)
+                sinon.assert.neverCalledWithMatch(
+                    telemetryServiceSpy,
+                    {
+                        codewhispererSessionId: 'cwspr-session-id-2',
+                    },
+                    0
+                )
             })
 
             it('should attach previous session trigger decision', async () => {
@@ -648,28 +839,84 @@ describe('Telemetry', () => {
                 })
                 await autoTriggerInlineCompletionWithReferences()
 
-                sinon.assert.calledWithMatch(
-                    features.telemetry.emitMetric,
-                    aUserTriggerDecision({
-                        codewhispererSessionId: 'cwspr-session-id-1',
-                        codewhispererSuggestionState: 'Discard',
-                    })
-                )
-                sinon.assert.calledWithMatch(
-                    features.telemetry.emitMetric,
-                    aUserTriggerDecision({
-                        codewhispererSessionId: 'cwspr-session-id-2',
-                        codewhispererSuggestionState: 'Discard',
-                        codewhispererPreviousSuggestionState: firstSession?.getAggregatedUserTriggerDecision(), // 'Discard'
-                        codewhispererTimeSinceLastUserDecision: 0,
-                    })
-                )
-                sinon.assert.neverCalledWithMatch(features.telemetry.emitMetric, {
-                    name: 'codewhisperer_userTriggerDecision',
-                    data: {
-                        codewhispererSessionId: 'cwspr-session-id-3',
+                sinon.assert.calledTwice(telemetryServiceSpy)
+                const firstCallArgs = telemetryServiceSpy.getCall(0).args[0]
+                const secondCallArgs = telemetryServiceSpy.getCall(1).args[0]
+                sinon.assert.match(firstCallArgs, {
+                    id: 'some-random-session-uuid-0',
+                    document: {
+                        _uri: 'file:///test.cs',
+                        _languageId: 'csharp',
+                        _version: 1,
+                        _content:
+                            'class HelloWorld\n{\n    static void Main()\n    {\n        Console.WriteLine("Hello World!");\n    }\n}\n',
+                        _lineOffsets: [0, 17, 19, 42, 48, 91, 97, 99],
                     },
+                    startTime: 1483228800000,
+                    closeTime: 1483228802000,
+                    state: 'DISCARD',
+                    codewhispererSessionId: 'cwspr-session-id-1',
+                    startPosition: { line: 2, character: 21 },
+                    suggestions: [
+                        { itemId: 'cwspr-item-id-1', content: 'recommendation' },
+                        { itemId: 'cwspr-item-id-2', content: 'recommendation' },
+                        { itemId: 'cwspr-item-id-3', content: 'recommendation' },
+                    ],
+                    suggestionsStates: {},
+                    responseContext: { requestId: 'cwspr-request-id', codewhispererSessionId: 'cwspr-session-id-1' },
+                    triggerType: 'AutoTrigger',
+                    autoTriggerType: 'SpecialCharacters',
+                    triggerCharacter: '(',
+                    classifierResult: 0.46733811481459187,
+                    classifierThreshold: 0.43,
+                    language: 'csharp',
+                    requestContext: {
+                        fileContext: {
+                            filename: 'file:///test.cs',
+                            programmingLanguage: { languageName: 'csharp' },
+                            leftFileContent: 'class HelloWorld\n{\n    static void Main(',
+                            rightFileContent: ')\n    {\n        Console.WriteLine("Hello World!");\n    }\n}\n',
+                        },
+                        maxResults: 1,
+                        supplementalContexts: [],
+                    },
+                    timeToFirstRecommendation: 2000,
+                    credentialStartUrl: 'teststarturl',
+                    reportedUserDecision: true,
                 })
+                sinon.assert.match(
+                    secondCallArgs,
+                    aUserTriggerDecision({
+                        previousTriggerDecision: 'Discard',
+                        previousTriggerDecisionTime: 1483228802000,
+                        responseContext: {
+                            requestId: 'cwspr-request-id',
+                            codewhispererSessionId: 'cwspr-session-id-2',
+                        },
+                        id: 'some-random-session-uuid-1',
+                        startTime: 1483228802000,
+                        closeTime: 1483228804000,
+                        state: 'DISCARD',
+                        codewhispererSessionId: 'cwspr-session-id-2',
+                        suggestions: [
+                            { itemId: 'cwspr-item-id-1', content: 'recommendation' },
+                            { itemId: 'cwspr-item-id-2', content: 'recommendation' },
+                            { itemId: 'cwspr-item-id-3', content: 'recommendation' },
+                        ],
+                        suggestionsStates: new Map([
+                            ['cwspr-item-id-1', 'Discard'],
+                            ['cwspr-item-id-2', 'Discard'],
+                            ['cwspr-item-id-3', 'Discard'],
+                        ]),
+                    })
+                )
+                sinon.assert.neverCalledWithMatch(
+                    telemetryServiceSpy,
+                    aUserTriggerDecision({
+                        codewhispererSessionId: 'cwspr-session-id-3',
+                    }),
+                    0
+                )
             })
 
             it('should set correct values for past trigger result fields', async () => {
@@ -694,26 +941,101 @@ describe('Telemetry', () => {
                 await autoTriggerInlineCompletionWithReferences()
 
                 // For first session previous data does not exist
-                sinon.assert.calledWithMatch(
-                    features.telemetry.emitMetric,
+                sinon.assert.calledTwice(telemetryServiceSpy)
+                const firstCallArgs = telemetryServiceSpy.getCall(0).args[0]
+                const secondCallArgs = telemetryServiceSpy.getCall(1).args[0]
+                sinon.assert.match(
+                    firstCallArgs,
                     aUserTriggerDecision({
+                        previousTriggerDecision: undefined,
+                        previousTriggerDecisionTime: undefined,
+                        responseContext: {
+                            requestId: 'cwspr-request-id',
+                            codewhispererSessionId: 'cwspr-session-id-1',
+                        },
+                        id: 'some-random-session-uuid-0',
+                        startTime: 1483228800000,
+                        closeTime: 1483228802000,
+                        state: 'CLOSED',
                         codewhispererSessionId: 'cwspr-session-id-1',
-                        codewhispererSuggestionState: 'Reject',
-                        codewhispererTimeSinceLastUserDecision: undefined,
-                        codewhispererPreviousSuggestionState: undefined,
+                        suggestions: [
+                            { itemId: 'cwspr-item-id-1', content: 'recommendation' },
+                            { itemId: 'cwspr-item-id-2', content: 'recommendation' },
+                            { itemId: 'cwspr-item-id-3', content: 'recommendation' },
+                        ],
+                        suggestionsStates: new Map([
+                            ['cwspr-item-id-1', 'Reject'],
+                            ['cwspr-item-id-2', 'Reject'],
+                            ['cwspr-item-id-3', 'Reject'],
+                        ]),
+                        completionSessionResult: {
+                            'cwspr-item-id-1': { seen: true, accepted: false, discarded: false },
+                            'cwspr-item-id-2': { seen: true, accepted: false, discarded: false },
+                            'cwspr-item-id-3': { seen: true, accepted: false, discarded: false },
+                        },
                     })
                 )
-
-                // For second session previous data matches
-                sinon.assert.calledWithMatch(
-                    features.telemetry.emitMetric,
-                    aUserTriggerDecision({
+                sinon.assert.match(secondCallArgs, {
+                    id: 'some-random-session-uuid-1',
+                    document: {
+                        _uri: 'file:///test.cs',
+                        _languageId: 'csharp',
+                        _version: 1,
+                        _content:
+                            'class HelloWorld\n{\n    static void Main()\n    {\n        Console.WriteLine("Hello World!");\n    }\n}\n',
+                        _lineOffsets: [0, 17, 19, 42, 48, 91, 97, 99],
+                    },
+                    startTime: 1483228803234,
+                    closeTime: 1483228805234,
+                    state: 'DISCARD',
+                    codewhispererSessionId: 'cwspr-session-id-2',
+                    startPosition: {
+                        line: 2,
+                        character: 21,
+                    },
+                    suggestions: [
+                        {
+                            itemId: 'cwspr-item-id-1',
+                            content: 'recommendation',
+                        },
+                        {
+                            itemId: 'cwspr-item-id-2',
+                            content: 'recommendation',
+                        },
+                        {
+                            itemId: 'cwspr-item-id-3',
+                            content: 'recommendation',
+                        },
+                    ],
+                    suggestionsStates: {},
+                    responseContext: {
+                        requestId: 'cwspr-request-id',
                         codewhispererSessionId: 'cwspr-session-id-2',
-                        codewhispererSuggestionState: 'Discard',
-                        codewhispererPreviousSuggestionState: firstSession?.getAggregatedUserTriggerDecision(), // 'Reject'
-                        codewhispererTimeSinceLastUserDecision: 1234,
-                    })
-                )
+                    },
+                    triggerType: 'AutoTrigger',
+                    autoTriggerType: 'SpecialCharacters',
+                    triggerCharacter: '(',
+                    classifierResult: 0.30173811481459184,
+                    classifierThreshold: 0.43,
+                    language: 'csharp',
+                    requestContext: {
+                        fileContext: {
+                            filename: 'file:///test.cs',
+                            programmingLanguage: {
+                                languageName: 'csharp',
+                            },
+                            leftFileContent: 'class HelloWorld\n{\n    static void Main(',
+                            rightFileContent: ')\n    {\n        Console.WriteLine("Hello World!");\n    }\n}\n',
+                        },
+                        maxResults: 1,
+                        supplementalContexts: [],
+                    },
+                    timeToFirstRecommendation: 2000,
+                    credentialStartUrl: 'teststarturl',
+                    previousTriggerDecision: 'Reject',
+                    previousTriggerDecisionTime: 1483228802000,
+                    reportedUserDecision: true,
+                })
             })
         })
 
@@ -757,32 +1079,80 @@ describe('Telemetry', () => {
 
                 // 3 sessions were created, each one closes previous one in REQUESTING state
                 assert.equal(SESSION_IDS_LOG.length, 3)
-
-                sinon.assert.calledWithMatch(
-                    features.telemetry.emitMetric,
+                sinon.assert.calledTwice(telemetryServiceSpy)
+                const firstCallArgs = telemetryServiceSpy.getCall(0).args[0]
+                const secondCallArgs = telemetryServiceSpy.getCall(1).args[0]
+                sinon.assert.match(
+                    firstCallArgs,
                     aUserTriggerDecision({
                         codewhispererSessionId: 'cwspr-session-id-0',
-                        codewhispererSuggestionState: 'Discard',
-                        codewhispererTimeToFirstRecommendation: 1260,
+                        state: 'DISCARD',
+                        suggestions: [
+                            { itemId: 'cwspr-item-id-1', content: 'recommendation' },
+                            { itemId: 'cwspr-item-id-2', content: 'recommendation' },
+                            { itemId: 'cwspr-item-id-3', content: 'recommendation' },
+                        ],
+                        suggestionsStates: new Map([
+                            ['cwspr-item-id-1', 'Discard'],
+                            ['cwspr-item-id-2', 'Discard'],
+                            ['cwspr-item-id-3', 'Discard'],
+                        ]),
+                        responseContext: {
+                            requestId: 'cwspr-request-id',
+                            codewhispererSessionId: 'cwspr-session-id-0',
+                        },
+                        timeToFirstRecommendation: 1260,
+                        closeTime: 1483228801000,
                     })
                 )
-                sinon.assert.calledWithMatch(
-                    features.telemetry.emitMetric,
-                    aUserTriggerDecision({
-                        codewhispererSessionId: 'cwspr-session-id-1',
-                        codewhispererSuggestionState: 'Discard',
-                        codewhispererTimeToFirstRecommendation: 1260,
-                        codewhispererPreviousSuggestionState: 'Discard',
-                    })
-                )
-                sinon.assert.neverCalledWithMatch(
-                    features.telemetry.emitMetric,
-                    aUserTriggerDecision({
-                        codewhispererSessionId: 'cwspr-session-id-2',
-                        codewhispererSuggestionState: 'Empty',
-                    })
-                )
-
+                sinon.assert.match(secondCallArgs, {
+                    id: 'some-random-session-uuid-1',
+                    document: {
+                        _uri: 'file:///test.cs',
+                        _languageId: 'csharp',
+                        _version: 1,
+                        _content:
+                            'class HelloWorld\n{\n    static void Main()\n    {\n        Console.WriteLine("Hello World!");\n    }\n}\n',
+                        _lineOffsets: [0, 17, 19, 42, 48, 91, 97, 99],
+                    },
+                    startTime: 1483228801260,
+                    closeTime: 1483228802260,
+                    state: 'DISCARD',
+                    codewhispererSessionId: 'cwspr-session-id-1',
+                    startPosition: { line: 2, character: 21 },
+                    suggestions: [
+                        { itemId: 'cwspr-item-id-1', content: 'recommendation' },
+                        { itemId: 'cwspr-item-id-2', content: 'recommendation' },
+                        { itemId: 'cwspr-item-id-3', content: 'recommendation' },
+                    ],
+                    suggestionsStates: {},
+                    responseContext: { requestId: 'cwspr-request-id', codewhispererSessionId: 'cwspr-session-id-1' },
+                    triggerType: 'AutoTrigger',
+                    autoTriggerType: 'SpecialCharacters',
+                    triggerCharacter: '(',
+                    classifierResult: 0.46733811481459187,
+                    classifierThreshold: 0.43,
+                    language: 'csharp',
+                    requestContext: {
+                        fileContext: {
+                            filename: 'file:///test.cs',
+                            programmingLanguage: { languageName: 'csharp' },
+                            leftFileContent: 'class HelloWorld\n{\n    static void Main(',
+                            rightFileContent: ')\n    {\n        Console.WriteLine("Hello World!");\n    }\n}\n',
+                        },
+                        maxResults: 1,
+                        supplementalContexts: [],
+                    },
+                    timeToFirstRecommendation: 1260,
+                    credentialStartUrl: 'teststarturl',
+                    previousTriggerDecision: 'Discard',
+                    previousTriggerDecisionTime: 1483228801000,
+                    reportedUserDecision: true,
+                })
+                sinon.assert.neverCalledWithMatch(telemetryServiceSpy, {
+                    codewhispererSessionId: 'cwspr-session-id-2',
+                })
+                telemetryServiceSpy.resetHistory()
                 const activeSession = sessionManager.getActiveSession()
                 assert.equal(activeSession?.id, SESSION_IDS_LOG[2])
 
@@ -791,14 +1161,36 @@ describe('Telemetry', () => {
                     sessionId: SESSION_IDS_LOG[2],
                 })
                 sinon.assert.calledWithMatch(
-                    features.telemetry.emitMetric,
+                    telemetryServiceSpy,
                     aUserTriggerDecision({
+                        id: 'some-random-session-uuid-2',
+                        startTime: 1483228802520,
+                        closeTime: 1483228803770,
                         codewhispererSessionId: 'cwspr-session-id-2',
-                        codewhispererSuggestionState: 'Reject',
-                        codewhispererTimeSinceLastUserDecision: 260,
-                        codewhispererPreviousSuggestionState: 'Discard',
-                        codewhispererTimeToFirstRecommendation: 1250,
-                    })
+                        suggestions: [
+                            { itemId: 'cwspr-item-id-1', content: 'recommendation' },
+                            { itemId: 'cwspr-item-id-2', content: 'recommendation' },
+                            { itemId: 'cwspr-item-id-3', content: 'recommendation' },
+                        ],
+                        suggestionsStates: new Map([
+                            ['cwspr-item-id-1', 'Reject'],
+                            ['cwspr-item-id-2', 'Reject'],
+                            ['cwspr-item-id-3', 'Reject'],
+                        ]),
+                        previousTriggerDecision: 'Discard',
+                        previousTriggerDecisionTime: 1483228802260,
+                        timeToFirstRecommendation: 1250,
+                        completionSessionResult: {
+                            'cwspr-item-id-1': { seen: true, accepted: false, discarded: false },
+                            'cwspr-item-id-2': { seen: true, accepted: false, discarded: false },
+                            'cwspr-item-id-3': { seen: true, accepted: false, discarded: false },
+                        },
+                        responseContext: {
+                            requestId: 'cwspr-request-id',
+                            codewhispererSessionId: 'cwspr-session-id-2',
+                        },
+                    }),
+                    0
                 )
             })
         })
@@ -811,22 +1203,39 @@ describe('Telemetry', () => {
             await autoTriggerInlineCompletionWithReferences()
             const firstSession = sessionManager.getCurrentSession()
 
-            sinon.assert.neverCalledWithMatch(features.telemetry.emitMetric, {
-                name: 'codewhisperer_userTriggerDecision',
-            })
+            sinon.assert.neverCalledWithMatch(telemetryServiceSpy)
 
             // Record session results and close the session
             await features.doLogInlineCompletionSessionResults(DEFAULT_SESSION_RESULT_DATA)
-
-            sinon.assert.calledWithMatch(features.telemetry.emitMetric, {
-                name: 'codewhisperer_userTriggerDecision',
-                data: {
+            sinon.assert.calledWithMatch(
+                telemetryServiceSpy,
+                aUserTriggerDecision({
                     codewhispererSessionId: 'cwspr-session-id-1',
-                },
-            })
+                    suggestions: [
+                        { itemId: 'cwspr-item-id-1', content: 'recommendation' },
+                        { itemId: 'cwspr-item-id-2', content: 'recommendation' },
+                        { itemId: 'cwspr-item-id-3', content: 'recommendation' },
+                    ],
+                    suggestionsStates: new Map([
+                        ['cwspr-item-id-1', 'Reject'],
+                        ['cwspr-item-id-2', 'Reject'],
+                        ['cwspr-item-id-3', 'Reject'],
+                    ]),
+                    responseContext: {
+                        requestId: 'cwspr-request-id',
+                        codewhispererSessionId: 'cwspr-session-id-1',
+                    },
+                    completionSessionResult: {
+                        'cwspr-item-id-1': { seen: true, accepted: false, discarded: false },
+                        'cwspr-item-id-2': { seen: true, accepted: false, discarded: false },
+                        'cwspr-item-id-3': { seen: true, accepted: false, discarded: false },
+                    },
+                }),
+                0
+            )
             assert.equal(firstSession?.state, 'CLOSED')
 
-            features.telemetry.emitMetric.resetHistory()
+            telemetryServiceSpy.resetHistory()
 
             // Triggering new completion request creates new session
             // and should not emit telemetry for previous session, which was closed earlier
@@ -838,13 +1247,13 @@ describe('Telemetry', () => {
 
             // Or attempt to record data
             await features.doLogInlineCompletionSessionResults(DEFAULT_SESSION_RESULT_DATA)
-
-            sinon.assert.neverCalledWithMatch(features.telemetry.emitMetric, {
-                name: 'codewhisperer_userTriggerDecision',
-                data: {
+            sinon.assert.neverCalledWithMatch(
+                telemetryServiceSpy,
+                {
                     codewhispererSessionId: 'cwspr-session-id-1',
                 },
-            })
+                0
+            )
         })
     })
 

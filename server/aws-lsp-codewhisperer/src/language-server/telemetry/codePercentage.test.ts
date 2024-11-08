@@ -1,7 +1,5 @@
-import { Telemetry } from '@aws/language-server-runtimes/server-interface'
 import sinon, { StubbedInstance, stubInterface } from 'ts-sinon'
 import { CodePercentageTracker } from './codePercentage'
-import assert = require('assert')
 import { TelemetryService } from '../telemetryService'
 
 describe('CodePercentage', () => {
@@ -13,15 +11,13 @@ describe('CodePercentage', () => {
     const SOME_ACCEPTED_CONTENT = 'accepted.\n'
 
     let tracker: CodePercentageTracker
-    let telemetry: StubbedInstance<Telemetry>
     let telemetryService: StubbedInstance<TelemetryService>
     let clock: sinon.SinonFakeTimers
 
     beforeEach(() => {
         clock = sinon.useFakeTimers()
-        telemetry = stubInterface<Telemetry>()
         telemetryService = stubInterface<TelemetryService>()
-        tracker = new CodePercentageTracker(telemetry, telemetryService)
+        tracker = new CodePercentageTracker(telemetryService)
     })
 
     afterEach(() => {
@@ -31,7 +27,6 @@ describe('CodePercentage', () => {
 
     it('does not send telemetry without edits', () => {
         clock.tick(5000 * 60)
-        sinon.assert.notCalled(telemetry.emitMetric)
         sinon.assert.notCalled(telemetryService.emitCodeCoverageEvent)
     })
 
@@ -44,12 +39,19 @@ describe('CodePercentage', () => {
 
         clock.tick(5000 * 60)
 
-        sinon.assert.calledWith(telemetryService.emitCodeCoverageEvent, {
-            languageId: LANGUAGE_ID,
-            totalCharacterCount: 20,
-            acceptedCharacterCount: 10,
-            customizationArn: undefined,
-        })
+        sinon.assert.calledWith(
+            telemetryService.emitCodeCoverageEvent,
+            {
+                languageId: LANGUAGE_ID,
+                totalCharacterCount: 20,
+                acceptedCharacterCount: 10,
+                customizationArn: undefined,
+            },
+            {
+                percentage: 50,
+                successCount: 1,
+            }
+        )
     })
 
     it('emits no metrics without invocations', () => {
@@ -57,7 +59,6 @@ describe('CodePercentage', () => {
 
         clock.tick(5000 * 60)
 
-        sinon.assert.notCalled(telemetry.emitMetric)
         sinon.assert.notCalled(telemetryService.emitCodeCoverageEvent)
     })
 
@@ -77,29 +78,33 @@ describe('CodePercentage', () => {
 
         clock.tick(5000 * 60)
 
-        sinon.assert.calledWith(telemetryService.emitCodeCoverageEvent, {
-            languageId: LANGUAGE_ID,
-            totalCharacterCount: 20,
-            acceptedCharacterCount: 10,
-            customizationArn: undefined,
-        })
-
-        sinon.assert.calledWith(telemetry.emitMetric, {
-            name: 'codewhisperer_codePercentage',
-            data: {
-                codewhispererTotalTokens: 30,
-                codewhispererLanguage: OTHER_LANGUAGE_ID,
-                codewhispererSuggestedTokens: 10,
-                codewhispererPercentage: 33.33,
-                successCount: 1,
+        sinon.assert.calledWith(
+            telemetryService.emitCodeCoverageEvent,
+            {
+                languageId: LANGUAGE_ID,
+                totalCharacterCount: 20,
+                acceptedCharacterCount: 10,
+                customizationArn: undefined,
             },
-        })
-        sinon.assert.calledWith(telemetryService.emitCodeCoverageEvent, {
-            languageId: OTHER_LANGUAGE_ID,
-            totalCharacterCount: 30,
-            acceptedCharacterCount: 10,
-            customizationArn: undefined,
-        })
+            {
+                percentage: 50,
+                successCount: 1,
+            }
+        )
+
+        sinon.assert.calledWith(
+            telemetryService.emitCodeCoverageEvent,
+            {
+                languageId: OTHER_LANGUAGE_ID,
+                totalCharacterCount: 30,
+                acceptedCharacterCount: 10,
+                customizationArn: undefined,
+            },
+            {
+                percentage: 33.33,
+                successCount: 1,
+            }
+        )
     })
 
     it('emits metrics with customizationArn value', () => {
@@ -112,11 +117,18 @@ describe('CodePercentage', () => {
 
         clock.tick(5000 * 60)
 
-        sinon.assert.calledWith(telemetryService.emitCodeCoverageEvent, {
-            languageId: LANGUAGE_ID,
-            totalCharacterCount: 20,
-            acceptedCharacterCount: 10,
-            customizationArn: 'test-arn',
-        })
+        sinon.assert.calledWith(
+            telemetryService.emitCodeCoverageEvent,
+            {
+                languageId: LANGUAGE_ID,
+                totalCharacterCount: 20,
+                acceptedCharacterCount: 10,
+                customizationArn: 'test-arn',
+            },
+            {
+                percentage: 50,
+                successCount: 1,
+            }
+        )
     })
 })
