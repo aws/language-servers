@@ -12,6 +12,7 @@ const sampleStartTransformRequest: StartTransformRequest = {
     TargetFramework: '',
     SolutionConfigPaths: [],
     ProjectMetadata: [],
+    TransformNetStandardProjects: false,
     command: '',
 }
 
