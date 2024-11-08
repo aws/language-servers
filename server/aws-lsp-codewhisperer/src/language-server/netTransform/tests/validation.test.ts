@@ -6,6 +6,7 @@ import mock = require('mock-fs')
 
 const sampleStartTransformRequest: StartTransformRequest = {
     SolutionRootPath: '',
+    SolutionFilePath: 'sample.sln',
     SelectedProjectPath: 'test.csproj',
     ProgramLanguage: '',
     TargetFramework: '',

@@ -48,6 +48,7 @@ const sampleStartTransformationRequest: CodeWhispererTokenUserClient.StartTransf
 
 const sampleUserInputRequest: StartTransformRequest = {
     SolutionRootPath: '',
+    SolutionFilePath: '',
     TargetFramework: '',
     ProgramLanguage: '',
     SelectedProjectPath: '',
