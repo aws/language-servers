@@ -21,6 +21,7 @@ import {
 
 export const CodewhispererInlineCompletionLanguages = [
     { scheme: 'file', language: 'typescript' },
+    { scheme: 'file', language: 'javascript' },
     { scheme: 'file', language: 'json' },
     { scheme: 'file', language: 'yaml' },
     { scheme: 'file', language: 'java' },
@@ -39,6 +40,7 @@ export const CodewhispererInlineCompletionLanguages = [
     { scheme: 'file', language: 'systemverilog' },
     { scheme: 'file', language: 'scala' },
     { scheme: 'file', language: 'vue' },
+    { scheme: 'file', language: 'csharp' },
 ]
 
 export function registerInlineCompletion(languageClient: LanguageClient) {

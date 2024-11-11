@@ -23,6 +23,7 @@
         "onLanguage:java",
         "onLanguage:python",
         "onLanguage:partiql",
+        "onLanguage:csharp",
         "onCommand:aws.sample-vscode-ext-amazonq.accept"
     ],
     "contributes": {

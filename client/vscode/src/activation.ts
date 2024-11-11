@@ -96,6 +96,8 @@ export async function activateDocumentsLanguageServer(extensionContext: Extensio
             // typescript is illustrative of code-handling language servers
             { scheme: 'file', language: 'typescript' },
             { scheme: 'untitled', language: 'typescript' },
+            { scheme: 'file', language: 'javascript' },
+            { scheme: 'untitled', language: 'javascript' },
             // java is illustrative of code-handling language servers
             { scheme: 'file', language: 'java' },
             { scheme: 'untitled', language: 'java' },
@@ -132,6 +134,8 @@ export async function activateDocumentsLanguageServer(extensionContext: Extensio
             { scheme: 'untitled', language: 'systemverilog' },
             { scheme: 'file', language: 'vue' },
             { scheme: 'untitled', language: 'vue' },
+            { scheme: 'file', language: 'csharp' },
+            { scheme: 'untitled', language: 'csharp' },
         ],
         initializationOptions: {
             aws: {
