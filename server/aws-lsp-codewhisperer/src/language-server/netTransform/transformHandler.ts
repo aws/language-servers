@@ -71,13 +71,13 @@ export class TransformHandler {
         )
         try {
             const payloadFilePath = await this.zipCodeAsync(userInputrequest, artifactManager)
-            this.logging.log('payload path: ' + payloadFilePath)
+            this.logging.log('Payload path: ' + payloadFilePath)
 
             const uploadId = await this.preTransformationUploadCode(payloadFilePath)
             const request = getCWStartTransformRequest(userInputrequest, uploadId, this.logging)
-            this.logging.log('send request to start transform api: ' + JSON.stringify(request))
+            this.logging.log('Sending request to start transform api: ' + JSON.stringify(request))
             const response = await this.client.codeModernizerStartCodeTransformation(request)
-            this.logging.log('response start transform api: ' + JSON.stringify(response))
+            this.logging.log('Received transformation job Id: ' + response?.transformationJobId)
             return getCWStartTransformResponse(
                 response,
                 uploadId,
@@ -101,7 +101,7 @@ export class TransformHandler {
     async preTransformationUploadCode(payloadFilePath: string): Promise<string> {
         try {
             const uploadId = await this.uploadPayloadAsync(payloadFilePath)
-            this.logging.log('artifact successfully uploaded. upload tracking id: ' + uploadId)
+            this.logging.log('Artifact was successfully uploaded. Upload tracking id: ' + uploadId)
             return uploadId
         } catch (error) {
             const errorMessage = (error as Error).message ?? 'Failed to upload zip file'
@@ -120,7 +120,7 @@ export class TransformHandler {
             })
         } catch (e: any) {
             const errorMessage = (e as Error).message ?? 'Error in CreateUploadUrl API call'
-            this.logging.log('Error when creating Upload url: ' + errorMessage)
+            this.logging.log('Error when creating upload url: ' + errorMessage)
             throw new Error(errorMessage)
         }
 
@@ -182,9 +182,8 @@ export class TransformHandler {
             const getCodeTransformationRequest = {
                 transformationJobId: request.TransformationJobId,
             } as GetTransformationRequest
-            this.logging.log('send request to get transform api: ' + JSON.stringify(getCodeTransformationRequest))
             const response = await this.client.codeModernizerGetCodeTransformation(getCodeTransformationRequest)
-            this.logging.log('response received from get transform api: ' + JSON.stringify(response))
+            this.logging.log('Transformation status: ' + response.transformationJob?.status)
             return {
                 TransformationJob: response.transformationJob,
             } as GetTransformResponse
@@ -202,13 +201,9 @@ export class TransformHandler {
                 const getCodeTransformationPlanRequest = {
                     transformationJobId: request.TransformationJobId,
                 } as GetTransformationRequest
-                this.logging.log(
-                    'send request to get transform plan api: ' + JSON.stringify(getCodeTransformationPlanRequest)
-                )
                 const response = await this.client.codeModernizerGetCodeTransformationPlan(
                     getCodeTransformationPlanRequest
                 )
-                this.logging.log('received response from get transform plan api: ' + JSON.stringify(response))
                 return {
                     TransformationPlan: response.transformationPlan,
                 } as GetTransformPlanResponse
@@ -218,15 +213,13 @@ export class TransformHandler {
 
                 getTransformationPlanAttempt += 1
                 if (getTransformationPlanAttempt >= getTransformationPlanMaxAttempts) {
-                    this.logging.log(
-                        `CodeTransformation: GetTransformationPlan failed after ${getTransformationPlanMaxAttempts} attempts.`
-                    )
+                    this.logging.log(`GetTransformationPlan failed after ${getTransformationPlanMaxAttempts} attempts.`)
                     throw e
                 }
 
                 const expDelayMs = this.getExpDelayForApiRetryMs(getTransformationPlanAttempt)
                 this.logging.log(
-                    `poll : Attempt ${getTransformationPlanAttempt}/${getTransformationPlanMaxAttempts} to get transformation plan failed, retry in ${expDelayMs} seconds`
+                    `Attempt ${getTransformationPlanAttempt}/${getTransformationPlanMaxAttempts} to get transformation plan failed, retry in ${expDelayMs} seconds`
                 )
                 await this.sleep(expDelayMs * 1000)
             }
@@ -242,10 +235,10 @@ export class TransformHandler {
                     transformationJobId: request.TransformationJobId,
                 } as StopTransformationRequest
                 this.logging.log(
-                    'send request to cancel transform plan api: ' + JSON.stringify(stopCodeTransformationRequest)
+                    'Sending CancelTransformRequest with job Id: ' + stopCodeTransformationRequest.transformationJobId
                 )
                 const response = await this.client.codeModernizerStopCodeTransformation(stopCodeTransformationRequest)
-                this.logging.log('received response from cancel transform plan api: ' + JSON.stringify(response))
+                this.logging.log('Transformation status: ' + response.transformationStatus)
                 let status: CancellationJobStatus
                 switch (response.transformationStatus) {
                     case 'STOPPED':
@@ -264,9 +257,7 @@ export class TransformHandler {
 
                 cancelTransformationAttempt += 1
                 if (cancelTransformationAttempt >= cancelTransformationMaxAttempts) {
-                    this.logging.log(
-                        `CodeTransformation: CancelTransformation failed after ${cancelTransformationMaxAttempts} attempts.`
-                    )
+                    this.logging.log(`CancelTransformation failed after ${cancelTransformationMaxAttempts} attempts.`)
                     return {
                         TransformationJobStatus: CancellationJobStatus.FAILED_TO_CANCEL,
                     } as CancelTransformResponse
@@ -274,7 +265,7 @@ export class TransformHandler {
 
                 const expDelayMs = this.getExpDelayForApiRetryMs(cancelTransformationAttempt)
                 this.logging.log(
-                    `poll : Attempt ${cancelTransformationAttempt}/${cancelTransformationMaxAttempts} to get transformation plan failed, retry in ${expDelayMs} seconds`
+                    `Attempt ${cancelTransformationAttempt}/${cancelTransformationMaxAttempts} to get transformation plan failed, retry in ${expDelayMs} seconds`
                 )
                 await this.sleep(expDelayMs * 1000)
             }
@@ -292,13 +283,13 @@ export class TransformHandler {
         const getCodeTransformationRequest = {
             transformationJobId: request.TransformationJobId,
         } as GetTransformationRequest
-        this.logging.log('poll : send request to get transform  api: ' + JSON.stringify(getCodeTransformationRequest))
         let response = await this.client.codeModernizerGetCodeTransformation(getCodeTransformationRequest)
-        this.logging.log('poll : received response from get transform  api: ' + JSON.stringify(response))
-        let status = response?.transformationJob?.status ?? PollTransformationStatus.NOT_FOUND
+        this.logging.log('Start polling for transformation plan.')
+        this.logging.log('The valid status to exit polling are: ' + validExitStatus)
+        this.logging.log('The failure status are: ' + failureStates)
 
-        this.logging.log('validExitStatus here are : ' + validExitStatus)
-        this.logging.log('failureStatus here are : ' + failureStates)
+        this.logging.log('Transformation status: ' + response.transformationJob?.status)
+        let status = response?.transformationJob?.status ?? PollTransformationStatus.NOT_FOUND
 
         while (status != PollTransformationStatus.TIMEOUT && !failureStates.includes(status)) {
             try {
@@ -307,29 +298,17 @@ export class TransformHandler {
                 const getCodeTransformationRequest = {
                     transformationJobId: request.TransformationJobId,
                 } as GetTransformationRequest
-                this.logging.log(
-                    'poll : send request to get transform  api: ' + JSON.stringify(getCodeTransformationRequest)
-                )
                 response = await this.client.codeModernizerGetCodeTransformation(getCodeTransformationRequest)
-                this.logging.log('poll : received response from get transform  api: ' + JSON.stringify(response))
-                this.logging.log('poll : job status here : ' + response.transformationJob.status)
-
-                if (response.transformationJob?.status) {
-                    this.logging.log(
-                        'status is included in validExitSTatus for poll ' +
-                            validExitStatus.includes(response.transformationJob.status)
-                    )
-                }
+                this.logging.log('Transformation status: ' + response.transformationJob?.status)
 
                 if (validExitStatus.includes(status)) {
-                    this.logging.log('returning status as : ' + status)
+                    this.logging.log('Exiting polling for transformation plan with transformation status: ' + status)
                     break
                 }
 
                 status = response.transformationJob.status!
                 await this.sleep(10 * 1000)
                 timer += 10
-                this.logging.log('current polling timer ' + timer)
 
                 if (timer > 24 * 3600 * 1000) {
                     status = PollTransformationStatus.TIMEOUT
@@ -338,25 +317,23 @@ export class TransformHandler {
                 getTransformAttempt = 0 // a successful polling will reset attempt
             } catch (e: any) {
                 const errorMessage = (e as Error).message ?? 'Error in GetTransformation API call'
-                this.logging.log('poll : error polling transformation job from the server: ' + errorMessage)
+                this.logging.log('Error polling transformation job from the server: ' + errorMessage)
 
                 getTransformAttempt += 1
                 if (getTransformAttempt >= getTransformMaxAttempts) {
-                    this.logging.log(
-                        `CodeTransformation: GetTransformation failed after ${getTransformMaxAttempts} attempts.`
-                    )
+                    this.logging.log(`GetTransformation failed after ${getTransformMaxAttempts} attempts.`)
                     status = PollTransformationStatus.NOT_FOUND
                     break
                 }
 
                 const expDelayMs = this.getExpDelayForApiRetryMs(getTransformAttempt)
                 this.logging.log(
-                    `poll : Attempt ${getTransformAttempt}/${getTransformMaxAttempts} to get transformation plan failed, retry in ${expDelayMs} seconds`
+                    `Attempt ${getTransformAttempt}/${getTransformMaxAttempts} to get transformation plan failed, retry in ${expDelayMs} seconds`
                 )
                 await this.sleep(expDelayMs * 1000)
             }
         }
-        this.logging.log('poll : returning response from server : ' + JSON.stringify(response))
+        this.logging.log('Returning response from server : ' + JSON.stringify(response))
         this.logSuggestionForFailureResponse(request, response.transformationJob, failureStates)
         return {
             TransformationJob: response.transformationJob,
@@ -372,10 +349,10 @@ export class TransformHandler {
             })
 
             const buffer = []
-            this.logging.log('artifact downloaded successfully.')
+            this.logging.log('Artifact was successfully downloaded.')
 
             if (result.body === undefined) {
-                throw new Error('Empty response from CodeWhisperer Streaming service.')
+                throw new Error('Empty response from CodeWhisperer streaming service.')
             }
 
             for await (const chunk of result.body) {
@@ -388,7 +365,7 @@ export class TransformHandler {
             }
             const saveToWorkspace = path.join(saveToDir, workspaceFolderName)
             const pathContainingArchive = await this.archivePathGenerator(exportId, buffer, saveToWorkspace)
-            this.logging.log('pathContainingArchive :' + pathContainingArchive)
+            this.logging.log('PathContainingArchive :' + pathContainingArchive)
             return {
                 PathTosave: pathContainingArchive,
             } as DownloadArtifactsResponse

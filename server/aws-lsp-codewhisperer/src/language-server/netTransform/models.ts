@@ -3,11 +3,13 @@ import { TransformationJob, TransformationPlan } from '../../client/token/codewh
 
 export interface StartTransformRequest extends ExecuteCommandParams {
     SolutionRootPath: string
+    SolutionFilePath: string
     SelectedProjectPath: string
     ProgramLanguage: string
     TargetFramework: string
     SolutionConfigPaths: string[]
     ProjectMetadata: TransformProjectMetadata[]
+    TransformNetStandardProjects: boolean
 }
 
 export interface StartTransformResponse {
@@ -71,7 +73,9 @@ export interface DownloadArtifactsResponse {
 
 export interface RequirementJson {
     EntryPath: string
+    SolutionPath: string
     Projects: Project[]
+    TransformNetStandardProjects: boolean
 }
 
 export interface ExternalReference {

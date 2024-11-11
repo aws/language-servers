@@ -121,16 +121,6 @@ export class ChatTelemetryController {
     }
 
     public emitModifyCodeMetric(entry: AcceptedSuggestionChatEntry, percentage: number) {
-        const data: Omit<ModifyCodeEvent, 'cwsprChatConversationId'> = {
-            cwsprChatMessageId: entry.messageId,
-            cwsprChatModificationPercentage: percentage,
-            codewhispererCustomizationArn: entry.customizationArn,
-        }
-
-        this.emitConversationMetric({
-            name: ChatTelemetryEventName.ModifyCode,
-            data,
-        })
         this.#telemetryService.emitChatUserModificationEvent({
             conversationId: entry.conversationId,
             messageId: entry.messageId,
@@ -175,48 +165,31 @@ export class ChatTelemetryController {
 
     public emitAddMessageMetric(tabId: string, metric: Partial<CombinedConversationEvent>) {
         const conversationId = this.getConversationId(tabId)
-        this.#telemetryService.emitChatAddMessage({
-            conversationId: conversationId,
-            messageId: metric.cwsprChatMessageId,
-            customizationArn: metric.codewhispererCustomizationArn,
-            userIntent: metric.cwsprChatUserIntent,
-            hasCodeSnippet: metric.cwsprChatHasCodeSnippet,
-            programmingLanguage: metric.cwsprChatProgrammingLanguage as CodewhispererLanguage,
-            activeEditorTotalCharacters: metric.cwsprChatActiveEditorTotalCharacters,
-            timeToFirstChunkMilliseconds: metric.cwsprTimeToFirstChunk,
-            timeBetweenChunks: metric.cwsprChatTimeBetweenChunks,
-            fullResponselatency: metric.cwsprChatFullResponseLatency,
-            requestLength: metric.cwsprChatRequestLength,
-            responseLength: metric.cwsprChatResponseLength,
-            numberOfCodeBlocks: metric.cwsprChatResponseCodeSnippetCount,
-        })
-        this.emitConversationMetric(
+        this.#telemetryService.emitChatAddMessage(
             {
-                name: ChatTelemetryEventName.AddMessage,
-                data: {
-                    cwsprChatHasCodeSnippet: metric.cwsprChatHasCodeSnippet,
-                    cwsprChatTriggerInteraction: metric.cwsprChatTriggerInteraction,
-                    cwsprChatMessageId: metric.cwsprChatMessageId,
-                    cwsprChatUserIntent: metric.cwsprChatUserIntent,
-                    cwsprChatProgrammingLanguage: metric.cwsprChatProgrammingLanguage,
-                    cwsprChatResponseCodeSnippetCount: metric.cwsprChatResponseCodeSnippetCount,
-                    cwsprChatResponseCode: metric.cwsprChatResponseCode,
-                    cwsprChatSourceLinkCount: metric.cwsprChatSourceLinkCount,
-                    cwsprChatReferencesCount: metric.cwsprChatReferencesCount,
-                    cwsprChatFollowUpCount: metric.cwsprChatFollowUpCount,
-                    cwsprTimeToFirstChunk: metric.cwsprTimeToFirstChunk,
-                    cwsprChatFullResponseLatency: metric.cwsprChatFullResponseLatency,
-                    cwsprChatTimeBetweenChunks: metric.cwsprChatTimeBetweenChunks,
-                    cwsprChatRequestLength: metric.cwsprChatRequestLength,
-                    cwsprChatResponseLength: metric.cwsprChatResponseLength,
-                    cwsprChatConversationType: metric.cwsprChatConversationType,
-                    cwsprChatActiveEditorTotalCharacters: metric.cwsprChatActiveEditorTotalCharacters,
-                    cwsprChatActiveEditorImportCount: metric.cwsprChatActiveEditorImportCount,
-                    codewhispererCustomizationArn: metric.codewhispererCustomizationArn,
-                    // not possible: cwsprChatResponseType: metric.cwsprChatResponseType,
-                },
+                conversationId: conversationId,
+                messageId: metric.cwsprChatMessageId,
+                customizationArn: metric.codewhispererCustomizationArn,
+                userIntent: metric.cwsprChatUserIntent,
+                hasCodeSnippet: metric.cwsprChatHasCodeSnippet,
+                programmingLanguage: metric.cwsprChatProgrammingLanguage as CodewhispererLanguage,
+                activeEditorTotalCharacters: metric.cwsprChatActiveEditorTotalCharacters,
+                timeToFirstChunkMilliseconds: metric.cwsprTimeToFirstChunk,
+                timeBetweenChunks: metric.cwsprChatTimeBetweenChunks,
+                fullResponselatency: metric.cwsprChatFullResponseLatency,
+                requestLength: metric.cwsprChatRequestLength,
+                responseLength: metric.cwsprChatResponseLength,
+                numberOfCodeBlocks: metric.cwsprChatResponseCodeSnippetCount,
             },
-            tabId
+            {
+                chatTriggerInteraction: metric.cwsprChatTriggerInteraction,
+                chatResponseCode: metric.cwsprChatResponseCode,
+                chatSourceLinkCount: metric.cwsprChatSourceLinkCount,
+                chatReferencesCount: metric.cwsprChatReferencesCount,
+                chatFollowUpCount: metric.cwsprChatFollowUpCount,
+                chatConversationType: metric.cwsprChatConversationType,
+                chatActiveEditorImportCount: metric.cwsprChatActiveEditorImportCount,
+            }
         )
         // Store the customization value associated with the message
         if (metric.cwsprChatMessageId && metric.codewhispererCustomizationArn) {
@@ -250,13 +223,6 @@ export class ChatTelemetryController {
         this.#telemetryService.emitChatInteractWithMessage(metric, {
             conversationId: this.getConversationId(tabId),
         })
-        this.emitConversationMetric(
-            {
-                name: ChatTelemetryEventName.InteractWithMessage,
-                data: metric,
-            },
-            tabId
-        )
     }
 
     public emitMessageResponseError(tabId: string, metric: Partial<CombinedConversationEvent>) {
@@ -364,10 +330,6 @@ export class ChatTelemetryController {
                     this.#telemetryService.emitChatInteractWithMessage(voteData, {
                         conversationId: this.getConversationId(params.tabId),
                     })
-                    this.emitConversationMetric({
-                        name: ChatTelemetryEventName.InteractWithMessage,
-                        data: voteData,
-                    })
                     break
                 case ChatUIEventName.InsertToCursorPosition:
                 case ChatUIEventName.CopyToClipboard:
@@ -393,10 +355,6 @@ export class ChatTelemetryController {
                             params.name === ChatUIEventName.InsertToCursorPosition
                                 ? params.code?.split('\n').length
                                 : undefined,
-                    })
-                    this.emitConversationMetric({
-                        name: ChatTelemetryEventName.InteractWithMessage,
-                        data: interactData,
                     })
                     break
                 case ChatUIEventName.LinkClick:

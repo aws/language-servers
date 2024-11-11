@@ -177,56 +177,18 @@ const emitUserTriggerDecisionTelemetry = (
         return
     }
 
-    emitAggregatedUserTriggerDecisionTelemetry(telemetry, telemetryService, session, timeSinceLastUserModification)
+    emitAggregatedUserTriggerDecisionTelemetry(telemetryService, session, timeSinceLastUserModification)
     emitUserDecisionTelemetry(telemetry, session)
 
     session.reportedUserDecision = true
 }
 
 const emitAggregatedUserTriggerDecisionTelemetry = (
-    telemetry: Telemetry,
     telemetryService: TelemetryService,
     session: CodeWhispererSession,
     timeSinceLastUserModification?: number
 ) => {
     telemetryService.emitUserTriggerDecision(session, timeSinceLastUserModification)
-    // TODO: the below emitted event to the Toolkit DWH will be moved to telemetryService as well.
-    const data: CodeWhispererUserTriggerDecisionEvent = {
-        codewhispererSessionId: session.codewhispererSessionId || '',
-        codewhispererFirstRequestId: session.responseContext?.requestId || '',
-        credentialStartUrl: session.credentialStartUrl,
-        codewhispererSuggestionState: session.getAggregatedUserTriggerDecision(),
-        codewhispererCompletionType:
-            session.suggestions.length > 0 ? getCompletionType(session.suggestions[0]) : undefined,
-        codewhispererLanguage: session.language,
-        codewhispererTriggerType: session.triggerType,
-        codewhispererAutomatedTriggerType: session.autoTriggerType,
-        codewhispererTriggerCharacter:
-            session.autoTriggerType === 'SpecialCharacters' ? session.triggerCharacter : undefined,
-        codewhispererLineNumber: session.startPosition.line,
-        codewhispererCursorOffset: session.startPosition.character,
-        codewhispererSuggestionCount: session.suggestions.length,
-        codewhispererClassifierResult: session.classifierResult,
-        codewhispererClassifierThreshold: session.classifierThreshold,
-        codewhispererTotalShownTime: session.totalSessionDisplayTime || 0,
-        codewhispererTypeaheadLength: session.typeaheadLength || 0,
-        // Global time between any 2 document changes
-        codewhispererTimeSinceLastDocumentChange: timeSinceLastUserModification,
-        codewhispererTimeSinceLastUserDecision: session.previousTriggerDecisionTime
-            ? session.startTime - session.previousTriggerDecisionTime
-            : undefined,
-        codewhispererTimeToFirstRecommendation: session.timeToFirstRecommendation,
-        codewhispererPreviousSuggestionState: session.previousTriggerDecision,
-        codewhispererSupplementalContextTimeout: session.supplementalMetadata?.isProcessTimeout,
-        codewhispererSupplementalContextIsUtg: session.supplementalMetadata?.isUtg,
-        codewhispererSupplementalContextLength: session.supplementalMetadata?.contentsLength,
-        codewhispererCustomizationArn: session.customizationArn,
-    }
-
-    telemetry.emitMetric({
-        name: 'codewhisperer_userTriggerDecision',
-        data,
-    })
 }
 
 const emitUserDecisionTelemetry = (telemetry: Telemetry, session: CodeWhispererSession) => {
@@ -335,7 +297,7 @@ export const CodewhispererServerFactory =
         // the context of a single response.
         let includeSuggestionsWithCodeReferences = false
 
-        const codePercentageTracker = new CodePercentageTracker(telemetry, telemetryService)
+        const codePercentageTracker = new CodePercentageTracker(telemetryService)
 
         const codeDiffTracker: CodeDiffTracker<AcceptedInlineSuggestionEntry> = new CodeDiffTracker(
             workspace,
@@ -640,8 +602,12 @@ export const CodewhispererServerFactory =
                     logging.log(
                         `Inline completion configuration updated to use ${codeWhispererService.customizationArn}`
                     )
-                    const enableTelemetryEventsToDestination = qConfig['enableTelemetryEventsToDestination'] === true
-                    telemetryService.updateEnableTelemetryEventsToDestination(enableTelemetryEventsToDestination)
+                    /*
+                        The flag enableTelemetryEventsToDestination is set to true temporarily. It's value will be determined through destination
+                        configuration post all events migration to STE. It'll be replaced by qConfig['enableTelemetryEventsToDestination'] === true
+                     */
+                    // const enableTelemetryEventsToDestination = true
+                    // telemetryService.updateEnableTelemetryEventsToDestination(enableTelemetryEventsToDestination)
                     const optOutTelemetryPreference = qConfig['optOutTelemetry'] === true ? 'OPTOUT' : 'OPTIN'
                     telemetryService.updateOptOutPreference(optOutTelemetryPreference)
                 }

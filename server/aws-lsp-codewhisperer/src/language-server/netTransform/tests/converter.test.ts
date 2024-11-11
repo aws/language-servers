@@ -48,6 +48,7 @@ const sampleStartTransformationRequest: CodeWhispererTokenUserClient.StartTransf
 
 const sampleUserInputRequest: StartTransformRequest = {
     SolutionRootPath: '',
+    SolutionFilePath: '',
     TargetFramework: '',
     ProgramLanguage: '',
     SelectedProjectPath: '',
@@ -63,6 +64,7 @@ const sampleUserInputRequest: StartTransformRequest = {
             SourceCodeFilePaths: [],
         },
     ],
+    TransformNetStandardProjects: false,
     command: '',
 }
 

@@ -21,13 +21,20 @@ import {
     UserIntent,
 } from '../client/token/codewhispererbearertokenclient'
 import { getCompletionType, getSsoConnectionType, isAwsError } from './utils'
-import { ChatInteractionType, InteractWithMessageEvent } from './telemetry/types'
+import {
+    ChatConversationType,
+    ChatInteractionType,
+    ChatTelemetryEventName,
+    CodeWhispererUserTriggerDecisionEvent,
+    InteractWithMessageEvent,
+} from './telemetry/types'
 import { CodewhispererLanguage, getRuntimeLanguage } from './languageDetection'
+import { CONVERSATION_ID_METRIC_KEY } from './chat/telemetry/chatTelemetryController'
 
 export class TelemetryService extends CodeWhispererServiceToken {
     private userContext: UserContext | undefined
     private optOutPreference!: OptOutPreference
-    private enableTelemetryEventsToDestination!: boolean
+    private enableTelemetryEventsToDestination: boolean
     private telemetry: Telemetry
     private credentialsType: CredentialsType
     private credentialsProvider: CredentialsProvider
@@ -57,6 +64,7 @@ export class TelemetryService extends CodeWhispererServiceToken {
         this.credentialsType = credentialsType
         this.telemetry = telemetry
         this.logging = logging
+        this.enableTelemetryEventsToDestination = true
     }
 
     public updateUserContext(userContext: UserContext | undefined): void {
@@ -106,11 +114,11 @@ export class TelemetryService extends CodeWhispererServiceToken {
         }
 
         this.logging.log(
-            `Failed to sendTelemetryEvent to CodeWhisperer, requestId: ${requestId ?? ''}, message: ${error.message}`
+            `Failed to sendTelemetryEvent to CodeWhisperer, requestId: ${requestId ?? ''}, message: ${error?.message}`
         )
     }
 
-    private invokeSendTelemetryEvent(event: TelemetryEvent) {
+    private async invokeSendTelemetryEvent(event: TelemetryEvent) {
         if (!this.shouldSendTelemetry()) {
             return
         }
@@ -123,8 +131,11 @@ export class TelemetryService extends CodeWhispererServiceToken {
         if (this.optOutPreference !== undefined) {
             request.optOutPreference = this.optOutPreference
         }
-
-        this.sendTelemetryEvent(request).then().catch(this.logSendTelemetryEventFailure)
+        try {
+            await this.sendTelemetryEvent(request)
+        } catch (error) {
+            this.logSendTelemetryEventFailure(error)
+        }
     }
 
     private getCWClientTelemetryInteractionType(interactionType: ChatInteractionType): ChatMessageInteractionType {
@@ -132,7 +143,43 @@ export class TelemetryService extends CodeWhispererServiceToken {
     }
 
     public emitUserTriggerDecision(session: CodeWhispererSession, timeSinceLastUserModification?: number) {
-        const completionSessionResult = session.completionSessionResult ?? {}
+        if (this.enableTelemetryEventsToDestination) {
+            const data: CodeWhispererUserTriggerDecisionEvent = {
+                codewhispererSessionId: session.codewhispererSessionId || '',
+                codewhispererFirstRequestId: session.responseContext?.requestId || '',
+                credentialStartUrl: session.credentialStartUrl,
+                codewhispererSuggestionState: session.getAggregatedUserTriggerDecision(),
+                codewhispererCompletionType:
+                    session.suggestions.length > 0 ? getCompletionType(session.suggestions[0]) : undefined,
+                codewhispererLanguage: session.language,
+                codewhispererTriggerType: session.triggerType,
+                codewhispererAutomatedTriggerType: session.autoTriggerType,
+                codewhispererTriggerCharacter:
+                    session.autoTriggerType === 'SpecialCharacters' ? session.triggerCharacter : undefined,
+                codewhispererLineNumber: session.startPosition.line,
+                codewhispererCursorOffset: session.startPosition.character,
+                codewhispererSuggestionCount: session.suggestions.length,
+                codewhispererClassifierResult: session.classifierResult,
+                codewhispererClassifierThreshold: session.classifierThreshold,
+                codewhispererTotalShownTime: session.totalSessionDisplayTime || 0,
+                codewhispererTypeaheadLength: session.typeaheadLength || 0,
+                // Global time between any 2 document changes
+                codewhispererTimeSinceLastDocumentChange: timeSinceLastUserModification,
+                codewhispererTimeSinceLastUserDecision: session.previousTriggerDecisionTime
+                    ? session.startTime - session.previousTriggerDecisionTime
+                    : undefined,
+                codewhispererTimeToFirstRecommendation: session.timeToFirstRecommendation,
+                codewhispererPreviousSuggestionState: session.previousTriggerDecision,
+                codewhispererSupplementalContextTimeout: session.supplementalMetadata?.isProcessTimeout,
+                codewhispererSupplementalContextIsUtg: session.supplementalMetadata?.isUtg,
+                codewhispererSupplementalContextLength: session.supplementalMetadata?.contentsLength,
+                codewhispererCustomizationArn: session.customizationArn,
+            }
+            this.telemetry.emitMetric({
+                name: 'codewhisperer_userTriggerDecision',
+                data: data,
+            })
+        }
         const acceptedSuggestion = session.suggestions.find(s => s.itemId === session.acceptedSuggestionId)
         const generatedLines =
             acceptedSuggestion === undefined || acceptedSuggestion.content.trim() === ''
@@ -185,6 +232,16 @@ export class TelemetryService extends CodeWhispererServiceToken {
         if (options?.conversationId === undefined) {
             return
         }
+        if (this.enableTelemetryEventsToDestination) {
+            this.telemetry.emitMetric({
+                name: ChatTelemetryEventName.InteractWithMessage,
+                data: {
+                    ...metric,
+                    [CONVERSATION_ID_METRIC_KEY]: options.conversationId,
+                    credentialStartUrl: this.credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
+                },
+            })
+        }
         const event: ChatInteractWithMessageEvent = {
             conversationId: options.conversationId,
             messageId: metric.cwsprChatMessageId,
@@ -209,6 +266,18 @@ export class TelemetryService extends CodeWhispererServiceToken {
         modificationPercentage: number
         customizationArn?: string
     }) {
+        if (this.enableTelemetryEventsToDestination) {
+            this.telemetry.emitMetric({
+                name: ChatTelemetryEventName.ModifyCode,
+                data: {
+                    [CONVERSATION_ID_METRIC_KEY]: params.conversationId,
+                    cwsprChatMessageId: params.messageId,
+                    cwsprChatModificationPercentage: params.modificationPercentage,
+                    codewhispererCustomizationArn: params.customizationArn,
+                    credentialStartUrl: this.credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
+                },
+            })
+        }
         this.invokeSendTelemetryEvent({
             chatUserModificationEvent: params,
         })
@@ -241,12 +310,30 @@ export class TelemetryService extends CodeWhispererServiceToken {
         })
     }
 
-    public emitCodeCoverageEvent(params: {
-        languageId: CodewhispererLanguage
-        acceptedCharacterCount: number
-        totalCharacterCount: number
-        customizationArn?: string
-    }) {
+    public emitCodeCoverageEvent(
+        params: {
+            languageId: CodewhispererLanguage
+            acceptedCharacterCount: number
+            totalCharacterCount: number
+            customizationArn?: string
+        },
+        additionalParams: Partial<{
+            percentage: number
+            successCount: number
+        }>
+    ) {
+        if (this.enableTelemetryEventsToDestination) {
+            this.telemetry.emitMetric({
+                name: 'codewhisperer_codePercentage',
+                data: {
+                    codewhispererTotalTokens: params.totalCharacterCount,
+                    codewhispererLanguage: params.languageId,
+                    codewhispererSuggestedTokens: params.acceptedCharacterCount,
+                    codewhispererPercentage: additionalParams.percentage,
+                    successCount: additionalParams.successCount,
+                },
+            })
+        }
         const event: CodeCoverageEvent = {
             programmingLanguage: {
                 languageName: getRuntimeLanguage(params.languageId),
@@ -262,25 +349,66 @@ export class TelemetryService extends CodeWhispererServiceToken {
         })
     }
 
-    public emitChatAddMessage(params: {
-        conversationId?: string
-        messageId?: string
-        customizationArn?: string
-        userIntent?: UserIntent
-        hasCodeSnippet?: boolean
-        programmingLanguage?: CodewhispererLanguage
-        activeEditorTotalCharacters?: number
-        timeToFirstChunkMilliseconds?: number
-        timeBetweenChunks?: number[]
-        fullResponselatency?: number
-        requestLength?: number
-        responseLength?: number
-        numberOfCodeBlocks?: number
-        hasProjectLevelContext?: number
-    }) {
+    public emitChatAddMessage(
+        params: {
+            conversationId?: string
+            messageId?: string
+            customizationArn?: string
+            userIntent?: UserIntent
+            hasCodeSnippet?: boolean
+            programmingLanguage?: CodewhispererLanguage
+            activeEditorTotalCharacters?: number
+            timeToFirstChunkMilliseconds?: number
+            timeBetweenChunks?: number[]
+            fullResponselatency?: number
+            requestLength?: number
+            responseLength?: number
+            numberOfCodeBlocks?: number
+            hasProjectLevelContext?: number
+        },
+        additionalParams: Partial<{
+            chatTriggerInteraction: string
+            chatResponseCode: number
+            chatSourceLinkCount?: number
+            chatReferencesCount?: number
+            chatFollowUpCount?: number
+            chatConversationType: ChatConversationType
+            chatActiveEditorImportCount?: number
+        }>
+    ) {
         if (!params.conversationId || !params.messageId) {
             return
         }
+
+        if (this.enableTelemetryEventsToDestination) {
+            this.telemetry.emitMetric({
+                name: ChatTelemetryEventName.AddMessage,
+                data: {
+                    credentialStartUrl: this.credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
+                    [CONVERSATION_ID_METRIC_KEY]: params.conversationId,
+                    cwsprChatHasCodeSnippet: params.hasCodeSnippet,
+                    cwsprChatTriggerInteraction: additionalParams.chatTriggerInteraction,
+                    cwsprChatMessageId: params.messageId,
+                    cwsprChatUserIntent: params.userIntent,
+                    cwsprChatProgrammingLanguage: params.programmingLanguage,
+                    cwsprChatResponseCodeSnippetCount: params.numberOfCodeBlocks,
+                    cwsprChatResponseCode: additionalParams.chatResponseCode,
+                    cwsprChatSourceLinkCount: additionalParams.chatSourceLinkCount,
+                    cwsprChatReferencesCount: additionalParams.chatReferencesCount,
+                    cwsprChatFollowUpCount: additionalParams.chatFollowUpCount,
+                    cwsprTimeToFirstChunk: params.timeToFirstChunkMilliseconds,
+                    cwsprChatFullResponseLatency: params.fullResponselatency,
+                    cwsprChatTimeBetweenChunks: params.timeBetweenChunks,
+                    cwsprChatRequestLength: params.requestLength,
+                    cwsprChatResponseLength: params.responseLength,
+                    cwsprChatConversationType: additionalParams.chatConversationType,
+                    cwsprChatActiveEditorTotalCharacters: params.activeEditorTotalCharacters,
+                    cwsprChatActiveEditorImportCount: additionalParams.chatActiveEditorImportCount,
+                    codewhispererCustomizationArn: params.customizationArn,
+                },
+            })
+        }
+
         const event: ChatAddMessageEvent = {
             conversationId: params.conversationId,
             messageId: params.messageId,

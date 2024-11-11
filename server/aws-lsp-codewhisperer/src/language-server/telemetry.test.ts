@@ -9,6 +9,7 @@ import sinon, { StubbedInstance, stubInterface } from 'ts-sinon'
 import { TextDocument } from 'vscode-languageserver-textdocument'
 import { CodewhispererServerFactory } from './codeWhispererServer'
 import { CodeWhispererServiceBase, ResponseContext, Suggestion } from './codeWhispererService'
+import { TelemetryService } from './telemetryService'
 
 describe('CodeWhisperer Server', () => {
     const HELLO_WORLD_IN_CSHARP = `
@@ -36,6 +37,7 @@ class HelloWorld
         // for examples on how to mock just the SDK client
         let service: StubbedInstance<CodeWhispererServiceBase>
         let clock: sinon.SinonFakeTimers
+        let telemetryServiceSpy: sinon.SinonSpy
 
         beforeEach(async () => {
             clock = sinon.useFakeTimers()
@@ -69,6 +71,7 @@ class HelloWorld
         })
 
         it('should emit Code Percentage telemetry event every 5 minutes', async () => {
+            telemetryServiceSpy = sinon.spy(TelemetryService.prototype, 'emitCodeCoverageEvent')
             await features.simulateTyping(SOME_FILE.uri, SOME_TYPING)
 
             const updatedDocument = features.documents[SOME_FILE.uri]
@@ -107,16 +110,19 @@ class HelloWorld
 
             clock.tick(5000 * 60)
 
-            sinon.assert.calledWithExactly(features.telemetry.emitMetric, {
-                name: 'codewhisperer_codePercentage',
-                data: {
-                    codewhispererTotalTokens: totalInsertCharacters,
-                    codewhispererLanguage: 'csharp',
-                    codewhispererSuggestedTokens: codeWhispererCharacters,
-                    codewhispererPercentage: codePercentage,
-                    successCount: 1,
+            sinon.assert.calledWithExactly(
+                telemetryServiceSpy,
+                {
+                    languageId: 'csharp',
+                    customizationArn: undefined,
+                    totalCharacterCount: totalInsertCharacters,
+                    acceptedCharacterCount: codeWhispererCharacters,
                 },
-            })
+                {
+                    percentage: codePercentage,
+                    successCount: 1,
+                }
+            )
         })
     })
 })
