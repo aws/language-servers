@@ -34,9 +34,6 @@ const nodeJsBearerTokenBundleConfig = {
     },
     resolve: {
         ...baseConfig.resolve,
-        alias: {
-            '@aws/fully-qualified-names$': '@aws/fully-qualified-names/node/aws_fully_qualified_names.js',
-        },
     },
     target: 'node',
 }
