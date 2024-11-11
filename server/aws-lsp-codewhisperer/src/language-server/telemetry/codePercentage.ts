@@ -15,8 +15,6 @@ type TelemetryBuckets = {
     }
 }
 
-const autoClosingKeystrokeInputs = ['[]', '{}', '()', '""', "''"]
-
 export class CodePercentageTracker {
     private buckets: TelemetryBuckets
     private intervalId: NodeJS.Timeout
@@ -55,7 +53,7 @@ export class CodePercentageTracker {
             .filter(languageId => previousBuckets[languageId]?.invocationCount > 0)
             .map(languageId => {
                 const bucket = previousBuckets[languageId]
-                const percentage = this.roundTwoDecimals((bucket.acceptedTokens / bucket.totalTokens) * 100)
+                const percentage = this.roundTwoDecimals((bucket.acceptedTokens / bucket.totalTokens) * 100) || 0
                 return {
                     codewhispererTotalTokens: bucket.totalTokens,
                     codewhispererLanguage: languageId,
@@ -97,49 +95,41 @@ export class CodePercentageTracker {
         if ((tokens.startsWith('\n') || tokens.startsWith('\r\n')) && tokens.trim().length === 0) {
             return 1
         }
-        if (autoClosingKeystrokeInputs.includes(tokens)) {
-            return 2
-        }
 
         return 0
     }
 
+    // Port of implementation in AWS Toolkit for VSCode
+    // https://github.com/aws/aws-toolkit-vscode/blob/43f5b85f93f5017145ba5e6b140cce0b6ef906f8/packages/core/src/codewhisperer/tracker/codewhispererCodeCoverageTracker.ts#L267
+    // Note: due to distributed communication between IDE and language server,
+    // UI flag `isCodeWhispererEditing` is replaced with language server controlled `fromCodeWhisperer` flag
     countTotalTokens(languageId: string, tokens: string, fromCodeWhisperer = false): void {
         const languageBucket = this.getLanguageBucket(languageId)
-        let tokenCount = 0
 
-        // Partial port of implementation in AWS Toolkit for VSCode
-        // https://github.com/aws/aws-toolkit-vscode/blob/81132884f4fb3319bda4be7d3d873265191f43ce/packages/core/src/codewhisperer/tracker/codewhispererCodeCoverageTracker.ts#L267-L300
-        // ignore no contentChanges. ignore contentChanges from other plugins (formatters)
-        // only include contentChanges from user keystroke input (one character input).
-        // Also ignore deletion events due to a known issue of tracking deleted CodeWhisperer tokens.
-
-        // Accept recommendation as is when it is inserted by CodeWhisperer
-        // Accepted recommendations smaller than INSERT_CUTOFF_THRESHOLD are always added by `countTotalTokens` in `onDidChangeTextDocument` handler,
-        // Code diffs larger than INSERT_CUTOFF_THRESHOLD are always rejected.
-        // Only increase `totalTokens` count when length is over INSERT_CUTOFF_THRESHOLD to prevent double-counting of changes.
+        // Handle CodeWhisperer recommendations
         if (fromCodeWhisperer && tokens.length >= INSERT_CUTOFF_THRESHOLD) {
-            tokenCount = tokens.length
-        }
-        // A user keystroke input can be:
-        // 1. content change with 1 character insertion (any character)
-        else if (tokens.length === 1) {
-            tokenCount = 1
-        }
-        // 2. newline character with indentation
-        // 3. 2 character insertion of closing brackets
-        else if (this.getCharacterCountFromComplexEvent(tokens) !== 0) {
-            tokenCount = this.getCharacterCountFromComplexEvent(tokens)
-        }
-        // also include multi character input within 50 characters (not from CWSPR)
-        // ignore code changes larger than 50 chars, reference https://github.com/aws/aws-toolkit-vscode/pull/4522
-        // select 50 as the cut-off threshold for counting user input.
-        // ignore all white space multi char input, this usually comes from reformat.
-        else if (!fromCodeWhisperer && tokens.length < INSERT_CUTOFF_THRESHOLD && tokens.trim().length > 0) {
-            tokenCount = tokens.length
+            languageBucket.totalTokens += tokens.length
+            return
         }
 
-        languageBucket.totalTokens += tokenCount
+        // Handle single character input
+        if (tokens.length === 1) {
+            languageBucket.totalTokens += 1
+            return
+        }
+
+        // Handle newline with indentation
+        const complexEventCount = this.getCharacterCountFromComplexEvent(tokens)
+        if (complexEventCount !== 0) {
+            languageBucket.totalTokens += complexEventCount
+            return
+        }
+
+        // Handle multi-character input within threshold
+        if (!fromCodeWhisperer && tokens.length < INSERT_CUTOFF_THRESHOLD && tokens.trim().length > 0) {
+            languageBucket.totalTokens += tokens.length
+            return
+        }
     }
 
     countAcceptedTokens(languageId: string, tokens: string): void {

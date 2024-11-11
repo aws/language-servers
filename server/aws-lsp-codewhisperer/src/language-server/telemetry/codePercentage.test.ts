@@ -131,4 +131,169 @@ describe('CodePercentage', () => {
             }
         )
     })
+
+    describe('countTotalTokens', () => {
+        it('counts CodeWhisperer suggestions above threshold when fromCodeWhisperer = true', () => {
+            const longCode = 'a'.repeat(51) // Above INSERT_CUTOFF_THRESHOLD
+            tracker.countTotalTokens(LANGUAGE_ID, longCode, true)
+            tracker.countInvocation(LANGUAGE_ID)
+
+            clock.tick(5000 * 60)
+
+            sinon.assert.calledWith(
+                telemetryService.emitCodeCoverageEvent,
+                {
+                    languageId: LANGUAGE_ID,
+                    totalCharacterCount: 51,
+                    acceptedCharacterCount: 0,
+                    customizationArn: undefined,
+                },
+                {
+                    percentage: 0,
+                    successCount: 0,
+                }
+            )
+        })
+
+        it('counts single character input when not from CodeWhisperer', () => {
+            tracker.countTotalTokens(LANGUAGE_ID, 'a', false)
+            tracker.countInvocation(LANGUAGE_ID)
+
+            clock.tick(5000 * 60)
+
+            sinon.assert.calledWith(
+                telemetryService.emitCodeCoverageEvent,
+                {
+                    languageId: LANGUAGE_ID,
+                    totalCharacterCount: 1,
+                    acceptedCharacterCount: 0,
+                    customizationArn: undefined,
+                },
+                {
+                    percentage: 0,
+                    successCount: 0,
+                }
+            )
+        })
+
+        it('counts single character input when not from CodeWhisperer', () => {
+            tracker.countTotalTokens(LANGUAGE_ID, 'a', false)
+            tracker.countInvocation(LANGUAGE_ID)
+
+            clock.tick(5000 * 60)
+
+            sinon.assert.calledWith(
+                telemetryService.emitCodeCoverageEvent,
+                {
+                    languageId: LANGUAGE_ID,
+                    totalCharacterCount: 1,
+                    acceptedCharacterCount: 0,
+                    customizationArn: undefined,
+                },
+                {
+                    percentage: 0,
+                    successCount: 0,
+                }
+            )
+        })
+
+        it('counts new line with indentation as 1 character input', () => {
+            tracker.countTotalTokens(LANGUAGE_ID, '\n    ', false)
+            tracker.countInvocation(LANGUAGE_ID)
+
+            clock.tick(5000 * 60)
+
+            sinon.assert.calledWith(
+                telemetryService.emitCodeCoverageEvent,
+                {
+                    languageId: LANGUAGE_ID,
+                    totalCharacterCount: 1,
+                    acceptedCharacterCount: 0,
+                    customizationArn: undefined,
+                },
+                {
+                    percentage: 0,
+                    successCount: 0,
+                }
+            )
+        })
+
+        it('counts auto closing pair of characters input as 2', () => {
+            tracker.countTotalTokens(LANGUAGE_ID, '[]', false)
+            tracker.countTotalTokens(LANGUAGE_ID, '{}', false)
+            tracker.countTotalTokens(LANGUAGE_ID, '""', false)
+            tracker.countTotalTokens(LANGUAGE_ID, "''", false)
+            tracker.countTotalTokens(LANGUAGE_ID, '()', false)
+            tracker.countInvocation(LANGUAGE_ID)
+
+            clock.tick(5000 * 60)
+
+            sinon.assert.calledWith(
+                telemetryService.emitCodeCoverageEvent,
+                {
+                    languageId: LANGUAGE_ID,
+                    totalCharacterCount: 10,
+                    acceptedCharacterCount: 0,
+                    customizationArn: undefined,
+                },
+                {
+                    percentage: 0,
+                    successCount: 0,
+                }
+            )
+        })
+
+        it('ignores large inputs when fromCodeWhisperer = false', () => {
+            const largeInput = 'a'.repeat(51) // Above threshold
+            tracker.countTotalTokens(LANGUAGE_ID, largeInput, false)
+
+            clock.tick(5000 * 60)
+
+            sinon.assert.notCalled(telemetryService.emitCodeCoverageEvent)
+        })
+
+        it('accumulates multiple inputs correctly', () => {
+            tracker.countTotalTokens(LANGUAGE_ID, 'a') // 1 char
+            tracker.countTotalTokens(LANGUAGE_ID, '\n    ') // 1 char
+            tracker.countTotalTokens(LANGUAGE_ID, 'bc') // 2 chars
+            tracker.countInvocation(LANGUAGE_ID)
+
+            clock.tick(5000 * 60)
+
+            sinon.assert.calledWith(
+                telemetryService.emitCodeCoverageEvent,
+                {
+                    languageId: LANGUAGE_ID,
+                    totalCharacterCount: 4,
+                    acceptedCharacterCount: 0,
+                    customizationArn: undefined,
+                },
+                {
+                    percentage: 0,
+                    successCount: 0,
+                }
+            )
+        })
+
+        it('handles whitespace-only input correctly', () => {
+            tracker.countTotalTokens(LANGUAGE_ID, '    ', false)
+            tracker.countInvocation(LANGUAGE_ID)
+
+            clock.tick(5000 * 60)
+
+            sinon.assert.calledWith(
+                telemetryService.emitCodeCoverageEvent,
+                {
+                    languageId: LANGUAGE_ID,
+                    totalCharacterCount: 0,
+                    acceptedCharacterCount: 0,
+                    customizationArn: undefined,
+                },
+                {
+                    percentage: 0,
+                    successCount: 0,
+                }
+            )
+        })
+    })
 })
