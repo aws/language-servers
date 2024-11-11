@@ -30,14 +30,8 @@ import {
     CodeWhispererPerceivedLatencyEvent,
     CodeWhispererServiceInvocationEvent,
     CodeWhispererUserDecisionEvent,
-    CodeWhispererUserTriggerDecisionEvent,
 } from './telemetry/types'
-import {
-    getCompletionType,
-    getEndPositionForAcceptedSuggestion,
-    getUnmodifiedAcceptedTokens,
-    isAwsError,
-} from './utils'
+import { getCompletionType, getEndPositionForAcceptedSuggestion, isAwsError } from './utils'
 import { getUserAgent, makeUserContextObject } from './utilities/telemetryUtils'
 import { Q_CONFIGURATION_SECTION } from './configuration/qConfigurationServer'
 import { fetchSupplementalContext } from './utilities/supplementalContextUtil/supplementalContextUtil'
@@ -415,8 +409,6 @@ export const CodewhispererServerFactory =
                     customizationArn: undefinedIfEmpty(codeWhispererService.customizationArn),
                 })
 
-                codePercentageTracker.countInvocation(inferredLanguageId)
-
                 return codeWhispererService
                     .generateSuggestions({
                         ...requestContext,
@@ -431,6 +423,8 @@ export const CodewhispererServerFactory =
                         },
                     })
                     .then(suggestionResponse => {
+                        codePercentageTracker.countInvocation(inferredLanguageId)
+
                         // Populate the session with information from codewhisperer response
                         newSession.suggestions = suggestionResponse.suggestions
                         newSession.responseContext = suggestionResponse.responseContext
@@ -578,6 +572,7 @@ export const CodewhispererServerFactory =
                 if (acceptedSuggestion) {
                     codePercentageTracker.countSuccess(session.language)
                     codePercentageTracker.countAcceptedTokens(session.language, acceptedSuggestion.insertText)
+                    codePercentageTracker.countTotalTokens(session.language, acceptedSuggestion.insertText, true)
 
                     enqueueCodeDiffEntry(session, acceptedSuggestion)
                 }
@@ -648,7 +643,7 @@ export const CodewhispererServerFactory =
             }
 
             p.contentChanges.forEach(change => {
-                codePercentageTracker.countTotalTokens(languageId, change.text)
+                codePercentageTracker.countTotalTokens(languageId, change.text, false)
             })
 
             // Record last user modification time for any document
