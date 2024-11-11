@@ -35,20 +35,17 @@ export interface GenerateSuggestionsResponse {
     responseContext: ResponseContext
 }
 
-export interface AWSConfig {
-    proxy?: any
-}
-
 import CodeWhispererSigv4Client = require('../client/sigv4/codewhisperersigv4client')
 import CodeWhispererTokenClient = require('../client/token/codewhispererbearertokenclient')
-import AWS = require('aws-sdk')
 import { AWS_Q_ENDPOINT_URL, AWS_Q_REGION } from '../constants'
+import { makeProxyConfig } from './utils'
 
 // Right now the only difference between the token client and the IAM client for codewhsiperer is the difference in function name
 // This abstract class can grow in the future to account for any additional changes across the clients
 export abstract class CodeWhispererServiceBase {
     protected readonly codeWhispererRegion = AWS_Q_REGION
     protected readonly codeWhispererEndpoint = AWS_Q_ENDPOINT_URL
+    protected proxyConfig: ConfigurationOptions
     public shareCodeWhispererContentWithAWS = false
     public customizationArn?: string
     abstract client: CodeWhispererSigv4Client | CodeWhispererTokenClient
@@ -57,12 +54,8 @@ export abstract class CodeWhispererServiceBase {
 
     abstract generateSuggestions(request: GenerateSuggestionsRequest): Promise<GenerateSuggestionsResponse>
 
-    constructor(credentialsProvider: CredentialsProvider, additionalAwsConfig: AWS.ConfigurationOptions = {}) {
-        this.updateAwsConfiguration(additionalAwsConfig)
-    }
-
-    updateAwsConfiguration = (awsConfig: AWS.ConfigurationOptions) => {
-        AWS.config.update(awsConfig)
+    constructor() {
+        this.proxyConfig = makeProxyConfig()
     }
 
     /**
@@ -78,9 +71,8 @@ export abstract class CodeWhispererServiceBase {
 export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
     client: CodeWhispererSigv4Client
 
-    constructor(credentialsProvider: CredentialsProvider, additionalAwsConfig: AWS.ConfigurationOptions = {}) {
-        super(credentialsProvider, additionalAwsConfig)
-
+    constructor(credentialsProvider: CredentialsProvider) {
+        super()
         const options: CodeWhispererSigv4ClientConfigurationOptions = {
             region: this.codeWhispererRegion,
             endpoint: this.codeWhispererEndpoint,
@@ -89,6 +81,7 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
             ]),
         }
         this.client = createCodeWhispererSigv4Client(options)
+        this.updateClientConfig(this.proxyConfig)
         this.client.setupRequestListeners = ({ httpRequest }) => {
             httpRequest.headers['x-amzn-codewhisperer-optout'] = `${!this.shareCodeWhispererContentWithAWS}`
         }
@@ -124,9 +117,8 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
 export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     client: CodeWhispererTokenClient
 
-    constructor(credentialsProvider: CredentialsProvider, additionalAwsConfig: AWS.ConfigurationOptions = {}) {
-        super(credentialsProvider, additionalAwsConfig)
-
+    constructor(credentialsProvider: CredentialsProvider) {
+        super()
         const options: CodeWhispererTokenClientConfigurationOptions = {
             region: this.codeWhispererRegion,
             endpoint: this.codeWhispererEndpoint,
@@ -144,6 +136,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
             ],
         }
         this.client = createCodeWhispererTokenClient(options)
+        this.updateClientConfig(this.proxyConfig)
     }
 
     getCredentialsType(): CredentialsType {
