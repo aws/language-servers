@@ -7,50 +7,23 @@ import { QNetTransformServerToken } from './netTransformServer'
 import { QChatServer } from './qChatServer'
 import { QConfigurationServerToken } from './configuration/qConfigurationServer'
 import { readFileSync } from 'fs'
-import { ConfigurationOptions } from 'aws-sdk'
 import { HttpsProxyAgent } from 'hpagent'
 import { NodeHttpHandler } from '@smithy/node-http-handler'
 
-const makeProxyConfig = () => {
-    let additionalAwsConfig: ConfigurationOptions = {}
-    const proxyUrl = process.env.HTTPS_PROXY ?? process.env.https_proxy
-
-    if (proxyUrl) {
-        const certs = process.env.AWS_CA_BUNDLE ? [readFileSync(process.env.AWS_CA_BUNDLE)] : undefined
-        const agent = new HttpsProxyAgent({
-            proxy: proxyUrl,
-            ca: certs,
-        })
-
-        additionalAwsConfig = {
-            httpOptions: {
-                agent: agent,
-            },
-        }
-    }
-
-    return additionalAwsConfig
-}
-
 export const CodeWhispererServerTokenProxy = CodewhispererServerFactory(credentialsProvider => {
-    const additionalAwsConfig = makeProxyConfig()
-
-    return new CodeWhispererServiceToken(credentialsProvider, additionalAwsConfig)
+    return new CodeWhispererServiceToken(credentialsProvider)
 })
 
 export const CodeWhispererServerIAMProxy = CodewhispererServerFactory(credentialsProvider => {
-    const additionalAwsConfig = makeProxyConfig()
-    return new CodeWhispererServiceIAM(credentialsProvider, additionalAwsConfig)
+    return new CodeWhispererServiceIAM(credentialsProvider)
 })
 
 export const CodeWhispererSecurityScanServerTokenProxy = SecurityScanServerToken(credentialsProvider => {
-    const additionalAwsConfig = makeProxyConfig()
-    return new CodeWhispererServiceToken(credentialsProvider, additionalAwsConfig)
+    return new CodeWhispererServiceToken(credentialsProvider)
 })
 
 export const QNetTransformServerTokenProxy = QNetTransformServerToken(credentialsProvider => {
-    const additionalAwsConfig = makeProxyConfig()
-    return new CodeWhispererServiceToken(credentialsProvider, additionalAwsConfig)
+    return new CodeWhispererServiceToken(credentialsProvider)
 })
 
 export const QChatServerProxy = QChatServer(credentialsProvider => {
@@ -82,6 +55,5 @@ export const QChatServerProxy = QChatServer(credentialsProvider => {
 })
 
 export const QConfigurationServerTokenProxy = QConfigurationServerToken(credentialsProvider => {
-    const additionalAwsConfig = makeProxyConfig()
-    return new CodeWhispererServiceToken(credentialsProvider, additionalAwsConfig)
+    return new CodeWhispererServiceToken(credentialsProvider)
 })

@@ -56,10 +56,9 @@ export class TelemetryService extends CodeWhispererServiceToken {
         credentialsProvider: CredentialsProvider,
         credentialsType: CredentialsType,
         telemetry: Telemetry,
-        logging: Logging,
-        additionalAwsConfig: AWS.ConfigurationOptions = {}
+        logging: Logging
     ) {
-        super(credentialsProvider, additionalAwsConfig)
+        super(credentialsProvider)
         this.credentialsProvider = credentialsProvider
         this.credentialsType = credentialsType
         this.telemetry = telemetry

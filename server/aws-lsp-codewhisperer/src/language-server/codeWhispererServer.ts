@@ -274,8 +274,7 @@ export const CodewhispererServerFactory =
             credentialsProvider,
             codeWhispererService.getCredentialsType(),
             telemetry,
-            logging,
-            {}
+            logging
         )
 
         lsp.addInitializer((params: InitializeParams) => {
