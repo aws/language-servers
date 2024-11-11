@@ -51,7 +51,6 @@ export class QChatTriggerContext {
                                               text: triggerContext.text,
                                               programmingLanguage: triggerContext.programmingLanguage,
                                               relativeFilePath: triggerContext.relativeFilePath,
-                                              documentSymbols: triggerContext.documentSymbols,
                                           },
                                       },
                                   }
@@ -64,10 +63,6 @@ export class QChatTriggerContext {
         }
 
         return data
-    }
-
-    public dispose() {
-        this.#documentContextExtractor.dispose()
     }
 
     // public for testing

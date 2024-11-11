@@ -6,9 +6,7 @@
     "scripts": {
         "clean": "rm -rf out/ bin/ tsconfig.tsbuildinfo",
         "compile": "tsc --build",
-        "copy:wasm": "copyfiles -f --error ../../node_modules/@aws/fully-qualified-names/node/aws_fully_qualified_names_bg.wasm ../../node_modules/web-tree-sitter/tree-sitter.wasm out",
-        "copy": "npm run copy:wasm",
-        "package": "npm run compile && npm run copy && npm run webpack",
+        "package": "npm run compile && npm run webpack",
         "webpack": "webpack"
     },
     "dependencies": {

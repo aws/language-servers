@@ -66,7 +66,6 @@ export class ChatController implements ChatHandlers {
 
     dispose() {
         this.#chatSessionManagementService.dispose()
-        this.#triggerContext.dispose()
         this.#telemetryController.dispose()
     }
 
@@ -370,7 +369,6 @@ export class ChatController implements ChatHandlers {
             cwsprChatRequestLength: params.prompt?.prompt?.length ?? 0,
             cwsprChatTriggerInteraction: triggerContext?.triggerType,
             cwsprChatHasCodeSnippet: triggerContext.hasCodeSnippet ?? false,
-            cwsprChatActiveEditorImportCount: triggerContext.documentSymbols?.length ?? 0,
             cwsprChatActiveEditorTotalCharacters: triggerContext.totalEditorCharacters ?? 0,
         })
 
