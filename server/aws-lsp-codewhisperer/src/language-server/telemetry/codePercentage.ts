@@ -3,7 +3,7 @@ import { TelemetryService } from '../telemetryService'
 import { CodewhispererLanguage } from '../languageDetection'
 
 const CODE_PERCENTAGE_INTERVAL = 5 * 60 * 1000
-const CODE_PERCENTAGE_EVENT_NAME = 'codewhisperer_codePercentage'
+const INSERT_CUTOFF_THRESHOLD = 50
 
 type TelemetryBuckets = {
     [languageId: string]: {
@@ -53,7 +53,7 @@ export class CodePercentageTracker {
             .filter(languageId => previousBuckets[languageId]?.invocationCount > 0)
             .map(languageId => {
                 const bucket = previousBuckets[languageId]
-                const percentage = this.roundTwoDecimals((bucket.acceptedTokens / bucket.totalTokens) * 100)
+                const percentage = this.roundTwoDecimals((bucket.acceptedTokens / bucket.totalTokens) * 100) || 0
                 return {
                     codewhispererTotalTokens: bucket.totalTokens,
                     codewhispererLanguage: languageId,
@@ -89,10 +89,47 @@ export class CodePercentageTracker {
         return this.buckets[languageId]
     }
 
-    countTokens(languageId: string, tokens: string): void {
+    // Partial port of implementation in AWS Toolkit for VSCode
+    // https://github.com/aws/aws-toolkit-vscode/blob/81132884f4fb3319bda4be7d3d873265191f43ce/packages/core/src/codewhisperer/tracker/codewhispererCodeCoverageTracker.ts#L238
+    getCharacterCountFromComplexEvent(tokens: string) {
+        if ((tokens.startsWith('\n') || tokens.startsWith('\r\n')) && tokens.trim().length === 0) {
+            return 1
+        }
+
+        return 0
+    }
+
+    // Port of implementation in AWS Toolkit for VSCode
+    // https://github.com/aws/aws-toolkit-vscode/blob/43f5b85f93f5017145ba5e6b140cce0b6ef906f8/packages/core/src/codewhisperer/tracker/codewhispererCodeCoverageTracker.ts#L267
+    // Note: due to distributed communication between IDE and language server,
+    // UI flag `isCodeWhispererEditing` is replaced with language server controlled `fromCodeWhisperer` flag
+    countTotalTokens(languageId: string, tokens: string, fromCodeWhisperer = false): void {
         const languageBucket = this.getLanguageBucket(languageId)
-        const tokenCount = tokens.length
-        languageBucket.totalTokens += tokenCount
+
+        // Handle CodeWhisperer recommendations
+        if (fromCodeWhisperer && tokens.length >= INSERT_CUTOFF_THRESHOLD) {
+            languageBucket.totalTokens += tokens.length
+            return
+        }
+
+        // Handle single character input
+        if (tokens.length === 1) {
+            languageBucket.totalTokens += 1
+            return
+        }
+
+        // Handle newline with indentation
+        const complexEventCount = this.getCharacterCountFromComplexEvent(tokens)
+        if (complexEventCount !== 0) {
+            languageBucket.totalTokens += complexEventCount
+            return
+        }
+
+        // Handle multi-character input within threshold
+        if (!fromCodeWhisperer && tokens.length < INSERT_CUTOFF_THRESHOLD && tokens.trim().length > 0) {
+            languageBucket.totalTokens += tokens.length
+            return
+        }
     }
 
     countAcceptedTokens(languageId: string, tokens: string): void {

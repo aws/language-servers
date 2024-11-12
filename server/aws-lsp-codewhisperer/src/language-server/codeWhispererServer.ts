@@ -30,14 +30,8 @@ import {
     CodeWhispererPerceivedLatencyEvent,
     CodeWhispererServiceInvocationEvent,
     CodeWhispererUserDecisionEvent,
-    CodeWhispererUserTriggerDecisionEvent,
 } from './telemetry/types'
-import {
-    getCompletionType,
-    getEndPositionForAcceptedSuggestion,
-    getUnmodifiedAcceptedTokens,
-    isAwsError,
-} from './utils'
+import { getCompletionType, getEndPositionForAcceptedSuggestion, isAwsError } from './utils'
 import { getUserAgent, makeUserContextObject } from './utilities/telemetryUtils'
 import { Q_CONFIGURATION_SECTION } from './configuration/qConfigurationServer'
 import { fetchSupplementalContext } from './utilities/supplementalContextUtil/supplementalContextUtil'
@@ -224,7 +218,7 @@ const mergeSuggestionsWithRightContext = (
     range?: Range
 ): InlineCompletionItemWithReferences[] => {
     return suggestions.map(suggestion => {
-        const insertText = truncateOverlapWithRightContext(rightFileContext, suggestion.content)
+        const insertText: string = truncateOverlapWithRightContext(rightFileContext, suggestion.content)
         let references = suggestion.references
             ?.filter(
                 ref =>
@@ -414,8 +408,6 @@ export const CodewhispererServerFactory =
                     customizationArn: undefinedIfEmpty(codeWhispererService.customizationArn),
                 })
 
-                codePercentageTracker.countInvocation(inferredLanguageId)
-
                 return codeWhispererService
                     .generateSuggestions({
                         ...requestContext,
@@ -430,6 +422,8 @@ export const CodewhispererServerFactory =
                         },
                     })
                     .then(suggestionResponse => {
+                        codePercentageTracker.countInvocation(inferredLanguageId)
+
                         // Populate the session with information from codewhisperer response
                         newSession.suggestions = suggestionResponse.suggestions
                         newSession.responseContext = suggestionResponse.responseContext
@@ -496,6 +490,11 @@ export const CodewhispererServerFactory =
                             }
 
                             return true
+                        })
+
+                        suggestionsWithRightContext.forEach(suggestion => {
+                            const cachedSuggestion = newSession.suggestions.find(s => s.itemId === suggestion.itemId)
+                            if (cachedSuggestion) cachedSuggestion.insertText = suggestion.insertText.toString()
                         })
 
                         // If after all server-side filtering no suggestions can be displayed, close session and return empty results
@@ -568,11 +567,11 @@ export const CodewhispererServerFactory =
                 k => params.completionSessionResult[k].accepted
             )
             const acceptedSuggestion = session.suggestions.find(s => s.itemId === acceptedItemId)
-
-            if (acceptedSuggestion !== undefined) {
+            if (acceptedSuggestion !== undefined && acceptedSuggestion.insertText) {
                 if (acceptedSuggestion) {
                     codePercentageTracker.countSuccess(session.language)
-                    codePercentageTracker.countAcceptedTokens(session.language, acceptedSuggestion.content)
+                    codePercentageTracker.countAcceptedTokens(session.language, acceptedSuggestion.insertText)
+                    codePercentageTracker.countTotalTokens(session.language, acceptedSuggestion.insertText, true)
 
                     enqueueCodeDiffEntry(session, acceptedSuggestion)
                 }
@@ -643,7 +642,7 @@ export const CodewhispererServerFactory =
             }
 
             p.contentChanges.forEach(change => {
-                codePercentageTracker.countTokens(languageId, change.text)
+                codePercentageTracker.countTotalTokens(languageId, change.text, false)
             })
 
             // Record last user modification time for any document
