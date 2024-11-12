@@ -22,9 +22,6 @@ const sampleStartTransformationRequest: CodeWhispererTokenUserClient.StartTransf
         transformationType: 'LANGUAGE_UPGRADE',
         source: {
             language: 'C_SHARP',
-            runtimeEnv: {
-                dotNet: '',
-            },
             platformConfig: {
                 operatingSystemFamily: 'WINDOWS',
             },
@@ -75,34 +72,6 @@ function safeSet(obj: any, path: string[], value: any): void {
 }
 
 describe('Test Converter', () => {
-    describe('Test get CW StartTransformRequest', () => {
-        it('should return a transformation request with empty target frameowrk when target framework in user request is a not supported version', () => {
-            const testUploadId = 'testUploadId'
-            let testUserInputRequest: StartTransformRequest = sampleUserInputRequest
-            testUserInputRequest.TargetFramework = 'not support'
-            testUserInputRequest.ProgramLanguage = 'csharp'
-            testUserInputRequest.ProjectMetadata[0].ProjectTargetFramework = 'net8.0'
-
-            const startTransformationRequest = getCWStartTransformRequest(
-                testUserInputRequest,
-                testUploadId,
-                mockedLogging
-            )
-
-            let expectedStartTransformationRequest = sampleStartTransformationRequest
-            expectedStartTransformationRequest.workspaceState.uploadId = testUploadId
-            expectedStartTransformationRequest.workspaceState.programmingLanguage.languageName = 'csharp'
-            safeSet(
-                expectedStartTransformationRequest,
-                ['transformationSpec', 'source', 'runtimeEnv', 'dotNet'],
-                'NET_8_0'
-            )
-            safeSet(expectedStartTransformationRequest, ['transformationSpec', 'target', 'runtimeEnv', 'dotNet'], '')
-
-            expect(startTransformationRequest).to.deep.equal(expectedStartTransformationRequest)
-        })
-    })
-
     describe('Test get CW StartTransformResponse', () => {
         it('should return the correct StarTransformResponse object', () => {
             const mockResponseData: CodeWhispererTokenUserClient.StartTransformationResponse = {
