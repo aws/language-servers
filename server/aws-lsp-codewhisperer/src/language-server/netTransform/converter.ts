@@ -50,7 +50,7 @@ export function getCWStartTransformRequest(
                 runtimeEnv: {
                     dotNet: targetFrameworkMap.has(userInputRequest.TargetFramework)
                         ? targetFrameworkMap.get(userInputRequest.TargetFramework)
-                        : '',
+                        : 'NET_8_0',
                 },
                 platformConfig: {
                     operatingSystemFamily: 'LINUX',

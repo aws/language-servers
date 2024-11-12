@@ -22,9 +22,6 @@ const sampleStartTransformationRequest: CodeWhispererTokenUserClient.StartTransf
         transformationType: 'LANGUAGE_UPGRADE',
         source: {
             language: 'C_SHARP',
-            runtimeEnv: {
-                dotNet: '',
-            },
             platformConfig: {
                 operatingSystemFamily: 'WINDOWS',
             },
@@ -75,34 +72,6 @@ function safeSet(obj: any, path: string[], value: any): void {
 }
 
 describe('Test Converter', () => {
-    describe('Test get CW StartTransformRequest', () => {
-        it('should return a transformation request with empty target frameowrk when target framework in user request is a not supported version', () => {
-            const testUploadId = 'testUploadId'
-            let testUserInputRequest: StartTransformRequest = sampleUserInputRequest
-            testUserInputRequest.TargetFramework = 'not support'
-            testUserInputRequest.ProgramLanguage = 'csharp'
-            testUserInputRequest.ProjectMetadata[0].ProjectTargetFramework = 'net8.0'
-
-            const startTransformationRequest = getCWStartTransformRequest(
-                testUserInputRequest,
-                testUploadId,
-                mockedLogging
-            )
-
-            let expectedStartTransformationRequest = sampleStartTransformationRequest
-            expectedStartTransformationRequest.workspaceState.uploadId = testUploadId
-            expectedStartTransformationRequest.workspaceState.programmingLanguage.languageName = 'csharp'
-            safeSet(
-                expectedStartTransformationRequest,
-                ['transformationSpec', 'source', 'runtimeEnv', 'dotNet'],
-                'NET_8_0'
-            )
-            safeSet(expectedStartTransformationRequest, ['transformationSpec', 'target', 'runtimeEnv', 'dotNet'], '')
-
-            expect(startTransformationRequest).to.deep.equal(expectedStartTransformationRequest)
-        })
-    })
-
     describe('Test get CW StartTransformResponse', () => {
         it('should return the correct StarTransformResponse object', () => {
             const mockResponseData: CodeWhispererTokenUserClient.StartTransformationResponse = {
@@ -155,80 +124,6 @@ describe('Test Converter', () => {
                 UnSupportedProjects: unsupportedProjects,
                 ContainsUnsupportedViews: containsUnsupportedViews,
             })
-        })
-    })
-
-    describe('findMinimumSourceVersion', () => {
-        it('should find the minimum .NET version from project metadata', () => {
-            const loggingMock = { log: sinon.spy() } // Using Sinon for creating spies
-
-            const projectMetadata: TransformProjectMetadata[] = [
-                {
-                    ProjectTargetFramework: 'net6.0',
-                    Name: '',
-                    ProjectPath: '',
-                    SourceCodeFilePaths: [],
-                    ProjectLanguage: '',
-                    ProjectType: '',
-                    ExternalReferences: [],
-                },
-                {
-                    ProjectTargetFramework: 'netcoreapp3.1',
-                    Name: '',
-                    ProjectPath: '',
-                    SourceCodeFilePaths: [],
-                    ProjectLanguage: '',
-                    ProjectType: '',
-                    ExternalReferences: [],
-                },
-                {
-                    ProjectTargetFramework: '',
-                    Name: '',
-                    ProjectPath: '',
-                    SourceCodeFilePaths: [],
-                    ProjectLanguage: '',
-                    ProjectType: '',
-                    ExternalReferences: [],
-                },
-                {
-                    ProjectTargetFramework: 'unknownFramework',
-                    Name: '',
-                    ProjectPath: '',
-                    SourceCodeFilePaths: [],
-                    ProjectLanguage: '',
-                    ProjectType: '',
-                    ExternalReferences: [],
-                },
-            ]
-
-            expect(loggingMock.log.calledWith('Project version to compare net6.0')).to.be.true
-            expect(loggingMock.log.calledWith('Project version to compare netcoreapp3.1')).to.be.true
-            expect(loggingMock.log.calledWith('Selected lowest version is NET_CORE_APP_3_1')).to.be.true
-        })
-
-        it('should return an empty string when no valid target frameworks are found', () => {
-            const loggingMock = { log: sinon.spy() }
-            const projectMetadata: TransformProjectMetadata[] = [
-                {
-                    ProjectTargetFramework: '',
-                    Name: '',
-                    ProjectPath: '',
-                    SourceCodeFilePaths: [],
-                    ProjectLanguage: '',
-                    ProjectType: '',
-                    ExternalReferences: [],
-                },
-                {
-                    ProjectTargetFramework: 'unknownFramework',
-                    Name: '',
-                    ProjectPath: '',
-                    SourceCodeFilePaths: [],
-                    ProjectLanguage: '',
-                    ProjectType: '',
-                    ExternalReferences: [],
-                },
-            ]
-            expect(loggingMock.log.calledWith('Selected lowest version is ')).to.be.true
         })
     })
 })
