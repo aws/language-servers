@@ -3,12 +3,7 @@ import { AWSError, HttpResponse } from 'aws-sdk'
 import { PromiseResult } from 'aws-sdk/lib/request'
 import { Response } from 'aws-sdk/lib/response'
 import { StartTransformRequest, TransformProjectMetadata } from '../models'
-import {
-    findMinimumSourceVersion,
-    getCWStartTransformRequest,
-    getCWStartTransformResponse,
-    targetFrameworkMap,
-} from '../converter'
+import { getCWStartTransformRequest, getCWStartTransformResponse, targetFrameworkMap } from '../converter'
 import CodeWhispererTokenUserClient = require('../../../client/token/codewhispererbearertokenclient')
 import { Logging } from '@aws/language-server-runtimes/server-interface'
 import { stubInterface } from 'ts-sinon'
@@ -262,10 +257,6 @@ describe('Test Converter', () => {
                 },
             ]
 
-            const result = findMinimumSourceVersion(projectMetadata, loggingMock)
-
-            expect(result).to.equal('NET_CORE_APP_3_1')
-
             expect(loggingMock.log.calledWith('Project version to compare net6.0')).to.be.true
             expect(loggingMock.log.calledWith('Project version to compare netcoreapp3.1')).to.be.true
             expect(loggingMock.log.calledWith('Selected lowest version is NET_CORE_APP_3_1')).to.be.true
@@ -293,52 +284,7 @@ describe('Test Converter', () => {
                     ExternalReferences: [],
                 },
             ]
-
-            const result = findMinimumSourceVersion(projectMetadata, loggingMock)
-
-            expect(result).to.equal('')
             expect(loggingMock.log.calledWith('Selected lowest version is ')).to.be.true
-        })
-
-        it('should handle multiple projects with the same minimum version', () => {
-            const loggingMock = { log: sinon.spy() }
-            const projectMetadata: TransformProjectMetadata[] = [
-                {
-                    ProjectTargetFramework: 'netcoreapp3.1',
-                    Name: '',
-                    ProjectPath: '',
-                    SourceCodeFilePaths: [],
-                    ProjectLanguage: '',
-                    ProjectType: '',
-                    ExternalReferences: [],
-                },
-                {
-                    ProjectTargetFramework: 'net461',
-                    Name: '',
-                    ProjectPath: '',
-                    SourceCodeFilePaths: [],
-                    ProjectLanguage: '',
-                    ProjectType: '',
-                    ExternalReferences: [],
-                },
-                {
-                    ProjectTargetFramework: 'netcoreapp3.1',
-                    Name: '',
-                    ProjectPath: '',
-                    SourceCodeFilePaths: [],
-                    ProjectLanguage: '',
-                    ProjectType: '',
-                    ExternalReferences: [],
-                },
-            ]
-
-            const result = findMinimumSourceVersion(projectMetadata, loggingMock)
-
-            expect(result).to.equal('NET_FRAMEWORK_V_4_6_1')
-
-            expect(loggingMock.log.calledWith('Project version to compare netcoreapp3.1')).to.be.true
-            expect(loggingMock.log.calledWith('Project version to compare net461')).to.be.true
-            expect(loggingMock.log.calledWith('Selected lowest version is NET_FRAMEWORK_V_4_6_1')).to.be.true
         })
     })
 })
