@@ -6,9 +6,6 @@ import { Logging } from '@aws/language-server-runtimes/server-interface'
 
 //sequence of targetFrameworkMap matters a lot because we are using as sorted indices of old to new .net versions
 export const targetFrameworkMap = new Map<string, string>([
-    ['net5.0', 'NET_5_0'],
-    ['net6.0', 'NET_6_0'],
-    ['net7.0', 'NET_7_0'],
     ['net8.0', 'NET_8_0'],
     ['net9.0', 'NET_9_0'],
     ['netstandard2.0', 'NET_STANDARD_2_0'],

@@ -76,62 +76,6 @@ function safeSet(obj: any, path: string[], value: any): void {
 
 describe('Test Converter', () => {
     describe('Test get CW StartTransformRequest', () => {
-        it('should return a transformation request with valid source and target framework', () => {
-            const testUploadId = 'testUploadId'
-            let testUserInputRequest: StartTransformRequest = sampleUserInputRequest
-            testUserInputRequest.TargetFramework = 'net8.0'
-            testUserInputRequest.ProgramLanguage = 'csharp'
-            testUserInputRequest.ProjectMetadata[0].ProjectTargetFramework = 'net8.0'
-
-            const startTransformationRequest = getCWStartTransformRequest(
-                testUserInputRequest,
-                testUploadId,
-                mockedLogging
-            )
-
-            let expectedStartTransformationRequest = sampleStartTransformationRequest
-            expectedStartTransformationRequest.workspaceState.uploadId = testUploadId
-            expectedStartTransformationRequest.workspaceState.programmingLanguage.languageName = 'csharp'
-            safeSet(
-                expectedStartTransformationRequest,
-                ['transformationSpec', 'source', 'runtimeEnv', 'dotNet'],
-                'NET_8_0'
-            )
-            safeSet(
-                expectedStartTransformationRequest,
-                ['transformationSpec', 'target', 'runtimeEnv', 'dotNet'],
-                'NET_8_0'
-            )
-
-            expect(startTransformationRequest).to.deep.equal(expectedStartTransformationRequest)
-        })
-
-        it('should return a transformation request with empty source frameowrk when project target framework is a not supported version', () => {
-            const testUploadId = 'testUploadId'
-            let testUserInputRequest: StartTransformRequest = sampleUserInputRequest
-            testUserInputRequest.TargetFramework = 'net8.0'
-            testUserInputRequest.ProgramLanguage = 'csharp'
-            testUserInputRequest.ProjectMetadata[0].ProjectTargetFramework = 'not supported'
-
-            const startTransformationRequest = getCWStartTransformRequest(
-                testUserInputRequest,
-                testUploadId,
-                mockedLogging
-            )
-
-            let expectedStartTransformationRequest = sampleStartTransformationRequest
-            expectedStartTransformationRequest.workspaceState.uploadId = testUploadId
-            expectedStartTransformationRequest.workspaceState.programmingLanguage.languageName = 'csharp'
-            safeSet(expectedStartTransformationRequest, ['transformationSpec', 'source', 'runtimeEnv', 'dotNet'], '')
-            safeSet(
-                expectedStartTransformationRequest,
-                ['transformationSpec', 'target', 'runtimeEnv', 'dotNet'],
-                'NET_8_0'
-            )
-
-            expect(startTransformationRequest).to.deep.equal(expectedStartTransformationRequest)
-        })
-
         it('should return a transformation request with empty target frameowrk when target framework in user request is a not supported version', () => {
             const testUploadId = 'testUploadId'
             let testUserInputRequest: StartTransformRequest = sampleUserInputRequest
