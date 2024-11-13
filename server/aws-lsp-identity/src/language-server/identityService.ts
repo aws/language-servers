@@ -73,7 +73,10 @@ export class IdentityService {
         })
 
         this.observability.logging.log('Successfully retrieved/logged-in to get SSO token.')
-        return { ssoToken: { accessToken: ssoToken.accessToken, id: ssoSession.name } }
+        return {
+            ssoToken: { accessToken: ssoToken.accessToken, id: ssoSession.name },
+            updateCredentialsParams: { data: { token: ssoToken.accessToken }, encrypted: false },
+        }
     }
 
     async invalidateSsoToken(
