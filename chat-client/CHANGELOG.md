@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.0.8] - 2024-11-13
+
+### Changed
+- Reverted dependency: `@aws/mynah-ui` from 4.18.0 to 4.16.0:
+
 ## [0.0.7] - 2024-11-08
 ### Added
 - Add new `COPY_TO_CLIPBOARD` event to the chat client 
