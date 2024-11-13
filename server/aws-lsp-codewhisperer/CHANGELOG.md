@@ -1,5 +1,40 @@
 # Changelog
 
+## [0.0.17] - 2024-11-13
+
+### Added
+- .NET Transform: Pass .NET Standard flag to requirement.json
+- .NET Transform: add solution file path to requirement.json
+- .NET Transform: Add 'netstandard2.0' and 'net9.0' to target framework map
+- Amazon Q Telemetry: Emit chat and inline events to destination
+- Amazon Q Telemetry: Emit user modification SendTelemetryEvent events for chat and inline completions
+- Amazon Q Telemetry: Emit chat add message event
+- Logging: Add logging support in case of failures from STE call
+- Amazon Q: Make AWS Q endpoint url configurable
+- Amazon Q Telemetry: Chat interact with message event integration with SendTelemetryEvent
+- Q Inline Completions: Add autotrigger parameters for new languages
+- Q Inline Completions: Add support for new languages
+- Amazon Q Telemetry: Add makeUserContext utility to create UserContext payload for sendTelemetry event
+
+### Removed
+- .NET Transform: Removed optional parameters from the .NET Transform capability to align with a breaking change on the backend
+- Amazon Q Chat: Disabled FQN module
+- .NET Transform: Trimming logs to not show steps
+- .NET Transform: remove webforms from supported projects
+
+### Changed
+- Amazon Q Telemetry: Port logic for CodePercentage modifications calculation
+- Amazon Q Telemetry: Load proxy configurations in code whisperer base class
+- Amazon Q Chat: Migrate to SendMessage streaming endpoint for chat
+- Amazon Q Telemetry: Telemetry service with common components encapsulated
+- Amazon Q Chat: Handle insertToCursorPosition event in the chat server
+- Amazon Q: Update service definition and types for bearer token service client
+
+### Fixed
+- Security Scan: Fixed no recursive for the remove
+- Amazon Q: fix proxy server configuration
+- Amazon Q Telemetry: recalculate connetionType in shouldSendTelemetry event from credentialsProvider at invocation
+
 ## [0.0.16] - 2024-10-15
 
 ### Added
