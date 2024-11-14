@@ -35,7 +35,7 @@
         "@amzn/codewhisperer-streaming": "*",
         "@aws-sdk/util-retry": "^3.374.0",
         "@aws/chat-client-ui-types": "^0.0.8",
-        "@aws/language-server-runtimes": "^0.2.25",
+        "@aws/language-server-runtimes": "^0.2.26",
         "@gerhobbelt/gitignore-parser": "^0.2.0-9",
         "@smithy/node-http-handler": "^2.5.0",
         "adm-zip": "^0.5.10",
