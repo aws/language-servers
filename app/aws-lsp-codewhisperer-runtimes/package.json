@@ -15,6 +15,7 @@
         "local-build": "node scripts/local-build.js"
     },
     "dependencies": {
+        "@amzn/device-sso-auth-lsp": "*",
         "@aws/language-server-runtimes": "^0.2.80",
         "@aws/lsp-codewhisperer": "*",
         "copyfiles": "^2.4.1",

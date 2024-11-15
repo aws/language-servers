@@ -1,3 +1,4 @@
+import { SsoAuthServer } from '@amzn/device-sso-auth-lsp'
 import { standalone } from '@aws/language-server-runtimes/runtimes'
 import {
     CodeWhispererSecurityScanServerTokenProxy,
@@ -25,6 +26,7 @@ const props = createTokenRuntimeProps(VERSION, [
     IdentityServer.create,
     QLocalProjectContextServerTokenProxy,
     WorkspaceContextServerTokenProxy,
+    SsoAuthServer,
 ])
 
 standalone(props)
