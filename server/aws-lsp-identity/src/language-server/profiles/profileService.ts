@@ -14,7 +14,7 @@ import {
 import { SharedConfigInit } from '@smithy/shared-ini-file-loader'
 import { DuckTyper } from '../../duckTyper'
 import { AwsError } from '../../awsError'
-import { ensureSsoAccountAccessScope, Observability } from '../utils'
+import { Observability } from '../utils'
 
 export interface ProfileData {
     profiles: Profile[]
@@ -142,13 +142,6 @@ export class ProfileService {
         ) {
             this.observability.logging.log(`Cannot update shared sso-session. options: ${JSON.stringify(options)}`)
             throw new AwsError('Cannot update shared sso-session.', AwsErrorCodes.E_CANNOT_OVERWRITE_SSO_SESSION)
-        }
-
-        // Ensure ssoSession has sso:account:access set explicitly to support token refresh
-        if (options.ensureSsoAccountAccessScope) {
-            ssoSessionSettings.sso_registration_scopes = ensureSsoAccountAccessScope(
-                ssoSessionSettings.sso_registration_scopes
-            )
         }
 
         await this.profileStore

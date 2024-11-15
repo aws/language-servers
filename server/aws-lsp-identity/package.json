@@ -14,10 +14,9 @@
     },
     "scripts": {
         "clean": "rm -fr ./out tsconfig.tsbuildinfo",
-        "compile": "tsc --build --verbose",
+        "compile": "tsc --build --verbose && npm run copy",
         "copy": "copyfiles --error --flat ./src/sso/authorizationCodePkce/resources/* ./out/sso/authorizationCodePkce/resources/",
-        "package": "npm run compile && npm run copy",
-        "test": "npm run package && npm run test-unit",
+        "test": "npm run compile && npm run test-unit",
         "test-unit": "mocha 'out/**/*.test.js'"
     },
     "dependencies": {

@@ -39,6 +39,7 @@ const ssoSession: SsoSession = {
     settings: {
         sso_region: 'us-east-1',
         sso_start_url: 'https://nowhere',
+        sso_registration_scopes: ['codewhisperer:completions', 'codewhisperer:analysis'],
     },
 }
 
@@ -77,6 +78,7 @@ function createSsoSession(name: string): SsoSession {
         settings: {
             sso_region: 'us-east-1',
             sso_start_url: 'https://nowhere',
+            sso_registration_scopes: ['codewhisperer:completions', 'codewhisperer:analysis'],
         },
     }
 }

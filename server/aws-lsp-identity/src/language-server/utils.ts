@@ -14,18 +14,6 @@ import {
     InitializeError,
 } from '@aws/language-server-runtimes/server-interface'
 
-export function ensureSsoAccountAccessScope(scopes?: string[]): string[] {
-    const ssoAccountAccessScope = 'sso:account:access'
-
-    if (!scopes) {
-        scopes = [ssoAccountAccessScope]
-    } else if (!scopes.includes(ssoAccountAccessScope)) {
-        scopes.push(ssoAccountAccessScope)
-    }
-
-    return scopes
-}
-
 // TODO In a future PR when schedule permits, migrate this to language-server-runtimes/server-interface/server
 // for reuse in Server type parameter
 export interface ServerFeatures {

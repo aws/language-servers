@@ -145,7 +145,7 @@ describe('ProfileService', async () => {
                     settings: {
                         sso_region: 'us-west-1',
                         sso_start_url: 'http://newnowhere',
-                        sso_registration_scopes: ['x', 'y', 'z', 'sso:account:access'],
+                        sso_registration_scopes: ['x', 'y', 'z'],
                     },
                 },
             ],
