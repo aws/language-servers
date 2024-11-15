@@ -119,8 +119,23 @@ describe('utils', () => {
                     sso_start_url: undefined,
                 },
             },
+            {
+                name: 'my-sso-session',
+                settings: {
+                    sso_region: 'us-east-1',
+                    sso_start_url: undefined,
+                },
+            },
+            {
+                name: 'my-sso-session',
+                settings: {
+                    sso_region: 'us-east-1',
+                    sso_registration_scopes: [],
+                    sso_start_url: undefined,
+                },
+            },
         ] as SsoSession[]) {
-            it('Throws on invalid SSO sessions.', () => {
+            it(`Throws on invalid SSO sessions [${JSON.stringify(ssoSession)}].`, () => {
                 expect(() => throwOnInvalidSsoSession(ssoSession)).to.throw()
             })
         }

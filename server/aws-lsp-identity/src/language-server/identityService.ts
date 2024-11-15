@@ -17,7 +17,7 @@ import { AwsError } from '../awsError'
 import { SsoCache } from '../sso/cache'
 import { SsoTokenAutoRefresher } from './ssoTokenAutoRefresher'
 import { throwOnInvalidClientRegistration, throwOnInvalidSsoSession, throwOnInvalidSsoSessionName } from '../sso/utils'
-import { ensureSsoAccountAccessScope, Observability } from './utils'
+import { Observability } from './utils'
 
 type SsoTokenSource = IamIdentityCenterSsoTokenSource | AwsBuilderIdSsoTokenSource
 
@@ -100,7 +100,7 @@ export class IdentityService {
                     name: awsBuilderIdReservedName,
                     settings: {
                         sso_region: awsBuilderIdSsoRegion,
-                        sso_registration_scopes: ensureSsoAccountAccessScope(source.ssoRegistrationScopes),
+                        sso_registration_scopes: source.ssoRegistrationScopes,
                         sso_start_url: 'https://view.awsapps.com/start',
                     },
                 }
@@ -131,9 +131,7 @@ export class IdentityService {
         }
 
         // eslint-disable-next-line no-extra-semi
-        ;(ssoSession.settings ||= {}).sso_registration_scopes = ensureSsoAccountAccessScope(
-            ssoSession.settings.sso_registration_scopes
-        )
+        ;(ssoSession.settings ||= {}).sso_registration_scopes = ssoSession.settings.sso_registration_scopes
 
         return ssoSession
     }

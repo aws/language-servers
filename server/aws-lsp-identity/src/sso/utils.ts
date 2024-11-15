@@ -63,7 +63,8 @@ export function throwOnInvalidSsoSession(
         throwOnInvalidClientName(ssoSession.name) ||
         !ssoSession.settings ||
         !ssoSession.settings.sso_region?.trim() ||
-        !ssoSession.settings.sso_start_url?.trim()
+        !ssoSession.settings.sso_start_url?.trim() ||
+        !ssoSession.settings.sso_registration_scopes?.length
     ) {
         throw new AwsError('SSO session is invalid.', AwsErrorCodes.E_INVALID_SSO_SESSION)
     }
