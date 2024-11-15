@@ -21,7 +21,7 @@
         "test-unit": "mocha 'out/**/*.test.js'"
     },
     "dependencies": {
-        "@aws-sdk/client-sso-oidc": "^3.691.0",
+        "@aws-sdk/client-sso-oidc": "^3.616.0",
         "@aws-sdk/token-providers": "^3.614.0",
         "@aws/language-server-runtimes": "^0.2.26",
         "@smithy/node-http-handler": "^3.2.5",
