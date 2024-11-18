@@ -10,6 +10,9 @@ export const supportedProjects = [
     'WCFService',
     'ConsoleApp',
     'ClassLibrary',
+    'MSTest',
+    'NUnit',
+    'XUnit',
     'Unknown',
 ]
 
