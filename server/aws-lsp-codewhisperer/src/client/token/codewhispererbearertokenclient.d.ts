@@ -1054,7 +1054,7 @@ declare namespace CodeWhispererBearerTokenClient {
     endTime?: Timestamp;
     downloadArtifacts?: TransformationDownloadArtifacts;
   }
-  export type TransformationProgressUpdateStatus = "IN_PROGRESS"|"COMPLETED"|"FAILED"|"PAUSED"|"AWAITING_CLIENT_ACTION"|string;
+  export type TransformationProgressUpdateStatus = "IN_PROGRESS"|"COMPLETED"|"FAILED"|"PAUSED"|"AWAITING_CLIENT_ACTION"|"SKIPPED"|string;
   export interface TransformationProjectArtifactDescriptor {
     sourceCodeArtifact?: TransformationSourceCodeArtifactDescriptor;
   }
@@ -1088,7 +1088,7 @@ declare namespace CodeWhispererBearerTokenClient {
     startTime?: Timestamp;
     endTime?: Timestamp;
   }
-  export type TransformationStepStatus = "CREATED"|"COMPLETED"|"PARTIALLY_COMPLETED"|"STOPPED"|"FAILED"|"PAUSED"|string;
+  export type TransformationStepStatus = "CREATED"|"COMPLETED"|"PARTIALLY_COMPLETED"|"STOPPED"|"FAILED"|"PAUSED"|"SKIPPED"|string;
   export type TransformationSteps = TransformationStep[];
   export type TransformationType = "LANGUAGE_UPGRADE"|"DOCUMENT_GENERATION"|string;
   export type TransformationUploadArtifactType = "Dependencies"|"ClientBuildResult"|string;
