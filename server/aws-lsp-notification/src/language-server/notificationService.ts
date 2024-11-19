@@ -17,6 +17,7 @@ export class NotificationService {
     }
 
     async notificationFollowup(params: NotificationFollowupParams): Promise<void> {
-        // Acknowledge notification by ID in MetadataStore
+        this.observability.logging.log(`Received NotificationFollowup: ${JSON.stringify(params)}`)
+        // TODO: Acknowledge notification by ID in MetadataStore
     }
 }

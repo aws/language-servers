@@ -1,5 +1,10 @@
 import { commands, window } from 'vscode'
-import { NotificationParams, showNotificationRequestType } from '@aws/language-server-runtimes/protocol'
+import {
+    AwsResponseError,
+    notificationFollowupRequestType,
+    NotificationParams,
+    showNotificationRequestType,
+} from '@aws/language-server-runtimes/protocol'
 
 import { LanguageClient } from 'vscode-languageclient/node'
 
@@ -21,17 +26,18 @@ function showNotificationHandler(params: NotificationParams): void {
 // Consider the code in this function a scratchpad, do not put anything you want to keep here.
 // Put whatever calls to the aws-lsp-notification server you want to experiment with/debug here
 async function execTestCommand(client: LanguageClient): Promise<void> {
-    window.showInformationMessage('TODO, Re-enable the following section when new runtimes is released')
-    /*
     try {
-        const result = await client.sendNotification(notificationFollowupRequestType, {
-            id: 'someid',
-            actions: ['Acknowledge'],
+        const id = '{"serverName":"AWS Toolkit Language Server for Notifications","id":"123"}'
+        const encodedId = Buffer.from(id).toString('base64')
+        client.info(`Triggering notification followup for id '${encodedId}'`)
+        await client.sendNotification(notificationFollowupRequestType.method, {
+            source: {
+                id: encodedId,
+            },
+            action: 'Acknowledge',
         })
-        window.showInformationMessage(`NotificationFollowup: ${JSON.stringify(result)}`)
     } catch (e) {
         const are = e as AwsResponseError
         window.showErrorMessage(`${are.message} [${are.data?.awsErrorCode}]`)
     }
-    */
 }

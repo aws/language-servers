@@ -7,7 +7,7 @@ import {
 } from '@aws/language-server-runtimes/server-interface'
 import { ServerBase, ServerFeatures } from '@aws/lsp-core'
 import { NotificationService, ShowNotification } from './notificationService'
-import { NotificationFollowupParams, NotificationParams } from '@aws/language-server-runtimes/protocol'
+import { MessageType, NotificationFollowupParams, NotificationParams } from '@aws/language-server-runtimes/protocol'
 import { FilesystemMetadataStore } from '../notifications/metadata/filesystemMetadataStore'
 import { S3Fetcher } from '../notifications/toolkits/s3Fetcher'
 import { CritieriaFilteringFetcher } from '../notifications/toolkits/criteriaFilteringFetcher'
@@ -55,13 +55,31 @@ export class NotificationServer extends ServerBase {
                 })
         )
 
-        return { capabilities: {} }
+        return {
+            serverInfo: {
+                name: 'AWS Toolkit Language Server for Notifications',
+            },
+            capabilities: {},
+        }
     }
 
     protected override initialized(params: InitializedParams): void {
         const startupFetcher = this.createFetcherPipeline()
         //startupFetcher.fetch()
-        //this.showNotification({})
+        this.features.logging.log('Pushing test notification to client.')
+        this.showNotification({
+            id: '123',
+            type: MessageType.Info,
+            content: {
+                text: 'Test notification',
+            },
+            actions: [
+                {
+                    type: 'Acknowledge',
+                    text: 'Do not show again',
+                },
+            ],
+        })
     }
 
     private createFetcherPipeline(): Fetcher {
