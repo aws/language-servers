@@ -1,8 +1,16 @@
 # Changelog
 
+## [0.0.18] - 2024-11-20
+
+### Changed
+
+- .NET Transform: Adding status skipped in step and substep of transformation
+- .NET Transform: Updated supported types
+
 ## [0.0.17] - 2024-11-13
 
 ### Added
+
 - .NET Transform: Pass .NET Standard flag to requirement.json
 - .NET Transform: add solution file path to requirement.json
 - .NET Transform: Add 'netstandard2.0' and 'net9.0' to target framework map
@@ -17,12 +25,14 @@
 - Amazon Q Telemetry: Add makeUserContext utility to create UserContext payload for sendTelemetry event
 
 ### Removed
+
 - .NET Transform: Removed optional parameters from the .NET Transform capability to align with a breaking change on the backend
 - Amazon Q Chat: Disabled FQN module
 - .NET Transform: Trimming logs to not show steps
 - .NET Transform: remove webforms from supported projects
 
 ### Changed
+
 - Amazon Q Telemetry: Port logic for CodePercentage modifications calculation
 - Amazon Q Telemetry: Load proxy configurations in code whisperer base class
 - Amazon Q Chat: Migrate to SendMessage streaming endpoint for chat
@@ -31,6 +41,7 @@
 - Amazon Q: Update service definition and types for bearer token service client
 
 ### Fixed
+
 - Security Scan: Fixed no recursive for the remove
 - Amazon Q: fix proxy server configuration
 - Amazon Q Telemetry: recalculate connetionType in shouldSendTelemetry event from credentialsProvider at invocation
@@ -38,9 +49,11 @@
 ## [0.0.16] - 2024-10-15
 
 ### Added
+
 - Amazon Q Inline Code Completions: The server now supports all languages supported by Q, including `go`, `php`, `rust`, `kotlin`, `terraform`, `ruby`, `shell`, `scala`
 
 ### Changed
+
 - Amazon Q Inline Code Completions and Q Chat:  Extend Chat and Completion Telemetry with Customization (#493).
 - .Net Transform: Transform result is moved to the artifact location (#495).
 
