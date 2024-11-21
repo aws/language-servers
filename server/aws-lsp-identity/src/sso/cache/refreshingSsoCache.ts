@@ -11,9 +11,10 @@ import {
 } from '../utils'
 import { RaiseSsoTokenChanged } from '../../language-server/ssoTokenAutoRefresher'
 import { Observability } from '../../language-server/utils'
+import { InvalidGrantException } from '@aws-sdk/client-sso-oidc'
 
 export const refreshWindowMillis: number = 5 * 60 * 1000
-export const retryWindowMillis: number = 30000
+export const retryCooldownWindowMillis: number = 30000
 
 interface SsoTokenDetail {
     lastRefreshMillis: number
@@ -113,37 +114,38 @@ export class RefreshingSsoCache implements SsoCache {
             return undefined
         }
 
-        const expiresAtMillis = Date.parse(ssoToken.expiresAt)
-
-        // Already expired? We're done
-        if (expiresAtMillis < Date.now()) {
-            this.observability.logging.log('SSO token expired.')
-            return undefined
-        }
-
-        // Current time is before start of refresh window? Just return it
-        const refreshAfterMillis = expiresAtMillis - refreshWindowMillis
-        if (Date.now() < refreshAfterMillis) {
-            this.observability.logging.log('SSO token before refresh window.')
-            return ssoToken
-        }
+        const nowMillis = Date.now()
+        const accessTokenExpiresAtMillis = Date.parse(ssoToken.expiresAt)
 
         // Get or create SsoTokenDetail
         const ssoTokenDetail =
             this.ssoTokenDetails[ssoSession.name] ?? (this.ssoTokenDetails[ssoSession.name] = { lastRefreshMillis: 0 })
 
-        // Last refresh attempt was less than the retry window?  Just return it
-        const retryAfterMillis = ssoTokenDetail.lastRefreshMillis + retryWindowMillis
-        if (Date.now() < retryAfterMillis) {
-            this.observability.logging.log('SSO token still in retry window from last refresh attempt.')
-            return ssoToken
+        // accessToken hasn't expired?  Determine if refresh should be attempted or just return the existing token
+        if (nowMillis < accessTokenExpiresAtMillis) {
+            // Current time is before start of refresh window? Just return it
+            const refreshAfterMillis = accessTokenExpiresAtMillis - refreshWindowMillis
+            if (nowMillis < refreshAfterMillis) {
+                this.observability.logging.log('SSO token before refresh window.  Returning current SSO token.')
+                return ssoToken
+            }
+
+            // Last refresh attempt was less than the retry window?  Just return it
+            const retryAfterMillis = ssoTokenDetail.lastRefreshMillis + retryCooldownWindowMillis
+            if (nowMillis < retryAfterMillis) {
+                this.observability.logging.log('SSO token in retry cooldown window.  Returning current SSO token.')
+                return ssoToken
+            }
         }
 
         // No refreshToken?  We're done
         if (!ssoToken.refreshToken) {
-            this.observability.logging.log('No SSO token refresh token.')
+            this.observability.logging.log('SSO token expired and no refresh token.')
             return undefined
         }
+
+        // Good to go, try a refresh
+        ssoTokenDetail.lastRefreshMillis = nowMillis
 
         const clientRegistration = await this.getSsoClientRegistration(clientName, ssoSession)
         if (!clientRegistration) {
@@ -164,11 +166,25 @@ export class RefreshingSsoCache implements SsoCache {
                 refreshToken: ssoToken.refreshToken,
             })
             .catch(reason => {
-                this.observability.logging.log('Cannot refresh SSO token.')
+                // Check if SSO session has expired
+                if (
+                    reason instanceof InvalidGrantException &&
+                    reason.error_description === 'Invalid refresh token provided'
+                ) {
+                    this.observability.logging.log('Cannot refresh SSO token.  SSO session has expired.')
+                    return undefined
+                }
+
+                this.observability.logging.log('Error when attempting to refresh SSO token.')
                 throw new AwsError('Cannot refresh SSO token.', AwsErrorCodes.E_CANNOT_REFRESH_SSO_TOKEN, {
                     cause: reason,
                 })
             })
+
+        // SSO session expired?  We're done
+        if (!result) {
+            return undefined
+        }
 
         UpdateSsoTokenFromCreateToken(result, clientRegistration, ssoSession, ssoToken)
 

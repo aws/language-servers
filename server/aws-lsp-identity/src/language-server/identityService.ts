@@ -72,7 +72,7 @@ export class IdentityService {
             this.observability.logging.log(`Unable to auto-refresh token. ${reason}`)
         })
 
-        this.observability.logging.log('Successfully retrieved/logged-in to get SSO token.')
+        this.observability.logging.log('Successfully retrieved existing or newly authenticated SSO token.')
         return {
             ssoToken: { accessToken: ssoToken.accessToken, id: ssoSession.name },
             updateCredentialsParams: { data: { token: ssoToken.accessToken }, encrypted: false },
