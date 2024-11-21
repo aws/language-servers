@@ -1,12 +1,12 @@
 import { SsoSession, SsoTokenChangedParams } from '@aws/language-server-runtimes/protocol'
-import { RefreshingSsoCache, refreshWindowMillis, retryWindowMillis } from '../sso/cache/refreshingSsoCache'
+import { RefreshingSsoCache, refreshWindowMillis, retryCooldownWindowMillis } from '../sso/cache/refreshingSsoCache'
 import { throwOnInvalidClientName, throwOnInvalidSsoSession, throwOnInvalidSsoSessionName } from '../sso/utils'
 import { Observability } from './utils'
 
 const bufferedRefreshWindowMillis = refreshWindowMillis * 0.95
-const bufferedRetryWindowMillis = retryWindowMillis * 1.05
+const bufferedRetryCooldownWindowMillis = retryCooldownWindowMillis * 1.05
 const maxRefreshJitterMillis = 10000
-const maxRetryJitterMillis = 3000
+const maxRetryCooldownJitterMillis = 3000
 
 export type RaiseSsoTokenChanged = (params: SsoTokenChangedParams) => void
 
@@ -35,23 +35,26 @@ export class SsoTokenAutoRefresher implements Disposable {
         // Token doesn't exist, was invalidated by another process, or has expired
         if (!ssoToken) {
             this.observability.logging.log(
-                'SSO token does not exist, was invalidated, or has expired and will not be auto-refreshed.'
+                'SSO token does not exist, was invalidated, or session has expired and will not be auto-refreshed.'
             )
             return
         }
 
         const nowMillis = Date.now()
-        const expiresAtMillis = Date.parse(ssoToken.expiresAt)
+        const accessTokenExpiresAtMillis = Date.parse(ssoToken.expiresAt)
         let delayMillis: number
 
-        if (nowMillis < expiresAtMillis - refreshWindowMillis) {
+        if (nowMillis < accessTokenExpiresAtMillis - refreshWindowMillis) {
             // Before refresh window, schedule to run in refresh window with jitter
-            delayMillis = expiresAtMillis - bufferedRefreshWindowMillis - nowMillis
+            delayMillis = accessTokenExpiresAtMillis - bufferedRefreshWindowMillis - nowMillis
             delayMillis += Math.random() * maxRefreshJitterMillis // Jitter to mitigate race conditions
-        } else if (expiresAtMillis - refreshWindowMillis < nowMillis && nowMillis < expiresAtMillis) {
+        } else if (
+            accessTokenExpiresAtMillis - refreshWindowMillis < nowMillis &&
+            nowMillis < accessTokenExpiresAtMillis
+        ) {
             // In refresh window with time for a retry
-            delayMillis = bufferedRetryWindowMillis
-            delayMillis += Math.random() * maxRetryJitterMillis // Jitter to mitigate race conditions
+            delayMillis = bufferedRetryCooldownWindowMillis
+            delayMillis += Math.random() * maxRetryCooldownJitterMillis // Jitter to mitigate race conditions
         } else {
             // Otherwise, expired
             this.observability.logging.log('SSO token has expired and will not be auto-refreshed.')

@@ -123,13 +123,20 @@ describe('RefreshingSsoCache', () => {
             expect(actual).to.be.undefined
         })
 
-        it('Returns nothing on expired SSO token.', async () => {
+        it('Returns refreshed token on expired SSO token.', async () => {
             const ssoCache = stubSsoCache(createSsoClientRegistration(10000), createSsoToken(-10000))
             const sut = new RefreshingSsoCache(ssoCache, _ => {}, observability)
 
             const actual = await sut.getSsoToken('my-client-name', ssoSession)
 
-            expect(actual).to.be.undefined
+            expect(actual).not.to.be.empty
+            expect(actual?.accessToken).to.equal('new-access-token')
+            expect(actual?.clientId).to.equal('existing-client-id')
+            expect(actual?.clientSecret).to.equal('existing-client-secret')
+            expect(actual!.expiresAt).not.to.be.empty
+            expect(actual?.refreshToken).to.equal('new-refresh-token')
+            expect(actual?.region).to.equal('us-east-1')
+            expect(actual?.startUrl).to.equal('https://nowhere')
         })
 
         it('Returns existing SSO token before refresh window (5 minutes before expiration).', async () => {
