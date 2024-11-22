@@ -121,6 +121,9 @@ export class RefreshingSsoCache implements SsoCache {
         const ssoTokenDetail =
             this.ssoTokenDetails[ssoSession.name] ?? (this.ssoTokenDetails[ssoSession.name] = { lastRefreshMillis: 0 })
 
+        // Refresh details
+        // https://docs.aws.amazon.com/sdkref/latest/guide/understanding-sso.html#idccredres3
+
         // accessToken hasn't expired?  Determine if refresh should be attempted or just return the existing token
         if (nowMillis < accessTokenExpiresAtMillis) {
             // Current time is before start of refresh window? Just return it
