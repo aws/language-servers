@@ -1,10 +1,10 @@
 import { commands, window } from 'vscode'
 import {
-    AwsBuilderIdSsoTokenSource,
     AwsResponseError,
     GetSsoTokenParams,
     getSsoTokenRequestType,
     GetSsoTokenResult,
+    IamIdentityCenterSsoTokenSource,
     InvalidateSsoTokenParams,
     invalidateSsoTokenRequestType,
     ListProfilesParams,
@@ -17,10 +17,11 @@ import {
     updateProfileRequestType,
 } from '@aws/language-server-runtimes/protocol'
 
-import { LanguageClient } from 'vscode-languageclient/node'
+import { CancellationTokenSource, LanguageClient } from 'vscode-languageclient/node'
 
 export async function registerIdentity(client: LanguageClient): Promise<void> {
     client.onNotification(ssoTokenChangedRequestType.method, ssoTokenChangedHandler)
+    client.onTelemetry(e => window.showInformationMessage(`Telemetry: ${JSON.stringify(e)}`))
 
     commands.registerCommand('aws.aws-lsp-identity.test', execTestCommand.bind(null, client))
 }
@@ -72,17 +73,24 @@ async function execTestCommand(client: LanguageClient): Promise<void> {
 
     let ssoToken
     try {
-        const result: GetSsoTokenResult = await client.sendRequest(getSsoTokenRequestType.method, {
-            clientName: 'Flare test client',
-            source: {
-                kind: SsoTokenSourceKind.AwsBuilderId,
-                ssoRegistrationScopes: ['codewhisperer:analysis', 'codewhisperer:completions'],
-            } satisfies AwsBuilderIdSsoTokenSource,
-            // source: {
-            //     kind: SsoTokenSourceKind.IamIdentityCenter,
-            //     profileName: 'my-idc-q',
-            // } satisfies IamIdentityCenterSsoTokenSource,
-        } satisfies GetSsoTokenParams)
+        const cancellationTokenSource = new CancellationTokenSource()
+        //setTimeout(() => cancellationTokenSource.cancel(), 500)
+
+        const result: GetSsoTokenResult = await client.sendRequest(
+            getSsoTokenRequestType.method,
+            {
+                clientName: 'Flare test client',
+                // source: {
+                //     kind: SsoTokenSourceKind.AwsBuilderId,
+                //     ssoRegistrationScopes: ['codewhisperer:analysis', 'codewhisperer:completions'],
+                // } satisfies AwsBuilderIdSsoTokenSource,
+                source: {
+                    kind: SsoTokenSourceKind.IamIdentityCenter,
+                    profileName: 'eclipse-q-profile',
+                } satisfies IamIdentityCenterSsoTokenSource,
+            } satisfies GetSsoTokenParams,
+            cancellationTokenSource.token
+        )
         ssoToken = result.ssoToken
         window.showInformationMessage(`GetSsoToken: ${JSON.stringify(result)}`)
     } catch (e) {
@@ -92,7 +100,7 @@ async function execTestCommand(client: LanguageClient): Promise<void> {
 
     try {
         await client.sendRequest(invalidateSsoTokenRequestType.method, {
-            ssoTokenId: ssoToken?.id || 'my-idc-q',
+            ssoTokenId: ssoToken?.id || 'eclipse-q-profile',
         } satisfies InvalidateSsoTokenParams)
         window.showInformationMessage(`InvalidateSsoToken: successful`)
     } catch (e) {

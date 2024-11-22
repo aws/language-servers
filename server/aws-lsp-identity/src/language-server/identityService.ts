@@ -34,6 +34,15 @@ export class IdentityService {
     async getSsoToken(params: GetSsoTokenParams, token: CancellationToken): Promise<GetSsoTokenResult> {
         const options = { ...getSsoTokenOptionsDefaults, ...params.options }
 
+        token.onCancellationRequested(_ => {
+            if (options.loginOnInvalidToken) {
+                this.observability.telemetry.emitMetric({
+                    name: 'auth_addConnection',
+                    result: 'Cancelled',
+                })
+            }
+        })
+
         const ssoSession = await this.getSsoSession(params.source)
         throwOnInvalidSsoSession(ssoSession)
 
@@ -59,7 +68,24 @@ export class IdentityService {
                 token,
                 this.observability
             ).catch(reason => {
-                throw AwsError.wrap(reason, AwsErrorCodes.E_CANNOT_CREATE_SSO_TOKEN)
+                const awsError = AwsError.wrap(reason, AwsErrorCodes.E_CANNOT_CREATE_SSO_TOKEN)
+                // Consider using PII scrubbing such as:
+                // https://github.com/justinmk3/aws-toolkit-vscode/blob/ea74f2f04554b7bb75831f0a0d2c60fdb5ca2820/packages/core/src/shared/errors.ts#L323
+                this.observability.telemetry.emitMetric({
+                    name: 'auth_addConnection',
+                    errorData: {
+                        reason: awsError.message,
+                        errorCode: awsError.awsErrorCode,
+                    },
+                    result: 'Failed',
+                })
+                throw awsError
+            })
+
+            this.observability.telemetry.emitMetric({
+                name: 'auth_addConnection',
+                data: { reason: 'User logged in successfully' },
+                result: 'Succeeded',
             })
 
             await this.ssoCache.setSsoToken(this.clientName, ssoSession, ssoToken!).catch(reason => {
