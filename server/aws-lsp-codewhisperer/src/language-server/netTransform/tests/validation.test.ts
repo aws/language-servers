@@ -3,6 +3,8 @@ import { StartTransformRequest, TransformProjectMetadata } from '../models'
 import { isProject, isSolution, validateProject } from '../validation'
 import { supportedProjects, unsupportedViewComponents } from '../resources/SupportedProjects'
 import mock = require('mock-fs')
+import { Logging } from '@aws/language-server-runtimes/server-interface'
+import { stubInterface } from 'ts-sinon'
 
 const sampleStartTransformRequest: StartTransformRequest = {
     SolutionRootPath: '',
@@ -15,6 +17,7 @@ const sampleStartTransformRequest: StartTransformRequest = {
     TransformNetStandardProjects: false,
     command: '',
 }
+const mockedLogging = stubInterface<Logging>()
 
 describe('Test validation functionality', () => {
     it('should return true when selectedProjectPath is a valid csproj', () => {
@@ -54,7 +57,7 @@ describe('Test validation functionality', () => {
         }
         mockStartTransformationRequest.ProjectMetadata.push(mockProjectMeta)
 
-        expect(validateProject(mockStartTransformationRequest)).to.equal(true)
+        expect(validateProject(mockStartTransformationRequest, mockedLogging)).to.equal(true)
     })
 
     it('should return false when project is not a supported type', () => {
@@ -71,7 +74,7 @@ describe('Test validation functionality', () => {
         mockStartTransformationRequest.ProjectMetadata = []
         mockStartTransformationRequest.ProjectMetadata.push(mockProjectMeta)
 
-        expect(validateProject(mockStartTransformationRequest)).to.equal(false)
+        expect(validateProject(mockStartTransformationRequest, mockedLogging)).to.equal(false)
     })
 
     it('should return false when there is no project path that is the same as the selected project path', () => {
@@ -88,6 +91,6 @@ describe('Test validation functionality', () => {
         mockStartTransformationRequest.ProjectMetadata = []
         mockStartTransformationRequest.ProjectMetadata.push(mockProjectMeta)
 
-        expect(validateProject(mockStartTransformationRequest)).to.equal(false)
+        expect(validateProject(mockStartTransformationRequest, mockedLogging)).to.equal(false)
     })
 })

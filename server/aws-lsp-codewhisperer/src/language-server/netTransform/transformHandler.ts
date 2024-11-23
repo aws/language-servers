@@ -50,9 +50,13 @@ export class TransformHandler {
     async startTransformation(userInputrequest: StartTransformRequest): Promise<StartTransformResponse> {
         var unsupportedProjects: string[] = []
         const isProject = validation.isProject(userInputrequest)
-        const containsUnsupportedViews = await validation.checkForUnsupportedViews(userInputrequest, isProject)
+        const containsUnsupportedViews = await validation.checkForUnsupportedViews(
+            userInputrequest,
+            isProject,
+            this.logging
+        )
         if (isProject) {
-            let isValid = validation.validateProject(userInputrequest)
+            let isValid = validation.validateProject(userInputrequest, this.logging)
             if (!isValid) {
                 return {
                     Error: 'NotSupported',
