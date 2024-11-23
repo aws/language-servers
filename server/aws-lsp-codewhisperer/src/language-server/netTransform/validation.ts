@@ -15,10 +15,16 @@ export function validateProject(userInputrequest: StartTransformRequest, logging
     var selectedProject = userInputrequest.ProjectMetadata.find(
         project => project.ProjectPath == userInputrequest.SelectedProjectPath
     )
-    logging.log(
-        `Selected project ${userInputrequest?.SelectedProjectPath} has project type ${selectedProject?.ProjectType}`
-    )
-    if (selectedProject) return supportedProjects.includes(selectedProject?.ProjectType)
+
+    if (selectedProject) {
+        var isValid = supportedProjects.includes(selectedProject?.ProjectType)
+        logging.log(
+            `Selected project ${userInputrequest?.SelectedProjectPath} has project type ${selectedProject.ProjectType}` +
+                (isValid ? '' : ' that is not supported')
+        )
+        return isValid
+    }
+    logging.log(`Error occured in verifying selected project with path ${userInputrequest.SelectedProjectPath}`)
     return false
 }
 
