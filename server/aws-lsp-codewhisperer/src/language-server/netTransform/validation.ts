@@ -1,6 +1,7 @@
 import * as fs from 'fs'
 import { StartTransformRequest, TransformProjectMetadata } from './models'
 import { supportedProjects, unsupportedViewComponents } from './resources/SupportedProjects'
+import { Logging } from '@aws/language-server-runtimes/server-interface'
 
 export function isProject(userInputrequest: StartTransformRequest): boolean {
     return userInputrequest.SelectedProjectPath.endsWith('.csproj')
@@ -10,11 +11,20 @@ export function isSolution(userInputrequest: StartTransformRequest): boolean {
     return userInputrequest.SelectedProjectPath.endsWith('.sln')
 }
 
-export function validateProject(userInputrequest: StartTransformRequest): boolean {
+export function validateProject(userInputrequest: StartTransformRequest, logging: Logging): boolean {
     var selectedProject = userInputrequest.ProjectMetadata.find(
         project => project.ProjectPath == userInputrequest.SelectedProjectPath
     )
-    if (selectedProject) return supportedProjects.includes(selectedProject?.ProjectType)
+
+    if (selectedProject) {
+        var isValid = supportedProjects.includes(selectedProject?.ProjectType)
+        logging.log(
+            `Selected project ${userInputrequest?.SelectedProjectPath} has project type ${selectedProject.ProjectType}` +
+                (isValid ? '' : ' that is not supported')
+        )
+        return isValid
+    }
+    logging.log(`Error occured in verifying selected project with path ${userInputrequest.SelectedProjectPath}`)
     return false
 }
 
@@ -24,13 +34,22 @@ export function validateSolution(userInputrequest: StartTransformRequest): strin
     )
 }
 
-export async function checkForUnsupportedViews(userInputRequest: StartTransformRequest, isProject: boolean) {
+export async function checkForUnsupportedViews(
+    userInputRequest: StartTransformRequest,
+    isProject: boolean,
+    logging: Logging
+) {
     var containsUnsupportedComponents: boolean = false
     var cshtmlFiles: string[] = findFilesWithExtension(userInputRequest, isProject)
     for (const file of cshtmlFiles) {
         let htmlString = await readFile(file)
         containsUnsupportedComponents = parseAndCheckUnsupportedComponents(htmlString)
-        if (containsUnsupportedComponents) return containsUnsupportedComponents
+        if (containsUnsupportedComponents) {
+            logging.log(
+                `Selected project ${userInputRequest?.SelectedProjectPath} has unsupported components in file ${file}`
+            )
+            return containsUnsupportedComponents
+        }
     }
     return containsUnsupportedComponents
 }
