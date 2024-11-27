@@ -18,6 +18,7 @@
         "format": "prettier --write .",
         "format-staged": "npx pretty-quick --staged",
         "clean": "ts-node ./script/clean.ts && npm run clean --workspaces --if-present && sh ./script/git-clean.sh",
+        "commitlint": "commitlint --edit",
         "precompile": "npm run precompile --workspaces --if-present && npm run compile:core",
         "compile": "tsc --build --verbose && npm run compile:core && npm run compile:servers && npm run compile:rest",
         "compile:core": "npm run compile --workspace=core --if-present && npm run build --workspace=core --if-present",
@@ -33,9 +34,12 @@
         "typescript": "^5.5.3"
     },
     "devDependencies": {
+        "@commitlint/cli": "^19.5.0",
+        "@commitlint/config-conventional": "^19.5.0",
         "@types/node": "^22.9.0",
         "@typescript-eslint/eslint-plugin": "^7.7.1",
         "@typescript-eslint/parser": "^7.7.1",
+        "conventional-changelog-conventionalcommits": "^8.0.0",
         "eslint": "^8.42.0",
         "eslint-plugin-import": "^2.29.1",
         "eslint-plugin-unused-imports": "^4.1.4",
