@@ -94,6 +94,82 @@ A separate set of packages (under ./app) then instantiate these language servers
 node ./app/aws-lsp-codewhisperer-binary/aws-lsp-codewhisperer-token-binary.js --stdio
 ```
 
+## Commit Message Guidelines
+
+Commit messages merged to main branch must follow [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) specification format. This is required to ensure readable, standard format of commits history. We also rely on it to setup automation for generating change logs and making releases.
+
+### Commit message format
+
+The commit message should be structured as follows:
+
+```
+<type>([optional scope]): <description>
+
+[optional body]
+
+[optional footer(s)]
+```
+
+The header is mandatory and the scope of the header is optional. Examples:
+
+```
+docs: correct spelling of CHANGELOG
+```
+
+```
+feat(amazonq): allow provided config object to extend other configs
+
+BREAKING CHANGE: `extends` key in config file is now used for extending other config files
+```
+
+See more examples at https://www.conventionalcommits.org/en/v1.0.0/#examples.
+
+### Types
+
+Type can have one of the following values:
+
+* **build**: changes to the build system
+* **chore**: any housekeeping changes, which don't fall in other category
+* **ci**: changes to CI script and workflows
+* **docs**: changes to documentation
+* **feat**: a new feature
+* **fix**: a bug fix
+* **style**: visual-only changes, not impacting functionality
+* **refactor**: refactorings not impacting functionality, which are not features or bug fixes
+* **perf**: changes that improve performance of code
+* **test**: adding or fixing tests
+
+### Scope
+
+The scope should indicate a package, affected by the change. List of support scopes, and corresponding packages:
+
+* **amazonq**: `./server/aws-lsp-codewhisperer`
+* **chat-client**: `./chat-client`
+* **identity**: `./server/aws-lsp-identity`
+* **notification**: `./server/aws-lsp-notification`
+* **partiql**: `./server/aws-lsp-partiql`
+* **release**: do not use manually - special scope, reserved for release automation
+
+Empty scopes are allowed, and can be used for cases when change is not related to any particular package, e.g. for `ci:` or `docs:`
+
+### Footer
+
+One or more footers may be provided one blank line after the body.
+
+**Breaking Change** must start with `BREAKING CHANGE:` words, following with description of the breaking change.
+
+### Usage of Conventional Commit Types
+
+The commit contains the following structural elements, to communicate intent to the consumers of your library:
+
+* **fix**: a commit of the type fix patches a bug in your codebase (this correlates with PATCH in Semantic Versioning).
+* **feat**: a commit of the type feat introduces a new feature to the codebase (this correlates with MINOR in Semantic Versioning).
+* **BREAKING CHANGE**: a commit that has a footer `BREAKING CHANGE:`, or appends a `!` after the type/scope, introduces a breaking API change (correlating with MAJOR in Semantic Versioning). A BREAKING CHANGE can be part of commits of any *type*.
+
+These rules are used by our automation workflows to collect change logs, and to compute next Semantic Version of packages, impacted by commit.
+
+Since this repository is a shared shared monorepo with many packages, be careful when introducing changes impacting several packages. Extra care should be given when using version-impacting types (especially BREAKING CHANGE).
+
 ## Running + Debugging
 
 > **NOTE**: Ensure your VSCode workspace is the root folder or else certain functionality may not work.

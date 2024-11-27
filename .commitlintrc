@@ -1,0 +1,18 @@
+{
+    "extends": ["@commitlint/config-conventional"],
+    "rules": {
+        "scope-enum": [
+            2,
+            "always",
+            [
+                "amazonq",
+                "identity",
+                "notification",
+                "partiql",
+                "chat-client",
+                "client",
+                "release"
+            ]
+        ]
+    }
+}
