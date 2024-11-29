@@ -60,7 +60,7 @@ export async function activateDocumentsLanguageServer(extensionContext: Extensio
     const enableBearerTokenProvider = process.env.ENABLE_TOKEN_PROVIDER === 'true'
     const enableEncryptionInit = enableIamProvider || enableBearerTokenProvider
 
-    const debugOptions = { execArgv: ['--nolazy', '--inspect=6012', '--preserve-symlinks'] }
+    const debugOptions = { execArgv: ['--nolazy', '--preserve-symlinks'] }
 
     // If the extension is launch in debug mode the debug server options are use
     // Otherwise the run options are used
@@ -78,7 +78,10 @@ export async function activateDocumentsLanguageServer(extensionContext: Extensio
         debugOptions.execArgv.push('--pre-init-encryption')
         // Used by the aws-language-server-runtime based servers
         debugOptions.execArgv.push('--set-credentials-encryption-key')
-        const child = cp.spawn('node', [serverModule, ...debugOptions.execArgv])
+
+        // pass --inspect or --inspect-brk before the .js script else it would not be passed to node
+        // this ensures debuggers to be able to be attached to the process
+        const child = cp.spawn('node', ['--inspect=6012', serverModule, ...debugOptions.execArgv])
         writeEncryptionInit(child.stdin)
 
         serverOptions = () => Promise.resolve(child)
