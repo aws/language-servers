@@ -67,7 +67,7 @@ describe('ChatController', () => {
         log: (message: string) => {
             console.log(message)
         },
-    }
+    } as Logging
 
     let sendMessageStub: sinon.SinonStub
     let disposeStub: sinon.SinonStub
