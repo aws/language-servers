@@ -23,7 +23,7 @@ describe('fetchSupplementalContext', function () {
         workspace = {} as Workspace
         logging = {
             log: sinon.stub(),
-        } as Logging
+        } as unknown as Logging
         cancellationToken = {
             isCancellationRequested: false,
             onCancellationRequested: sinon.stub(),
