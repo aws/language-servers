@@ -1,0 +1,21 @@
+name: Publish a notification to Slack
+on:
+    pull_request:
+        branches: [main]
+jobs:
+    notify:
+        name: Slack notification
+        runs-on: [ubuntu-latest]
+        steps:
+            - name: Post message
+              uses: slackapi/slack-github-action@v1.25.0
+              env:
+                  SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+              with:
+                  payload: |
+                      {
+                        "title": ${{ toJson(github.event.pull_request.title) }},
+                        "author": ${{ toJson(github.event.pull_request.user.login) }},
+                        "link": ${{ toJson(github.event.pull_request.html_url) }},
+                        "repository": "Language-servers" 
+                      }
