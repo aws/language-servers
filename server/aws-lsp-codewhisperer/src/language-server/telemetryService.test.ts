@@ -55,7 +55,7 @@ describe('TelemetryService', () => {
         log: (message: string) => {
             console.log(message)
         },
-    }
+    } as Logging
     const mockSession: Partial<CodeWhispererSession> = {
         codewhispererSessionId: 'test-session-id',
         responseContext: {
