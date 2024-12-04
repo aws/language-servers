@@ -10,7 +10,6 @@ import { Suggestion } from './codeWhispererService'
 import { CodewhispererCompletionType } from './telemetry/types'
 import { BUILDER_ID_START_URL, MISSING_BEARER_TOKEN_ERROR } from './constants'
 import { ServerInfo } from '@aws/language-server-runtimes/server-interface/runtime'
-import { readFileSync } from 'fs'
 import { HttpsProxyAgent } from 'hpagent'
 export type SsoConnectionType = 'builderId' | 'identityCenter' | 'none'
 

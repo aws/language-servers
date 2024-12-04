@@ -57,25 +57,7 @@ describe('TelemetryService', () => {
             console.log(message)
         },
     } as Logging
-    const mockWorkspace: Workspace = {
-        getWorkspaceFolder: sinon.stub(),
-        getTextDocument: sinon.stub(),
-        getAllTextDocuments: sinon.stub(),
-        fs: {
-            copyFile: sinon.stub(),
-            exists: sinon.stub(),
-            getFileSize: sinon.stub(),
-            getServerDataDirPath: sinon.stub(),
-            getTempDirPath: sinon.stub(),
-            readFile: sinon.stub(),
-            readdir: sinon.stub(),
-            isFile: sinon.stub(),
-            rm: sinon.stub(),
-            writeFile: sinon.stub(),
-            appendFile: sinon.stub(),
-            mkdir: sinon.stub(),
-        },
-    }
+    const mockWorkspace = {} as unknown as Workspace
     const mockSession: Partial<CodeWhispererSession> = {
         codewhispererSessionId: 'test-session-id',
         responseContext: {
