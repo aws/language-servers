@@ -12,6 +12,7 @@ import {
     Server,
     Telemetry,
     TextDocument,
+    Workspace,
 } from '@aws/language-server-runtimes/server-interface'
 import { AWSError } from 'aws-sdk'
 import { autoTrigger, triggerType } from './auto-trigger/autoTrigger'
@@ -257,18 +258,19 @@ interface AcceptedInlineSuggestionEntry extends AcceptedSuggestionEntry {
 }
 
 export const CodewhispererServerFactory =
-    (service: (credentials: CredentialsProvider) => CodeWhispererServiceBase): Server =>
+    (service: (credentials: CredentialsProvider, workspace: Workspace) => CodeWhispererServiceBase): Server =>
     ({ credentialsProvider, lsp, workspace, telemetry, logging, runtime }) => {
         let lastUserModificationTime: number
         let timeSinceLastUserModification: number = 0
 
         const sessionManager = SessionManager.getInstance()
-        const codeWhispererService = service(credentialsProvider)
+        const codeWhispererService = service(credentialsProvider, workspace)
         const telemetryService = new TelemetryService(
             credentialsProvider,
             codeWhispererService.getCredentialsType(),
             telemetry,
-            logging
+            logging,
+            workspace
         )
 
         lsp.addInitializer((params: InitializeParams) => {
@@ -601,9 +603,9 @@ export const CodewhispererServerFactory =
                         `Inline completion configuration updated to use ${codeWhispererService.customizationArn}`
                     )
                     /*
-                        The flag enableTelemetryEventsToDestination is set to true temporarily. It's value will be determined through destination
-                        configuration post all events migration to STE. It'll be replaced by qConfig['enableTelemetryEventsToDestination'] === true
-                     */
+                            The flag enableTelemetryEventsToDestination is set to true temporarily. It's value will be determined through destination
+                            configuration post all events migration to STE. It'll be replaced by qConfig['enableTelemetryEventsToDestination'] === true
+                         */
                     // const enableTelemetryEventsToDestination = true
                     // telemetryService.updateEnableTelemetryEventsToDestination(enableTelemetryEventsToDestination)
                     const optOutTelemetryPreference = qConfig['optOutTelemetry'] === true ? 'OPTOUT' : 'OPTIN'
@@ -661,8 +663,8 @@ export const CodewhispererServerFactory =
     }
 
 export const CodeWhispererServerIAM = CodewhispererServerFactory(
-    credentialsProvider => new CodeWhispererServiceIAM(credentialsProvider)
+    (credentialsProvider, workspace) => new CodeWhispererServiceIAM(credentialsProvider, workspace)
 )
 export const CodeWhispererServerToken = CodewhispererServerFactory(
-    credentialsProvider => new CodeWhispererServiceToken(credentialsProvider)
+    (credentialsProvider, workspace) => new CodeWhispererServiceToken(credentialsProvider, workspace)
 )
