@@ -12,11 +12,11 @@ describe('TelemetryController', () => {
 
     let testFeatures: TestFeatures
     let telemetryController: ChatTelemetryController
-    let telemetryService: TelemetryService
 
     beforeEach(() => {
+        const telemetryServiceStub = <TelemetryService>{}
         testFeatures = new TestFeatures()
-        telemetryController = new ChatTelemetryController(testFeatures, telemetryService)
+        telemetryController = new ChatTelemetryController(testFeatures, telemetryServiceStub)
     })
 
     it('able to set and get activeTabId', () => {
