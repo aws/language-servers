@@ -44,6 +44,7 @@ import { ServerMessage, TELEMETRY, TelemetryParams } from '../contracts/serverCo
 import { Messager, OutboundChatApi } from './messager'
 import { InboundChatApi, createMynahUi } from './mynahUi'
 import { TabFactory } from './tabs/tabFactory'
+import { Connector } from '../connectors/connector'
 
 const DEFAULT_TAB_DATA = {
     tabTitle: 'Chat',
@@ -56,16 +57,23 @@ type ChatClientConfig = Pick<MynahUIDataModel, 'quickActionCommands'>
 
 export const createChat = (
     clientApi: { postMessage: (msg: UiMessage | ServerMessage) => void },
-    config?: ChatClientConfig
+    config?: ChatClientConfig,
+    supportFeaturesThroughConnectors: boolean = false
 ) => {
     // eslint-disable-next-line semi
     let mynahApi: InboundChatApi
+    let connector: Connector | undefined
 
     const sendMessageToClient = (message: UiMessage | ServerMessage) => {
         clientApi.postMessage(message)
     }
 
     const handleMessage = (event: MessageEvent): void => {
+        // NOTE: 1. Route incoming messages
+        if (connector?.tryHandleMessageReceive(event)) {
+            return
+        }
+
         if (event.data === undefined) {
             return
         }
@@ -162,9 +170,10 @@ export const createChat = (
         ...(config?.quickActionCommands ? { quickActionCommands: config.quickActionCommands } : {}),
     })
 
-    const [mynahUi, api] = createMynahUi(messager, tabFactory)
+    const [mynahUi, api, featuresConnector] = createMynahUi(messager, tabFactory, supportFeaturesThroughConnectors)
 
     mynahApi = api
+    connector = featuresConnector
 
     return mynahUi
 }

@@ -20,10 +20,20 @@ import {
     LinkClickParams,
     SourceLinkClickParams,
 } from '@aws/language-server-runtimes-types'
-import { ChatItem, ChatItemType, ChatPrompt, MynahUI, MynahUIDataModel, NotificationType } from '@aws/mynah-ui'
+import {
+    ChatItem,
+    ChatItemType,
+    ChatPrompt,
+    MynahUI,
+    MynahUIDataModel,
+    MynahUIProps,
+    NotificationType,
+} from '@aws/mynah-ui'
 import { VoteParams } from '../contracts/telemetry'
 import { Messager } from './messager'
 import { TabFactory } from './tabs/tabFactory'
+import { Connector } from '../connectors/connector'
+import { createFeaturesConnector } from './featuresConnector'
 
 export interface InboundChatApi {
     addChatResponse(params: ChatResult, tabId: string, isPartialResult: boolean): void
@@ -83,10 +93,14 @@ export const handleChatPrompt = (
     })
 }
 
-export const createMynahUi = (messager: Messager, tabFactory: TabFactory): [MynahUI, InboundChatApi] => {
+export const createMynahUi = (
+    messager: Messager,
+    tabFactory: TabFactory,
+    supportFeaturesThroughConnectors: boolean
+): [MynahUI, InboundChatApi, Connector | undefined] => {
     const initialTabId = TabFactory.generateUniqueId()
 
-    const mynahUi = new MynahUI({
+    const mynahUiProps: MynahUIProps = {
         onCodeInsertToCursorPosition(
             tabId,
             messageId,
@@ -250,7 +264,14 @@ export const createMynahUi = (messager: Messager, tabFactory: TabFactory): [Myna
             maxTabs: 10,
             texts: uiComponentsTexts,
         },
-    })
+    }
+
+    // NOTE: 0. Extend MynahUI with connector-specific handlers
+    const mynahUiRef = { mynahUI: undefined as MynahUI | undefined }
+    const featuresConnector = supportFeaturesThroughConnectors ? createFeaturesConnector(mynahUiRef) : undefined
+
+    const mynahUi = new MynahUI(mynahUiProps)
+    mynahUiRef.mynahUI = mynahUi
 
     const getTabStore = (tabId = mynahUi.getSelectedTabId()) => {
         return tabId ? mynahUi.getAllTabs()[tabId]?.store : undefined
@@ -385,7 +406,7 @@ ${params.message}`,
         showError: showError,
     }
 
-    return [mynahUi, api]
+    return [mynahUi, api, featuresConnector]
 }
 
 export const DEFAULT_HELP_PROMPT = 'What can Amazon Q help me with?'
