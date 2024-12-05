@@ -60,7 +60,7 @@ export async function activateDocumentsLanguageServer(extensionContext: Extensio
     const enableBearerTokenProvider = process.env.ENABLE_TOKEN_PROVIDER === 'true'
     const enableEncryptionInit = enableIamProvider || enableBearerTokenProvider
 
-    const debugOptions = { execArgv: ['--nolazy', '--preserve-symlinks'] }
+    const debugOptions = { execArgv: ['--nolazy', '--inspect=6012', '--preserve-symlinks'] }
 
     // If the extension is launch in debug mode the debug server options are use
     // Otherwise the run options are used
@@ -69,19 +69,20 @@ export async function activateDocumentsLanguageServer(extensionContext: Extensio
         debug: { module: serverModule, transport: TransportKind.ipc, options: debugOptions },
     }
 
+    const scriptOptions = []
     if (enableEncryptionInit) {
         // If the host is going to encrypt credentials,
         // receive the encryption key over stdin before starting the language server.
-        debugOptions.execArgv.push('--stdio')
+        scriptOptions.push('--stdio')
         // Used by the proof of concept language servers (we can remove this one in the future,
         // after all language servers are based on the language-server-runtime).
-        debugOptions.execArgv.push('--pre-init-encryption')
+        scriptOptions.push('--pre-init-encryption')
         // Used by the aws-language-server-runtime based servers
-        debugOptions.execArgv.push('--set-credentials-encryption-key')
+        scriptOptions.push('--set-credentials-encryption-key')
 
-        // pass --inspect or --inspect-brk before the .js script else it would not be passed to node
-        // this ensures debuggers to be able to be attached to the process
-        const child = cp.spawn('node', ['--inspect=6012', serverModule, ...debugOptions.execArgv])
+        // debugOptions are node process arguments and scriptOptions are script arguments
+        const child = cp.spawn('node', [...debugOptions.execArgv, serverModule, ...scriptOptions])
+
         writeEncryptionInit(child.stdin)
 
         serverOptions = () => Promise.resolve(child)
