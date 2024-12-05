@@ -7,6 +7,7 @@ import {
     CredentialsProvider,
     Telemetry,
     Logging,
+    Workspace,
 } from '@aws/language-server-runtimes/server-interface'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import * as assert from 'assert'
@@ -121,11 +122,13 @@ describe('ChatController', () => {
             }),
         }
 
+        const mockWorkspace = {} as unknown as Workspace
+
         telemetry = {
             emitMetric: sinon.stub(),
             onClientTelemetry: sinon.stub(),
         }
-        telemetryService = new TelemetryService(mockCredentialsProvider, 'bearer', telemetry, logging)
+        telemetryService = new TelemetryService(mockCredentialsProvider, 'bearer', telemetry, logging, mockWorkspace)
         invokeSendTelemetryEventStub = sinon.stub(telemetryService, 'sendTelemetryEvent' as any)
         chatController = new ChatController(chatSessionManagementService, testFeatures, telemetryService)
     })

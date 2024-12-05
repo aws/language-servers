@@ -8,10 +8,10 @@ import { getUserAgent, makeUserContextObject } from './utilities/telemetryUtils'
 export const QChatServer =
     (service: (credentialsProvider: CredentialsProvider) => ChatSessionManagementService): Server =>
     features => {
-        const { chat, credentialsProvider, telemetry, logging, lsp, runtime } = features
+        const { chat, credentialsProvider, telemetry, logging, lsp, runtime, workspace } = features
 
         const chatSessionManagementService: ChatSessionManagementService = service(credentialsProvider)
-        const telemetryService = new TelemetryService(credentialsProvider, 'bearer', telemetry, logging)
+        const telemetryService = new TelemetryService(credentialsProvider, 'bearer', telemetry, logging, workspace)
 
         const chatController = new ChatController(chatSessionManagementService, features, telemetryService)
 

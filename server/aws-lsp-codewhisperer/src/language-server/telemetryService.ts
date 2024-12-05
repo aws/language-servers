@@ -4,6 +4,7 @@ import {
     CredentialsType,
     Logging,
     Telemetry,
+    Workspace,
 } from '@aws/language-server-runtimes/server-interface'
 import { CodeWhispererSession } from './session/sessionManager'
 import {
@@ -56,9 +57,10 @@ export class TelemetryService extends CodeWhispererServiceToken {
         credentialsProvider: CredentialsProvider,
         credentialsType: CredentialsType,
         telemetry: Telemetry,
-        logging: Logging
+        logging: Logging,
+        workspace: Workspace
     ) {
-        super(credentialsProvider)
+        super(credentialsProvider, workspace)
         this.credentialsProvider = credentialsProvider
         this.credentialsType = credentialsType
         this.telemetry = telemetry

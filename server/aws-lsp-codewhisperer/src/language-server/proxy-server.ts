@@ -10,20 +10,20 @@ import { readFileSync } from 'fs'
 import { HttpsProxyAgent } from 'hpagent'
 import { NodeHttpHandler } from '@smithy/node-http-handler'
 
-export const CodeWhispererServerTokenProxy = CodewhispererServerFactory(credentialsProvider => {
-    return new CodeWhispererServiceToken(credentialsProvider)
+export const CodeWhispererServerTokenProxy = CodewhispererServerFactory((credentialsProvider, workspace) => {
+    return new CodeWhispererServiceToken(credentialsProvider, workspace)
 })
 
-export const CodeWhispererServerIAMProxy = CodewhispererServerFactory(credentialsProvider => {
-    return new CodeWhispererServiceIAM(credentialsProvider)
+export const CodeWhispererServerIAMProxy = CodewhispererServerFactory((credentialsProvider, workspace) => {
+    return new CodeWhispererServiceIAM(credentialsProvider, workspace)
 })
 
-export const CodeWhispererSecurityScanServerTokenProxy = SecurityScanServerToken(credentialsProvider => {
-    return new CodeWhispererServiceToken(credentialsProvider)
+export const CodeWhispererSecurityScanServerTokenProxy = SecurityScanServerToken((credentialsProvider, workspace) => {
+    return new CodeWhispererServiceToken(credentialsProvider, workspace)
 })
 
-export const QNetTransformServerTokenProxy = QNetTransformServerToken(credentialsProvider => {
-    return new CodeWhispererServiceToken(credentialsProvider)
+export const QNetTransformServerTokenProxy = QNetTransformServerToken((credentialsProvider, workspace) => {
+    return new CodeWhispererServiceToken(credentialsProvider, workspace)
 })
 
 export const QChatServerProxy = QChatServer(credentialsProvider => {
@@ -54,6 +54,6 @@ export const QChatServerProxy = QChatServer(credentialsProvider => {
         .withConfig(clientOptions)
 })
 
-export const QConfigurationServerTokenProxy = QConfigurationServerToken(credentialsProvider => {
-    return new CodeWhispererServiceToken(credentialsProvider)
+export const QConfigurationServerTokenProxy = QConfigurationServerToken((credentialsProvider, workspace) => {
+    return new CodeWhispererServiceToken(credentialsProvider, workspace)
 })

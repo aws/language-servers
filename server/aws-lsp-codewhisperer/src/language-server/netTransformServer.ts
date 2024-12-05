@@ -4,6 +4,7 @@ import {
     ExecuteCommandParams,
     InitializeParams,
     Server,
+    Workspace,
 } from '@aws/language-server-runtimes/server-interface'
 import { StreamingClient } from '../client/streamingClient/codewhispererStreamingClient'
 import { CodeWhispererServiceToken } from './codeWhispererService'
@@ -50,9 +51,9 @@ const DownloadArtifactsCommand = 'aws/qNetTransform/downloadArtifacts'
  * @returns  NetTransform server
  */
 export const QNetTransformServerToken =
-    (service: (credentialsProvider: CredentialsProvider) => CodeWhispererServiceToken): Server =>
+    (service: (credentialsProvider: CredentialsProvider, workspace: Workspace) => CodeWhispererServiceToken): Server =>
     ({ credentialsProvider, workspace, logging, lsp, telemetry, runtime }) => {
-        const codewhispererclient = service(credentialsProvider)
+        const codewhispererclient = service(credentialsProvider, workspace)
         const transformHandler = new TransformHandler(codewhispererclient, workspace, logging)
         const runTransformCommand = async (params: ExecuteCommandParams, _token: CancellationToken) => {
             try {
