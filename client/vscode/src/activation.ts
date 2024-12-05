@@ -69,16 +69,20 @@ export async function activateDocumentsLanguageServer(extensionContext: Extensio
         debug: { module: serverModule, transport: TransportKind.ipc, options: debugOptions },
     }
 
+    const scriptOptions = []
     if (enableEncryptionInit) {
         // If the host is going to encrypt credentials,
         // receive the encryption key over stdin before starting the language server.
-        debugOptions.execArgv.push('--stdio')
+        scriptOptions.push('--stdio')
         // Used by the proof of concept language servers (we can remove this one in the future,
         // after all language servers are based on the language-server-runtime).
-        debugOptions.execArgv.push('--pre-init-encryption')
+        scriptOptions.push('--pre-init-encryption')
         // Used by the aws-language-server-runtime based servers
-        debugOptions.execArgv.push('--set-credentials-encryption-key')
-        const child = cp.spawn('node', [serverModule, ...debugOptions.execArgv])
+        scriptOptions.push('--set-credentials-encryption-key')
+
+        // debugOptions are node process arguments and scriptOptions are script arguments
+        const child = cp.spawn('node', [...debugOptions.execArgv, serverModule, ...scriptOptions])
+
         writeEncryptionInit(child.stdin)
 
         serverOptions = () => Promise.resolve(child)
