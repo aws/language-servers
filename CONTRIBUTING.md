@@ -283,7 +283,7 @@ This Language Servers repository includes set of packages, which demonstrate how
 
 #### Developing both Language Servers and Runtimes projects
 
-Sometimes there is a need to build and develop both Language Servers with Language Server Runtimes projects. Since [`language-server-runtimes`](https://github.com/aws/language-server-runtimes) is used as an nmp dependency, it can be developed using `npm link` in this repo.
+Sometimes there is a need to build and develop both Language Servers with Language Server Runtimes projects. Since [`language-server-runtimes`](https://github.com/aws/language-server-runtimes) is used as an npm dependency, it can be developed using `npm link` in this repo.
 
 1. Clone the [`language-servers`](https://github.com/aws/language-servers) and the [`language-server-runtimes`](https://github.com/aws/language-server-runtimes) repos:
 
