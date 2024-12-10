@@ -8,6 +8,10 @@ updates:
       target-branch: 'main' # Avoid updates to "staging".
       schedule:
           interval: 'weekly'
+      groups:
+          typescript-eslint:
+              patterns:
+                  - '@typescript-eslint/*'
     - package-ecosystem: 'npm'
       directory: '/core/codewhisperer-streaming'
       target-branch: 'main'
