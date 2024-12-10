@@ -4,6 +4,7 @@ import {
     ExecuteCommandParams,
     InitializeParams,
     Server,
+    Workspace,
 } from '@aws/language-server-runtimes/server-interface'
 import { performance } from 'perf_hooks'
 import { pathToFileURL } from 'url'
@@ -22,9 +23,9 @@ const RunSecurityScanCommand = 'aws/codewhisperer/runSecurityScan'
 const CancelSecurityScanCommand = 'aws/codewhisperer/cancelSecurityScan'
 
 export const SecurityScanServerToken =
-    (service: (credentialsProvider: CredentialsProvider) => CodeWhispererServiceToken): Server =>
+    (service: (credentialsProvider: CredentialsProvider, workspace: Workspace) => CodeWhispererServiceToken): Server =>
     ({ credentialsProvider, workspace, logging, lsp, telemetry, runtime }) => {
-        const codewhispererclient = service(credentialsProvider)
+        const codewhispererclient = service(credentialsProvider, workspace)
         const diagnosticsProvider = new SecurityScanDiagnosticsProvider(lsp, logging)
         const scanHandler = new SecurityScanHandler(codewhispererclient, workspace, logging)
 

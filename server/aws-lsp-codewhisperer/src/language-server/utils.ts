@@ -1,11 +1,15 @@
-import { BearerCredentials, CredentialsProvider, Position } from '@aws/language-server-runtimes/server-interface'
+import {
+    BearerCredentials,
+    CredentialsProvider,
+    Position,
+    Workspace,
+} from '@aws/language-server-runtimes/server-interface'
 import { AWSError, ConfigurationOptions } from 'aws-sdk'
 import { distance } from 'fastest-levenshtein'
 import { Suggestion } from './codeWhispererService'
 import { CodewhispererCompletionType } from './telemetry/types'
 import { BUILDER_ID_START_URL, MISSING_BEARER_TOKEN_ERROR } from './constants'
 import { ServerInfo } from '@aws/language-server-runtimes/server-interface/runtime'
-import { readFileSync } from 'fs'
 import { HttpsProxyAgent } from 'hpagent'
 export type SsoConnectionType = 'builderId' | 'identityCenter' | 'none'
 
@@ -127,12 +131,12 @@ export function getEndPositionForAcceptedSuggestion(content: string, startPositi
     return endPosition
 }
 
-export const makeProxyConfig = () => {
+export const makeProxyConfig = async (workspace: Workspace) => {
     let additionalAwsConfig: ConfigurationOptions = {}
     const proxyUrl = process.env.HTTPS_PROXY ?? process.env.https_proxy
 
     if (proxyUrl) {
-        const certs = process.env.AWS_CA_BUNDLE ? [readFileSync(process.env.AWS_CA_BUNDLE)] : undefined
+        const certs = process.env.AWS_CA_BUNDLE ? [await workspace.fs.readFile(process.env.AWS_CA_BUNDLE)] : undefined
         const agent = new HttpsProxyAgent({
             proxy: proxyUrl,
             ca: certs,

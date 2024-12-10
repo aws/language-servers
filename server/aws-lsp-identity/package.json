@@ -13,20 +13,17 @@
         "node": ">=18.0.0"
     },
     "scripts": {
-        "clean": "rm -fr ./src/generated ./out tsconfig.tsbuildinfo",
-        "precompile": "npm run generateTelemetry",
+        "clean": "rm -fr ./out tsconfig.tsbuildinfo",
         "compile": "tsc --build --verbose",
         "copy": "copyfiles --error --flat ./src/sso/authorizationCodePkce/resources/* ./out/sso/authorizationCodePkce/resources/",
         "package": "npm run compile && npm run copy",
         "test": "npm run package && npm run test-unit",
-        "test-unit": "mocha 'out/**/*.test.js'",
-        "generateTelemetry": "node ../../node_modules/@aws-toolkits/telemetry/lib/generateTelemetry.js --output=./src/generated/telemetry.gen.ts"
+        "test-unit": "mocha 'out/**/*.test.js'"
     },
     "dependencies": {
         "@aws-sdk/client-sso-oidc": "^3.616.0",
         "@aws-sdk/token-providers": "^3.614.0",
         "@aws/language-server-runtimes": "^0.2.27",
-        "@aws-toolkits/telemetry": "^1.0.278",
         "@smithy/node-http-handler": "^3.2.5",
         "@smithy/shared-ini-file-loader": "^3.1.5",
         "https-proxy-agent": "^7.0.5",

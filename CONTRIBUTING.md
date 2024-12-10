@@ -94,6 +94,82 @@ A separate set of packages (under ./app) then instantiate these language servers
 node ./app/aws-lsp-codewhisperer-binary/aws-lsp-codewhisperer-token-binary.js --stdio
 ```
 
+## Commit Message Guidelines
+
+Commit messages merged to main branch must follow [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) specification format. This is required to ensure readable, standard format of commits history. We also rely on it to setup automation for generating change logs and making releases.
+
+### Commit message format
+
+The commit message should be structured as follows:
+
+```
+<type>([optional scope]): <description>
+
+[optional body]
+
+[optional footer(s)]
+```
+
+The header is mandatory and the scope of the header is optional. Examples:
+
+```
+docs: correct spelling of CHANGELOG
+```
+
+```
+feat(amazonq): allow provided config object to extend other configs
+
+BREAKING CHANGE: `extends` key in config file is now used for extending other config files
+```
+
+See more examples at https://www.conventionalcommits.org/en/v1.0.0/#examples.
+
+### Types
+
+Type can have one of the following values:
+
+* **build**: changes to the build system
+* **chore**: any housekeeping changes, which don't fall in other category
+* **ci**: changes to CI script and workflows
+* **docs**: changes to documentation
+* **feat**: a new feature
+* **fix**: a bug fix
+* **style**: visual-only changes, not impacting functionality
+* **refactor**: refactorings not impacting functionality, which are not features or bug fixes
+* **perf**: changes that improve performance of code
+* **test**: adding or fixing tests
+
+### Scope
+
+The scope should indicate a package, affected by the change. List of support scopes, and corresponding packages:
+
+* **amazonq**: `./server/aws-lsp-codewhisperer`
+* **chat-client**: `./chat-client`
+* **identity**: `./server/aws-lsp-identity`
+* **notification**: `./server/aws-lsp-notification`
+* **partiql**: `./server/aws-lsp-partiql`
+* **release**: do not use manually - special scope, reserved for release automation
+
+Empty scopes are allowed, and can be used for cases when change is not related to any particular package, e.g. for `ci:` or `docs:`
+
+### Footer
+
+One or more footers may be provided one blank line after the body.
+
+**Breaking Change** must start with `BREAKING CHANGE:` words, following with description of the breaking change.
+
+### Usage of Conventional Commit Types
+
+The commit contains the following structural elements, to communicate intent to the consumers of your library:
+
+* **fix**: a commit of the type fix patches a bug in your codebase (this correlates with PATCH in Semantic Versioning).
+* **feat**: a commit of the type feat introduces a new feature to the codebase (this correlates with MINOR in Semantic Versioning).
+* **BREAKING CHANGE**: a commit that has a footer `BREAKING CHANGE:`, or appends a `!` after the type/scope, introduces a breaking API change (correlating with MAJOR in Semantic Versioning). A BREAKING CHANGE can be part of commits of any *type*.
+
+These rules are used by our automation workflows to collect change logs, and to compute next Semantic Version of packages, impacted by commit.
+
+Since this repository is a shared shared monorepo with many packages, be careful when introducing changes impacting several packages. Extra care should be given when using version-impacting types (especially BREAKING CHANGE).
+
 ## Running + Debugging
 
 > **NOTE**: Ensure your VSCode workspace is the root folder or else certain functionality may not work.
@@ -103,8 +179,10 @@ node ./app/aws-lsp-codewhisperer-binary/aws-lsp-codewhisperer-token-binary.js --
 This repo contains a minimal vscode client that can be used to easily run and
 debug changes to this language server.
 
-1. In the `Run & Debug` menu, run `"Launch as VSCode Extension + Debugging"`
-2. Set breakpoints in `src` where needed.
+1. Run `npm run package` in the root folder
+2. In the `Run & Debug` menu, run `"Launch as VSCode Extension + Debugging"`. Make sure this is launching the server you wish to use, look at the [launch configuration](.vscode/launch.json#L202). Keep the `Attach to AWS Documents Language Server` to use the debugger.
+3. Set breakpoints in the source where needed.
+4. (Optional) in the [activation file](client/vscode/src/activation.ts#L81) you can swap `--inspect` with `--inspect-brk` if you need to debug immediately when the node process starts. Read more about it on this [site](https://www.builder.io/blog/debug-nodejs#:~:text=%2D%2Dinspect%20versus%20%2D%2Dinspect%2Dbrk)
 
 ### With VSCode Toolkit Extension
 
@@ -139,6 +217,14 @@ and be able to debug it all.
 > **NOTE**: If you see "Recommendation failure: Error: Authorization failed, bearer token is not set" errors, make sure to authenticate using `"AWS LSP - Obtain bearer token and send to LSP server"` command.
 
 > **NOTE**: The lsp client is activated by one of the `activationEvents` defined [here](https://github.com/aws/language-servers/blob/06fd81d1e936648ef43243865039f89c7ac142a7/client/vscode/package.json#L18-L22), the lsp client then starts the LSP server.
+
+### With Other Clients
+Using other clients can also be done with the bundle created from this package.
+
+1. Produce a local server bundle `npm run package`. The `app/` folder contains the configuration of server(s) and it's runtime(s).
+2. Take note of the bundle you wish to use. For this example we will use `app/aws-lsp-codewhisperer-runtimes/out/token-standalone.js`.
+3. Run the bundle using these args `node --inspect=6012 {rootPath}/app/aws-lsp-codewhisperer-runtimes/out/token-standalone.js --nolazy --preserve-symlinks --stdio --pre-init-encryption --set-credentials-encryption-key` or adjust as needed. Refer to the [activation file](client/vscode/src/activation.ts). *NOTE: make sure that --inspect or --inspect-brk args are passed right after the `node` command*
+4. Attach the debugger you wish to use to the node process. Example in Visual Studio [here](https://learn.microsoft.com/en-us/visualstudio/debugger/attach-to-running-processes-with-the-visual-studio-debugger?view=vs-2022#BKMK_Attach_to_a_running_process)
 
 ## Testing
 
