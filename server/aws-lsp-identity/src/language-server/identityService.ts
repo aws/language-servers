@@ -8,16 +8,18 @@ import {
     IamIdentityCenterSsoTokenSource,
     InvalidateSsoTokenParams,
     InvalidateSsoTokenResult,
+    MetricEvent,
     SsoSession,
     SsoTokenSourceKind,
 } from '@aws/language-server-runtimes/server-interface'
-import { ProfileStore } from './profiles/profileService'
+import { normalizeSettingList, ProfileStore } from './profiles/profileService'
 import { authorizationCodePkceFlow, awsBuilderIdReservedName, awsBuilderIdSsoRegion, ShowUrl } from '../sso'
-import { AwsError } from '../awsError'
-import { SsoCache } from '../sso/cache'
+import { SsoCache, SsoClientRegistration } from '../sso/cache'
 import { SsoTokenAutoRefresher } from './ssoTokenAutoRefresher'
 import { throwOnInvalidClientRegistration, throwOnInvalidSsoSession, throwOnInvalidSsoSessionName } from '../sso/utils'
 import { Observability } from './utils'
+import { AwsError } from '@aws/lsp-core'
+import { __ServiceException } from '@aws-sdk/client-sso-oidc/dist-types/models/SSOOIDCServiceException'
 
 type SsoTokenSource = IamIdentityCenterSsoTokenSource | AwsBuilderIdSsoTokenSource
 
@@ -32,76 +34,69 @@ export class IdentityService {
     ) {}
 
     async getSsoToken(params: GetSsoTokenParams, token: CancellationToken): Promise<GetSsoTokenResult> {
-        const options = { ...getSsoTokenOptionsDefaults, ...params.options }
+        const emitMetric = this.emitMetric.bind(this, 'flareIdentity_getSsoToken', this.getSsoToken.name, Date.now())
 
-        token.onCancellationRequested(_ => {
-            if (options.loginOnInvalidToken) {
-                this.observability.telemetry.emitMetric({
-                    name: 'auth_addConnection',
-                    result: 'Cancelled',
+        let clientRegistration: SsoClientRegistration | undefined
+        let ssoSession: SsoSession | undefined
+
+        try {
+            const options = { ...getSsoTokenOptionsDefaults, ...params.options }
+
+            token.onCancellationRequested(_ => {
+                if (options.loginOnInvalidToken) {
+                    emitMetric('Cancelled', null, ssoSession, clientRegistration)
+                }
+            })
+
+            ssoSession = await this.getSsoSession(params.source)
+            throwOnInvalidSsoSession(ssoSession)
+
+            let ssoToken = await this.ssoCache.getSsoToken(this.clientName, ssoSession)
+
+            if (!ssoToken) {
+                // If no cached token and cannot start the login process, give up
+                if (!options.loginOnInvalidToken) {
+                    this.observability.logging.log(
+                        'SSO token not found an loginOnInvalidToken = false, returning no token.'
+                    )
+                    throw new AwsError('SSO token not found.', AwsErrorCodes.E_INVALID_SSO_TOKEN)
+                }
+
+                clientRegistration = await this.ssoCache.getSsoClientRegistration(this.clientName, ssoSession)
+                throwOnInvalidClientRegistration(clientRegistration)
+
+                ssoToken = await authorizationCodePkceFlow(
+                    this.clientName,
+                    clientRegistration,
+                    ssoSession,
+                    this.showUrl,
+                    token,
+                    this.observability
+                ).catch(reason => {
+                    throw AwsError.wrap(reason, AwsErrorCodes.E_CANNOT_CREATE_SSO_TOKEN)
+                })
+
+                emitMetric('Succeeded', null, ssoSession, clientRegistration)
+
+                await this.ssoCache.setSsoToken(this.clientName, ssoSession, ssoToken!).catch(reason => {
+                    throw AwsError.wrap(reason, AwsErrorCodes.E_CANNOT_WRITE_SSO_CACHE)
                 })
             }
-        })
 
-        const ssoSession = await this.getSsoSession(params.source)
-        throwOnInvalidSsoSession(ssoSession)
+            // Auto refresh is best effort
+            await this.autoRefresher.watch(this.clientName, ssoSession).catch(reason => {
+                this.observability.logging.log(`Unable to auto-refresh token. ${reason}`)
+            })
 
-        let ssoToken = await this.ssoCache.getSsoToken(this.clientName, ssoSession)
-
-        if (!ssoToken) {
-            // If no cached token and cannot start the login process, give up
-            if (!options.loginOnInvalidToken) {
-                this.observability.logging.log(
-                    'SSO token not found an loginOnInvalidToken = false, returning no token.'
-                )
-                throw new AwsError('SSO token not found.', AwsErrorCodes.E_INVALID_SSO_TOKEN)
+            this.observability.logging.log('Successfully retrieved existing or newly authenticated SSO token.')
+            return {
+                ssoToken: { accessToken: ssoToken.accessToken, id: ssoSession.name },
+                updateCredentialsParams: { data: { token: ssoToken.accessToken }, encrypted: false },
             }
+        } catch (e) {
+            emitMetric('Failed', e, ssoSession, clientRegistration)
 
-            const clientRegistration = await this.ssoCache.getSsoClientRegistration(this.clientName, ssoSession)
-            throwOnInvalidClientRegistration(clientRegistration)
-
-            ssoToken = await authorizationCodePkceFlow(
-                this.clientName,
-                clientRegistration,
-                ssoSession,
-                this.showUrl,
-                token,
-                this.observability
-            ).catch(reason => {
-                const awsError = AwsError.wrap(reason, AwsErrorCodes.E_CANNOT_CREATE_SSO_TOKEN)
-                // Consider using PII scrubbing such as:
-                // https://github.com/justinmk3/aws-toolkit-vscode/blob/ea74f2f04554b7bb75831f0a0d2c60fdb5ca2820/packages/core/src/shared/errors.ts#L323
-                this.observability.telemetry.emitMetric({
-                    name: 'auth_addConnection',
-                    errorData: {
-                        reason: awsError.message,
-                        errorCode: awsError.awsErrorCode,
-                    },
-                    result: 'Failed',
-                })
-                throw awsError
-            })
-
-            this.observability.telemetry.emitMetric({
-                name: 'auth_addConnection',
-                data: { reason: 'User logged in successfully' },
-                result: 'Succeeded',
-            })
-
-            await this.ssoCache.setSsoToken(this.clientName, ssoSession, ssoToken!).catch(reason => {
-                throw AwsError.wrap(reason, AwsErrorCodes.E_CANNOT_WRITE_SSO_CACHE)
-            })
-        }
-
-        // Auto refresh is best effort
-        await this.autoRefresher.watch(this.clientName, ssoSession).catch(reason => {
-            this.observability.logging.log(`Unable to auto-refresh token. ${reason}`)
-        })
-
-        this.observability.logging.log('Successfully retrieved existing or newly authenticated SSO token.')
-        return {
-            ssoToken: { accessToken: ssoToken.accessToken, id: ssoSession.name },
-            updateCredentialsParams: { data: { token: ssoToken.accessToken }, encrypted: false },
+            throw e
         }
     }
 
@@ -109,14 +104,69 @@ export class IdentityService {
         params: InvalidateSsoTokenParams,
         token: CancellationToken
     ): Promise<InvalidateSsoTokenResult> {
-        throwOnInvalidSsoSessionName(params?.ssoTokenId)
+        const emitMetric = this.emitMetric.bind(
+            this,
+            'flareIdentity_invalidateSsoToken',
+            this.invalidateSsoToken.name,
+            Date.now()
+        )
 
-        this.autoRefresher.unwatch(params.ssoTokenId)
+        token.onCancellationRequested(_ => {
+            emitMetric('Cancelled')
+        })
 
-        await this.ssoCache.removeSsoToken(params.ssoTokenId)
+        try {
+            throwOnInvalidSsoSessionName(params?.ssoTokenId)
 
-        this.observability.logging.log('Successfully invalidated SSO token.')
-        return {}
+            this.autoRefresher.unwatch(params.ssoTokenId)
+
+            await this.ssoCache.removeSsoToken(params.ssoTokenId)
+
+            emitMetric('Succeeded')
+            this.observability.logging.log('Successfully invalidated SSO token.')
+            return {}
+        } catch (e) {
+            emitMetric('Failed', e)
+
+            throw e
+        }
+    }
+
+    private emitMetric(
+        name: string,
+        source: string,
+        startMillis: number,
+        result: 'Succeeded' | 'Failed' | 'Cancelled',
+        error?: unknown,
+        ssoSession?: SsoSession,
+        clientRegistration?: SsoClientRegistration
+    ): void {
+        const metric: MetricEvent = {
+            name,
+            result,
+            data: {
+                authScopes: normalizeSettingList(ssoSession?.settings?.sso_registration_scopes),
+                awsRegion: ssoSession?.settings?.sso_region,
+                credentialStartUrl: ssoSession?.settings?.sso_start_url,
+                duration: Date.now() - startMillis,
+                source,
+                ssoRegistrationClientId: clientRegistration?.clientId,
+                ssoRegistrationExpiresAt: clientRegistration?.expiresAt,
+                ssoRegistrationIssuedAt: clientRegistration?.issuedAt,
+            },
+        }
+
+        if (error) {
+            metric.errorData = {
+                errorCode: (error as AwsError)?.awsErrorCode,
+                httpStatusCode:
+                    (error as __ServiceException)?.$metadata?.httpStatusCode ||
+                    ((error as Error).cause as __ServiceException)?.$metadata?.httpStatusCode,
+                reason: error?.constructor?.name ?? 'unknown',
+            }
+        }
+
+        this.observability.telemetry.emitMetric(metric)
     }
 
     private async getSsoSession(source: SsoTokenSource): Promise<SsoSession> {

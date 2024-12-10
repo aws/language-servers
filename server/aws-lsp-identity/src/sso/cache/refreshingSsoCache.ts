@@ -1,7 +1,6 @@
 import { SSOToken } from '@smithy/shared-ini-file-loader'
 import { SsoCache, SsoClientRegistration } from './ssoCache'
 import { AwsErrorCodes, SsoSession, SsoTokenChangedKind } from '@aws/language-server-runtimes/server-interface'
-import { AwsError } from '../../awsError'
 import {
     getSsoOidc,
     throwOnInvalidSsoSession,
@@ -12,6 +11,7 @@ import {
 import { RaiseSsoTokenChanged } from '../../language-server/ssoTokenAutoRefresher'
 import { Observability } from '../../language-server/utils'
 import { InvalidGrantException } from '@aws-sdk/client-sso-oidc'
+import { AwsError } from '@aws/lsp-core'
 
 export const refreshWindowMillis: number = 5 * 60 * 1000
 export const retryCooldownWindowMillis: number = 30000

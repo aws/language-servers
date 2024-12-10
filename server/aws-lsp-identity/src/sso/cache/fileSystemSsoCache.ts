@@ -1,11 +1,11 @@
 import { getSSOTokenFilepath, getSSOTokenFromFile, SSOToken } from '@smithy/shared-ini-file-loader'
 import { SsoCache, SsoClientRegistration, ssoClientRegistrationDuckTyper, ssoTokenDuckTyper } from './ssoCache'
 import { mkdir, readFile, unlink, writeFile } from 'fs/promises'
-import { AwsError } from '../../awsError'
 import { AwsErrorCodes, SsoSession } from '@aws/language-server-runtimes/server-interface'
 import { throwOnInvalidClientName, throwOnInvalidSsoSession, throwOnInvalidSsoSessionName } from '../utils'
 import path from 'path'
 import { Observability } from '../../language-server/utils'
+import { AwsError } from '@aws/lsp-core'
 
 export class FileSystemSsoCache implements SsoCache {
     constructor(private readonly observability: Observability) {}

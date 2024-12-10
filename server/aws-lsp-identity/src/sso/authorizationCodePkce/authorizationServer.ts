@@ -1,10 +1,10 @@
 import * as path from 'path'
 import http, { IncomingMessage, Server, ServerResponse } from 'http'
-import { AwsError } from '../../awsError'
 import { AwsErrorCodes, CancellationToken } from '@aws/language-server-runtimes/protocol'
 import { readFile } from 'fs/promises'
 import { randomUUID } from 'crypto'
 import { Observability } from '../../language-server/utils'
+import { AwsError } from '@aws/lsp-core'
 
 export class AuthorizationServer implements Disposable {
     private static readonly authorizationPath = '/oauth/callback'
@@ -60,9 +60,7 @@ export class AuthorizationServer implements Disposable {
         this.authResolve = authResolve!
         this.authReject = authReject!
 
-        if (token) {
-            token.onCancellationRequested(this.authReject)
-        }
+        token?.onCancellationRequested(this.authReject)
     }
 
     async [Symbol.dispose]() {
@@ -121,24 +119,27 @@ export class AuthorizationServer implements Disposable {
             const error = searchParams.get('error')
             if (error) {
                 this.observability.logging.log(`Error on authorization redirect: ${error}`)
-                throw new Error(`${error}: ${searchParams.get('error_description') ?? 'No description'}`)
+                throw new AwsError(
+                    `${error}: ${searchParams.get('error_description') ?? 'No description'}`,
+                    AwsErrorCodes.E_CANNOT_CREATE_SSO_TOKEN
+                )
             }
 
             const code = searchParams.get('code')
             if (!code) {
                 this.observability.logging.log('Authorization code not found.')
-                throw new Error('Authorization code not found.')
+                throw new AwsError('Authorization code not found.', AwsErrorCodes.E_CANNOT_CREATE_SSO_TOKEN)
             }
 
             const state = searchParams.get('state')
             if (!state) {
                 this.observability.logging.log('CSRF state not found.')
-                throw new Error('CSRF state not found.')
+                throw new AwsError('CSRF state not found.', AwsErrorCodes.E_CANNOT_CREATE_SSO_TOKEN)
             }
 
             if (state !== this.csrfState) {
                 this.observability.logging.log('CSRF state is invalid.')
-                throw new Error('CSRF state is invalid.')
+                throw new AwsError('CSRF state is invalid.', AwsErrorCodes.E_CANNOT_CREATE_SSO_TOKEN)
             }
 
             try {
