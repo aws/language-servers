@@ -90,7 +90,7 @@ export const createChat = (
                 const chatConfig: ChatClientConfig = params?.quickActions?.quickActionsCommandGroups
                     ? {
                           quickActionCommands: params.quickActions.quickActionsCommandGroups,
-                          disclaimerAcknowledged: config?.disclaimerAcknowledged,
+                          disclaimerAcknowledged: config?.disclaimerAcknowledged ?? false,
                       }
                     : {}
 
