@@ -8,10 +8,24 @@ updates:
       target-branch: 'main' # Avoid updates to "staging".
       schedule:
           interval: 'weekly'
+      groups:
+          typescript-eslint:
+              patterns:
+                  - '@typescript-eslint/*'
     - package-ecosystem: 'npm'
       directory: '/core/codewhisperer-streaming'
       target-branch: 'main'
       schedule:
           interval: 'weekly'
       ignore:
-          - dependency-name: '*'
+          - dependency-name: 'tslib'
+          - dependency-name: '@aws-crypto/*'
+          - dependency-name: '@aws-sdk/*'
+          - dependency-name: '@smithy/*'
+          - dependency-name: 'uuid'
+          - dependency-name: '@tsconfig/node16'
+          - dependency-name: 'concurrently'
+          - dependency-name: 'downlevel-dts'
+          - dependency-name: 'rimraf'
+          - dependency-name: 'typescript'
+          - dependency-name: '@types/*'
