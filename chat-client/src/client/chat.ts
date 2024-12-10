@@ -15,6 +15,7 @@ import {
     SEND_TO_PROMPT,
     SendToPromptMessage,
     UiMessage,
+    DISCLAIMER_ACKNOWLEDGED,
 } from '@aws/chat-client-ui-types'
 import {
     CHAT_REQUEST_METHOD,
@@ -52,7 +53,7 @@ const DEFAULT_TAB_DATA = {
     promptInputPlaceholder: 'Ask a question or enter "/" for quick actions',
 }
 
-type ChatClientConfig = Pick<MynahUIDataModel, 'quickActionCommands'>
+type ChatClientConfig = Pick<MynahUIDataModel, 'quickActionCommands'> & { disclaimerAcknowledged?: boolean }
 
 export const createChat = (
     clientApi: { postMessage: (msg: UiMessage | ServerMessage) => void },
@@ -87,7 +88,10 @@ export const createChat = (
             case CHAT_OPTIONS: {
                 const params = (message as ChatOptionsMessage).params
                 const chatConfig: ChatClientConfig = params?.quickActions?.quickActionsCommandGroups
-                    ? { quickActionCommands: params.quickActions.quickActionsCommandGroups }
+                    ? {
+                          quickActionCommands: params.quickActions.quickActionsCommandGroups,
+                          disclaimerAcknowledged: config?.disclaimerAcknowledged,
+                      }
                     : {}
 
                 tabFactory.updateDefaultTabData(chatConfig)
@@ -154,6 +158,9 @@ export const createChat = (
 
             window.addEventListener('message', handleMessage)
         },
+        disclaimerAcknowledged: () => {
+            sendMessageToClient({ command: DISCLAIMER_ACKNOWLEDGED })
+        },
     }
 
     const messager = new Messager(chatApi)
@@ -162,7 +169,7 @@ export const createChat = (
         ...(config?.quickActionCommands ? { quickActionCommands: config.quickActionCommands } : {}),
     })
 
-    const [mynahUi, api] = createMynahUi(messager, tabFactory)
+    const [mynahUi, api] = createMynahUi(messager, tabFactory, config?.disclaimerAcknowledged ?? false)
 
     mynahApi = api
 

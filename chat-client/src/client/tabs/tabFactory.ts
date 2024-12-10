@@ -1,4 +1,5 @@
 import { ChatItemType, MynahUIDataModel } from '@aws/mynah-ui'
+import { disclaimerCard } from '../texts/disclaimer'
 
 export type DefaultTabData = MynahUIDataModel
 
@@ -12,7 +13,7 @@ export class TabFactory {
 
     constructor(private defaultTabData: DefaultTabData) {}
 
-    public createTab(needWelcomeMessages: boolean): MynahUIDataModel {
+    public createTab(needWelcomeMessages: boolean, disclaimerCardActive: boolean): MynahUIDataModel {
         const tabData: MynahUIDataModel = {
             ...this.defaultTabData,
             chatItems: needWelcomeMessages
@@ -29,6 +30,7 @@ export class TabFactory {
                       },
                   ]
                 : [],
+            ...(disclaimerCardActive ? { promptInputStickyCard: disclaimerCard } : {}),
         }
         return tabData
     }
