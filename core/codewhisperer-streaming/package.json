@@ -33,7 +33,7 @@
         "@smithy/core": "^2.4.6",
         "@smithy/eventstream-serde-browser": "^3.0.9",
         "@smithy/eventstream-serde-config-resolver": "^3.0.6",
-        "@smithy/eventstream-serde-node": "^3.0.8",
+        "@smithy/eventstream-serde-node": "^3.0.13",
         "@smithy/fetch-http-handler": "^3.2.8",
         "@smithy/hash-node": "^3.0.6",
         "@smithy/invalid-dependency": "^3.0.8",
