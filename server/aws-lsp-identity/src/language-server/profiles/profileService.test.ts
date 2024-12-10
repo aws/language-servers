@@ -11,8 +11,8 @@ import {
 import { normalizeParsedIniData } from '../../sharedConfig/saveKnownFiles'
 import { StubbedInstance, stubInterface } from 'ts-sinon'
 import { expect, use } from 'chai'
-import { AwsError } from '../../awsError'
 import { Observability } from '../utils'
+import { AwsError } from '@aws/lsp-core'
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 use(require('chai-as-promised'))

@@ -14,11 +14,11 @@ import {
 } from '@aws/language-server-runtimes/server-interface'
 import { SharedConfigProfileStore } from './profiles/sharedConfigProfileStore'
 import { IdentityService } from './identityService'
-import { AwsError } from '../awsError'
 import { FileSystemSsoCache, RefreshingSsoCache } from '../sso/cache'
 import { SsoTokenAutoRefresher } from './ssoTokenAutoRefresher'
 import { ShowUrl } from '../sso'
 import { ServerBase, ServerFeatures } from './utils'
+import { AwsError } from '@aws/lsp-core'
 
 export class IdentityServer extends ServerBase {
     constructor(features: ServerFeatures) {

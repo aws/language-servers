@@ -1,11 +1,11 @@
 import { AwsErrorCodes, SsoSession } from '@aws/language-server-runtimes/server-interface'
-import { AwsError } from '../awsError'
 import { CreateTokenCommandOutput, SSOOIDC, SSOOIDCClientConfig } from '@aws-sdk/client-sso-oidc'
 import { SsoClientRegistration } from './cache'
 import { SSOToken } from '@smithy/shared-ini-file-loader'
 import { readFileSync } from 'fs'
 import { NodeHttpHandler } from '@smithy/node-http-handler'
 import { HttpsProxyAgent } from 'https-proxy-agent'
+import { AwsError } from '@aws/lsp-core'
 
 const proxyUrl = process.env.HTTPS_PROXY ?? process.env.https_proxy
 const certs = process.env.AWS_CA_BUNDLE ? readFileSync(process.env.AWS_CA_BUNDLE) : undefined
