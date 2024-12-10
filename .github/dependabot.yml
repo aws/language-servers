@@ -12,6 +12,8 @@ updates:
           typescript-eslint:
               patterns:
                   - '@typescript-eslint/*'
+      commit-message:
+          prefix: 'chore'
     - package-ecosystem: 'npm'
       directory: '/core/codewhisperer-streaming'
       target-branch: 'main'
