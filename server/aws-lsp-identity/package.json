@@ -25,7 +25,7 @@
         "@aws-sdk/token-providers": "^3.614.0",
         "@aws/language-server-runtimes": "^0.2.27",
         "@smithy/node-http-handler": "^3.2.5",
-        "@smithy/shared-ini-file-loader": "^3.1.5",
+        "@smithy/shared-ini-file-loader": "^3.1.12",
         "https-proxy-agent": "^7.0.5",
         "vscode-languageserver": "^9.0.1"
     },
