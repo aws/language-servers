@@ -23,6 +23,7 @@ describe('CodePercentage', () => {
     afterEach(() => {
         tracker.dispose()
         clock.reset()
+        clock.restore()
     })
 
     it('does not send telemetry without edits', () => {
