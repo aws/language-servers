@@ -252,8 +252,6 @@ export const createMynahUi = (
                 // Update the disclaimer getting acknowledged
                 messager.onDisclaimerAcknowledged()
 
-                // TODO: create telemetry
-
                 // Remove all disclaimer cards from all tabs
                 Object.keys(mynahUi.getAllTabs()).forEach(storeTabKey => {
                     mynahUi.updateStore(storeTabKey, { promptInputStickyCard: null })
@@ -267,7 +265,7 @@ export const createMynahUi = (
             },
         },
         defaults: {
-            store: tabFactory.createTab(true, disclaimerCardActive),
+            store: tabFactory.createTab(true, false),
         },
         config: {
             maxTabs: 10,

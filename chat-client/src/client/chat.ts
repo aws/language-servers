@@ -92,7 +92,7 @@ export const createChat = (
                           quickActionCommands: params.quickActions.quickActionsCommandGroups,
                           disclaimerAcknowledged: config?.disclaimerAcknowledged ?? false,
                       }
-                    : {}
+                    : { disclaimerAcknowledged: config?.disclaimerAcknowledged ?? false }
 
                 tabFactory.updateDefaultTabData(chatConfig)
 
