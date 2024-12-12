@@ -15,6 +15,7 @@ import {
     SEND_TO_PROMPT,
     SendToPromptMessage,
     UiMessage,
+    DISCLAIMER_ACKNOWLEDGED,
 } from '@aws/chat-client-ui-types'
 import {
     CHAT_REQUEST_METHOD,
@@ -48,11 +49,11 @@ import { TabFactory } from './tabs/tabFactory'
 const DEFAULT_TAB_DATA = {
     tabTitle: 'Chat',
     promptInputInfo:
-        'Amazon Q Developer uses generative AI. You may need to verify responses. See the [AWS Responsible AI Policy](https://aws.amazon.com/machine-learning/responsible-ai/policy/). Amazon Q Developer processes data across all US Regions. See [here](https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/cross-region-inference.html) for more info. Amazon Q may retain chats to provide and maintain the service.',
+        'Amazon Q Developer uses generative AI. You may need to verify responses. See the [AWS Responsible AI Policy](https://aws.amazon.com/machine-learning/responsible-ai/policy/).',
     promptInputPlaceholder: 'Ask a question or enter "/" for quick actions',
 }
 
-type ChatClientConfig = Pick<MynahUIDataModel, 'quickActionCommands'>
+type ChatClientConfig = Pick<MynahUIDataModel, 'quickActionCommands'> & { disclaimerAcknowledged?: boolean }
 
 export const createChat = (
     clientApi: { postMessage: (msg: UiMessage | ServerMessage) => void },
@@ -87,8 +88,11 @@ export const createChat = (
             case CHAT_OPTIONS: {
                 const params = (message as ChatOptionsMessage).params
                 const chatConfig: ChatClientConfig = params?.quickActions?.quickActionsCommandGroups
-                    ? { quickActionCommands: params.quickActions.quickActionsCommandGroups }
-                    : {}
+                    ? {
+                          quickActionCommands: params.quickActions.quickActionsCommandGroups,
+                          disclaimerAcknowledged: config?.disclaimerAcknowledged ?? false,
+                      }
+                    : { disclaimerAcknowledged: config?.disclaimerAcknowledged ?? false }
 
                 tabFactory.updateDefaultTabData(chatConfig)
 
@@ -154,6 +158,9 @@ export const createChat = (
 
             window.addEventListener('message', handleMessage)
         },
+        disclaimerAcknowledged: () => {
+            sendMessageToClient({ command: DISCLAIMER_ACKNOWLEDGED })
+        },
     }
 
     const messager = new Messager(chatApi)
@@ -162,7 +169,7 @@ export const createChat = (
         ...(config?.quickActionCommands ? { quickActionCommands: config.quickActionCommands } : {}),
     })
 
-    const [mynahUi, api] = createMynahUi(messager, tabFactory)
+    const [mynahUi, api] = createMynahUi(messager, tabFactory, config?.disclaimerAcknowledged ?? false)
 
     mynahApi = api
 

@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.1.0] - 2024-12-12
+
+### Added
+
+- Add new `DISCLAIMER_ACKNOWLEDGED` event to the chat client
+- Add new `disclaimerAcknowledged?: boolean` flag to the config
+- Add an acknowledgeable legal disclaimer to every tab based on the `disclaimerAcknowledged` flag
+
+### Changed
+
+- Update `@aws/chat-client-ui-types` to 0.0.9
+- Shortened legal text in the footer
+
 ## [0.0.9] - 2024-11-20
 
 ### Changed

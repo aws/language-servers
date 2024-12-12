@@ -24,6 +24,7 @@ import { ChatItem, ChatItemType, ChatPrompt, MynahUI, MynahUIDataModel, Notifica
 import { VoteParams } from '../contracts/telemetry'
 import { Messager } from './messager'
 import { TabFactory } from './tabs/tabFactory'
+import { disclaimerAcknowledgeButtonId, disclaimerCard } from './texts/disclaimer'
 
 export interface InboundChatApi {
     addChatResponse(params: ChatResult, tabId: string, isPartialResult: boolean): void
@@ -83,8 +84,13 @@ export const handleChatPrompt = (
     })
 }
 
-export const createMynahUi = (messager: Messager, tabFactory: TabFactory): [MynahUI, InboundChatApi] => {
+export const createMynahUi = (
+    messager: Messager,
+    tabFactory: TabFactory,
+    disclaimerAcknowledged: boolean
+): [MynahUI, InboundChatApi] => {
     const initialTabId = TabFactory.generateUniqueId()
+    let disclaimerCardActive = !disclaimerAcknowledged
 
     const mynahUi = new MynahUI({
         onCodeInsertToCursorPosition(
@@ -144,6 +150,7 @@ export const createMynahUi = (messager: Messager, tabFactory: TabFactory): [Myna
             messager.onTabAdd(tabId)
             const defaultTabConfig: Partial<MynahUIDataModel> = {
                 quickActionCommands: tabFactory.getDefaultTabData().quickActionCommands,
+                ...(disclaimerCardActive ? { promptInputStickyCard: disclaimerCard } : {}),
             }
             mynahUi.updateStore(tabId, defaultTabConfig)
         },
@@ -237,14 +244,28 @@ export const createMynahUi = (messager: Messager, tabFactory: TabFactory): [Myna
             }
             messager.onInfoLinkClick(payload)
         },
+        onInBodyButtonClicked: (tabId, messageId, action, eventId) => {
+            if (action.id === disclaimerAcknowledgeButtonId) {
+                // Hide the legal disclaimer card
+                disclaimerCardActive = false
+
+                // Update the disclaimer getting acknowledged
+                messager.onDisclaimerAcknowledged()
+
+                // Remove all disclaimer cards from all tabs
+                Object.keys(mynahUi.getAllTabs()).forEach(storeTabKey => {
+                    mynahUi.updateStore(storeTabKey, { promptInputStickyCard: null })
+                })
+            }
+        },
         tabs: {
             [initialTabId]: {
                 isSelected: true,
-                store: tabFactory.createTab(true),
+                store: tabFactory.createTab(true, disclaimerCardActive),
             },
         },
         defaults: {
-            store: tabFactory.createTab(true),
+            store: tabFactory.createTab(true, false),
         },
         config: {
             maxTabs: 10,
@@ -257,7 +278,7 @@ export const createMynahUi = (messager: Messager, tabFactory: TabFactory): [Myna
     }
 
     const createTabId = () => {
-        const tabId = mynahUi.updateStore('', tabFactory.createTab(false))
+        const tabId = mynahUi.updateStore('', tabFactory.createTab(false, disclaimerCardActive))
         if (tabId === undefined) {
             mynahUi.notify({
                 content: uiComponentsTexts.noMoreTabsTooltip,

@@ -57,6 +57,7 @@ export interface OutboundChatApi {
     sourceLinkClick(params: SourceLinkClickParams): void
     infoLinkClick(params: InfoLinkClickParams): void
     uiReady(): void
+    disclaimerAcknowledged(): void
 }
 
 export class Messager {
@@ -77,6 +78,10 @@ export class Messager {
 
     onUiReady = (): void => {
         this.chatApi.uiReady()
+    }
+
+    onDisclaimerAcknowledged = (): void => {
+        this.chatApi.disclaimerAcknowledged()
     }
 
     onFocusStateChanged = (focusState: boolean): void => {
