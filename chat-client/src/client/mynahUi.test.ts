@@ -118,7 +118,7 @@ describe('MynahUI', () => {
             getSelectedTabIdStub.returns(undefined)
             inboundChatApi.sendGenericCommand({ genericCommand, selection, tabId, triggerType })
 
-            sinon.assert.calledOnceWithExactly(createTabStub, false)
+            sinon.assert.calledOnceWithExactly(createTabStub, false, false)
             sinon.assert.calledThrice(updateStoreSpy)
         })
 
@@ -134,11 +134,11 @@ describe('MynahUI', () => {
             getSelectedTabIdStub.returns(tabId)
             inboundChatApi.sendGenericCommand({ genericCommand, selection, tabId, triggerType })
 
-            sinon.assert.calledOnceWithExactly(createTabStub, false)
+            sinon.assert.calledOnceWithExactly(createTabStub, false, false)
             sinon.assert.calledThrice(updateStoreSpy)
         })
 
-        it('should not create a new tab if one exits already', () => {
+        it('should not create a new tab if one exists already', () => {
             createTabStub.resetHistory()
             const genericCommand = 'Explain'
             const selection = 'const x = 5;'
