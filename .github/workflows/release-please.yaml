@@ -1,0 +1,94 @@
+name: release-please
+
+on:
+    push:
+        branches:
+            - main
+
+permissions:
+    id-token: write # This is required for requesting the JWT (aws-actions/configure-aws-credentials)
+    contents: write # to create release commit (google-github-actions/release-please-action)
+    pull-requests: write # to create release PR (google-github-actions/release-please-action)
+
+jobs:
+    release-please:
+        runs-on: ubuntu-latest
+        steps:
+            # The "release" step invokes on every merge to 'main' branch
+            # and collects pending changes in pending release PR.
+            - uses: googleapis/release-please-action@v4
+              id: release
+              with:
+                  token: ${{ secrets.GITHUB_TOKEN }}
+                  config-file: release-please-config.json
+                  manifest-file: .release-please-manifest.json
+
+            # Steps below publish released packages to npm.
+            # They only trigger after release-please PR from previous step is merged to main.
+            - uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+                  persist-credentials: false
+              if: ${{ fromJson(steps.release.outputs.releases_created) }}
+
+            - name: Configure AWS Credentials
+              uses: aws-actions/configure-aws-credentials@v4
+              with:
+                  role-to-assume: arn:aws:iam::935785792371:role/GithubNpmPublishAction
+                  role-session-name: language-servers-github
+                  aws-region: us-east-1
+              if: ${{ fromJson(steps.release.outputs.releases_created) }}
+
+            - name: Get npm access token
+              uses: aws-actions/aws-secretsmanager-get-secrets@v2
+              with:
+                  secret-ids: |
+                      npmjs/github_automation
+                  parse-json-secrets: true
+              if: ${{ fromJson(steps.release.outputs.releases_created) }}
+
+            - name: Setup Nodejs
+              uses: actions/setup-node@v4
+              with:
+                  node-version: '20.x'
+                  registry-url: 'https://registry.npmjs.org'
+                  scope: '@aws'
+              if: ${{ fromJson(steps.release.outputs.releases_created) }}
+
+            - name: Set token
+              run: echo "NODE_AUTH_TOKEN=${{ env.NPMJS_GITHUB_AUTOMATION_TOKEN }}" >> $GITHUB_ENV
+              if: ${{ fromJson(steps.release.outputs.releases_created) }}
+
+            - name: Compile and test packages
+              run: |
+                  npm clean-install
+                  npm run compile
+              if: ${{ fromJson(steps.release.outputs.releases_created) }}
+
+            - name: Publish Chat Client to npm
+              run: npm publish --workspace chat-client
+              if: ${{ steps.release.outputs['chat-client--release_created'] }}
+
+            - name: Publish LSP Core to npm
+              run: npm publish --workspace core/aws-lsp-core
+              if: ${{ steps.release.outputs['core/aws-lsp-core--release_created'] }}
+
+            - name: Publish LSP ANTLR4 to npm
+              run: npm publish --workspace server/aws-lsp-antlr4
+              if: ${{ steps.release.outputs['server/aws-lsp-antlr4--release_created'] }}
+
+            - name: Publish LSP Codewhisperer to npm
+              run: npm publish --workspace server/aws-lsp-codewhisperer
+              if: ${{ steps.release.outputs['server/aws-lsp-codewhisperer--release_created'] }}
+
+            - name: Publish LSP JSON to npm
+              run: npm publish --workspace server/aws-lsp-json
+              if: ${{ steps.release.outputs['server/aws-lsp-json--release_created'] }}
+
+            - name: Publish LSP PartiQL to npm
+              run: npm publish --workspace server/aws-lsp-partiql
+              if: ${{ steps.release.outputs['server/aws-lsp-partiql--release_created'] }}
+
+            - name: Publish LSP Yaml to npm
+              run: npm publish --workspace server/aws-lsp-yaml
+              if: ${{ steps.release.outputs['server/aws-lsp-yaml--release_created'] }}
