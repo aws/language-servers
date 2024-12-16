@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.1.0](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.18...lsp-codewhisperer/v0.1.0) (2024-12-16)
+
+
+### ⚠ BREAKING CHANGES
+
+* **chat-client:** add legal disclaimer with acknowledgement button ([#664](https://github.com/aws/language-servers/issues/664))
+
+### Features
+
+* **chat-client:** add legal disclaimer with acknowledgement button ([#664](https://github.com/aws/language-servers/issues/664)) ([30ec14a](https://github.com/aws/language-servers/commit/30ec14a11a4f9544d6b36a0196097b4425670937))
+
 ## [0.0.18] - 2024-11-20
 
 ### Changed
