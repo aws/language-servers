@@ -200,7 +200,7 @@ export class ChatController implements ChatHandlers {
             return
         }
 
-        const cursorPosition = params.cursorPosition
+        let cursorPosition = params.cursorPosition
 
         const indentRange = {
             start: { line: cursorPosition.line, character: 0 },
@@ -212,9 +212,23 @@ export class ChatController implements ChatHandlers {
             indent = ' '.repeat(indent.length - indent.trimStart().length)
         }
 
+        // When text content at indent range is undefined or empty but the cursor is not at position 0
+        // It means there are virtual spaces that is being rendered by the IDE
+        // In this case, the indentation is determined by the cursorPosition
+        let hasVirtualSpace = false
+        if ((isNullish(indent) || !indent) && cursorPosition.character > 0) {
+            this.#log('Indent is nullish and the cursor position is greater than zero while inserting code')
+            indent = ' '.repeat(cursorPosition.character)
+            hasVirtualSpace = true
+            cursorPosition.character = 0
+        }
+
         let textWithIndent = ''
         params.code.split('\n').forEach((line, index) => {
             if (index === 0) {
+                if (hasVirtualSpace) {
+                    textWithIndent += indent
+                }
                 textWithIndent += line
             } else {
                 textWithIndent += '\n' + indent + line
