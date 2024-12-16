@@ -1,5 +1,5 @@
 {
-    "bootstrap-sha": "facc9238e557af8daac49798922ffa67836104cb",
+    "bootstrap-sha": "30ec14a11a4f9544d6b36a0196097b4425670937",
     "bump-minor-pre-major": true,
     "bump-patch-for-minor-pre-major": true,
     "always-link-local": false,
