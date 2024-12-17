@@ -218,6 +218,7 @@ export class ChatController implements ChatHandlers {
         let hasVirtualSpace = false
         if ((isNullish(indent) || !indent) && cursorPosition.character > 0) {
             this.#log('Indent is nullish and the cursor position is greater than zero while inserting code')
+            this.#log('Cursor position before insertion:', JSON.stringify(cursorPosition))
             indent = ' '.repeat(cursorPosition.character)
             hasVirtualSpace = true
             cursorPosition.character = 0
@@ -231,7 +232,11 @@ export class ChatController implements ChatHandlers {
                 }
                 textWithIndent += line
             } else {
-                textWithIndent += '\n' + indent + line
+                if (line == '') {
+                    textWithIndent += '\n'
+                } else {
+                    textWithIndent += '\n' + indent + line
+                }
             }
         })
 
