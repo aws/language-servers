@@ -9,6 +9,8 @@ export const HELLO_WORLD_IN_CSHARP = `class HelloWorld
     }
 }`
 
+export const SPECIAL_CHARACTER_HELLO_WORLD = `{class HelloWorld`
+
 export const HELLO_WORLD_WITH_WINDOWS_ENDING = HELLO_WORLD_IN_CSHARP.replaceAll('\n', '\r\n')
 
 export const SOME_FILE = TextDocument.create('file:///test.cs', 'csharp', 1, HELLO_WORLD_IN_CSHARP)

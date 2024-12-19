@@ -33,6 +33,7 @@ import {
     SOME_FILE_WITH_EXTENSION,
     SOME_SINGLE_LINE_FILE,
     SOME_UNSUPPORTED_FILE,
+    SPECIAL_CHARACTER_HELLO_WORLD,
 } from './testUtils'
 import { CodeDiffTracker } from './telemetry/codeDiffTracker'
 import { TelemetryService } from './telemetryService'
@@ -920,6 +921,34 @@ describe('CodeWhisperer Server', () => {
 
         afterEach(() => {
             features.dispose()
+        })
+
+        it('should return recommendations even on a below-threshold auto-trigger position when special characters are present', async () => {
+            const SOME_FILE = TextDocument.create('file:///test.cs', 'csharp', 1, SPECIAL_CHARACTER_HELLO_WORLD)
+            features.openDocument(SOME_FILE)
+
+            const result = await features.doInlineCompletionWithReferences(
+                {
+                    textDocument: { uri: SOME_FILE.uri },
+                    position: { line: 0, character: 1 },
+                    context: { triggerKind: InlineCompletionTriggerKind.Automatic },
+                },
+                CancellationToken.None
+            )
+
+            assert.deepEqual(result, EXPECTED_RESULT)
+
+            const expectedGenerateSuggestionsRequest = {
+                fileContext: {
+                    filename: SOME_FILE.uri,
+                    programmingLanguage: { languageName: 'csharp' },
+                    leftFileContent: SPECIAL_CHARACTER_HELLO_WORLD.substring(0, 1),
+                    rightFileContent: SPECIAL_CHARACTER_HELLO_WORLD.substring(1, SPECIAL_CHARACTER_HELLO_WORLD.length),
+                },
+                maxResults: 1,
+                supplementalContexts: [],
+            }
+            sinon.assert.calledOnceWithExactly(service.generateSuggestions, expectedGenerateSuggestionsRequest)
         })
 
         it('should return recommendations on an above-threshold auto-trigger position', async () => {
