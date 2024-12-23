@@ -235,14 +235,6 @@ export abstract class BaseConnector {
         })
     }
 
-    onTabOpen = (tabID: string): void => {
-        this.sendMessageToExtension({
-            tabID,
-            command: 'new-tab-was-created',
-            tabType: this.getTabType(),
-        })
-    }
-
     protected sendTriggerMessageProcessed = async (requestID: any): Promise<void> => {
         this.sendMessageToExtension({
             command: 'trigger-message-processed',

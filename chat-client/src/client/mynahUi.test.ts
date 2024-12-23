@@ -46,7 +46,7 @@ describe('MynahUI', () => {
         const tabFactory = new TabFactory({})
         createTabStub = sinon.stub(tabFactory, 'createTab')
         createTabStub.returns({})
-        const mynahUiResult = createMynahUi(messager, tabFactory)
+        const mynahUiResult = createMynahUi(messager, tabFactory, false)
         mynahUi = mynahUiResult[0]
         inboundChatApi = mynahUiResult[1]
         getSelectedTabIdStub = sinon.stub(mynahUi, 'getSelectedTabId')

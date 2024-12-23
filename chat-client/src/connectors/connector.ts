@@ -28,6 +28,7 @@ export interface CodeReference {
 // NOTE: This class would NOT be an exact copy, e.g.:
 // - it will be adapted to the fact that it needs to pick only feature-specific incoming messages
 // (handleMessageReceive -> tryHandleMessageReceive)
+// - case with onTabChange and `prevTabID` below
 export class Connector {
     private readonly gumbyChatConnector: GumbyChatConnector
     private readonly tabsStorage: TabsStorage
@@ -38,14 +39,8 @@ export class Connector {
     }
 
     tryHandleMessageReceive = async (message: MessageEvent): Promise<boolean> => {
-        if (message.data === undefined) {
-            return false
-        }
-
-        // TODO: potential json parsing error exists. Need to determine the failing case.
-        const messageData = JSON.parse(message.data)
-
-        if (messageData === undefined) {
+        const messageData = message.data
+        if (!messageData?.sender) {
             return false
         }
 
@@ -57,5 +52,73 @@ export class Connector {
         this.tabsStorage.updateTabLastCommand(messageData.tabID, '')
 
         return true
+    }
+
+    requestAnswer = (tabID: string, payload: ChatPayload) => {
+        switch (this.tabsStorage.getTab(tabID)?.type) {
+            case 'gumby':
+                return this.gumbyChatConnector.requestAnswer(tabID, payload)
+        }
+    }
+
+    transform = (tabID: string): void => {
+        this.gumbyChatConnector.transform(tabID)
+    }
+
+    clearChat = (tabID: string): void => {
+        switch (this.tabsStorage.getTab(tabID)?.type) {
+            case 'gumby':
+                this.gumbyChatConnector.clearChat(tabID)
+                break
+        }
+    }
+
+    onCustomFormAction = (tabId: string, action: any): void | undefined => {
+        switch (this.tabsStorage.getTab(tabId)?.type) {
+            case 'gumby':
+                this.gumbyChatConnector.onCustomFormAction(tabId, action)
+                break
+            // NOTE: below code would need to migrate to base chat to reach feature parity
+            // case 'cwc':
+            //     if (action.id === `open-settings`) {
+            //         this.sendMessageToExtension({
+            //             command: 'open-settings',
+            //             type: '',
+            //             tabType: 'cwc',
+            //         })
+            //     }
+        }
+    }
+
+    onUpdateTabType = (tabID: string) => {
+        const tab = this.tabsStorage.getTab(tabID)
+        switch (tab?.type) {
+            case 'gumby':
+                this.gumbyChatConnector.onTabAdd(tabID)
+                break
+        }
+    }
+
+    onTabRemove = (tabID: string): void => {
+        const tab = this.tabsStorage.getTab(tabID)
+        this.tabsStorage.deleteTab(tabID)
+        switch (tab?.type) {
+            case 'gumby':
+                this.gumbyChatConnector.onTabRemove(tabID)
+                break
+        }
+    }
+
+    onTabChange = (tabId: string): void => {
+        // NOTE: 'prevTabID' for transform is always undefined
+        // const prevTabID = this.tabsStorage.setSelectedTab(tabId)
+        this.gumbyChatConnector.onTabChange(tabId, undefined)
+    }
+
+    onResponseBodyLinkClick = (tabID: string, messageId: string, link: string): void => {
+        switch (this.tabsStorage.getTab(tabID)?.type) {
+            case 'gumby':
+                this.gumbyChatConnector.onResponseBodyLinkClick(tabID, messageId, link)
+        }
     }
 }

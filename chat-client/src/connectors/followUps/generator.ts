@@ -43,4 +43,21 @@ export class FollowUpGenerator {
                 }
         }
     }
+
+    public generateWelcomeBlockForTab(tabType: TabType): FollowUpsBlock {
+        return {
+            text: 'Try Examples:',
+            options: [
+                {
+                    pillText: 'Explain selected code',
+                    prompt: 'Explain selected code',
+                    type: 'init-prompt',
+                },
+                {
+                    pillText: 'How can Amazon Q help me?',
+                    type: 'help',
+                },
+            ],
+        }
+    }
 }

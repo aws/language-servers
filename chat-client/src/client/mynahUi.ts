@@ -33,7 +33,7 @@ import { VoteParams } from '../contracts/telemetry'
 import { Messager } from './messager'
 import { TabFactory } from './tabs/tabFactory'
 import { Connector } from '../connectors/connector'
-import { createFeaturesConnector } from './featuresConnector'
+import { connectorFactory } from '../connectors/connectorFactory'
 
 export interface InboundChatApi {
     addChatResponse(params: ChatResult, tabId: string, isPartialResult: boolean): void
@@ -96,11 +96,12 @@ export const handleChatPrompt = (
 export const createMynahUi = (
     messager: Messager,
     tabFactory: TabFactory,
-    supportFeaturesThroughConnectors: boolean
+    supportFeaturesThroughConnectors: boolean,
+    connectorsPostMessage?: (msg: any) => void
 ): [MynahUI, InboundChatApi, Connector | undefined] => {
     const initialTabId = TabFactory.generateUniqueId()
 
-    const mynahUiProps: MynahUIProps = {
+    let mynahUiProps: MynahUIProps = {
         onCodeInsertToCursorPosition(
             tabId,
             messageId,
@@ -266,9 +267,12 @@ export const createMynahUi = (
         },
     }
 
-    // NOTE: 0. Extend MynahUI with connector-specific handlers
     const mynahUiRef = { mynahUI: undefined as MynahUI | undefined }
-    const featuresConnector = supportFeaturesThroughConnectors ? createFeaturesConnector(mynahUiRef) : undefined
+    let featuresConnector: Connector | undefined
+    if (supportFeaturesThroughConnectors) {
+        // NOTE: 00. Extend MynahUI with connector-specific handlers
+        ;[featuresConnector, mynahUiProps] = connectorFactory(mynahUiProps, mynahUiRef, connectorsPostMessage!)
+    }
 
     const mynahUi = new MynahUI(mynahUiProps)
     mynahUiRef.mynahUI = mynahUi

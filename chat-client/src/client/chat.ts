@@ -58,7 +58,8 @@ type ChatClientConfig = Pick<MynahUIDataModel, 'quickActionCommands'>
 export const createChat = (
     clientApi: { postMessage: (msg: UiMessage | ServerMessage) => void },
     config?: ChatClientConfig,
-    supportFeaturesThroughConnectors: boolean = false
+    supportFeaturesThroughConnectors: boolean = false,
+    connectorsConfig?: ChatClientConfig
 ) => {
     // eslint-disable-next-line semi
     let mynahApi: InboundChatApi
@@ -68,15 +69,17 @@ export const createChat = (
         clientApi.postMessage(message)
     }
 
-    const handleMessage = (event: MessageEvent): void => {
-        // NOTE: 1. Route incoming messages
-        if (connector?.tryHandleMessageReceive(event)) {
-            return
-        }
-
+    const handleMessage = async (event: MessageEvent): Promise<void> => {
+        console.log('Received message from IDE: ', event.data)
         if (event.data === undefined) {
             return
         }
+
+        // NOTE: 01. Route incoming messages
+        if (await connector?.tryHandleMessageReceive(event)) {
+            return
+        }
+
         const message = event.data
 
         switch (message?.command) {
@@ -94,15 +97,13 @@ export const createChat = (
                 break
             case CHAT_OPTIONS: {
                 const params = (message as ChatOptionsMessage).params
-                const chatConfig: ChatClientConfig = params?.quickActions?.quickActionsCommandGroups
-                    ? { quickActionCommands: params.quickActions.quickActionsCommandGroups }
-                    : {}
-
-                tabFactory.updateDefaultTabData(chatConfig)
+                if (params?.quickActions?.quickActionsCommandGroups) {
+                    tabFactory.updateQuickActionCommands(params?.quickActions?.quickActionsCommandGroups)
+                }
 
                 const allExistingTabs: MynahUITabStoreModel = mynahUi.getAllTabs()
                 for (const tabId in allExistingTabs) {
-                    mynahUi.updateStore(tabId, chatConfig)
+                    mynahUi.updateStore(tabId, tabFactory.getDefaultTabData())
                 }
                 break
             }
@@ -165,12 +166,19 @@ export const createChat = (
     }
 
     const messager = new Messager(chatApi)
-    const tabFactory = new TabFactory({
-        ...DEFAULT_TAB_DATA,
-        ...(config?.quickActionCommands ? { quickActionCommands: config.quickActionCommands } : {}),
-    })
-
-    const [mynahUi, api, featuresConnector] = createMynahUi(messager, tabFactory, supportFeaturesThroughConnectors)
+    const tabFactory = new TabFactory(DEFAULT_TAB_DATA, [
+        ...(config?.quickActionCommands ? config.quickActionCommands : []),
+        ...(connectorsConfig?.quickActionCommands ? connectorsConfig.quickActionCommands : []),
+    ])
+    const [mynahUi, api, featuresConnector] = createMynahUi(
+        messager,
+        tabFactory,
+        // NOTE 03: below is for connectors only
+        // messages sent to connector apps can be differentiated by `tabType` present on level 0,
+        // extensions will have to be aware of this
+        supportFeaturesThroughConnectors,
+        clientApi.postMessage
+    )
 
     mynahApi = api
     connector = featuresConnector
