@@ -373,15 +373,18 @@ export const CodewhispererServerFactory =
                     token
                 )
 
+                // supplementalContext available only via token authentication
                 const requestContext: GenerateSuggestionsRequest = {
                     fileContext,
                     maxResults,
-                    supplementalContexts: supplementalContext?.supplementalContextItems
-                        ? supplementalContext.supplementalContextItems.map(v => ({
-                              content: v.content,
-                              filePath: v.filePath,
-                          }))
-                        : [],
+                    ...(codeWhispererService instanceof CodeWhispererServiceToken && {
+                        supplementalContexts: supplementalContext?.supplementalContextItems
+                            ? supplementalContext.supplementalContextItems.map(v => ({
+                                  content: v.content,
+                                  filePath: v.filePath,
+                              }))
+                            : [],
+                    }),
                 }
 
                 // Close ACTIVE session and record Discard trigger decision immediately
@@ -603,9 +606,9 @@ export const CodewhispererServerFactory =
                         `Inline completion configuration updated to use ${codeWhispererService.customizationArn}`
                     )
                     /*
-                            The flag enableTelemetryEventsToDestination is set to true temporarily. It's value will be determined through destination
-                            configuration post all events migration to STE. It'll be replaced by qConfig['enableTelemetryEventsToDestination'] === true
-                         */
+                                The flag enableTelemetryEventsToDestination is set to true temporarily. It's value will be determined through destination
+                                configuration post all events migration to STE. It'll be replaced by qConfig['enableTelemetryEventsToDestination'] === true
+                             */
                     // const enableTelemetryEventsToDestination = true
                     // telemetryService.updateEnableTelemetryEventsToDestination(enableTelemetryEventsToDestination)
                     const optOutTelemetryPreference = qConfig['optOutTelemetry'] === true ? 'OPTOUT' : 'OPTIN'
