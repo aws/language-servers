@@ -478,34 +478,34 @@ describe('CodeWhisperer Server', () => {
 
         describe('Supplemental Context', () => {
             it('should send supplemental context when using token authentication', async () => {
-                service = sinon.createStubInstance(
+                const test_service = sinon.createStubInstance(
                     CodeWhispererServiceToken
                 ) as StubbedInstance<CodeWhispererServiceToken>
 
-                service.generateSuggestions.returns(
+                test_service.generateSuggestions.returns(
                     Promise.resolve({
                         suggestions: EXPECTED_SUGGESTION,
                         responseContext: EXPECTED_RESPONSE_CONTEXT,
                     })
                 )
 
-                server = CodewhispererServerFactory(_auth => service)
+                const test_server = CodewhispererServerFactory(_auth => test_service)
 
                 // Initialize the features, but don't start server yet
-                features = new TestFeatures()
+                const test_features = new TestFeatures()
 
                 // Return no specific configuration for CodeWhisperer
-                features.lsp.workspace.getConfiguration.returns(Promise.resolve({}))
+                test_features.lsp.workspace.getConfiguration.returns(Promise.resolve({}))
 
                 // Start the server and open a document
-                await features.start(server)
+                await test_features.start(test_server)
 
                 // Open files supporting cross-file context
-                features
+                test_features
                     .openDocument(TextDocument.create('file:///SampleFile.java', 'java', 1, 'sample-content'))
                     .openDocument(TextDocument.create('file:///TargetFile.java', 'java', 1, ''))
 
-                await features.doInlineCompletionWithReferences(
+                await test_features.doInlineCompletionWithReferences(
                     {
                         textDocument: { uri: 'file:///TargetFile.java' },
                         position: Position.create(0, 0),
@@ -527,7 +527,9 @@ describe('CodeWhisperer Server', () => {
                         { content: 'sample-content', filePath: '/SampleFile.java' },
                     ],
                 }
-                sinon.assert.calledOnceWithExactly(service.generateSuggestions, expectedGenerateSuggestionsRequest)
+                sinon.assert.calledOnceWithExactly(test_service.generateSuggestions, expectedGenerateSuggestionsRequest)
+
+                test_features.dispose()
             })
         })
 
