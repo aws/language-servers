@@ -409,7 +409,8 @@ export const CodewhispererServerFactory =
                     classifierResult: autoTriggerResult?.classifierResult,
                     classifierThreshold: autoTriggerResult?.classifierThreshold,
                     credentialStartUrl: credentialsProvider.getConnectionMetadata?.()?.sso?.startUrl ?? undefined,
-                    supplementalMetadata: supplementalContext,
+                    supplementalMetadata:
+                        codeWhispererService instanceof CodeWhispererServiceToken ? supplementalContext : undefined,
                     customizationArn: undefinedIfEmpty(codeWhispererService.customizationArn),
                 })
 
@@ -606,9 +607,9 @@ export const CodewhispererServerFactory =
                         `Inline completion configuration updated to use ${codeWhispererService.customizationArn}`
                     )
                     /*
-                                The flag enableTelemetryEventsToDestination is set to true temporarily. It's value will be determined through destination
-                                configuration post all events migration to STE. It'll be replaced by qConfig['enableTelemetryEventsToDestination'] === true
-                             */
+                                    The flag enableTelemetryEventsToDestination is set to true temporarily. It's value will be determined through destination
+                                    configuration post all events migration to STE. It'll be replaced by qConfig['enableTelemetryEventsToDestination'] === true
+                                 */
                     // const enableTelemetryEventsToDestination = true
                     // telemetryService.updateEnableTelemetryEventsToDestination(enableTelemetryEventsToDestination)
                     const optOutTelemetryPreference = qConfig['optOutTelemetry'] === true ? 'OPTOUT' : 'OPTIN'
