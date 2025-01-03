@@ -11,7 +11,12 @@ import * as assert from 'assert'
 import { AWSError } from 'aws-sdk'
 import sinon, { StubbedInstance, stubInterface } from 'ts-sinon'
 import { CONTEXT_CHARACTERS_LIMIT, CodewhispererServerFactory } from './codeWhispererServer'
-import { CodeWhispererServiceBase, ResponseContext, Suggestion } from './codeWhispererService'
+import {
+    CodeWhispererServiceBase,
+    CodeWhispererServiceToken,
+    ResponseContext,
+    Suggestion,
+} from './codeWhispererService'
 import { CodeWhispererSession, SessionData, SessionManager } from './session/sessionManager'
 import {
     EMPTY_RESULT,
@@ -128,7 +133,6 @@ describe('CodeWhisperer Server', () => {
                     rightFileContent: HELLO_WORLD_IN_CSHARP,
                 },
                 maxResults: 5,
-                supplementalContexts: [],
             }
             sinon.assert.calledOnceWithExactly(service.generateSuggestions, expectedGenerateSuggestionsRequest)
         })
@@ -159,7 +163,6 @@ describe('CodeWhisperer Server', () => {
                     rightFileContent: remainingLines,
                 },
                 maxResults: 5,
-                supplementalContexts: [],
             }
             sinon.assert.calledOnceWithExactly(service.generateSuggestions, expectedGenerateSuggestionsRequest)
         })
@@ -214,7 +217,6 @@ describe('CodeWhisperer Server', () => {
                     rightFileContent: HELLO_WORLD_IN_CSHARP,
                 },
                 maxResults: 5,
-                supplementalContexts: [],
             }
             sinon.assert.calledOnceWithExactly(service.generateSuggestions, expectedGenerateSuggestionsRequest)
         })
@@ -272,7 +274,6 @@ describe('CodeWhisperer Server', () => {
                     rightFileContent: HELLO_WORLD_IN_CSHARP,
                 },
                 maxResults: 5,
-                supplementalContexts: [],
             }
 
             // Check the service was called with the right parameters
@@ -356,7 +357,6 @@ describe('CodeWhisperer Server', () => {
                     rightFileContent: rightContext,
                 },
                 maxResults: 5,
-                supplementalContexts: [],
             }
             sinon.assert.calledOnceWithExactly(service.generateSuggestions, expectedGenerateSuggestionsRequest)
         })
@@ -392,7 +392,6 @@ describe('CodeWhisperer Server', () => {
                     rightFileContent: modifiedRightContext,
                 },
                 maxResults: 5,
-                supplementalContexts: [],
             }
             sinon.assert.calledOnceWithExactly(service.generateSuggestions, expectedGenerateSuggestionsRequest)
         })
@@ -478,8 +477,30 @@ describe('CodeWhisperer Server', () => {
         })
 
         describe('Supplemental Context', () => {
-            it('should send supplemental context', async () => {
-                // Open 3 files supporting cross-file context
+            it('should send supplemental context when using token authentication', async () => {
+                service = sinon.createStubInstance(
+                    CodeWhispererServiceToken
+                ) as StubbedInstance<CodeWhispererServiceToken>
+
+                service.generateSuggestions.returns(
+                    Promise.resolve({
+                        suggestions: EXPECTED_SUGGESTION,
+                        responseContext: EXPECTED_RESPONSE_CONTEXT,
+                    })
+                )
+
+                server = CodewhispererServerFactory(_auth => service)
+
+                // Initialize the features, but don't start server yet
+                features = new TestFeatures()
+
+                // Return no specific configuration for CodeWhisperer
+                features.lsp.workspace.getConfiguration.returns(Promise.resolve({}))
+
+                // Start the server and open a document
+                await features.start(server)
+
+                // Open files supporting cross-file context
                 features
                     .openDocument(TextDocument.create('file:///SampleFile.java', 'java', 1, 'sample-content'))
                     .openDocument(TextDocument.create('file:///TargetFile.java', 'java', 1, ''))
@@ -946,7 +967,6 @@ describe('CodeWhisperer Server', () => {
                     rightFileContent: SPECIAL_CHARACTER_HELLO_WORLD.substring(1, SPECIAL_CHARACTER_HELLO_WORLD.length),
                 },
                 maxResults: 1,
-                supplementalContexts: [],
             }
             sinon.assert.calledOnceWithExactly(service.generateSuggestions, expectedGenerateSuggestionsRequest)
         })
@@ -979,7 +999,6 @@ describe('CodeWhisperer Server', () => {
                     rightFileContent: RIGHT_FILE_CONTEXT,
                 },
                 maxResults: 1,
-                supplementalContexts: [],
             }
             sinon.assert.calledOnceWithExactly(service.generateSuggestions, expectedGenerateSuggestionsRequest)
         })
