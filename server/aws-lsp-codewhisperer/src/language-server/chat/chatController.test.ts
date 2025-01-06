@@ -566,6 +566,90 @@ describe('ChatController', () => {
             assert.deepStrictEqual(insertedText, `const x = 1;\n${' '.repeat(12)}const y = 2;`)
         })
 
+        it('handles code starting with multiple blank lines correctly', async () => {
+            // Create a document with some existing indentation
+            const documentContent = `${' '.repeat(4)}const existingCode = true;`
+            const document: TextDocument = TextDocument.create('test.ts', 'typescript', 1, documentContent)
+            testFeatures.workspace.getTextDocument.resolves(document)
+
+            // Position cursor at an indented position
+            const cursorPosition = Position.create(0, 4)
+            const params: InsertToCursorPositionParams = {
+                textDocument: { uri: 'test.ts' },
+                cursorPosition,
+                // Code starts with 3 blank lines, followed by actual code
+                code: '\n\n\nfunction test() {\n    console.log("test");\n}',
+                tabId: mockTabId,
+                messageId: 'XXX',
+            }
+            await chatController.onCodeInsertToCursorPosition(params)
+
+            const documentChanges = testFeatures.lsp.workspace.applyWorkspaceEdit.firstCall.args[0].edit.documentChanges
+            assert(documentChanges)
+            const insertedText = (documentChanges[0] as TextDocumentEdit).edits[0].newText
+            // The blank lines should have no indentation
+            // Only the actual code lines should be indented
+            // First three lines should be empty with no indentation
+            // Following lines should have the indentation
+            assert.deepStrictEqual(
+                insertedText,
+                `\n\n\n${' '.repeat(4)}function test() {\n${' '.repeat(8)}console.log("test");\n${' '.repeat(4)}}`
+            )
+        })
+
+        it('handles insertion of code with multiple leading blank lines into empty document at position 0', async () => {
+            const documentContent = ''
+            const document: TextDocument = TextDocument.create('test.py', 'python', 1, documentContent)
+            testFeatures.workspace.getTextDocument.resolves(document)
+
+            const cursorPosition = Position.create(0, 0)
+            const params: InsertToCursorPositionParams = {
+                textDocument: { uri: 'test.ts' },
+                cursorPosition,
+                // Code with 5 blank lines at the beginning
+                code: '\n\n\n\n\ndef multiply(x, y):\n    result = x * y\n    return result\n\nprint(multiply(4, 5))',
+                tabId: mockTabId,
+                messageId: 'XXX',
+            }
+
+            await chatController.onCodeInsertToCursorPosition(params)
+
+            const documentChanges = testFeatures.lsp.workspace.applyWorkspaceEdit.firstCall.args[0].edit.documentChanges
+            assert(documentChanges)
+            const insertedText = (documentChanges[0] as TextDocumentEdit).edits[0].newText
+            // Since document is empty and cursor is at 0,0:
+            // - Leading blank lines should be preserved exactly as is
+            // - No additional indentation should be added to any lines
+            assert.deepStrictEqual(insertedText, params.code)
+        })
+
+        it('handles undefined document content correctly', async () => {
+            testFeatures.workspace.getTextDocument.resolves(undefined)
+
+            const cursorPosition = Position.create(0, 0)
+            const params: InsertToCursorPositionParams = {
+                textDocument: { uri: 'test.ts' },
+                cursorPosition,
+                code: 'const x = 1;\nconst y = 2;',
+                tabId: mockTabId,
+                messageId: 'XXX',
+            }
+
+            await chatController.onCodeInsertToCursorPosition(params)
+
+            // When document content is undefined, the code should:
+            // 1. Still attempt to insert the code
+            // 2. Not add any indentation
+
+            const documentChanges = testFeatures.lsp.workspace.applyWorkspaceEdit.firstCall.args[0].edit.documentChanges
+            assert(documentChanges)
+            const edit = (documentChanges[0] as TextDocumentEdit).edits[0]
+
+            assert.deepStrictEqual(edit.newText, params.code)
+            assert.deepStrictEqual(edit.range.start, cursorPosition)
+            assert.deepStrictEqual(edit.range.end, cursorPosition)
+        })
+
         it('handles indentation correctly when inserting after an indent', async () => {
             // Text document contains 8 space characters
             const documentContent = ' '.repeat(8)
