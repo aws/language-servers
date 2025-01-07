@@ -1,6 +1,7 @@
 import { CredentialsProvider } from '@aws/language-server-runtimes/server-interface'
 import { Result } from '../types'
 import { ChatSessionService, ChatSessionServiceConfig } from './chatSessionService'
+import { DEFAULT_AWS_Q_REGION, DEFAULT_AWS_Q_ENDPOINT_URL } from '../../constants'
 
 export class ChatSessionManagementService {
     static #instance?: ChatSessionManagementService
@@ -8,6 +9,8 @@ export class ChatSessionManagementService {
     #credentialsProvider?: CredentialsProvider
     #clientConfig?: ChatSessionServiceConfig | (() => ChatSessionServiceConfig) = {}
     #customUserAgent?: string = '%Amazon-Q-For-LanguageServers%'
+    #codeWhispererRegion: string = DEFAULT_AWS_Q_REGION
+    #codeWhispererEndpoint: string = DEFAULT_AWS_Q_ENDPOINT_URL
 
     public static getInstance() {
         if (!ChatSessionManagementService.#instance) {
@@ -39,6 +42,14 @@ export class ChatSessionManagementService {
         this.#customUserAgent = customUserAgent
     }
 
+    public setCodeWhispererRegion(codeWhispererRegion: string) {
+        this.#codeWhispererRegion = codeWhispererRegion
+    }
+
+    public setCodeWhispererEndpoint(codeWhispererEndpoint: string) {
+        this.#codeWhispererEndpoint = codeWhispererEndpoint
+    }
+
     public hasSession(tabId: string): boolean {
         return this.#sessionByTab.has(tabId)
     }
@@ -57,10 +68,15 @@ export class ChatSessionManagementService {
         }
 
         const clientConfig = typeof this.#clientConfig === 'function' ? this.#clientConfig() : this.#clientConfig
-        const newSession = new ChatSessionService(this.#credentialsProvider, {
-            ...clientConfig,
-            customUserAgent: this.#customUserAgent,
-        })
+        const newSession = new ChatSessionService(
+            this.#credentialsProvider,
+            this.#codeWhispererRegion,
+            this.#codeWhispererEndpoint,
+            {
+                ...clientConfig,
+                customUserAgent: this.#customUserAgent,
+            }
+        )
 
         this.#sessionByTab.set(tabId, newSession)
 

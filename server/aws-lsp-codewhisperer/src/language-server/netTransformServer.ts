@@ -45,6 +45,8 @@ const PollTransformForPlanCommand = 'aws/qNetTransform/pollTransformForPlan'
 const GetTransformPlanCommand = 'aws/qNetTransform/getTransformPlan'
 const CancelTransformCommand = 'aws/qNetTransform/cancelTransform'
 const DownloadArtifactsCommand = 'aws/qNetTransform/downloadArtifacts'
+import { DEFAULT_AWS_Q_REGION, DEFAULT_AWS_Q_ENDPOINT_URL } from '../constants'
+
 /**
  *
  * @param createService Inject service instance based on credentials provider.
@@ -109,6 +111,8 @@ export const QNetTransformServerToken =
                         const cwStreamingClientInstance = new StreamingClient()
                         const cwStreamingClient = await cwStreamingClientInstance.getStreamingClient(
                             credentialsProvider,
+                            runtime.getEnvironmentConfiguration('AWS_Q_REGION') ?? DEFAULT_AWS_Q_REGION,
+                            runtime.getEnvironmentConfiguration('AWS_Q_ENDPOINT_URL') ?? DEFAULT_AWS_Q_ENDPOINT_URL,
                             customCWClientConfig
                         )
 

@@ -277,6 +277,17 @@ export const CodewhispererServerFactory =
             codeWhispererService.updateClientConfig({
                 customUserAgent: getUserAgent(params, runtime.serverInfo),
             })
+
+            const awsQregion = runtime.getEnvironmentConfiguration('AWS_Q_REGION')
+            if (awsQregion) {
+                codeWhispererService.updateCodeWhispererRegion(awsQregion)
+            }
+
+            const awsQendpointUrl = runtime.getEnvironmentConfiguration('AWS_Q_ENDPOINT_URL')
+            if (awsQendpointUrl) {
+                codeWhispererService.updateCodeWhispererEndpoint(awsQendpointUrl)
+            }
+
             telemetryService.updateClientConfig({
                 customUserAgent: getUserAgent(params, runtime.serverInfo),
             })
@@ -603,9 +614,9 @@ export const CodewhispererServerFactory =
                         `Inline completion configuration updated to use ${codeWhispererService.customizationArn}`
                     )
                     /*
-                            The flag enableTelemetryEventsToDestination is set to true temporarily. It's value will be determined through destination
-                            configuration post all events migration to STE. It'll be replaced by qConfig['enableTelemetryEventsToDestination'] === true
-                         */
+                                The flag enableTelemetryEventsToDestination is set to true temporarily. It's value will be determined through destination
+                                configuration post all events migration to STE. It'll be replaced by qConfig['enableTelemetryEventsToDestination'] === true
+                             */
                     // const enableTelemetryEventsToDestination = true
                     // telemetryService.updateEnableTelemetryEventsToDestination(enableTelemetryEventsToDestination)
                     const optOutTelemetryPreference = qConfig['optOutTelemetry'] === true ? 'OPTOUT' : 'OPTIN'

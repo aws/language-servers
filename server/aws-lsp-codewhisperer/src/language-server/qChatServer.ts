@@ -17,6 +17,14 @@ export const QChatServer =
 
         lsp.addInitializer((params: InitializeParams) => {
             chatSessionManagementService.setCustomUserAgent(getUserAgent(params, runtime.serverInfo))
+            const awsQregion = runtime.getEnvironmentConfiguration('AWS_Q_REGION')
+            if (awsQregion) {
+                chatSessionManagementService.setCodeWhispererRegion(awsQregion)
+            }
+            const awsQendpointUrl = runtime.getEnvironmentConfiguration('AWS_Q_ENDPOINT_URL')
+            if (awsQendpointUrl) {
+                chatSessionManagementService.setCodeWhispererEndpoint(awsQendpointUrl)
+            }
             telemetryService.updateClientConfig({
                 customUserAgent: getUserAgent(params, runtime.serverInfo),
             })

@@ -42,14 +42,14 @@ export interface GenerateSuggestionsResponse {
 
 import CodeWhispererSigv4Client = require('../client/sigv4/codewhisperersigv4client')
 import CodeWhispererTokenClient = require('../client/token/codewhispererbearertokenclient')
-import { AWS_Q_ENDPOINT_URL, AWS_Q_REGION } from '../constants'
+import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../constants'
 import { makeProxyConfig } from './utils'
 
 // Right now the only difference between the token client and the IAM client for codewhsiperer is the difference in function name
 // This abstract class can grow in the future to account for any additional changes across the clients
 export abstract class CodeWhispererServiceBase {
-    protected readonly codeWhispererRegion = AWS_Q_REGION
-    protected readonly codeWhispererEndpoint = AWS_Q_ENDPOINT_URL
+    protected codeWhispererRegion = DEFAULT_AWS_Q_REGION
+    protected codeWhispererEndpoint = DEFAULT_AWS_Q_ENDPOINT_URL
     protected proxyConfig: ConfigurationOptions = {}
     public shareCodeWhispererContentWithAWS = false
     public customizationArn?: string
@@ -70,6 +70,14 @@ export abstract class CodeWhispererServiceBase {
      */
     public updateClientConfig(options: ConfigurationOptions) {
         this.client.config.update(options)
+    }
+
+    public updateCodeWhispererRegion(codeWhispererRegion: string) {
+        this.codeWhispererRegion = codeWhispererRegion
+    }
+
+    public updateCodeWhispererEndpoint(codeWhispererEndpoint: string) {
+        this.codeWhispererEndpoint = codeWhispererEndpoint
     }
 
     generateItemId = () => uuidv4()
