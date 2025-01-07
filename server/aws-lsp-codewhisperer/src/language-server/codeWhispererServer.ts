@@ -365,23 +365,26 @@ export const CodewhispererServerFactory =
                 ) {
                     return EMPTY_RESULT
                 }
-                const supplementalContext = await fetchSupplementalContext(
-                    textDocument,
-                    params.position,
-                    workspace,
-                    logging,
-                    token
-                )
 
-                const requestContext: GenerateSuggestionsRequest = {
+                // supplementalContext available only via token authentication
+                const supplementalContextPromise =
+                    codeWhispererService instanceof CodeWhispererServiceToken
+                        ? fetchSupplementalContext(textDocument, params.position, workspace, logging, token)
+                        : Promise.resolve(undefined)
+
+                let requestContext: GenerateSuggestionsRequest = {
                     fileContext,
                     maxResults,
-                    supplementalContexts: supplementalContext?.supplementalContextItems
+                }
+
+                const supplementalContext = await supplementalContextPromise
+                if (codeWhispererService instanceof CodeWhispererServiceToken) {
+                    requestContext.supplementalContexts = supplementalContext?.supplementalContextItems
                         ? supplementalContext.supplementalContextItems.map(v => ({
                               content: v.content,
                               filePath: v.filePath,
                           }))
-                        : [],
+                        : []
                 }
 
                 // Close ACTIVE session and record Discard trigger decision immediately
@@ -603,9 +606,9 @@ export const CodewhispererServerFactory =
                         `Inline completion configuration updated to use ${codeWhispererService.customizationArn}`
                     )
                     /*
-                            The flag enableTelemetryEventsToDestination is set to true temporarily. It's value will be determined through destination
-                            configuration post all events migration to STE. It'll be replaced by qConfig['enableTelemetryEventsToDestination'] === true
-                         */
+                                        The flag enableTelemetryEventsToDestination is set to true temporarily. It's value will be determined through destination
+                                        configuration post all events migration to STE. It'll be replaced by qConfig['enableTelemetryEventsToDestination'] === true
+                                     */
                     // const enableTelemetryEventsToDestination = true
                     // telemetryService.updateEnableTelemetryEventsToDestination(enableTelemetryEventsToDestination)
                     const optOutTelemetryPreference = qConfig['optOutTelemetry'] === true ? 'OPTOUT' : 'OPTIN'
