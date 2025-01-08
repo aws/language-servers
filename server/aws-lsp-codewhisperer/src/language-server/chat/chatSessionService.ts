@@ -11,8 +11,8 @@ import { getBearerTokenFromProvider } from '../utils'
 export type ChatSessionServiceConfig = CodeWhispererStreamingClientConfig
 export class ChatSessionService {
     public shareCodeWhispererContentWithAWS = false
-    #codeWhispererRegion: string
-    #codeWhispererEndpoint: string
+    readonly #codeWhispererRegion: string
+    readonly #codeWhispererEndpoint: string
     #abortController?: AbortController
     #credentialsProvider: CredentialsProvider
     #config?: CodeWhispererStreamingClientConfig

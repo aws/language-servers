@@ -10,8 +10,8 @@ export const QChatServer =
     (
         service: (
             credentialsProvider: CredentialsProvider,
-            awsQregion: string,
-            awsQendpointUrl: string
+            awsQRegion: string,
+            awsQEndpointUrl: string
         ) => ChatSessionManagementService
     ): Server =>
     features => {
