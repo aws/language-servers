@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.10](https://github.com/aws/language-servers/compare/chat-client/v0.0.9...chat-client/v0.0.10) (2025-01-08)
+
+
+### Features
+
+* **chat-client:** trigger release of new minor version ([#710](https://github.com/aws/language-servers/issues/710)) ([eb646dd](https://github.com/aws/language-servers/commit/eb646dd4cb633cea2709b397aa40b686fe528fc5))
+
 ## [0.1.0] - 2025-01-08
 
 ### Added
