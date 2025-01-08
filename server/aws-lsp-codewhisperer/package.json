@@ -30,7 +30,7 @@
         "@amzn/codewhisperer-streaming": "*",
         "@aws-sdk/util-retry": "^3.374.0",
         "@aws/chat-client-ui-types": "^0.1.0",
-        "@aws/language-server-runtimes": "^0.2.27",
+        "@aws/language-server-runtimes": "^0.2.30",
         "@gerhobbelt/gitignore-parser": "^0.2.0-9",
         "@smithy/node-http-handler": "^2.5.0",
         "adm-zip": "^0.5.10",
@@ -51,13 +51,13 @@
         "assert": "^2.1.0",
         "copyfiles": "^2.4.1",
         "mock-fs": "^5.2.0",
+        "sinon": "^19.0.2",
         "ts-loader": "^9.4.4",
         "ts-mocha": "^10.0.0",
         "ts-sinon": "^2.0.2",
         "vscode-languageserver-textdocument": "^1.0.11",
         "webpack": "^5.94.0",
-        "webpack-cli": "^5.1.4",
-        "sinon": "^19.0.2"
+        "webpack-cli": "^5.1.4"
     },
     "prettier": {
         "printWidth": 120,
