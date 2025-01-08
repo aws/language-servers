@@ -10,23 +10,31 @@ import { readFileSync } from 'fs'
 import { HttpsProxyAgent } from 'hpagent'
 import { NodeHttpHandler } from '@smithy/node-http-handler'
 
-export const CodeWhispererServerTokenProxy = CodewhispererServerFactory((credentialsProvider, workspace) => {
-    return new CodeWhispererServiceToken(credentialsProvider, workspace)
-})
+export const CodeWhispererServerTokenProxy = CodewhispererServerFactory(
+    (credentialsProvider, workspace, awsQRegion, awsQEndpointUrl) => {
+        return new CodeWhispererServiceToken(credentialsProvider, workspace, awsQRegion, awsQEndpointUrl)
+    }
+)
 
-export const CodeWhispererServerIAMProxy = CodewhispererServerFactory((credentialsProvider, workspace) => {
-    return new CodeWhispererServiceIAM(credentialsProvider, workspace)
-})
+export const CodeWhispererServerIAMProxy = CodewhispererServerFactory(
+    (credentialsProvider, workspace, awsQRegion, awsQEndpointUrl) => {
+        return new CodeWhispererServiceIAM(credentialsProvider, workspace, awsQRegion, awsQEndpointUrl)
+    }
+)
 
-export const CodeWhispererSecurityScanServerTokenProxy = SecurityScanServerToken((credentialsProvider, workspace) => {
-    return new CodeWhispererServiceToken(credentialsProvider, workspace)
-})
+export const CodeWhispererSecurityScanServerTokenProxy = SecurityScanServerToken(
+    (credentialsProvider, workspace, awsQRegion, awsQEndpointUrl) => {
+        return new CodeWhispererServiceToken(credentialsProvider, workspace, awsQRegion, awsQEndpointUrl)
+    }
+)
 
-export const QNetTransformServerTokenProxy = QNetTransformServerToken((credentialsProvider, workspace) => {
-    return new CodeWhispererServiceToken(credentialsProvider, workspace)
-})
+export const QNetTransformServerTokenProxy = QNetTransformServerToken(
+    (credentialsProvider, workspace, awsQRegion, awsQEndpointUrl) => {
+        return new CodeWhispererServiceToken(credentialsProvider, workspace, awsQRegion, awsQEndpointUrl)
+    }
+)
 
-export const QChatServerProxy = QChatServer(credentialsProvider => {
+export const QChatServerProxy = QChatServer((credentialsProvider, awsQRegion, awsQEndpointUrl) => {
     let clientOptions: ChatSessionServiceConfig | undefined
 
     const proxyUrl = process.env.HTTPS_PROXY ?? process.env.https_proxy
@@ -51,9 +59,13 @@ export const QChatServerProxy = QChatServer(credentialsProvider => {
 
     return ChatSessionManagementService.getInstance()
         .withCredentialsProvider(credentialsProvider)
+        .withCodeWhispererEndpoint(awsQEndpointUrl)
+        .withCodeWhispererRegion(awsQRegion)
         .withConfig(clientOptions)
 })
 
-export const QConfigurationServerTokenProxy = QConfigurationServerToken((credentialsProvider, workspace) => {
-    return new CodeWhispererServiceToken(credentialsProvider, workspace)
-})
+export const QConfigurationServerTokenProxy = QConfigurationServerToken(
+    (credentialsProvider, workspace, awsQRegion, awsQEndpointUrl) => {
+        return new CodeWhispererServiceToken(credentialsProvider, workspace, awsQRegion, awsQEndpointUrl)
+    }
+)

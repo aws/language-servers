@@ -1,17 +1,23 @@
 import { CodeWhispererStreaming, CodeWhispererStreamingClientConfig } from '@amzn/codewhisperer-streaming'
 import { ConfiguredRetryStrategy } from '@aws-sdk/util-retry'
 import { readFileSync } from 'fs'
-import { AWS_Q_REGION, AWS_Q_ENDPOINT_URL } from '../../constants'
 import { NodeHttpHandler } from '@smithy/node-http-handler'
 import { HttpsProxyAgent } from 'hpagent'
 
 export class StreamingClient {
-    public async getStreamingClient(credentialsProvider: any, config?: CodeWhispererStreamingClientConfig) {
-        return await createStreamingClient(credentialsProvider, config)
+    public async getStreamingClient(
+        credentialsProvider: any,
+        codeWhispererRegion: string,
+        codeWhispererEndpoint: string,
+        config?: CodeWhispererStreamingClientConfig
+    ) {
+        return await createStreamingClient(credentialsProvider, codeWhispererRegion, codeWhispererEndpoint, config)
     }
 }
 export async function createStreamingClient(
     credentialsProvider: any,
+    codeWhispererRegion: string,
+    codeWhispererEndpoint: string,
     config?: CodeWhispererStreamingClientConfig
 ): Promise<CodeWhispererStreaming> {
     const creds = credentialsProvider.getCredentials('bearer')
@@ -35,8 +41,8 @@ export async function createStreamingClient(
     }
 
     const streamingClient = new CodeWhispererStreaming({
-        region: AWS_Q_REGION,
-        endpoint: AWS_Q_ENDPOINT_URL,
+        region: codeWhispererRegion,
+        endpoint: codeWhispererEndpoint,
         token: { token: creds.token },
         retryStrategy: new ConfiguredRetryStrategy(0, (attempt: number) => 500 + attempt ** 10),
         requestHandler: clientOptions?.requestHandler,

@@ -4,13 +4,24 @@ import { ChatSessionManagementService } from './chat/chatSessionManagementServic
 import { CLEAR_QUICK_ACTION, HELP_QUICK_ACTION } from './chat/quickActions'
 import { TelemetryService } from './telemetryService'
 import { getUserAgent, makeUserContextObject } from './utilities/telemetryUtils'
+import { DEFAULT_AWS_Q_REGION, DEFAULT_AWS_Q_ENDPOINT_URL } from '../constants'
 
 export const QChatServer =
-    (service: (credentialsProvider: CredentialsProvider) => ChatSessionManagementService): Server =>
+    (
+        service: (
+            credentialsProvider: CredentialsProvider,
+            awsQregion: string,
+            awsQendpointUrl: string
+        ) => ChatSessionManagementService
+    ): Server =>
     features => {
         const { chat, credentialsProvider, telemetry, logging, lsp, runtime, workspace } = features
 
-        const chatSessionManagementService: ChatSessionManagementService = service(credentialsProvider)
+        const chatSessionManagementService: ChatSessionManagementService = service(
+            credentialsProvider,
+            runtime.getConfiguration('AWS_Q_REGION') ?? DEFAULT_AWS_Q_REGION,
+            runtime.getConfiguration('AWS_Q_ENDPOINT_URL') ?? DEFAULT_AWS_Q_ENDPOINT_URL
+        )
         const telemetryService = new TelemetryService(credentialsProvider, 'bearer', telemetry, logging, workspace)
 
         const chatController = new ChatController(chatSessionManagementService, features, telemetryService)

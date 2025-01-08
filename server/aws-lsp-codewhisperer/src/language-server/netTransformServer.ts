@@ -45,15 +45,29 @@ const PollTransformForPlanCommand = 'aws/qNetTransform/pollTransformForPlan'
 const GetTransformPlanCommand = 'aws/qNetTransform/getTransformPlan'
 const CancelTransformCommand = 'aws/qNetTransform/cancelTransform'
 const DownloadArtifactsCommand = 'aws/qNetTransform/downloadArtifacts'
+import { DEFAULT_AWS_Q_REGION, DEFAULT_AWS_Q_ENDPOINT_URL } from '../constants'
+
 /**
  *
  * @param createService Inject service instance based on credentials provider.
  * @returns  NetTransform server
  */
 export const QNetTransformServerToken =
-    (service: (credentialsProvider: CredentialsProvider, workspace: Workspace) => CodeWhispererServiceToken): Server =>
+    (
+        service: (
+            credentialsProvider: CredentialsProvider,
+            workspace: Workspace,
+            awsQRegion: string,
+            awsQEndpointUrl: string
+        ) => CodeWhispererServiceToken
+    ): Server =>
     ({ credentialsProvider, workspace, logging, lsp, telemetry, runtime }) => {
-        const codewhispererclient = service(credentialsProvider, workspace)
+        const codewhispererclient = service(
+            credentialsProvider,
+            workspace,
+            runtime.getConfiguration('AWS_Q_REGION') ?? DEFAULT_AWS_Q_REGION,
+            runtime.getConfiguration('AWS_Q_ENDPOINT_URL') ?? DEFAULT_AWS_Q_ENDPOINT_URL
+        )
         const transformHandler = new TransformHandler(codewhispererclient, workspace, logging)
         const runTransformCommand = async (params: ExecuteCommandParams, _token: CancellationToken) => {
             try {
@@ -109,6 +123,8 @@ export const QNetTransformServerToken =
                         const cwStreamingClientInstance = new StreamingClient()
                         const cwStreamingClient = await cwStreamingClientInstance.getStreamingClient(
                             credentialsProvider,
+                            runtime.getConfiguration('AWS_Q_REGION') ?? DEFAULT_AWS_Q_REGION,
+                            runtime.getConfiguration('AWS_Q_ENDPOINT_URL') ?? DEFAULT_AWS_Q_ENDPOINT_URL,
                             customCWClientConfig
                         )
 

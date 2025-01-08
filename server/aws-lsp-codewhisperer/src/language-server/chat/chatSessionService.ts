@@ -7,13 +7,12 @@ import {
 import { ConfiguredRetryStrategy } from '@aws-sdk/util-retry'
 import { CredentialsProvider } from '@aws/language-server-runtimes/server-interface'
 import { getBearerTokenFromProvider } from '../utils'
-import { AWS_Q_REGION, AWS_Q_ENDPOINT_URL } from '../../constants'
 
 export type ChatSessionServiceConfig = CodeWhispererStreamingClientConfig
 export class ChatSessionService {
     public shareCodeWhispererContentWithAWS = false
-    readonly #codeWhispererRegion = AWS_Q_REGION
-    readonly #codeWhispererEndpoint = AWS_Q_ENDPOINT_URL
+    #codeWhispererRegion: string
+    #codeWhispererEndpoint: string
     #abortController?: AbortController
     #credentialsProvider: CredentialsProvider
     #config?: CodeWhispererStreamingClientConfig
@@ -27,8 +26,15 @@ export class ChatSessionService {
         this.#conversationId = value
     }
 
-    constructor(credentialsProvider: CredentialsProvider, config?: CodeWhispererStreamingClientConfig) {
+    constructor(
+        credentialsProvider: CredentialsProvider,
+        codeWhispererRegion: string,
+        codeWhispererEndpoint: string,
+        config?: CodeWhispererStreamingClientConfig
+    ) {
         this.#credentialsProvider = credentialsProvider
+        this.#codeWhispererRegion = codeWhispererRegion
+        this.#codeWhispererEndpoint = codeWhispererEndpoint
         this.#config = config
     }
 
