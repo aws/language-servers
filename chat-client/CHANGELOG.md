@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.1.0] - 2024-12-12
+## [0.1.0] - 2025-01-08
 
 ### Added
 
@@ -10,7 +10,8 @@
 
 ### Changed
 
-- Update `@aws/chat-client-ui-types` to 0.0.9
+- Update `@aws/chat-client-ui-types` to 0.1.0
+- Update `@aws/language-server-runtimes-types` to 0.1.0
 - Shortened legal text in the footer
 
 ## [0.0.9] - 2024-11-20
