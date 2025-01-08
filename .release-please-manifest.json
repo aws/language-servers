@@ -1,5 +1,5 @@
 {
-    "chat-client": "0.0.9",
+    "chat-client": "0.1.0",
     "core/aws-lsp-core": "0.0.1",
     "server/aws-lsp-antlr4": "0.1.0",
     "server/aws-lsp-codewhisperer": "0.0.19",
