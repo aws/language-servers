@@ -58,9 +58,11 @@ export class TelemetryService extends CodeWhispererServiceToken {
         credentialsType: CredentialsType,
         telemetry: Telemetry,
         logging: Logging,
-        workspace: Workspace
+        workspace: Workspace,
+        awsQRegion: string,
+        awsQEndpointUrl: string
     ) {
-        super(credentialsProvider, workspace)
+        super(credentialsProvider, workspace, awsQRegion, awsQEndpointUrl)
         this.credentialsProvider = credentialsProvider
         this.credentialsType = credentialsType
         this.telemetry = telemetry

@@ -17,12 +17,22 @@ export const QChatServer =
     features => {
         const { chat, credentialsProvider, telemetry, logging, lsp, runtime, workspace } = features
 
+        const awsQRegion = runtime.getConfiguration('AWS_Q_REGION') ?? DEFAULT_AWS_Q_REGION
+        const awsQEndpointUrl = runtime.getConfiguration('AWS_Q_ENDPOINT_URL') ?? DEFAULT_AWS_Q_ENDPOINT_URL
         const chatSessionManagementService: ChatSessionManagementService = service(
             credentialsProvider,
-            runtime.getConfiguration('AWS_Q_REGION') ?? DEFAULT_AWS_Q_REGION,
-            runtime.getConfiguration('AWS_Q_ENDPOINT_URL') ?? DEFAULT_AWS_Q_ENDPOINT_URL
+            awsQRegion,
+            awsQEndpointUrl
         )
-        const telemetryService = new TelemetryService(credentialsProvider, 'bearer', telemetry, logging, workspace)
+        const telemetryService = new TelemetryService(
+            credentialsProvider,
+            'bearer',
+            telemetry,
+            logging,
+            workspace,
+            awsQRegion,
+            awsQEndpointUrl
+        )
 
         const chatController = new ChatController(chatSessionManagementService, features, telemetryService)
 
