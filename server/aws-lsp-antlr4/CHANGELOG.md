@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.2.0](https://github.com/aws/language-servers/compare/lsp-json/v0.1.0...lsp-json/v0.2.0) (2025-01-08)
+## [0.2.0](https://github.com/aws/language-servers/compare/lsp-antlr4-v0.1.0...lsp-antlr4/v0.2.0) (2025-01-08)
 
 
 ### ⚠ BREAKING CHANGES
@@ -18,10 +18,3 @@
 * The following workspace dependencies were updated
   * dependencies
     * @aws/lsp-core bumped from ^0.0.1 to ^0.1.0
-
-[0.0.1] - 2024-06-07
-
-- Intial release of the JSON LSP Server
-[0.1.0] - 2024-08-27
-
-- Updates to include customizable LSP Service
