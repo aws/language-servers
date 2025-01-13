@@ -7,6 +7,7 @@ import { CredentialsProvider } from '@aws/language-server-runtimes/server-interf
 import * as assert from 'assert'
 import sinon from 'ts-sinon'
 import { ChatSessionService } from './chatSessionService'
+import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../../constants'
 
 describe('Chat Session Service', () => {
     let sendMessageStub: sinon.SinonStub<any, any>
@@ -17,7 +18,8 @@ describe('Chat Session Service', () => {
         getCredentials: sinon.stub().returns(Promise.resolve({ token: 'mockToken ' })),
         getConnectionMetadata: sinon.stub(),
     }
-
+    const awsQRegion: string = DEFAULT_AWS_Q_REGION
+    const awsQEndpointUrl: string = DEFAULT_AWS_Q_ENDPOINT_URL
     const mockConversationId = 'mockConversationId'
 
     const mockRequestParams: SendMessageCommandInput = {
@@ -43,7 +45,7 @@ describe('Chat Session Service', () => {
             .stub(CodeWhispererStreaming.prototype, 'sendMessage')
             .callsFake(() => Promise.resolve(mockRequestResponse))
 
-        chatSessionService = new ChatSessionService(mockCredentialsProvider)
+        chatSessionService = new ChatSessionService(mockCredentialsProvider, awsQRegion, awsQEndpointUrl)
     })
 
     afterEach(() => {
