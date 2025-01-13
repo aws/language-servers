@@ -47,7 +47,7 @@
         "@smithy/smithy-client": "^3.3.5",
         "@smithy/types": "^3.4.2",
         "@smithy/url-parser": "^3.0.6",
-        "@smithy/util-base64": "^3.0.0",
+        "@smithy/util-base64": "^4.0.0",
         "@smithy/util-body-length-browser": "^3.0.0",
         "@smithy/util-body-length-node": "^3.0.0",
         "@smithy/util-defaults-mode-browser": "^3.0.21",
