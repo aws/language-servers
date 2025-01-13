@@ -28,9 +28,14 @@ export const QNetTransformServerTokenProxy = QNetTransformServerToken((credentia
 
 export const QChatServerProxy = QChatServer(credentialsProvider => {
     let clientOptions: ChatSessionServiceConfig | undefined
-
-    const proxyUrl = process.env.HTTPS_PROXY ?? process.env.https_proxy
-    const certs = process.env.AWS_CA_BUNDLE ? [readFileSync(process.env.AWS_CA_BUNDLE)] : undefined
+    // short term solution to fix webworker bundling, broken due to this node.js specific logic in here
+    const isNodeJS: boolean = typeof process !== 'undefined' && process.release && process.release.name === 'node'
+    const proxyUrl = isNodeJS ? (process.env.HTTPS_PROXY ?? process.env.https_proxy) : undefined
+    const certs = isNodeJS
+        ? process.env.AWS_CA_BUNDLE
+            ? [readFileSync(process.env.AWS_CA_BUNDLE)]
+            : undefined
+        : undefined
 
     if (proxyUrl) {
         clientOptions = () => {

@@ -133,10 +133,16 @@ export function getEndPositionForAcceptedSuggestion(content: string, startPositi
 
 export const makeProxyConfig = async (workspace: Workspace) => {
     let additionalAwsConfig: ConfigurationOptions = {}
-    const proxyUrl = process.env.HTTPS_PROXY ?? process.env.https_proxy
+    // short term solution to fix webworker bundling, broken due to this node.js specific logic in here
+    const isNodeJS: boolean = typeof process !== 'undefined' && process.release && process.release.name === 'node'
+    const proxyUrl = isNodeJS ? (process.env.HTTPS_PROXY ?? process.env.https_proxy) : undefined
 
     if (proxyUrl) {
-        const certs = process.env.AWS_CA_BUNDLE ? [await workspace.fs.readFile(process.env.AWS_CA_BUNDLE)] : undefined
+        const certs = isNodeJS
+            ? process.env.AWS_CA_BUNDLE
+                ? [await workspace.fs.readFile(process.env.AWS_CA_BUNDLE)]
+                : undefined
+            : undefined
         const agent = new HttpsProxyAgent({
             proxy: proxyUrl,
             ca: certs,
