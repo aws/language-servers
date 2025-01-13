@@ -481,6 +481,10 @@ describe('ChatController', () => {
             testFeatures.workspace.getTextDocument = sinon.stub()
         })
 
+        afterEach(() => {
+            chatController.dispose()
+        })
+
         it('handles regular insertion correctly', async () => {
             const document: TextDocument = TextDocument.create('test.ts', 'typescript', 1, ' ')
             testFeatures.workspace.getTextDocument.resolves(document)
