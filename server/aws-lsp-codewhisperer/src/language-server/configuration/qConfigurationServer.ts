@@ -8,13 +8,26 @@ import {
 } from '@aws/language-server-runtimes/server-interface'
 import { CodeWhispererServiceToken } from '../codeWhispererService'
 import { getUserAgent } from '../utilities/telemetryUtils'
+import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../../constants'
 
 // The configuration section that the server will register and listen to
 export const Q_CONFIGURATION_SECTION = 'aws.q'
 export const QConfigurationServerToken =
-    (service: (credentials: CredentialsProvider, workspace: Workspace) => CodeWhispererServiceToken): Server =>
+    (
+        service: (
+            credentials: CredentialsProvider,
+            workspace: Workspace,
+            awsQRegion: string,
+            awsQEndpointUrl: string
+        ) => CodeWhispererServiceToken
+    ): Server =>
     ({ credentialsProvider, lsp, logging, runtime, workspace }) => {
-        const codeWhispererService = service(credentialsProvider, workspace)
+        const codeWhispererService = service(
+            credentialsProvider,
+            workspace,
+            runtime.getConfiguration('AWS_Q_REGION') ?? DEFAULT_AWS_Q_REGION,
+            runtime.getConfiguration('AWS_Q_ENDPOINT_URL') ?? DEFAULT_AWS_Q_ENDPOINT_URL
+        )
 
         lsp.addInitializer((params: InitializeParams) => {
             codeWhispererService.updateClientConfig({

@@ -39,6 +39,7 @@ import { fetchSupplementalContext } from './utilities/supplementalContextUtil/su
 import { undefinedIfEmpty } from './utilities/textUtils'
 import { TelemetryService } from './telemetryService'
 import { AcceptedSuggestionEntry, CodeDiffTracker } from './telemetry/codeDiffTracker'
+import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../constants'
 
 const EMPTY_RESULT = { sessionId: '', items: [] }
 export const CONTEXT_CHARACTERS_LIMIT = 10240
@@ -258,19 +259,31 @@ interface AcceptedInlineSuggestionEntry extends AcceptedSuggestionEntry {
 }
 
 export const CodewhispererServerFactory =
-    (service: (credentials: CredentialsProvider, workspace: Workspace) => CodeWhispererServiceBase): Server =>
+    (
+        service: (
+            credentials: CredentialsProvider,
+            workspace: Workspace,
+            awsQRegion: string,
+            awsQEndpointUrl: string
+        ) => CodeWhispererServiceBase
+    ): Server =>
     ({ credentialsProvider, lsp, workspace, telemetry, logging, runtime }) => {
         let lastUserModificationTime: number
         let timeSinceLastUserModification: number = 0
 
         const sessionManager = SessionManager.getInstance()
-        const codeWhispererService = service(credentialsProvider, workspace)
+
+        const awsQRegion = runtime.getConfiguration('AWS_Q_REGION') ?? DEFAULT_AWS_Q_REGION
+        const awsQEndpointUrl = runtime.getConfiguration('AWS_Q_ENDPOINT_URL') ?? DEFAULT_AWS_Q_ENDPOINT_URL
+        const codeWhispererService = service(credentialsProvider, workspace, awsQRegion, awsQEndpointUrl)
         const telemetryService = new TelemetryService(
             credentialsProvider,
             codeWhispererService.getCredentialsType(),
             telemetry,
             logging,
-            workspace
+            workspace,
+            awsQRegion,
+            awsQEndpointUrl
         )
 
         lsp.addInitializer((params: InitializeParams) => {
@@ -606,9 +619,9 @@ export const CodewhispererServerFactory =
                         `Inline completion configuration updated to use ${codeWhispererService.customizationArn}`
                     )
                     /*
-                                        The flag enableTelemetryEventsToDestination is set to true temporarily. It's value will be determined through destination
-                                        configuration post all events migration to STE. It'll be replaced by qConfig['enableTelemetryEventsToDestination'] === true
-                                     */
+                                    The flag enableTelemetryEventsToDestination is set to true temporarily. It's value will be determined through destination
+                                    configuration post all events migration to STE. It'll be replaced by qConfig['enableTelemetryEventsToDestination'] === true
+                                */
                     // const enableTelemetryEventsToDestination = true
                     // telemetryService.updateEnableTelemetryEventsToDestination(enableTelemetryEventsToDestination)
                     const optOutTelemetryPreference = qConfig['optOutTelemetry'] === true ? 'OPTOUT' : 'OPTIN'
@@ -666,8 +679,10 @@ export const CodewhispererServerFactory =
     }
 
 export const CodeWhispererServerIAM = CodewhispererServerFactory(
-    (credentialsProvider, workspace) => new CodeWhispererServiceIAM(credentialsProvider, workspace)
+    (credentialsProvider, workspace, awsQRegion, awsQEndpointUrl) =>
+        new CodeWhispererServiceIAM(credentialsProvider, workspace, awsQRegion, awsQEndpointUrl)
 )
 export const CodeWhispererServerToken = CodewhispererServerFactory(
-    (credentialsProvider, workspace) => new CodeWhispererServiceToken(credentialsProvider, workspace)
+    (credentialsProvider, workspace, awsQRegion, awsQEndpointUrl) =>
+        new CodeWhispererServiceToken(credentialsProvider, workspace, awsQRegion, awsQEndpointUrl)
 )

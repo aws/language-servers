@@ -25,6 +25,7 @@ import * as utils from './utils'
 import { DEFAULT_HELP_FOLLOW_UP_PROMPT, HELP_MESSAGE } from './constants'
 import { TelemetryService } from '../telemetryService'
 import { TextEdit } from 'vscode-languageserver-textdocument'
+import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../../constants'
 
 describe('ChatController', () => {
     const mockTabId = 'tab-1'
@@ -74,6 +75,9 @@ describe('ChatController', () => {
         },
     } as Logging
 
+    const awsQRegion: string = DEFAULT_AWS_Q_REGION
+    const awsQEndpointUrl: string = DEFAULT_AWS_Q_ENDPOINT_URL
+
     let sendMessageStub: sinon.SinonStub
     let disposeStub: sinon.SinonStub
     let activeTabSpy: {
@@ -112,9 +116,10 @@ describe('ChatController', () => {
 
         disposeStub = sinon.stub(ChatSessionService.prototype, 'dispose')
 
-        chatSessionManagementService = ChatSessionManagementService.getInstance().withCredentialsProvider(
-            testFeatures.credentialsProvider
-        )
+        chatSessionManagementService = ChatSessionManagementService.getInstance()
+            .withCredentialsProvider(testFeatures.credentialsProvider)
+            .withCodeWhispererRegion(awsQRegion)
+            .withCodeWhispererEndpoint(awsQEndpointUrl)
 
         const mockCredentialsProvider: CredentialsProvider = {
             hasCredentials: sinon.stub().returns(true),
@@ -132,7 +137,15 @@ describe('ChatController', () => {
             emitMetric: sinon.stub(),
             onClientTelemetry: sinon.stub(),
         }
-        telemetryService = new TelemetryService(mockCredentialsProvider, 'bearer', telemetry, logging, mockWorkspace)
+        telemetryService = new TelemetryService(
+            mockCredentialsProvider,
+            'bearer',
+            telemetry,
+            logging,
+            mockWorkspace,
+            awsQRegion,
+            awsQEndpointUrl
+        )
         invokeSendTelemetryEventStub = sinon.stub(telemetryService, 'sendTelemetryEvent' as any)
         chatController = new ChatController(chatSessionManagementService, testFeatures, telemetryService)
     })

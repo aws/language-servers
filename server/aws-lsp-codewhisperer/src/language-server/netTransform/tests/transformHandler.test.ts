@@ -18,6 +18,8 @@ import {
 import { TransformHandler } from '../transformHandler'
 import { EXAMPLE_REQUEST } from './mockData'
 import sinon = require('sinon')
+import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../../../constants'
+
 const mocked$Response = {
     $response: {
         hasNextPage: simon.mock(),
@@ -39,6 +41,8 @@ describe('Test Transform handler ', () => {
     let workspace: StubbedInstance<Workspace>
     let transformHandler: TransformHandler
     const mockedLogging = stubInterface<Logging>()
+    const awsQRegion: string = DEFAULT_AWS_Q_REGION
+    const awsQEndpointUrl: string = DEFAULT_AWS_Q_ENDPOINT_URL
     beforeEach(async () => {
         // Set up the server with a mock service
         client = stubInterface<CodeWhispererServiceToken>()
@@ -177,14 +181,18 @@ describe('Test Transform handler ', () => {
     describe('StreamingClient', () => {
         it('should create a new streaming client', async () => {
             const streamingClient = new StreamingClient()
-            const client = await streamingClient.getStreamingClient(mockedCredentialsProvider)
+            const client = await streamingClient.getStreamingClient(
+                mockedCredentialsProvider,
+                awsQRegion,
+                awsQEndpointUrl
+            )
             expect(client).to.be.instanceOf(CodeWhispererStreaming)
         })
     })
 
     describe('createStreamingClient', () => {
         it('should create a new streaming client with correct configurations', async () => {
-            const client = await createStreamingClient(mockedCredentialsProvider)
+            const client = await createStreamingClient(mockedCredentialsProvider, awsQRegion, awsQEndpointUrl)
             expect(client).to.be.instanceOf(CodeWhispererStreaming)
         })
     })

@@ -6,6 +6,8 @@ import { ChatSessionService } from './chatSessionService'
 
 describe('ChatSessionManagementService', () => {
     const mockSessionId = 'mockSessionId'
+    const mockAwsQRegion: string = 'mock-aws-q-region'
+    const mockAwsQEndpointUrl: string = 'mock-aws-q-endpoint-url'
 
     it('getInstance should return the same instance if initialized', () => {
         const instance = ChatSessionManagementService.getInstance()
@@ -33,8 +35,10 @@ describe('ChatSessionManagementService', () => {
 
         beforeEach(() => {
             disposeStub = sinon.stub(ChatSessionService.prototype, 'dispose')
-            chatSessionManagementService =
-                ChatSessionManagementService.getInstance().withCredentialsProvider(mockCredentialsProvider)
+            chatSessionManagementService = ChatSessionManagementService.getInstance()
+                .withCredentialsProvider(mockCredentialsProvider)
+                .withCodeWhispererRegion(mockAwsQRegion)
+                .withCodeWhispererEndpoint(mockAwsQEndpointUrl)
         })
 
         afterEach(() => {
