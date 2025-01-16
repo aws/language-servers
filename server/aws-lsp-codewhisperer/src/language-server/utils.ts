@@ -140,7 +140,7 @@ export const makeProxyConfig = (workspace: Workspace) => {
     if (proxyUrl) {
         const certs = isNodeJS
             ? process.env.AWS_CA_BUNDLE
-                ? [workspace.fs.readFileSync(process.env.AWS_CA_BUNDLE).toString()]
+                ? [workspace.fs.readFileSync(process.env.AWS_CA_BUNDLE)]
                 : undefined
             : undefined
         const agent = new HttpsProxyAgent({
