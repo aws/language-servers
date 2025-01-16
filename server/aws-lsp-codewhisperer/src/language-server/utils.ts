@@ -147,7 +147,6 @@ export const makeProxyConfig = (workspace: Workspace) => {
             proxy: proxyUrl,
             ca: certs,
         })
-
         additionalAwsConfig = {
             httpOptions: {
                 agent: agent,
