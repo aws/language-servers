@@ -220,7 +220,7 @@ export class TelemetryService extends CodeWhispererServiceToken {
             perceivedLatencyMilliseconds: perceivedLatencyMilliseconds,
             acceptedCharacterCount: acceptedCharacterCount,
         }
-        this.invokeSendTelemetryEvent({
+        return this.invokeSendTelemetryEvent({
             userTriggerDecisionEvent: event,
         })
     }
@@ -258,7 +258,7 @@ export class TelemetryService extends CodeWhispererServiceToken {
         if (metric.codewhispererCustomizationArn) {
             event.customizationArn = metric.codewhispererCustomizationArn
         }
-        this.invokeSendTelemetryEvent({
+        return this.invokeSendTelemetryEvent({
             chatInteractWithMessageEvent: event,
         })
     }
@@ -281,7 +281,7 @@ export class TelemetryService extends CodeWhispererServiceToken {
                 },
             })
         }
-        this.invokeSendTelemetryEvent({
+        return this.invokeSendTelemetryEvent({
             chatUserModificationEvent: params,
         })
     }
@@ -296,7 +296,7 @@ export class TelemetryService extends CodeWhispererServiceToken {
         acceptedCharacterCount: number
         unmodifiedAcceptedCharacterCount: number
     }) {
-        this.invokeSendTelemetryEvent({
+        return this.invokeSendTelemetryEvent({
             userModificationEvent: {
                 sessionId: params.sessionId,
                 requestId: params.requestId,
@@ -347,7 +347,7 @@ export class TelemetryService extends CodeWhispererServiceToken {
         }
         if (params.customizationArn) event.customizationArn = params.customizationArn
 
-        this.invokeSendTelemetryEvent({
+        return this.invokeSendTelemetryEvent({
             codeCoverageEvent: event,
         })
     }
@@ -434,7 +434,7 @@ export class TelemetryService extends CodeWhispererServiceToken {
                 languageName: getRuntimeLanguage(params.programmingLanguage),
             }
         }
-        this.invokeSendTelemetryEvent({
+        return this.invokeSendTelemetryEvent({
             chatAddMessageEvent: event,
         })
     }
