@@ -59,9 +59,7 @@ export abstract class CodeWhispererServiceBase {
     abstract generateSuggestions(request: GenerateSuggestionsRequest): Promise<GenerateSuggestionsResponse>
 
     constructor(workspace: Workspace, codeWhispererRegion: string, codeWhispererEndpoint: string) {
-        ;(async () => {
-            this.proxyConfig = await makeProxyConfig(workspace)
-        })()
+        this.proxyConfig = makeProxyConfig(workspace)
         this.codeWhispererRegion = codeWhispererRegion
         this.codeWhispererEndpoint = codeWhispererEndpoint
     }
