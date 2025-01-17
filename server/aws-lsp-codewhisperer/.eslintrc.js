@@ -1,9 +1,14 @@
 module.exports = {
     root: true,
     parser: '@typescript-eslint/parser',
-    plugins: ['import'],
+    parserOptions: {
+        projectService: true,
+        tsconfigRootDir: __dirname,
+    },
+    plugins: ['import', '@typescript-eslint'],
     rules: {
         'import/no-nodejs-modules': 'warn',
+        '@typescript-eslint/no-floating-promises': 'error',
     },
     ignorePatterns: ['**/*.test.ts', 'out/', 'src.gen/', 'src/client/**/*.d.ts'],
     overrides: [

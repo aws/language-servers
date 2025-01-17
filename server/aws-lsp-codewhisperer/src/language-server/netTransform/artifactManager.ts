@@ -174,7 +174,7 @@ export class ArtifactManager {
                 .pipe(stream)
 
             stream.on('close', () => resolve())
-            archive.finalize()
+            return archive.finalize()
         })
     }
 

@@ -27,7 +27,7 @@ class SecurityScanDiagnosticsProvider {
         await Promise.all(
             this.findings.map(finding => {
                 this.logging.log(`reset diagnostics for: ${finding.filePath}`)
-                this.publishDiagnostics(finding.filePath, [])
+                return this.publishDiagnostics(finding.filePath, [])
             })
         )
         this.diagnostics = new Map()

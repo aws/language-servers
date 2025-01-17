@@ -29,21 +29,25 @@ export class CodePercentageTracker {
     }
 
     private startListening() {
-        return setInterval(() => {
-            this.getEventDataAndRotate().forEach(event => {
-                this.telemetryService.emitCodeCoverageEvent(
-                    {
-                        languageId: event.codewhispererLanguage as CodewhispererLanguage,
-                        customizationArn: this.customizationArn,
-                        totalCharacterCount: event.codewhispererTotalTokens,
-                        acceptedCharacterCount: event.codewhispererSuggestedTokens,
-                    },
-                    {
-                        percentage: event.codewhispererPercentage,
-                        successCount: event.successCount,
-                    }
+        return setInterval(async () => {
+            const events = this.getEventDataAndRotate()
+            await Promise.all(
+                events.map(
+                    async event =>
+                        await this.telemetryService.emitCodeCoverageEvent(
+                            {
+                                languageId: event.codewhispererLanguage as CodewhispererLanguage,
+                                customizationArn: this.customizationArn,
+                                totalCharacterCount: event.codewhispererTotalTokens,
+                                acceptedCharacterCount: event.codewhispererSuggestedTokens,
+                            },
+                            {
+                                percentage: event.codewhispererPercentage,
+                                successCount: event.successCount,
+                            }
+                        )
                 )
-            })
+            )
         }, CODE_PERCENTAGE_INTERVAL)
     }
 

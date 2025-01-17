@@ -157,7 +157,7 @@ export class ChatController implements ChatHandlers {
             }
 
             metric.setDimension('codewhispererCustomizationArn', requestInput.conversationState?.customizationArn)
-            this.#telemetryController.emitAddMessageMetric(params.tabId, metric.metric)
+            await this.#telemetryController.emitAddMessageMetric(params.tabId, metric.metric)
 
             this.#telemetryController.updateTriggerInfo(params.tabId, {
                 lastMessageTrigger: {
@@ -373,7 +373,7 @@ export class ChatController implements ChatHandlers {
         // this is the only way we can detect a follow up action
         // we can reuse previous trigger information
         if (lastMessageTrigger?.followUpActions?.has(params.prompt?.prompt ?? '')) {
-            this.#telemetryController.emitInteractWithMessageMetric(params.tabId, {
+            await this.#telemetryController.emitInteractWithMessageMetric(params.tabId, {
                 cwsprChatMessageId: lastMessageTrigger.messageId!,
                 cwsprChatInteractionType: ChatInteractionType.ClickFollowUp,
             })
@@ -413,7 +413,7 @@ export class ChatController implements ChatHandlers {
             }
 
             if (!isNullish(partialResultToken)) {
-                this.#features.lsp.sendProgress(chatRequestType, partialResultToken, result.data.chatResult)
+                await this.#features.lsp.sendProgress(chatRequestType, partialResultToken, result.data.chatResult)
             }
         }
 

@@ -157,7 +157,7 @@ const emitPerceivedLatencyTelemetry = (telemetry: Telemetry, session: CodeWhispe
     })
 }
 
-const emitUserTriggerDecisionTelemetry = (
+const emitUserTriggerDecisionTelemetry = async (
     telemetry: Telemetry,
     telemetryService: TelemetryService,
     session: CodeWhispererSession,
@@ -173,7 +173,7 @@ const emitUserTriggerDecisionTelemetry = (
         return
     }
 
-    emitAggregatedUserTriggerDecisionTelemetry(telemetryService, session, timeSinceLastUserModification)
+    await emitAggregatedUserTriggerDecisionTelemetry(telemetryService, session, timeSinceLastUserModification)
     emitUserDecisionTelemetry(telemetry, session)
 
     session.reportedUserDecision = true
@@ -184,7 +184,7 @@ const emitAggregatedUserTriggerDecisionTelemetry = (
     session: CodeWhispererSession,
     timeSinceLastUserModification?: number
 ) => {
-    telemetryService.emitUserTriggerDecision(session, timeSinceLastUserModification)
+    return telemetryService.emitUserTriggerDecision(session, timeSinceLastUserModification)
 }
 
 const emitUserDecisionTelemetry = (telemetry: Telemetry, session: CodeWhispererSession) => {
@@ -310,8 +310,8 @@ export const CodewhispererServerFactory =
         const codeDiffTracker: CodeDiffTracker<AcceptedInlineSuggestionEntry> = new CodeDiffTracker(
             workspace,
             logging,
-            (entry: AcceptedInlineSuggestionEntry, percentage, unmodifiedAcceptedCharacterCount) => {
-                telemetryService.emitUserModificationEvent({
+            async (entry: AcceptedInlineSuggestionEntry, percentage, unmodifiedAcceptedCharacterCount) => {
+                await telemetryService.emitUserModificationEvent({
                     sessionId: entry.sessionId,
                     requestId: entry.requestId,
                     languageId: entry.languageId,
@@ -404,7 +404,7 @@ export const CodewhispererServerFactory =
                 if (currentSession && currentSession.state === 'ACTIVE') {
                     // Emit user trigger decision at session close time for active session
                     sessionManager.discardSession(currentSession)
-                    emitUserTriggerDecisionTelemetry(
+                    await emitUserTriggerDecisionTelemetry(
                         telemetry,
                         telemetryService,
                         currentSession,
@@ -439,7 +439,7 @@ export const CodewhispererServerFactory =
                                 .replaceAll('\r\n', '\n'),
                         },
                     })
-                    .then(suggestionResponse => {
+                    .then(async suggestionResponse => {
                         codePercentageTracker.countInvocation(inferredLanguageId)
 
                         // Populate the session with information from codewhisperer response
@@ -458,7 +458,7 @@ export const CodewhispererServerFactory =
                         if (newSession.state === 'CLOSED' || newSession.state === 'DISCARD') {
                             // Force Discard user decision on every received suggestion
                             newSession.suggestions.forEach(s => newSession.setSuggestionState(s.itemId, 'Discard'))
-                            emitUserTriggerDecisionTelemetry(
+                            await emitUserTriggerDecisionTelemetry(
                                 telemetry,
                                 telemetryService,
                                 newSession,
@@ -518,7 +518,7 @@ export const CodewhispererServerFactory =
                         // If after all server-side filtering no suggestions can be displayed, close session and return empty results
                         if (suggestionsWithRightContext.length === 0) {
                             sessionManager.closeSession(newSession)
-                            emitUserTriggerDecisionTelemetry(
+                            await emitUserTriggerDecisionTelemetry(
                                 telemetry,
                                 telemetryService,
                                 newSession,
@@ -606,7 +606,7 @@ export const CodewhispererServerFactory =
 
             // Always emit user trigger decision at session close
             sessionManager.closeSession(session)
-            emitUserTriggerDecisionTelemetry(telemetry, telemetryService, session, timeSinceLastUserModification)
+            await emitUserTriggerDecisionTelemetry(telemetry, telemetryService, session, timeSinceLastUserModification)
         }
 
         const updateConfiguration = async () => {
@@ -619,9 +619,9 @@ export const CodewhispererServerFactory =
                         `Inline completion configuration updated to use ${codeWhispererService.customizationArn}`
                     )
                     /*
-                                    The flag enableTelemetryEventsToDestination is set to true temporarily. It's value will be determined through destination
-                                    configuration post all events migration to STE. It'll be replaced by qConfig['enableTelemetryEventsToDestination'] === true
-                                */
+                                            The flag enableTelemetryEventsToDestination is set to true temporarily. It's value will be determined through destination
+                                            configuration post all events migration to STE. It'll be replaced by qConfig['enableTelemetryEventsToDestination'] === true
+                                         */
                     // const enableTelemetryEventsToDestination = true
                     // telemetryService.updateEnableTelemetryEventsToDestination(enableTelemetryEventsToDestination)
                     const optOutTelemetryPreference = qConfig['optOutTelemetry'] === true ? 'OPTOUT' : 'OPTIN'
@@ -672,9 +672,9 @@ export const CodewhispererServerFactory =
 
         logging.log('Amazon Q Inline Suggestion server has been initialised')
 
-        return () => {
+        return async () => {
             codePercentageTracker.dispose()
-            codeDiffTracker.shutdown()
+            await codeDiffTracker.shutdown()
         }
     }
 
