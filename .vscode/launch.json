@@ -90,8 +90,7 @@
                 "ENABLE_CUSTOMIZATIONS": "true"
                 // "HTTPS_PROXY": "http://127.0.0.1:8888",
                 // "AWS_CA_BUNDLE": "/path/to/cert.pem"
-            },
-            "preLaunchTask": "npm: compile"
+            }
         },
         {
             "name": "CodeWhisperer Server IAM",

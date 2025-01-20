@@ -20,11 +20,21 @@ import {
     LinkClickParams,
     SourceLinkClickParams,
 } from '@aws/language-server-runtimes-types'
-import { ChatItem, ChatItemType, ChatPrompt, MynahUI, MynahUIDataModel, NotificationType } from '@aws/mynah-ui'
+import {
+    ChatItem,
+    ChatItemType,
+    ChatPrompt,
+    MynahUI,
+    MynahUIDataModel,
+    NotificationType,
+    MynahUIProps,
+} from '@aws/mynah-ui'
 import { VoteParams } from '../contracts/telemetry'
 import { Messager } from './messager'
 import { TabFactory } from './tabs/tabFactory'
 import { disclaimerAcknowledgeButtonId, disclaimerCard } from './texts/disclaimer'
+import { connectorAdapter } from './connectorAdapter'
+import { Connector } from './connector'
 
 export interface InboundChatApi {
     addChatResponse(params: ChatResult, tabId: string, isPartialResult: boolean): void
@@ -87,12 +97,14 @@ export const handleChatPrompt = (
 export const createMynahUi = (
     messager: Messager,
     tabFactory: TabFactory,
-    disclaimerAcknowledged: boolean
+    disclaimerAcknowledged: boolean,
+    connector?: Connector,
+    connectorsPostMessage?: (msg: any) => void
 ): [MynahUI, InboundChatApi] => {
     const initialTabId = TabFactory.generateUniqueId()
     let disclaimerCardActive = !disclaimerAcknowledged
 
-    const mynahUi = new MynahUI({
+    let mynahUiProps: MynahUIProps = {
         onCodeInsertToCursorPosition(
             tabId,
             messageId,
@@ -271,7 +283,15 @@ export const createMynahUi = (
             maxTabs: 10,
             texts: uiComponentsTexts,
         },
-    })
+    }
+
+    const mynahUiRef = { mynahUI: undefined as MynahUI | undefined }
+    if (connector && connectorsPostMessage) {
+        mynahUiProps = connectorAdapter(mynahUiProps, mynahUiRef, connectorsPostMessage, connector)
+    }
+
+    const mynahUi = new MynahUI(mynahUiProps)
+    mynahUiRef.mynahUI = mynahUi
 
     const getTabStore = (tabId = mynahUi.getSelectedTabId()) => {
         return tabId ? mynahUi.getAllTabs()[tabId]?.store : undefined
