@@ -1,4 +1,4 @@
-import { SendMessageCommandInput, SendMessageCommandOutput } from '@amzn/codewhisperer-streaming'
+import { SendMessageCommandInput, SendMessageCommandOutput } from '@amzn/qdeveloper-streaming-client'
 import {
     ApplyWorkspaceEditParams,
     ErrorCodes,

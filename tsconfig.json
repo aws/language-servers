@@ -25,6 +25,9 @@
             "path": "./core/codewhisperer-streaming"
         },
         {
+            "path": "./core/qdeveloper-streaming-client"
+        },
+        {
             "path": "./server/aws-lsp-json"
         },
         {

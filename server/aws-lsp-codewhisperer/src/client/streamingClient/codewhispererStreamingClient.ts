@@ -1,4 +1,4 @@
-import { CodeWhispererStreaming, CodeWhispererStreamingClientConfig } from '@amzn/codewhisperer-streaming'
+import { QDeveloperStreaming, QDeveloperStreamingClientConfig } from '@amzn/qdeveloper-streaming-client'
 import { ConfiguredRetryStrategy } from '@aws-sdk/util-retry'
 import { readFileSync } from 'fs'
 import { NodeHttpHandler } from '@smithy/node-http-handler'
@@ -9,7 +9,7 @@ export class StreamingClient {
         credentialsProvider: any,
         codeWhispererRegion: string,
         codeWhispererEndpoint: string,
-        config?: CodeWhispererStreamingClientConfig
+        config?: QDeveloperStreamingClientConfig
     ) {
         return await createStreamingClient(credentialsProvider, codeWhispererRegion, codeWhispererEndpoint, config)
     }
@@ -18,8 +18,8 @@ export async function createStreamingClient(
     credentialsProvider: any,
     codeWhispererRegion: string,
     codeWhispererEndpoint: string,
-    config?: CodeWhispererStreamingClientConfig
-): Promise<CodeWhispererStreaming> {
+    config?: QDeveloperStreamingClientConfig
+): Promise<QDeveloperStreaming> {
     const creds = credentialsProvider.getCredentials('bearer')
 
     let clientOptions
@@ -46,7 +46,7 @@ export async function createStreamingClient(
         }
     }
 
-    const streamingClient = new CodeWhispererStreaming({
+    const streamingClient = new QDeveloperStreaming({
         region: codeWhispererRegion,
         endpoint: codeWhispererEndpoint,
         token: { token: creds.token },

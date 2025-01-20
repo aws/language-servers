@@ -28,6 +28,7 @@
     },
     "dependencies": {
         "@amzn/codewhisperer-streaming": "*",
+        "@amzn/qdeveloper-streaming-client": "*",
         "@aws-sdk/util-retry": "^3.374.0",
         "@aws/chat-client-ui-types": "^0.1.0",
         "@aws/language-server-runtimes": "^0.2.31",
@@ -70,6 +71,7 @@
         "endOfLine": "lf"
     },
     "bundleDependencies": [
-        "@amzn/codewhisperer-streaming"
+        "@amzn/codewhisperer-streaming",
+        "@amzn/qdeveloper-streaming-client"
     ]
 }

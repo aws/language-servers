@@ -1,8 +1,8 @@
 import {
-    CodeWhispererStreaming,
+    QDeveloperStreaming,
     SendMessageCommandInput,
     SendMessageCommandOutput,
-} from '@amzn/codewhisperer-streaming'
+} from '@amzn/qdeveloper-streaming-client'
 import { CredentialsProvider } from '@aws/language-server-runtimes/server-interface'
 import * as assert from 'assert'
 import sinon from 'ts-sinon'
@@ -42,7 +42,7 @@ describe('Chat Session Service', () => {
         abortStub = sinon.stub(AbortController.prototype, 'abort')
 
         sendMessageStub = sinon
-            .stub(CodeWhispererStreaming.prototype, 'sendMessage')
+            .stub(QDeveloperStreaming.prototype, 'sendMessage')
             .callsFake(() => Promise.resolve(mockRequestResponse))
 
         chatSessionService = new ChatSessionService(mockCredentialsProvider, awsQRegion, awsQEndpointUrl)

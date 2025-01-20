@@ -1,4 +1,4 @@
-import { ChatResponseStream, CodeWhispererStreaming, SendMessageCommandInput } from '@amzn/codewhisperer-streaming'
+import { ChatResponseStream, QDeveloperStreaming, SendMessageCommandInput } from '@amzn/qdeveloper-streaming-client'
 import {
     ChatResult,
     LSPErrorCodes,
@@ -95,7 +95,7 @@ describe('ChatController', () => {
     let telemetry: Telemetry
 
     beforeEach(() => {
-        sendMessageStub = sinon.stub(CodeWhispererStreaming.prototype, 'sendMessage').callsFake(() => {
+        sendMessageStub = sinon.stub(QDeveloperStreaming.prototype, 'sendMessage').callsFake(() => {
             return new Promise(resolve =>
                 setTimeout(() => {
                     resolve({

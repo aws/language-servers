@@ -1,4 +1,4 @@
-import { CodeWhispererStreaming, ExportIntent } from '@amzn/codewhisperer-streaming'
+import { QDeveloperStreaming, ExportIntent } from '@amzn/qdeveloper-streaming-client'
 import { Logging, Workspace } from '@aws/language-server-runtimes/server-interface'
 import * as fs from 'fs'
 import got from 'got'
@@ -344,7 +344,7 @@ export class TransformHandler {
         } as GetTransformResponse
     }
 
-    async downloadExportResultArchive(cwStreamingClient: CodeWhispererStreaming, exportId: string, saveToDir: string) {
+    async downloadExportResultArchive(cwStreamingClient: QDeveloperStreaming, exportId: string, saveToDir: string) {
         let result
         try {
             result = await cwStreamingClient.exportResultArchive({

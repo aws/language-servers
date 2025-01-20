@@ -5,6 +5,7 @@ build
 **/*.tgz
 .testresults/**
 core/codewhisperer-streaming/dist*
+core/qdeveloper-streaming-client/dist*
 
 # Visual Studio Related
 **/.vs

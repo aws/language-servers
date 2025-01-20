@@ -1,4 +1,4 @@
-import { EditorState, TextDocument as CwsprTextDocument } from '@amzn/codewhisperer-streaming'
+import { EditorState, TextDocument as CwsprTextDocument } from '@amzn/qdeveloper-streaming-client'
 import { CursorState } from '@aws/language-server-runtimes/server-interface'
 import { Range, TextDocument } from 'vscode-languageserver-textdocument'
 import { getLanguageId } from '../../languageDetection'

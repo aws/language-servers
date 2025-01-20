@@ -1,5 +1,5 @@
 import { TriggerType } from '@aws/chat-client-ui-types'
-import { ChatTriggerType, SendMessageCommandInput, UserIntent } from '@amzn/codewhisperer-streaming'
+import { ChatTriggerType, SendMessageCommandInput, UserIntent } from '@amzn/qdeveloper-streaming-client'
 import { ChatParams, CursorState } from '@aws/language-server-runtimes/server-interface'
 import { Features } from '../../types'
 import { DocumentContext, DocumentContextExtractor } from './documentContext'

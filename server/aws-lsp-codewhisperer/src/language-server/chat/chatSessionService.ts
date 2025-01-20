@@ -1,21 +1,21 @@
 import {
-    CodeWhispererStreaming,
-    CodeWhispererStreamingClientConfig,
+    QDeveloperStreaming,
+    QDeveloperStreamingClientConfig,
     SendMessageCommandInput,
     SendMessageCommandOutput,
-} from '@amzn/codewhisperer-streaming'
+} from '@amzn/qdeveloper-streaming-client'
 import { ConfiguredRetryStrategy } from '@aws-sdk/util-retry'
 import { CredentialsProvider } from '@aws/language-server-runtimes/server-interface'
 import { getBearerTokenFromProvider } from '../utils'
 
-export type ChatSessionServiceConfig = CodeWhispererStreamingClientConfig
+export type ChatSessionServiceConfig = QDeveloperStreamingClientConfig
 export class ChatSessionService {
     public shareCodeWhispererContentWithAWS = false
     readonly #codeWhispererRegion: string
     readonly #codeWhispererEndpoint: string
     #abortController?: AbortController
     #credentialsProvider: CredentialsProvider
-    #config?: CodeWhispererStreamingClientConfig
+    #config?: QDeveloperStreamingClientConfig
     #conversationId?: string
 
     public get conversationId(): string | undefined {
@@ -30,7 +30,7 @@ export class ChatSessionService {
         credentialsProvider: CredentialsProvider,
         codeWhispererRegion: string,
         codeWhispererEndpoint: string,
-        config?: CodeWhispererStreamingClientConfig
+        config?: QDeveloperStreamingClientConfig
     ) {
         this.#credentialsProvider = credentialsProvider
         this.#codeWhispererRegion = codeWhispererRegion
@@ -45,7 +45,7 @@ export class ChatSessionService {
             request.conversationState.conversationId = this.#conversationId
         }
 
-        const client = new CodeWhispererStreaming({
+        const client = new QDeveloperStreaming({
             region: this.#codeWhispererRegion,
             endpoint: this.#codeWhispererEndpoint,
             token: () => Promise.resolve({ token: getBearerTokenFromProvider(this.#credentialsProvider) }),

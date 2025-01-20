@@ -1,4 +1,4 @@
-import { CodeWhispererStreaming } from '@amzn/codewhisperer-streaming'
+import { QDeveloperStreaming } from '@amzn/qdeveloper-streaming-client'
 import { Logging, Workspace } from '@aws/language-server-runtimes/server-interface'
 import * as assert from 'assert'
 import { HttpResponse } from 'aws-sdk'
@@ -186,14 +186,14 @@ describe('Test Transform handler ', () => {
                 awsQRegion,
                 awsQEndpointUrl
             )
-            expect(client).to.be.instanceOf(CodeWhispererStreaming)
+            expect(client).to.be.instanceOf(QDeveloperStreaming)
         })
     })
 
     describe('createStreamingClient', () => {
         it('should create a new streaming client with correct configurations', async () => {
             const client = await createStreamingClient(mockedCredentialsProvider, awsQRegion, awsQEndpointUrl)
-            expect(client).to.be.instanceOf(CodeWhispererStreaming)
+            expect(client).to.be.instanceOf(QDeveloperStreaming)
         })
     })
 

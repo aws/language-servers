@@ -1,4 +1,4 @@
-import { ChatResponseStream, Reference, SupplementaryWebLink } from '@amzn/codewhisperer-streaming'
+import { ChatResponseStream, Reference, SupplementaryWebLink } from '@amzn/qdeveloper-streaming-client'
 import {
     ChatItemAction,
     ChatResult,

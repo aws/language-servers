@@ -15,7 +15,7 @@ import {
     RelevancyVoteType,
     isClientTelemetryEvent,
 } from './clientTelemetry'
-import { UserIntent } from '@amzn/codewhisperer-streaming'
+import { UserIntent } from '@amzn/qdeveloper-streaming-client'
 import { TriggerContext } from '../contexts/triggerContext'
 import { AcceptedSuggestionEntry, CodeDiffTracker } from '../../telemetry/codeDiffTracker'
 import { TelemetryService } from '../../telemetryService'

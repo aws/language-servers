@@ -32,7 +32,7 @@ import {
     StartTransformRequest,
 } from './netTransform/models'
 import { TransformHandler } from './netTransform/transformHandler'
-import { CodeWhispererStreamingClientConfig } from '@amzn/codewhisperer-streaming'
+import { QDeveloperStreamingClientConfig } from '@amzn/qdeveloper-streaming-client'
 import { getUserAgent } from './utilities/telemetryUtils'
 
 export const validStatesForGettingPlan = ['COMPLETED', 'PARTIALLY_COMPLETED', 'PLANNED', 'TRANSFORMING', 'TRANSFORMED']
@@ -193,7 +193,7 @@ export const QNetTransformServerToken =
             return runTransformCommand(params, _token)
         }
 
-        const customCWClientConfig: CodeWhispererStreamingClientConfig = {}
+        const customCWClientConfig: QDeveloperStreamingClientConfig = {}
         const onInitializeHandler = (params: InitializeParams) => {
             // Cache user agent to reuse between commands calls
             customCWClientConfig.customUserAgent = getUserAgent(params, runtime.serverInfo)
