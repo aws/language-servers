@@ -1,0 +1,22 @@
+{
+    "name": "@amzn/aws-lsp-q-dev-completions",
+    "version": "0.0.1",
+    "description": "Amazon Q Developer Code Completions Language Server",
+    "main": "out/index.js",
+    "scripts": {
+        "clean": "rm -rf out/ bin/ tsconfig.tsbuildinfo",
+        "compile": "tsc --build",
+        "package": "npm run compile && npm run webpack",
+        "webpack": "webpack"
+    },
+    "dependencies": {
+        "@aws/language-server-runtimes": "^0.2.31",
+        "@aws/lsp-codewhisperer": "*",
+        "@amzn/device-sso-auth-lsp": "*"
+    },
+    "devDependencies": {
+        "ts-loader": "^9.4.4",
+        "webpack": "^5.94.0",
+        "webpack-cli": "^5.1.4"
+    }
+}

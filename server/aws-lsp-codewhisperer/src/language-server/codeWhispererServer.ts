@@ -1,5 +1,8 @@
 import {
     CancellationToken,
+    CompletionItemKind,
+    CompletionList,
+    CompletionParams,
     CredentialsProvider,
     InitializeParams,
     InlineCompletionItemWithReferences,
@@ -7,6 +10,7 @@ import {
     InlineCompletionTriggerKind,
     InlineCompletionWithReferencesParams,
     LogInlineCompletionSessionResultsParams,
+    MarkupKind,
     Position,
     Range,
     Server,
@@ -294,8 +298,13 @@ export const CodewhispererServerFactory =
                 customUserAgent: getUserAgent(params, runtime.serverInfo),
             })
             telemetryService.updateUserContext(makeUserContextObject(params, runtime.platform, 'INLINE'))
+
             return {
-                capabilities: {},
+                capabilities: {
+                    completionProvider: {
+                        resolveProvider: false,
+                    },
+                },
             }
         })
 
@@ -304,6 +313,9 @@ export const CodewhispererServerFactory =
         // right before returning and is only guaranteed to be consistent within
         // the context of a single response.
         let includeSuggestionsWithCodeReferences = false
+
+        // Controls if server sets preselect flag for responses to Standard LSP textDocument/completion
+        let preselectSuggestionFromQ = true
 
         const codePercentageTracker = new CodePercentageTracker(telemetryService)
 
@@ -626,6 +638,11 @@ export const CodewhispererServerFactory =
                     // telemetryService.updateEnableTelemetryEventsToDestination(enableTelemetryEventsToDestination)
                     const optOutTelemetryPreference = qConfig['optOutTelemetry'] === true ? 'OPTOUT' : 'OPTIN'
                     telemetryService.updateOptOutPreference(optOutTelemetryPreference)
+
+                    preselectSuggestionFromQ = qConfig['preselectSuggestionFromQ'] === true
+                    logging.log(
+                        `Configuration updated to ${preselectSuggestionFromQ ? 'preselect' : 'not preselect'} suggestions from Amazon Q`
+                    )
                 }
 
                 const config = await lsp.workspace.getConfiguration('aws.codeWhisperer')
@@ -646,10 +663,158 @@ export const CodewhispererServerFactory =
             }
         }
 
+        const onCompletion = async (params: CompletionParams, token: CancellationToken): Promise<CompletionList> => {
+            return workspace.getTextDocument(params.textDocument.uri).then(async textDocument => {
+                if (!textDocument) {
+                    logging.log(`textDocument [${params.textDocument.uri}] not found`)
+                    return { isIncomplete: true, items: [] }
+                }
+
+                const inferredLanguageId = getSupportedLanguageId(textDocument)
+                if (!inferredLanguageId) {
+                    logging.log(
+                        `textDocument [${params.textDocument.uri}] with languageId [${textDocument.languageId}] not supported`
+                    )
+                    return { isIncomplete: true, items: [] }
+                }
+
+                // Build request context
+                const fileContext = getFileContext({ textDocument, inferredLanguageId, position: params.position })
+                const requestContext: GenerateSuggestionsRequest = {
+                    fileContext,
+                    maxResults: 5,
+                }
+                if (codeWhispererService instanceof CodeWhispererServiceToken) {
+                    requestContext.supplementalContexts = []
+
+                    const supplementalContext = await fetchSupplementalContext(
+                        textDocument,
+                        params.position,
+                        workspace,
+                        logging,
+                        token
+                    )
+
+                    if (supplementalContext?.supplementalContextItems) {
+                        requestContext.supplementalContexts = supplementalContext.supplementalContextItems.map(v => ({
+                            content: v.content,
+                            filePath: v.filePath,
+                        }))
+                    }
+                }
+
+                try {
+                    const suggestionResponse = await codeWhispererService.generateSuggestions({
+                        ...requestContext,
+                        fileContext: {
+                            ...requestContext.fileContext,
+                            leftFileContent: requestContext.fileContext.leftFileContent
+                                .slice(-CONTEXT_CHARACTERS_LIMIT)
+                                .replaceAll('\r\n', '\n'),
+                            rightFileContent: requestContext.fileContext.rightFileContent
+                                .slice(0, CONTEXT_CHARACTERS_LIMIT)
+                                .replaceAll('\r\n', '\n'),
+                        },
+                    })
+
+                    const filteredSuggestions = suggestionResponse.suggestions
+                        // Empty suggestion filter
+                        .filter(suggestion => {
+                            if (suggestion.content === '') {
+                                return false
+                            }
+
+                            return true
+                        })
+                        // References setting filter
+                        .filter(suggestion => {
+                            if (includeSuggestionsWithCodeReferences) {
+                                return true
+                            }
+
+                            if (suggestion.references == null || suggestion.references.length === 0) {
+                                return true
+                            }
+
+                            // Filter out suggestions that have references when includeSuggestionsWithCodeReferences setting is true
+                            return false
+                        })
+
+                    // If after all server-side filtering no suggestions can be displayed, close session and return empty results
+                    if (filteredSuggestions.length === 0) {
+                        logging.log('All suggestions were filtered out.')
+
+                        return { isIncomplete: true, items: [] }
+                    }
+
+                    // Get content from the left of the cursor to generate full line
+                    const left = textDocument.getText({
+                        start: { line: params.position.line, character: 0 },
+                        end: params.position,
+                    })
+
+                    const completionItems = mergeSuggestionsWithRightContext(
+                        fileContext.rightFileContent,
+                        filteredSuggestions
+                    ).map(item => {
+                        const label = (left + item.insertText).trimStart()
+                        return {
+                            label: label,
+                            // insertText: item.insertText as string,
+                            textEdit: {
+                                range: {
+                                    start: params.position,
+                                    end: params.position,
+                                },
+                                newText: item.insertText as string,
+                            },
+                            kind: CompletionItemKind.Text,
+                            documentation: {
+                                kind: MarkupKind.Markdown,
+                                value: [
+                                    'Suggestion from Amazon Q:',
+                                    `${item.references ? ` Item has ${item.references?.length} references.` : ''}`,
+                                    '```' + inferredLanguageId,
+                                    label,
+                                    '```',
+                                ].join('\n'),
+                            },
+                            preselect: false,
+                        }
+                    })
+
+                    completionItems.sort((a, b) => {
+                        if (a.label < b.label) {
+                            return -1
+                        }
+                        if (a.label > b.label) {
+                            return 1
+                        }
+                        return 0
+                    })
+
+                    // Preselect suggestion to instruct client to display/scroll to generate suggestion in the completions list
+                    if (preselectSuggestionFromQ) {
+                        completionItems[0].preselect = true
+                    }
+
+                    return {
+                        isIncomplete: false,
+                        items: completionItems,
+                    }
+                } catch (err) {
+                    logging.log('Recommendation failure: ' + err)
+
+                    return { isIncomplete: true, items: [] }
+                }
+            })
+        }
+
         lsp.extensions.onInlineCompletionWithReferences(onInlineCompletionHandler)
         lsp.extensions.onLogInlineCompletionSessionResults(onLogInlineCompletionSessionResultsHandler)
         lsp.onInitialized(updateConfiguration)
         lsp.didChangeConfiguration(updateConfiguration)
+        lsp.onCompletion(onCompletion)
 
         lsp.onDidChangeTextDocument(async p => {
             const textDocument = await workspace.getTextDocument(p.textDocument.uri)
