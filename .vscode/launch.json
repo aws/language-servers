@@ -24,7 +24,7 @@
             "env": {
                 "LSP_SERVER": "${workspaceFolder}/app/aws-lsp-buildspec-runtimes/out/index.js"
             },
-            "preLaunchTask": "npm: compile"
+            "preLaunchTask": "compile"
         },
         {
             "name": "CloudFormation Server",
@@ -36,7 +36,7 @@
             "env": {
                 "LSP_SERVER": "${workspaceFolder}/app/aws-lsp-cloudformation-runtimes/out/index.js"
             },
-            "preLaunchTask": "npm: compile"
+            "preLaunchTask": "compile"
         },
         {
             "name": "YAML Server",
@@ -48,7 +48,7 @@
             "env": {
                 "LSP_SERVER": "${workspaceFolder}/app/aws-lsp-yaml-runtimes/out/index.js"
             },
-            "preLaunchTask": "npm: compile"
+            "preLaunchTask": "compile"
         },
         {
             "name": "JSON Server",
@@ -60,7 +60,7 @@
             "env": {
                 "LSP_SERVER": "${workspaceFolder}/app/aws-lsp-json-runtimes/out/index.js"
             },
-            "preLaunchTask": "npm: compile"
+            "preLaunchTask": "compile"
         },
         {
             "name": "PartiQL Server",
@@ -72,7 +72,7 @@
             "env": {
                 "LSP_SERVER": "${workspaceFolder}/app/aws-lsp-partiql-runtimes/build/aws-lsp-partiql-binary.js"
             },
-            "preLaunchTask": "npm: compile"
+            "preLaunchTask": "compile"
         },
         {
             "name": "CodeWhisperer Server Token",
@@ -91,7 +91,7 @@
                 // "HTTPS_PROXY": "http://127.0.0.1:8888",
                 // "AWS_CA_BUNDLE": "/path/to/cert.pem"
             },
-            "preLaunchTask": "npm: compile"
+            "preLaunchTask": "compile"
         },
         {
             "name": "CodeWhisperer Server IAM",
@@ -106,7 +106,7 @@
                 "ENABLE_IAM_PROVIDER": "true"
                 // "HTTPS_PROXY": "http://127.0.0.1:8888",
             }
-            // "preLaunchTask": "npm: compile"
+            // "preLaunchTask": "compile"
         },
         {
             "name": "S3 Server (with Credentials support)",
@@ -119,7 +119,7 @@
                 "LSP_SERVER": "${workspaceFolder}/app/aws-lsp-s3-runtimes/out/index.js",
                 "ENABLE_IAM_PROVIDER": "true"
             },
-            "preLaunchTask": "npm: compile"
+            "preLaunchTask": "compile"
         },
         {
             "name": "Hello World Server",
@@ -133,7 +133,7 @@
                 "ENABLE_CUSTOM_COMMANDS": "true",
                 "ENABLE_CHAT": "true"
             },
-            "preLaunchTask": "npm: compile"
+            "preLaunchTask": "compile"
         },
         {
             "name": "Identity Server + VSCode Extension",
@@ -199,7 +199,7 @@
     "compounds": [
         {
             "name": "Launch as VSCode Extension + Debugging",
-            "configurations": ["CodeWhisperer Server IAM", "Attach to AWS Documents Language Server"]
+            "configurations": ["CodeWhisperer Server Token", "Attach to AWS Documents Language Server"]
         }
     ]
 }
