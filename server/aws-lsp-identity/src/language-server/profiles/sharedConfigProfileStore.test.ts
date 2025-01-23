@@ -1,3 +1,4 @@
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 import mock = require('mock-fs')
 import { getHomeDir, SharedConfigInit } from '@smithy/shared-ini-file-loader'
 import { DirectoryItems } from 'mock-fs/lib/filesystem'
@@ -7,9 +8,9 @@ import { expect, use } from 'chai'
 import { ProfileData } from './profileService'
 import { Logging, ProfileKind, Telemetry } from '@aws/language-server-runtimes/server-interface'
 import { StubbedInstance, stubInterface } from 'ts-sinon'
-import { Observability } from '../utils'
+import { Observability } from '@aws/lsp-core'
 
-// eslint-disable-next-line @typescript-eslint/no-var-requires
+// eslint-disable-next-line
 use(require('chai-as-promised'))
 
 let sut: SharedConfigProfileStore

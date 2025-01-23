@@ -5,7 +5,7 @@ import {
     PartialInitializeResult,
     InitializeError,
 } from '@aws/language-server-runtimes/server-interface'
-import { ServerBase, ServerFeatures } from '@aws/lsp-core'
+import { ServerBase } from '@aws/lsp-core'
 import { NotificationService, ShowNotification } from './notificationService'
 import { MessageType, NotificationFollowupParams, NotificationParams } from '@aws/language-server-runtimes/protocol'
 import { FilesystemMetadataStore } from '../notifications/metadata/filesystemMetadataStore'
@@ -13,16 +13,17 @@ import { S3Fetcher } from '../notifications/toolkits/s3Fetcher'
 import { CritieriaFilteringFetcher } from '../notifications/toolkits/criteriaFilteringFetcher'
 import { MetadataFilteringFetcher } from '../notifications/metadata/metadataFilteringFetcher'
 import { Fetcher } from '../notifications/fetcher'
+import { Features } from '@aws/language-server-runtimes/server-interface/server'
 
 export class NotificationServer extends ServerBase {
     // Silently drop notifications from constructor to initliaze when ability to send notifications is available
     private showNotification: ShowNotification = (params: NotificationParams) => {}
 
-    constructor(features: ServerFeatures) {
+    constructor(features: Features) {
         super(features)
     }
 
-    static create(features: ServerFeatures): () => void {
+    static create(features: Features): () => void {
         features.logging.log('Creating notification server.')
         return new NotificationServer(features)[Symbol.dispose]
     }

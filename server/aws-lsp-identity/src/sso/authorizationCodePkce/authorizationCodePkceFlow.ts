@@ -10,7 +10,7 @@ import { SsoClientRegistration } from '../cache'
 import { createHash, randomBytes } from 'crypto'
 import { normalizeSettingList } from '../../language-server/profiles/profileService'
 import { AuthorizationServer } from './authorizationServer'
-import { Observability } from '../../language-server/utils'
+import { Observability } from '@aws/lsp-core'
 
 export type ShowUrl = (url: URL) => void
 

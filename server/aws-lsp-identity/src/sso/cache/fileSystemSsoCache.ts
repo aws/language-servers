@@ -4,8 +4,7 @@ import { mkdir, readFile, unlink, writeFile } from 'fs/promises'
 import { AwsErrorCodes, SsoSession } from '@aws/language-server-runtimes/server-interface'
 import { throwOnInvalidClientName, throwOnInvalidSsoSession, throwOnInvalidSsoSessionName } from '../utils'
 import path from 'path'
-import { Observability } from '../../language-server/utils'
-import { AwsError } from '@aws/lsp-core'
+import { AwsError, Observability } from '@aws/lsp-core'
 
 export class FileSystemSsoCache implements SsoCache {
     constructor(private readonly observability: Observability) {}

@@ -58,7 +58,7 @@ class DiagnosticsCollector extends BaseErrorListener {
     }
 
     // We only use the parser for diagnostics, so we're only interested in the syntaxError method for this class.
-    syntaxError(recognizer: Recognizer<ATNSimulator>, offendingSymbol: Token | null) {
+    override syntaxError(recognizer: Recognizer<ATNSimulator>, offendingSymbol: Token | null) {
         this._diagnostics.push({
             message: `Unexpected token: ${offendingSymbol?.text}`,
             range: {

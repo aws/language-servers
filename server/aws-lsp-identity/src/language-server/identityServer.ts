@@ -17,15 +17,15 @@ import { IdentityService } from './identityService'
 import { FileSystemSsoCache, RefreshingSsoCache } from '../sso/cache'
 import { SsoTokenAutoRefresher } from './ssoTokenAutoRefresher'
 import { ShowUrl } from '../sso'
-import { ServerBase, ServerFeatures } from './utils'
-import { AwsError } from '@aws/lsp-core'
+import { AwsError, ServerBase } from '@aws/lsp-core'
+import { Features } from '@aws/language-server-runtimes/server-interface/server'
 
 export class IdentityServer extends ServerBase {
-    constructor(features: ServerFeatures) {
+    constructor(features: Features) {
         super(features)
     }
 
-    static create(features: ServerFeatures): () => void {
+    static create(features: Features): () => void {
         features.logging.log('Creating identity server.')
         return new IdentityServer(features)[Symbol.dispose]
     }

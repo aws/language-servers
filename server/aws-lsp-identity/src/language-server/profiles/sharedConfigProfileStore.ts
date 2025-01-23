@@ -11,8 +11,7 @@ import { AwsErrorCodes, ProfileKind, SsoSession } from '@aws/language-server-run
 import { SectionHeader } from '../../sharedConfig/types'
 import { saveKnownFiles } from '../../sharedConfig'
 import { normalizeParsedIniData } from '../../sharedConfig/saveKnownFiles'
-import { Observability } from '../utils'
-import { AwsError } from '@aws/lsp-core'
+import { AwsError, Observability } from '@aws/lsp-core'
 
 // Uses AWS SDK for JavaScript v3
 // Applies shared config files location resolution, but JVM system properties are not supported
