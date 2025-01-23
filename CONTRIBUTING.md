@@ -180,9 +180,11 @@ This repo contains a minimal vscode client that can be used to easily run and
 debug changes to this language server.
 
 1. Run `npm run package` in the root folder
-2. In the `Run & Debug` menu, run `"Launch as VSCode Extension + Debugging"`. Make sure this is launching the server you wish to use, look at the [launch configuration](.vscode/launch.json#L202). Keep the `Attach to AWS Documents Language Server` to use the debugger.
-3. Set breakpoints in the source where needed.
-4. (Optional) in the [activation file](client/vscode/src/activation.ts#L81) you can swap `--inspect` with `--inspect-brk` if you need to debug immediately when the node process starts. Read more about it on this [site](https://www.builder.io/blog/debug-nodejs#:~:text=%2D%2Dinspect%20versus%20%2D%2Dinspect%2Dbrk)
+2. Set the breakpoints you need, **make sure to set them in node_modules**, e.g.: to set a breakpoint in the package `aws-lsp-codewhisperer`, set it in the symlinked `node_modules/@aws/lsp-codewhisperer`, not in `server/aws-lsp-codewhisperer`. 
+3. **Make sure that the preLaunchTask option** (for the configuration you are running in `.vscode/launch.json`) is either not set or set to `watch`, **not** `compile`.
+4. In the `Run & Debug` menu, run `"Launch as VSCode Extension + Debugging"`. Make sure this is launching the server you wish to use, look at the [launch configuration](.vscode/launch.json#L202). Keep the `Attach to AWS Documents Language Server` to use the debugger.
+5. When the debugging is launched, select the `Attach to AWS Documents Language Server` option from the drop down menu (close to pause/stop buttons).
+6. (Optional) in the [activation file](client/vscode/src/activation.ts#L81) you can swap `--inspect` with `--inspect-brk` if you need to debug immediately when the node process starts. Read more about it on this [site](https://www.builder.io/blog/debug-nodejs#:~:text=%2D%2Dinspect%20versus%20%2D%2Dinspect%2Dbrk)
 
 ### With VSCode Toolkit Extension
 
@@ -395,3 +397,22 @@ Sometimes there is a need to build and develop both Language Servers with Langua
     ```
 
 Using local checkout of `language-server-runtimes` you can iterate or experiment with both projects and produce working language server builds locally. Built servers can be found in `./app/**/build` folder.
+
+**Doesn’t seem like language-servers is using your local language-server-runtimes install?**  Try the extreme option:
+```
+# From language-server-runtimes
+npm run clean &&
+npm install &&
+npm -ws install &&
+npm run compile &&
+npm -ws run prepub --if-present
+
+# From language-servers
+npm run clean &&
+rm -fr node_modules &&
+rm -fr server/aws-lsp-codewhisperer/node_modules
+npm install &&
+npm -ws install &&
+npm link @aws/language-server-runtimes @aws/language-server-runtimes-types &&
+npm run compile -- --force
+```
