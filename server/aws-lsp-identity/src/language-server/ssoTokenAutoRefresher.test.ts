@@ -4,10 +4,10 @@ import { SSOToken } from '@smithy/shared-ini-file-loader'
 import { StubbedInstance, stubInterface } from 'ts-sinon'
 import { SsoClientRegistration, RefreshingSsoCache } from '../sso'
 import { restore, spy } from 'sinon'
-import { Observability } from './utils'
 import { Logging, Telemetry } from '@aws/language-server-runtimes/server-interface'
+import { Observability } from '@aws/lsp-core'
 
-// eslint-disable-next-line @typescript-eslint/no-var-requires
+// eslint-disable-next-line
 use(require('chai-as-promised'))
 
 let observability: StubbedInstance<Observability>

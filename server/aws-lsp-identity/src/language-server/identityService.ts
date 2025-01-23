@@ -17,8 +17,7 @@ import { authorizationCodePkceFlow, awsBuilderIdReservedName, awsBuilderIdSsoReg
 import { SsoCache, SsoClientRegistration } from '../sso/cache'
 import { SsoTokenAutoRefresher } from './ssoTokenAutoRefresher'
 import { throwOnInvalidClientRegistration, throwOnInvalidSsoSession, throwOnInvalidSsoSessionName } from '../sso/utils'
-import { Observability } from './utils'
-import { AwsError } from '@aws/lsp-core'
+import { AwsError, Observability } from '@aws/lsp-core'
 import { __ServiceException } from '@aws-sdk/client-sso-oidc/dist-types/models/SSOOIDCServiceException'
 
 type SsoTokenSource = IamIdentityCenterSsoTokenSource | AwsBuilderIdSsoTokenSource

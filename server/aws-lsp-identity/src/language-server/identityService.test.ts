@@ -8,10 +8,10 @@ import { SsoTokenAutoRefresher } from './ssoTokenAutoRefresher'
 import { createStubInstance, restore, stub } from 'sinon'
 import { CancellationToken, ProfileKind, SsoTokenSourceKind } from '@aws/language-server-runtimes/protocol'
 import { SSOToken } from '@smithy/shared-ini-file-loader'
-import { Observability } from './utils'
 import { Logging, Telemetry } from '@aws/language-server-runtimes/server-interface'
+import { Observability } from '@aws/lsp-core'
 
-// eslint-disable-next-line @typescript-eslint/no-var-requires
+// eslint-disable-next-line
 use(require('chai-as-promised'))
 
 let sut: IdentityService

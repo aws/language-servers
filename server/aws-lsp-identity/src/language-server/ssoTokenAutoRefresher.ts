@@ -1,11 +1,10 @@
 import { SsoSession, SsoTokenChangedParams } from '@aws/language-server-runtimes/protocol'
 import { RefreshingSsoCache, refreshWindowMillis, retryCooldownWindowMillis } from '../sso/cache/refreshingSsoCache'
 import { throwOnInvalidClientName, throwOnInvalidSsoSession, throwOnInvalidSsoSessionName } from '../sso/utils'
-import { Observability } from './utils'
 import { MetricEvent } from '@aws/language-server-runtimes/server-interface'
 import { normalizeSettingList } from './profiles/profileService'
 import { __ServiceException } from '@aws-sdk/client-sso-oidc/dist-types/models/SSOOIDCServiceException'
-import { AwsError } from '@aws/lsp-core'
+import { AwsError, Observability } from '@aws/lsp-core'
 
 const bufferedRefreshWindowMillis = refreshWindowMillis * 0.95
 const bufferedRetryCooldownWindowMillis = retryCooldownWindowMillis * 1.05

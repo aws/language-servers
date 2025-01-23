@@ -11,10 +11,9 @@ import {
 import { normalizeParsedIniData } from '../../sharedConfig/saveKnownFiles'
 import { StubbedInstance, stubInterface } from 'ts-sinon'
 import { expect, use } from 'chai'
-import { Observability } from '../utils'
-import { AwsError } from '@aws/lsp-core'
+import { AwsError, Observability } from '@aws/lsp-core'
 
-// eslint-disable-next-line @typescript-eslint/no-var-requires
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 use(require('chai-as-promised'))
 
 let sut: ProfileService

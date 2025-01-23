@@ -7,10 +7,10 @@ import { SsoClientRegistration } from '../cache'
 import { CancellationToken, SsoSession } from '@aws/language-server-runtimes/protocol'
 import * as ssoUtils from '../utils'
 import { authorizationCodePkceFlow } from './authorizationCodePkceFlow'
-import { Observability } from '../../language-server/utils'
 import { Logging, Telemetry } from '@aws/language-server-runtimes/server-interface'
+import { Observability } from '@aws/lsp-core'
 
-// eslint-disable-next-line @typescript-eslint/no-var-requires
+// eslint-disable-next-line
 use(require('chai-as-promised'))
 
 let authorizationServer: StubbedInstance<AuthorizationServer>

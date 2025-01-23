@@ -7,7 +7,7 @@ import { PostgreSQLLexer } from './antlr-generated/PostgreSQLLexer'
 import { PostgreSQLParser } from './antlr-generated/PostgreSQLParser'
 
 class MyANTLR4LanguageService extends ANTLR4LanguageService {
-    public async doValidation(_textDocument: TextDocument): Promise<Diagnostic[]> {
+    public override async doValidation(_textDocument: TextDocument): Promise<Diagnostic[]> {
         // disable diagnostics
         return []
     }

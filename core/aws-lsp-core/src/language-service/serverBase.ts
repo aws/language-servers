@@ -1,12 +1,5 @@
 import {
-    Chat,
-    CredentialsProvider,
-    IdentityManagement,
     Logging,
-    Lsp,
-    Notification,
-    Runtime,
-    Workspace,
     PartialInitializeResult,
     Telemetry,
     InitializeParams,
@@ -17,20 +10,7 @@ import {
     InitializedParams,
 } from '@aws/language-server-runtimes/server-interface'
 import { AwsError } from '../util/awsError'
-
-// TODO In a future PR when schedule permits, migrate this to language-server-runtimes/server-interface/server
-// for reuse in Server type parameter
-export interface ServerFeatures {
-    chat: Chat
-    credentialsProvider: CredentialsProvider
-    identityManagement: IdentityManagement
-    logging: Logging
-    lsp: Lsp
-    notification: Notification
-    runtime: Runtime
-    telemetry: Telemetry
-    workspace: Workspace
-}
+import { Features } from '@aws/language-server-runtimes/server-interface/server'
 
 export interface Observability {
     logging: Logging
@@ -41,7 +21,7 @@ export abstract class ServerBase implements Disposable {
     protected readonly observability: Observability
     protected readonly disposables: (Disposable | (() => void))[] = []
 
-    constructor(protected readonly features: ServerFeatures) {
+    constructor(protected readonly features: Features) {
         this.features.lsp.addInitializer(params => this.initialize(params))
         this.features.lsp.onInitialized(params => this.initialized(params))
         this.observability = { logging: this.features.logging, telemetry: this.features.telemetry }
@@ -58,13 +38,16 @@ export abstract class ServerBase implements Disposable {
         }
     }
 
-    protected abstract initialize(
-        params: InitializeParams
-    ): HandlerResult<PartialInitializeResult<any>, InitializeError>
+    protected initialize(params: InitializeParams): HandlerResult<PartialInitializeResult<any>, InitializeError> {
+        // No-op, to be overridden in subclasses if needed
+        return { capabilities: {} }
+    }
 
-    protected abstract initialized(params: InitializedParams): void
+    protected initialized(params: InitializedParams): void {
+        // No-op, to be overridden in subclasses if needed
+    }
 
-    // AwsResponseError should only be instantied and used at the server class level.  All other code should use
+    // AwsResponseError should only be instantiated and used at the server-class level.  All other code should use
     // the LSP-agnostic AwsError class instead.  Each handler call should use this function to wrap the functional
     // call and emit an AwsResponseError in all failure cases.  If a better awsErrorCode than E_UNKNOWN can be
     // assumed at the call site, it can be provided as an arg, otherwise E_UNKNOWN as default is fine.

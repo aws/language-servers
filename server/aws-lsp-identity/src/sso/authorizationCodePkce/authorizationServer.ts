@@ -3,8 +3,7 @@ import http, { IncomingMessage, Server, ServerResponse } from 'http'
 import { AwsErrorCodes, CancellationToken } from '@aws/language-server-runtimes/protocol'
 import { readFile } from 'fs/promises'
 import { randomUUID } from 'crypto'
-import { Observability } from '../../language-server/utils'
-import { AwsError } from '@aws/lsp-core'
+import { AwsError, Observability } from '@aws/lsp-core'
 
 export class AuthorizationServer implements Disposable {
     private static readonly authorizationPath = '/oauth/callback'

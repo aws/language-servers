@@ -9,9 +9,8 @@ import {
     throwOnInvalidSsoSessionName,
 } from '../utils'
 import { RaiseSsoTokenChanged } from '../../language-server/ssoTokenAutoRefresher'
-import { Observability } from '../../language-server/utils'
 import { InvalidGrantException } from '@aws-sdk/client-sso-oidc'
-import { AwsError } from '@aws/lsp-core'
+import { AwsError, Observability } from '@aws/lsp-core'
 
 export const refreshWindowMillis: number = 5 * 60 * 1000
 export const retryCooldownWindowMillis: number = 30000

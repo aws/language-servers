@@ -9,7 +9,6 @@ import {
     Diagnostic,
     FormattingOptions,
     Hover,
-    MarkedString,
     MarkupContent,
     MarkupKind,
     Position,
@@ -60,7 +59,7 @@ export class TestLanguageService implements AwsLanguageService {
 const doubleSupportCompletion = 'double support test completion'
 
 export class DoubleSupportTestService extends TestLanguageService {
-    public doComplete(textDocument: TextDocument, position: Position): PromiseLike<CompletionList | null> {
+    public override doComplete(textDocument: TextDocument, position: Position): PromiseLike<CompletionList | null> {
         const completionList = CompletionList.create([CompletionItem.create(doubleSupportCompletion)], true)
         return Promise.resolve(completionList)
     }

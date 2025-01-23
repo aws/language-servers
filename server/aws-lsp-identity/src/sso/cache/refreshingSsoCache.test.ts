@@ -6,10 +6,10 @@ import * as ssoUtils from '../utils'
 import { RefreshingSsoCache } from './refreshingSsoCache'
 import { SSOOIDC } from '@aws-sdk/client-sso-oidc'
 import { SSOToken } from '@smithy/shared-ini-file-loader'
-import { Observability } from '../../language-server/utils'
 import { Logging, Telemetry } from '@aws/language-server-runtimes/server-interface'
+import { Observability } from '@aws/lsp-core'
 
-// eslint-disable-next-line @typescript-eslint/no-var-requires
+// eslint-disable-next-line
 use(require('chai-as-promised'))
 
 let ssoOidc: SSOOIDC & Disposable

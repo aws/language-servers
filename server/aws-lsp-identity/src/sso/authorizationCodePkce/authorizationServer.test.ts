@@ -2,10 +2,10 @@ import { expect, use } from 'chai'
 import { AuthorizationServer } from './authorizationServer'
 import * as http from 'http'
 import { stubInterface } from 'ts-sinon'
-import { Observability } from '../../language-server/utils'
 import { Logging, Telemetry } from '@aws/language-server-runtimes/server-interface'
+import { Observability } from '@aws/lsp-core'
 
-// eslint-disable-next-line @typescript-eslint/no-var-requires
+// eslint-disable-next-line
 use(require('chai-as-promised'))
 
 async function httpGet(options: string | URL): Promise<{ data: string; statusCode?: number }> {

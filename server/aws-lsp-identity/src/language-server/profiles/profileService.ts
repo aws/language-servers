@@ -13,8 +13,7 @@ import {
 } from '@aws/language-server-runtimes/server-interface'
 import { SharedConfigInit } from '@smithy/shared-ini-file-loader'
 import { DuckTyper } from '../../duckTyper'
-import { Observability } from '../utils'
-import { AwsError } from '@aws/lsp-core'
+import { AwsError, Observability } from '@aws/lsp-core'
 
 export interface ProfileData {
     profiles: Profile[]
