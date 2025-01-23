@@ -4,7 +4,6 @@ build
 .idea
 **/*.tgz
 .testresults/**
-core/codewhisperer-streaming/dist*
 
 # Visual Studio Related
 **/.vs

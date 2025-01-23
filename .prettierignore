@@ -7,5 +7,4 @@ out/
 server/aws-lsp-codewhisperer/src/client/sigv4/codewhisperersigv4client.d.ts
 server/aws-lsp-codewhisperer/src/client/token/codewhispererbearertokenclient.d.ts
 **/*.md
-core/codewhisperer-streaming/*
 **/antlr-generated/

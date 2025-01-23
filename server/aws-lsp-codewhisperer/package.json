@@ -68,8 +68,5 @@
         "bracketSpacing": true,
         "arrowParens": "avoid",
         "endOfLine": "lf"
-    },
-    "bundleDependencies": [
-        "@amzn/codewhisperer-streaming"
-    ]
+    }
 }

@@ -22,9 +22,6 @@
             "path": "./core/aws-lsp-core"
         },
         {
-            "path": "./core/codewhisperer-streaming"
-        },
-        {
             "path": "./server/aws-lsp-json"
         },
         {
