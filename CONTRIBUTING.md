@@ -397,3 +397,22 @@ Sometimes there is a need to build and develop both Language Servers with Langua
     ```
 
 Using local checkout of `language-server-runtimes` you can iterate or experiment with both projects and produce working language server builds locally. Built servers can be found in `./app/**/build` folder.
+
+**Doesn’t seem like language-servers is using your local language-server-runtimes install?**  Try the extreme option:
+```
+# From language-server-runtimes
+npm run clean &&
+npm install &&
+npm -ws install &&
+npm run compile &&
+npm -ws run prepub --if-present
+
+# From language-servers
+npm run clean &&
+rm -fr node_modules &&
+rm -fr server/aws-lsp-codewhisperer/node_modules
+npm install &&
+npm -ws install &&
+npm link @aws/language-server-runtimes @aws/language-server-runtimes-types &&
+npm run compile -- --force
+```
