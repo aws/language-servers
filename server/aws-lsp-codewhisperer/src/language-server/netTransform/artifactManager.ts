@@ -55,7 +55,7 @@ export class ArtifactManager {
             return
         }
         fs.rmSync(packagesFolder, { recursive: true, force: true })
-        this.logging.log('Removed nuget packages folder: ' + packagesFolder)
+        this.logging.log(`Removed nuget packages folder: ${packagesFolder}`)
     }
 
     async createRequirementJson(request: StartTransformRequest) {
