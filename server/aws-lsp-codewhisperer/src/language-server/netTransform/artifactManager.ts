@@ -9,6 +9,7 @@ const artifactFolderName = 'artifact'
 const referencesFolderName = 'references'
 const zipFileName = 'artifact.zip'
 const sourceCodeFolderName = 'sourceCode'
+const packagesFolderName = 'packages'
 
 export class ArtifactManager {
     private workspace: Workspace
@@ -22,6 +23,7 @@ export class ArtifactManager {
     async createZip(request: StartTransformRequest): Promise<string> {
         await this.createRequirementJson(request)
         await this.copySolutionConfigFiles(request)
+        await this.removeDuplicateNugetPackagesFolder(request)
         return await this.zipArtifact()
     }
     async removeDir(dir: string) {
@@ -39,6 +41,21 @@ export class ArtifactManager {
         } catch (error) {
             this.logging.log('Failed to cleanup:' + error)
         }
+    }
+
+    async removeDuplicateNugetPackagesFolder(request: StartTransformRequest) {
+        const packagesFolder = path.join(
+            this.workspacePath,
+            artifactFolderName,
+            sourceCodeFolderName,
+            packagesFolderName
+        )
+        if (!fs.existsSync(packagesFolder)) {
+            this.logging.log('Cannot find nuget packages folder in source code')
+            return
+        }
+        fs.rmSync(packagesFolder, { recursive: true, force: true })
+        this.logging.log('Removed nuget packages folder: ' + packagesFolder)
     }
 
     async createRequirementJson(request: StartTransformRequest) {
@@ -194,6 +211,10 @@ export class ArtifactManager {
         this.createFolderIfNotExist(dir)
         fs.copyFile(sourceFilePath, destFilePath, error => {
             if (error) {
+                if (!fs.existsSync(dir) && dir.includes(packagesFolderName)) {
+                    //Packages folder has been deleted to avoid duplicates in artifacts.zip
+                    return
+                }
                 this.logging.log('Failed to copy: ' + sourceFilePath + error)
             }
         })
