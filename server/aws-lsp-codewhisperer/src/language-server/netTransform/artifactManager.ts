@@ -50,12 +50,10 @@ export class ArtifactManager {
             sourceCodeFolderName,
             packagesFolderName
         )
-        if (!fs.existsSync(packagesFolder)) {
-            this.logging.log('Cannot find nuget packages folder in source code')
-            return
+        if (fs.existsSync(packagesFolder)) {
+            fs.rmSync(packagesFolder, { recursive: true, force: true })
+            this.logging.log(`Removed nuget packages folder: ${packagesFolder}`)
         }
-        fs.rmSync(packagesFolder, { recursive: true, force: true })
-        this.logging.log(`Removed nuget packages folder: ${packagesFolder}`)
     }
 
     async createRequirementJson(request: StartTransformRequest) {
