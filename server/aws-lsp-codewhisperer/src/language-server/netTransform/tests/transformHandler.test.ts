@@ -53,7 +53,11 @@ describe('Test Transform handler ', () => {
     describe('test upload artifact', () => {
         it('call upload method correctly', async () => {
             const putStub = sinon.stub(got, 'put').resolves({ statusCode: 'Success' })
-            const readFileSyncStub = sinon.stub(fs, 'readFileSync').returns('text file content')
+            const mockReadStream = {
+                on: sinon.stub(),
+                pipe: sinon.stub(),
+            }
+            const createReadStreamStub = sinon.stub(fs, 'createReadStream').returns(mockReadStream as any)
             await transformHandler.uploadArtifactToS3Async(
                 payloadFileName,
                 {
@@ -65,9 +69,9 @@ describe('Test Transform handler ', () => {
                 'dummy-256'
             )
             simon.assert.callCount(putStub, 1)
-            simon.assert.callCount(readFileSyncStub, 1)
+            simon.assert.callCount(createReadStreamStub, 1)
             putStub.restore()
-            readFileSyncStub.restore()
+            createReadStreamStub.restore()
         })
     })
 

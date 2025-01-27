@@ -114,7 +114,7 @@ export class TransformHandler {
     }
 
     async uploadPayloadAsync(payloadFileName: string): Promise<string> {
-        const sha256 = await ArtifactManager.getSha256(payloadFileName)
+        const sha256 = await ArtifactManager.getSha256Async(payloadFileName)
         let response: CreateUploadUrlResponse
         try {
             response = await this.client.codeModernizerCreateUploadUrl({

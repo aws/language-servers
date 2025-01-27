@@ -75,7 +75,7 @@ export class ArtifactManager {
             await sourceCodeFilePaths.forEach(async filePath => {
                 try {
                     this.copySourceFile(request.SolutionRootPath, filePath)
-                    var contentHash = await this.calculateMD5Sync(filePath)
+                    var contentHash = await this.calculateMD5Async(filePath)
                     var relativePath = this.normalizeSourceFileRelativePath(request.SolutionRootPath, filePath)
                     codeFiles.push({
                         contentMd5Hash: contentHash,
@@ -136,7 +136,7 @@ export class ArtifactManager {
     //use fs.createReadStream() to handle the file in smaller, manageable chunks rather than loading the entire file
     // into memory. This avoids hitting the 2 GiB limit that occurs when using fs.readFile(),
     // as it loads the entire file into memory.
-    static async getSha256(fileName: string): Promise<string> {
+    static async getSha256Async(fileName: string): Promise<string> {
         const hasher = crypto.createHash('sha256')
         const stream = fs.createReadStream(fileName)
 
@@ -212,17 +212,14 @@ export class ArtifactManager {
         })
     }
 
-    async calculateMD5Sync(filePath: string): Promise<string> {
+    async calculateMD5Async(filePath: string): Promise<string> {
         try {
             const hash = crypto.createHash('md5')
-            //const stream = fs.createReadStream(filePath, { highWaterMark: 64 * 1024 }); // 64 KB chunks
             const stream = fs.createReadStream(filePath)
             for await (const chunk of stream) {
                 hash.update(chunk)
             }
 
-            //const data = fs.readFileSync(filePath)
-            //const hash = crypto.createHash('md5').update(data)
             return hash.digest('hex')
         } catch (error) {
             this.logging.log('Failed to calculate hashcode: ' + filePath + error)
