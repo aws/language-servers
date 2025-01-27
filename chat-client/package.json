@@ -34,7 +34,7 @@
         "ts-mocha": "^10.0.0",
         "ts-sinon": "^2.0.2",
         "webpack": "^5.94.0",
-        "webpack-cli": "^5.1.4"
+        "webpack-cli": "^6.0.1"
     },
     "prettier": {
         "printWidth": 120,
