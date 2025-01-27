@@ -209,15 +209,15 @@ export class ArtifactManager {
     copyFile(sourceFilePath: string, destFilePath: string) {
         const dir = path.dirname(destFilePath)
         this.createFolderIfNotExist(dir)
-        fs.copyFile(sourceFilePath, destFilePath, error => {
-            if (error) {
-                if (!fs.existsSync(dir) && dir.includes(packagesFolderName)) {
-                    //Packages folder has been deleted to avoid duplicates in artifacts.zip
-                    return
-                }
-                this.logging.log('Failed to copy: ' + sourceFilePath + error)
+        try {
+            fs.copyFileSync(sourceFilePath, destFilePath)
+        } catch (err) {
+            if (!fs.existsSync(dir) && dir.includes(packagesFolderName)) {
+                //Packages folder has been deleted to avoid duplicates in artifacts.zip
+                return
             }
-        })
+            this.logging.log(`Failed to copy from ${sourceFilePath} and error is ${err}`)
+        }
     }
 
     calculateMD5Sync(filePath: string): string {
