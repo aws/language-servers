@@ -52,7 +52,9 @@ export class ArtifactManager {
         )
         if (fs.existsSync(packagesFolder)) {
             fs.rmSync(packagesFolder, { recursive: true, force: true })
-            this.logging.log(`Removed nuget packages folder: ${packagesFolder}`)
+            this.logging.log(
+                `Removed packages folder ${packagesFolder} from source code directory to be uploaded because it is a duplicate of references folder from artifacts`
+            )
         }
     }
 
