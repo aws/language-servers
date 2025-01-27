@@ -19,6 +19,7 @@ import { TransformHandler } from '../transformHandler'
 import { EXAMPLE_REQUEST } from './mockData'
 import sinon = require('sinon')
 import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../../../constants'
+import { Readable } from 'stream'
 
 const mocked$Response = {
     $response: {
@@ -38,6 +39,20 @@ const payloadFileName = 'C:\\test.zip'
 const mockReadStream = {
     on: sinon.stub(),
     pipe: sinon.stub(),
+}
+
+export function createMockReadableStream(chunks: any[]): Readable {
+    const readable = new Readable({
+        read() {
+            if (chunks.length > 0) {
+                this.push(chunks.shift())
+            } else {
+                this.push(null) // Signal end of stream
+            }
+        },
+    })
+
+    return readable
 }
 
 describe('Test Transform handler ', () => {
@@ -88,7 +103,9 @@ describe('Test Transform handler ', () => {
         })
 
         it('returns upload id correctly', async () => {
-            const createReadStreamStub = sinon.stub(fs, 'createReadStream').returns(mockReadStream as any)
+            const chunks = ['Hello, ', 'World!']
+            const mockStream = createMockReadableStream(chunks)
+            const createReadStreamStub = sinon.stub(fs, 'createReadStream').returns(mockStream as any)
             const uploadStub = sinon.stub(transformHandler, 'uploadArtifactToS3Async')
             const res = await transformHandler.uploadPayloadAsync(payloadFileName)
             simon.assert.callCount(createReadStreamStub, 1)
@@ -100,7 +117,9 @@ describe('Test Transform handler ', () => {
 
         it('should throw error if uploadArtifactToS3Async fails', async () => {
             const mockError = new Error('Error in uploadArtifactToS3 call')
-            const createReadStreamStub = sinon.stub(fs, 'createReadStream').returns(mockReadStream as any)
+            const chunks = ['Hello, ', 'World!']
+            const mockStream = createMockReadableStream(chunks)
+            const createReadStreamStub = sinon.stub(fs, 'createReadStream').returns(mockStream as any)
             sinon.stub(transformHandler, 'uploadArtifactToS3Async').rejects(mockError)
 
             // Call the method to be tested
