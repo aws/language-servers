@@ -9,6 +9,7 @@ const artifactFolderName = 'artifact'
 const referencesFolderName = 'references'
 const zipFileName = 'artifact.zip'
 const sourceCodeFolderName = 'sourceCode'
+const packagesFolderName = 'packages'
 
 export class ArtifactManager {
     private workspace: Workspace
@@ -22,6 +23,7 @@ export class ArtifactManager {
     async createZip(request: StartTransformRequest): Promise<string> {
         await this.createRequirementJson(request)
         await this.copySolutionConfigFiles(request)
+        await this.removeDuplicateNugetPackagesFolder(request)
         return await this.zipArtifact()
     }
     async removeDir(dir: string) {
@@ -38,6 +40,21 @@ export class ArtifactManager {
             fs.rmSync(this.workspacePath, { recursive: true, force: true })
         } catch (error) {
             this.logging.log('Failed to cleanup:' + error)
+        }
+    }
+
+    async removeDuplicateNugetPackagesFolder(request: StartTransformRequest) {
+        const packagesFolder = path.join(
+            this.workspacePath,
+            artifactFolderName,
+            sourceCodeFolderName,
+            packagesFolderName
+        )
+        if (fs.existsSync(packagesFolder)) {
+            fs.rmSync(packagesFolder, { recursive: true, force: true })
+            this.logging.log(
+                `Removed packages folder ${packagesFolder} from source code directory to be uploaded because it is a duplicate of references folder from artifacts`
+            )
         }
     }
 
@@ -192,11 +209,15 @@ export class ArtifactManager {
     copyFile(sourceFilePath: string, destFilePath: string) {
         const dir = path.dirname(destFilePath)
         this.createFolderIfNotExist(dir)
-        fs.copyFile(sourceFilePath, destFilePath, error => {
-            if (error) {
-                this.logging.log('Failed to copy: ' + sourceFilePath + error)
+        try {
+            fs.copyFileSync(sourceFilePath, destFilePath)
+        } catch (err) {
+            if (!fs.existsSync(dir) && dir.includes(packagesFolderName)) {
+                //Packages folder has been deleted to avoid duplicates in artifacts.zip
+                return
             }
-        })
+            this.logging.log(`Failed to copy from ${sourceFilePath} and error is ${err}`)
+        }
     }
 
     calculateMD5Sync(filePath: string): string {
