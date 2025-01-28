@@ -61,7 +61,7 @@ const mapClientNameToIdeCategory = (clientName: string): string | undefined => {
 // https://github.com/aws/language-server-runtimes/blob/main/runtimes/protocol/lsp.ts#L60-L69
 const getIdeCategory = (initializeParams: InitializeParams) => {
     let ideCategory
-    if (initializeParams.initializationOptions?.aws.clientInfo?.extension?.name) {
+    if (initializeParams.initializationOptions?.aws?.clientInfo?.extension?.name) {
         ideCategory = mapClientNameToIdeCategory(initializeParams.initializationOptions.aws.clientInfo.extension.name)
     }
 
@@ -94,9 +94,9 @@ export const makeUserContextObject = (
         ideCategory: getIdeCategory(initializeParams),
         operatingSystem: getOperatingSystem(platform),
         product: product,
-        clientId: initializeParams.initializationOptions?.aws.clientInfo?.clientId,
+        clientId: initializeParams.initializationOptions?.aws?.clientInfo?.clientId,
         ideVersion:
-            initializeParams.initializationOptions?.aws.clientInfo?.version || initializeParams.clientInfo?.version,
+            initializeParams.initializationOptions?.aws?.clientInfo?.version || initializeParams.clientInfo?.version,
     }
 
     if (userContext.ideCategory === 'UNKNOWN' || userContext.operatingSystem === 'UNKNOWN') {
