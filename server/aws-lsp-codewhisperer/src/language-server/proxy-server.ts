@@ -9,6 +9,7 @@ import { QConfigurationServerToken } from './configuration/qConfigurationServer'
 import { readFileSync } from 'fs'
 import { HttpsProxyAgent } from 'hpagent'
 import { NodeHttpHandler } from '@smithy/node-http-handler'
+import { WorkspaceContextServer } from './workspaceContextServer'
 
 export const CodeWhispererServerTokenProxy = CodewhispererServerFactory(
     (credentialsProvider, workspace, awsQRegion, awsQEndpointUrl) => {
@@ -29,6 +30,12 @@ export const CodeWhispererSecurityScanServerTokenProxy = SecurityScanServerToken
 )
 
 export const QNetTransformServerTokenProxy = QNetTransformServerToken(
+    (credentialsProvider, workspace, awsQRegion, awsQEndpointUrl) => {
+        return new CodeWhispererServiceToken(credentialsProvider, workspace, awsQRegion, awsQEndpointUrl)
+    }
+)
+
+export const WorkspaceContextServerTokenProxy = WorkspaceContextServer(
     (credentialsProvider, workspace, awsQRegion, awsQEndpointUrl) => {
         return new CodeWhispererServiceToken(credentialsProvider, workspace, awsQRegion, awsQEndpointUrl)
     }
