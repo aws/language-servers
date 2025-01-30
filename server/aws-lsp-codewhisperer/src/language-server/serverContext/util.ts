@@ -38,8 +38,6 @@ export const getProgrammingLanguageFromPath = (path: string): string => {
 }
 
 export const findWorkspaceRoot = (fileUri: string, workspaceFolders: WorkspaceFolder[]): string => {
-    const matchingFolder = workspaceFolders.find(folder =>
-        fileUri.startsWith(folder.uri)
-    );
-    return matchingFolder ? matchingFolder.uri : '';
+    const matchingFolder = workspaceFolders.find(folder => fileUri.startsWith(folder.uri))
+    return matchingFolder ? matchingFolder.uri : ''
 }
