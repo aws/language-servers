@@ -20,13 +20,160 @@ declare class CodeWhispererSigV4Client extends Service {
   /**
    * 
    */
+  createCodeScan(params: CodeWhispererSigV4Client.Types.CreateCodeScanRequest, callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.CreateCodeScanResponse) => void): Request<CodeWhispererSigV4Client.Types.CreateCodeScanResponse, AWSError>;
+  /**
+   * 
+   */
+  createCodeScan(callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.CreateCodeScanResponse) => void): Request<CodeWhispererSigV4Client.Types.CreateCodeScanResponse, AWSError>;
+  /**
+   * 
+   */
+  createCodeScanUploadUrl(params: CodeWhispererSigV4Client.Types.CreateUploadUrlRequest, callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.CreateUploadUrlResponse) => void): Request<CodeWhispererSigV4Client.Types.CreateUploadUrlResponse, AWSError>;
+  /**
+   * 
+   */
+  createCodeScanUploadUrl(callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.CreateUploadUrlResponse) => void): Request<CodeWhispererSigV4Client.Types.CreateUploadUrlResponse, AWSError>;
+  /**
+   * 
+   */
+  createProfile(params: CodeWhispererSigV4Client.Types.CreateProfileRequest, callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.CreateProfileResponse) => void): Request<CodeWhispererSigV4Client.Types.CreateProfileResponse, AWSError>;
+  /**
+   * 
+   */
+  createProfile(callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.CreateProfileResponse) => void): Request<CodeWhispererSigV4Client.Types.CreateProfileResponse, AWSError>;
+  /**
+   * 
+   */
+  deleteProfile(params: CodeWhispererSigV4Client.Types.DeleteProfileRequest, callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.DeleteProfileResponse) => void): Request<CodeWhispererSigV4Client.Types.DeleteProfileResponse, AWSError>;
+  /**
+   * 
+   */
+  deleteProfile(callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.DeleteProfileResponse) => void): Request<CodeWhispererSigV4Client.Types.DeleteProfileResponse, AWSError>;
+  /**
+   * 
+   */
   generateRecommendations(params: CodeWhispererSigV4Client.Types.GenerateRecommendationsRequest, callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.GenerateRecommendationsResponse) => void): Request<CodeWhispererSigV4Client.Types.GenerateRecommendationsResponse, AWSError>;
   /**
    * 
    */
   generateRecommendations(callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.GenerateRecommendationsResponse) => void): Request<CodeWhispererSigV4Client.Types.GenerateRecommendationsResponse, AWSError>;
+  /**
+   * 
+   */
+  getAccessToken(params: CodeWhispererSigV4Client.Types.GetAccessTokenRequest, callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.GetAccessTokenResponse) => void): Request<CodeWhispererSigV4Client.Types.GetAccessTokenResponse, AWSError>;
+  /**
+   * 
+   */
+  getAccessToken(callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.GetAccessTokenResponse) => void): Request<CodeWhispererSigV4Client.Types.GetAccessTokenResponse, AWSError>;
+  /**
+   * 
+   */
+  getCodeScan(params: CodeWhispererSigV4Client.Types.GetCodeScanRequest, callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.GetCodeScanResponse) => void): Request<CodeWhispererSigV4Client.Types.GetCodeScanResponse, AWSError>;
+  /**
+   * 
+   */
+  getCodeScan(callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.GetCodeScanResponse) => void): Request<CodeWhispererSigV4Client.Types.GetCodeScanResponse, AWSError>;
+  /**
+   * 
+   */
+  listCodeScanFindings(params: CodeWhispererSigV4Client.Types.ListCodeScanFindingsRequest, callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.ListCodeScanFindingsResponse) => void): Request<CodeWhispererSigV4Client.Types.ListCodeScanFindingsResponse, AWSError>;
+  /**
+   * 
+   */
+  listCodeScanFindings(callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.ListCodeScanFindingsResponse) => void): Request<CodeWhispererSigV4Client.Types.ListCodeScanFindingsResponse, AWSError>;
+  /**
+   * 
+   */
+  listProfiles(params: CodeWhispererSigV4Client.Types.ListProfilesRequest, callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.ListProfilesResponse) => void): Request<CodeWhispererSigV4Client.Types.ListProfilesResponse, AWSError>;
+  /**
+   * 
+   */
+  listProfiles(callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.ListProfilesResponse) => void): Request<CodeWhispererSigV4Client.Types.ListProfilesResponse, AWSError>;
+  /**
+   * 
+   */
+  listRecommendations(params: CodeWhispererSigV4Client.Types.ListRecommendationsRequest, callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.ListRecommendationsResponse) => void): Request<CodeWhispererSigV4Client.Types.ListRecommendationsResponse, AWSError>;
+  /**
+   * 
+   */
+  listRecommendations(callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.ListRecommendationsResponse) => void): Request<CodeWhispererSigV4Client.Types.ListRecommendationsResponse, AWSError>;
+  /**
+   * 
+   */
+  listTagsForResource(params: CodeWhispererSigV4Client.Types.ListTagsForResourceRequest, callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.ListTagsForResourceResponse) => void): Request<CodeWhispererSigV4Client.Types.ListTagsForResourceResponse, AWSError>;
+  /**
+   * 
+   */
+  listTagsForResource(callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.ListTagsForResourceResponse) => void): Request<CodeWhispererSigV4Client.Types.ListTagsForResourceResponse, AWSError>;
+  /**
+   * 
+   */
+  tagResource(params: CodeWhispererSigV4Client.Types.TagResourceRequest, callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.TagResourceResponse) => void): Request<CodeWhispererSigV4Client.Types.TagResourceResponse, AWSError>;
+  /**
+   * 
+   */
+  tagResource(callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.TagResourceResponse) => void): Request<CodeWhispererSigV4Client.Types.TagResourceResponse, AWSError>;
+  /**
+   * 
+   */
+  untagResource(params: CodeWhispererSigV4Client.Types.UntagResourceRequest, callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.UntagResourceResponse) => void): Request<CodeWhispererSigV4Client.Types.UntagResourceResponse, AWSError>;
+  /**
+   * 
+   */
+  untagResource(callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.UntagResourceResponse) => void): Request<CodeWhispererSigV4Client.Types.UntagResourceResponse, AWSError>;
+  /**
+   * 
+   */
+  updateProfile(params: CodeWhispererSigV4Client.Types.UpdateProfileRequest, callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.UpdateProfileResponse) => void): Request<CodeWhispererSigV4Client.Types.UpdateProfileResponse, AWSError>;
+  /**
+   * 
+   */
+  updateProfile(callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.UpdateProfileResponse) => void): Request<CodeWhispererSigV4Client.Types.UpdateProfileResponse, AWSError>;
 }
 declare namespace CodeWhispererSigV4Client {
+  export type ArtifactMap = {[key: string]: UploadId};
+  export type ArtifactType = "SourceCode"|"BuiltJars"|string;
+  export type Base64EncodedPaginationToken = string;
+  export type CodeScanFindingsSchema = "codescan/findings/1.0"|string;
+  export type CodeScanStatus = "Completed"|"Pending"|"Failed"|string;
+  export interface CreateCodeScanRequest {
+    artifacts: ArtifactMap;
+    programmingLanguage: ProgrammingLanguage;
+    clientToken?: CreateCodeScanRequestClientTokenString;
+  }
+  export type CreateCodeScanRequestClientTokenString = string;
+  export interface CreateCodeScanResponse {
+    jobId: CreateCodeScanResponseJobIdString;
+    status: CodeScanStatus;
+    errorMessage?: String;
+  }
+  export type CreateCodeScanResponseJobIdString = string;
+  export interface CreateProfileRequest {
+    identitySource: IdentitySource;
+    profileName: ProfileName;
+    referenceTrackerConfiguration: ReferenceTrackerConfiguration;
+    clientToken?: IdempotencyToken;
+    kmsKeyArn?: ResourceArn;
+    tags?: TagList;
+  }
+  export interface CreateProfileResponse {
+    profileArn: ResourceArn;
+  }
+  export interface CreateUploadUrlRequest {
+    contentMd5?: CreateUploadUrlRequestContentMd5String;
+    artifactType?: ArtifactType;
+  }
+  export type CreateUploadUrlRequestContentMd5String = string;
+  export interface CreateUploadUrlResponse {
+    uploadId: UploadId;
+    uploadUrl: PreSignedUrl;
+    kmsKeyArn?: ResourceArn;
+  }
+  export interface DeleteProfileRequest {
+    profileArn: ResourceArn;
+  }
+  export interface DeleteProfileResponse {
+  }
   export interface FileContext {
     leftFileContent: FileContextLeftFileContentString;
     rightFileContent: FileContextRightFileContentString;
@@ -36,8 +183,16 @@ declare namespace CodeWhispererSigV4Client {
   export type FileContextFilenameString = string;
   export type FileContextLeftFileContentString = string;
   export type FileContextRightFileContentString = string;
+  export interface SupplementalContext {
+    filePath: SupplementalContextFilePathString;
+    content: SupplementalContextContentString;
+  }
+  export type SupplementalContextFilePathString = string;
+  export type SupplementalContextContentString = string;
+  export type SupplementalContextList = SupplementalContext[];
   export interface GenerateRecommendationsRequest {
     fileContext: FileContext;
+    supplementalContexts?: SupplementalContextList;
     maxResults?: GenerateRecommendationsRequestMaxResultsInteger;
     nextToken?: GenerateRecommendationsRequestNextTokenString;
     referenceTrackerConfiguration?: ReferenceTrackerConfiguration;
@@ -48,11 +203,82 @@ declare namespace CodeWhispererSigV4Client {
     recommendations?: RecommendationsList;
     nextToken?: String;
   }
+  export interface GetAccessTokenRequest {
+    identityToken: GetAccessTokenRequestIdentityTokenString;
+  }
+  export type GetAccessTokenRequestIdentityTokenString = string;
+  export interface GetAccessTokenResponse {
+    accessToken?: SensitiveString;
+  }
+  export interface GetCodeScanRequest {
+    jobId: GetCodeScanRequestJobIdString;
+  }
+  export type GetCodeScanRequestJobIdString = string;
+  export interface GetCodeScanResponse {
+    status: CodeScanStatus;
+    errorMessage?: String;
+  }
+  export type IdempotencyToken = string;
+  export interface IdentityDetails {
+    ssoIdentityDetails?: SSOIdentityDetails;
+  }
+  export interface IdentitySource {
+    ssoIdentitySource?: SSOIdentitySource;
+  }
   export interface Import {
     statement?: ImportStatementString;
   }
   export type ImportStatementString = string;
   export type Imports = Import[];
+  export interface ListCodeScanFindingsRequest {
+    jobId: ListCodeScanFindingsRequestJobIdString;
+    nextToken?: PaginationToken;
+    codeScanFindingsSchema: CodeScanFindingsSchema;
+  }
+  export type ListCodeScanFindingsRequestJobIdString = string;
+  export interface ListCodeScanFindingsResponse {
+    nextToken?: PaginationToken;
+    codeScanFindings: String;
+  }
+  export interface ListProfilesRequest {
+    maxResults?: ListProfilesRequestMaxResultsInteger;
+    nextToken?: Base64EncodedPaginationToken;
+  }
+  export type ListProfilesRequestMaxResultsInteger = number;
+  export interface ListProfilesResponse {
+    profiles: ProfileList;
+    nextToken?: Base64EncodedPaginationToken;
+  }
+  export interface ListRecommendationsRequest {
+    fileContext: FileContext;
+    maxResults?: ListRecommendationsRequestMaxResultsInteger;
+    supplementalContexts?: SupplementalContextList;
+    nextToken?: ListRecommendationsRequestNextTokenString;
+    referenceTrackerConfiguration?: ReferenceTrackerConfiguration;
+  }
+  export type ListRecommendationsRequestMaxResultsInteger = number;
+  export type ListRecommendationsRequestNextTokenString = string;
+  export interface ListRecommendationsResponse {
+    recommendations?: RecommendationsList;
+    nextToken?: String;
+  }
+  export interface ListTagsForResourceRequest {
+    resourceName: ResourceArn;
+  }
+  export interface ListTagsForResourceResponse {
+    tags?: TagList;
+  }
+  export type PaginationToken = string;
+  export type PreSignedUrl = string;
+  export interface Profile {
+    arn: ResourceArn;
+    identityDetails: IdentityDetails;
+    profileName: ProfileName;
+    referenceTrackerConfiguration: ReferenceTrackerConfiguration;
+    kmsKeyArn?: ResourceArn;
+  }
+  export type ProfileList = Profile[];
+  export type ProfileName = string;
   export interface ProgrammingLanguage {
     languageName: ProgrammingLanguageLanguageNameString;
   }
@@ -78,6 +304,15 @@ declare namespace CodeWhispererSigV4Client {
   }
   export type ReferenceUrlString = string;
   export type References = Reference[];
+  export type ResourceArn = string;
+  export interface SSOIdentityDetails {
+    instanceArn: ResourceArn;
+    oidcClientId: String;
+  }
+  export interface SSOIdentitySource {
+    instanceArn: ResourceArn;
+  }
+  export type SensitiveString = string;
   export interface Span {
     start?: SpanStartInteger;
     end?: SpanEndInteger;
@@ -85,6 +320,36 @@ declare namespace CodeWhispererSigV4Client {
   export type SpanEndInteger = number;
   export type SpanStartInteger = number;
   export type String = string;
+  export interface Tag {
+    key: TagKey;
+    value: TagValue;
+  }
+  export type TagKey = string;
+  export type TagKeyList = TagKey[];
+  export type TagList = Tag[];
+  export interface TagResourceRequest {
+    resourceName: ResourceArn;
+    tags: TagList;
+  }
+  export interface TagResourceResponse {
+  }
+  export type TagValue = string;
+  export interface UntagResourceRequest {
+    resourceName: ResourceArn;
+    tagKeys: TagKeyList;
+  }
+  export interface UntagResourceResponse {
+  }
+  export interface UpdateProfileRequest {
+    profileArn: ResourceArn;
+    profileName?: ProfileName;
+    referenceTrackerConfiguration?: ReferenceTrackerConfiguration;
+    kmsKeyArn?: ResourceArn;
+  }
+  export interface UpdateProfileResponse {
+    profileArn: ResourceArn;
+  }
+  export type UploadId = string;
   /**
    * A string in YYYY-MM-DD format that represents the latest possible API version that can be used in this service. Specify 'latest' to use the latest possible version.
    */
