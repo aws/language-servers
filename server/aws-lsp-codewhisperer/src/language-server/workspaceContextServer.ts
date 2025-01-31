@@ -8,6 +8,7 @@ import {
 import { CodeWhispererServiceToken } from './codeWhispererService'
 import { WebSocketClient } from './serverContext/client'
 import { findWorkspaceRoot, getProgrammingLanguageFromPath } from './serverContext/util'
+import { ArtifactManager } from './workspaceContext/artifactManager'
 
 export const WorkspaceContextServer =
     (
@@ -19,8 +20,9 @@ export const WorkspaceContextServer =
         ) => CodeWhispererServiceToken
     ): Server =>
     features => {
-        const { logging, lsp } = features
+        const { logging, lsp, workspace } = features
         let workspaceFolders: WorkspaceFolder[] = []
+        let artifactManager: ArtifactManager
 
         /*
          TODO: This is only for testing purpose. It'll be replaced by the actual URL and
@@ -31,6 +33,14 @@ export const WorkspaceContextServer =
 
         lsp.addInitializer((params: InitializeParams) => {
             workspaceFolders = params.workspaceFolders || []
+
+            if (params.workspaceFolders) {
+                workspaceFolders = params.workspaceFolders
+                artifactManager = new ArtifactManager(workspace, logging, workspaceFolders)
+            } else {
+                logging.error(`WORKSPACE FOLDERS IS NOT SET`)
+            }
+
             return {
                 capabilities: {
                     workspace: {
@@ -48,6 +58,18 @@ export const WorkspaceContextServer =
                     },
                 },
             }
+        })
+
+        lsp.onInitialized(params => {
+            logging.log(`LSP initialized}`)
+            artifactManager
+                .createLanguageArtifacts()
+                .then(() => {
+                    logging.log(`Artifacts created`)
+                })
+                .catch(error => {
+                    logging.log(`Error creating artifacts: ${error}`)
+                })
         })
 
         lsp.workspace.onDidChangeWorkspaceFolders(params => {

@@ -40,6 +40,7 @@
         "fastest-levenshtein": "^1.0.16",
         "got": "^11.8.5",
         "hpagent": "^1.2.0",
+        "ignore-walk": "^7.0.0",
         "js-md5": "^0.8.3",
         "uuid": "^9.0.1",
         "vscode-uri": "^3.0.8"
@@ -47,6 +48,7 @@
     "devDependencies": {
         "@types/adm-zip": "^0.5.5",
         "@types/archiver": "^6.0.2",
+        "@types/ignore-walk": "^4.0.3",
         "@types/uuid": "^9.0.8",
         "assert": "^2.1.0",
         "copyfiles": "^2.4.1",
