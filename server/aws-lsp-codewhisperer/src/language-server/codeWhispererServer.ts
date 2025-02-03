@@ -13,6 +13,7 @@ import {
     Telemetry,
     TextDocument,
     Workspace,
+    SDKRuntimeConfigurator,
 } from '@aws/language-server-runtimes/server-interface'
 import { AWSError } from 'aws-sdk'
 import { autoTrigger, triggerType } from './auto-trigger/autoTrigger'
@@ -264,10 +265,11 @@ export const CodewhispererServerFactory =
             credentials: CredentialsProvider,
             workspace: Workspace,
             awsQRegion: string,
-            awsQEndpointUrl: string
+            awsQEndpointUrl: string,
+            sdkRuntimeConfigurator: SDKRuntimeConfigurator
         ) => CodeWhispererServiceBase
     ): Server =>
-    ({ credentialsProvider, lsp, workspace, telemetry, logging, runtime }) => {
+    ({ credentialsProvider, lsp, workspace, telemetry, logging, runtime, sdkRuntimeConfigurator }) => {
         let lastUserModificationTime: number
         let timeSinceLastUserModification: number = 0
 
@@ -275,7 +277,13 @@ export const CodewhispererServerFactory =
 
         const awsQRegion = runtime.getConfiguration('AWS_Q_REGION') ?? DEFAULT_AWS_Q_REGION
         const awsQEndpointUrl = runtime.getConfiguration('AWS_Q_ENDPOINT_URL') ?? DEFAULT_AWS_Q_ENDPOINT_URL
-        const codeWhispererService = service(credentialsProvider, workspace, awsQRegion, awsQEndpointUrl)
+        const codeWhispererService = service(
+            credentialsProvider,
+            workspace,
+            awsQRegion,
+            awsQEndpointUrl,
+            sdkRuntimeConfigurator
+        )
         const telemetryService = new TelemetryService(
             credentialsProvider,
             codeWhispererService.getCredentialsType(),
@@ -283,7 +291,8 @@ export const CodewhispererServerFactory =
             logging,
             workspace,
             awsQRegion,
-            awsQEndpointUrl
+            awsQEndpointUrl,
+            sdkRuntimeConfigurator
         )
 
         lsp.addInitializer((params: InitializeParams) => {
@@ -619,9 +628,9 @@ export const CodewhispererServerFactory =
                         `Inline completion configuration updated to use ${codeWhispererService.customizationArn}`
                     )
                     /*
-                                            The flag enableTelemetryEventsToDestination is set to true temporarily. It's value will be determined through destination
-                                            configuration post all events migration to STE. It'll be replaced by qConfig['enableTelemetryEventsToDestination'] === true
-                                         */
+                                                The flag enableTelemetryEventsToDestination is set to true temporarily. It's value will be determined through destination
+                                                configuration post all events migration to STE. It'll be replaced by qConfig['enableTelemetryEventsToDestination'] === true
+                                             */
                     // const enableTelemetryEventsToDestination = true
                     // telemetryService.updateEnableTelemetryEventsToDestination(enableTelemetryEventsToDestination)
                     const optOutTelemetryPreference = qConfig['optOutTelemetry'] === true ? 'OPTOUT' : 'OPTIN'
@@ -679,10 +688,16 @@ export const CodewhispererServerFactory =
     }
 
 export const CodeWhispererServerIAM = CodewhispererServerFactory(
-    (credentialsProvider, workspace, awsQRegion, awsQEndpointUrl) =>
-        new CodeWhispererServiceIAM(credentialsProvider, workspace, awsQRegion, awsQEndpointUrl)
+    (credentialsProvider, workspace, awsQRegion, awsQEndpointUrl, sdkRuntimeConfigurator) =>
+        new CodeWhispererServiceIAM(credentialsProvider, workspace, awsQRegion, awsQEndpointUrl, sdkRuntimeConfigurator)
 )
 export const CodeWhispererServerToken = CodewhispererServerFactory(
-    (credentialsProvider, workspace, awsQRegion, awsQEndpointUrl) =>
-        new CodeWhispererServiceToken(credentialsProvider, workspace, awsQRegion, awsQEndpointUrl)
+    (credentialsProvider, workspace, awsQRegion, awsQEndpointUrl, sdkRuntimeConfigurator) =>
+        new CodeWhispererServiceToken(
+            credentialsProvider,
+            workspace,
+            awsQRegion,
+            awsQEndpointUrl,
+            sdkRuntimeConfigurator
+        )
 )

@@ -46,6 +46,7 @@ const GetTransformPlanCommand = 'aws/qNetTransform/getTransformPlan'
 const CancelTransformCommand = 'aws/qNetTransform/cancelTransform'
 const DownloadArtifactsCommand = 'aws/qNetTransform/downloadArtifacts'
 import { DEFAULT_AWS_Q_REGION, DEFAULT_AWS_Q_ENDPOINT_URL } from '../constants'
+import { SDKRuntimeConfigurator } from '@aws/language-server-runtimes/server-interface'
 
 /**
  *
@@ -58,15 +59,17 @@ export const QNetTransformServerToken =
             credentialsProvider: CredentialsProvider,
             workspace: Workspace,
             awsQRegion: string,
-            awsQEndpointUrl: string
+            awsQEndpointUrl: string,
+            sdkRuntimeConfigurator: SDKRuntimeConfigurator
         ) => CodeWhispererServiceToken
     ): Server =>
-    ({ credentialsProvider, workspace, logging, lsp, telemetry, runtime }) => {
+    ({ credentialsProvider, workspace, logging, lsp, telemetry, runtime, sdkRuntimeConfigurator }) => {
         const codewhispererclient = service(
             credentialsProvider,
             workspace,
             runtime.getConfiguration('AWS_Q_REGION') ?? DEFAULT_AWS_Q_REGION,
-            runtime.getConfiguration('AWS_Q_ENDPOINT_URL') ?? DEFAULT_AWS_Q_ENDPOINT_URL
+            runtime.getConfiguration('AWS_Q_ENDPOINT_URL') ?? DEFAULT_AWS_Q_ENDPOINT_URL,
+            sdkRuntimeConfigurator
         )
         const transformHandler = new TransformHandler(codewhispererclient, workspace, logging)
         const runTransformCommand = async (params: ExecuteCommandParams, _token: CancellationToken) => {
@@ -125,6 +128,7 @@ export const QNetTransformServerToken =
                             credentialsProvider,
                             runtime.getConfiguration('AWS_Q_REGION') ?? DEFAULT_AWS_Q_REGION,
                             runtime.getConfiguration('AWS_Q_ENDPOINT_URL') ?? DEFAULT_AWS_Q_ENDPOINT_URL,
+                            sdkRuntimeConfigurator,
                             customCWClientConfig
                         )
 

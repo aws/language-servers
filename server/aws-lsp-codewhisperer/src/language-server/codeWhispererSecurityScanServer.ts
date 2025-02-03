@@ -19,6 +19,7 @@ import { SecurityScanEvent } from './telemetry/types'
 import { getErrorMessage, parseJson } from './utils'
 import { getUserAgent } from './utilities/telemetryUtils'
 import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../constants'
+import { SDKRuntimeConfigurator } from '@aws/language-server-runtimes/server-interface'
 
 const RunSecurityScanCommand = 'aws/codewhisperer/runSecurityScan'
 const CancelSecurityScanCommand = 'aws/codewhisperer/cancelSecurityScan'
@@ -29,15 +30,17 @@ export const SecurityScanServerToken =
             credentialsProvider: CredentialsProvider,
             workspace: Workspace,
             awsQRegion: string,
-            awsQEndpointUrl: string
+            awsQEndpointUrl: string,
+            sdkRuntimeConfigurator: SDKRuntimeConfigurator
         ) => CodeWhispererServiceToken
     ): Server =>
-    ({ credentialsProvider, workspace, logging, lsp, telemetry, runtime }) => {
+    ({ credentialsProvider, workspace, logging, lsp, telemetry, runtime, sdkRuntimeConfigurator }) => {
         const codewhispererclient = service(
             credentialsProvider,
             workspace,
             runtime.getConfiguration('AWS_Q_REGION') ?? DEFAULT_AWS_Q_REGION,
-            runtime.getConfiguration('AWS_Q_ENDPOINT_URL') ?? DEFAULT_AWS_Q_ENDPOINT_URL
+            runtime.getConfiguration('AWS_Q_ENDPOINT_URL') ?? DEFAULT_AWS_Q_ENDPOINT_URL,
+            sdkRuntimeConfigurator
         )
         const diagnosticsProvider = new SecurityScanDiagnosticsProvider(lsp, logging)
         const scanHandler = new SecurityScanHandler(codewhispererclient, workspace, logging)
