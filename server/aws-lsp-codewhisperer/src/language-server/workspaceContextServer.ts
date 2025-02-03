@@ -7,8 +7,16 @@ import {
 } from '@aws/language-server-runtimes/server-interface'
 import { CodeWhispererServiceToken } from './codeWhispererService'
 import { WebSocketClient } from './serverContext/client'
-import { findWorkspaceRoot, getProgrammingLanguageFromPath } from './serverContext/util'
+import {
+    findWorkspaceRoot,
+    findWorkspaceRootFolder,
+    getProgrammingLanguageFromPath,
+    uploadArtifactToS3,
+} from './serverContext/util'
 import { ArtifactManager } from './workspaceContext/artifactManager'
+import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../constants'
+import { CreateUploadUrlRequest } from '../client/token/codewhispererbearertokenclient'
+import { md5 } from 'js-md5'
 
 export const WorkspaceContextServer =
     (
@@ -20,7 +28,7 @@ export const WorkspaceContextServer =
         ) => CodeWhispererServiceToken
     ): Server =>
     features => {
-        const { logging, lsp, workspace } = features
+        const { logging, lsp, workspace, runtime, credentialsProvider } = features
         let workspaceFolders: WorkspaceFolder[] = []
         let artifactManager: ArtifactManager
 
@@ -30,6 +38,10 @@ export const WorkspaceContextServer =
          */
         const wsClient = new WebSocketClient('ws://localhost:8080')
         wsClient.send('Hello server!')
+
+        const awsQRegion = runtime.getConfiguration('AWS_Q_REGION') ?? DEFAULT_AWS_Q_REGION
+        const awsQEndpointUrl = runtime.getConfiguration('AWS_Q_ENDPOINT_URL') ?? DEFAULT_AWS_Q_ENDPOINT_URL
+        const cwsprClient = service(credentialsProvider, workspace, awsQRegion, awsQEndpointUrl)
 
         lsp.addInitializer((params: InitializeParams) => {
             workspaceFolders = params.workspaceFolders || []
@@ -92,7 +104,26 @@ export const WorkspaceContextServer =
                 return
             }
             const workspaceRoot = findWorkspaceRoot(event.textDocument.uri, workspaceFolders)
-            // TODO: Implement zip & upload later
+            const workspaceRootFolder = findWorkspaceRootFolder(event.textDocument.uri, workspaceFolders)
+            let s3Url = ''
+
+            if (workspaceRootFolder && artifactManager && credentialsProvider.getConnectionMetadata()?.sso?.startUrl) {
+                try {
+                    const fileMetadata = await artifactManager.getFileMetadata(
+                        workspaceRootFolder,
+                        event.textDocument.uri
+                    )
+                    const request: CreateUploadUrlRequest = {
+                        contentMd5: md5.base64(Buffer.from(fileMetadata.content)),
+                        artifactType: 'SourceCode',
+                    }
+                    const response = await cwsprClient.createUploadUrl(request)
+                    s3Url = response.uploadUrl
+                    await uploadArtifactToS3(Buffer.from(fileMetadata.content), response)
+                } catch (error) {
+                    logging.log('Error while uploading artifact to s3 during file save event')
+                }
+            }
 
             wsClient.send(
                 JSON.stringify({
@@ -101,7 +132,7 @@ export const WorkspaceContextServer =
                         textDocument: event.textDocument.uri,
                         workspaceChangeMetadata: {
                             workspaceRoot: workspaceRoot,
-                            s3Path: '', //TODO
+                            s3Path: s3Url,
                             programmingLanguage: programmingLanguage,
                         },
                     },

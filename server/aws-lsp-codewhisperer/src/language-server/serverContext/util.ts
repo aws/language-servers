@@ -1,4 +1,7 @@
 import { WorkspaceFolder } from '@aws/language-server-runtimes/server-interface'
+import { CreateUploadUrlResponse } from '../../client/token/codewhispererbearertokenclient'
+import { md5 } from 'js-md5'
+import got from 'got'
 
 export enum ProgrammingLanguage {
     Java,
@@ -40,4 +43,37 @@ export const getProgrammingLanguageFromPath = (path: string): string => {
 export const findWorkspaceRoot = (fileUri: string, workspaceFolders: WorkspaceFolder[]): string => {
     const matchingFolder = workspaceFolders.find(folder => fileUri.startsWith(folder.uri))
     return matchingFolder ? matchingFolder.uri : ''
+}
+
+export const findWorkspaceRootFolder = (
+    fileUri: string,
+    workspaceFolders: WorkspaceFolder[]
+): WorkspaceFolder | undefined => {
+    const matchingFolder = workspaceFolders.find(folder => fileUri.startsWith(folder.uri))
+    return matchingFolder ? matchingFolder : undefined
+}
+
+export const uploadArtifactToS3 = async (content: Buffer, resp: CreateUploadUrlResponse) => {
+    const encryptionContext = `{"uploadId":"${resp.uploadId}"}`
+    const md5Content = md5.base64(content)
+    const headersObj =
+        resp.kmsKeyArn !== '' || resp.kmsKeyArn !== undefined
+            ? {
+                  'Content-MD5': md5Content,
+                  'x-amz-server-side-encryption': 'aws:kms',
+                  'Content-Type': 'application/zip',
+                  'x-amz-server-side-encryption-aws-kms-key-id': resp.kmsKeyArn,
+                  'x-amz-server-side-encryption-context': Buffer.from(encryptionContext, 'utf8').toString('base64'),
+              }
+            : {
+                  'Content-MD5': md5Content,
+                  'x-amz-server-side-encryption': 'aws:kms',
+                  'Content-Type': 'application/zip',
+                  'x-amz-server-side-encryption-context': Buffer.from(encryptionContext, 'utf8').toString('base64'),
+              }
+    const response = await got.put(resp.uploadUrl, {
+        body: content,
+        headers: headersObj,
+    })
+    console.log(`StatusCode: ${response.statusCode}`)
 }

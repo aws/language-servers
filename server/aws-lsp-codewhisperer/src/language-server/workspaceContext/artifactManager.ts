@@ -151,6 +151,20 @@ export class ArtifactManager {
         }
     }
 
+    // TOOD: Update the function to return the content in a zipped fashion (if required)
+    async getFileMetadata(currentWorkspace: WorkspaceFolder, filePath: string): Promise<FileMetadata> {
+        const workspacePath = URI.parse(currentWorkspace.uri).path
+        const workspaceName = currentWorkspace.name
+        const relativePathWithWorkspaceName = path.join(workspaceName, filePath)
+
+        const language = getCodeWhispererLanguageIdFromPath(filePath)
+        if (!language || !SUPPORTED_WORKSPACE_CONTEXT_LANGUAGES.includes(language)) {
+            return Promise.reject('unsupported language')
+        }
+        const fileMetadata: FileMetadata = await this.processFile(filePath, relativePathWithWorkspaceName, language)
+        return fileMetadata
+    }
+
     private createFolderIfNotExist(dir: string) {
         if (!fs.existsSync(dir)) {
             fs.mkdirSync(dir, { recursive: true })
