@@ -7,12 +7,14 @@ import {
 import { ConfiguredRetryStrategy } from '@aws-sdk/util-retry'
 import { CredentialsProvider } from '@aws/language-server-runtimes/server-interface'
 import { getBearerTokenFromProvider } from '../utils'
+import { SDKRuntimeConfigurator } from '@aws/language-server-runtimes/server-interface'
 
 export type ChatSessionServiceConfig = CodeWhispererStreamingClientConfig
 export class ChatSessionService {
     public shareCodeWhispererContentWithAWS = false
     readonly #codeWhispererRegion: string
     readonly #codeWhispererEndpoint: string
+    #sdkRuntimeConfigurator: SDKRuntimeConfigurator
     #abortController?: AbortController
     #credentialsProvider: CredentialsProvider
     #config?: CodeWhispererStreamingClientConfig
@@ -30,11 +32,13 @@ export class ChatSessionService {
         credentialsProvider: CredentialsProvider,
         codeWhispererRegion: string,
         codeWhispererEndpoint: string,
+        sdkRuntimeConfigurator: SDKRuntimeConfigurator,
         config?: CodeWhispererStreamingClientConfig
     ) {
         this.#credentialsProvider = credentialsProvider
         this.#codeWhispererRegion = codeWhispererRegion
         this.#codeWhispererEndpoint = codeWhispererEndpoint
+        this.#sdkRuntimeConfigurator = sdkRuntimeConfigurator
         this.#config = config
     }
 
@@ -45,13 +49,13 @@ export class ChatSessionService {
             request.conversationState.conversationId = this.#conversationId
         }
 
-        const client = new CodeWhispererStreaming({
+        const client = this.#sdkRuntimeConfigurator.v3(CodeWhispererStreaming as any, {
             region: this.#codeWhispererRegion,
             endpoint: this.#codeWhispererEndpoint,
             token: () => Promise.resolve({ token: getBearerTokenFromProvider(this.#credentialsProvider) }),
             retryStrategy: new ConfiguredRetryStrategy(0, (attempt: number) => 500 + attempt ** 10),
             ...this.#config,
-        })
+        }) as CodeWhispererStreaming
 
         const response = await client.sendMessage(request, {
             abortSignal: this.#abortController?.signal,
