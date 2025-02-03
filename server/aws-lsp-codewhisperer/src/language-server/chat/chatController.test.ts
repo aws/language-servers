@@ -11,6 +11,10 @@ import {
     Position,
     InsertToCursorPositionParams,
     TextDocumentEdit,
+    SDKRuntimeConfigurator,
+    ConstructorV2,
+    ConstructorV3,
+    SDKv3Client,
 } from '@aws/language-server-runtimes/server-interface'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import * as assert from 'assert'
@@ -26,6 +30,8 @@ import { DEFAULT_HELP_FOLLOW_UP_PROMPT, HELP_MESSAGE } from './constants'
 import { TelemetryService } from '../telemetryService'
 import { TextEdit } from 'vscode-languageserver-textdocument'
 import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../../constants'
+import { Service } from 'aws-sdk'
+import { ServiceConfigurationOptions } from 'aws-sdk/lib/service'
 
 describe('ChatController', () => {
     const mockTabId = 'tab-1'
@@ -116,10 +122,23 @@ describe('ChatController', () => {
 
         disposeStub = sinon.stub(ChatSessionService.prototype, 'dispose')
 
+        const mockSdkRuntimeConfigurator: SDKRuntimeConfigurator = {
+            v2: <T extends Service, P extends ServiceConfigurationOptions>(
+                Ctor: ConstructorV2<T, P>,
+                current_config: P
+            ): T => {
+                return new Ctor({ ...current_config })
+            },
+            v3: <T extends SDKv3Client, P>(Ctor: ConstructorV3<T, P>, current_config: P): T => {
+                return new Ctor({ ...current_config })
+            },
+        }
+
         chatSessionManagementService = ChatSessionManagementService.getInstance()
             .withCredentialsProvider(testFeatures.credentialsProvider)
             .withCodeWhispererRegion(awsQRegion)
             .withCodeWhispererEndpoint(awsQEndpointUrl)
+            .withSdkRuntimeConfigurator(mockSdkRuntimeConfigurator)
 
         const mockCredentialsProvider: CredentialsProvider = {
             hasCredentials: sinon.stub().returns(true),
@@ -137,6 +156,7 @@ describe('ChatController', () => {
             emitMetric: sinon.stub(),
             onClientTelemetry: sinon.stub(),
         }
+
         telemetryService = new TelemetryService(
             mockCredentialsProvider,
             'bearer',
@@ -144,7 +164,8 @@ describe('ChatController', () => {
             logging,
             mockWorkspace,
             awsQRegion,
-            awsQEndpointUrl
+            awsQEndpointUrl,
+            mockSdkRuntimeConfigurator
         )
         invokeSendTelemetryEventStub = sinon.stub(telemetryService, 'sendTelemetryEvent' as any)
         chatController = new ChatController(chatSessionManagementService, testFeatures, telemetryService)
