@@ -25,22 +25,6 @@ export class WebSocketClient {
             this.handleDisconnect()
         }
     }
-    /*
-    private cleanup(): void {
-        if (this.ws) {
-            this.ws.onopen = null;
-            this.ws.onclose = null;
-            this.ws.onerror = null;
-            this.ws.onmessage = null;
-            if (this.ws.readyState === WebSocket.OPEN) {
-                this.ws.close();
-            }
-            this.ws = null;
-        }
-
-        this.stopHeartbeat();
-    }
-     */
 
     private attachEventListeners(): void {
         if (!this.ws) return
@@ -54,11 +38,7 @@ export class WebSocketClient {
 
         this.ws.on('message', (data: string) => {
             data = data.toString()
-            // if (data === 'pong') {
-            //     this.handlePong();
-            // } else {
             console.log('Received message:', data)
-            //}
         })
 
         this.ws.on('pong', () => this.handlePong())
@@ -67,14 +47,9 @@ export class WebSocketClient {
             console.log('WebSocket connection closed')
             this.handleDisconnect()
         }
-        // this.ws.on('close', () => {
-        //     console.log('WebSocket connection closed');
-        //     this.handleDisconnect();
-        // });
 
         this.ws.on('error', error => {
             console.error('WebSocket error:', error)
-            // this.handleDisconnect();
         })
     }
 
@@ -99,7 +74,6 @@ export class WebSocketClient {
 
     private sendPing(): void {
         if (this.ws?.readyState === WebSocket.OPEN) {
-            // this.ws.send('ping');
             this.ws.ping()
 
             this.pongTimeoutId = setTimeout(() => {
