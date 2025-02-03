@@ -2,6 +2,7 @@ import { AWSError, Request, Service } from 'aws-sdk'
 import { ServiceConfigurationOptions } from 'aws-sdk/lib/service'
 const apiConfig = require('./bearer-token-service.json')
 import CodeWhispererClient = require('./codewhispererbearertokenclient')
+import { SDKRuntimeConfigurator } from '@aws/language-server-runtimes/server-interface'
 
 // PROOF OF CONCEPT
 // This client fiddling was copied from the AWS Toolkit for VS Code
@@ -20,18 +21,21 @@ export interface CodeWhispererTokenClientConfigurationOptions extends ServiceCon
 }
 
 export function createCodeWhispererTokenClient(
-    options: CodeWhispererTokenClientConfigurationOptions
+    options: CodeWhispererTokenClientConfigurationOptions,
+    sdkRuntimeConfigurator: SDKRuntimeConfigurator
 ): CodeWhispererClient {
-    return createService(options) as CodeWhispererClient
+    return createService(options, sdkRuntimeConfigurator) as CodeWhispererClient
 }
 
-function createService(options: CodeWhispererTokenClientConfigurationOptions): Service {
+function createService(
+    options: CodeWhispererTokenClientConfigurationOptions,
+    sdkRuntimeConfigurator: SDKRuntimeConfigurator
+): Service {
     const onRequest = options?.onRequestSetup ?? []
     const listeners = Array.isArray(onRequest) ? onRequest : [onRequest]
     const opt = { ...options }
     delete opt.onRequestSetup
-
-    const client = new Service({ apiConfig, ...options } as any)
+    const client = sdkRuntimeConfigurator.v2(Service, { apiConfig, ...options } as any)
     const originalClient = client.setupRequestListeners.bind(client)
 
     client.setupRequestListeners = (request: Request<any, AWSError>) => {
