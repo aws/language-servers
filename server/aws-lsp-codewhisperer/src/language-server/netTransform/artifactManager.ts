@@ -15,26 +15,22 @@ export class ArtifactManager {
     private workspace: Workspace
     private logging: Logging
     private workspacePath: string
-
     constructor(workspace: Workspace, logging: Logging, workspacePath: string) {
         this.workspace = workspace
         this.logging = logging
         this.workspacePath = workspacePath
     }
-
     async createZip(request: StartTransformRequest): Promise<string> {
         await this.createRequirementJson(request)
         await this.copySolutionConfigFiles(request)
         await this.removeDuplicateNugetPackagesFolder(request)
         return await this.zipArtifact()
     }
-
     async removeDir(dir: string) {
         if (await this.workspace.fs.exists(dir)) {
             await this.workspace.fs.rm(dir, { recursive: true, force: true })
         }
     }
-
     cleanup() {
         try {
             const artifactFolder = path.join(this.workspacePath, artifactFolderName)
@@ -92,7 +88,7 @@ export class ArtifactManager {
             await sourceCodeFilePaths.forEach(async filePath => {
                 try {
                     this.copySourceFile(request.SolutionRootPath, filePath)
-                    var contentHash = await this.calculateMD5Async(filePath)
+                    var contentHash = await this.calculateMD5Sync(filePath)
                     var relativePath = this.normalizeSourceFileRelativePath(request.SolutionRootPath, filePath)
                     codeFiles.push({
                         contentMd5Hash: contentHash,
@@ -149,18 +145,9 @@ export class ArtifactManager {
         return zipPath
     }
 
-    //To read large files in chunks (greater than 2 GiB) using Node.js,
-    //use fs.createReadStream() to handle the file in smaller, manageable chunks rather than loading the entire file
-    // into memory. This avoids hitting the 2 GiB limit that occurs when using fs.readFile(),
-    // as it loads the entire file into memory.
-    static async getSha256Async(fileName: string): Promise<string> {
+    static getSha256(fileName: string) {
         const hasher = crypto.createHash('sha256')
-        const stream = fs.createReadStream(fileName)
-
-        for await (const chunk of stream) {
-            hasher.update(chunk)
-        }
-
+        hasher.update(fs.readFileSync(fileName))
         return hasher.digest('base64')
     }
 
@@ -233,14 +220,10 @@ export class ArtifactManager {
         }
     }
 
-    async calculateMD5Async(filePath: string): Promise<string> {
+    calculateMD5Sync(filePath: string): string {
         try {
-            const hash = crypto.createHash('md5')
-            const stream = fs.createReadStream(filePath)
-            for await (const chunk of stream) {
-                hash.update(chunk)
-            }
-
+            const data = fs.readFileSync(filePath)
+            const hash = crypto.createHash('md5').update(data)
             return hash.digest('hex')
         } catch (error) {
             this.logging.log('Failed to calculate hashcode: ' + filePath + error)
