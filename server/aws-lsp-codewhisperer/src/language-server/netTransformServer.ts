@@ -46,7 +46,7 @@ const GetTransformPlanCommand = 'aws/qNetTransform/getTransformPlan'
 const CancelTransformCommand = 'aws/qNetTransform/cancelTransform'
 const DownloadArtifactsCommand = 'aws/qNetTransform/downloadArtifacts'
 import { DEFAULT_AWS_Q_REGION, DEFAULT_AWS_Q_ENDPOINT_URL } from '../constants'
-import { SDKRuntimeConfigurator } from '@aws/language-server-runtimes/server-interface'
+import { SDKInitializator } from '@aws/language-server-runtimes/server-interface'
 
 /**
  *
@@ -60,16 +60,16 @@ export const QNetTransformServerToken =
             workspace: Workspace,
             awsQRegion: string,
             awsQEndpointUrl: string,
-            sdkRuntimeConfigurator: SDKRuntimeConfigurator
+            sdkInitializator: SDKInitializator
         ) => CodeWhispererServiceToken
     ): Server =>
-    ({ credentialsProvider, workspace, logging, lsp, telemetry, runtime, sdkRuntimeConfigurator }) => {
+    ({ credentialsProvider, workspace, logging, lsp, telemetry, runtime, sdkInitializator }) => {
         const codewhispererclient = service(
             credentialsProvider,
             workspace,
             runtime.getConfiguration('AWS_Q_REGION') ?? DEFAULT_AWS_Q_REGION,
             runtime.getConfiguration('AWS_Q_ENDPOINT_URL') ?? DEFAULT_AWS_Q_ENDPOINT_URL,
-            sdkRuntimeConfigurator
+            sdkInitializator
         )
         const transformHandler = new TransformHandler(codewhispererclient, workspace, logging)
         const runTransformCommand = async (params: ExecuteCommandParams, _token: CancellationToken) => {
@@ -128,7 +128,7 @@ export const QNetTransformServerToken =
                             credentialsProvider,
                             runtime.getConfiguration('AWS_Q_REGION') ?? DEFAULT_AWS_Q_REGION,
                             runtime.getConfiguration('AWS_Q_ENDPOINT_URL') ?? DEFAULT_AWS_Q_ENDPOINT_URL,
-                            sdkRuntimeConfigurator,
+                            sdkInitializator,
                             customCWClientConfig
                         )
 

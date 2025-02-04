@@ -5,7 +5,7 @@ import {
     Logging,
     Telemetry,
     Workspace,
-    SDKRuntimeConfigurator,
+    SDKInitializator,
 } from '@aws/language-server-runtimes/server-interface'
 import { CodeWhispererSession } from './session/sessionManager'
 import {
@@ -62,9 +62,9 @@ export class TelemetryService extends CodeWhispererServiceToken {
         workspace: Workspace,
         awsQRegion: string,
         awsQEndpointUrl: string,
-        sdkRuntimeConfigurator: SDKRuntimeConfigurator
+        sdkInitializator: SDKInitializator
     ) {
-        super(credentialsProvider, workspace, awsQRegion, awsQEndpointUrl, sdkRuntimeConfigurator)
+        super(credentialsProvider, workspace, awsQRegion, awsQEndpointUrl, sdkInitializator)
         this.credentialsProvider = credentialsProvider
         this.credentialsType = credentialsType
         this.telemetry = telemetry

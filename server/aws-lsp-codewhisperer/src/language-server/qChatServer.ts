@@ -5,7 +5,7 @@ import { CLEAR_QUICK_ACTION, HELP_QUICK_ACTION } from './chat/quickActions'
 import { TelemetryService } from './telemetryService'
 import { getUserAgent, makeUserContextObject } from './utilities/telemetryUtils'
 import { DEFAULT_AWS_Q_REGION, DEFAULT_AWS_Q_ENDPOINT_URL } from '../constants'
-import { SDKRuntimeConfigurator } from '@aws/language-server-runtimes/server-interface'
+import { SDKInitializator } from '@aws/language-server-runtimes/server-interface'
 
 export const QChatServer =
     (
@@ -13,12 +13,11 @@ export const QChatServer =
             credentialsProvider: CredentialsProvider,
             awsQRegion: string,
             awsQEndpointUrl: string,
-            sdkRuntimeConfigurator: SDKRuntimeConfigurator
+            sdkInitializator: SDKInitializator
         ) => ChatSessionManagementService
     ): Server =>
     features => {
-        const { chat, credentialsProvider, telemetry, logging, lsp, runtime, workspace, sdkRuntimeConfigurator } =
-            features
+        const { chat, credentialsProvider, telemetry, logging, lsp, runtime, workspace, sdkInitializator } = features
 
         const awsQRegion = runtime.getConfiguration('AWS_Q_REGION') ?? DEFAULT_AWS_Q_REGION
         const awsQEndpointUrl = runtime.getConfiguration('AWS_Q_ENDPOINT_URL') ?? DEFAULT_AWS_Q_ENDPOINT_URL
@@ -26,7 +25,7 @@ export const QChatServer =
             credentialsProvider,
             awsQRegion,
             awsQEndpointUrl,
-            sdkRuntimeConfigurator
+            sdkInitializator
         )
         const telemetryService = new TelemetryService(
             credentialsProvider,
@@ -36,7 +35,7 @@ export const QChatServer =
             workspace,
             awsQRegion,
             awsQEndpointUrl,
-            sdkRuntimeConfigurator
+            sdkInitializator
         )
 
         const chatController = new ChatController(chatSessionManagementService, features, telemetryService)

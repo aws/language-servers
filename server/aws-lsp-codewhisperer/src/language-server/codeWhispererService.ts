@@ -3,7 +3,7 @@ import {
     CredentialsProvider,
     CredentialsType,
     Workspace,
-    SDKRuntimeConfigurator,
+    SDKInitializator,
 } from '@aws/language-server-runtimes/server-interface'
 import { AWSError, ConfigurationOptions, CredentialProviderChain, Credentials } from 'aws-sdk'
 import { PromiseResult } from 'aws-sdk/lib/request'
@@ -82,7 +82,7 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
         workspace: Workspace,
         codeWhispererRegion: string,
         codeWhispererEndpoint: string,
-        sdkRuntimeConfigurator: SDKRuntimeConfigurator
+        sdkInitializator: SDKInitializator
     ) {
         super(workspace, codeWhispererRegion, codeWhispererEndpoint)
         const options: CodeWhispererSigv4ClientConfigurationOptions = {
@@ -92,7 +92,7 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
                 () => credentialsProvider.getCredentials('iam') as Credentials,
             ]),
         }
-        this.client = createCodeWhispererSigv4Client(options, sdkRuntimeConfigurator)
+        this.client = createCodeWhispererSigv4Client(options, sdkInitializator)
         this.updateClientConfig(this.proxyConfig)
         this.client.setupRequestListeners = ({ httpRequest }) => {
             httpRequest.headers['x-amzn-codewhisperer-optout'] = `${!this.shareCodeWhispererContentWithAWS}`
@@ -134,7 +134,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         workspace: Workspace,
         codeWhispererRegion: string,
         codeWhispererEndpoint: string,
-        sdkRuntimeConfigurator: SDKRuntimeConfigurator
+        sdkInitializator: SDKInitializator
     ) {
         super(workspace, codeWhispererRegion, codeWhispererEndpoint)
         const options: CodeWhispererTokenClientConfigurationOptions = {
@@ -153,7 +153,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
                 },
             ],
         }
-        this.client = createCodeWhispererTokenClient(options, sdkRuntimeConfigurator)
+        this.client = createCodeWhispererTokenClient(options, sdkInitializator)
         this.updateClientConfig(this.proxyConfig)
     }
 

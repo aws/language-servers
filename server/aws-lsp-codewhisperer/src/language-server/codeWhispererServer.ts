@@ -13,7 +13,7 @@ import {
     Telemetry,
     TextDocument,
     Workspace,
-    SDKRuntimeConfigurator,
+    SDKInitializator,
 } from '@aws/language-server-runtimes/server-interface'
 import { AWSError } from 'aws-sdk'
 import { autoTrigger, triggerType } from './auto-trigger/autoTrigger'
@@ -266,10 +266,10 @@ export const CodewhispererServerFactory =
             workspace: Workspace,
             awsQRegion: string,
             awsQEndpointUrl: string,
-            sdkRuntimeConfigurator: SDKRuntimeConfigurator
+            sdkInitializator: SDKInitializator
         ) => CodeWhispererServiceBase
     ): Server =>
-    ({ credentialsProvider, lsp, workspace, telemetry, logging, runtime, sdkRuntimeConfigurator }) => {
+    ({ credentialsProvider, lsp, workspace, telemetry, logging, runtime, sdkInitializator }) => {
         let lastUserModificationTime: number
         let timeSinceLastUserModification: number = 0
 
@@ -282,7 +282,7 @@ export const CodewhispererServerFactory =
             workspace,
             awsQRegion,
             awsQEndpointUrl,
-            sdkRuntimeConfigurator
+            sdkInitializator
         )
         const telemetryService = new TelemetryService(
             credentialsProvider,
@@ -292,7 +292,7 @@ export const CodewhispererServerFactory =
             workspace,
             awsQRegion,
             awsQEndpointUrl,
-            sdkRuntimeConfigurator
+            sdkInitializator
         )
 
         lsp.addInitializer((params: InitializeParams) => {
@@ -628,9 +628,9 @@ export const CodewhispererServerFactory =
                         `Inline completion configuration updated to use ${codeWhispererService.customizationArn}`
                     )
                     /*
-                                                The flag enableTelemetryEventsToDestination is set to true temporarily. It's value will be determined through destination
-                                                configuration post all events migration to STE. It'll be replaced by qConfig['enableTelemetryEventsToDestination'] === true
-                                             */
+                                                    The flag enableTelemetryEventsToDestination is set to true temporarily. It's value will be determined through destination
+                                                    configuration post all events migration to STE. It'll be replaced by qConfig['enableTelemetryEventsToDestination'] === true
+                                                 */
                     // const enableTelemetryEventsToDestination = true
                     // telemetryService.updateEnableTelemetryEventsToDestination(enableTelemetryEventsToDestination)
                     const optOutTelemetryPreference = qConfig['optOutTelemetry'] === true ? 'OPTOUT' : 'OPTIN'
@@ -688,16 +688,10 @@ export const CodewhispererServerFactory =
     }
 
 export const CodeWhispererServerIAM = CodewhispererServerFactory(
-    (credentialsProvider, workspace, awsQRegion, awsQEndpointUrl, sdkRuntimeConfigurator) =>
-        new CodeWhispererServiceIAM(credentialsProvider, workspace, awsQRegion, awsQEndpointUrl, sdkRuntimeConfigurator)
+    (credentialsProvider, workspace, awsQRegion, awsQEndpointUrl, sdkInitializator) =>
+        new CodeWhispererServiceIAM(credentialsProvider, workspace, awsQRegion, awsQEndpointUrl, sdkInitializator)
 )
 export const CodeWhispererServerToken = CodewhispererServerFactory(
-    (credentialsProvider, workspace, awsQRegion, awsQEndpointUrl, sdkRuntimeConfigurator) =>
-        new CodeWhispererServiceToken(
-            credentialsProvider,
-            workspace,
-            awsQRegion,
-            awsQEndpointUrl,
-            sdkRuntimeConfigurator
-        )
+    (credentialsProvider, workspace, awsQRegion, awsQEndpointUrl, sdkInitializator) =>
+        new CodeWhispererServiceToken(credentialsProvider, workspace, awsQRegion, awsQEndpointUrl, sdkInitializator)
 )
