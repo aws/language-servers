@@ -58,43 +58,41 @@ export const QNetTransformServerTokenProxy = QNetTransformServerToken(
     }
 )
 
-export const QChatServerProxy = QChatServer(
-    (credentialsProvider, awsQRegion, awsQEndpointUrl, sdkInitializator) => {
-        let clientOptions: ChatSessionServiceConfig | undefined
-        // short term solution to fix webworker bundling, broken due to this node.js specific logic in here
-        const isNodeJS: boolean = typeof process !== 'undefined' && process.release && process.release.name === 'node'
-        const proxyUrl = isNodeJS ? (process.env.HTTPS_PROXY ?? process.env.https_proxy) : undefined
-        const certs = isNodeJS
-            ? process.env.AWS_CA_BUNDLE
-                ? [readFileSync(process.env.AWS_CA_BUNDLE)]
-                : undefined
+export const QChatServerProxy = QChatServer((credentialsProvider, awsQRegion, awsQEndpointUrl, sdkInitializator) => {
+    let clientOptions: ChatSessionServiceConfig | undefined
+    // short term solution to fix webworker bundling, broken due to this node.js specific logic in here
+    const isNodeJS: boolean = typeof process !== 'undefined' && process.release && process.release.name === 'node'
+    const proxyUrl = isNodeJS ? (process.env.HTTPS_PROXY ?? process.env.https_proxy) : undefined
+    const certs = isNodeJS
+        ? process.env.AWS_CA_BUNDLE
+            ? [readFileSync(process.env.AWS_CA_BUNDLE)]
             : undefined
+        : undefined
 
-        if (proxyUrl) {
-            clientOptions = () => {
-                // this mimics aws-sdk-v3-js-proxy
-                const agent = new HttpsProxyAgent({
-                    proxy: proxyUrl,
-                    ca: certs,
-                })
+    if (proxyUrl) {
+        clientOptions = () => {
+            // this mimics aws-sdk-v3-js-proxy
+            const agent = new HttpsProxyAgent({
+                proxy: proxyUrl,
+                ca: certs,
+            })
 
-                return {
-                    requestHandler: new NodeHttpHandler({
-                        httpAgent: agent,
-                        httpsAgent: agent,
-                    }),
-                }
+            return {
+                requestHandler: new NodeHttpHandler({
+                    httpAgent: agent,
+                    httpsAgent: agent,
+                }),
             }
         }
-
-        return ChatSessionManagementService.getInstance()
-            .withCredentialsProvider(credentialsProvider)
-            .withCodeWhispererEndpoint(awsQEndpointUrl)
-            .withCodeWhispererRegion(awsQRegion)
-            .withSdkRuntimeConfigurator(sdkInitializator)
-            .withConfig(clientOptions)
     }
-)
+
+    return ChatSessionManagementService.getInstance()
+        .withCredentialsProvider(credentialsProvider)
+        .withCodeWhispererEndpoint(awsQEndpointUrl)
+        .withCodeWhispererRegion(awsQRegion)
+        .withSdkRuntimeConfigurator(sdkInitializator)
+        .withConfig(clientOptions)
+})
 
 export const QConfigurationServerTokenProxy = QConfigurationServerToken(
     (credentialsProvider, workspace, awsQRegion, awsQEndpointUrl, sdkInitializator) => {
