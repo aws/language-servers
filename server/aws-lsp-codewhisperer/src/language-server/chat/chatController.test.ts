@@ -11,10 +11,9 @@ import {
     Position,
     InsertToCursorPositionParams,
     TextDocumentEdit,
-    SDKRuntimeConfigurator,
-    ConstructorV2,
-    ConstructorV3,
-    SDKv3Client,
+    SDKInitializator,
+    SDKClientConstructorV2,
+    SDKClientConstructorV3,
 } from '@aws/language-server-runtimes/server-interface'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import * as assert from 'assert'
@@ -122,17 +121,17 @@ describe('ChatController', () => {
 
         disposeStub = sinon.stub(ChatSessionService.prototype, 'dispose')
 
-        const mockSdkRuntimeConfigurator: SDKRuntimeConfigurator = {
-            v2: <T extends Service, P extends ServiceConfigurationOptions>(
-                Ctor: ConstructorV2<T, P>,
-                current_config: P
-            ): T => {
-                return new Ctor({ ...current_config })
-            },
-            v3: <T extends SDKv3Client, P>(Ctor: ConstructorV3<T, P>, current_config: P): T => {
-                return new Ctor({ ...current_config })
-            },
-        }
+        const mockSdkRuntimeConfigurator: SDKInitializator = Object.assign(
+            // Default callable function for v3 clients
+            <T, P>(Ctor: SDKClientConstructorV3<T, P>, current_config: P): T => new Ctor({ ...current_config }),
+            // Property for v2 clients
+            {
+                v2: <T extends Service, P extends ServiceConfigurationOptions>(
+                    Ctor: SDKClientConstructorV2<T, P>,
+                    current_config: P
+                ): T => new Ctor({ ...current_config }),
+            }
+        )
 
         chatSessionManagementService = ChatSessionManagementService.getInstance()
             .withCredentialsProvider(testFeatures.credentialsProvider)

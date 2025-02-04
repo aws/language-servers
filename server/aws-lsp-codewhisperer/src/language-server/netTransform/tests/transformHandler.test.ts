@@ -2,10 +2,9 @@ import { CodeWhispererStreaming } from '@amzn/codewhisperer-streaming'
 import {
     Logging,
     Workspace,
-    SDKRuntimeConfigurator,
-    ConstructorV2,
-    ConstructorV3,
-    SDKv3Client,
+    SDKInitializator,
+    SDKClientConstructorV2,
+    SDKClientConstructorV3,
 } from '@aws/language-server-runtimes/server-interface'
 import * as assert from 'assert'
 import { HttpResponse } from 'aws-sdk'
@@ -211,17 +210,17 @@ describe('Test Transform handler ', () => {
         getCredentials: sinon.stub().returns({ token: 'mockedToken' }),
     }
 
-    const mockSdkRuntimeConfigurator: SDKRuntimeConfigurator = {
-        v2: <T extends Service, P extends ServiceConfigurationOptions>(
-            Ctor: ConstructorV2<T, P>,
-            current_config: P
-        ): T => {
-            return new Ctor({ ...current_config })
-        },
-        v3: <T extends SDKv3Client, P>(Ctor: ConstructorV3<T, P>, current_config: P): T => {
-            return new Ctor({ ...current_config })
-        },
-    }
+    const mockSdkRuntimeConfigurator: SDKInitializator = Object.assign(
+        // Default callable function for v3 clients
+        <T, P>(Ctor: SDKClientConstructorV3<T, P>, current_config: P): T => new Ctor({ ...current_config }),
+        // Property for v2 clients
+        {
+            v2: <T extends Service, P extends ServiceConfigurationOptions>(
+                Ctor: SDKClientConstructorV2<T, P>,
+                current_config: P
+            ): T => new Ctor({ ...current_config }),
+        }
+    )
 
     describe('StreamingClient', () => {
         it('should create a new streaming client', async () => {
