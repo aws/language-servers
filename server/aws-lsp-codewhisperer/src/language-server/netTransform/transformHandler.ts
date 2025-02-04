@@ -114,7 +114,7 @@ export class TransformHandler {
     }
 
     async uploadPayloadAsync(payloadFileName: string): Promise<string> {
-        const sha256 = await ArtifactManager.getSha256Async(payloadFileName)
+        const sha256 = ArtifactManager.getSha256(payloadFileName)
         let response: CreateUploadUrlResponse
         try {
             response = await this.client.codeModernizerCreateUploadUrl({
@@ -150,9 +150,8 @@ export class TransformHandler {
     async uploadArtifactToS3Async(fileName: string, resp: CreateUploadUrlResponse, sha256: string) {
         const headersObj = this.getHeadersObj(sha256, resp.kmsKeyArn)
         try {
-            const fileStream = fs.createReadStream(fileName)
             const response = await got.put(resp.uploadUrl, {
-                body: fileStream,
+                body: fs.readFileSync(fileName),
                 headers: headersObj,
             })
 
