@@ -43,14 +43,12 @@ export interface GenerateSuggestionsResponse {
 
 import CodeWhispererSigv4Client = require('../client/sigv4/codewhisperersigv4client')
 import CodeWhispererTokenClient = require('../client/token/codewhispererbearertokenclient')
-import { makeProxyConfig } from './utils'
 
 // Right now the only difference between the token client and the IAM client for codewhsiperer is the difference in function name
 // This abstract class can grow in the future to account for any additional changes across the clients
 export abstract class CodeWhispererServiceBase {
     protected readonly codeWhispererRegion
     protected readonly codeWhispererEndpoint
-    protected proxyConfig: ConfigurationOptions = {}
     public shareCodeWhispererContentWithAWS = false
     public customizationArn?: string
     abstract client: CodeWhispererSigv4Client | CodeWhispererTokenClient
@@ -60,7 +58,6 @@ export abstract class CodeWhispererServiceBase {
     abstract generateSuggestions(request: GenerateSuggestionsRequest): Promise<GenerateSuggestionsResponse>
 
     constructor(workspace: Workspace, codeWhispererRegion: string, codeWhispererEndpoint: string) {
-        this.proxyConfig = makeProxyConfig(workspace)
         this.codeWhispererRegion = codeWhispererRegion
         this.codeWhispererEndpoint = codeWhispererEndpoint
     }
@@ -93,7 +90,6 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
             ]),
         }
         this.client = createCodeWhispererSigv4Client(options, sdkInitializator)
-        this.updateClientConfig(this.proxyConfig)
         this.client.setupRequestListeners = ({ httpRequest }) => {
             httpRequest.headers['x-amzn-codewhisperer-optout'] = `${!this.shareCodeWhispererContentWithAWS}`
         }
@@ -154,7 +150,6 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
             ],
         }
         this.client = createCodeWhispererTokenClient(options, sdkInitializator)
-        this.updateClientConfig(this.proxyConfig)
     }
 
     getCredentialsType(): CredentialsType {
