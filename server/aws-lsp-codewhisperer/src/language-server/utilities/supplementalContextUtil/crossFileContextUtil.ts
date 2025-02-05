@@ -215,6 +215,13 @@ type FileDistance = {
     fileDistance: number
 }
 
+function createFileUrl(uri: string): URL {
+    // First resolve the path to handle any ./ or ../ and normalize slashes
+    const resolvedPath = path.resolve(uri.replace('file:', ''))
+    // Convert the path to a proper file URL
+    return nodeUrl.pathToFileURL(resolvedPath)
+}
+
 /**
  * This function will return relevant cross files sorted by file distance for the given editor file
  * by referencing open files, imported files and same package files.
@@ -238,8 +245,7 @@ export async function getCrossFileCandidates(document: TextDocument, workspace: 
         .filter((candidateFile: TextDocument) => {
             let candidateFileURL
             try {
-                const URL = typeof window !== 'undefined' ? window.URL : nodeUrl.URL
-                candidateFileURL = new URL(candidateFile.uri)
+                candidateFileURL = createFileUrl(candidateFile.uri)
             } catch (err) {
                 console.log(`NO URL:${candidateFile.uri}`)
             }
