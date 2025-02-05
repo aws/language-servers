@@ -1,8 +1,15 @@
-import { CredentialsProvider } from '@aws/language-server-runtimes/server-interface'
+import {
+    CredentialsProvider,
+    SDKInitializator,
+    SDKClientConstructorV2,
+    SDKClientConstructorV3,
+} from '@aws/language-server-runtimes/server-interface'
 import * as assert from 'assert'
 import sinon from 'ts-sinon'
 import { ChatSessionManagementService } from './chatSessionManagementService'
 import { ChatSessionService } from './chatSessionService'
+import { Service } from 'aws-sdk'
+import { ServiceConfigurationOptions } from 'aws-sdk/lib/service'
 
 describe('ChatSessionManagementService', () => {
     const mockSessionId = 'mockSessionId'
@@ -33,12 +40,25 @@ describe('ChatSessionManagementService', () => {
         let disposeStub: sinon.SinonStub
         let chatSessionManagementService: ChatSessionManagementService
 
+        const mockSdkRuntimeConfigurator: SDKInitializator = Object.assign(
+            // Default callable function for v3 clients
+            <T, P>(Ctor: SDKClientConstructorV3<T, P>, current_config: P): T => new Ctor({ ...current_config }),
+            // Property for v2 clients
+            {
+                v2: <T extends Service, P extends ServiceConfigurationOptions>(
+                    Ctor: SDKClientConstructorV2<T, P>,
+                    current_config: P
+                ): T => new Ctor({ ...current_config }),
+            }
+        )
+
         beforeEach(() => {
             disposeStub = sinon.stub(ChatSessionService.prototype, 'dispose')
             chatSessionManagementService = ChatSessionManagementService.getInstance()
                 .withCredentialsProvider(mockCredentialsProvider)
                 .withCodeWhispererRegion(mockAwsQRegion)
                 .withCodeWhispererEndpoint(mockAwsQEndpointUrl)
+                .withSdkRuntimeConfigurator(mockSdkRuntimeConfigurator)
         })
 
         afterEach(() => {

@@ -3,21 +3,30 @@ import { ConfiguredRetryStrategy } from '@aws-sdk/util-retry'
 import { readFileSync } from 'fs'
 import { NodeHttpHandler } from '@smithy/node-http-handler'
 import { HttpsProxyAgent } from 'hpagent'
+import { SDKInitializator } from '@aws/language-server-runtimes/server-interface'
 
 export class StreamingClient {
     public async getStreamingClient(
         credentialsProvider: any,
         codeWhispererRegion: string,
         codeWhispererEndpoint: string,
+        sdkInitializator: SDKInitializator,
         config?: CodeWhispererStreamingClientConfig
     ) {
-        return await createStreamingClient(credentialsProvider, codeWhispererRegion, codeWhispererEndpoint, config)
+        return await createStreamingClient(
+            credentialsProvider,
+            codeWhispererRegion,
+            codeWhispererEndpoint,
+            sdkInitializator,
+            config
+        )
     }
 }
 export async function createStreamingClient(
     credentialsProvider: any,
     codeWhispererRegion: string,
     codeWhispererEndpoint: string,
+    sdkInitializator: SDKInitializator,
     config?: CodeWhispererStreamingClientConfig
 ): Promise<CodeWhispererStreaming> {
     const creds = credentialsProvider.getCredentials('bearer')
@@ -46,7 +55,7 @@ export async function createStreamingClient(
         }
     }
 
-    const streamingClient = new CodeWhispererStreaming({
+    const streamingClient = sdkInitializator(CodeWhispererStreaming, {
         region: codeWhispererRegion,
         endpoint: codeWhispererEndpoint,
         token: { token: creds.token },

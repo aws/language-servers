@@ -1,5 +1,11 @@
 import { CodeWhispererStreaming } from '@amzn/codewhisperer-streaming'
-import { Logging, Workspace } from '@aws/language-server-runtimes/server-interface'
+import {
+    Logging,
+    Workspace,
+    SDKInitializator,
+    SDKClientConstructorV2,
+    SDKClientConstructorV3,
+} from '@aws/language-server-runtimes/server-interface'
 import * as assert from 'assert'
 import { HttpResponse } from 'aws-sdk'
 import { expect } from 'chai'
@@ -19,6 +25,8 @@ import { TransformHandler } from '../transformHandler'
 import { EXAMPLE_REQUEST } from './mockData'
 import sinon = require('sinon')
 import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../../../constants'
+import { Service } from 'aws-sdk'
+import { ServiceConfigurationOptions } from 'aws-sdk/lib/service'
 
 const mocked$Response = {
     $response: {
@@ -178,13 +186,26 @@ describe('Test Transform handler ', () => {
         getCredentials: sinon.stub().returns({ token: 'mockedToken' }),
     }
 
+    const mockSdkRuntimeConfigurator: SDKInitializator = Object.assign(
+        // Default callable function for v3 clients
+        <T, P>(Ctor: SDKClientConstructorV3<T, P>, current_config: P): T => new Ctor({ ...current_config }),
+        // Property for v2 clients
+        {
+            v2: <T extends Service, P extends ServiceConfigurationOptions>(
+                Ctor: SDKClientConstructorV2<T, P>,
+                current_config: P
+            ): T => new Ctor({ ...current_config }),
+        }
+    )
+
     describe('StreamingClient', () => {
         it('should create a new streaming client', async () => {
             const streamingClient = new StreamingClient()
             const client = await streamingClient.getStreamingClient(
                 mockedCredentialsProvider,
                 awsQRegion,
-                awsQEndpointUrl
+                awsQEndpointUrl,
+                mockSdkRuntimeConfigurator
             )
             expect(client).to.be.instanceOf(CodeWhispererStreaming)
         })
@@ -192,7 +213,12 @@ describe('Test Transform handler ', () => {
 
     describe('createStreamingClient', () => {
         it('should create a new streaming client with correct configurations', async () => {
-            const client = await createStreamingClient(mockedCredentialsProvider, awsQRegion, awsQEndpointUrl)
+            const client = await createStreamingClient(
+                mockedCredentialsProvider,
+                awsQRegion,
+                awsQEndpointUrl,
+                mockSdkRuntimeConfigurator
+            )
             expect(client).to.be.instanceOf(CodeWhispererStreaming)
         })
     })

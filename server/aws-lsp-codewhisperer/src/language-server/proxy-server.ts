@@ -11,30 +11,54 @@ import { HttpsProxyAgent } from 'hpagent'
 import { NodeHttpHandler } from '@smithy/node-http-handler'
 
 export const CodeWhispererServerTokenProxy = CodewhispererServerFactory(
-    (credentialsProvider, workspace, awsQRegion, awsQEndpointUrl) => {
-        return new CodeWhispererServiceToken(credentialsProvider, workspace, awsQRegion, awsQEndpointUrl)
+    (credentialsProvider, workspace, awsQRegion, awsQEndpointUrl, sdkInitializator) => {
+        return new CodeWhispererServiceToken(
+            credentialsProvider,
+            workspace,
+            awsQRegion,
+            awsQEndpointUrl,
+            sdkInitializator
+        )
     }
 )
 
 export const CodeWhispererServerIAMProxy = CodewhispererServerFactory(
-    (credentialsProvider, workspace, awsQRegion, awsQEndpointUrl) => {
-        return new CodeWhispererServiceIAM(credentialsProvider, workspace, awsQRegion, awsQEndpointUrl)
+    (credentialsProvider, workspace, awsQRegion, awsQEndpointUrl, sdkInitializator) => {
+        return new CodeWhispererServiceIAM(
+            credentialsProvider,
+            workspace,
+            awsQRegion,
+            awsQEndpointUrl,
+            sdkInitializator
+        )
     }
 )
 
 export const CodeWhispererSecurityScanServerTokenProxy = SecurityScanServerToken(
-    (credentialsProvider, workspace, awsQRegion, awsQEndpointUrl) => {
-        return new CodeWhispererServiceToken(credentialsProvider, workspace, awsQRegion, awsQEndpointUrl)
+    (credentialsProvider, workspace, awsQRegion, awsQEndpointUrl, sdkInitializator) => {
+        return new CodeWhispererServiceToken(
+            credentialsProvider,
+            workspace,
+            awsQRegion,
+            awsQEndpointUrl,
+            sdkInitializator
+        )
     }
 )
 
 export const QNetTransformServerTokenProxy = QNetTransformServerToken(
-    (credentialsProvider, workspace, awsQRegion, awsQEndpointUrl) => {
-        return new CodeWhispererServiceToken(credentialsProvider, workspace, awsQRegion, awsQEndpointUrl)
+    (credentialsProvider, workspace, awsQRegion, awsQEndpointUrl, sdkInitializator) => {
+        return new CodeWhispererServiceToken(
+            credentialsProvider,
+            workspace,
+            awsQRegion,
+            awsQEndpointUrl,
+            sdkInitializator
+        )
     }
 )
 
-export const QChatServerProxy = QChatServer((credentialsProvider, awsQRegion, awsQEndpointUrl) => {
+export const QChatServerProxy = QChatServer((credentialsProvider, awsQRegion, awsQEndpointUrl, sdkInitializator) => {
     let clientOptions: ChatSessionServiceConfig | undefined
     // short term solution to fix webworker bundling, broken due to this node.js specific logic in here
     const isNodeJS: boolean = typeof process !== 'undefined' && process.release && process.release.name === 'node'
@@ -66,11 +90,18 @@ export const QChatServerProxy = QChatServer((credentialsProvider, awsQRegion, aw
         .withCredentialsProvider(credentialsProvider)
         .withCodeWhispererEndpoint(awsQEndpointUrl)
         .withCodeWhispererRegion(awsQRegion)
+        .withSdkRuntimeConfigurator(sdkInitializator)
         .withConfig(clientOptions)
 })
 
 export const QConfigurationServerTokenProxy = QConfigurationServerToken(
-    (credentialsProvider, workspace, awsQRegion, awsQEndpointUrl) => {
-        return new CodeWhispererServiceToken(credentialsProvider, workspace, awsQRegion, awsQEndpointUrl)
+    (credentialsProvider, workspace, awsQRegion, awsQEndpointUrl, sdkInitializator) => {
+        return new CodeWhispererServiceToken(
+            credentialsProvider,
+            workspace,
+            awsQRegion,
+            awsQEndpointUrl,
+            sdkInitializator
+        )
     }
 )

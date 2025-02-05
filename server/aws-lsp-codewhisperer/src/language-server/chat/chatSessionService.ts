@@ -7,12 +7,14 @@ import {
 import { ConfiguredRetryStrategy } from '@aws-sdk/util-retry'
 import { CredentialsProvider } from '@aws/language-server-runtimes/server-interface'
 import { getBearerTokenFromProvider } from '../utils'
+import { SDKInitializator } from '@aws/language-server-runtimes/server-interface'
 
 export type ChatSessionServiceConfig = CodeWhispererStreamingClientConfig
 export class ChatSessionService {
     public shareCodeWhispererContentWithAWS = false
     readonly #codeWhispererRegion: string
     readonly #codeWhispererEndpoint: string
+    #sdkInitializator: SDKInitializator
     #abortController?: AbortController
     #credentialsProvider: CredentialsProvider
     #config?: CodeWhispererStreamingClientConfig
@@ -30,11 +32,13 @@ export class ChatSessionService {
         credentialsProvider: CredentialsProvider,
         codeWhispererRegion: string,
         codeWhispererEndpoint: string,
+        sdkInitializator: SDKInitializator,
         config?: CodeWhispererStreamingClientConfig
     ) {
         this.#credentialsProvider = credentialsProvider
         this.#codeWhispererRegion = codeWhispererRegion
         this.#codeWhispererEndpoint = codeWhispererEndpoint
+        this.#sdkInitializator = sdkInitializator
         this.#config = config
     }
 
@@ -45,7 +49,7 @@ export class ChatSessionService {
             request.conversationState.conversationId = this.#conversationId
         }
 
-        const client = new CodeWhispererStreaming({
+        const client = this.#sdkInitializator(CodeWhispererStreaming, {
             region: this.#codeWhispererRegion,
             endpoint: this.#codeWhispererEndpoint,
             token: () => Promise.resolve({ token: getBearerTokenFromProvider(this.#credentialsProvider) }),
