@@ -3,6 +3,7 @@
 // Implementation is converted to work with LSP TextDocument instead of vscode APIs.
 
 import * as path from 'path'
+import { URL } from 'node:url'
 import { BM25Document, BM25Okapi } from './rankBm25'
 import { crossFileContextConfig } from '../../models/constants'
 import { isTestFile } from './codeParsingUtil'
