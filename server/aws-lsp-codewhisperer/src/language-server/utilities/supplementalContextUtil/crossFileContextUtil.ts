@@ -234,11 +234,17 @@ export async function getCrossFileCandidates(document: TextDocument, workspace: 
     const unsortedCandidates = await workspace.getAllTextDocuments()
     return unsortedCandidates
         .filter((candidateFile: TextDocument) => {
+            let candidateFileURL
+            try {
+                candidateFileURL = new URL(candidateFile.uri)
+                console.log(candidateFileURL?.pathname || 'NO PATHNAME')
+            } catch (err) {}
             return !!(
                 targetFile !== candidateFile.uri &&
                 (path.extname(targetFile) === path.extname(candidateFile.uri) ||
                     (dialects && dialects.has(path.extname(candidateFile.uri)))) &&
-                !isTestFile(new URL(candidateFile.uri).pathname, { languageId: language })
+                candidateFileURL?.pathname != null &&
+                !isTestFile(candidateFileURL.pathname, { languageId: language })
             )
         })
         .map((candidate: TextDocument): FileDistance => {
