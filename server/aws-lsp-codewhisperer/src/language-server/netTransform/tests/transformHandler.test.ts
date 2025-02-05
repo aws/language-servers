@@ -25,7 +25,6 @@ import { TransformHandler } from '../transformHandler'
 import { EXAMPLE_REQUEST } from './mockData'
 import sinon = require('sinon')
 import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../../../constants'
-import { Readable } from 'stream'
 import { Service } from 'aws-sdk'
 import { ServiceConfigurationOptions } from 'aws-sdk/lib/service'
 
@@ -44,24 +43,6 @@ const mocked$Response = {
 const testUploadId = 'test-upoload-id'
 const testTransformId = 'test-transform-id'
 const payloadFileName = 'C:\\test.zip'
-const mockReadStream = {
-    on: sinon.stub(),
-    pipe: sinon.stub(),
-}
-
-export function createMockReadableStream(chunks: any[]): Readable {
-    const readable = new Readable({
-        read() {
-            if (chunks.length > 0) {
-                this.push(chunks.shift())
-            } else {
-                this.push(null) // Signal end of stream
-            }
-        },
-    })
-
-    return readable
-}
 
 describe('Test Transform handler ', () => {
     let client: StubbedInstance<CodeWhispererServiceToken>
@@ -80,8 +61,7 @@ describe('Test Transform handler ', () => {
     describe('test upload artifact', () => {
         it('call upload method correctly', async () => {
             const putStub = sinon.stub(got, 'put').resolves({ statusCode: 'Success' })
-
-            const createReadStreamStub = sinon.stub(fs, 'createReadStream').returns(mockReadStream as any)
+            const readFileSyncStub = sinon.stub(fs, 'readFileSync').returns('text file content')
             await transformHandler.uploadArtifactToS3Async(
                 payloadFileName,
                 {
@@ -93,9 +73,9 @@ describe('Test Transform handler ', () => {
                 'dummy-256'
             )
             simon.assert.callCount(putStub, 1)
-            simon.assert.callCount(createReadStreamStub, 1)
+            simon.assert.callCount(readFileSyncStub, 1)
             putStub.restore()
-            createReadStreamStub.restore()
+            readFileSyncStub.restore()
         })
     })
 
@@ -111,23 +91,19 @@ describe('Test Transform handler ', () => {
         })
 
         it('returns upload id correctly', async () => {
-            const chunks = ['Hello, ', 'World!']
-            const mockStream = createMockReadableStream(chunks)
-            const createReadStreamStub = sinon.stub(fs, 'createReadStream').returns(mockStream as any)
+            const readFileSyncStub = sinon.stub(fs, 'readFileSync').returns('text file content')
             const uploadStub = sinon.stub(transformHandler, 'uploadArtifactToS3Async')
             const res = await transformHandler.uploadPayloadAsync(payloadFileName)
-            simon.assert.callCount(createReadStreamStub, 1)
+            simon.assert.callCount(readFileSyncStub, 1)
             simon.assert.callCount(uploadStub, 1)
             assert.equal(res, testUploadId)
             uploadStub.restore()
-            createReadStreamStub.restore()
+            readFileSyncStub.restore()
         })
 
         it('should throw error if uploadArtifactToS3Async fails', async () => {
             const mockError = new Error('Error in uploadArtifactToS3 call')
-            const chunks = ['Hello, ', 'World!']
-            const mockStream = createMockReadableStream(chunks)
-            const createReadStreamStub = sinon.stub(fs, 'createReadStream').returns(mockStream as any)
+            const readFileSyncStub = sinon.stub(fs, 'readFileSync').returns('text file content')
             sinon.stub(transformHandler, 'uploadArtifactToS3Async').rejects(mockError)
 
             // Call the method to be tested
@@ -136,8 +112,8 @@ describe('Test Transform handler ', () => {
             } catch (error) {
                 // Assertions
                 expect((error as Error).message).to.equal(mockError.message)
-                sinon.assert.calledOnce(createReadStreamStub)
-                createReadStreamStub.restore()
+                sinon.assert.calledOnce(readFileSyncStub)
+                readFileSyncStub.restore()
             }
         })
         /*
