@@ -47,14 +47,14 @@ jobs:
                   path: app/**/build/*
     test-windows:
         name: Test (Windows)
-        runs-on: windows-2019
+        runs-on: windows-latest
         steps:
             - name: Sync Code
               uses: actions/checkout@v3
             - name: Set up Node
               uses: actions/setup-node@v3
               with:
-                  node-version: 18
+                  node-version: 20
             - name: Build
               run: |
                   npm ci
@@ -63,14 +63,14 @@ jobs:
                   npm run test
     build-windows:
         name: Package (Windows)
-        runs-on: windows-2019
+        runs-on: windows-latest
         steps:
             - name: Sync Code
               uses: actions/checkout@v3
             - name: Set up Node
               uses: actions/setup-node@v3
               with:
-                  node-version: 18
+                  node-version: 20
             - name: Build
               run: |
                   npm ci
