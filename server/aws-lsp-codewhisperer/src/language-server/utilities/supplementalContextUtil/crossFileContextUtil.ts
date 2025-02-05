@@ -2,8 +2,9 @@
 // https://github.com/aws/aws-toolkit-vscode/blob/9d8ddbd85f4533e539a58e76f7c46883d8e50a79/packages/core/src/codewhisperer/util/supplementalContext/crossFileContextUtil.ts
 // Implementation is converted to work with LSP TextDocument instead of vscode APIs.
 
+// eslint-disable-next-line import/no-nodejs-modules
 import * as path from 'path'
-import { URL } from 'node:url'
+import * as nodeUrl from 'url'
 import { BM25Document, BM25Okapi } from './rankBm25'
 import { crossFileContextConfig } from '../../models/constants'
 import { isTestFile } from './codeParsingUtil'
@@ -237,9 +238,11 @@ export async function getCrossFileCandidates(document: TextDocument, workspace: 
         .filter((candidateFile: TextDocument) => {
             let candidateFileURL
             try {
+                const URL = typeof window !== 'undefined' ? window.URL : nodeUrl.URL
                 candidateFileURL = new URL(candidateFile.uri)
-                console.log(candidateFileURL?.pathname || 'NO PATHNAME')
-            } catch (err) {}
+            } catch (err) {
+                console.log(`NO URL:${candidateFile.uri}`)
+            }
             return !!(
                 targetFile !== candidateFile.uri &&
                 (path.extname(targetFile) === path.extname(candidateFile.uri) ||
