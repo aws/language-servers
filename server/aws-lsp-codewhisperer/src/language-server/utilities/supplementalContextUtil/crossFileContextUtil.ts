@@ -1,4 +1,3 @@
-/* eslint-disable import/no-nodejs-modules */
 // Port of implementation in AWS Toolkit for VSCode
 // https://github.com/aws/aws-toolkit-vscode/blob/9d8ddbd85f4533e539a58e76f7c46883d8e50a79/packages/core/src/codewhisperer/util/supplementalContext/crossFileContextUtil.ts
 // Implementation is converted to work with LSP TextDocument instead of vscode APIs.
