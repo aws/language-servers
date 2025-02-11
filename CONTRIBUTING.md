@@ -416,3 +416,36 @@ npm -ws install &&
 npm link @aws/language-server-runtimes @aws/language-server-runtimes-types &&
 npm run compile -- --force
 ```
+
+### Endpoint and region override
+It is possible to override the default region and default endpoint utilized by the AWS SDK clients (e.g. for the Q developer backend api endpoint) when building the capabilities servers.
+
+In order to set such variables and override the default values, it is sufficient to add the `AWS_Q_REGION` and `AWS_Q_ENDPOINT_URL` environment variables respectively to the [launch configuration](https://github.com/aws/language-servers/blob/34dd2f6598bc9b17014ae6f0d2ffbcf8297cfd80/.vscode/launch.json#L84).
+
+**Example:**
+```
+{
+            "name": "CodeWhisperer Server Token",
+            "type": "extensionHost",
+            "request": "launch",
+            "runtimeExecutable": "${execPath}",
+            "args": ["--extensionDevelopmentPath=${workspaceFolder}/client/vscode", "--disable-extensions"],
+            "outFiles": ["${workspaceFolder}/client/vscode/out/**/*.js"],
+            "env": {
+                "LSP_SERVER": "${workspaceFolder}/app/aws-lsp-codewhisperer-runtimes/out/token-standalone.js",
+                "ENABLE_INLINE_COMPLETION": "true",
+                "ENABLE_TOKEN_PROVIDER": "true",
+                "ENABLE_CUSTOM_COMMANDS": "true",
+                "ENABLE_CHAT": "true",
+                "ENABLE_CUSTOMIZATIONS": "true",
+                "AWS_Q_REGION": "set_region_here",
+                "AWS_Q_ENDPOINT_URL" : "set_q_endpoint_here"
+            },
+            "preLaunchTask": "compile"
+        }
+```
+As visible [here](https://github.com/aws/language-servers/blob/34dd2f6598bc9b17014ae6f0d2ffbcf8297cfd80/server/aws-lsp-codewhisperer/src/constants.ts), the default values for such variables is:
+```
+export const DEFAULT_AWS_Q_ENDPOINT_URL = 'https://codewhisperer.us-east-1.amazonaws.com/'
+export const DEFAULT_AWS_Q_REGION = 'us-east-1'
+```
