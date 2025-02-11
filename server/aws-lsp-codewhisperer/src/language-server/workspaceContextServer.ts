@@ -58,13 +58,13 @@ export const WorkspaceContextServer =
                     workspace: {
                         fileOperations: {
                             didCreate: {
-                                filters: [{ pattern: { glob: '**/*.{ts,tsx,java,py}' } }],
+                                filters: [{ pattern: { glob: '**/*' } }],
                             },
                             didRename: {
-                                filters: [{ pattern: { glob: '**/*.{ts,tsx,java,py}' } }],
+                                filters: [{ pattern: { glob: '**/*' } }],
                             },
                             didDelete: {
-                                filters: [{ pattern: { glob: '**/*.{ts,tsx,java,py}' } }],
+                                filters: [{ pattern: { glob: '**/*' } }],
                             },
                         },
                     },
