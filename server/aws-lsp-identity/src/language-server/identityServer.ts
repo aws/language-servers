@@ -96,7 +96,7 @@ export class IdentityServer extends ServerBase {
             ...result,
             ...{
                 serverInfo: {
-                    name: 'AWS Toolkit Language Server for Identity',
+                    name: 'Language Server for AWS Identity Management',
                 },
             },
         }
