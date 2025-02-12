@@ -1,24 +1,19 @@
 import {
     InitializeParams,
     InitializedParams,
-    HandlerResult,
     PartialInitializeResult,
-    InitializeError,
 } from '@aws/language-server-runtimes/server-interface'
-import { ServerBase } from '@aws/lsp-core'
-import { NotificationService, ShowNotification } from './notificationService'
+import { ServerBase, ServerState } from '@aws/lsp-core'
+import { NotificationService } from './notificationService'
 import { MessageType, NotificationFollowupParams, NotificationParams } from '@aws/language-server-runtimes/protocol'
 import { FilesystemMetadataStore } from '../notifications/metadata/filesystemMetadataStore'
 import { S3Fetcher } from '../notifications/toolkits/s3Fetcher'
-import { CritieriaFilteringFetcher } from '../notifications/toolkits/criteriaFilteringFetcher'
+import { CriteriaFilteringFetcher as CriteriaFilteringFetcher } from '../notifications/toolkits/criteriaFilteringFetcher'
 import { MetadataFilteringFetcher } from '../notifications/metadata/metadataFilteringFetcher'
 import { Fetcher } from '../notifications/fetcher'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 
 export class NotificationServer extends ServerBase {
-    // Silently drop notifications from constructor to initliaze when ability to send notifications is available
-    private showNotification: ShowNotification = (params: NotificationParams) => {}
-
     constructor(features: Features) {
         super(features)
     }
@@ -28,11 +23,8 @@ export class NotificationServer extends ServerBase {
         return new NotificationServer(features)[Symbol.dispose]
     }
 
-    protected override initialize(
-        params: InitializeParams
-    ): HandlerResult<PartialInitializeResult<any>, InitializeError> {
-        // Callbacks for server->client JSON-RPC calls
-        this.showNotification = (params: NotificationParams) => this.features.notification.showNotification(params)
+    protected override async initialize(params: InitializeParams): Promise<PartialInitializeResult<any>> {
+        const result = await super.initialize(params)
 
         // Initialize dependencies
         const metadataStore = new FilesystemMetadataStore()
@@ -57,15 +49,19 @@ export class NotificationServer extends ServerBase {
         )
 
         return {
-            serverInfo: {
-                name: 'AWS Toolkit Language Server for Notifications',
+            ...result,
+            ...{
+                serverInfo: {
+                    name: 'AWS Toolkit Language Server for Notifications',
+                },
             },
-            capabilities: {},
         }
     }
 
     protected override initialized(params: InitializedParams): void {
-        const startupFetcher = this.createFetcherPipeline()
+        super.initialized(params)
+
+        this.createFetcherPipeline()
         //startupFetcher.fetch()
         this.features.logging.log('Pushing test notification to client.')
         this.showNotification({
@@ -87,9 +83,22 @@ export class NotificationServer extends ServerBase {
         // TODO Pass in details to determine bucket and objects based on extension
         const s3Fetcher = new S3Fetcher()
         // TODO Pass IDE/version and extension/version from InitializeParams into CritieriaFilteringFetcher
-        const critieriaFilteringFetcher = new CritieriaFilteringFetcher(s3Fetcher)
-        const metadataFilteringFetcher = new MetadataFilteringFetcher(critieriaFilteringFetcher)
+        const criteriaFilteringFetcher = new CriteriaFilteringFetcher(s3Fetcher)
+        const metadataFilteringFetcher = new MetadataFilteringFetcher(criteriaFilteringFetcher)
 
         return metadataFilteringFetcher
+    }
+
+    private showNotification(params: NotificationParams): void {
+        // Drop notifications outside of Initialized state to avoid violating LSP spec
+        // https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#initialize
+        if (this.state !== ServerState.Initialized) {
+            this.features.logging.warn(
+                `Server attempted to send notification before initialization.\n\n${JSON.stringify(params)}`
+            )
+            return
+        }
+
+        this.features.notification.showNotification(params)
     }
 }
