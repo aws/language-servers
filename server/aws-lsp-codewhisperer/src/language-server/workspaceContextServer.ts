@@ -33,9 +33,9 @@ export const WorkspaceContextServer =
         let artifactManager: ArtifactManager
 
         /*
-         TODO: This is only for testing purpose. It'll be replaced by the actual URL and
-         client will only be created post customer OptIn and workspace creation on remote success
-         */
+                     TODO: This is only for testing purpose. It'll be replaced by the actual URL and
+                     client will only be created post customer OptIn and workspace creation on remote success
+                     */
         const wsClient = new WebSocketClient('ws://localhost:8080')
         wsClient.send('Hello server!')
 
@@ -45,7 +45,6 @@ export const WorkspaceContextServer =
 
         lsp.addInitializer((params: InitializeParams) => {
             workspaceFolders = params.workspaceFolders || []
-
             if (params.workspaceFolders) {
                 workspaceFolders = params.workspaceFolders
                 artifactManager = new ArtifactManager(workspace, logging, workspaceFolders)
@@ -56,6 +55,10 @@ export const WorkspaceContextServer =
             return {
                 capabilities: {
                     workspace: {
+                        workspaceFolders: {
+                            supported: true,
+                            changeNotifications: true,
+                        },
                         fileOperations: {
                             didCreate: {
                                 filters: [{ pattern: { glob: '**/*' } }],
@@ -73,7 +76,24 @@ export const WorkspaceContextServer =
         })
 
         lsp.onInitialized(params => {
-            logging.log(`LSP initialized}`)
+            logging.log(`LSP initialized`)
+
+            lsp.workspace.onDidChangeWorkspaceFolders(async params => {
+                logging.log(`Workspace folders changed2 ${JSON.stringify(params)}`)
+                params.event.added.forEach(folder => {
+                    workspaceFolders.push(folder)
+                })
+                params.event.removed.forEach(folder => {
+                    const index = workspaceFolders.findIndex(f => f.uri === folder.uri)
+                    if (index !== -1) {
+                        workspaceFolders.splice(index, 1)
+                    }
+                })
+            })
+
+            if (!workspaceFolders || workspaceFolders.length === 0) {
+                return
+            }
             artifactManager
                 .createLanguageArtifacts()
                 .then(() => {
@@ -82,19 +102,6 @@ export const WorkspaceContextServer =
                 .catch(error => {
                     logging.log(`Error creating artifacts: ${error}`)
                 })
-        })
-
-        lsp.workspace.onDidChangeWorkspaceFolders(params => {
-            logging.log(`Workspace folders changed ${JSON.stringify(event)}`)
-            params.event.added.forEach(folder => {
-                workspaceFolders.push(folder)
-            })
-            params.event.removed.forEach(folder => {
-                const index = workspaceFolders.findIndex(f => f.uri === folder.uri)
-                if (index !== -1) {
-                    workspaceFolders.splice(index, 1)
-                }
-            })
         })
 
         lsp.onDidSaveTextDocument(async event => {
