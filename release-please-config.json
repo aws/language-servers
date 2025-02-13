@@ -8,6 +8,7 @@
     "plugins": ["node-workspace"],
     "tag-separator": "/",
     "include-v-in-tag": true,
+    "draft-pull-request": true,
     "packages": {
         "chat-client": {
             "component": "chat-client"
