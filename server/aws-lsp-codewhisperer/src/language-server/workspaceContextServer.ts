@@ -34,13 +34,6 @@ export const WorkspaceContextServer =
         let artifactManager: ArtifactManager
         let workspaceFolderManager: WorkspaceFolderManager
 
-        /*
-                     TODO: This is only for testing purpose. It'll be replaced by the actual URL and
-                     client will only be created post customer OptIn and workspace creation on remote success
-                     */
-        const wsClient = new WebSocketClient('ws://localhost:8080')
-        wsClient.send('Hello server!')
-
         const awsQRegion = runtime.getConfiguration('AWS_Q_REGION') ?? DEFAULT_AWS_Q_REGION
         const awsQEndpointUrl = runtime.getConfiguration('AWS_Q_ENDPOINT_URL') ?? DEFAULT_AWS_Q_ENDPOINT_URL
         const cwsprClient = service(credentialsProvider, workspace, awsQRegion, awsQEndpointUrl)
@@ -143,7 +136,12 @@ export const WorkspaceContextServer =
                 }
             }
 
-            wsClient.send(
+            const workspaceDetails = workspaceFolderManager.getWorkspaces().get(workspaceRoot)
+            if (!workspaceDetails || !workspaceDetails.webSocketClient) {
+                logging.log(`Websocket client is not connected yet: ${workspaceRoot}`)
+                return
+            }
+            workspaceDetails.webSocketClient.send(
                 JSON.stringify({
                     action: 'didSave',
                     message: {
@@ -157,6 +155,8 @@ export const WorkspaceContextServer =
                 })
             )
         })
+
+        // TODO: Handle directory management
         lsp.workspace.onDidCreateFiles(async event => {
             logging.log(`Document created ${JSON.stringify(event)}`)
 
@@ -166,7 +166,12 @@ export const WorkspaceContextServer =
             }
 
             const workspaceRoot = findWorkspaceRoot(event.files[0].uri, workspaceFolders)
-            wsClient.send(
+            const workspaceDetails = workspaceFolderManager.getWorkspaces().get(workspaceRoot)
+            if (!workspaceDetails || !workspaceDetails.webSocketClient) {
+                logging.log(`Websocket client is not connected yet: ${workspaceRoot}`)
+                return
+            }
+            workspaceDetails.webSocketClient.send(
                 JSON.stringify({
                     action: 'didCreateFiles',
                     message: {
@@ -181,6 +186,7 @@ export const WorkspaceContextServer =
             )
         })
 
+        // TODO: Handle directory management
         lsp.workspace.onDidDeleteFiles(async event => {
             logging.log(`Document deleted ${JSON.stringify(event)}`)
 
@@ -189,7 +195,12 @@ export const WorkspaceContextServer =
                 return
             }
             const workspaceRoot = findWorkspaceRoot(event.files[0].uri, workspaceFolders)
-            wsClient.send(
+            const workspaceDetails = workspaceFolderManager.getWorkspaces().get(workspaceRoot)
+            if (!workspaceDetails || !workspaceDetails.webSocketClient) {
+                logging.log(`Websocket client is not connected yet: ${workspaceRoot}`)
+                return
+            }
+            workspaceDetails.webSocketClient.send(
                 JSON.stringify({
                     action: 'didDeleteFiles',
                     message: {
@@ -204,6 +215,7 @@ export const WorkspaceContextServer =
             )
         })
 
+        // TODO: Handle directory management
         lsp.workspace.onDidRenameFiles(async event => {
             logging.log(`Document renamed ${JSON.stringify(event)}`)
 
@@ -212,7 +224,12 @@ export const WorkspaceContextServer =
                 return
             }
             const workspaceRoot = findWorkspaceRoot(event.files[0].newUri, workspaceFolders)
-            wsClient.send(
+            const workspaceDetails = workspaceFolderManager.getWorkspaces().get(workspaceRoot)
+            if (!workspaceDetails || !workspaceDetails.webSocketClient) {
+                logging.log(`Websocket client is not connected yet: ${workspaceRoot}`)
+                return
+            }
+            workspaceDetails.webSocketClient.send(
                 JSON.stringify({
                     action: 'didRenameFiles',
                     message: {
