@@ -45,7 +45,7 @@ export class WebSocketClient {
 
         this.ws.onclose = event => {
             console.log('WebSocket connection closed')
-            this.handleDisconnect()
+            // this.handleDisconnect()
         }
 
         this.ws.on('error', error => {

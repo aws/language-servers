@@ -6,17 +6,18 @@ import {
     WorkspaceFolder,
 } from '@aws/language-server-runtimes/server-interface'
 import { CodeWhispererServiceToken } from './codeWhispererService'
-import { WebSocketClient } from './serverContext/client'
+import { WebSocketClient } from './workspaceContext/client'
 import {
     findWorkspaceRoot,
     findWorkspaceRootFolder,
     getProgrammingLanguageFromPath,
     uploadArtifactToS3,
-} from './serverContext/util'
+} from './workspaceContext/util'
 import { ArtifactManager } from './workspaceContext/artifactManager'
 import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../constants'
 import { CreateUploadUrlRequest } from '../client/token/codewhispererbearertokenclient'
 import { md5 } from 'js-md5'
+import { RemoteWorkspaceState, WorkspaceFolderManager } from './workspaceContext/workspaceFolderManager'
 
 export const WorkspaceContextServer =
     (
@@ -31,6 +32,7 @@ export const WorkspaceContextServer =
         const { logging, lsp, workspace, runtime, credentialsProvider } = features
         let workspaceFolders: WorkspaceFolder[] = []
         let artifactManager: ArtifactManager
+        let workspaceFolderManager: WorkspaceFolderManager
 
         /*
                      TODO: This is only for testing purpose. It'll be replaced by the actual URL and
@@ -51,6 +53,7 @@ export const WorkspaceContextServer =
             } else {
                 logging.error(`WORKSPACE FOLDERS IS NOT SET`)
             }
+            workspaceFolderManager = new WorkspaceFolderManager(cwsprClient)
 
             return {
                 capabilities: {
@@ -79,17 +82,25 @@ export const WorkspaceContextServer =
             logging.log(`LSP initialized`)
 
             lsp.workspace.onDidChangeWorkspaceFolders(async params => {
-                logging.log(`Workspace folders changed2 ${JSON.stringify(params)}`)
+                logging.log(`Workspace folders changed ${JSON.stringify(params)}`)
                 params.event.added.forEach(folder => {
                     workspaceFolders.push(folder)
+                    workspaceFolderManager.processWorkspaceFolderAddition(folder)
                 })
                 params.event.removed.forEach(folder => {
                     const index = workspaceFolders.findIndex(f => f.uri === folder.uri)
                     if (index !== -1) {
                         workspaceFolders.splice(index, 1)
+                        workspaceFolderManager.processWorkspaceFolderDeletion(folder)
                     }
                 })
             })
+
+            workspaceFolders.forEach(folder => {
+                workspaceFolderManager.processNewWorkspaceFolder(folder)
+            })
+
+            workspaceFolderManager.pollWorkspaceState([...workspaceFolderManager.getWorkspaces().keys()])
 
             if (!workspaceFolders || workspaceFolders.length === 0) {
                 return
