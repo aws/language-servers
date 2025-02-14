@@ -8,6 +8,7 @@ interface WorkspaceState {
     remoteWorkspaceState: RemoteWorkspaceState
     webSocketClient?: WebSocketClient
     s3Url?: string
+    messageQueue?: any[]
 }
 
 type WorkspaceRoot = string
@@ -23,6 +24,9 @@ export class WorkspaceFolderManager {
     }
 
     updateWorkspaceEntry(workspaceRoot: WorkspaceRoot, workspaceState: WorkspaceState) {
+        if (!workspaceState.messageQueue) {
+            workspaceState.messageQueue = []
+        }
         this.workspaceMap.set(workspaceRoot, workspaceState)
     }
 
@@ -60,6 +64,7 @@ export class WorkspaceFolderManager {
                         remoteWorkspaceState: 'CONNECTED',
                         webSocketClient: webSocketClient,
                     })
+                    this.processMessagesInQueue(workspace)
                     counterOfConnectedWorkspaces++
                 }
             })
@@ -71,7 +76,7 @@ export class WorkspaceFolderManager {
 
     processNewWorkspaceFolder(workspaceFolder: WorkspaceFolder) {
         /*
-                 TODO: Make a call to ListWorkspaceMetadata API to get the state for the workspace. For now, keeping it static. 
+                 TODO: Make a call to ListWorkspaceMetadata API to get the state for the workspace. For now, keeping it static.
                  ListWorkspaceMetadata should also return the URI to connect to address & port. For now, keeping it static.
                  */
         let state = 'READY'
@@ -82,6 +87,7 @@ export class WorkspaceFolderManager {
                 remoteWorkspaceState: 'CONNECTED',
                 webSocketClient: webSocketClient,
             })
+            this.processMessagesInQueue(workspaceFolder.uri)
         } else {
             // TODO: make a call to CreateWorkspace API. It's a fire & forget call
             this.updateWorkspaceEntry(workspaceFolder.uri, {
@@ -90,6 +96,9 @@ export class WorkspaceFolderManager {
         }
     }
 
+    /*
+    TODO: emit event or put them in queue depending upon the state of websocket client for the folder
+    */
     processWorkspaceFolderAddition(workspaceFolder: WorkspaceFolder) {
         this.processNewWorkspaceFolder(workspaceFolder)
         this.pollWorkspaceState([workspaceFolder.uri])
@@ -127,5 +136,13 @@ export class WorkspaceFolderManager {
         )
         this.removeWorkspaceEntry(workspaceFolder.uri)
         websocketClient.disconnect()
+    }
+
+    private processMessagesInQueue(workspaceRoot: WorkspaceRoot) {
+        const workspaceDetails = this.workspaceMap.get(workspaceRoot)
+        while (workspaceDetails?.messageQueue && workspaceDetails.messageQueue.length > 0) {
+            const message = workspaceDetails.messageQueue.shift()
+            workspaceDetails.webSocketClient?.send(message)
+        }
     }
 }

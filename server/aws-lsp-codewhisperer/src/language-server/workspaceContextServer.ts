@@ -106,6 +106,12 @@ export const WorkspaceContextServer =
                 .catch(error => {
                     logging.log(`Error creating artifacts: ${error}`)
                 })
+            /*
+            TODO: 1. upload per workspace artifact
+            TODO: 2. emit an event for addition of workspace/s
+            For each workspace, emit per langauge zip events separately.
+            Add a message to queue or emit, depending on the state of web socket client
+            */
         })
 
         lsp.onDidSaveTextDocument(async event => {
@@ -117,6 +123,11 @@ export const WorkspaceContextServer =
             const workspaceRoot = findWorkspaceRoot(event.textDocument.uri, workspaceFolders)
             const workspaceRootFolder = findWorkspaceRootFolder(event.textDocument.uri, workspaceFolders)
             let s3Url = ''
+
+            if (!workspaceRoot) {
+                // No action needs to be taken if it's just a random file change which is not part of any workspace.
+                return
+            }
 
             if (workspaceRootFolder && artifactManager && credentialsProvider.getConnectionMetadata()?.sso?.startUrl) {
                 try {
@@ -137,23 +148,27 @@ export const WorkspaceContextServer =
             }
 
             const workspaceDetails = workspaceFolderManager.getWorkspaces().get(workspaceRoot)
-            if (!workspaceDetails || !workspaceDetails.webSocketClient) {
-                logging.log(`Websocket client is not connected yet: ${workspaceRoot}`)
+            if (!workspaceDetails) {
+                logging.log(`Workspace folder ${workspaceRoot} is under processing`)
                 return
             }
-            workspaceDetails.webSocketClient.send(
-                JSON.stringify({
-                    action: 'didSave',
-                    message: {
-                        textDocument: event.textDocument.uri,
-                        workspaceChangeMetadata: {
-                            workspaceRoot: workspaceRoot,
-                            s3Path: s3Url,
-                            programmingLanguage: programmingLanguage,
-                        },
+            const message = JSON.stringify({
+                action: 'didSave',
+                message: {
+                    textDocument: event.textDocument.uri,
+                    workspaceChangeMetadata: {
+                        workspaceRoot: workspaceRoot,
+                        s3Path: s3Url,
+                        programmingLanguage: programmingLanguage,
                     },
-                })
-            )
+                },
+            })
+            if (!workspaceDetails.webSocketClient) {
+                logging.log(`Websocket client is not connected yet: ${workspaceRoot}`)
+                workspaceDetails.messageQueue?.push(message)
+                return
+            }
+            workspaceDetails.webSocketClient.send(message)
         })
 
         // TODO: Handle directory management
@@ -166,24 +181,32 @@ export const WorkspaceContextServer =
             }
 
             const workspaceRoot = findWorkspaceRoot(event.files[0].uri, workspaceFolders)
-            const workspaceDetails = workspaceFolderManager.getWorkspaces().get(workspaceRoot)
-            if (!workspaceDetails || !workspaceDetails.webSocketClient) {
-                logging.log(`Websocket client is not connected yet: ${workspaceRoot}`)
+            if (!workspaceRoot) {
+                // No action needs to be taken if it's just a random file change which is not part of any workspace.
                 return
             }
-            workspaceDetails.webSocketClient.send(
-                JSON.stringify({
-                    action: 'didCreateFiles',
-                    message: {
-                        files: event.files,
-                        workspaceChangeMetadata: {
-                            workspaceRoot: workspaceRoot,
-                            s3Path: '', //TODO
-                            programmingLanguage: programmingLanguage,
-                        },
+            const workspaceDetails = workspaceFolderManager.getWorkspaces().get(workspaceRoot)
+            if (!workspaceDetails) {
+                logging.log(`Workspace folder ${workspaceRoot} is under processing`)
+                return
+            }
+            const message = JSON.stringify({
+                action: 'didCreateFiles',
+                message: {
+                    files: event.files,
+                    workspaceChangeMetadata: {
+                        workspaceRoot: workspaceRoot,
+                        s3Path: '', //TODO
+                        programmingLanguage: programmingLanguage,
                     },
-                })
-            )
+                },
+            })
+            if (!workspaceDetails.webSocketClient) {
+                logging.log(`Websocket client is not connected yet: ${workspaceRoot}`)
+                workspaceDetails.messageQueue?.push(message)
+                return
+            }
+            workspaceDetails.webSocketClient.send(message)
         })
 
         // TODO: Handle directory management
@@ -195,24 +218,32 @@ export const WorkspaceContextServer =
                 return
             }
             const workspaceRoot = findWorkspaceRoot(event.files[0].uri, workspaceFolders)
-            const workspaceDetails = workspaceFolderManager.getWorkspaces().get(workspaceRoot)
-            if (!workspaceDetails || !workspaceDetails.webSocketClient) {
-                logging.log(`Websocket client is not connected yet: ${workspaceRoot}`)
+            if (!workspaceRoot) {
+                // No action needs to be taken if it's just a random file change which is not part of any workspace.
                 return
             }
-            workspaceDetails.webSocketClient.send(
-                JSON.stringify({
-                    action: 'didDeleteFiles',
-                    message: {
-                        files: event.files,
-                        workspaceChangeMetadata: {
-                            workspaceRoot: workspaceRoot,
-                            s3Path: '', //TODO
-                            programmingLanguage: programmingLanguage,
-                        },
+            const workspaceDetails = workspaceFolderManager.getWorkspaces().get(workspaceRoot)
+            if (!workspaceDetails) {
+                logging.log(`Workspace folder ${workspaceRoot} is under processing`)
+                return
+            }
+            const message = JSON.stringify({
+                action: 'didDeleteFiles',
+                message: {
+                    files: event.files,
+                    workspaceChangeMetadata: {
+                        workspaceRoot: workspaceRoot,
+                        s3Path: '', //TODO
+                        programmingLanguage: programmingLanguage,
                     },
-                })
-            )
+                },
+            })
+            if (!workspaceDetails.webSocketClient) {
+                logging.log(`Websocket client is not connected yet: ${workspaceRoot}`)
+                workspaceDetails.messageQueue?.push(message)
+                return
+            }
+            workspaceDetails.webSocketClient.send(message)
         })
 
         // TODO: Handle directory management
@@ -224,24 +255,32 @@ export const WorkspaceContextServer =
                 return
             }
             const workspaceRoot = findWorkspaceRoot(event.files[0].newUri, workspaceFolders)
-            const workspaceDetails = workspaceFolderManager.getWorkspaces().get(workspaceRoot)
-            if (!workspaceDetails || !workspaceDetails.webSocketClient) {
-                logging.log(`Websocket client is not connected yet: ${workspaceRoot}`)
+            if (!workspaceRoot) {
+                // No action needs to be taken if it's just a random file change which is not part of any workspace.
                 return
             }
-            workspaceDetails.webSocketClient.send(
-                JSON.stringify({
-                    action: 'didRenameFiles',
-                    message: {
-                        files: event.files,
-                        workspaceChangeMetadata: {
-                            workspaceRoot: workspaceRoot,
-                            s3Path: '', //TODO
-                            programmingLanguage: programmingLanguage,
-                        },
+            const workspaceDetails = workspaceFolderManager.getWorkspaces().get(workspaceRoot)
+            if (!workspaceDetails) {
+                logging.log(`Workspace folder ${workspaceRoot} is under processing`)
+                return
+            }
+            const message = JSON.stringify({
+                action: 'didRenameFiles',
+                message: {
+                    files: event.files,
+                    workspaceChangeMetadata: {
+                        workspaceRoot: workspaceRoot,
+                        s3Path: '', //TODO
+                        programmingLanguage: programmingLanguage,
                     },
-                })
-            )
+                },
+            })
+            if (!workspaceDetails.webSocketClient) {
+                logging.log(`Websocket client is not connected yet: ${workspaceRoot}`)
+                workspaceDetails.messageQueue?.push(message)
+                return
+            }
+            workspaceDetails.webSocketClient.send(message)
         })
 
         logging.log('Workspace context server has been initialized')
