@@ -7,6 +7,7 @@ import {
 } from '@aws/language-server-runtimes/server-interface'
 import { AWSError, ConfigurationOptions, CredentialProviderChain, Credentials } from 'aws-sdk'
 import { PromiseResult } from 'aws-sdk/lib/request'
+import { Request } from 'aws-sdk/lib/core'
 import { v4 as uuidv4 } from 'uuid'
 import {
     CodeWhispererSigv4ClientConfigurationOptions,
@@ -90,8 +91,13 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
             ]),
         }
         this.client = createCodeWhispererSigv4Client(options, sdkInitializator)
-        this.client.setupRequestListeners = ({ httpRequest }) => {
-            httpRequest.headers['x-amzn-codewhisperer-optout'] = `${!this.shareCodeWhispererContentWithAWS}`
+        // Avoid overwriting any existing client listeners
+        const clientRequestListeners = this.client.setupRequestListeners
+        this.client.setupRequestListeners = (request: Request<unknown, AWSError>) => {
+            if (clientRequestListeners) {
+                clientRequestListeners.call(this.client, request)
+            }
+            request.httpRequest.headers['x-amzn-codewhisperer-optout'] = `${!this.shareCodeWhispererContentWithAWS}`
         }
     }
 
