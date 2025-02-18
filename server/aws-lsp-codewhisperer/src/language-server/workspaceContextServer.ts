@@ -11,6 +11,7 @@ import {
     findWorkspaceRoot,
     findWorkspaceRootFolder,
     getProgrammingLanguageFromPath,
+    isDirectory,
     uploadArtifactToS3,
 } from './workspaceContext/util'
 import { ArtifactManager } from './workspaceContext/artifactManager'
@@ -171,14 +172,15 @@ export const WorkspaceContextServer =
             workspaceDetails.webSocketClient.send(message)
         })
 
-        // TODO: Handle directory management
         lsp.workspace.onDidCreateFiles(async event => {
             logging.log(`Document created ${JSON.stringify(event)}`)
 
-            const programmingLanguage = getProgrammingLanguageFromPath(event.files[0].uri)
-            if (programmingLanguage == 'Unknown') {
+            const isDir = isDirectory(event.files[0].uri)
+            let programmingLanguage = getProgrammingLanguageFromPath(event.files[0].uri)
+            if (!isDir && programmingLanguage == 'Unknown') {
                 return
             }
+            programmingLanguage = isDir ? '' : programmingLanguage
 
             const workspaceRoot = findWorkspaceRoot(event.files[0].uri, workspaceFolders)
             if (!workspaceRoot) {
@@ -190,13 +192,16 @@ export const WorkspaceContextServer =
                 logging.log(`Workspace folder ${workspaceRoot} is under processing`)
                 return
             }
+            /* TODO: In case of directory, check the below conditions:
+                - empty directory - do not emit event
+                - directory with files - zip, upload, emit */
             const message = JSON.stringify({
                 action: 'didCreateFiles',
                 message: {
                     files: event.files,
                     workspaceChangeMetadata: {
                         workspaceRoot: workspaceRoot,
-                        s3Path: '', //TODO
+                        s3Path: '',
                         programmingLanguage: programmingLanguage,
                     },
                 },
@@ -246,14 +251,15 @@ export const WorkspaceContextServer =
             workspaceDetails.webSocketClient.send(message)
         })
 
-        // TODO: Handle directory management
         lsp.workspace.onDidRenameFiles(async event => {
             logging.log(`Document renamed ${JSON.stringify(event)}`)
 
-            const programmingLanguage = getProgrammingLanguageFromPath(event.files[0].newUri)
-            if (programmingLanguage == 'Unknown') {
+            const isDir = isDirectory(event.files[0].newUri)
+            let programmingLanguage = getProgrammingLanguageFromPath(event.files[0].newUri)
+            if (!isDir && programmingLanguage == 'Unknown') {
                 return
             }
+            programmingLanguage = isDir ? '' : programmingLanguage
             const workspaceRoot = findWorkspaceRoot(event.files[0].newUri, workspaceFolders)
             if (!workspaceRoot) {
                 // No action needs to be taken if it's just a random file change which is not part of any workspace.
@@ -264,6 +270,9 @@ export const WorkspaceContextServer =
                 logging.log(`Workspace folder ${workspaceRoot} is under processing`)
                 return
             }
+            /* TODO: In case of directory, check the below conditions:
+                - empty directory - do not emit event
+                - directory with files - zip, upload, emit */
             const message = JSON.stringify({
                 action: 'didRenameFiles',
                 message: {

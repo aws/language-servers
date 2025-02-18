@@ -2,6 +2,8 @@ import { WorkspaceFolder } from '@aws/language-server-runtimes/server-interface'
 import { CreateUploadUrlResponse } from '../../client/token/codewhispererbearertokenclient'
 import { md5 } from 'js-md5'
 import got from 'got'
+import { URI } from 'vscode-uri'
+import * as fs from 'fs'
 
 export enum ProgrammingLanguage {
     Java,
@@ -76,4 +78,8 @@ export const uploadArtifactToS3 = async (content: Buffer, resp: CreateUploadUrlR
         headers: headersObj,
     })
     console.log(`StatusCode: ${response.statusCode}`)
+}
+
+export const isDirectory = (path: string): boolean => {
+    return fs.statSync(URI.parse(path).path).isDirectory()
 }
