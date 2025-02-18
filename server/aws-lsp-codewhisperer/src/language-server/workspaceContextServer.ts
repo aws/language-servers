@@ -72,7 +72,7 @@ export const WorkspaceContextServer =
             }
         })
 
-        lsp.onInitialized(params => {
+        lsp.onInitialized(async params => {
             logging.log(`LSP initialized`)
 
             lsp.workspace.onDidChangeWorkspaceFolders(async params => {
@@ -90,9 +90,9 @@ export const WorkspaceContextServer =
                 })
             })
 
-            workspaceFolders.forEach(folder => {
-                workspaceFolderManager.processNewWorkspaceFolder(folder)
-            })
+            for (const folder of workspaceFolders) {
+                await workspaceFolderManager.processNewWorkspaceFolder(folder)
+            }
 
             workspaceFolderManager.pollWorkspaceState([...workspaceFolderManager.getWorkspaces().keys()])
 

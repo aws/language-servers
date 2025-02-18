@@ -13,7 +13,7 @@ export type RemoteWorkspaceState = 'CREATED' | 'PENDING' | 'READY' | 'CONNECTED'
 interface WorkspaceState {
     remoteWorkspaceState: RemoteWorkspaceState
     webSocketClient?: WebSocketClient
-    s3Url?: string
+    workspaceId?: string
     messageQueue?: any[]
 }
 
@@ -35,7 +35,20 @@ export class WorkspaceFolderManager {
         if (!workspaceState.messageQueue) {
             workspaceState.messageQueue = []
         }
-        this.workspaceMap.set(workspaceRoot, workspaceState)
+
+        if (!this.workspaceMap.has(workspaceRoot)) {
+            this.workspaceMap.set(workspaceRoot, workspaceState)
+        } else {
+            const existingWorkspaceState = this.workspaceMap.get(workspaceRoot)
+            if (existingWorkspaceState) {
+                existingWorkspaceState.remoteWorkspaceState =
+                    workspaceState.remoteWorkspaceState ?? existingWorkspaceState.remoteWorkspaceState
+                existingWorkspaceState.webSocketClient =
+                    workspaceState.webSocketClient ?? existingWorkspaceState.webSocketClient
+                existingWorkspaceState.workspaceId = workspaceState.workspaceId ?? existingWorkspaceState.workspaceId
+                existingWorkspaceState.messageQueue = workspaceState.messageQueue ?? existingWorkspaceState.messageQueue
+            }
+        }
     }
 
     removeWorkspaceEntry(workspaceRoot: WorkspaceRoot) {
@@ -53,7 +66,6 @@ export class WorkspaceFolderManager {
      */
     pollWorkspaceState(workspaces: WorkspaceRoot[]) {
         const pollIntervalId = setInterval(() => {
-            // const workspaces = [...this.workspaceMap.keys()]
             let counterOfConnectedWorkspaces = 0
             let totalWorkspaces = workspaces.length
             // No workspace should be in either ready state here; either connected or other state.
@@ -82,11 +94,39 @@ export class WorkspaceFolderManager {
         }, this.pollInterval)
     }
 
-    processNewWorkspaceFolder(workspaceFolder: WorkspaceFolder) {
+    async processNewWorkspaceFolder(workspaceFolder: WorkspaceFolder) {
         /*
                  TODO: Make a call to ListWorkspaceMetadata API to get the state for the workspace. For now, keeping it static.
                  ListWorkspaceMetadata should also return the URI to connect to address & port. For now, keeping it static.
                  */
+        /*
+        const metadata = await this.getWorkspaceMetadata(workspaceFolder.uri)
+        this.logging.log(`Logging the response: ${metadata}`)
+
+        let workspaceId: string
+        // For now, assuming null (error cases) needs to call CreateWorkspace.
+        // TODO: Add other conditions to call CreateWorkspace | Check what happens when first time calling it without CW API
+        if (!metadata) {
+            const createWorkspaceResponse = await this.createWorkspace(workspaceFolder.uri)
+            if (!createWorkspaceResponse) {
+                return
+            }
+            workspaceId = createWorkspaceResponse.workspace.workspaceId
+            this.updateWorkspaceEntry(workspaceFolder.uri, {
+                remoteWorkspaceState: createWorkspaceResponse.workspace.workspaceStatus as RemoteWorkspaceState,
+                workspaceId: createWorkspaceResponse.workspace.workspaceId
+            })
+        } else if (metadata.workspaceStatus === 'READY') {
+            const webSocketClient = new WebSocketClient(metadata.environmentId as string)
+            this.updateWorkspaceEntry(workspaceFolder.uri, {
+                remoteWorkspaceState: 'CONNECTED',
+                webSocketClient: webSocketClient,
+                workspaceId: metadata.workspaceId
+            })
+            this.processMessagesInQueue(workspaceFolder.uri)
+        }
+         */
+
         let state = 'READY'
         let uri = 'ws://localhost:8080'
         if (state === 'READY') {
