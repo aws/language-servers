@@ -279,4 +279,18 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     async sendTelemetryEvent(request: CodeWhispererTokenClient.SendTelemetryEventRequest) {
         return this.client.sendTelemetryEvent(request).promise()
     }
+
+    /**
+     * @description create a remote workspace
+     */
+    async createWorkspace(request: CodeWhispererTokenClient.CreateWorkspaceRequest) {
+        return this.client.createWorkspace(request).promise()
+    }
+
+    /**
+     * @description get list of workspace metadata
+     */
+    async listWorkspaceMetadata(request: CodeWhispererTokenClient.ListWorkspaceMetadataRequest) {
+        return this.client.listWorkspaceMetadata(request).promise()
+    }
 }
