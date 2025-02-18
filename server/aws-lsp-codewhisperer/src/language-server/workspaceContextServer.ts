@@ -47,7 +47,7 @@ export const WorkspaceContextServer =
             } else {
                 logging.error(`WORKSPACE FOLDERS IS NOT SET`)
             }
-            workspaceFolderManager = new WorkspaceFolderManager(cwsprClient)
+            workspaceFolderManager = new WorkspaceFolderManager(cwsprClient, logging)
 
             return {
                 capabilities: {

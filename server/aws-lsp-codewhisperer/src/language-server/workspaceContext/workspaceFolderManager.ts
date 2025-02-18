@@ -1,6 +1,12 @@
 import { WebSocketClient } from './client'
 import { CodeWhispererServiceToken } from '../codeWhispererService'
 import { WorkspaceFolder } from '@aws/language-server-runtimes/protocol'
+import {
+    CreateWorkspaceResponse,
+    ListWorkspaceMetadataResponse,
+    WorkspaceMetadata,
+} from '../../client/token/codewhispererbearertokenclient'
+import { Logging } from '@aws/language-server-runtimes/server-interface'
 
 export type RemoteWorkspaceState = 'CREATED' | 'PENDING' | 'READY' | 'CONNECTED' | 'DELETING'
 
@@ -15,11 +21,13 @@ type WorkspaceRoot = string
 
 export class WorkspaceFolderManager {
     private cwsprClient: CodeWhispererServiceToken
+    private logging: Logging
     private workspaceMap: Map<WorkspaceRoot, WorkspaceState>
     private readonly pollInterval: number = 5 * 60 * 1000
 
-    constructor(cwsprClient: CodeWhispererServiceToken) {
+    constructor(cwsprClient: CodeWhispererServiceToken, logging: Logging) {
         this.cwsprClient = cwsprClient
+        this.logging = logging
         this.workspaceMap = new Map<WorkspaceRoot, WorkspaceState>()
     }
 
@@ -144,5 +152,36 @@ export class WorkspaceFolderManager {
             const message = workspaceDetails.messageQueue.shift()
             workspaceDetails.webSocketClient?.send(message)
         }
+    }
+
+    /**
+     * The function fetches remote workspace metadata. There'll always be single entry for workspace
+     * metadata in the response, so intentionally picking the first index element.
+     * @param workspaceRoot
+     * @private
+     */
+    private async getWorkspaceMetadata(workspaceRoot: WorkspaceRoot) {
+        let metadataResponse: WorkspaceMetadata | undefined | null
+        try {
+            const response = await this.cwsprClient.listWorkspaceMetadata({
+                workspaceRoot: workspaceRoot,
+            })
+            metadataResponse = response && response.workspaces.length ? response.workspaces[0] : null
+        } catch (e: any) {
+            this.logging.warn(`Error while fetching workspace (${workspaceRoot}) metadata: ${e.message}`)
+        }
+        return metadataResponse
+    }
+
+    private async createWorkspace(workspaceRoot: WorkspaceRoot) {
+        let response: CreateWorkspaceResponse | undefined | null
+        try {
+            response = await this.cwsprClient.createWorkspace({
+                workspaceRoot: workspaceRoot,
+            })
+        } catch (e: any) {
+            this.logging.warn(`Error while creating workspace (${workspaceRoot}): ${e.message}`)
+        }
+        return response
     }
 }
