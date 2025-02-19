@@ -42,6 +42,21 @@ export const getProgrammingLanguageFromPath = (path: string): string => {
     return programmingLanguage
 }
 
+export const convertCwsprLanguageToWorkspaceMetadataLanguage = (language: string): string => {
+    switch (language) {
+        case 'java':
+            return 'Java'
+        case 'python':
+            return 'Python'
+        case 'typescript':
+            return 'TypeScript'
+        case 'javascript':
+            return 'JavaScript'
+        default:
+            return 'Unknown'
+    }
+}
+
 export const findWorkspaceRoot = (fileUri: string, workspaceFolders: WorkspaceFolder[]): string => {
     const matchingFolder = workspaceFolders.find(folder => fileUri.startsWith(folder.uri))
     return matchingFolder ? matchingFolder.uri : ''
@@ -82,4 +97,8 @@ export const uploadArtifactToS3 = async (content: Buffer, resp: CreateUploadUrlR
 
 export const isDirectory = (path: string): boolean => {
     return fs.statSync(URI.parse(path).path).isDirectory()
+}
+
+export const isEmptyDirectory = (path: string): boolean => {
+    return fs.readdirSync(URI.parse(path).path).length === 0
 }

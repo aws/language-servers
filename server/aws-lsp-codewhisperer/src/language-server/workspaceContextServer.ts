@@ -8,17 +8,20 @@ import {
 import { CodeWhispererServiceToken } from './codeWhispererService'
 import { WebSocketClient } from './workspaceContext/client'
 import {
+    convertCwsprLanguageToWorkspaceMetadataLanguage,
     findWorkspaceRoot,
     findWorkspaceRootFolder,
     getProgrammingLanguageFromPath,
     isDirectory,
+    isEmptyDirectory,
     uploadArtifactToS3,
 } from './workspaceContext/util'
-import { ArtifactManager } from './workspaceContext/artifactManager'
+import { ArtifactManager, FileMetadata } from './workspaceContext/artifactManager'
 import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../constants'
 import { CreateUploadUrlRequest } from '../client/token/codewhispererbearertokenclient'
 import { md5 } from 'js-md5'
 import { RemoteWorkspaceState, WorkspaceFolderManager } from './workspaceContext/workspaceFolderManager'
+import { URI } from 'vscode-uri'
 
 export const WorkspaceContextServer =
     (
@@ -39,6 +42,28 @@ export const WorkspaceContextServer =
         const awsQEndpointUrl = runtime.getConfiguration('AWS_Q_ENDPOINT_URL') ?? DEFAULT_AWS_Q_ENDPOINT_URL
         const cwsprClient = service(credentialsProvider, workspace, awsQRegion, awsQEndpointUrl)
 
+        const uploadToS3 = async (fileMetadata: FileMetadata): Promise<string | undefined> => {
+            // For testing, return random s3Url without actual upload...
+            var testing = true
+            if (testing) {
+                return '<sample-url>'
+            }
+
+            let s3Url: string | undefined
+            try {
+                const request: CreateUploadUrlRequest = {
+                    contentMd5: md5.base64(Buffer.from(fileMetadata.content)),
+                    artifactType: 'SourceCode',
+                }
+                const response = await cwsprClient.createUploadUrl(request)
+                s3Url = response.uploadUrl
+                await uploadArtifactToS3(Buffer.from(fileMetadata.content), response)
+            } catch (e: any) {
+                logging.warn(`Error uploading file to S3: ${e.message}`)
+            }
+            return s3Url
+        }
+
         lsp.addInitializer((params: InitializeParams) => {
             workspaceFolders = params.workspaceFolders || []
             if (params.workspaceFolders) {
@@ -58,7 +83,10 @@ export const WorkspaceContextServer =
                         },
                         fileOperations: {
                             didCreate: {
-                                filters: [{ pattern: { glob: '**/*' } }],
+                                filters: [
+                                    { pattern: { glob: '**/*.{ts,js,py,java}', matches: 'file' } },
+                                    { pattern: { glob: '**/*', matches: 'folder' } },
+                                ],
                             },
                             didRename: {
                                 filters: [{ pattern: { glob: '**/*' } }],
@@ -181,45 +209,64 @@ export const WorkspaceContextServer =
         })
 
         lsp.workspace.onDidCreateFiles(async event => {
-            logging.log(`Document created ${JSON.stringify(event)}`)
+            logging.log(`Documents created ${JSON.stringify(event)}`)
+            if (!artifactManager || !credentialsProvider.getConnectionMetadata()?.sso?.startUrl) {
+                return
+            }
+            for (const file of event.files) {
+                const isDir = isDirectory(file.uri)
+                const workspaceRoot = findWorkspaceRoot(file.uri, workspaceFolders)
+                const workspaceRootFolder = findWorkspaceRootFolder(file.uri, workspaceFolders)
+                if (!workspaceRoot || !workspaceRootFolder) {
+                    continue
+                }
+                const workspaceDetails = workspaceFolderManager.getWorkspaces().get(workspaceRoot)
+                if (!workspaceDetails) {
+                    logging.log(`Workspace folder ${workspaceRoot} is under processing`)
+                    continue
+                }
 
-            const isDir = isDirectory(event.files[0].uri)
-            let programmingLanguage = getProgrammingLanguageFromPath(event.files[0].uri)
-            if (!isDir && programmingLanguage == 'Unknown') {
-                return
-            }
-            programmingLanguage = isDir ? '' : programmingLanguage
+                let filesMetadata: FileMetadata[] = []
+                if (isDir && isEmptyDirectory(file.uri)) {
+                    continue
+                } else if (isDir) {
+                    filesMetadata = await artifactManager.addNewDirectories([URI.parse(file.uri)])
+                } else {
+                    filesMetadata = [await artifactManager.getFileMetadata(workspaceRootFolder, file.uri)]
+                }
 
-            const workspaceRoot = findWorkspaceRoot(event.files[0].uri, workspaceFolders)
-            if (!workspaceRoot) {
-                // No action needs to be taken if it's just a random file change which is not part of any workspace.
-                return
+                logging.log(`Files metadata created: ${JSON.stringify(filesMetadata)}`)
+
+                for (const fileMetadata of filesMetadata) {
+                    const s3Url = await uploadToS3(fileMetadata)
+                    if (!s3Url) {
+                        continue
+                    }
+                    const message = JSON.stringify({
+                        action: 'didCreateFiles',
+                        message: {
+                            files: [
+                                {
+                                    uri: file.uri,
+                                },
+                            ],
+                            workspaceChangeMetadata: {
+                                workspaceRoot: workspaceRoot,
+                                s3Path: s3Url,
+                                programmingLanguage: convertCwsprLanguageToWorkspaceMetadataLanguage(
+                                    fileMetadata.language
+                                ),
+                            },
+                        },
+                    })
+                    if (!workspaceDetails.webSocketClient) {
+                        logging.log(`Websocket client is not connected yet: ${workspaceRoot}`)
+                        workspaceDetails.messageQueue?.push(message)
+                        continue
+                    }
+                    workspaceDetails.webSocketClient.send(message)
+                }
             }
-            const workspaceDetails = workspaceFolderManager.getWorkspaces().get(workspaceRoot)
-            if (!workspaceDetails) {
-                logging.log(`Workspace folder ${workspaceRoot} is under processing`)
-                return
-            }
-            /* TODO: In case of directory, check the below conditions:
-                - empty directory - do not emit event
-                - directory with files - zip, upload, emit */
-            const message = JSON.stringify({
-                action: 'didCreateFiles',
-                message: {
-                    files: event.files,
-                    workspaceChangeMetadata: {
-                        workspaceRoot: workspaceRoot,
-                        s3Path: '',
-                        programmingLanguage: programmingLanguage,
-                    },
-                },
-            })
-            if (!workspaceDetails.webSocketClient) {
-                logging.log(`Websocket client is not connected yet: ${workspaceRoot}`)
-                workspaceDetails.messageQueue?.push(message)
-                return
-            }
-            workspaceDetails.webSocketClient.send(message)
         })
 
         lsp.workspace.onDidDeleteFiles(async event => {

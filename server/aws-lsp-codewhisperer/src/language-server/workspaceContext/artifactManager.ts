@@ -6,7 +6,7 @@ import { CodewhispererLanguage, getCodeWhispererLanguageIdFromPath } from '../la
 import { URI } from 'vscode-uri'
 import * as walk from 'ignore-walk'
 
-interface FileMetadata {
+export interface FileMetadata {
     filePath: string
     relativePath: string
     language: CodewhispererLanguage
@@ -307,7 +307,11 @@ export class ArtifactManager {
         if (!language || !SUPPORTED_WORKSPACE_CONTEXT_LANGUAGES.includes(language)) {
             return Promise.reject('unsupported language')
         }
-        const fileMetadata: FileMetadata = await this.processFile(filePath, relativePathWithWorkspaceName, language)
+        const fileMetadata: FileMetadata = await this.processFile(
+            URI.parse(filePath).path,
+            relativePathWithWorkspaceName,
+            language
+        )
         return fileMetadata
     }
 
