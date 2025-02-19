@@ -108,17 +108,30 @@ export const WorkspaceContextServer =
 
             lsp.workspace.onDidChangeWorkspaceFolders(async params => {
                 logging.log(`Workspace folders changed ${JSON.stringify(params)}`)
-                params.event.added.forEach(folder => {
-                    workspaceFolders.push(folder)
-                    workspaceFolderManager.processWorkspaceFolderAddition(folder)
-                })
-                params.event.removed.forEach(folder => {
-                    const index = workspaceFolders.findIndex(f => f.uri === folder.uri)
-                    if (index !== -1) {
-                        workspaceFolders.splice(index, 1)
-                        workspaceFolderManager.processWorkspaceFolderDeletion(folder)
-                    }
-                })
+                const addedFolders = params.event.added
+
+                if (addedFolders.length > 0) {
+                    addedFolders.forEach(folder => {
+                        workspaceFolders.push(folder)
+                        workspaceFolderManager.processWorkspaceFolderAddition(folder)
+                    })
+                    const addedFoldersMetadata = await artifactManager.addWorkspaceFolders(addedFolders)
+                    addedFoldersMetadata.forEach(fileMetadata => {
+                        logging.log(`Added workspace folder ${fileMetadata.filePath}`)
+                    })
+                }
+
+                const removedFolders = params.event.removed
+                if (removedFolders.length > 0) {
+                    await artifactManager.removeWorkspaceFolders(removedFolders)
+                    removedFolders.forEach(folder => {
+                        const index = workspaceFolders.findIndex(f => f.uri === folder.uri)
+                        if (index !== -1) {
+                            workspaceFolders.splice(index, 1)
+                            workspaceFolderManager.processWorkspaceFolderDeletion(folder)
+                        }
+                    })
+                }
             })
 
             for (const folder of workspaceFolders) {
@@ -267,6 +280,23 @@ export const WorkspaceContextServer =
                     workspaceDetails.webSocketClient.send(message)
                 }
             }
+            /*
+            // TODO, this is just sample code showing logic when the change event is a directory:
+            artifactManager
+                .addNewDirectories([URI.parse(event.files[0].uri)])
+                .then(fileMetadata => {
+                    logging.log('Added new directories')
+                    fileMetadata.forEach(file => {
+                        logging.log(`File path: ${file.filePath}`)
+                        logging.log(`Language: ${file.language}`)
+                        logging.log(`Content length: ${file.contentLength}`)
+                        logging.log(`Content: ${file.content}`)
+                    })
+                })
+                .catch(error => {
+                    logging.log(`Error adding new directories: ${error}`)
+                })
+            */
         })
 
         lsp.workspace.onDidDeleteFiles(async event => {
