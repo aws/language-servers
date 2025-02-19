@@ -231,12 +231,12 @@ export const WorkspaceContextServer =
                 }
                 const workspaceRoot = findWorkspaceRoot(file.uri, workspaceFolders)
                 if (!workspaceRoot) {
-                    return
+                    continue
                 }
                 const workspaceDetails = workspaceFolderManager.getWorkspaces().get(workspaceRoot)
                 if (!workspaceDetails) {
                     logging.log(`Workspace folder ${workspaceRoot} is under processing`)
-                    return
+                    continue
                 }
                 const message = JSON.stringify({
                     action: 'didDeleteFiles',
@@ -256,7 +256,7 @@ export const WorkspaceContextServer =
                 if (!workspaceDetails.webSocketClient) {
                     logging.log(`Websocket client is not connected yet: ${workspaceRoot}`)
                     workspaceDetails.messageQueue?.push(message)
-                    return
+                    continue
                 }
                 workspaceDetails.webSocketClient.send(message)
             }
