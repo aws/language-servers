@@ -8,10 +8,8 @@ import {
 import { CodeWhispererServiceToken } from './codeWhispererService'
 import { WebSocketClient } from './workspaceContext/client'
 import {
-    convertCwsprLanguageToWorkspaceMetadataLanguage,
     findWorkspaceRoot,
     findWorkspaceRootFolder,
-    getProgrammingLanguageFromPath,
     isDirectory,
     isEmptyDirectory,
     uploadArtifactToS3,
@@ -22,6 +20,7 @@ import { CreateUploadUrlRequest } from '../client/token/codewhispererbearertoken
 import { md5 } from 'js-md5'
 import { RemoteWorkspaceState, WorkspaceFolderManager } from './workspaceContext/workspaceFolderManager'
 import { URI } from 'vscode-uri'
+import { getCodeWhispererLanguageIdFromPath } from './languageDetection'
 
 export const WorkspaceContextServer =
     (
@@ -33,7 +32,7 @@ export const WorkspaceContextServer =
         ) => CodeWhispererServiceToken
     ): Server =>
     features => {
-        const { logging, lsp, workspace, runtime, credentialsProvider } = features
+        const { logging, lsp, workspace, runtime, credentialsProvider, chat } = features
         let workspaceFolders: WorkspaceFolder[] = []
         let artifactManager: ArtifactManager
         let workspaceFolderManager: WorkspaceFolderManager
@@ -169,8 +168,8 @@ export const WorkspaceContextServer =
 
         lsp.onDidSaveTextDocument(async event => {
             logging.log(`Document saved ${JSON.stringify(event)}`)
-            const programmingLanguage = getProgrammingLanguageFromPath(event.textDocument.uri)
-            if (programmingLanguage == 'Unknown') {
+            const programmingLanguage = getCodeWhispererLanguageIdFromPath(event.textDocument.uri)
+            if (!programmingLanguage) {
                 return
             }
             const workspaceRoot = findWorkspaceRoot(event.textDocument.uri, workspaceFolders)
@@ -269,9 +268,7 @@ export const WorkspaceContextServer =
                             workspaceChangeMetadata: {
                                 workspaceRoot: workspaceRoot,
                                 s3Path: s3Url,
-                                programmingLanguage: convertCwsprLanguageToWorkspaceMetadataLanguage(
-                                    fileMetadata.language
-                                ),
+                                programmingLanguage: fileMetadata.language,
                             },
                         },
                     })
@@ -305,10 +302,7 @@ export const WorkspaceContextServer =
         lsp.workspace.onDidDeleteFiles(async event => {
             logging.log(`Documents deleted ${JSON.stringify(event)}`)
             for (const file of event.files) {
-                let programmingLanguage = getProgrammingLanguageFromPath(file.uri)
-                if (programmingLanguage == 'Unknown') {
-                    programmingLanguage = 'Undefined'
-                }
+                let programmingLanguage = getCodeWhispererLanguageIdFromPath(file.uri)
                 const workspaceRoot = findWorkspaceRoot(file.uri, workspaceFolders)
                 if (!workspaceRoot) {
                     continue
@@ -388,9 +382,7 @@ export const WorkspaceContextServer =
                             workspaceChangeMetadata: {
                                 workspaceRoot: workspaceRoot,
                                 s3Path: s3Url,
-                                programmingLanguage: convertCwsprLanguageToWorkspaceMetadataLanguage(
-                                    fileMetadata.language
-                                ),
+                                programmingLanguage: fileMetadata.language,
                             },
                         },
                     })
