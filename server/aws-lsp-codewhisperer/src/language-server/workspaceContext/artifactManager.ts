@@ -13,7 +13,7 @@ interface FileMetadata {
     md5Hash: string
     contentLength: number
     lastModified: number
-    content: string
+    content: string | Buffer
 }
 
 // TODO, add excluded dirs to list of filtered files
@@ -25,14 +25,15 @@ export class ArtifactManager {
     private workspace: Workspace
     private logging: Logging
     private workspaceFolders: WorkspaceFolder[]
-    private filesByLanguage: Map<CodewhispererLanguage, FileMetadata[]>
+    // TODO, how to handle when two workspace folders have the same name but different URI
+    private filesByWorkspaceFolderAndLanguage: Map<WorkspaceFolder, Map<CodewhispererLanguage, FileMetadata[]>>
     private tempDirPath: string
 
     constructor(workspace: Workspace, logging: Logging, workspaceFolders: WorkspaceFolder[]) {
         this.workspace = workspace
         this.logging = logging
         this.workspaceFolders = workspaceFolders
-        this.filesByLanguage = new Map<CodewhispererLanguage, FileMetadata[]>()
+        this.filesByWorkspaceFolderAndLanguage = new Map<WorkspaceFolder, Map<CodewhispererLanguage, FileMetadata[]>>()
 
         const workspaceId = '123' //TODO, create or get workspace id
         this.tempDirPath = path.join(this.workspace.fs.getTempDirPath(), ARTIFACT_FOLDER_NAME, workspaceId)
@@ -61,12 +62,16 @@ export class ArtifactManager {
         }
     }
 
-    private async scanWorkspaces(): Promise<void> {
-        this.filesByLanguage.clear()
-        this.log(`Scanning workspaces: ${this.workspaceFolders.length}`)
+    private async scanWorkspaceFolders(): Promise<void> {
+        this.filesByWorkspaceFolderAndLanguage.clear()
+        this.log(`Scanning ${this.workspaceFolders.length} workspace folders`)
+
         for (const workspaceFolder of this.workspaceFolders) {
             const workspacePath = URI.parse(workspaceFolder.uri).path
-            const workspaceName = workspaceFolder.name
+            // Initialize map for this workspace
+            if (!this.filesByWorkspaceFolderAndLanguage.has(workspaceFolder)) {
+                this.filesByWorkspaceFolderAndLanguage.set(workspaceFolder, new Map())
+            }
 
             try {
                 const files = await walk({
@@ -78,8 +83,7 @@ export class ArtifactManager {
 
                 for (const relativePath of files) {
                     const fullPath = path.join(workspacePath, relativePath)
-                    const relativePathWithWorkspaceName = path.join(workspaceName, relativePath)
-
+                    const relativePathInWorkspace = relativePath
                     try {
                         const language = getCodeWhispererLanguageIdFromPath(fullPath)
                         if (!language || !SUPPORTED_WORKSPACE_CONTEXT_LANGUAGES.includes(language)) {
@@ -88,14 +92,15 @@ export class ArtifactManager {
 
                         const fileMetadata: FileMetadata = await this.processFile(
                             fullPath,
-                            relativePathWithWorkspaceName,
+                            relativePathInWorkspace,
                             language
                         )
 
-                        if (!this.filesByLanguage.has(language)) {
-                            this.filesByLanguage.set(language, [])
+                        const workspaceLanguageMap = this.filesByWorkspaceFolderAndLanguage.get(workspaceFolder)!
+                        if (!workspaceLanguageMap.has(language)) {
+                            workspaceLanguageMap.set(language, [])
                         }
-                        this.filesByLanguage.get(language)!.push(fileMetadata)
+                        workspaceLanguageMap.get(language)!.push(fileMetadata)
                     } catch (error) {
                         this.log(`Error processing file ${fullPath}: ${error}`)
                     }
@@ -106,52 +111,193 @@ export class ArtifactManager {
         }
     }
 
-    private async createLanguageZip(language: string, files: FileMetadata[]): Promise<void> {
-        const zipPath = path.join(this.tempDirPath, `${language}.zip`)
-        this.log(`Creating zip file: ${zipPath}`)
+    private async createWorkspaceLanguageZip(
+        workspaceFolder: WorkspaceFolder,
+        language: string,
+        files: FileMetadata[]
+    ): Promise<Buffer> {
+        const workspaceDirPath = path.join(this.tempDirPath, workspaceFolder.name)
+        const zipPath = path.join(workspaceDirPath, `${language}.zip`)
+
+        this.createFolderIfNotExist(workspaceDirPath)
+
+        this.log(`Starting zip creation for workspace folder: ${workspaceFolder.name}, language: ${language}`)
+        this.log(`Zip file path: ${zipPath}`)
 
         const archive = archiver('zip', { zlib: { level: 9 } })
         const output = fs.createWriteStream(zipPath)
 
-        return new Promise((resolve, reject) => {
-            output.on('close', resolve)
-            archive.on('error', reject)
+        // Pipe archive to file
+        archive.pipe(output)
 
-            archive.pipe(output)
+        // Add files to archive
+        for (const file of files) {
+            archive.append(Buffer.from(file.content), { name: file.relativePath })
+        }
 
-            for (const file of files) {
-                archive.append(Buffer.from(file.content), { name: file.relativePath })
-            }
+        // Wait for the archive to be written to file
+        await Promise.all([
+            new Promise((resolve, reject) => {
+                output.on('close', resolve)
+                archive.on('error', reject)
+            }),
+            archive.finalize(),
+        ])
 
-            return archive.finalize()
-        })
+        // Read the file back into a buffer
+        return await fs.promises.readFile(zipPath)
     }
 
-    async createLanguageArtifacts(): Promise<void> {
+    async createLanguageArtifacts(): Promise<FileMetadata[]> {
         const startTime = performance.now()
         const metrics: Record<string, number> = {}
+        const zipFileMetadata: FileMetadata[] = []
 
         try {
             const scanStart = performance.now()
-            await this.scanWorkspaces()
+            // TODO, if needed we can add logic to skip the scan step, if for example the scan has already run
+            await this.scanWorkspaceFolders()
             metrics.scanning = performance.now() - scanStart
 
-            for (const [language, files] of this.filesByLanguage.entries()) {
-                const zipStart = performance.now()
-                await this.createLanguageZip(language, files)
-                metrics[`zip_${language}`] = performance.now() - zipStart
+            this.log('Workspace scan completed')
+            this.log(`Number of workspace folders found: ${this.filesByWorkspaceFolderAndLanguage.size}`)
+
+            for (const [workspaceFolder, languageMap] of this.filesByWorkspaceFolderAndLanguage.entries()) {
+                this.log(`Processing workspace: ${workspaceFolder.name}`)
+                this.log(`Number of languages in workspace: ${languageMap.size}`)
+
+                for (const [language, files] of languageMap.entries()) {
+                    this.log(`Processing language: ${language} in workspace: ${workspaceFolder.name}`)
+                    this.log(`Number of files: ${files.length}`)
+
+                    const zipStart = performance.now()
+                    const zipBuffer = await this.createWorkspaceLanguageZip(workspaceFolder, language, files)
+                    this.log(
+                        `Zip creation completed for language: ${language} in workspace: ${workspaceFolder.name}, here is the zip: ${zipBuffer}`
+                    )
+                    const zipPath = path.join(this.tempDirPath, workspaceFolder.name, `${language}.zip`)
+                    const stats = fs.statSync(zipPath)
+                    zipFileMetadata.push({
+                        filePath: zipPath,
+                        relativePath: path.join(workspaceFolder.name, `${language}.zip`),
+                        language: language,
+                        md5Hash: '123', // todo, probably not needed for the zip file
+                        contentLength: stats.size,
+                        lastModified: stats.mtimeMs,
+                        content: zipBuffer,
+                    })
+
+                    metrics[`zip_${workspaceFolder.name}_${language}`] = performance.now() - zipStart
+                }
             }
 
             const totalTime = performance.now() - startTime
             this.log(`Performance metrics: ${JSON.stringify(metrics)}`)
             this.log(`Total execution time: ${totalTime.toFixed(2)}ms`)
+
+            return zipFileMetadata
         } catch (error) {
-            this.log(`Error creating language artifacts: ${error}`, 'error')
+            this.log(`Error creating language artifacts: ${error}`)
             throw error
         }
     }
 
-    // TOOD: Update the function to return the content in a zipped fashion (if required)
+    // todo, 3 functions below are WIP
+    async removeWorkspaceFolders(workspaceFolders: WorkspaceFolder[]): Promise<void> {
+        workspaceFolders.forEach(workspaceFolder => {
+            this.filesByWorkspaceFolderAndLanguage.delete(workspaceFolder)
+            // TODO, maybe remove the zip
+        })
+    }
+
+    async addNewDirectories(directories: URI[]): Promise<FileMetadata[]> {
+        // for each new directory find the correct workspace folder for them and update the filesByWorkspaceAndLanguage map
+        // and create a new zip for the new folders
+        // todo update this logic to return file metadata for zips instead of files
+        const files: FileMetadata[] = []
+        directories.forEach(async directory => {
+            const workspaceFolder = this.workspaceFolders.find(folder => {
+                const workspacePath = URI.parse(folder.uri).path
+                return directory.path.startsWith(workspacePath)
+            })
+            if (!workspaceFolder) {
+                this.log(`No workspace folder found for directory: ${directory.path}`)
+                return
+            }
+            // todo ,this logic is wrong, it tries to determine language from directory path
+            const workspacePath = URI.parse(workspaceFolder.uri).path
+            const relativePath = directory.path.slice(workspacePath.length + 1)
+            const language = getCodeWhispererLanguageIdFromPath(relativePath)
+            if (!language || !SUPPORTED_WORKSPACE_CONTEXT_LANGUAGES.includes(language)) {
+                return
+            }
+            const fileMetadata: FileMetadata = await this.processFile(directory.path, relativePath, language)
+            files.push(fileMetadata)
+            const workspaceLanguageMap = this.filesByWorkspaceFolderAndLanguage.get(workspaceFolder)!
+            if (!workspaceLanguageMap.has(language)) {
+                workspaceLanguageMap.set(language, [])
+            }
+            workspaceLanguageMap.get(language)!.push(fileMetadata)
+        })
+        return files
+    }
+
+    async addWorkspaceFolders(workspaceFolders: WorkspaceFolder[]): Promise<FileMetadata[]> {
+        this.workspaceFolders = [...this.workspaceFolders, ...workspaceFolders]
+        const files: FileMetadata[] = []
+
+        // for new workspace folders add them to the map and create a new zip for the new folders
+        workspaceFolders.forEach(async workspaceFolder => {
+            const workspacePath = URI.parse(workspaceFolder.uri).path
+
+            // Initialize map for this workspace
+            if (!this.filesByWorkspaceFolderAndLanguage.has(workspaceFolder)) {
+                this.filesByWorkspaceFolderAndLanguage.set(workspaceFolder, new Map())
+            }
+
+            try {
+                const files = await walk({
+                    path: workspacePath,
+                    ignoreFiles: ['.gitignore'],
+                    follow: false,
+                    includeEmpty: false,
+                })
+
+                for (const relativePath of files) {
+                    const fullPath = path.join(workspacePath, relativePath)
+                    const relativePathInWorkspace = relativePath
+                    try {
+                        const language = getCodeWhispererLanguageIdFromPath(fullPath)
+                        if (!language || !SUPPORTED_WORKSPACE_CONTEXT_LANGUAGES.includes(language)) {
+                            continue
+                        }
+
+                        const fileMetadata: FileMetadata = await this.processFile(
+                            fullPath,
+                            relativePathInWorkspace,
+                            language
+                        )
+
+                        const workspaceLanguageMap = this.filesByWorkspaceFolderAndLanguage.get(workspaceFolder)!
+                        if (!workspaceLanguageMap.has(language)) {
+                            workspaceLanguageMap.set(language, [])
+                        }
+                        workspaceLanguageMap.get(language)!.push(fileMetadata)
+                    } catch (error) {
+                        this.log(`Error processing file ${fullPath}: ${error}`)
+                        throw error
+                    }
+                }
+            } catch (error) {
+                this.log(`Error scanning workspace ${workspacePath}: ${error}`)
+                throw error
+            }
+        })
+
+        return files
+    }
+
+    // TODO: Update the function to return the content in a zipped fashion (if required)
     async getFileMetadata(currentWorkspace: WorkspaceFolder, filePath: string): Promise<FileMetadata> {
         const workspacePath = URI.parse(currentWorkspace.uri).path
         const workspaceName = currentWorkspace.name

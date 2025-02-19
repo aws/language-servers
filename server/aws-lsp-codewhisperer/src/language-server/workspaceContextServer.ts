@@ -101,8 +101,13 @@ export const WorkspaceContextServer =
             }
             artifactManager
                 .createLanguageArtifacts()
-                .then(() => {
-                    logging.log(`Artifacts created`)
+                .then(fileMetadata => {
+                    logging.log('Artifacts created')
+                    fileMetadata.forEach(file => {
+                        logging.log(`File path: ${file.filePath}`)
+                        logging.log(`Language: ${file.language}`)
+                        logging.log(`Content length: ${file.contentLength}`)
+                    })
                 })
                 .catch(error => {
                     logging.log(`Error creating artifacts: ${error}`)
