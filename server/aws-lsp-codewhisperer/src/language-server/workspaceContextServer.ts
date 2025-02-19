@@ -89,7 +89,10 @@ export const WorkspaceContextServer =
                                 ],
                             },
                             didRename: {
-                                filters: [{ pattern: { glob: '**/*' } }],
+                                filters: [
+                                    { pattern: { glob: '**/*.{ts,js,py,java}', matches: 'file' } },
+                                    { pattern: { glob: '**/*', matches: 'folder' } },
+                                ],
                             },
                             didDelete: {
                                 filters: [
@@ -340,44 +343,65 @@ export const WorkspaceContextServer =
         })
 
         lsp.workspace.onDidRenameFiles(async event => {
-            logging.log(`Document renamed ${JSON.stringify(event)}`)
+            logging.log(`Documents renamed ${JSON.stringify(event)}`)
+            if (!artifactManager || !credentialsProvider.getConnectionMetadata()?.sso?.startUrl) {
+                return
+            }
+            for (const file of event.files) {
+                const isDir = isDirectory(file.newUri)
+                const workspaceRoot = findWorkspaceRoot(file.newUri, workspaceFolders)
+                const workspaceRootFolder = findWorkspaceRootFolder(file.newUri, workspaceFolders)
+                if (!workspaceRoot || !workspaceRootFolder) {
+                    return
+                }
+                const workspaceDetails = workspaceFolderManager.getWorkspaces().get(workspaceRoot)
+                if (!workspaceDetails) {
+                    logging.log(`Workspace folder ${workspaceRoot} is under processing`)
+                    return
+                }
 
-            const isDir = isDirectory(event.files[0].newUri)
-            let programmingLanguage = getProgrammingLanguageFromPath(event.files[0].newUri)
-            if (!isDir && programmingLanguage == 'Unknown') {
-                return
+                let filesMetadata: FileMetadata[] = []
+                if (isDir && isEmptyDirectory(file.newUri)) {
+                    continue
+                } else if (isDir) {
+                    filesMetadata = await artifactManager.addNewDirectories([URI.parse(file.newUri)])
+                } else {
+                    filesMetadata = [await artifactManager.getFileMetadata(workspaceRootFolder, file.newUri)]
+                }
+
+                logging.log(`Files metadata renamed: ${JSON.stringify(filesMetadata)}`)
+
+                for (const fileMetadata of filesMetadata) {
+                    const s3Url = await uploadToS3(fileMetadata)
+                    if (!s3Url) {
+                        continue
+                    }
+                    const message = JSON.stringify({
+                        action: 'didRenameFiles',
+                        message: {
+                            files: [
+                                {
+                                    oldUri: file.oldUri,
+                                    newUri: file.newUri,
+                                },
+                            ],
+                            workspaceChangeMetadata: {
+                                workspaceRoot: workspaceRoot,
+                                s3Path: s3Url,
+                                programmingLanguage: convertCwsprLanguageToWorkspaceMetadataLanguage(
+                                    fileMetadata.language
+                                ),
+                            },
+                        },
+                    })
+                    if (!workspaceDetails.webSocketClient) {
+                        logging.log(`Websocket client is not connected yet: ${workspaceRoot}`)
+                        workspaceDetails.messageQueue?.push(message)
+                        return
+                    }
+                    workspaceDetails.webSocketClient.send(message)
+                }
             }
-            programmingLanguage = isDir ? '' : programmingLanguage
-            const workspaceRoot = findWorkspaceRoot(event.files[0].newUri, workspaceFolders)
-            if (!workspaceRoot) {
-                // No action needs to be taken if it's just a random file change which is not part of any workspace.
-                return
-            }
-            const workspaceDetails = workspaceFolderManager.getWorkspaces().get(workspaceRoot)
-            if (!workspaceDetails) {
-                logging.log(`Workspace folder ${workspaceRoot} is under processing`)
-                return
-            }
-            /* TODO: In case of directory, check the below conditions:
-                - empty directory - do not emit event
-                - directory with files - zip, upload, emit */
-            const message = JSON.stringify({
-                action: 'didRenameFiles',
-                message: {
-                    files: event.files,
-                    workspaceChangeMetadata: {
-                        workspaceRoot: workspaceRoot,
-                        s3Path: '', //TODO
-                        programmingLanguage: programmingLanguage,
-                    },
-                },
-            })
-            if (!workspaceDetails.webSocketClient) {
-                logging.log(`Websocket client is not connected yet: ${workspaceRoot}`)
-                workspaceDetails.messageQueue?.push(message)
-                return
-            }
-            workspaceDetails.webSocketClient.send(message)
         })
 
         logging.log('Workspace context server has been initialized')
