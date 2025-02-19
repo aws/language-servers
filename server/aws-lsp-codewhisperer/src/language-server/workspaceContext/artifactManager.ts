@@ -15,6 +15,7 @@ export interface FileMetadata {
     contentLength: number
     lastModified: number
     content: string | Buffer
+    workspaceFolder?: WorkspaceFolder
 }
 
 // TODO, add excluded dirs to list of filtered files
