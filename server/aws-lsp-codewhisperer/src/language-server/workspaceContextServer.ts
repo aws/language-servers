@@ -64,7 +64,10 @@ export const WorkspaceContextServer =
                                 filters: [{ pattern: { glob: '**/*' } }],
                             },
                             didDelete: {
-                                filters: [{ pattern: { glob: '**/*' } }],
+                                filters: [
+                                    { pattern: { glob: '**/*.{ts,js,py,java}', matches: 'file' } },
+                                    { pattern: { glob: '**/*', matches: 'folder' } },
+                                ],
                             },
                         },
                     },
@@ -219,41 +222,44 @@ export const WorkspaceContextServer =
             workspaceDetails.webSocketClient.send(message)
         })
 
-        // TODO: Handle directory management
         lsp.workspace.onDidDeleteFiles(async event => {
-            logging.log(`Document deleted ${JSON.stringify(event)}`)
-
-            const programmingLanguage = getProgrammingLanguageFromPath(event.files[0].uri)
-            if (programmingLanguage == 'Unknown') {
-                return
-            }
-            const workspaceRoot = findWorkspaceRoot(event.files[0].uri, workspaceFolders)
-            if (!workspaceRoot) {
-                // No action needs to be taken if it's just a random file change which is not part of any workspace.
-                return
-            }
-            const workspaceDetails = workspaceFolderManager.getWorkspaces().get(workspaceRoot)
-            if (!workspaceDetails) {
-                logging.log(`Workspace folder ${workspaceRoot} is under processing`)
-                return
-            }
-            const message = JSON.stringify({
-                action: 'didDeleteFiles',
-                message: {
-                    files: event.files,
-                    workspaceChangeMetadata: {
-                        workspaceRoot: workspaceRoot,
-                        s3Path: '', //TODO
-                        programmingLanguage: programmingLanguage,
+            logging.log(`Documents deleted ${JSON.stringify(event)}`)
+            for (const file of event.files) {
+                let programmingLanguage = getProgrammingLanguageFromPath(file.uri)
+                if (programmingLanguage == 'Unknown') {
+                    programmingLanguage = 'Undefined'
+                }
+                const workspaceRoot = findWorkspaceRoot(file.uri, workspaceFolders)
+                if (!workspaceRoot) {
+                    return
+                }
+                const workspaceDetails = workspaceFolderManager.getWorkspaces().get(workspaceRoot)
+                if (!workspaceDetails) {
+                    logging.log(`Workspace folder ${workspaceRoot} is under processing`)
+                    return
+                }
+                const message = JSON.stringify({
+                    action: 'didDeleteFiles',
+                    message: {
+                        files: [
+                            {
+                                uri: file.uri,
+                            },
+                        ],
+                        workspaceChangeMetadata: {
+                            workspaceRoot: workspaceRoot,
+                            s3Path: '',
+                            programmingLanguage: programmingLanguage,
+                        },
                     },
-                },
-            })
-            if (!workspaceDetails.webSocketClient) {
-                logging.log(`Websocket client is not connected yet: ${workspaceRoot}`)
-                workspaceDetails.messageQueue?.push(message)
-                return
+                })
+                if (!workspaceDetails.webSocketClient) {
+                    logging.log(`Websocket client is not connected yet: ${workspaceRoot}`)
+                    workspaceDetails.messageQueue?.push(message)
+                    return
+                }
+                workspaceDetails.webSocketClient.send(message)
             }
-            workspaceDetails.webSocketClient.send(message)
         })
 
         lsp.workspace.onDidRenameFiles(async event => {
