@@ -2,6 +2,14 @@
 
 Language servers for integration with IDEs and Editors
 
+## Relation with Language Server Runtimes
+
+This monorepo hosts language servers created using the [Language Server Runtimes](https://github.com/aws/language-server-runtimes/tree/main/runtimes)'s Server Interface. This enables the servers to use features provided by the Runtimes in the same package.
+
+Want to create a new language capability? See our example [hello-world-lsp](server/hello-world-lsp) server and it's [implementation](app/hello-world-lsp-runtimes) (using our runtime), run it using the instructions provided [here](https://github.com/aws/language-servers/blob/main/CONTRIBUTING.md#with-vscode-toolkit-extension). To see a more complex example, see our [Amazon Q servers](server/aws-lsp-codewhisperer).
+
+Want to create a new protocol or feature that would be available to all language servers? Head over to the [Language Server Runtimes repo](https://github.com/aws/language-server-runtimes/tree/main) and start building!
+
 ## Structure
 
 Monorepo
