@@ -42,7 +42,8 @@
         "ignore-walk": "^7.0.0",
         "jszip": "^3.10.1",
         "uuid": "^9.0.1",
-        "vscode-uri": "^3.0.8"
+        "vscode-uri": "^3.0.8",
+        "ws": "^8.18.0"
     },
     "devDependencies": {
         "@types/adm-zip": "^0.5.5",

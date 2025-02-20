@@ -28,6 +28,8 @@ export class ArtifactManager {
     private logging: Logging
     private workspaceFolders: WorkspaceFolder[]
     // TODO, how to handle when two workspace folders have the same name but different URI
+    // TODO, maintaining this map might be redundant. It helps with keeping track of the overall state of the workspace
+    // this means we keep a copy of the workspace in memory. We should clean the map contents after every zip creation
     private filesByWorkspaceFolderAndLanguage: Map<WorkspaceFolder, Map<CodewhispererLanguage, FileMetadata[]>>
     private tempDirPath: string
 
