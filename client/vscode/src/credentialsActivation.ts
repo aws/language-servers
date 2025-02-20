@@ -111,11 +111,15 @@ export function configureCredentialsCapabilities(
 
 export async function registerIamCredentialsProviderSupport(
     languageClient: LanguageClient,
-    extensionContext: ExtensionContext
+    extensionContext: ExtensionContext,
+    enableEncryptionInit: boolean = true
 ): Promise<void> {
     extensionContext.subscriptions.push(
         ...[
-            commands.registerCommand('awslsp.selectProfile', createSelectProfileCommand(languageClient)),
+            commands.registerCommand(
+                'awslsp.selectProfile',
+                createSelectProfileCommand(languageClient, enableEncryptionInit)
+            ),
             commands.registerCommand('awslsp.clearProfile', createClearProfileCommand(languageClient)),
         ]
     )
@@ -123,7 +127,8 @@ export async function registerIamCredentialsProviderSupport(
 
 export async function registerBearerTokenProviderSupport(
     languageClient: LanguageClient,
-    extensionContext: ExtensionContext
+    extensionContext: ExtensionContext,
+    enableEncryptionInit: boolean = true
 ): Promise<void> {
     createGetConnectionMetadataRequestHandler(languageClient)
 
@@ -131,11 +136,11 @@ export async function registerBearerTokenProviderSupport(
         ...[
             commands.registerCommand(
                 'awslsp.resolveBearerToken.BuilderID',
-                createResolveBearerTokenCommand(languageClient, 'builderId')
+                createResolveBearerTokenCommand(languageClient, 'builderId', enableEncryptionInit)
             ),
             commands.registerCommand(
                 'awslsp.resolveBearerToken.IDC',
-                createResolveBearerTokenCommand(languageClient, 'idc')
+                createResolveBearerTokenCommand(languageClient, 'idc', enableEncryptionInit)
             ),
             commands.registerCommand('awslsp.clearBearerToken', createClearTokenCommand(languageClient)),
         ]
@@ -149,7 +154,7 @@ export async function registerBearerTokenProviderSupport(
  * In this simulation, the user is asked for a profile name. That profile's credentials are
  * resolved and sent. (basic profile types only in this proof of concept)
  */
-function createSelectProfileCommand(languageClient: LanguageClient) {
+function createSelectProfileCommand(languageClient: LanguageClient, encrypted: boolean = true) {
     return async () => {
         const profileName = await window.showInputBox({
             prompt: 'Which credentials profile should the language server use?',
@@ -162,7 +167,7 @@ function createSelectProfileCommand(languageClient: LanguageClient) {
             profile: profileName,
         })()
 
-        const request = await createUpdateIamCredentialsRequest(awsCredentials)
+        const request = await createUpdateIamCredentialsRequest(awsCredentials, encrypted)
         await sendIamCredentialsUpdate(request, languageClient)
 
         languageClient.info(`Client: The language server is now using credentials profile: ${profileName}`)
@@ -173,7 +178,8 @@ function createSelectProfileCommand(languageClient: LanguageClient) {
  * Creates an "update credentials" request that contains encrypted data
  */
 async function createUpdateIamCredentialsRequest(
-    awsCredentials: AwsCredentialIdentity
+    awsCredentials: AwsCredentialIdentity,
+    encrypted: boolean = true
 ): Promise<UpdateCredentialsRequest> {
     const requestData: UpdateIamCredentialsRequestData = {
         accessKeyId: awsCredentials.accessKeyId,
@@ -181,23 +187,26 @@ async function createUpdateIamCredentialsRequest(
         sessionToken: awsCredentials.sessionToken,
     }
 
-    return createUpdateCredentialsRequest(requestData)
+    return createUpdateCredentialsRequest(requestData, encrypted)
 }
 
-async function createUpdateCredentialsRequest(data: any): Promise<UpdateCredentialsRequest> {
-    const payload = new TextEncoder().encode(
-        JSON.stringify({
-            data: data,
-        })
-    )
+async function createUpdateCredentialsRequest(data: any, encrypted: boolean = true): Promise<UpdateCredentialsRequest> {
+    if (encrypted) {
+        const payload = new TextEncoder().encode(
+            JSON.stringify({
+                data: data,
+            })
+        )
+        const jwt = await new jose.CompactEncrypt(payload)
+            .setProtectedHeader({ alg: 'dir', enc: 'A256GCM' })
+            .encrypt(encryptionKey)
 
-    const jwt = await new jose.CompactEncrypt(payload)
-        .setProtectedHeader({ alg: 'dir', enc: 'A256GCM' })
-        .encrypt(encryptionKey)
+        data = jwt
+    }
 
     return {
-        data: jwt,
-        encrypted: true,
+        data: data,
+        encrypted: encrypted,
     }
 }
 
@@ -236,15 +245,22 @@ function createGetConnectionMetadataRequestHandler(languageClient: LanguageClien
  * In this simulation, the user is asked for a profile name. That profile's credentials are
  * resolved and sent. (basic profile types only in this proof of concept)
  */
-function createResolveBearerTokenCommand(languageClient: LanguageClient, loginType: LoginType = 'builderId') {
+function createResolveBearerTokenCommand(
+    languageClient: LanguageClient,
+    loginType: LoginType = 'builderId',
+    encrypted: boolean = true
+) {
     return async () => {
         activeBuilderIdConnection = await SSOConnectionBuilder.build(loginType)
 
         const token = await activeBuilderIdConnection.getToken()
 
-        const request = await createUpdateCredentialsRequest({
-            token: token.accessToken,
-        })
+        const request = await createUpdateCredentialsRequest(
+            {
+                token: token.accessToken,
+            },
+            encrypted
+        )
         await sendBearerTokenUpdate(request, languageClient)
 
         languageClient.info(`Client: The language server is now using a bearer token`)
