@@ -95,14 +95,10 @@ export const WorkspaceContextServer =
 
                 if (addedFolders.length > 0) {
                     workspaceFolders.push(...addedFolders)
-                    await workspaceFolderManager.processNewWorkspaceFolders(addedFolders, {
-                        didChangeWorkspaceFoldersAddition: true,
-                    })
                 }
 
                 const removedFolders = params.event.removed
                 if (removedFolders.length > 0) {
-                    await artifactManager.removeWorkspaceFolders(removedFolders)
                     removedFolders.forEach(folder => {
                         const index = workspaceFolders.findIndex(f => f.uri === folder.uri)
                         if (index !== -1) {
@@ -110,6 +106,16 @@ export const WorkspaceContextServer =
                             workspaceFolderManager.processWorkspaceFolderDeletion(folder)
                         }
                     })
+                }
+
+                if (addedFolders.length > 0 && isLoggedIn(credentialsProvider)) {
+                    await workspaceFolderManager.processNewWorkspaceFolders(addedFolders, {
+                        didChangeWorkspaceFoldersAddition: true,
+                    })
+                }
+
+                if (removedFolders.length > 0 && isLoggedIn(credentialsProvider)) {
+                    await artifactManager.removeWorkspaceFolders(removedFolders)
                 }
             })
 
