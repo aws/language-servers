@@ -2,11 +2,14 @@ import { WebSocketClient } from './client'
 import { CodeWhispererServiceToken } from '../codeWhispererService'
 import { WorkspaceFolder } from '@aws/language-server-runtimes/protocol'
 import {
+    CreateUploadUrlRequest,
     CreateWorkspaceResponse,
     ListWorkspaceMetadataResponse,
     WorkspaceMetadata,
 } from '../../client/token/codewhispererbearertokenclient'
 import { Logging } from '@aws/language-server-runtimes/server-interface'
+import { ArtifactManager, FileMetadata } from './artifactManager'
+import { uploadArtifactToS3 } from './util'
 
 export type RemoteWorkspaceState = 'CREATED' | 'PENDING' | 'READY' | 'CONNECTED' | 'DELETING'
 
@@ -22,12 +25,14 @@ type WorkspaceRoot = string
 export class WorkspaceFolderManager {
     private cwsprClient: CodeWhispererServiceToken
     private logging: Logging
+    private artifactManager: ArtifactManager
     private workspaceMap: Map<WorkspaceRoot, WorkspaceState>
     private readonly pollInterval: number = 5 * 60 * 1000
 
-    constructor(cwsprClient: CodeWhispererServiceToken, logging: Logging) {
+    constructor(cwsprClient: CodeWhispererServiceToken, logging: Logging, artifactManager: ArtifactManager) {
         this.cwsprClient = cwsprClient
         this.logging = logging
+        this.artifactManager = artifactManager
         this.workspaceMap = new Map<WorkspaceRoot, WorkspaceState>()
     }
 
@@ -94,7 +99,7 @@ export class WorkspaceFolderManager {
         }, this.pollInterval)
     }
 
-    async processNewWorkspaceFolder(workspaceFolder: WorkspaceFolder) {
+    async processNewWorkspaceFolder(workspaceFolder: WorkspaceFolder, queueEvents?: any[]) {
         /*
                  TODO: Make a call to ListWorkspaceMetadata API to get the state for the workspace. For now, keeping it static.
                  ListWorkspaceMetadata should also return the URI to connect to address & port. For now, keeping it static.
@@ -134,22 +139,16 @@ export class WorkspaceFolderManager {
             this.updateWorkspaceEntry(workspaceFolder.uri, {
                 remoteWorkspaceState: 'CONNECTED',
                 webSocketClient: webSocketClient,
+                messageQueue: queueEvents ?? undefined,
             })
             this.processMessagesInQueue(workspaceFolder.uri)
         } else {
             // TODO: make a call to CreateWorkspace API. It's a fire & forget call
             this.updateWorkspaceEntry(workspaceFolder.uri, {
                 remoteWorkspaceState: state as RemoteWorkspaceState,
+                messageQueue: queueEvents ?? undefined,
             })
         }
-    }
-
-    /*
-    TODO: emit event or put them in queue depending upon the state of websocket client for the folder
-    */
-    processWorkspaceFolderAddition(workspaceFolder: WorkspaceFolder) {
-        this.processNewWorkspaceFolder(workspaceFolder)
-        this.pollWorkspaceState([workspaceFolder.uri])
     }
 
     /**
@@ -192,6 +191,88 @@ export class WorkspaceFolderManager {
             const message = workspaceDetails.messageQueue.shift()
             workspaceDetails.webSocketClient?.send(message)
         }
+    }
+
+    async uploadToS3(fileMetadata: FileMetadata): Promise<string | undefined> {
+        // For testing, return random s3Url without actual upload...
+        var testing = true
+        if (testing) {
+            return '<sample-url>'
+        }
+
+        let s3Url: string | undefined
+        try {
+            const request: CreateUploadUrlRequest = {
+                contentMd5: fileMetadata.md5Hash,
+                artifactType: 'SourceCode',
+            }
+            const response = await this.cwsprClient.createUploadUrl(request)
+            s3Url = response.uploadUrl
+            await uploadArtifactToS3(Buffer.from(fileMetadata.content), fileMetadata.md5Hash, response)
+        } catch (e: any) {
+            this.logging.warn(`Error uploading file to S3: ${e.message}`)
+        }
+        return s3Url
+    }
+
+    async processNewWorkspaceFolders(
+        folders: WorkspaceFolder[],
+        options: {
+            initialize?: boolean
+            didChangeWorkspaceFoldersAddition?: boolean
+        }
+    ) {
+        let foldersMetadata: FileMetadata[] = []
+        if (options.didChangeWorkspaceFoldersAddition) {
+            foldersMetadata = await this.artifactManager.addWorkspaceFolders(folders)
+        } else if (options.initialize) {
+            foldersMetadata = await this.artifactManager.createLanguageArtifacts()
+        }
+        this.logging.log(
+            `addedFoldersMetadata: Length: ${JSON.stringify(foldersMetadata.length)}, Folder: ${JSON.stringify(foldersMetadata[0].workspaceFolder)}`
+        )
+
+        const inMemoryQueueEvents: Map<string, any[]> = new Map<string, any[]>()
+        for (const fileMetadata of foldersMetadata) {
+            const s3Url = await this.uploadToS3(fileMetadata)
+            if (!s3Url || !fileMetadata.workspaceFolder) {
+                //TODO: add a log
+                continue
+            }
+            let eventQueue = inMemoryQueueEvents.get(fileMetadata.workspaceFolder.uri)
+            if (!eventQueue) {
+                eventQueue = []
+                inMemoryQueueEvents.set(fileMetadata.workspaceFolder.uri, eventQueue)
+            }
+            eventQueue.push(
+                JSON.stringify({
+                    action: 'didChangeWorkspaceFolders',
+                    message: {
+                        event: {
+                            added: [
+                                {
+                                    uri: fileMetadata.workspaceFolder.uri,
+                                    name: fileMetadata.workspaceFolder.name,
+                                },
+                            ],
+                            removed: [],
+                        },
+                        workspaceChangeMetadata: {
+                            workspaceRoot: fileMetadata.workspaceFolder.uri,
+                            s3Path: s3Url,
+                            programmingLanguage: fileMetadata.language,
+                        },
+                    },
+                })
+            )
+        }
+        folders.forEach(folder => {
+            const queueEvents = inMemoryQueueEvents.get(folder.uri) ?? undefined
+            this.processNewWorkspaceFolder(folder, queueEvents)
+        })
+        const folderUris = folders.map(({ uri }) => uri)
+        this.logging.log(`Folder URIs for polling: ${folderUris}`)
+        this.pollWorkspaceState(folderUris)
     }
 
     /**

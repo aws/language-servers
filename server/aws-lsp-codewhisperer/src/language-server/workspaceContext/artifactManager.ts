@@ -89,6 +89,7 @@ export class ArtifactManager {
             contentLength: stats.size,
             lastModified: stats.mtimeMs,
             content: zipBuffer,
+            workspaceFolder: workspaceFolder,
         }
     }
 

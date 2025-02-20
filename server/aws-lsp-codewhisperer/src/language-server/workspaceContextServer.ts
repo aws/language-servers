@@ -6,7 +6,6 @@ import {
     WorkspaceFolder,
 } from '@aws/language-server-runtimes/server-interface'
 import { CodeWhispererServiceToken } from './codeWhispererService'
-import { WebSocketClient } from './workspaceContext/client'
 import {
     findWorkspaceRoot,
     findWorkspaceRootFolder,
@@ -40,28 +39,6 @@ export const WorkspaceContextServer =
         const awsQEndpointUrl = runtime.getConfiguration('AWS_Q_ENDPOINT_URL') ?? DEFAULT_AWS_Q_ENDPOINT_URL
         const cwsprClient = service(credentialsProvider, workspace, awsQRegion, awsQEndpointUrl)
 
-        const uploadToS3 = async (fileMetadata: FileMetadata): Promise<string | undefined> => {
-            // For testing, return random s3Url without actual upload...
-            var testing = true
-            if (testing) {
-                return '<sample-url>'
-            }
-
-            let s3Url: string | undefined
-            try {
-                const request: CreateUploadUrlRequest = {
-                    contentMd5: fileMetadata.md5Hash,
-                    artifactType: 'SourceCode',
-                }
-                const response = await cwsprClient.createUploadUrl(request)
-                s3Url = response.uploadUrl
-                await uploadArtifactToS3(Buffer.from(fileMetadata.content), fileMetadata.md5Hash, response)
-            } catch (e: any) {
-                logging.warn(`Error uploading file to S3: ${e.message}`)
-            }
-            return s3Url
-        }
-
         lsp.addInitializer((params: InitializeParams) => {
             workspaceFolders = params.workspaceFolders || []
             if (params.workspaceFolders) {
@@ -70,7 +47,7 @@ export const WorkspaceContextServer =
             } else {
                 logging.error(`WORKSPACE FOLDERS IS NOT SET`)
             }
-            workspaceFolderManager = new WorkspaceFolderManager(cwsprClient, logging)
+            workspaceFolderManager = new WorkspaceFolderManager(cwsprClient, logging, artifactManager)
 
             return {
                 capabilities: {
@@ -112,13 +89,9 @@ export const WorkspaceContextServer =
                 const addedFolders = params.event.added
 
                 if (addedFolders.length > 0) {
-                    addedFolders.forEach(folder => {
-                        workspaceFolders.push(folder)
-                        workspaceFolderManager.processWorkspaceFolderAddition(folder)
-                    })
-                    const addedFoldersMetadata = await artifactManager.addWorkspaceFolders(addedFolders)
-                    addedFoldersMetadata.forEach(fileMetadata => {
-                        logging.log(`Added workspace folder ${fileMetadata.filePath}`)
+                    workspaceFolders.push(...addedFolders)
+                    await workspaceFolderManager.processNewWorkspaceFolders(addedFolders, {
+                        didChangeWorkspaceFoldersAddition: true,
                     })
                 }
 
@@ -135,6 +108,7 @@ export const WorkspaceContextServer =
                 }
             })
 
+            // TODO: make a call to createLanguageArtifacts, call common function
             for (const folder of workspaceFolders) {
                 await workspaceFolderManager.processNewWorkspaceFolder(folder)
             }
@@ -158,11 +132,11 @@ export const WorkspaceContextServer =
                     logging.log(`Error creating artifacts: ${error}`)
                 })
             /*
-            TODO: 1. upload per workspace artifact
-            TODO: 2. emit an event for addition of workspace/s
-            For each workspace, emit per langauge zip events separately.
-            Add a message to queue or emit, depending on the state of web socket client
-            */
+                    TODO: 1. upload per workspace artifact
+                    TODO: 2. emit an event for addition of workspace/s
+                    For each workspace, emit per langauge zip events separately.
+                    Add a message to queue or emit, depending on the state of web socket client
+                    */
         })
 
         lsp.onDidSaveTextDocument(async event => {
@@ -252,7 +226,7 @@ export const WorkspaceContextServer =
                 logging.log(`Files metadata created: ${JSON.stringify(filesMetadata)}`)
 
                 for (const fileMetadata of filesMetadata) {
-                    const s3Url = await uploadToS3(fileMetadata)
+                    const s3Url = await workspaceFolderManager.uploadToS3(fileMetadata)
                     if (!s3Url) {
                         continue
                     }
@@ -280,22 +254,22 @@ export const WorkspaceContextServer =
                 }
             }
             /*
-            // TODO, this is just sample code showing logic when the change event is a directory:
-            artifactManager
-                .addNewDirectories([URI.parse(event.files[0].uri)])
-                .then(fileMetadata => {
-                    logging.log('Added new directories')
-                    fileMetadata.forEach(file => {
-                        logging.log(`File path: ${file.filePath}`)
-                        logging.log(`Language: ${file.language}`)
-                        logging.log(`Content length: ${file.contentLength}`)
-                        logging.log(`Content: ${file.content}`)
-                    })
-                })
-                .catch(error => {
-                    logging.log(`Error adding new directories: ${error}`)
-                })
-            */
+                    // TODO, this is just sample code showing logic when the change event is a directory:
+                    artifactManager
+                        .addNewDirectories([URI.parse(event.files[0].uri)])
+                        .then(fileMetadata => {
+                            logging.log('Added new directories')
+                            fileMetadata.forEach(file => {
+                                logging.log(`File path: ${file.filePath}`)
+                                logging.log(`Language: ${file.language}`)
+                                logging.log(`Content length: ${file.contentLength}`)
+                                logging.log(`Content: ${file.content}`)
+                            })
+                        })
+                        .catch(error => {
+                            logging.log(`Error adding new directories: ${error}`)
+                        })
+                    */
         })
 
         lsp.workspace.onDidDeleteFiles(async event => {
@@ -365,7 +339,7 @@ export const WorkspaceContextServer =
                 logging.log(`Files metadata renamed: ${JSON.stringify(filesMetadata)}`)
 
                 for (const fileMetadata of filesMetadata) {
-                    const s3Url = await uploadToS3(fileMetadata)
+                    const s3Url = await workspaceFolderManager.uploadToS3(fileMetadata)
                     if (!s3Url) {
                         continue
                     }
