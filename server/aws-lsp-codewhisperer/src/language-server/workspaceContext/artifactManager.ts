@@ -1,11 +1,11 @@
 import { Logging, Workspace, WorkspaceFolder } from '@aws/language-server-runtimes/server-interface'
 import * as fs from 'fs'
-import * as crypto from 'crypto'
 import path = require('path')
 import { CodewhispererLanguage, getCodeWhispererLanguageIdFromPath } from '../languageDetection'
 import { URI } from 'vscode-uri'
 import * as walk from 'ignore-walk'
 import JSZip = require('jszip')
+import { md5 } from 'js-md5'
 
 export interface FileMetadata {
     filePath: string
@@ -14,7 +14,7 @@ export interface FileMetadata {
     contentLength: number
     lastModified: number
     content: string | Buffer
-    md5Hash?: string
+    md5Hash: string
     workspaceFolder?: WorkspaceFolder //TODO, make this mandatory maybe
 }
 
@@ -57,7 +57,7 @@ export class ArtifactManager {
 
         return {
             filePath,
-            md5Hash: shouldCalculateHash ? crypto.createHash('md5').update(fileContent).digest('hex') : undefined,
+            md5Hash: shouldCalculateHash ? md5.base64(fileContent) : '',
             contentLength: fileContent.length,
             lastModified: fs.statSync(filePath).mtimeMs,
             content: fileContent,
@@ -85,7 +85,7 @@ export class ArtifactManager {
             filePath: zipPath,
             relativePath: path.join(workspaceFolder.name, subDirectory, `${language}.zip`),
             language,
-            md5Hash: '123', // TODO: Implement proper MD5 hash if needed
+            md5Hash: md5.base64(zipBuffer),
             contentLength: stats.size,
             lastModified: stats.mtimeMs,
             content: zipBuffer,

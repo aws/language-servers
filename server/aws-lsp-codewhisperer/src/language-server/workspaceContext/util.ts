@@ -1,6 +1,5 @@
 import { WorkspaceFolder } from '@aws/language-server-runtimes/server-interface'
 import { CreateUploadUrlResponse } from '../../client/token/codewhispererbearertokenclient'
-import { md5 } from 'js-md5'
 import got from 'got'
 import { URI } from 'vscode-uri'
 import * as fs from 'fs'
@@ -18,9 +17,8 @@ export const findWorkspaceRootFolder = (
     return matchingFolder ? matchingFolder : undefined
 }
 
-export const uploadArtifactToS3 = async (content: Buffer, resp: CreateUploadUrlResponse) => {
+export const uploadArtifactToS3 = async (content: Buffer, md5Content: string, resp: CreateUploadUrlResponse) => {
     const encryptionContext = `{"uploadId":"${resp.uploadId}"}`
-    const md5Content = md5.base64(content)
     const headersObj =
         resp.kmsKeyArn !== '' || resp.kmsKeyArn !== undefined
             ? {

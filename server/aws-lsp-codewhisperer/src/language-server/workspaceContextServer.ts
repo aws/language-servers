@@ -55,7 +55,7 @@ export const WorkspaceContextServer =
                 }
                 const response = await cwsprClient.createUploadUrl(request)
                 s3Url = response.uploadUrl
-                await uploadArtifactToS3(Buffer.from(fileMetadata.content), response)
+                await uploadArtifactToS3(Buffer.from(fileMetadata.content), fileMetadata.md5Hash, response)
             } catch (e: any) {
                 logging.warn(`Error uploading file to S3: ${e.message}`)
             }
@@ -192,7 +192,7 @@ export const WorkspaceContextServer =
                     }
                     const response = await cwsprClient.createUploadUrl(request)
                     s3Url = response.uploadUrl
-                    await uploadArtifactToS3(Buffer.from(fileMetadata.content), response)
+                    await uploadArtifactToS3(Buffer.from(fileMetadata.content), fileMetadata.md5Hash, response)
                 } catch (error) {
                     logging.log('Error while uploading artifact to s3 during file save event')
                 }
