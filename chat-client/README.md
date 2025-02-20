@@ -18,7 +18,7 @@ interface SomeEvent {
     params: SomeOptions;
 }
 ```
-
+ 
 ### Inbound events
 | Name                        | Description                       | command                  | params  |
 | --------------------------- | --------------------------------- | ------------------------ | ----------- |
