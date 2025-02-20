@@ -17,7 +17,6 @@ import {
 import { ArtifactManager, FileMetadata } from './workspaceContext/artifactManager'
 import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../constants'
 import { CreateUploadUrlRequest } from '../client/token/codewhispererbearertokenclient'
-import { md5 } from 'js-md5'
 import { RemoteWorkspaceState, WorkspaceFolderManager } from './workspaceContext/workspaceFolderManager'
 import { URI } from 'vscode-uri'
 import { getCodeWhispererLanguageIdFromPath } from './languageDetection'
@@ -51,7 +50,7 @@ export const WorkspaceContextServer =
             let s3Url: string | undefined
             try {
                 const request: CreateUploadUrlRequest = {
-                    contentMd5: md5.base64(Buffer.from(fileMetadata.content)),
+                    contentMd5: fileMetadata.md5Hash,
                     artifactType: 'SourceCode',
                 }
                 const response = await cwsprClient.createUploadUrl(request)
@@ -188,7 +187,7 @@ export const WorkspaceContextServer =
                         event.textDocument.uri
                     )
                     const request: CreateUploadUrlRequest = {
-                        contentMd5: md5.base64(Buffer.from(fileMetadata.content)),
+                        contentMd5: fileMetadata.md5Hash,
                         artifactType: 'SourceCode',
                     }
                     const response = await cwsprClient.createUploadUrl(request)
