@@ -199,7 +199,8 @@ export class ArtifactManager {
             for (const workspaceFolder of this.workspaceFolders) {
                 const workspacePath = URI.parse(workspaceFolder.uri).path
                 const filesByLanguage = await this.processDirectory(workspacePath)
-                zipFileMetadata = await this.processFilesByLanguage(workspaceFolder, filesByLanguage)
+                const fileMetadata = await this.processFilesByLanguage(workspaceFolder, filesByLanguage)
+                zipFileMetadata.push(...fileMetadata)
             }
             metrics.scanning = performance.now() - scanStart
 

@@ -108,35 +108,11 @@ export const WorkspaceContextServer =
                 }
             })
 
-            // TODO: make a call to createLanguageArtifacts, call common function
-            for (const folder of workspaceFolders) {
-                await workspaceFolderManager.processNewWorkspaceFolder(folder)
-            }
-
-            workspaceFolderManager.pollWorkspaceState([...workspaceFolderManager.getWorkspaces().keys()])
-
-            if (!workspaceFolders || workspaceFolders.length === 0) {
-                return
-            }
-            artifactManager
-                .createLanguageArtifacts()
-                .then(fileMetadata => {
-                    logging.log('Artifacts created')
-                    fileMetadata.forEach(file => {
-                        logging.log(`File path: ${file.filePath}`)
-                        logging.log(`Language: ${file.language}`)
-                        logging.log(`Content length: ${file.contentLength}`)
-                    })
+            if (artifactManager) {
+                await workspaceFolderManager.processNewWorkspaceFolders(workspaceFolders, {
+                    initialize: true,
                 })
-                .catch(error => {
-                    logging.log(`Error creating artifacts: ${error}`)
-                })
-            /*
-                    TODO: 1. upload per workspace artifact
-                    TODO: 2. emit an event for addition of workspace/s
-                    For each workspace, emit per langauge zip events separately.
-                    Add a message to queue or emit, depending on the state of web socket client
-                    */
+            }
         })
 
         lsp.onDidSaveTextDocument(async event => {
@@ -254,22 +230,22 @@ export const WorkspaceContextServer =
                 }
             }
             /*
-                    // TODO, this is just sample code showing logic when the change event is a directory:
-                    artifactManager
-                        .addNewDirectories([URI.parse(event.files[0].uri)])
-                        .then(fileMetadata => {
-                            logging.log('Added new directories')
-                            fileMetadata.forEach(file => {
-                                logging.log(`File path: ${file.filePath}`)
-                                logging.log(`Language: ${file.language}`)
-                                logging.log(`Content length: ${file.contentLength}`)
-                                logging.log(`Content: ${file.content}`)
+                        // TODO, this is just sample code showing logic when the change event is a directory:
+                        artifactManager
+                            .addNewDirectories([URI.parse(event.files[0].uri)])
+                            .then(fileMetadata => {
+                                logging.log('Added new directories')
+                                fileMetadata.forEach(file => {
+                                    logging.log(`File path: ${file.filePath}`)
+                                    logging.log(`Language: ${file.language}`)
+                                    logging.log(`Content length: ${file.contentLength}`)
+                                    logging.log(`Content: ${file.content}`)
+                                })
                             })
-                        })
-                        .catch(error => {
-                            logging.log(`Error adding new directories: ${error}`)
-                        })
-                    */
+                            .catch(error => {
+                                logging.log(`Error adding new directories: ${error}`)
+                            })
+                        */
         })
 
         lsp.workspace.onDidDeleteFiles(async event => {

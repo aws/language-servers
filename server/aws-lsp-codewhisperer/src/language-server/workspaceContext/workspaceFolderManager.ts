@@ -228,9 +228,7 @@ export class WorkspaceFolderManager {
         } else if (options.initialize) {
             foldersMetadata = await this.artifactManager.createLanguageArtifacts()
         }
-        this.logging.log(
-            `addedFoldersMetadata: Length: ${JSON.stringify(foldersMetadata.length)}, Folder: ${JSON.stringify(foldersMetadata[0].workspaceFolder)}`
-        )
+        this.logging.log(`addedFoldersMetadata: Length: ${JSON.stringify(foldersMetadata.length)}`)
 
         const inMemoryQueueEvents: Map<string, any[]> = new Map<string, any[]>()
         for (const fileMetadata of foldersMetadata) {
