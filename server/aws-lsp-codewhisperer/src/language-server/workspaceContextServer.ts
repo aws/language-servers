@@ -11,9 +11,14 @@ import {
     findWorkspaceRootFolder,
     isDirectory,
     isEmptyDirectory,
+    isLoggedIn,
     uploadArtifactToS3,
 } from './workspaceContext/util'
-import { ArtifactManager, FileMetadata } from './workspaceContext/artifactManager'
+import {
+    ArtifactManager,
+    FileMetadata,
+    SUPPORTED_WORKSPACE_CONTEXT_LANGUAGES,
+} from './workspaceContext/artifactManager'
 import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../constants'
 import { CreateUploadUrlRequest } from '../client/token/codewhispererbearertokenclient'
 import { RemoteWorkspaceState, WorkspaceFolderManager } from './workspaceContext/workspaceFolderManager'
@@ -117,35 +122,28 @@ export const WorkspaceContextServer =
 
         lsp.onDidSaveTextDocument(async event => {
             logging.log(`Document saved ${JSON.stringify(event)}`)
+            if (!isLoggedIn(credentialsProvider)) {
+                return
+            }
             const programmingLanguage = getCodeWhispererLanguageIdFromPath(event.textDocument.uri)
-            if (!programmingLanguage) {
+            if (!programmingLanguage || !SUPPORTED_WORKSPACE_CONTEXT_LANGUAGES.includes(programmingLanguage)) {
                 return
             }
             const workspaceRoot = findWorkspaceRoot(event.textDocument.uri, workspaceFolders)
             const workspaceRootFolder = findWorkspaceRootFolder(event.textDocument.uri, workspaceFolders)
-            let s3Url = ''
+            let s3Url: string | undefined
 
             if (!workspaceRoot) {
-                // No action needs to be taken if it's just a random file change which is not part of any workspace.
                 return
             }
 
-            if (workspaceRootFolder && artifactManager && credentialsProvider.getConnectionMetadata()?.sso?.startUrl) {
-                try {
-                    const fileMetadata = await artifactManager.getFileMetadata(
-                        workspaceRootFolder,
-                        event.textDocument.uri
-                    )
-                    const request: CreateUploadUrlRequest = {
-                        contentMd5: fileMetadata.md5Hash,
-                        artifactType: 'SourceCode',
-                    }
-                    const response = await cwsprClient.createUploadUrl(request)
-                    s3Url = response.uploadUrl
-                    await uploadArtifactToS3(Buffer.from(fileMetadata.content), fileMetadata.md5Hash, response)
-                } catch (error) {
-                    logging.log('Error while uploading artifact to s3 during file save event')
-                }
+            if (workspaceRootFolder && artifactManager) {
+                const fileMetadata = await artifactManager.getFileMetadata(workspaceRootFolder, event.textDocument.uri)
+                s3Url = await workspaceFolderManager.uploadToS3(fileMetadata)
+            }
+
+            if (!s3Url) {
+                return
             }
 
             const workspaceDetails = workspaceFolderManager.getWorkspaces().get(workspaceRoot)
@@ -174,7 +172,7 @@ export const WorkspaceContextServer =
 
         lsp.workspace.onDidCreateFiles(async event => {
             logging.log(`Documents created ${JSON.stringify(event)}`)
-            if (!artifactManager || !credentialsProvider.getConnectionMetadata()?.sso?.startUrl) {
+            if (!artifactManager || !isLoggedIn(credentialsProvider)) {
                 return
             }
             for (const file of event.files) {
@@ -229,27 +227,13 @@ export const WorkspaceContextServer =
                     workspaceDetails.webSocketClient.send(message)
                 }
             }
-            /*
-                        // TODO, this is just sample code showing logic when the change event is a directory:
-                        artifactManager
-                            .addNewDirectories([URI.parse(event.files[0].uri)])
-                            .then(fileMetadata => {
-                                logging.log('Added new directories')
-                                fileMetadata.forEach(file => {
-                                    logging.log(`File path: ${file.filePath}`)
-                                    logging.log(`Language: ${file.language}`)
-                                    logging.log(`Content length: ${file.contentLength}`)
-                                    logging.log(`Content: ${file.content}`)
-                                })
-                            })
-                            .catch(error => {
-                                logging.log(`Error adding new directories: ${error}`)
-                            })
-                        */
         })
 
         lsp.workspace.onDidDeleteFiles(async event => {
             logging.log(`Documents deleted ${JSON.stringify(event)}`)
+            if (!isLoggedIn(credentialsProvider)) {
+                return
+            }
             for (const file of event.files) {
                 let programmingLanguage = getCodeWhispererLanguageIdFromPath(file.uri)
                 const workspaceRoot = findWorkspaceRoot(file.uri, workspaceFolders)
@@ -287,7 +271,7 @@ export const WorkspaceContextServer =
 
         lsp.workspace.onDidRenameFiles(async event => {
             logging.log(`Documents renamed ${JSON.stringify(event)}`)
-            if (!artifactManager || !credentialsProvider.getConnectionMetadata()?.sso?.startUrl) {
+            if (!artifactManager || !isLoggedIn(credentialsProvider)) {
                 return
             }
             for (const file of event.files) {
@@ -295,12 +279,12 @@ export const WorkspaceContextServer =
                 const workspaceRoot = findWorkspaceRoot(file.newUri, workspaceFolders)
                 const workspaceRootFolder = findWorkspaceRootFolder(file.newUri, workspaceFolders)
                 if (!workspaceRoot || !workspaceRootFolder) {
-                    return
+                    continue
                 }
                 const workspaceDetails = workspaceFolderManager.getWorkspaces().get(workspaceRoot)
                 if (!workspaceDetails) {
                     logging.log(`Workspace folder ${workspaceRoot} is under processing`)
-                    return
+                    continue
                 }
 
                 let filesMetadata: FileMetadata[] = []
@@ -338,7 +322,7 @@ export const WorkspaceContextServer =
                     if (!workspaceDetails.webSocketClient) {
                         logging.log(`Websocket client is not connected yet: ${workspaceRoot}`)
                         workspaceDetails.messageQueue?.push(message)
-                        return
+                        continue
                     }
                     workspaceDetails.webSocketClient.send(message)
                 }

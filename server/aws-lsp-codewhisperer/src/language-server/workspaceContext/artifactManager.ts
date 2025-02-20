@@ -20,7 +20,12 @@ export interface FileMetadata {
 
 // TODO, add excluded dirs to list of filtered files
 const EXCLUDED_DIRS = ['dist', 'build', 'out', '.git', '.idea', '.vscode', 'coverage']
-const SUPPORTED_WORKSPACE_CONTEXT_LANGUAGES: CodewhispererLanguage[] = ['python', 'javascript', 'typescript', 'java']
+export const SUPPORTED_WORKSPACE_CONTEXT_LANGUAGES: CodewhispererLanguage[] = [
+    'python',
+    'javascript',
+    'typescript',
+    'java',
+]
 const ARTIFACT_FOLDER_NAME = 'workspaceContextArtifacts'
 
 export class ArtifactManager {

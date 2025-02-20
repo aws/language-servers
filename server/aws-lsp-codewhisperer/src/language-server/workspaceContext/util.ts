@@ -1,4 +1,4 @@
-import { WorkspaceFolder } from '@aws/language-server-runtimes/server-interface'
+import { CredentialsProvider, WorkspaceFolder } from '@aws/language-server-runtimes/server-interface'
 import { CreateUploadUrlResponse } from '../../client/token/codewhispererbearertokenclient'
 import got from 'got'
 import { URI } from 'vscode-uri'
@@ -47,4 +47,8 @@ export const isDirectory = (path: string): boolean => {
 
 export const isEmptyDirectory = (path: string): boolean => {
     return fs.readdirSync(URI.parse(path).path).length === 0
+}
+
+export const isLoggedIn = (credentialsProvider: CredentialsProvider): boolean => {
+    return credentialsProvider.getConnectionMetadata()?.sso?.startUrl ? true : false
 }
