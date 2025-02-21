@@ -264,10 +264,10 @@ export class WorkspaceFolderManager {
                 })
             )
         }
-        folders.forEach(folder => {
+        for (const folder of folders) {
             const queueEvents = inMemoryQueueEvents.get(folder.uri) ?? undefined
-            this.processNewWorkspaceFolder(folder, queueEvents)
-        })
+            await this.processNewWorkspaceFolder(folder, queueEvents)
+        }
         const folderUris = folders.map(({ uri }) => uri)
         this.logging.log(`Folder URIs for polling: ${folderUris}`)
         this.pollWorkspaceState(folderUris)

@@ -49,6 +49,6 @@ export const isEmptyDirectory = (path: string): boolean => {
     return fs.readdirSync(URI.parse(path).path).length === 0
 }
 
-export const isLoggedIn = (credentialsProvider: CredentialsProvider): boolean => {
-    return credentialsProvider.getConnectionMetadata()?.sso?.startUrl ? true : false
+export const isLoggedInUsingBearerToken = (credentialsProvider: CredentialsProvider): boolean => {
+    return credentialsProvider.hasCredentials('bearer')
 }

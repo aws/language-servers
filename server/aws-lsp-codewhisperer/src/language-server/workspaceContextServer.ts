@@ -11,8 +11,7 @@ import {
     findWorkspaceRootFolder,
     isDirectory,
     isEmptyDirectory,
-    isLoggedIn,
-    uploadArtifactToS3,
+    isLoggedInUsingBearerToken,
 } from './workspaceContext/util'
 import {
     ArtifactManager,
@@ -20,8 +19,7 @@ import {
     SUPPORTED_WORKSPACE_CONTEXT_LANGUAGES,
 } from './workspaceContext/artifactManager'
 import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../constants'
-import { CreateUploadUrlRequest } from '../client/token/codewhispererbearertokenclient'
-import { RemoteWorkspaceState, WorkspaceFolderManager } from './workspaceContext/workspaceFolderManager'
+import { WorkspaceFolderManager } from './workspaceContext/workspaceFolderManager'
 import { URI } from 'vscode-uri'
 import { getCodeWhispererLanguageIdFromPath } from './languageDetection'
 
@@ -39,6 +37,7 @@ export const WorkspaceContextServer =
         let workspaceFolders: WorkspaceFolder[] = []
         let artifactManager: ArtifactManager
         let workspaceFolderManager: WorkspaceFolderManager
+        let isWorkflowInitialized: boolean = false
 
         const awsQRegion = runtime.getConfiguration('AWS_Q_REGION') ?? DEFAULT_AWS_Q_REGION
         const awsQEndpointUrl = runtime.getConfiguration('AWS_Q_ENDPOINT_URL') ?? DEFAULT_AWS_Q_ENDPOINT_URL
@@ -48,10 +47,10 @@ export const WorkspaceContextServer =
             workspaceFolders = params.workspaceFolders || []
             if (params.workspaceFolders) {
                 workspaceFolders = params.workspaceFolders
-                artifactManager = new ArtifactManager(workspace, logging, workspaceFolders)
             } else {
                 logging.error(`WORKSPACE FOLDERS IS NOT SET`)
             }
+            artifactManager = new ArtifactManager(workspace, logging, workspaceFolders)
             workspaceFolderManager = new WorkspaceFolderManager(cwsprClient, logging, artifactManager)
 
             return {
@@ -108,27 +107,43 @@ export const WorkspaceContextServer =
                     })
                 }
 
-                if (addedFolders.length > 0 && isLoggedIn(credentialsProvider)) {
+                if (addedFolders.length > 0 && isLoggedInUsingBearerToken(credentialsProvider)) {
                     await workspaceFolderManager.processNewWorkspaceFolders(addedFolders, {
                         didChangeWorkspaceFoldersAddition: true,
                     })
                 }
 
-                if (removedFolders.length > 0 && isLoggedIn(credentialsProvider)) {
+                if (removedFolders.length > 0 && isLoggedInUsingBearerToken(credentialsProvider)) {
                     await artifactManager.removeWorkspaceFolders(removedFolders)
                 }
             })
 
-            if (artifactManager) {
-                await workspaceFolderManager.processNewWorkspaceFolders(workspaceFolders, {
-                    initialize: true,
-                })
-            }
+            /**
+             * The below code checks the login state of the workspace and initializes the workspace
+             * folders. *isWorkflowInitialized* variable is used to keep track if the workflow has been initialized
+             * or not to prevent it from initializing again. However, there can be a case when user logs out, does some
+             * activity with removing or adding workspace folders, and logs back in. To handle this case- the new state
+             * of workspace folders is updated using *artifactManager.updateWorkspaceFolders(workspaceFolders)* before
+             * initializing again.
+             */
+            setInterval(async () => {
+                const isLoggedIn = isLoggedInUsingBearerToken(credentialsProvider)
+                if (isLoggedIn && !isWorkflowInitialized) {
+                    artifactManager.updateWorkspaceFolders(workspaceFolders)
+                    await workspaceFolderManager.processNewWorkspaceFolders(workspaceFolders, {
+                        initialize: true,
+                    })
+                    isWorkflowInitialized = true
+                    logging.log(`Workflow initialized`)
+                } else if (!isLoggedIn) {
+                    isWorkflowInitialized = false
+                }
+            }, 5000)
         })
 
         lsp.onDidSaveTextDocument(async event => {
             logging.log(`Document saved ${JSON.stringify(event)}`)
-            if (!isLoggedIn(credentialsProvider)) {
+            if (!isLoggedInUsingBearerToken(credentialsProvider)) {
                 return
             }
             const programmingLanguage = getCodeWhispererLanguageIdFromPath(event.textDocument.uri)
@@ -178,7 +193,7 @@ export const WorkspaceContextServer =
 
         lsp.workspace.onDidCreateFiles(async event => {
             logging.log(`Documents created ${JSON.stringify(event)}`)
-            if (!artifactManager || !isLoggedIn(credentialsProvider)) {
+            if (!isLoggedInUsingBearerToken(credentialsProvider)) {
                 return
             }
             for (const file of event.files) {
@@ -237,7 +252,7 @@ export const WorkspaceContextServer =
 
         lsp.workspace.onDidDeleteFiles(async event => {
             logging.log(`Documents deleted ${JSON.stringify(event)}`)
-            if (!isLoggedIn(credentialsProvider)) {
+            if (!isLoggedInUsingBearerToken(credentialsProvider)) {
                 return
             }
             for (const file of event.files) {
@@ -277,7 +292,7 @@ export const WorkspaceContextServer =
 
         lsp.workspace.onDidRenameFiles(async event => {
             logging.log(`Documents renamed ${JSON.stringify(event)}`)
-            if (!artifactManager || !isLoggedIn(credentialsProvider)) {
+            if (!isLoggedInUsingBearerToken(credentialsProvider)) {
                 return
             }
             for (const file of event.files) {
