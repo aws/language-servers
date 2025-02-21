@@ -1118,9 +1118,10 @@ declare namespace CodeWhispererBearerTokenClient {
     taskAssistPlanningUploadContext?: TaskAssistPlanningUploadContext;
     transformationUploadContext?: TransformationUploadContext;
     codeAnalysisUploadContext?: CodeAnalysisUploadContext;
+    workspaceContextUploadContext?: WorkspaceContextUploadContext;
   }
   export type UploadId = string;
-  export type UploadIntent = "TRANSFORMATION"|"TASK_ASSIST_PLANNING"|"AUTOMATIC_FILE_SECURITY_SCAN"|"FULL_PROJECT_SECURITY_SCAN"|"UNIT_TESTS_GENERATION"|string;
+  export type UploadIntent = "TRANSFORMATION"|"TASK_ASSIST_PLANNING"|"AUTOMATIC_FILE_SECURITY_SCAN"|"FULL_PROJECT_SECURITY_SCAN"|"UNIT_TESTS_GENERATION"|"WORKSPACE_CONTEXT"|string;
   export interface UserContext {
     ideCategory: IdeCategory;
     operatingSystem: OperatingSystem;
@@ -1247,6 +1248,10 @@ declare namespace CodeWhispererBearerTokenClient {
     nextToken?: String;
   }
   export type WorkspaceList = WorkspaceMetadata[];
+  export interface WorkspaceContextUploadContext {
+    workspaceId: UUID;
+    relativePath: SensitiveString;
+  }
   /**
    * A string in YYYY-MM-DD format that represents the latest possible API version that can be used in this service. Specify 'latest' to use the latest possible version.
    */

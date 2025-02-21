@@ -3433,6 +3433,9 @@
                 },
                 "codeAnalysisUploadContext": {
                     "shape": "CodeAnalysisUploadContext"
+                },
+                "workspaceContextUploadContext": {
+                    "shape": "WorkspaceContextUploadContext"
                 }
             },
             "union": true
@@ -3451,7 +3454,8 @@
                 "TASK_ASSIST_PLANNING",
                 "AUTOMATIC_FILE_SECURITY_SCAN",
                 "FULL_PROJECT_SECURITY_SCAN",
-                "UNIT_TESTS_GENERATION"
+                "UNIT_TESTS_GENERATION",
+                "WORKSPACE_CONTEXT"
             ]
         },
         "UserContext": {
@@ -3766,6 +3770,14 @@
         "WorkspaceList": {
             "type": "list",
             "member": { "shape": "WorkspaceMetadata" }
+        },
+        "WorkspaceContextUploadContext": {
+            "type": "structure",
+            "required": ["workspaceId", "relativePath"],
+            "members": {
+                "workspaceId": { "shape": "UUID" },
+                "relativePath": { "shape": "SensitiveString" }
+            }
         }
     }
 }

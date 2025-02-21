@@ -158,7 +158,7 @@ export const WorkspaceContextServer =
                 return
             }
 
-            if (workspaceRootFolder && artifactManager) {
+            if (workspaceRootFolder) {
                 const fileMetadata = await artifactManager.getFileMetadata(workspaceRootFolder, event.textDocument.uri)
                 s3Url = await workspaceFolderManager.uploadToS3(fileMetadata)
             }

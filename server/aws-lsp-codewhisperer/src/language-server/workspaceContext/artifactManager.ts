@@ -15,7 +15,7 @@ export interface FileMetadata {
     lastModified: number
     content: string | Buffer
     md5Hash: string
-    workspaceFolder?: WorkspaceFolder //TODO, make this mandatory maybe
+    workspaceFolder: WorkspaceFolder
 }
 
 // TODO, add excluded dirs to list of filtered files
@@ -60,6 +60,7 @@ export class ArtifactManager {
         filePath: string,
         relativePath: string,
         language: CodewhispererLanguage,
+        workspaceFolder: WorkspaceFolder,
         shouldCalculateHash = false
     ): Promise<FileMetadata> {
         const fileContent = this.workspace.fs.readFileSync(filePath)
@@ -72,6 +73,7 @@ export class ArtifactManager {
             content: fileContent,
             language,
             relativePath,
+            workspaceFolder,
         }
     }
 
@@ -111,6 +113,7 @@ export class ArtifactManager {
     }
 
     private async processDirectory(
+        workspaceFolder: WorkspaceFolder,
         directoryPath: string,
         baseRelativePath: string = ''
     ): Promise<Map<CodewhispererLanguage, FileMetadata[]>> {
@@ -135,7 +138,8 @@ export class ArtifactManager {
                 const fileMetadata = await this.processFile(
                     fullPath,
                     path.join(baseRelativePath, relativePath),
-                    language
+                    language,
+                    workspaceFolder
                 )
 
                 if (!filesByLanguage.has(language)) {
@@ -207,7 +211,7 @@ export class ArtifactManager {
             const scanStart = performance.now()
             for (const workspaceFolder of this.workspaceFolders) {
                 const workspacePath = URI.parse(workspaceFolder.uri).path
-                const filesByLanguage = await this.processDirectory(workspacePath)
+                const filesByLanguage = await this.processDirectory(workspaceFolder, workspacePath)
                 const fileMetadata = await this.processFilesByLanguage(workspaceFolder, filesByLanguage)
                 zipFileMetadata.push(...fileMetadata)
             }
@@ -239,7 +243,7 @@ export class ArtifactManager {
                 const workspacePath = URI.parse(workspaceFolder.uri).path
                 const relativePath = path.relative(workspacePath, directory.path)
 
-                const filesByLanguage = await this.processDirectory(directory.path, relativePath)
+                const filesByLanguage = await this.processDirectory(workspaceFolder, directory.path, relativePath)
                 zipFileMetadata = await this.processFilesByLanguage(workspaceFolder, filesByLanguage, relativePath)
             } catch (error) {
                 this.log(`Error processing new directory ${directory.path}: ${error}`)
@@ -258,7 +262,7 @@ export class ArtifactManager {
             const workspacePath = URI.parse(workspaceFolder.uri).path
 
             try {
-                const filesByLanguage = await this.processDirectory(workspacePath)
+                const filesByLanguage = await this.processDirectory(workspaceFolder, workspacePath)
                 zipFileMetadata = await this.processFilesByLanguage(workspaceFolder, filesByLanguage)
             } catch (error) {
                 this.log(`Error processing workspace folder ${workspacePath}: ${error}`)
@@ -301,17 +305,19 @@ export class ArtifactManager {
 
     // TODO: Update the function to return the content in a zipped fashion (if required)
     async getFileMetadata(currentWorkspace: WorkspaceFolder, filePath: string): Promise<FileMetadata> {
-        const workspaceName = currentWorkspace.name
-        const relativePathWithWorkspaceName = path.join(workspaceName, filePath)
+        const workspaceUri = URI.parse(currentWorkspace.uri)
+        const fileUri = URI.parse(filePath)
+        const relativePath = path.join(currentWorkspace.name, path.relative(workspaceUri.path, fileUri.path))
 
         const language = getCodeWhispererLanguageIdFromPath(filePath)
         if (!language || !SUPPORTED_WORKSPACE_CONTEXT_LANGUAGES.includes(language)) {
             return Promise.reject('unsupported language')
         }
         const fileMetadata: FileMetadata = await this.processFile(
-            URI.parse(filePath).path,
-            relativePathWithWorkspaceName,
+            fileUri.path,
+            relativePath,
             language,
+            currentWorkspace,
             true
         )
 

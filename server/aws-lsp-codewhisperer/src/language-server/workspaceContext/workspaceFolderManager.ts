@@ -4,7 +4,6 @@ import { WorkspaceFolder } from '@aws/language-server-runtimes/protocol'
 import {
     CreateUploadUrlRequest,
     CreateWorkspaceResponse,
-    ListWorkspaceMetadataResponse,
     WorkspaceMetadata,
 } from '../../client/token/codewhispererbearertokenclient'
 import { Logging } from '@aws/language-server-runtimes/server-interface'
@@ -194,6 +193,8 @@ export class WorkspaceFolderManager {
     }
 
     async uploadToS3(fileMetadata: FileMetadata): Promise<string | undefined> {
+        let relativePath = fileMetadata.relativePath.replace(fileMetadata.workspaceFolder.name, '')
+        relativePath = relativePath.startsWith('/') ? relativePath.slice(1) : relativePath
         // For testing, return random s3Url without actual upload...
         var testing = true
         if (testing) {
@@ -205,6 +206,13 @@ export class WorkspaceFolderManager {
             const request: CreateUploadUrlRequest = {
                 contentMd5: fileMetadata.md5Hash,
                 artifactType: 'SourceCode',
+                uploadIntent: 'WORKSPACE_CONTEXT',
+                uploadContext: {
+                    workspaceContextUploadContext: {
+                        workspaceId: '',
+                        relativePath: relativePath,
+                    },
+                },
             }
             const response = await this.cwsprClient.createUploadUrl(request)
             s3Url = response.uploadUrl
