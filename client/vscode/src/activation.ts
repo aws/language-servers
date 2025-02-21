@@ -58,7 +58,7 @@ export async function activateDocumentsLanguageServer(extensionContext: Extensio
      */
     const enableIamProvider = process.env.ENABLE_IAM_PROVIDER === 'true'
     const enableBearerTokenProvider = process.env.ENABLE_TOKEN_PROVIDER === 'true'
-    const enableEncryptionInit = enableIamProvider || enableBearerTokenProvider
+    const enableEncryptionInit = process.env.ENABLE_ENCRYPTION === 'true'
 
     const debugOptions = { execArgv: ['--nolazy', '--inspect=6012', '--preserve-symlinks'] }
 
@@ -172,11 +172,11 @@ export async function activateDocumentsLanguageServer(extensionContext: Extensio
     const client = new LanguageClient('awsDocuments', 'AWS Documents Language Server', serverOptions, clientOptions)
 
     if (enableIamProvider) {
-        await registerIamCredentialsProviderSupport(client, extensionContext)
+        await registerIamCredentialsProviderSupport(client, extensionContext, enableEncryptionInit)
     }
 
     if (enableBearerTokenProvider) {
-        await registerBearerTokenProviderSupport(client, extensionContext)
+        await registerBearerTokenProviderSupport(client, extensionContext, enableEncryptionInit)
     }
 
     if (enableInlineCompletion) {

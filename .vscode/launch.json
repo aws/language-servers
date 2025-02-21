@@ -84,6 +84,7 @@
             "env": {
                 "LSP_SERVER": "${workspaceFolder}/app/aws-lsp-codewhisperer-runtimes/out/token-standalone.js",
                 "ENABLE_INLINE_COMPLETION": "true",
+                "ENABLE_ENCRYPTION": "true",
                 "ENABLE_TOKEN_PROVIDER": "true",
                 "ENABLE_CUSTOM_COMMANDS": "true",
                 "ENABLE_CHAT": "true",
