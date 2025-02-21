@@ -7,3 +7,6 @@ package-lock.json
 .*
 tsconfig.*
 webpack.*.config.js
+*.test.js
+*.test.d.ts
+*.test.js.map
