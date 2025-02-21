@@ -33,3 +33,22 @@ NodeJS modules used in this package
 To override modules use next alternatives:
 - `path` - https://www.npmjs.com/package/path-browserify
 - `os` - https://www.npmjs.com/package/os-browserify
+
+## Configuration
+
+Language Servers support different configurations and can be configured using the following environment variables:
+
+- `AWS_Q_REGION`: The AWS region for Amazon Q services (default: us-east-1)
+- `AWS_Q_ENDPOINT_URL`: The endpoint URL for Amazon Q services
+
+### LSP Configuration Options
+
+LSP configuration options that can be set through the LSP client's `workspace.getConfiguration` protocol:
+
+1. `aws.q` section:
+   - `customization`: (string) Sets the customization ARN for Amazon Q. To be used with [`QConfigurationServer`](../language-server/configuration/qConfigurationServer.ts)
+   - `preselectSuggestionFromQ`: (boolean, default: true) Determines whether suggestions from Amazon Q should be preselected in response from `textDocument/completion`.
+
+2. `aws.codeWhisperer` section:
+   - `includeSuggestionsWithCodeReferences`: (boolean, default: true) Controls whether suggestions that include code references should be included in the results.
+   - `shareCodeWhispererContentWithAWS`: (boolean, default: false) Determines whether the content processed by CodeWhisperer should be shared with AWS for service improvement.
