@@ -1235,7 +1235,7 @@ declare namespace CodeWhispererBearerTokenClient {
     workspaceStatus: WorkspaceStatus;
     environmentId?: SensitiveString;
   }
-  export type WorkspaceStatus = "CREATED"|"PENDING"|"READY"|"CONNECTED"|"DELETING"|string;
+  export type WorkspaceStatus = "CREATED"|"PENDING"|"READY"|"CONNECTED"|"DELETING";
   export interface ListWorkspaceMetadataRequest {
     workspaceRoot: ListWorkspaceMetadataRequestWorkspaceRootString;
     nextToken?: String;

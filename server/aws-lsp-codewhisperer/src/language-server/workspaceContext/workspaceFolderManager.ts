@@ -22,18 +22,26 @@ interface WorkspaceState {
 
 type WorkspaceRoot = string
 
+interface WorkspaceStateChange {
+    workspace: WorkspaceRoot //TODO, check whether workspace info is used anywhere or if it can be removed
+    previousState: RemoteWorkspaceState
+    currentState: RemoteWorkspaceState
+}
+
 export class WorkspaceFolderManager {
     private cwsprClient: CodeWhispererServiceToken
     private logging: Logging
     private artifactManager: ArtifactManager
     private workspaceMap: Map<WorkspaceRoot, WorkspaceState>
-    private readonly pollInterval: number = 5 * 60 * 1000
+    private workspacesToPoll: WorkspaceRoot[]
+    private readonly pollInterval: number = 15 * 1000 // 15 seconds
 
     constructor(cwsprClient: CodeWhispererServiceToken, logging: Logging, artifactManager: ArtifactManager) {
         this.cwsprClient = cwsprClient
         this.logging = logging
         this.artifactManager = artifactManager
         this.workspaceMap = new Map<WorkspaceRoot, WorkspaceState>()
+        this.workspacesToPoll = []
     }
 
     updateWorkspaceEntry(workspaceRoot: WorkspaceRoot, workspaceState: WorkspaceState) {
@@ -64,90 +72,124 @@ export class WorkspaceFolderManager {
         return this.workspaceMap
     }
 
-    /**
-     * The function polls workspace state every 5 minutes & stop polling once all workspaces
-     * are created on remote and the code has connected to the LSPs running on remote through
-     * websocket.
-     */
-    pollWorkspaceState(workspaces: WorkspaceRoot[]) {
-        const pollIntervalId = setInterval(() => {
-            let counterOfConnectedWorkspaces = 0
-            let totalWorkspaces = workspaces.length
-            // No workspace should be in either ready state here; either connected or other state.
-            workspaces.forEach(workspace => {
-                const state = this.workspaceMap.get(workspace)?.remoteWorkspaceState
-                if (state === 'CONNECTED' || state === 'READY') {
-                    counterOfConnectedWorkspaces++
-                    return
-                }
-                // TODO: Call ListWorkspaceMetadataApi to know the state of workspace. If READY, create WS Client & update map. Hardcoding list result now
-                let stateFromListApi = 'READY',
-                    uriFromListApi = 'uri'
-                if (stateFromListApi === 'READY') {
-                    const webSocketClient = new WebSocketClient(uriFromListApi)
-                    this.updateWorkspaceEntry(workspace, {
-                        remoteWorkspaceState: 'CONNECTED',
-                        webSocketClient: webSocketClient,
-                    })
-                    this.processMessagesInQueue(workspace)
-                    counterOfConnectedWorkspaces++
-                }
-            })
-            if (counterOfConnectedWorkspaces === totalWorkspaces) {
-                clearInterval(pollIntervalId)
-            }
-        }, this.pollInterval)
+    private async createNewWorkspace(workspace: WorkspaceRoot) {
+        const createWorkspaceResponse = await this.createWorkspace(workspace)
+        if (!createWorkspaceResponse) {
+            this.logging.warn(`Failed to create workspace for ${workspace}`)
+            return
+        }
+
+        this.updateWorkspaceEntry(workspace, {
+            remoteWorkspaceState: createWorkspaceResponse.workspace.workspaceStatus,
+            workspaceId: createWorkspaceResponse.workspace.workspaceId,
+        })
     }
 
-    async processNewWorkspaceFolder(workspaceFolder: WorkspaceFolder, queueEvents?: any[]) {
-        /*
-                 TODO: Make a call to ListWorkspaceMetadata API to get the state for the workspace. For now, keeping it static.
-                 ListWorkspaceMetadata should also return the URI to connect to address & port. For now, keeping it static.
-                 */
-        /*
-        const metadata = await this.getWorkspaceMetadata(workspaceFolder.uri)
-        this.logging.log(`Logging the response: ${metadata}`)
+    private async pollWorkspaceUntilStateChange(
+        workspace: WorkspaceRoot,
+        timeout: number = 300000 // 5 minutes default timeout
+    ): Promise<WorkspaceStateChange> {
+        return new Promise((resolve, reject) => {
+            const startTime = Date.now()
+            const initialState = this.workspaceMap.get(workspace)?.remoteWorkspaceState
 
-        let workspaceId: string
-        // For now, assuming null (error cases) needs to call CreateWorkspace.
-        // TODO: Add other conditions to call CreateWorkspace | Check what happens when first time calling it without CW API
-        if (!metadata) {
-            const createWorkspaceResponse = await this.createWorkspace(workspaceFolder.uri)
-            if (!createWorkspaceResponse) {
-                return
+            if (!initialState) {
+                return reject(`Can't find initial state of the workspace`)
             }
-            workspaceId = createWorkspaceResponse.workspace.workspaceId
-            this.updateWorkspaceEntry(workspaceFolder.uri, {
-                remoteWorkspaceState: createWorkspaceResponse.workspace.workspaceStatus as RemoteWorkspaceState,
-                workspaceId: createWorkspaceResponse.workspace.workspaceId
-            })
-        } else if (metadata.workspaceStatus === 'READY') {
-            const webSocketClient = new WebSocketClient(metadata.environmentId as string)
-            this.updateWorkspaceEntry(workspaceFolder.uri, {
-                remoteWorkspaceState: 'CONNECTED',
-                webSocketClient: webSocketClient,
-                workspaceId: metadata.workspaceId
-            })
-            this.processMessagesInQueue(workspaceFolder.uri)
-        }
-         */
+            if (initialState === 'READY') {
+                resolve({
+                    workspace,
+                    previousState: initialState,
+                    currentState: initialState,
+                })
+            }
 
-        let state = 'READY'
-        let uri = 'ws://localhost:8080'
-        if (state === 'READY') {
-            const webSocketClient = new WebSocketClient(uri)
-            this.updateWorkspaceEntry(workspaceFolder.uri, {
-                remoteWorkspaceState: 'CONNECTED',
-                webSocketClient: webSocketClient,
+            const pollIntervalId = setInterval(async () => {
+                try {
+                    const metadata = await this.listWorkspaceMetadata(workspace)
+                    const currentState = metadata?.workspaceStatus
+
+                    if (currentState && currentState !== initialState) {
+                        clearInterval(pollIntervalId)
+                        resolve({
+                            workspace,
+                            previousState: initialState,
+                            currentState,
+                        })
+                    }
+
+                    if (Date.now() - startTime > timeout) {
+                        clearInterval(pollIntervalId)
+                        reject(new Error(`Polling timeout for workspace ${workspace}`))
+                    }
+                } catch (error) {
+                    clearInterval(pollIntervalId)
+                    reject(error)
+                }
+            }, this.pollInterval)
+        })
+    }
+
+    private async establishConnection(workspace: WorkspaceRoot) {
+        const metadata = await this.listWorkspaceMetadata(workspace)
+        if (!metadata?.environmentId) {
+            throw new Error('No environment ID found for ready workspace')
+        }
+
+        const webSocketClient = new WebSocketClient(metadata.environmentId)
+        this.updateWorkspaceEntry(workspace, {
+            remoteWorkspaceState: 'CONNECTED',
+            webSocketClient,
+        })
+
+        this.processMessagesInQueue(workspace)
+    }
+
+    private async handleNewWorkspace(workspace: WorkspaceRoot, queueEvents?: any[]) {
+        this.logging.log(`Processing new workspace ${workspace}`)
+
+        // First check if the workspace already exists in the workspace map
+        const existingWorkspace = this.workspaceMap.get(workspace)
+        if (existingWorkspace) {
+            this.logging.log(`Workspace ${workspace} already exists in memory`)
+            return
+        }
+
+        // Check if workspace exists remotely
+        const metadata = await this.listWorkspaceMetadata(workspace)
+
+        if (metadata) {
+            // Workspace exists remotely, add to map with current state
+            this.updateWorkspaceEntry(workspace, {
+                workspaceId: metadata.workspaceId,
+                remoteWorkspaceState: metadata.workspaceStatus,
                 messageQueue: queueEvents ?? undefined,
             })
-            this.processMessagesInQueue(workspaceFolder.uri)
         } else {
-            // TODO: make a call to CreateWorkspace API. It's a fire & forget call
-            this.updateWorkspaceEntry(workspaceFolder.uri, {
-                remoteWorkspaceState: state as RemoteWorkspaceState,
-                messageQueue: queueEvents ?? undefined,
-            })
+            // Create new workspace if it doesn't exist
+            await this.createNewWorkspace(workspace)
+        }
+
+        // Handle state changes
+        try {
+            const stateChange = await this.pollWorkspaceUntilStateChange(workspace)
+
+            switch (stateChange.currentState) {
+                case 'READY':
+                    await this.establishConnection(workspace)
+                    break
+                case 'CONNECTED':
+                    // TODO, implement polling logic for workspacesToPoll
+                    this.workspacesToPoll.push(workspace)
+                    break
+                case 'CREATED':
+                    await this.createNewWorkspace(workspace)
+                    break
+                default:
+                    this.logging.warn(`Unexpected workspace state: ${stateChange.currentState}`)
+            }
+        } catch (error) {
+            this.logging.error(`Error handling workspace ${workspace}: ${error}`)
         }
     }
 
@@ -266,11 +308,10 @@ export class WorkspaceFolderManager {
         }
         for (const folder of folders) {
             const queueEvents = inMemoryQueueEvents.get(folder.uri) ?? undefined
-            await this.processNewWorkspaceFolder(folder, queueEvents)
+            this.handleNewWorkspace(folder.uri, queueEvents).catch(e => {
+                this.logging.warn(`Error processing new workspace: ${e}`)
+            })
         }
-        const folderUris = folders.map(({ uri }) => uri)
-        this.logging.log(`Folder URIs for polling: ${folderUris}`)
-        this.pollWorkspaceState(folderUris)
     }
 
     /**
@@ -279,12 +320,13 @@ export class WorkspaceFolderManager {
      * @param workspaceRoot
      * @private
      */
-    private async getWorkspaceMetadata(workspaceRoot: WorkspaceRoot) {
+    private async listWorkspaceMetadata(workspaceRoot: WorkspaceRoot) {
         let metadataResponse: WorkspaceMetadata | undefined | null
         try {
             const response = await this.cwsprClient.listWorkspaceMetadata({
                 workspaceRoot: workspaceRoot,
             })
+            this.logging.log(`ListWorkspaceMetadata response: ${JSON.stringify(response)}`)
             metadataResponse = response && response.workspaces.length ? response.workspaces[0] : null
         } catch (e: any) {
             this.logging.warn(`Error while fetching workspace (${workspaceRoot}) metadata: ${e.message}`)

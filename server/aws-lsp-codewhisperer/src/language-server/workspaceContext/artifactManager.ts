@@ -200,21 +200,16 @@ export class ArtifactManager {
     // Public functions
     async createLanguageArtifacts(): Promise<FileMetadata[]> {
         const startTime = performance.now()
-        const metrics: Record<string, number> = {}
         let zipFileMetadata: FileMetadata[] = []
 
         try {
-            const scanStart = performance.now()
             for (const workspaceFolder of this.workspaceFolders) {
                 const workspacePath = URI.parse(workspaceFolder.uri).path
                 const filesByLanguage = await this.processDirectory(workspacePath)
                 const fileMetadata = await this.processFilesByLanguage(workspaceFolder, filesByLanguage)
                 zipFileMetadata.push(...fileMetadata)
             }
-            metrics.scanning = performance.now() - scanStart
-
             const totalTime = performance.now() - startTime
-            this.log(`Performance metrics: ${JSON.stringify(metrics)}`)
             this.log(`Total execution time: ${totalTime.toFixed(2)}ms`)
 
             return zipFileMetadata
