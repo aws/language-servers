@@ -92,3 +92,7 @@ jobs:
             - name: Publish LSP Yaml to npm
               run: npm publish --workspace server/aws-lsp-yaml
               if: ${{ steps.release.outputs['server/aws-lsp-yaml--release_created'] }}
+
+            - name: Publish LSP Identity to npm
+              run: npm publish --workspace server/aws-lsp-identity
+              if: ${{ steps.release.outputs['server/aws-lsp-identity--release_created'] }}
