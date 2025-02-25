@@ -116,7 +116,7 @@ export class WorkspaceFolderManager {
                 return reject(`Can't find initial state of the workspace`)
             }
             if (initialState === 'READY') {
-                resolve({
+                return resolve({
                     workspace,
                     previousState: initialState,
                     currentState: initialState,
@@ -130,7 +130,7 @@ export class WorkspaceFolderManager {
 
                     if (currentState && currentState !== initialState) {
                         clearInterval(pollIntervalId)
-                        resolve({
+                        return resolve({
                             workspace,
                             previousState: initialState,
                             currentState,
@@ -139,11 +139,11 @@ export class WorkspaceFolderManager {
 
                     if (Date.now() - startTime > timeout) {
                         clearInterval(pollIntervalId)
-                        reject(new Error(`Polling timeout for workspace ${workspace}`))
+                        return reject(new Error(`Polling timeout for workspace ${workspace}`))
                     }
                 } catch (error) {
                     clearInterval(pollIntervalId)
-                    reject(error)
+                    return reject(error)
                 }
             }, this.pollInterval)
         })
