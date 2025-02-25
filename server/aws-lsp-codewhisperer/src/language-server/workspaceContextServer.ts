@@ -6,13 +6,7 @@ import {
     WorkspaceFolder,
 } from '@aws/language-server-runtimes/server-interface'
 import { CodeWhispererServiceToken } from './codeWhispererService'
-import {
-    findWorkspaceRoot,
-    findWorkspaceRootFolder,
-    isDirectory,
-    isEmptyDirectory,
-    isLoggedInUsingBearerToken,
-} from './workspaceContext/util'
+import { isDirectory, isEmptyDirectory, isLoggedInUsingBearerToken } from './workspaceContext/util'
 import {
     ArtifactManager,
     FileMetadata,
@@ -150,45 +144,35 @@ export const WorkspaceContextServer =
             if (!programmingLanguage || !SUPPORTED_WORKSPACE_CONTEXT_LANGUAGES.includes(programmingLanguage)) {
                 return
             }
-            const workspaceRoot = findWorkspaceRoot(event.textDocument.uri, workspaceFolders)
-            const workspaceRootFolder = findWorkspaceRootFolder(event.textDocument.uri, workspaceFolders)
-            let s3Url: string | undefined
-
-            if (!workspaceRoot) {
+            const result = workspaceFolderManager.getWorkspaceDetailsWithId(event.textDocument.uri, workspaceFolders)
+            if (!result) {
                 return
             }
+            const { workspaceDetails, workspaceRoot } = result
 
-            if (workspaceRootFolder) {
-                const fileMetadata = await artifactManager.getFileMetadata(workspaceRootFolder, event.textDocument.uri)
-                s3Url = await workspaceFolderManager.uploadToS3(fileMetadata)
-            }
-
+            const fileMetadata = await artifactManager.getFileMetadata(workspaceRoot, event.textDocument.uri)
+            const s3Url = await workspaceFolderManager.uploadToS3(fileMetadata)
             if (!s3Url) {
                 return
             }
 
-            const workspaceDetails = workspaceFolderManager.getWorkspaces().get(workspaceRoot)
-            if (!workspaceDetails) {
-                logging.log(`Workspace folder ${workspaceRoot} is under processing`)
-                return
-            }
             const message = JSON.stringify({
                 action: 'didSave',
                 message: {
                     textDocument: event.textDocument.uri,
                     workspaceChangeMetadata: {
-                        workspaceRoot: workspaceRoot,
+                        workspaceRoot: workspaceRoot.uri,
                         s3Path: s3Url,
                         programmingLanguage: programmingLanguage,
                     },
                 },
             })
             if (!workspaceDetails.webSocketClient) {
-                logging.log(`Websocket client is not connected yet: ${workspaceRoot}`)
+                logging.log(`Websocket client is not connected yet: ${workspaceRoot.uri}`)
                 workspaceDetails.messageQueue?.push(message)
-                return
+            } else {
+                workspaceDetails.webSocketClient.send(message)
             }
-            workspaceDetails.webSocketClient.send(message)
         })
 
         lsp.workspace.onDidCreateFiles(async event => {
@@ -198,16 +182,11 @@ export const WorkspaceContextServer =
             }
             for (const file of event.files) {
                 const isDir = isDirectory(file.uri)
-                const workspaceRoot = findWorkspaceRoot(file.uri, workspaceFolders)
-                const workspaceRootFolder = findWorkspaceRootFolder(file.uri, workspaceFolders)
-                if (!workspaceRoot || !workspaceRootFolder) {
+                const result = workspaceFolderManager.getWorkspaceDetailsWithId(file.uri, workspaceFolders)
+                if (!result) {
                     continue
                 }
-                const workspaceDetails = workspaceFolderManager.getWorkspaces().get(workspaceRoot)
-                if (!workspaceDetails) {
-                    logging.log(`Workspace folder ${workspaceRoot} is under processing`)
-                    continue
-                }
+                const { workspaceDetails, workspaceRoot } = result
 
                 let filesMetadata: FileMetadata[] = []
                 if (isDir && isEmptyDirectory(file.uri)) {
@@ -215,7 +194,7 @@ export const WorkspaceContextServer =
                 } else if (isDir) {
                     filesMetadata = await artifactManager.addNewDirectories([URI.parse(file.uri)])
                 } else {
-                    filesMetadata = [await artifactManager.getFileMetadata(workspaceRootFolder, file.uri)]
+                    filesMetadata = [await artifactManager.getFileMetadata(workspaceRoot, file.uri)]
                 }
 
                 logging.log(`Files metadata created: ${JSON.stringify(filesMetadata)}`)
@@ -234,18 +213,18 @@ export const WorkspaceContextServer =
                                 },
                             ],
                             workspaceChangeMetadata: {
-                                workspaceRoot: workspaceRoot,
+                                workspaceRoot: workspaceRoot.uri,
                                 s3Path: s3Url,
                                 programmingLanguage: fileMetadata.language,
                             },
                         },
                     })
                     if (!workspaceDetails.webSocketClient) {
-                        logging.log(`Websocket client is not connected yet: ${workspaceRoot}`)
+                        logging.log(`Websocket client is not connected yet: ${workspaceRoot.uri}`)
                         workspaceDetails.messageQueue?.push(message)
-                        continue
+                    } else {
+                        workspaceDetails.webSocketClient.send(message)
                     }
-                    workspaceDetails.webSocketClient.send(message)
                 }
             }
         })
@@ -257,15 +236,11 @@ export const WorkspaceContextServer =
             }
             for (const file of event.files) {
                 let programmingLanguage = getCodeWhispererLanguageIdFromPath(file.uri)
-                const workspaceRoot = findWorkspaceRoot(file.uri, workspaceFolders)
-                if (!workspaceRoot) {
+                const result = workspaceFolderManager.getWorkspaceDetailsWithId(file.uri, workspaceFolders)
+                if (!result) {
                     continue
                 }
-                const workspaceDetails = workspaceFolderManager.getWorkspaces().get(workspaceRoot)
-                if (!workspaceDetails) {
-                    logging.log(`Workspace folder ${workspaceRoot} is under processing`)
-                    continue
-                }
+                const { workspaceDetails, workspaceRoot } = result
                 const message = JSON.stringify({
                     action: 'didDeleteFiles',
                     message: {
@@ -275,18 +250,18 @@ export const WorkspaceContextServer =
                             },
                         ],
                         workspaceChangeMetadata: {
-                            workspaceRoot: workspaceRoot,
+                            workspaceRoot: workspaceRoot.uri,
                             s3Path: '',
                             programmingLanguage: programmingLanguage,
                         },
                     },
                 })
                 if (!workspaceDetails.webSocketClient) {
-                    logging.log(`Websocket client is not connected yet: ${workspaceRoot}`)
+                    logging.log(`Websocket client is not connected yet: ${workspaceRoot.uri}`)
                     workspaceDetails.messageQueue?.push(message)
-                    continue
+                } else {
+                    workspaceDetails.webSocketClient.send(message)
                 }
-                workspaceDetails.webSocketClient.send(message)
             }
         })
 
@@ -297,16 +272,11 @@ export const WorkspaceContextServer =
             }
             for (const file of event.files) {
                 const isDir = isDirectory(file.newUri)
-                const workspaceRoot = findWorkspaceRoot(file.newUri, workspaceFolders)
-                const workspaceRootFolder = findWorkspaceRootFolder(file.newUri, workspaceFolders)
-                if (!workspaceRoot || !workspaceRootFolder) {
+                const result = workspaceFolderManager.getWorkspaceDetailsWithId(file.newUri, workspaceFolders)
+                if (!result) {
                     continue
                 }
-                const workspaceDetails = workspaceFolderManager.getWorkspaces().get(workspaceRoot)
-                if (!workspaceDetails) {
-                    logging.log(`Workspace folder ${workspaceRoot} is under processing`)
-                    continue
-                }
+                const { workspaceDetails, workspaceRoot } = result
 
                 let filesMetadata: FileMetadata[] = []
                 if (isDir && isEmptyDirectory(file.newUri)) {
@@ -314,7 +284,7 @@ export const WorkspaceContextServer =
                 } else if (isDir) {
                     filesMetadata = await artifactManager.addNewDirectories([URI.parse(file.newUri)])
                 } else {
-                    filesMetadata = [await artifactManager.getFileMetadata(workspaceRootFolder, file.newUri)]
+                    filesMetadata = [await artifactManager.getFileMetadata(workspaceRoot, file.newUri)]
                 }
 
                 logging.log(`Files metadata renamed: ${JSON.stringify(filesMetadata)}`)
@@ -334,18 +304,18 @@ export const WorkspaceContextServer =
                                 },
                             ],
                             workspaceChangeMetadata: {
-                                workspaceRoot: workspaceRoot,
+                                workspaceRoot: workspaceRoot.uri,
                                 s3Path: s3Url,
                                 programmingLanguage: fileMetadata.language,
                             },
                         },
                     })
                     if (!workspaceDetails.webSocketClient) {
-                        logging.log(`Websocket client is not connected yet: ${workspaceRoot}`)
+                        logging.log(`Websocket client is not connected yet: ${workspaceRoot.uri}`)
                         workspaceDetails.messageQueue?.push(message)
-                        continue
+                    } else {
+                        workspaceDetails.webSocketClient.send(message)
                     }
-                    workspaceDetails.webSocketClient.send(message)
                 }
             }
         })
