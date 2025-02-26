@@ -8,7 +8,7 @@ import {
 } from '../../client/token/codewhispererbearertokenclient'
 import { Logging } from '@aws/language-server-runtimes/server-interface'
 import { ArtifactManager, FileMetadata } from './artifactManager'
-import { findWorkspaceRootFolder, uploadArtifactToS3 } from './util'
+import { findWorkspaceRootFolder, getSha256Async, uploadArtifactToS3 } from './util'
 
 export type RemoteWorkspaceState = 'CREATED' | 'PENDING' | 'READY' | 'CONNECTED' | 'DELETING'
 
@@ -274,9 +274,12 @@ export class WorkspaceFolderManager {
 
         let s3Url: string | undefined
         try {
+            const sha256 = await getSha256Async(fileMetadata.content)
             const request: CreateUploadUrlRequest = {
                 contentMd5: fileMetadata.md5Hash,
                 artifactType: 'SourceCode',
+                contentChecksumType: 'SHA_256',
+                contentChecksum: sha256,
                 uploadIntent: 'WORKSPACE_CONTEXT',
                 uploadContext: {
                     workspaceContextUploadContext: {

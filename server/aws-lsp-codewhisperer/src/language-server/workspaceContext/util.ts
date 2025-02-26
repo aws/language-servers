@@ -3,6 +3,7 @@ import { CreateUploadUrlResponse } from '../../client/token/codewhispererbearert
 import got from 'got'
 import { URI } from 'vscode-uri'
 import * as fs from 'fs'
+import * as crypto from 'crypto'
 
 export const findWorkspaceRoot = (fileUri: string, workspaceFolders: WorkspaceFolder[]): string => {
     const matchingFolder = workspaceFolders.find(folder => fileUri.startsWith(folder.uri))
@@ -51,4 +52,8 @@ export const isEmptyDirectory = (path: string): boolean => {
 
 export const isLoggedInUsingBearerToken = (credentialsProvider: CredentialsProvider): boolean => {
     return credentialsProvider.hasCredentials('bearer')
+}
+
+export const getSha256Async = async (content: string | Buffer): Promise<string> => {
+    return crypto.createHash('sha256').update(content).digest('base64')
 }
