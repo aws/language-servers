@@ -3,15 +3,16 @@ var path = require('path')
 const baseConfig = {
     mode: 'development',
     output: {
-        path: __dirname,
-        filename: 'build/[name].js',
+        path: path.resolve(__dirname, 'build'),
+        filename: '[name].js',
         globalObject: 'this',
+        chunkFormat: false,
         library: {
             type: 'umd',
         },
     },
     resolve: {
-        extensions: ['.ts', '.tsx', '.js'],
+        extensions: ['.ts', '.tsx', '.js', '.node'],
     },
     module: {
         rules: [
@@ -19,6 +20,13 @@ const baseConfig = {
                 test: /\.tsx?$/,
                 use: 'ts-loader',
                 exclude: /node_modules/,
+            },
+            {
+                test: /\.node$/,
+                loader: 'node-loader',
+                options: {
+                    name: '[name].[ext]', // Preserves original path and filename
+                },
             },
         ],
     },
