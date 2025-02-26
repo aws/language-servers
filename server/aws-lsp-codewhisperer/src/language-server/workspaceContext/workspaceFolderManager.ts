@@ -220,33 +220,34 @@ export class WorkspaceFolderManager {
     async processWorkspaceFolderDeletion(workspaceFolder: WorkspaceFolder) {
         const workspaceDetails = this.workspaceMap.get(workspaceFolder.uri)
         const websocketClient = workspaceDetails?.webSocketClient
-        if (!websocketClient) return
-        websocketClient.send(
-            JSON.stringify({
-                action: 'didChangeWorkspaceFolders',
-                message: {
-                    event: {
-                        added: [],
-                        removed: [
-                            {
-                                uri: workspaceFolder.uri,
-                                name: workspaceFolder.name,
-                            },
-                        ],
+        if (websocketClient) {
+            websocketClient.send(
+                JSON.stringify({
+                    action: 'didChangeWorkspaceFolders',
+                    message: {
+                        event: {
+                            added: [],
+                            removed: [
+                                {
+                                    uri: workspaceFolder.uri,
+                                    name: workspaceFolder.name,
+                                },
+                            ],
+                        },
+                        workspaceChangeMetadata: {
+                            workspaceRoot: workspaceFolder.uri,
+                            s3Path: '',
+                            programmingLanguage: '',
+                        },
                     },
-                    workspaceChangeMetadata: {
-                        workspaceRoot: workspaceFolder.uri,
-                        s3Path: '',
-                        programmingLanguage: '',
-                    },
-                },
-            })
-        )
-        this.removeWorkspaceEntry(workspaceFolder.uri)
-        websocketClient.disconnect()
+                })
+            )
+            websocketClient.disconnect()
+        }
         if (workspaceDetails?.workspaceId) {
             await this.deleteWorkspace(workspaceDetails.workspaceId)
         }
+        this.removeWorkspaceEntry(workspaceFolder.uri)
     }
 
     private processMessagesInQueue(workspaceRoot: WorkspaceRoot) {
