@@ -11,7 +11,7 @@ This command will compile package and produce 2 bundled Javascript programs in `
 - `./out/iam-standalone.js` - Amazon Q server using IAM Credentials provider
 - `./out/token-standalone.js` - Amazon Q server using Bearer Token SSO Credentials provider
 
-To test server you can use sample IDEs client in [`./client`](../../client) subpackages. In VSCode, you can use "Run and Debug" functionality with [sample client extension](../../CONTRIBUTING.md#with-minimal-vscode-client) and update `launch.json` configuration to point to [compiled bundle file](../../.vscode/launch.json#L60). Change value for `LSP_SERVER` valiable from `${workspaceFolder}/app/aws-lsp-codewhisperer-bundle/out/index.js` to `${workspaceFolder}/app/aws-lsp-codewhisperer-bundle/out/token-standalone.js`.
+To test server you can use sample IDEs client in [`./client`](../../client) subpackages. In VSCode, you can use "Run and Debug" functionality with [sample client extension](../../CONTRIBUTING.md#with-minimal-vscode-client) and update `launch.json` configuration to point to [compiled bundle file](../../.vscode/launch.json#L60). Change value for `LSP_SERVER` valiable from `${workspaceFolder}/app/aws-lsp-codewhisperer-runtimes/out/index.js` to `${workspaceFolder}/app/aws-lsp-codewhisperer-runtimes/out/token-standalone.js`.
 
 To verify compiled bundle can run, you can start it in your shell with NodeJS:
 
