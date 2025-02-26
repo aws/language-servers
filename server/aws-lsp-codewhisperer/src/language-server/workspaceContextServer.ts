@@ -123,6 +123,7 @@ export const WorkspaceContextServer =
             setInterval(async () => {
                 const isLoggedIn = isLoggedInUsingBearerToken(credentialsProvider)
                 if (isLoggedIn && !isWorkflowInitialized) {
+                    // TODO: if remote workspace already exists, make it's s3Upload to true
                     artifactManager.updateWorkspaceFolders(workspaceFolders)
                     await workspaceFolderManager.processNewWorkspaceFolders(workspaceFolders, {
                         initialize: true,

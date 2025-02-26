@@ -666,6 +666,21 @@
                 { "shape": "ValidationException" },
                 { "shape": "AccessDeniedException" }
             ]
+        },
+        "DeleteWorkspace": {
+            "name": "DeleteWorkspace",
+            "http": {
+                "method": "POST",
+                "requestUri": "/"
+            },
+            "input": { "shape": "DeleteWorkspaceRequest" },
+            "output": { "shape": "DeleteWorkspaceResponse" },
+            "errors": [
+                { "shape": "ThrottlingException" },
+                { "shape": "InternalServerException" },
+                { "shape": "ValidationException" },
+                { "shape": "AccessDeniedException" }
+            ]
         }
     },
     "shapes": {
@@ -3773,11 +3788,23 @@
         },
         "WorkspaceContextUploadContext": {
             "type": "structure",
-            "required": ["workspaceId", "relativePath"],
+            "required": ["workspaceId", "relativePath", "programmingLanguage"],
             "members": {
                 "workspaceId": { "shape": "UUID" },
-                "relativePath": { "shape": "SensitiveString" }
+                "relativePath": { "shape": "SensitiveString" },
+                "programmingLanguage": { "shape": "ProgrammingLanguage" }
             }
+        },
+        "DeleteWorkspaceRequest": {
+            "type": "structure",
+            "required": ["workspaceId"],
+            "members": {
+                "workspaceId": { "shape": "UUID" }
+            }
+        },
+        "DeleteWorkspaceResponse": {
+            "type": "structure",
+            "members": {}
         }
     }
 }

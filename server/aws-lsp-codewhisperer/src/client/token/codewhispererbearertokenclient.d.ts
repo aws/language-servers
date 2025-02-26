@@ -193,6 +193,14 @@ declare class CodeWhispererBearerTokenClient extends Service {
    *
    */
   listWorkspaceMetadata(callback?: (err: AWSError, data: CodeWhispererBearerTokenClient.Types.ListWorkspaceMetadataResponse) => void): Request<CodeWhispererBearerTokenClient.Types.ListWorkspaceMetadataResponse, AWSError>;
+  /**
+   *
+   */
+  deleteWorkspace(params: CodeWhispererBearerTokenClient.Types.DeleteWorkspaceRequest, callback?: (err: AWSError, data: CodeWhispererBearerTokenClient.Types.DeleteWorkspaceResponse) => void): Request<CodeWhispererBearerTokenClient.Types.DeleteWorkspaceResponse, AWSError>;
+  /**
+   *
+   */
+  deleteWorkspace(callback?: (err: AWSError, data: CodeWhispererBearerTokenClient.Types.DeleteWorkspaceResponse) => void): Request<CodeWhispererBearerTokenClient.Types.DeleteWorkspaceResponse, AWSError>;
 }
 declare namespace CodeWhispererBearerTokenClient {
   export interface AppStudioState {
@@ -1251,6 +1259,12 @@ declare namespace CodeWhispererBearerTokenClient {
   export interface WorkspaceContextUploadContext {
     workspaceId: UUID;
     relativePath: SensitiveString;
+    programmingLanguage: ProgrammingLanguage;
+  }
+  export interface DeleteWorkspaceRequest {
+    workspaceId: UUID;
+  }
+  export interface DeleteWorkspaceResponse {
   }
   /**
    * A string in YYYY-MM-DD format that represents the latest possible API version that can be used in this service. Specify 'latest' to use the latest possible version.

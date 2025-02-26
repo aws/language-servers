@@ -278,6 +278,9 @@ export class WorkspaceFolderManager {
                     workspaceContextUploadContext: {
                         workspaceId: workspaceId,
                         relativePath: relativePath,
+                        programmingLanguage: {
+                            languageName: fileMetadata.language,
+                        },
                     },
                 },
             }
