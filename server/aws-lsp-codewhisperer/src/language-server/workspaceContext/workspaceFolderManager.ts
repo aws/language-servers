@@ -244,9 +244,6 @@ export class WorkspaceFolderManager {
             )
             websocketClient.disconnect()
         }
-        if (workspaceDetails?.workspaceId) {
-            await this.deleteWorkspace(workspaceDetails.workspaceId)
-        }
         this.removeWorkspaceEntry(workspaceFolder.uri)
     }
 
