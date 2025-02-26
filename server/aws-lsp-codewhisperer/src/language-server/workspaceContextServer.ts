@@ -92,13 +92,13 @@ export const WorkspaceContextServer =
 
                 const removedFolders = params.event.removed
                 if (removedFolders.length > 0) {
-                    removedFolders.forEach(folder => {
+                    for (const folder of removedFolders) {
                         const index = workspaceFolders.findIndex(f => f.uri === folder.uri)
                         if (index !== -1) {
                             workspaceFolders.splice(index, 1)
-                            workspaceFolderManager.processWorkspaceFolderDeletion(folder)
+                            await workspaceFolderManager.processWorkspaceFolderDeletion(folder)
                         }
-                    })
+                    }
                 }
 
                 if (addedFolders.length > 0 && isLoggedInUsingBearerToken(credentialsProvider)) {

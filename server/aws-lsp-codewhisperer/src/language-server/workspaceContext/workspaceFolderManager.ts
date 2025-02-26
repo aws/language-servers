@@ -217,7 +217,7 @@ export class WorkspaceFolderManager {
      * from map and close the websocket connection
      * @param workspaceFolder
      */
-    processWorkspaceFolderDeletion(workspaceFolder: WorkspaceFolder) {
+    async processWorkspaceFolderDeletion(workspaceFolder: WorkspaceFolder) {
         const workspaceDetails = this.workspaceMap.get(workspaceFolder.uri)
         const websocketClient = workspaceDetails?.webSocketClient
         if (!websocketClient) return
@@ -244,6 +244,9 @@ export class WorkspaceFolderManager {
         )
         this.removeWorkspaceEntry(workspaceFolder.uri)
         websocketClient.disconnect()
+        if (workspaceDetails?.workspaceId) {
+            await this.deleteWorkspace(workspaceDetails.workspaceId)
+        }
     }
 
     private processMessagesInQueue(workspaceRoot: WorkspaceRoot) {
@@ -397,6 +400,17 @@ export class WorkspaceFolderManager {
             this.handleNewWorkspace(folder.uri).catch(e => {
                 this.logging.warn(`Error processing new workspace: ${e}`)
             })
+        }
+    }
+
+    async deleteWorkspace(workspaceId: string) {
+        try {
+            await this.cwsprClient.deleteWorkspace({
+                workspaceId: workspaceId,
+            })
+            this.logging.log(`Workspace (${workspaceId}) deleted successfully`)
+        } catch (e: any) {
+            this.logging.warn(`Error while deleting workspace (${workspaceId}): ${e.message}`)
         }
     }
 

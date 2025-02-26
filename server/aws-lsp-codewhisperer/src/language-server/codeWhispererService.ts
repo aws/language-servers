@@ -293,4 +293,11 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     async listWorkspaceMetadata(request: CodeWhispererTokenClient.ListWorkspaceMetadataRequest) {
         return this.client.listWorkspaceMetadata(request).promise()
     }
+
+    /**
+     * @description delete the remote workspace
+     */
+    async deleteWorkspace(request: CodeWhispererTokenClient.DeleteWorkspaceRequest) {
+        return this.client.deleteWorkspace(request).promise()
+    }
 }
