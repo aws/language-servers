@@ -89,6 +89,13 @@ const supportedFileTypes: CodewhispererLanguage[] = [
 
 export const supportedSecurityScanLanguages: CodewhispererLanguage[] = ['csharp']
 
+export const supportedWorkspaceContextLanguages: CodewhispererLanguage[] = [
+    'java',
+    'python',
+    'javascript',
+    'typescript',
+]
+
 export const languageByExtension: { [key: string]: CodewhispererLanguage } = {
     '.c': 'c',
     '.cpp': 'cpp',

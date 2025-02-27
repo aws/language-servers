@@ -16,6 +16,9 @@ import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../constants'
 import { WorkspaceFolderManager } from './workspaceContext/workspaceFolderManager'
 import { URI } from 'vscode-uri'
 import { getCodeWhispererLanguageIdFromPath } from './languageDetection'
+import { CreateUploadUrlRequest } from '../client/token/codewhispererbearertokenclient'
+import { md5 } from 'js-md5'
+import { DependencyDiscoverer } from './workspaceContext/dependency/dependencyDiscoverer'
 
 export const WorkspaceContextServer =
     (
@@ -30,17 +33,19 @@ export const WorkspaceContextServer =
         const { logging, lsp, workspace, runtime, credentialsProvider, chat } = features
         let workspaceFolders: WorkspaceFolder[] = []
         let artifactManager: ArtifactManager
+        let dependencyDiscoverer: DependencyDiscoverer
         let workspaceFolderManager: WorkspaceFolderManager
         let isWorkflowInitialized: boolean = false
 
         const awsQRegion = runtime.getConfiguration('AWS_Q_REGION') ?? DEFAULT_AWS_Q_REGION
         const awsQEndpointUrl = runtime.getConfiguration('AWS_Q_ENDPOINT_URL') ?? DEFAULT_AWS_Q_ENDPOINT_URL
         const cwsprClient = service(credentialsProvider, workspace, awsQRegion, awsQEndpointUrl)
-
         lsp.addInitializer((params: InitializeParams) => {
             workspaceFolders = params.workspaceFolders || []
             if (params.workspaceFolders) {
                 workspaceFolders = params.workspaceFolders
+                artifactManager = new ArtifactManager(workspace, logging, workspaceFolders)
+                dependencyDiscoverer = new DependencyDiscoverer(workspace, logging, workspaceFolders)
             } else {
                 logging.error(`WORKSPACE FOLDERS IS NOT SET`)
             }
@@ -125,6 +130,7 @@ export const WorkspaceContextServer =
                 if (isLoggedIn && !isWorkflowInitialized) {
                     // TODO: if remote workspace already exists, make it's s3Upload to true
                     artifactManager.updateWorkspaceFolders(workspaceFolders)
+                    dependencyDiscoverer.searchDependencies()
                     await workspaceFolderManager.processNewWorkspaceFolders(workspaceFolders, {
                         initialize: true,
                     })
