@@ -104,7 +104,7 @@ export class WorkspaceFolderManager {
         })
     }
 
-    private async pollWorkspaceUntilStateChange(
+    private async pollWorkspaceUntilReadyOrStateChange(
         workspace: WorkspaceRoot,
         timeout: number = 300000 // 5 minutes default timeout
     ): Promise<WorkspaceStateChange> {
@@ -154,8 +154,11 @@ export class WorkspaceFolderManager {
         if (!metadata?.environmentId) {
             throw new Error('No environment ID found for ready workspace')
         }
+        // TODO, Change this to the PROD URL when MDE is ready
+        const websocketUrl = `ws://${metadata.environmentId}--8081.localhost:8080/ws`
+        this.logging.log(`Establishing connection to ${websocketUrl}`)
 
-        const webSocketClient = new WebSocketClient(metadata.environmentId)
+        const webSocketClient = new WebSocketClient(websocketUrl)
         this.updateWorkspaceEntry(workspace, {
             remoteWorkspaceState: 'CONNECTED',
             webSocketClient,
@@ -191,7 +194,7 @@ export class WorkspaceFolderManager {
 
         // Handle state changes
         try {
-            const stateChange = await this.pollWorkspaceUntilStateChange(workspace)
+            const stateChange = await this.pollWorkspaceUntilReadyOrStateChange(workspace)
 
             switch (stateChange.currentState) {
                 case 'READY':

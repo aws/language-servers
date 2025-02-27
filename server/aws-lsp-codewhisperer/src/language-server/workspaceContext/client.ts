@@ -3,10 +3,6 @@ import { WebSocket } from 'ws'
 export class WebSocketClient {
     private ws: WebSocket | null = null
     private readonly url: string
-    private readonly pingInterval: number = 3000
-    private readonly pongTimeout: number = 10000
-    private pingTimeoutId: NodeJS.Timeout | null = null
-    private pongTimeoutId: NodeJS.Timeout | null = null
     private reconnectAttempts: number = 0
     private readonly maxReconnectAttempts: number = 5
     private messageQueue: string[] = []
@@ -18,7 +14,16 @@ export class WebSocketClient {
 
     private connect(): void {
         try {
-            this.ws = new WebSocket(this.url)
+            // TODO, this is temporary code to pass websocket messages through proxy until MDE SSO is ready
+            const customLookup = (hostname: string, options: any, callback: any) => {
+                // Always return 127.0.0.1 regardless of the hostname
+                callback(null, '127.0.0.1', 4) // 4 for IPv4
+            }
+
+            this.ws = new WebSocket(this.url, {
+                lookup: customLookup,
+            })
+
             this.attachEventListeners()
         } catch (error) {
             console.error('WebSocket connection error:', error)
@@ -32,7 +37,6 @@ export class WebSocketClient {
         this.ws.on('open', () => {
             console.log('Connected to server')
             this.reconnectAttempts = 0
-            this.startHeartbeat()
             this.flushMessageQueue()
         })
 
@@ -41,58 +45,26 @@ export class WebSocketClient {
             console.log('Received message:', data)
         })
 
-        this.ws.on('pong', () => this.handlePong())
-
         this.ws.onclose = event => {
-            console.log('WebSocket connection closed')
+            console.log(`WebSocket connection closed ${JSON.stringify(event)}`)
+            // TODO, should we uncomment the next line
             // this.handleDisconnect()
         }
 
         this.ws.on('error', error => {
             console.error('WebSocket error:', error)
         })
-    }
 
-    private startHeartbeat(): void {
-        this.stopHeartbeat()
-
-        this.pingTimeoutId = setInterval(() => {
-            this.sendPing()
-        }, this.pingInterval)
-    }
-
-    private stopHeartbeat(): void {
-        if (this.pingTimeoutId) {
-            clearInterval(this.pingTimeoutId)
-            this.pingTimeoutId = null
-        }
-        if (this.pongTimeoutId) {
-            clearTimeout(this.pongTimeoutId)
-            this.pongTimeoutId = null
-        }
-    }
-
-    private sendPing(): void {
-        if (this.ws?.readyState === WebSocket.OPEN) {
-            this.ws.ping()
-
-            this.pongTimeoutId = setTimeout(() => {
-                console.log('Pong not received - connection dead')
-                this.handleDisconnect()
-            }, this.pongTimeout)
-        }
-    }
-
-    private handlePong(): void {
-        if (this.pongTimeoutId) {
-            clearTimeout(this.pongTimeoutId)
-            this.pongTimeoutId = null
-        }
+        this.ws.on('unexpected-response', (req, res) => {
+            console.log('Unexpected response:', {
+                statusCode: res.statusCode,
+                statusMessage: res.statusMessage,
+                headers: res.headers,
+            })
+        })
     }
 
     private handleDisconnect(): void {
-        this.stopHeartbeat()
-
         if (this.ws) {
             this.ws.terminate()
             this.ws = null
@@ -113,6 +85,7 @@ export class WebSocketClient {
 
     private flushMessageQueue(): void {
         while (this.messageQueue.length > 0) {
+            console.log(`Flushing ${this.messageQueue.length} queued events through websocket`)
             const message = this.messageQueue.shift()
             if (message) {
                 this.send(message)
@@ -123,6 +96,7 @@ export class WebSocketClient {
     // https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API/Writing_WebSocket_client_applications#sending_data_to_the_server
     public send(message: string): void {
         if (this.ws?.readyState === WebSocket.OPEN) {
+            console.log('Sending message:', message)
             this.ws.send(message)
         } else {
             this.messageQueue.push(message)
@@ -131,7 +105,6 @@ export class WebSocketClient {
     }
 
     public disconnect(): void {
-        this.stopHeartbeat()
         if (this.ws) {
             this.ws.terminate()
             this.ws = null
