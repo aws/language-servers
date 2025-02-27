@@ -45,7 +45,8 @@
         "jszip": "^3.10.1",
         "uuid": "^9.0.1",
         "vscode-uri": "^3.0.8",
-        "ws": "^8.18.0"
+        "ws": "^8.18.0",
+        "xml2js": "^0.6.2"
     },
     "devDependencies": {
         "@types/adm-zip": "^0.5.5",

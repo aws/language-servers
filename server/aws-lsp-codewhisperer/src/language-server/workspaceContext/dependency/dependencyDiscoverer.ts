@@ -82,18 +82,18 @@ export class DependencyDiscoverer {
         this.logging.log(`number of workspace folders: ${this.workspaceFolders.length}`)
         for (const workspaceFolder of this.workspaceFolders) {
             const workspaceFolderPath = URI.parse(workspaceFolder.uri).path
-            console.log(`Start to search dependencies under: ${workspaceFolderPath}`)
+            this.logging.log(`Start to search dependencies under: ${workspaceFolderPath}`)
             const queue: { dir: string; depth: number }[] = [{ dir: workspaceFolderPath, depth: 0 }]
 
             while (queue.length > 0) {
                 const { dir: currentDir, depth } = queue.shift()!
-                console.log(`looking at ${currentDir} with depth ${depth}`)
+                this.logging.log(`looking at ${currentDir} with depth ${depth}`)
 
                 let foundDependencyInCurrentDir = false
                 for (const dependencyHandler of this.dependencyHandlerRegistry) {
                     if (dependencyHandler.discover(currentDir)) {
                         foundDependencyInCurrentDir = true
-                        console.log(`Found ${dependencyHandler.language} dependency in ${currentDir}`)
+                        this.logging.log(`Found ${dependencyHandler.language} dependency in ${currentDir}`)
                         break
                     }
                 }
@@ -113,14 +113,15 @@ export class DependencyDiscoverer {
                         }
                         queue.push({ dir: itemPath, depth: depth + 1 })
                     }
-                } catch (error) {
-                    console.warn(`Error reading directory ${currentDir}:`, error)
+                } catch (error: any) {
+                    this.logging.warn(`Error reading directory ${currentDir}: ${error.message}`)
                 }
             }
         }
 
         this.dependencyHandlerRegistry.forEach(dependencyHandler => {
             dependencyHandler.createDependencyMap()
+            dependencyHandler.setupWatchers()
         })
     }
 
