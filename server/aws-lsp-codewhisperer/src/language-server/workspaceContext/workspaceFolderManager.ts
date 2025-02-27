@@ -125,7 +125,11 @@ export class WorkspaceFolderManager {
 
             const pollIntervalId = setInterval(async () => {
                 try {
-                    const metadata = await this.listWorkspaceMetadata(workspace)
+                    const { metadata, optOut } = await this.listWorkspaceMetadata(workspace)
+                    if (optOut) {
+                        clearInterval(pollIntervalId)
+                        return reject(new Error(`Workspace ${workspace} is opted out`))
+                    }
                     const currentState = metadata?.workspaceStatus
 
                     if (currentState && currentState !== initialState) {
@@ -150,7 +154,10 @@ export class WorkspaceFolderManager {
     }
 
     private async establishConnection(workspace: WorkspaceRoot) {
-        const metadata = await this.listWorkspaceMetadata(workspace)
+        const { metadata, optOut } = await this.listWorkspaceMetadata(workspace)
+        if (optOut) {
+            throw new Error(`Workspace ${workspace} is opted out`)
+        }
         if (!metadata?.environmentId) {
             throw new Error('No environment ID found for ready workspace')
         }
@@ -164,6 +171,32 @@ export class WorkspaceFolderManager {
         this.processMessagesInQueue(workspace)
     }
 
+    async clearWorkspaceResources(workspace: WorkspaceRoot, workspaceState: WorkspaceState) {
+        if (workspaceState.webSocketClient) {
+            workspaceState.webSocketClient.disconnect()
+        }
+        if (workspaceState.workspaceId) {
+            await this.deleteWorkspace(workspaceState.workspaceId)
+        }
+        this.removeWorkspaceEntry(workspace)
+    }
+
+    private optOutCheckScheduler() {
+        setInterval(
+            async () => {
+                const workspaceMap = this.getWorkspaces()
+                for (const [workspace, workspaceState] of workspaceMap) {
+                    const { metadata, optOut } = await this.listWorkspaceMetadata(workspace)
+                    if (optOut) {
+                        this.logging.log(`Workspace ${workspace} is opted out`)
+                        await this.clearWorkspaceResources(workspace, workspaceState)
+                    }
+                }
+            },
+            5 * 60 * 1000
+        )
+    }
+
     private async handleNewWorkspace(workspace: WorkspaceRoot, queueEvents?: any[]) {
         this.logging.log(`Processing new workspace ${workspace}`)
 
@@ -175,7 +208,11 @@ export class WorkspaceFolderManager {
         }
 
         // Check if workspace exists remotely
-        const metadata = await this.listWorkspaceMetadata(workspace)
+        const { metadata, optOut } = await this.listWorkspaceMetadata(workspace)
+        if (optOut) {
+            this.logging.log(`Not creating a new workspace ${workspace}, it is opted out`)
+            return
+        }
 
         if (metadata) {
             // Workspace exists remotely, add to map with current state
@@ -397,6 +434,8 @@ export class WorkspaceFolderManager {
             fileMetadataMap
         )
 
+        this.optOutCheckScheduler()
+
         for (const folder of folders) {
             this.handleNewWorkspace(folder.uri).catch(e => {
                 this.logging.warn(`Error processing new workspace: ${e}`)
@@ -421,18 +460,26 @@ export class WorkspaceFolderManager {
      * @param workspaceRoot
      * @private
      */
-    private async listWorkspaceMetadata(workspaceRoot: WorkspaceRoot) {
-        let metadataResponse: WorkspaceMetadata | undefined | null
+    private async listWorkspaceMetadata(workspaceRoot: WorkspaceRoot): Promise<{
+        metadata: WorkspaceMetadata | undefined | null
+        optOut: boolean
+    }> {
+        let metadata: WorkspaceMetadata | undefined | null
+        let optOut = false
         try {
             const response = await this.cwsprClient.listWorkspaceMetadata({
                 workspaceRoot: workspaceRoot,
             })
             this.logging.log(`ListWorkspaceMetadata response: ${JSON.stringify(response)}`)
-            metadataResponse = response && response.workspaces.length ? response.workspaces[0] : null
+            metadata = response && response.workspaces.length ? response.workspaces[0] : null
         } catch (e: any) {
+            if (e?.__type.includes('AccessDeniedException')) {
+                this.logging.warn(`Access denied while fetching workspace (${workspaceRoot}) metadata.`)
+                optOut = true
+            }
             this.logging.warn(`Error while fetching workspace (${workspaceRoot}) metadata: ${e.message}`)
         }
-        return metadataResponse
+        return { metadata, optOut }
     }
 
     private async createWorkspace(workspaceRoot: WorkspaceRoot) {
