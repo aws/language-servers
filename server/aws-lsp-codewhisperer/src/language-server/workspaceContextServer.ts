@@ -211,17 +211,17 @@ export const WorkspaceContextServer =
                     if (!s3Url) {
                         continue
                     }
+
                     const message = JSON.stringify({
-                        action: 'didCreateFiles',
-                        message: {
+                        method: 'workspace/didCreateFiles',
+                        params: {
                             files: [
                                 {
                                     uri: file.uri,
                                 },
                             ],
                             workspaceChangeMetadata: {
-                                workspaceRoot: workspaceRoot.uri,
-                                s3Path: s3Url,
+                                workspaceId: workspaceDetails.workspaceId,
                                 programmingLanguage: fileMetadata.language,
                             },
                         },
@@ -249,16 +249,16 @@ export const WorkspaceContextServer =
                 }
                 const { workspaceDetails, workspaceRoot } = result
                 const message = JSON.stringify({
-                    action: 'didDeleteFiles',
-                    message: {
+                    method: 'workspace/didDeleteFiles',
+                    params: {
                         files: [
                             {
+                                // TODO, why do we send files one by one?
                                 uri: file.uri,
                             },
                         ],
                         workspaceChangeMetadata: {
-                            workspaceRoot: workspaceRoot.uri,
-                            s3Path: '',
+                            workspaceId: workspaceDetails.workspaceId,
                             programmingLanguage: programmingLanguage,
                         },
                     },
@@ -302,17 +302,16 @@ export const WorkspaceContextServer =
                         continue
                     }
                     const message = JSON.stringify({
-                        action: 'didRenameFiles',
-                        message: {
+                        method: 'workspace/didRenameFiles',
+                        params: {
                             files: [
                                 {
-                                    oldUri: file.oldUri,
-                                    newUri: file.newUri,
+                                    old_uri: file.oldUri,
+                                    new_uri: file.newUri,
                                 },
                             ],
                             workspaceChangeMetadata: {
-                                workspaceRoot: workspaceRoot.uri,
-                                s3Path: s3Url,
+                                workspaceId: workspaceDetails.workspaceId,
                                 programmingLanguage: fileMetadata.language,
                             },
                         },
