@@ -263,9 +263,9 @@ export class WorkspaceFolderManager {
         if (websocketClient) {
             websocketClient.send(
                 JSON.stringify({
-                    action: 'didChangeWorkspaceFolders',
-                    message: {
-                        event: {
+                    method: 'workspace/didChangeWorkspaceFolders',
+                    params: {
+                        workspaceFoldersChangeEvent: {
                             added: [],
                             removed: [
                                 {
@@ -275,8 +275,7 @@ export class WorkspaceFolderManager {
                             ],
                         },
                         workspaceChangeMetadata: {
-                            workspaceRoot: workspaceFolder.uri,
-                            s3Path: '',
+                            workspaceId: this.getWorkspaces().get(workspaceFolder.uri)?.workspaceId ?? '',
                             programmingLanguage: '',
                         },
                     },
@@ -354,9 +353,9 @@ export class WorkspaceFolderManager {
             }
             inMemoryQueueEvents.push(
                 JSON.stringify({
-                    action: 'didChangeWorkspaceFolders',
-                    message: {
-                        event: {
+                    method: 'workspace/didChangeWorkspaceFolders',
+                    params: {
+                        workspaceFoldersChangeEvent: {
                             added: [
                                 {
                                     uri: fileMetadata.workspaceFolder.uri,
@@ -366,8 +365,7 @@ export class WorkspaceFolderManager {
                             removed: [],
                         },
                         workspaceChangeMetadata: {
-                            workspaceRoot: fileMetadata.workspaceFolder.uri,
-                            s3Path: s3Url,
+                            workspaceId: this.getWorkspaces().get(fileMetadata.workspaceFolder.uri)?.workspaceId ?? '',
                             programmingLanguage: fileMetadata.language,
                         },
                     },
