@@ -23,11 +23,11 @@ jobs:
                   npm run compile
             - name: Pack public npm packages
               run: |
-                  npm pack -w server/aws-lsp-codewhisperer -w server/aws-lsp-partiql -w server/aws-lsp-json -w server/aws-lsp-yaml
+                  npm pack -w server/aws-lsp-codewhisperer -w server/aws-lsp-partiql -w server/aws-lsp-json -w server/aws-lsp-yaml -w server/aws-lsp-identity
             - name: Create test package
               run: |
                   cd tests
-                  npm install ../aws-lsp-codewhisperer-*.tgz ../aws-lsp-partiql-*.tgz ../aws-lsp-json-*.tgz ../aws-lsp-yaml-*.tgz
+                  npm install ../aws-lsp-codewhisperer-*.tgz ../aws-lsp-partiql-*.tgz ../aws-lsp-json-*.tgz ../aws-lsp-yaml-*.tgz ../aws-lsp-identity-*.tgz
             - name: Test imports
               run: |
                   cd tests
