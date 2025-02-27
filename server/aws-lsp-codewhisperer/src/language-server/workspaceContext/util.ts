@@ -27,7 +27,7 @@ export const uploadArtifactToS3 = async (content: Buffer, md5Content: string, re
               'Content-Type': resp.requestHeaders['content-type'],
           }
         : {}
-    if (resp.kmsKeyArn !== '' || resp.kmsKeyArn !== undefined) {
+    if (!resp.kmsKeyArn) {
         Object.assign(headersObj, {
             'x-amz-server-side-encryption': 'aws:kms',
             'x-amz-server-side-encryption-aws-kms-key-id': resp.kmsKeyArn,
