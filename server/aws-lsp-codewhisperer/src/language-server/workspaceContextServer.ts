@@ -100,7 +100,6 @@ export const WorkspaceContextServer =
                         const index = workspaceFolders.findIndex(f => f.uri === folder.uri)
                         if (index !== -1) {
                             workspaceFolders.splice(index, 1)
-                            await workspaceFolderManager.processWorkspaceFolderDeletion(folder)
                         }
                     }
                 }
@@ -112,7 +111,7 @@ export const WorkspaceContextServer =
                 }
 
                 if (removedFolders.length > 0 && isLoggedInUsingBearerToken(credentialsProvider)) {
-                    await artifactManager.removeWorkspaceFolders(removedFolders)
+                    await workspaceFolderManager.processWorkspaceFoldersDeletion(removedFolders)
                 }
             })
 
@@ -162,7 +161,7 @@ export const WorkspaceContextServer =
             }
 
             const message = JSON.stringify({
-                action: 'didSave',
+                action: 'textDocument/didSave',
                 message: {
                     textDocument: event.textDocument.uri,
                     workspaceChangeMetadata: {

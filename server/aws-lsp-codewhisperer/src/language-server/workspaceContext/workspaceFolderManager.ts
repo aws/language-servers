@@ -253,38 +253,41 @@ export class WorkspaceFolderManager {
     }
 
     /**
-     * The function sends a removed workspace folder notification to remote LSP, removes workspace entry
+     * The function sends a removed workspace folders notification to remote LSP, removes workspace entry
      * from map and close the websocket connection
      * @param workspaceFolder
      */
-    async processWorkspaceFolderDeletion(workspaceFolder: WorkspaceFolder) {
-        const workspaceDetails = this.workspaceMap.get(workspaceFolder.uri)
-        const websocketClient = workspaceDetails?.webSocketClient
-        if (websocketClient) {
-            websocketClient.send(
-                JSON.stringify({
-                    method: 'workspace/didChangeWorkspaceFolders',
-                    params: {
-                        workspaceFoldersChangeEvent: {
-                            added: [],
-                            removed: [
-                                {
-                                    uri: workspaceFolder.uri,
-                                    name: workspaceFolder.name,
-                                },
-                            ],
+    async processWorkspaceFoldersDeletion(workspaceFolders: WorkspaceFolder[]) {
+        for (const folder of workspaceFolders) {
+            const workspaceDetails = this.workspaceMap.get(folder.uri)
+            const websocketClient = workspaceDetails?.webSocketClient
+            if (websocketClient) {
+                websocketClient.send(
+                    JSON.stringify({
+                        method: 'workspace/didChangeWorkspaceFolders',
+                        params: {
+                            workspaceFoldersChangeEvent: {
+                                added: [],
+                                removed: [
+                                    {
+                                        uri: folder.uri,
+                                        name: folder.name,
+                                    },
+                                ],
+                            },
+                            workspaceChangeMetadata: {
+                                workspaceId: this.getWorkspaces().get(folder.uri)?.workspaceId ?? '',
+                                s3Path: '',
+                                programmingLanguage: '',
+                            },
                         },
-                        workspaceChangeMetadata: {
-                            workspaceId: this.getWorkspaces().get(workspaceFolder.uri)?.workspaceId ?? '',
-                            s3Path: '',
-                            programmingLanguage: '',
-                        },
-                    },
-                })
-            )
-            websocketClient.disconnect()
+                    })
+                )
+                websocketClient.disconnect()
+            }
+            this.removeWorkspaceEntry(folder.uri)
         }
-        this.removeWorkspaceEntry(workspaceFolder.uri)
+        await this.artifactManager.removeWorkspaceFolders(workspaceFolders)
     }
 
     private processMessagesInQueue(workspaceRoot: WorkspaceRoot) {
