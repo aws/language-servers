@@ -6,6 +6,7 @@ import { URI } from 'vscode-uri'
 import * as walk from 'ignore-walk'
 import JSZip = require('jszip')
 import { md5 } from 'js-md5'
+import { EclipseConfigGenerator, JavaProjectAnalyzer } from './javaManager'
 
 export interface FileMetadata {
     filePath: string
@@ -312,7 +313,10 @@ export class ArtifactManager {
         await this.updateWorkspaceFiles(workspaceFolder, filesByLanguage)
 
         for (const [language, files] of filesByLanguage.entries()) {
-            const zipMetadata = await this.createZipForLanguage(workspaceFolder, language, files, relativePath)
+            // Genrate java .classpath and .project files
+            const processedFiles =
+                language === 'java' ? await this.processJavaProjectConfig(workspaceFolder, files) : files
+            const zipMetadata = await this.createZipForLanguage(workspaceFolder, language, processedFiles, relativePath)
             if (zipMetadata) {
                 zipFileMetadata.push(zipMetadata)
             }
@@ -328,5 +332,53 @@ export class ArtifactManager {
 
     private log(...messages: string[]) {
         this.logging.log(messages.join(' '))
+    }
+
+    private async processJavaProjectConfig(
+        workspaceFolder: WorkspaceFolder,
+        files: FileMetadata[]
+    ): Promise<FileMetadata[]> {
+        const workspacePath = URI.parse(workspaceFolder.uri).path
+        const hasJavaFiles = files.some(file => file.language === 'java')
+
+        if (!hasJavaFiles) {
+            return files
+        }
+
+        const additionalFiles: FileMetadata[] = []
+
+        // Generate Eclipse configuration files
+        const javaManager = new JavaProjectAnalyzer(workspacePath)
+        const structure = await javaManager.analyze()
+        const generator = new EclipseConfigGenerator()
+
+        // Generate and add .classpath file
+        const classpathContent = await generator.generateDotClasspath(structure)
+        additionalFiles.push({
+            filePath: path.join(workspacePath, '.classpath'),
+            relativePath: '.classpath',
+            language: 'java',
+            contentLength: Buffer.from(classpathContent).length,
+            lastModified: Date.now(),
+            content: classpathContent,
+            md5Hash: '',
+            workspaceFolder,
+        })
+
+        // Generate and add .project file
+        const projectContent = await generator.generateDotProject(path.basename(workspacePath), structure)
+        this.log(`Generated project content: ${projectContent}`)
+        additionalFiles.push({
+            filePath: path.join(workspacePath, '.project'),
+            relativePath: '.project',
+            language: 'java',
+            contentLength: Buffer.from(projectContent).length,
+            lastModified: Date.now(),
+            content: projectContent,
+            md5Hash: '',
+            workspaceFolder,
+        })
+
+        return [...files, ...additionalFiles]
     }
 }
