@@ -1,0 +1,17 @@
+[
+    {
+        "id": "1",
+        "type": 1,
+        "criteria": {
+            "regions": {
+                "code": { "==": "IAD" }
+            }
+        },
+        "content": {
+            "en-US": {
+                "title": "Notification PoC Sample",
+                "text": "This is a sample notification sent from the Flare notification server PoC. Yay!"
+            }
+        }
+    }
+]
