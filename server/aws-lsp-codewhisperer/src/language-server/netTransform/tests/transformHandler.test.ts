@@ -5,6 +5,7 @@ import {
     SDKInitializator,
     SDKClientConstructorV2,
     SDKClientConstructorV3,
+    Runtime,
 } from '@aws/language-server-runtimes/server-interface'
 import * as assert from 'assert'
 import { HttpResponse } from 'aws-sdk'
@@ -47,6 +48,7 @@ const payloadFileName = 'C:\\test.zip'
 describe('Test Transform handler ', () => {
     let client: StubbedInstance<CodeWhispererServiceToken>
     let workspace: StubbedInstance<Workspace>
+    let runtime: StubbedInstance<Runtime>
     let transformHandler: TransformHandler
     const mockedLogging = stubInterface<Logging>()
     const awsQRegion: string = DEFAULT_AWS_Q_REGION
@@ -55,7 +57,8 @@ describe('Test Transform handler ', () => {
         // Set up the server with a mock service
         client = stubInterface<CodeWhispererServiceToken>()
         workspace = stubInterface<Workspace>()
-        transformHandler = new TransformHandler(client, workspace, mockedLogging)
+        runtime = stubInterface<Runtime>()
+        transformHandler = new TransformHandler(client, workspace, mockedLogging, runtime)
     })
 
     describe('test upload artifact', () => {
