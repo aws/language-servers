@@ -44,12 +44,11 @@ export const WorkspaceContextServer =
             workspaceFolders = params.workspaceFolders || []
             if (params.workspaceFolders) {
                 workspaceFolders = params.workspaceFolders
-                artifactManager = new ArtifactManager(workspace, logging, workspaceFolders)
-                dependencyDiscoverer = new DependencyDiscoverer(workspace, logging, workspaceFolders)
             } else {
                 logging.error(`WORKSPACE FOLDERS IS NOT SET`)
             }
             artifactManager = new ArtifactManager(workspace, logging, workspaceFolders)
+            dependencyDiscoverer = new DependencyDiscoverer(workspace, logging, workspaceFolders)
             workspaceFolderManager = new WorkspaceFolderManager(cwsprClient, logging, artifactManager)
 
             return {
@@ -128,9 +127,8 @@ export const WorkspaceContextServer =
             setInterval(async () => {
                 const isLoggedIn = isLoggedInUsingBearerToken(credentialsProvider)
                 if (isLoggedIn && !isWorkflowInitialized) {
-                    // TODO: if remote workspace already exists, make it's s3Upload to true
                     artifactManager.updateWorkspaceFolders(workspaceFolders)
-                    dependencyDiscoverer.searchDependencies()
+                    await dependencyDiscoverer.searchDependencies()
                     await workspaceFolderManager.processNewWorkspaceFolders(workspaceFolders, {
                         initialize: true,
                     })
@@ -168,7 +166,7 @@ export const WorkspaceContextServer =
                 message: {
                     textDocument: event.textDocument.uri,
                     workspaceChangeMetadata: {
-                        workspaceRoot: workspaceRoot.uri,
+                        workspaceId: workspaceDetails.workspaceId,
                         s3Path: s3Url,
                         programmingLanguage: programmingLanguage,
                     },
@@ -222,6 +220,7 @@ export const WorkspaceContextServer =
                             ],
                             workspaceChangeMetadata: {
                                 workspaceId: workspaceDetails.workspaceId,
+                                s3Path: s3Url,
                                 programmingLanguage: fileMetadata.language,
                             },
                         },
@@ -259,6 +258,7 @@ export const WorkspaceContextServer =
                         ],
                         workspaceChangeMetadata: {
                             workspaceId: workspaceDetails.workspaceId,
+                            s3Path: '',
                             programmingLanguage: programmingLanguage,
                         },
                     },
@@ -312,6 +312,7 @@ export const WorkspaceContextServer =
                             ],
                             workspaceChangeMetadata: {
                                 workspaceId: workspaceDetails.workspaceId,
+                                s3Path: s3Url,
                                 programmingLanguage: fileMetadata.language,
                             },
                         },

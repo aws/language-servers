@@ -276,6 +276,7 @@ export class WorkspaceFolderManager {
                         },
                         workspaceChangeMetadata: {
                             workspaceId: this.getWorkspaces().get(workspaceFolder.uri)?.workspaceId ?? '',
+                            s3Path: '',
                             programmingLanguage: '',
                         },
                     },
@@ -301,11 +302,6 @@ export class WorkspaceFolderManager {
         if (!workspaceId) {
             this.logging.warn(`Workspace ID is not found for ${fileMetadata.workspaceFolder.uri}`)
             return
-        }
-        // For testing, return random s3Url without actual upload...
-        var testing = true
-        if (testing) {
-            return '<sample-url>'
         }
 
         let s3Url: string | undefined
@@ -366,6 +362,7 @@ export class WorkspaceFolderManager {
                         },
                         workspaceChangeMetadata: {
                             workspaceId: this.getWorkspaces().get(fileMetadata.workspaceFolder.uri)?.workspaceId ?? '',
+                            s3Path: s3Url,
                             programmingLanguage: fileMetadata.language,
                         },
                     },
@@ -406,6 +403,13 @@ export class WorkspaceFolderManager {
                 fileMetadataMap.set(fileMetadata.workspaceFolder.uri, metadata)
             }
             metadata.push(fileMetadata)
+        })
+
+        folders.forEach(folder => {
+            const workspaceDetails = this.getWorkspaces().get(folder.uri)
+            if (workspaceDetails) {
+                workspaceDetails.requiresS3Upload = true
+            }
         })
 
         const intervalId = setInterval(
