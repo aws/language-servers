@@ -36,6 +36,7 @@ export const WorkspaceContextServer =
         let dependencyDiscoverer: DependencyDiscoverer
         let workspaceFolderManager: WorkspaceFolderManager
         let isWorkflowInitialized: boolean = false
+        let isOptedIn: boolean = false
 
         const awsQRegion = runtime.getConfiguration('AWS_Q_REGION') ?? DEFAULT_AWS_Q_REGION
         const awsQEndpointUrl = runtime.getConfiguration('AWS_Q_ENDPOINT_URL') ?? DEFAULT_AWS_Q_ENDPOINT_URL
@@ -83,9 +84,20 @@ export const WorkspaceContextServer =
             }
         })
 
+        const updateConfiguration = async () => {
+            try {
+                const workspaceContextConfig = await lsp.workspace.getConfiguration('amazonQ.workspaceContext')
+                isOptedIn = workspaceContextConfig || false
+                logging.info(`Workspace context optin: ${isOptedIn}`)
+            } catch (error) {
+                logging.error(`Error in GetConfiguration: ${error}`)
+            }
+        }
+
         lsp.onInitialized(async params => {
             logging.log(`LSP initialized`)
 
+            await updateConfiguration()
             lsp.workspace.onDidChangeWorkspaceFolders(async params => {
                 logging.log(`Workspace folders changed ${JSON.stringify(params)}`)
                 const addedFolders = params.event.added
@@ -135,6 +147,8 @@ export const WorkspaceContextServer =
                 }
             }, 5000)
         })
+
+        lsp.didChangeConfiguration(updateConfiguration)
 
         lsp.onDidSaveTextDocument(async event => {
             logging.log(`Document saved ${JSON.stringify(event)}`)
