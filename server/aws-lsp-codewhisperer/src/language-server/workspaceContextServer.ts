@@ -99,6 +99,9 @@ export const WorkspaceContextServer =
 
             await updateConfiguration()
             lsp.workspace.onDidChangeWorkspaceFolders(async params => {
+                if (!isOptedIn) {
+                    return
+                }
                 logging.log(`Workspace folders changed ${JSON.stringify(params)}`)
                 const addedFolders = params.event.added
 
@@ -133,6 +136,9 @@ export const WorkspaceContextServer =
              * initializing again.
              */
             setInterval(async () => {
+                if (!isOptedIn) {
+                    return
+                }
                 const isLoggedIn = isLoggedInUsingBearerToken(credentialsProvider)
                 if (isLoggedIn && !isWorkflowInitialized) {
                     artifactManager.updateWorkspaceFolders(workspaceFolders)
@@ -151,6 +157,9 @@ export const WorkspaceContextServer =
         lsp.didChangeConfiguration(updateConfiguration)
 
         lsp.onDidSaveTextDocument(async event => {
+            if (!isOptedIn) {
+                return
+            }
             logging.log(`Document saved ${JSON.stringify(event)}`)
             if (!isLoggedInUsingBearerToken(credentialsProvider)) {
                 return
@@ -191,6 +200,9 @@ export const WorkspaceContextServer =
         })
 
         lsp.workspace.onDidCreateFiles(async event => {
+            if (!isOptedIn) {
+                return
+            }
             logging.log(`Documents created ${JSON.stringify(event)}`)
             if (!isLoggedInUsingBearerToken(credentialsProvider)) {
                 return
@@ -246,6 +258,9 @@ export const WorkspaceContextServer =
         })
 
         lsp.workspace.onDidDeleteFiles(async event => {
+            if (!isOptedIn) {
+                return
+            }
             logging.log(`Documents deleted ${JSON.stringify(event)}`)
             if (!isLoggedInUsingBearerToken(credentialsProvider)) {
                 return
@@ -283,6 +298,9 @@ export const WorkspaceContextServer =
         })
 
         lsp.workspace.onDidRenameFiles(async event => {
+            if (!isOptedIn) {
+                return
+            }
             logging.log(`Documents renamed ${JSON.stringify(event)}`)
             if (!isLoggedInUsingBearerToken(credentialsProvider)) {
                 return
