@@ -102,16 +102,13 @@ export const WorkspaceContextServer =
                             workspaceFolders.splice(index, 1)
                         }
                     }
+                    await workspaceFolderManager.processWorkspaceFoldersDeletion(removedFolders)
                 }
 
                 if (addedFolders.length > 0 && isLoggedInUsingBearerToken(credentialsProvider)) {
                     await workspaceFolderManager.processNewWorkspaceFolders(addedFolders, {
                         didChangeWorkspaceFoldersAddition: true,
                     })
-                }
-
-                if (removedFolders.length > 0 && isLoggedInUsingBearerToken(credentialsProvider)) {
-                    await workspaceFolderManager.processWorkspaceFoldersDeletion(removedFolders)
                 }
             })
 
