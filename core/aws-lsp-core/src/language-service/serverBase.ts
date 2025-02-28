@@ -27,12 +27,12 @@ export enum ServerState {
 }
 
 export abstract class ServerBase implements Disposable {
-    private _state: ServerState = ServerState.Created
+    #state: ServerState = ServerState.Created
     protected readonly observability: Observability
     protected readonly disposables: (Disposable | (() => void))[] = []
 
     get state(): ServerState {
-        return this._state
+        return this.#state
     }
 
     private set state(value: ServerState) {
@@ -42,6 +42,8 @@ export abstract class ServerBase implements Disposable {
                 AwsErrorCodes.E_UNKNOWN
             )
         }
+
+        this.#state = value
     }
 
     constructor(protected readonly features: Features) {

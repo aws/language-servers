@@ -1,9 +1,10 @@
-import { Fetcher } from '../fetcher'
+import { Fetcher } from './fetcher'
+import { Notification } from '../notification'
 
 export class CriteriaFilteringFetcher implements Fetcher {
     constructor(private readonly next: Fetcher) {}
 
     fetch(): Promise<Notification[]> {
-        throw new Error('Method not implemented.')
+        return this.next.fetch()
     }
 }
