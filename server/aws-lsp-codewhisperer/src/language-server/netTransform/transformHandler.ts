@@ -100,8 +100,8 @@ export class TransformHandler {
             this.logging.log(errorMessage)
             throw new Error(errorMessage)
         } finally {
-            const env = this.runtime.getConfiguration('RUNENV') ?? ""
-            if (env.toUpperCase() != "TEST") {
+            const env = this.runtime.getConfiguration('RUNENV') ?? ''
+            if (env.toUpperCase() != 'TEST') {
                 artifactManager.cleanup()
             }
         }
