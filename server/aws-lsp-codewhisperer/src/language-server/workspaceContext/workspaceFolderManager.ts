@@ -481,11 +481,11 @@ export class WorkspaceFolderManager {
             this.logging.log(`ListWorkspaceMetadata response: ${JSON.stringify(response)}`)
             metadata = response && response.workspaces.length ? response.workspaces[0] : null
         } catch (e: any) {
-            if (e?.__type.includes('AccessDeniedException')) {
+            this.logging.warn(`Error while fetching workspace (${workspaceRoot}) metadata: ${e?.message}`)
+            if (e?.__type?.includes('AccessDeniedException')) {
                 this.logging.warn(`Access denied while fetching workspace (${workspaceRoot}) metadata.`)
                 optOut = true
             }
-            this.logging.warn(`Error while fetching workspace (${workspaceRoot}) metadata: ${e.message}`)
         }
         return { metadata, optOut }
     }
