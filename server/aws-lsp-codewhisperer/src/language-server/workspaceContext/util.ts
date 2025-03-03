@@ -59,6 +59,7 @@ export const getSha256Async = async (content: string | Buffer): Promise<string> 
 }
 
 export const getRelativePath = (workspaceFolder: WorkspaceFolder, filePath: string): string => {
-    const workspacePath = URI.parse(workspaceFolder.uri)
-    return path.relative(workspacePath.path, filePath)
+    const workspaceUri = URI.parse(workspaceFolder.uri)
+    const fileUri = URI.parse(filePath)
+    return path.relative(workspaceUri.path, fileUri.path)
 }
