@@ -99,9 +99,6 @@ export const WorkspaceContextServer =
 
             await updateConfiguration()
             lsp.workspace.onDidChangeWorkspaceFolders(async params => {
-                if (!isOptedIn) {
-                    return
-                }
                 logging.log(`Workspace folders changed ${JSON.stringify(params)}`)
                 const addedFolders = params.event.added
 
@@ -117,13 +114,19 @@ export const WorkspaceContextServer =
                             workspaceFolders.splice(index, 1)
                         }
                     }
-                    await workspaceFolderManager.processWorkspaceFoldersDeletion(removedFolders)
+                }
+
+                if (!isOptedIn) {
+                    return
                 }
 
                 if (addedFolders.length > 0 && isLoggedInUsingBearerToken(credentialsProvider)) {
                     await workspaceFolderManager.processNewWorkspaceFolders(addedFolders, {
                         didChangeWorkspaceFoldersAddition: true,
                     })
+                }
+                if (removedFolders.length > 0) {
+                    await workspaceFolderManager.processWorkspaceFoldersDeletion(removedFolders)
                 }
             })
 
@@ -352,6 +355,13 @@ export const WorkspaceContextServer =
                         workspaceDetails.webSocketClient.send(message)
                     }
                 }
+            }
+        })
+
+        lsp.extensions.onDidChangeDependencyPaths(async params => {
+            logging.log(`Dependency path changed ${JSON.stringify(params)}`)
+            if (!isOptedIn) {
+                return
             }
         })
 
