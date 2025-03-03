@@ -115,7 +115,7 @@ export class WorkspaceFolderManager {
             if (!initialState) {
                 return reject(`Can't find initial state of the workspace`)
             }
-            if (initialState === 'READY') {
+            if (initialState === 'READY' || initialState === 'CONNECTED') {
                 return resolve({
                     workspace,
                     previousState: initialState,
@@ -217,7 +217,7 @@ export class WorkspaceFolderManager {
             return
         }
 
-        if (metadata) {
+        if (metadata && metadata.workspaceStatus !== 'CREATED') {
             // Workspace exists remotely, add to map with current state
             this.updateWorkspaceEntry(workspace, {
                 workspaceId: metadata.workspaceId,
