@@ -18,7 +18,7 @@
         "copy": "copyfiles --error --flat ./src/sso/authorizationCodePkce/resources/* ./out/sso/authorizationCodePkce/resources/",
         "package": "npm run compile && npm run copy",
         "test": "npm run package && npm run test-unit",
-        "test-unit": "mocha 'out/**/*.test.js'"
+        "test-unit": "mocha \"./out/**/*.test.js\""
     },
     "dependencies": {
         "@aws-sdk/client-sso-oidc": "^3.616.0",

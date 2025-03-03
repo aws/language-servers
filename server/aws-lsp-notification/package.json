@@ -16,7 +16,7 @@
         "clean": "rm -fr ./out tsconfig.tsbuildinfo",
         "compile": "tsc --build --verbose",
         "test": "npm run test-unit",
-        "test-unit": "mocha 'out/**/*.test.js'"
+        "test-unit": "mocha \"./out/**/*.test.js\""
     },
     "dependencies": {
         "@aws/language-server-runtimes": "^0.2.34",
