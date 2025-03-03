@@ -4,6 +4,7 @@ import got from 'got'
 import { URI } from 'vscode-uri'
 import * as fs from 'fs'
 import * as crypto from 'crypto'
+import * as path from 'path'
 
 export const findWorkspaceRoot = (fileUri: string, workspaceFolders: WorkspaceFolder[]): string => {
     const matchingFolder = workspaceFolders.find(folder => fileUri.startsWith(folder.uri))
@@ -55,4 +56,9 @@ export const isLoggedInUsingBearerToken = (credentialsProvider: CredentialsProvi
 
 export const getSha256Async = async (content: string | Buffer): Promise<string> => {
     return crypto.createHash('sha256').update(content).digest('base64')
+}
+
+export const getRelativePath = (workspaceFolder: WorkspaceFolder, filePath: string): string => {
+    const workspacePath = URI.parse(workspaceFolder.uri)
+    return path.relative(workspacePath.path, filePath)
 }

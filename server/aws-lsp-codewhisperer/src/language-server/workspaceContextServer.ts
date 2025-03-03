@@ -6,7 +6,7 @@ import {
     WorkspaceFolder,
 } from '@aws/language-server-runtimes/server-interface'
 import { CodeWhispererServiceToken } from './codeWhispererService'
-import { isDirectory, isEmptyDirectory, isLoggedInUsingBearerToken } from './workspaceContext/util'
+import { getRelativePath, isDirectory, isEmptyDirectory, isLoggedInUsingBearerToken } from './workspaceContext/util'
 import {
     ArtifactManager,
     FileMetadata,
@@ -186,7 +186,7 @@ export const WorkspaceContextServer =
             const message = JSON.stringify({
                 action: 'textDocument/didSave',
                 message: {
-                    textDocument: event.textDocument.uri,
+                    textDocument: getRelativePath(fileMetadata.workspaceFolder, event.textDocument.uri),
                     workspaceChangeMetadata: {
                         workspaceId: workspaceDetails.workspaceId,
                         s3Path: s3Url,
@@ -240,7 +240,7 @@ export const WorkspaceContextServer =
                         params: {
                             files: [
                                 {
-                                    uri: file.uri,
+                                    uri: getRelativePath(fileMetadata.workspaceFolder, file.uri),
                                 },
                             ],
                             workspaceChangeMetadata: {
@@ -280,8 +280,7 @@ export const WorkspaceContextServer =
                     params: {
                         files: [
                             {
-                                // TODO, why do we send files one by one?
-                                uri: file.uri,
+                                uri: getRelativePath(workspaceRoot, file.uri),
                             },
                         ],
                         workspaceChangeMetadata: {
@@ -337,8 +336,8 @@ export const WorkspaceContextServer =
                         params: {
                             files: [
                                 {
-                                    old_uri: file.oldUri,
-                                    new_uri: file.newUri,
+                                    old_uri: getRelativePath(fileMetadata.workspaceFolder, file.oldUri),
+                                    new_uri: getRelativePath(fileMetadata.workspaceFolder, file.newUri),
                                 },
                             ],
                             workspaceChangeMetadata: {
