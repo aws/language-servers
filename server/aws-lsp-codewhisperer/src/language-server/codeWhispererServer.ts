@@ -41,6 +41,7 @@ import { undefinedIfEmpty } from './utilities/textUtils'
 import { TelemetryService } from './telemetryService'
 import { AcceptedSuggestionEntry, CodeDiffTracker } from './telemetry/codeDiffTracker'
 import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../constants'
+import { UpdateConfigurationHandler } from './configuration/updateConfigurationHandler'
 
 const EMPTY_RESULT = { sessionId: '', items: [] }
 export const CONTEXT_CHARACTERS_LIMIT = 10240
@@ -256,6 +257,12 @@ export const CodewhispererServerFactory =
             awsQEndpointUrl,
             sdkInitializator
         )
+
+        const QServerConfigurationManager = UpdateConfigurationHandler.getInstance({ lsp, logging })
+        QServerConfigurationManager.addListener('profileArnChanged', ({ newRegion, newEndpoint }) => {
+            // TODO: Update/re-instantiate codeWhispererService on profile change
+        })
+
         const telemetryService = new TelemetryService(
             credentialsProvider,
             codeWhispererService.getCredentialsType(),
