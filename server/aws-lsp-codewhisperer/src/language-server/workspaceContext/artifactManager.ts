@@ -151,7 +151,6 @@ export class ArtifactManager {
         this.log(`Number of workspace folders in memory after deletion: ${this.filesByWorkspaceFolderAndLanguage.size}`)
     }
 
-    // TODO: Update the function to return the content in a zipped fashion (if required)
     async getFileMetadata(currentWorkspace: WorkspaceFolder, filePath: string): Promise<FileMetadata> {
         const workspaceUri = URI.parse(currentWorkspace.uri)
         const fileUri = URI.parse(filePath)
@@ -161,9 +160,10 @@ export class ArtifactManager {
         if (!language || !SUPPORTED_WORKSPACE_CONTEXT_LANGUAGES.includes(language)) {
             return Promise.reject('unsupported language')
         }
+
         const fileMetadata: FileMetadata = await this.createFileMetadata(
             fileUri.path,
-            relativePath,
+            path.relative(workspaceUri.path, fileUri.path),
             language,
             currentWorkspace,
             true
@@ -172,7 +172,14 @@ export class ArtifactManager {
         if (!fileMetadata.md5Hash) {
             return Promise.reject('missing md5 hash')
         }
-        return fileMetadata
+
+        const zippedMetadata = await this.createZipForFile(
+            currentWorkspace,
+            language,
+            [fileMetadata],
+            path.relative(workspaceUri.path, fileUri.path)
+        )
+        return zippedMetadata
     }
 
     cleanup() {
@@ -225,6 +232,33 @@ export class ArtifactManager {
         return {
             filePath: zipPath,
             relativePath: path.join(workspaceFolder.name, subDirectory, `${language}.zip`),
+            language,
+            md5Hash: md5.base64(zipBuffer),
+            contentLength: stats.size,
+            lastModified: stats.mtimeMs,
+            content: zipBuffer,
+            workspaceFolder: workspaceFolder,
+        }
+    }
+
+    private async createZipForFile(
+        workspaceFolder: WorkspaceFolder,
+        language: CodewhispererLanguage,
+        files: FileMetadata[],
+        subDirectory: string = ''
+    ): Promise<FileMetadata> {
+        const zipDirectoryPath = path.join(this.tempDirPath, workspaceFolder.name, subDirectory)
+        this.createFolderIfNotExist(zipDirectoryPath)
+
+        const zipPath = path.join(zipDirectoryPath, `file.zip`)
+        const zipBuffer = await this.createZipBuffer(files)
+        await fs.promises.writeFile(zipPath, zipBuffer)
+
+        const stats = fs.statSync(zipPath)
+
+        return {
+            filePath: zipPath,
+            relativePath: path.join(workspaceFolder.name, subDirectory, 'file.zip'),
             language,
             md5Hash: md5.base64(zipBuffer),
             contentLength: stats.size,
