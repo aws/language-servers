@@ -10,7 +10,7 @@
         "lint": "npm run lint:bundle:webworker",
         "lint:bundle:webworker": "webpack && eslint out/hello-world-lsp-webworker.js",
         "test": "npm run test-integ",
-        "test-integ": "npm run package && mocha --timeout 5000 './out/**/*Integ.test.js'",
+        "test-integ": "npm run package && mocha --timeout 5000 \"./out/**/*Integ.test.js\"",
         "webpack": "webpack"
     },
     "dependencies": {

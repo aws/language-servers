@@ -8,7 +8,7 @@
         "generate-grammar": "antlr4ng -Dlanguage=TypeScript -no-visitor -no-listener -Xexact-output-dir -o src/antlr-generated ./PostgreSQLLexer.g4 ./PostgreSQLParser.g4",
         "package": "npm run compile && npm run webpack",
         "test": "npm run test-integ",
-        "test-integ": "npm run package && mocha --timeout 5000 './out/**/*Integ.test.js' --retries 2",
+        "test-integ": "npm run package && mocha --timeout 5000 \"./out/**/*Integ.test.js\" --retries 2",
         "webpack": "webpack"
     },
     "dependencies": {
