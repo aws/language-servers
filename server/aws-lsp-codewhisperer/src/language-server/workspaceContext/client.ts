@@ -6,6 +6,7 @@ export class WebSocketClient {
     private reconnectAttempts: number = 0
     private readonly maxReconnectAttempts: number = 5
     private messageQueue: string[] = []
+    private cleanClosure: boolean = true
 
     constructor(url: string) {
         this.url = url
@@ -47,8 +48,12 @@ export class WebSocketClient {
 
         this.ws.onclose = event => {
             console.log(`WebSocket connection closed ${JSON.stringify(event)}`)
-            // TODO, should we uncomment the next line
-            // this.handleDisconnect()
+            if (event.wasClean) {
+                this.cleanClosure = true
+            } else {
+                this.cleanClosure = false
+                this.handleDisconnect()
+            }
         }
 
         this.ws.on('error', error => {
@@ -70,7 +75,10 @@ export class WebSocketClient {
             this.ws = null
         }
 
-        if (this.reconnectAttempts < this.maxReconnectAttempts) {
+        if (!this.cleanClosure) {
+            this.connect()
+            this.cleanClosure = true
+        } else if (this.reconnectAttempts < this.maxReconnectAttempts) {
             this.reconnectAttempts++
             const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000)
             console.log(`Reconnecting attempt ${this.reconnectAttempts} in ${delay}ms...`)
