@@ -71,7 +71,7 @@ export const QNetTransformServerToken =
             runtime.getConfiguration('AWS_Q_ENDPOINT_URL') ?? DEFAULT_AWS_Q_ENDPOINT_URL,
             sdkInitializator
         )
-        const transformHandler = new TransformHandler(codewhispererclient, workspace, logging)
+        const transformHandler = new TransformHandler(codewhispererclient, workspace, logging, runtime)
         const runTransformCommand = async (params: ExecuteCommandParams, _token: CancellationToken) => {
             try {
                 switch (params.command) {
