@@ -1,5 +1,4 @@
 import { ChatSessionManagementService } from './chat/chatSessionManagementService'
-import { ChatSessionServiceConfig } from './chat/chatSessionService'
 import { SecurityScanServerToken } from './codeWhispererSecurityScanServer'
 import { CodewhispererServerFactory } from './codeWhispererServer'
 import { CodeWhispererServiceIAM, CodeWhispererServiceToken } from './codeWhispererService'
