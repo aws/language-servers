@@ -251,7 +251,13 @@ export class ArtifactManager {
         this.createFolderIfNotExist(zipDirectoryPath)
 
         const zipPath = path.join(zipDirectoryPath, `file.zip`)
-        const zipBuffer = await this.createZipBuffer(files)
+
+        const zip = new JSZip()
+        for (const file of files) {
+            zip.file(path.basename(file.relativePath), file.content)
+        }
+        const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' })
+
         await fs.promises.writeFile(zipPath, zipBuffer)
 
         const stats = fs.statSync(zipPath)
