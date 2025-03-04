@@ -8,7 +8,7 @@
         "lint": "npm run lint:src && npm run lint:bundle:webworker",
         "lint:bundle:webworker": "webpack --config webpack.lint.config.js && eslint bundle/hello-world-lsp-webworker.js # Verify compatibility with web runtime target",
         "lint:src": "eslint src/ --ext .ts,.tsx",
-        "test": "ts-mocha -b 'src/**/*.test.ts'"
+        "test": "ts-mocha -b \"./src/**/*.test.ts\""
     },
     "dependencies": {
         "@aws/language-server-runtimes": "^0.2.34",

@@ -21,7 +21,7 @@
     "scripts": {
         "compile": "tsc --build",
         "test": "npm run test-unit",
-        "test-unit": "mocha './out/**/*.test.js'",
+        "test-unit": "mocha \"./out/**/*.test.js\"",
         "prepack": "shx cp ../../LICENSE ../../NOTICE ../../SECURITY.md ."
     },
     "dependencies": {

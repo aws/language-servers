@@ -25,8 +25,8 @@
     ],
     "dependencies": {
         "@aws/language-server-runtimes": "^0.2.34",
-        "antlr4-c3": "^3.4.1",
-        "antlr4ng": "^3.0.4",
+        "antlr4-c3": "3.4.2",
+        "antlr4ng": "3.0.14",
         "web-tree-sitter": "0.22.6"
     },
     "devDependencies": {
