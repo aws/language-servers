@@ -175,7 +175,6 @@ const emitUserTriggerDecisionTelemetry = async (
     }
 
     await emitAggregatedUserTriggerDecisionTelemetry(telemetryService, session, timeSinceLastUserModification)
-    emitUserDecisionTelemetry(telemetry, session)
 
     session.reportedUserDecision = true
 }
@@ -186,33 +185,6 @@ const emitAggregatedUserTriggerDecisionTelemetry = (
     timeSinceLastUserModification?: number
 ) => {
     return telemetryService.emitUserTriggerDecision(session, timeSinceLastUserModification)
-}
-
-const emitUserDecisionTelemetry = (telemetry: Telemetry, session: CodeWhispererSession) => {
-    session.suggestions.forEach((suggestion, i) => {
-        const licenses = suggestion.references?.map(r => r.licenseName).filter((l): l is string => !!l)
-
-        const data: CodeWhispererUserDecisionEvent = {
-            codewhispererRequestId: session.responseContext?.requestId,
-            codewhispererSessionId: session.responseContext?.codewhispererSessionId,
-            codewhispererCompletionType: getCompletionType(suggestion),
-            codewhispererTriggerType: session.triggerType,
-            codewhispererLanguage: session.language,
-            credentialStartUrl: session.credentialStartUrl,
-            codewhispererSuggestionIndex: i,
-            codewhispererSuggestionState: session.getSuggestionState(suggestion.itemId),
-            codewhispererSuggestionReferences: [...new Set(licenses)],
-            codewhispererSuggestionReferenceCount: suggestion.references?.length || 0,
-            codewhispererSupplementalContextTimeout: session.supplementalMetadata?.isProcessTimeout,
-            codewhispererSupplementalContextIsUtg: session.supplementalMetadata?.isUtg,
-            codewhispererSupplementalContextLength: session.supplementalMetadata?.contentsLength,
-        }
-
-        telemetry.emitMetric({
-            name: 'codewhisperer_userDecision',
-            data,
-        })
-    })
 }
 
 const mergeSuggestionsWithRightContext = (
@@ -628,9 +600,9 @@ export const CodewhispererServerFactory =
                         `Inline completion configuration updated to use ${codeWhispererService.customizationArn}`
                     )
                     /*
-                                                    The flag enableTelemetryEventsToDestination is set to true temporarily. It's value will be determined through destination
-                                                    configuration post all events migration to STE. It'll be replaced by qConfig['enableTelemetryEventsToDestination'] === true
-                                                 */
+                                                        The flag enableTelemetryEventsToDestination is set to true temporarily. It's value will be determined through destination
+                                                        configuration post all events migration to STE. It'll be replaced by qConfig['enableTelemetryEventsToDestination'] === true
+                                                     */
                     // const enableTelemetryEventsToDestination = true
                     // telemetryService.updateEnableTelemetryEventsToDestination(enableTelemetryEventsToDestination)
                     const optOutTelemetryPreference = qConfig['optOutTelemetry'] === true ? 'OPTOUT' : 'OPTIN'
