@@ -44,7 +44,7 @@
         "mock-fs": "^5.2.0",
         "sinon": "^19.0.2",
         "ts-loader": "^9.5.1",
-        "ts-mocha": "^10.0.0",
+        "ts-mocha": "^11.1.0",
         "ts-sinon": "^2.0.2"
     },
     "prettier": {
