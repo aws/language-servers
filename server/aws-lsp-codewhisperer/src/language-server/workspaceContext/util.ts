@@ -14,7 +14,7 @@ export const findWorkspaceRootFolder = (
     return matchingFolder ? matchingFolder : undefined
 }
 
-export const uploadArtifactToS3 = async (content: Buffer, md5Content: string, resp: CreateUploadUrlResponse) => {
+export const uploadArtifactToS3 = async (content: Buffer, resp: CreateUploadUrlResponse) => {
     const encryptionContext = `{"uploadId":"${resp.uploadId}"}`
     let headersObj = resp.requestHeaders
         ? {

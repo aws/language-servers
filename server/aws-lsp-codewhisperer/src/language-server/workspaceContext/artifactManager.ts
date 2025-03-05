@@ -5,7 +5,6 @@ import { CodewhispererLanguage, getCodeWhispererLanguageIdFromPath } from '../la
 import { URI } from 'vscode-uri'
 import * as walk from 'ignore-walk'
 import JSZip = require('jszip')
-import { md5 } from 'js-md5'
 import { EclipseConfigGenerator, JavaProjectAnalyzer } from './javaManager'
 
 export interface FileMetadata {
@@ -15,7 +14,6 @@ export interface FileMetadata {
     contentLength: number
     lastModified: number
     content: string | Buffer
-    md5Hash: string
     workspaceFolder: WorkspaceFolder
 }
 
@@ -169,10 +167,6 @@ export class ArtifactManager {
             true
         )
 
-        if (!fileMetadata.md5Hash) {
-            return Promise.reject('missing md5 hash')
-        }
-
         const zippedMetadata = await this.createZipForFile(
             currentWorkspace,
             language,
@@ -204,7 +198,6 @@ export class ArtifactManager {
 
         return {
             filePath,
-            md5Hash: shouldCalculateHash ? md5.base64(fileContent) : '',
             contentLength: fileContent.length,
             lastModified: fs.statSync(filePath).mtimeMs,
             content: fileContent,
@@ -233,7 +226,6 @@ export class ArtifactManager {
             filePath: zipPath,
             relativePath: path.join(workspaceFolder.name, subDirectory, `${language}.zip`),
             language,
-            md5Hash: md5.base64(zipBuffer),
             contentLength: stats.size,
             lastModified: stats.mtimeMs,
             content: zipBuffer,
@@ -266,7 +258,6 @@ export class ArtifactManager {
             filePath: zipPath,
             relativePath: path.join(workspaceFolder.name, subDirectory, 'file.zip'),
             language,
-            md5Hash: md5.base64(zipBuffer),
             contentLength: stats.size,
             lastModified: stats.mtimeMs,
             content: zipBuffer,
@@ -401,7 +392,6 @@ export class ArtifactManager {
             contentLength: Buffer.from(classpathContent).length,
             lastModified: Date.now(),
             content: classpathContent,
-            md5Hash: '',
             workspaceFolder,
         })
 
@@ -415,7 +405,6 @@ export class ArtifactManager {
             contentLength: Buffer.from(projectContent).length,
             lastModified: Date.now(),
             content: projectContent,
-            md5Hash: '',
             workspaceFolder,
         })
 

@@ -311,7 +311,6 @@ export class WorkspaceFolderManager {
         try {
             const sha256 = await getSha256Async(fileMetadata.content)
             const request: CreateUploadUrlRequest = {
-                contentMd5: fileMetadata.md5Hash,
                 artifactType: 'SourceCode',
                 contentChecksumType: 'SHA_256',
                 contentChecksum: sha256,
@@ -328,7 +327,7 @@ export class WorkspaceFolderManager {
             }
             const response = await this.cwsprClient.createUploadUrl(request)
             s3Url = response.uploadUrl
-            await uploadArtifactToS3(Buffer.from(fileMetadata.content), fileMetadata.md5Hash, response)
+            await uploadArtifactToS3(Buffer.from(fileMetadata.content), response)
         } catch (e: any) {
             this.logging.warn(`Error uploading file to S3: ${e.message}`)
         }
