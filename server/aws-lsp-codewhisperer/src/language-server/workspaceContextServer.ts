@@ -16,8 +16,6 @@ import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../constants'
 import { WorkspaceFolderManager } from './workspaceContext/workspaceFolderManager'
 import { URI } from 'vscode-uri'
 import { getCodeWhispererLanguageIdFromPath } from './languageDetection'
-import { CreateUploadUrlRequest } from '../client/token/codewhispererbearertokenclient'
-import { md5 } from 'js-md5'
 import { DependencyDiscoverer } from './workspaceContext/dependency/dependencyDiscoverer'
 
 export const WorkspaceContextServer =

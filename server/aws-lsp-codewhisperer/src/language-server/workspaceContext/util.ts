@@ -6,11 +6,6 @@ import * as fs from 'fs'
 import * as crypto from 'crypto'
 import * as path from 'path'
 
-export const findWorkspaceRoot = (fileUri: string, workspaceFolders: WorkspaceFolder[]): string => {
-    const matchingFolder = workspaceFolders.find(folder => fileUri.startsWith(folder.uri))
-    return matchingFolder ? matchingFolder.uri : ''
-}
-
 export const findWorkspaceRootFolder = (
     fileUri: string,
     workspaceFolders: WorkspaceFolder[]

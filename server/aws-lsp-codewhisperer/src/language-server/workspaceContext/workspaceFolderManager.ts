@@ -165,7 +165,7 @@ export class WorkspaceFolderManager {
         const websocketUrl = `ws://${metadata.environmentId}--8081.localhost:8080/ws`
         this.logging.log(`Establishing connection to ${websocketUrl}`)
 
-        const webSocketClient = new WebSocketClient(websocketUrl)
+        const webSocketClient = new WebSocketClient(websocketUrl, this.logging)
         this.updateWorkspaceEntry(workspace, {
             remoteWorkspaceState: 'CONNECTED',
             webSocketClient,
