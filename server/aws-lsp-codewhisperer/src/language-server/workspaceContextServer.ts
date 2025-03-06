@@ -48,7 +48,7 @@ export const WorkspaceContextServer =
             }
             artifactManager = new ArtifactManager(workspace, logging, workspaceFolders)
             dependencyDiscoverer = new DependencyDiscoverer(workspace, logging, workspaceFolders)
-            workspaceFolderManager = new WorkspaceFolderManager(cwsprClient, logging, artifactManager)
+            workspaceFolderManager = WorkspaceFolderManager.createInstance(cwsprClient, logging, artifactManager)
 
             return {
                 capabilities: {

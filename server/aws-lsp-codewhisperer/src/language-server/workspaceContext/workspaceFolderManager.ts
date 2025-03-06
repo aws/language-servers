@@ -35,8 +35,24 @@ export class WorkspaceFolderManager {
     private workspaceMap: Map<WorkspaceRoot, WorkspaceState>
     private workspacesToPoll: WorkspaceRoot[]
     private readonly pollInterval: number = 15 * 1000 // 15 seconds
+    private static instance: WorkspaceFolderManager | undefined
 
-    constructor(cwsprClient: CodeWhispererServiceToken, logging: Logging, artifactManager: ArtifactManager) {
+    static createInstance(
+        cwsprClient: CodeWhispererServiceToken,
+        logging: Logging,
+        artifactManager: ArtifactManager
+    ): WorkspaceFolderManager {
+        if (!this.instance) {
+            this.instance = new WorkspaceFolderManager(cwsprClient, logging, artifactManager)
+        }
+        return this.instance
+    }
+
+    static getInstance(): WorkspaceFolderManager | undefined {
+        return this.instance
+    }
+
+    private constructor(cwsprClient: CodeWhispererServiceToken, logging: Logging, artifactManager: ArtifactManager) {
         this.cwsprClient = cwsprClient
         this.logging = logging
         this.artifactManager = artifactManager

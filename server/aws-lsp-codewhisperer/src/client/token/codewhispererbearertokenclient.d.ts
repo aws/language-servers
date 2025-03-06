@@ -560,6 +560,7 @@ declare namespace CodeWhispererBearerTokenClient {
     optOutPreference?: OptOutPreference;
     userContext?: UserContext;
     profileArn?: ProfileArn;
+    workspaceId?: UUID;
   }
   export type GenerateCompletionsRequestMaxResultsInteger = number;
   export type GenerateCompletionsRequestNextTokenString = string;
