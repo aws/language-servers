@@ -43,6 +43,7 @@ export interface GenerateSuggestionsResponse {
 import CodeWhispererSigv4Client = require('../client/sigv4/codewhisperersigv4client')
 import CodeWhispererTokenClient = require('../client/token/codewhispererbearertokenclient')
 import { makeProxyConfig } from './utils'
+import { WorkspaceFolderManager } from './workspaceContext/workspaceFolderManager'
 
 // Right now the only difference between the token client and the IAM client for codewhsiperer is the difference in function name
 // This abstract class can grow in the future to account for any additional changes across the clients
@@ -163,6 +164,11 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         // add cancellation check
         // add error check
         if (this.customizationArn) request = { ...request, customizationArn: this.customizationArn }
+        if (WorkspaceFolderManager.getInstance()?.getWorkspaceDetailsWithId(request.fileContext.filename)) {
+            request.workspaceId = WorkspaceFolderManager.getInstance()?.getWorkspaceDetailsWithId(
+                request.fileContext.filename
+            )?.workspaceDetails.workspaceId
+        }
 
         const response = await this.client.generateCompletions(request).promise()
         const responseContext = {
