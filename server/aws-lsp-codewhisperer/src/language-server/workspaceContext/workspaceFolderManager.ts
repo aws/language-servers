@@ -36,14 +36,16 @@ export class WorkspaceFolderManager {
     private workspacesToPoll: WorkspaceRoot[]
     private readonly pollInterval: number = 15 * 1000 // 15 seconds
     private static instance: WorkspaceFolderManager | undefined
+    private workspaceFolders: WorkspaceFolder[]
 
     static createInstance(
         cwsprClient: CodeWhispererServiceToken,
         logging: Logging,
-        artifactManager: ArtifactManager
+        artifactManager: ArtifactManager,
+        workspaceFolders: WorkspaceFolder[]
     ): WorkspaceFolderManager {
         if (!this.instance) {
-            this.instance = new WorkspaceFolderManager(cwsprClient, logging, artifactManager)
+            this.instance = new WorkspaceFolderManager(cwsprClient, logging, artifactManager, workspaceFolders)
         }
         return this.instance
     }
@@ -52,12 +54,27 @@ export class WorkspaceFolderManager {
         return this.instance
     }
 
-    private constructor(cwsprClient: CodeWhispererServiceToken, logging: Logging, artifactManager: ArtifactManager) {
+    private constructor(
+        cwsprClient: CodeWhispererServiceToken,
+        logging: Logging,
+        artifactManager: ArtifactManager,
+        workspaceFolders: WorkspaceFolder[]
+    ) {
         this.cwsprClient = cwsprClient
         this.logging = logging
         this.artifactManager = artifactManager
         this.workspaceMap = new Map<WorkspaceRoot, WorkspaceState>()
         this.workspacesToPoll = []
+        this.workspaceFolders = workspaceFolders
+    }
+
+    /**
+     * The function is used to track the latest state of workspace folders.
+     * This state is updated irrespective of login/logout/optIn/optOut
+     * @param workspaceFolders
+     */
+    updateWorkspaceFolders(workspaceFolders: WorkspaceFolder[]) {
+        this.workspaceFolders = workspaceFolders
     }
 
     updateWorkspaceEntry(workspaceRoot: WorkspaceRoot, workspaceState: WorkspaceState) {
@@ -91,9 +108,9 @@ export class WorkspaceFolderManager {
 
     getWorkspaceDetailsWithId(
         fileUri: string,
-        workspaceFolders: WorkspaceFolder[]
+        workspaceFolders?: WorkspaceFolder[]
     ): { workspaceDetails: WorkspaceState; workspaceRoot: WorkspaceFolder } | null {
-        const workspaceRoot = findWorkspaceRootFolder(fileUri, workspaceFolders)
+        const workspaceRoot = findWorkspaceRootFolder(fileUri, workspaceFolders ?? this.workspaceFolders)
         if (!workspaceRoot) {
             return null
         }

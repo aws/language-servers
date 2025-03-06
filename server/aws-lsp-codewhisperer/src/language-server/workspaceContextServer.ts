@@ -48,7 +48,12 @@ export const WorkspaceContextServer =
             }
             artifactManager = new ArtifactManager(workspace, logging, workspaceFolders)
             dependencyDiscoverer = new DependencyDiscoverer(workspace, logging, workspaceFolders)
-            workspaceFolderManager = WorkspaceFolderManager.createInstance(cwsprClient, logging, artifactManager)
+            workspaceFolderManager = WorkspaceFolderManager.createInstance(
+                cwsprClient,
+                logging,
+                artifactManager,
+                workspaceFolders
+            )
 
             return {
                 capabilities: {
@@ -113,6 +118,8 @@ export const WorkspaceContextServer =
                         }
                     }
                 }
+
+                workspaceFolderManager.updateWorkspaceFolders(workspaceFolders)
 
                 if (!isOptedIn) {
                     return
