@@ -18,6 +18,7 @@
         "copyServiceClient": "copyfiles -u 1 --error ./src/client/sigv4/*.json out && copyfiles -u 1 --error ./src/client/token/*.json out",
         "fix": "npm run fix:prettier",
         "fix:prettier": "prettier . --write",
+        "format": "npm run fix:prettier",
         "lint": "npm run lint:src",
         "lint:bundle:webworker": "webpack --config webpack.lint.config.js && eslint bundle/aws-lsp-codewhisperer-webworker.js # Verify compatibility with web runtime target",
         "lint:src": "eslint src/ --ext .ts,.tsx",

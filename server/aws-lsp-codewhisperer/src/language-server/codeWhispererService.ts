@@ -58,7 +58,7 @@ export abstract class CodeWhispererServiceBase {
 
     abstract generateSuggestions(request: GenerateSuggestionsRequest): Promise<GenerateSuggestionsResponse>
 
-    constructor(workspace: Workspace, codeWhispererRegion: string, codeWhispererEndpoint: string) {
+    constructor(codeWhispererRegion: string, codeWhispererEndpoint: string) {
         this.codeWhispererRegion = codeWhispererRegion
         this.codeWhispererEndpoint = codeWhispererEndpoint
     }
@@ -82,7 +82,7 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
         codeWhispererEndpoint: string,
         sdkInitializator: SDKInitializator
     ) {
-        super(workspace, codeWhispererRegion, codeWhispererEndpoint)
+        super(codeWhispererRegion, codeWhispererEndpoint)
         const options: CodeWhispererSigv4ClientConfigurationOptions = {
             region: this.codeWhispererRegion,
             endpoint: this.codeWhispererEndpoint,
@@ -138,7 +138,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         codeWhispererEndpoint: string,
         sdkInitializator: SDKInitializator
     ) {
-        super(workspace, codeWhispererRegion, codeWhispererEndpoint)
+        super(codeWhispererRegion, codeWhispererEndpoint)
         const options: CodeWhispererTokenClientConfigurationOptions = {
             region: this.codeWhispererRegion,
             endpoint: this.codeWhispererEndpoint,
@@ -274,6 +274,14 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
      */
     async listAvailableCustomizations(request: CodeWhispererTokenClient.ListAvailableCustomizationsRequest) {
         return this.client.listAvailableCustomizations(request).promise()
+    }
+
+    async listAvailableProfiles() {
+        return this.client
+            .listAvailableProfiles({
+                maxResults: 100,
+            })
+            .promise()
     }
 
     /**
