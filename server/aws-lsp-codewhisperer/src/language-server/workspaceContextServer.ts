@@ -89,8 +89,12 @@ export const WorkspaceContextServer =
 
         const updateConfiguration = async () => {
             try {
-                const workspaceContextConfig = await lsp.workspace.getConfiguration('amazonQ.workspaceContext')
-                isOptedIn = workspaceContextConfig || false
+                let workspaceContextConfig = (await lsp.workspace.getConfiguration('amazonQ.workspaceContext')) || false
+                const configJetBrains = await lsp.workspace.getConfiguration('aws.codeWhisperer')
+                if (configJetBrains) {
+                    workspaceContextConfig = workspaceContextConfig || configJetBrains['workspaceContext']
+                }
+                isOptedIn = workspaceContextConfig
                 logging.info(`Workspace context optin: ${isOptedIn}`)
             } catch (error) {
                 logging.error(`Error in GetConfiguration: ${error}`)
