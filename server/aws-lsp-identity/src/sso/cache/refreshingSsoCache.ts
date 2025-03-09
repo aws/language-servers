@@ -143,7 +143,7 @@ export class RefreshingSsoCache implements SsoCache {
         // No refreshToken?  We're done
         if (!ssoToken.refreshToken) {
             this.observability.logging.log('SSO token expired and no refresh token.')
-            return undefined
+            throw new AwsError('No refresh token available.', AwsErrorCodes.E_CANNOT_REFRESH_SSO_TOKEN)
         }
 
         // Good to go, try a refresh
@@ -185,7 +185,7 @@ export class RefreshingSsoCache implements SsoCache {
 
         // SSO session expired?  We're done
         if (!result) {
-            return undefined
+            throw new AwsError('SSO session is expired.', AwsErrorCodes.E_CANNOT_REFRESH_SSO_TOKEN)
         }
 
         UpdateSsoTokenFromCreateToken(result, clientRegistration, ssoSession, ssoToken)
