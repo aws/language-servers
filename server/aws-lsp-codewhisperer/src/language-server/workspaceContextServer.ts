@@ -193,8 +193,8 @@ export const WorkspaceContextServer =
             }
 
             const message = JSON.stringify({
-                action: 'textDocument/didSave',
-                message: {
+                method: 'textDocument/didSave',
+                params: {
                     textDocument: getRelativePath(fileMetadata.workspaceFolder, event.textDocument.uri),
                     workspaceChangeMetadata: {
                         workspaceId: workspaceDetails.workspaceId,
