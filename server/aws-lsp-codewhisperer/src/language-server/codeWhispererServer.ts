@@ -41,7 +41,7 @@ import { TelemetryService } from './telemetryService'
 import { AcceptedSuggestionEntry, CodeDiffTracker } from './telemetry/codeDiffTracker'
 import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../constants'
 import { AmazonQTokenServiceManager } from './amazonQServiceManager/AmazonQTokenServiceManager'
-import { AmazonQError, AmazonQLspResponseError } from './amazonQServiceManager/errors'
+import { AmazonQError } from './amazonQServiceManager/errors'
 
 const EMPTY_RESULT = { sessionId: '', items: [] }
 export const CONTEXT_CHARACTERS_LIMIT = 10240
@@ -325,7 +325,7 @@ export const CodewhispererServerFactory =
         const onInlineCompletionHandler = async (
             params: InlineCompletionWithReferencesParams,
             token: CancellationToken
-        ): Promise<InlineCompletionListWithReferences | AmazonQLspResponseError> => {
+        ): Promise<InlineCompletionListWithReferences> => {
             // On every new completion request close current inflight session.
             const currentSession = sessionManager.getCurrentSession()
             if (currentSession && currentSession.state == 'REQUESTING') {
@@ -537,7 +537,7 @@ export const CodewhispererServerFactory =
                         sessionManager.closeSession(newSession)
 
                         if (error instanceof AmazonQError) {
-                            return new ResponseError(
+                            throw new ResponseError(
                                 LSPErrorCodes.RequestFailed,
                                 error.message || 'Error processing suggestion requests',
                                 {

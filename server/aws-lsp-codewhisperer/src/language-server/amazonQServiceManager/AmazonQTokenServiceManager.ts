@@ -14,16 +14,11 @@ import { CodeWhispererServiceToken } from '../codeWhispererService'
 import { getSsoConnectionType } from '../utils'
 import {
     AmazonQError,
-    AmazonQLspResponseError,
     AmazonQServiceInvalidProfileError,
     AmazonQServiceNotInitializedError,
     AmazonQServicePendingProfileError,
     AmazonQServicePendingSigninError,
 } from './errors'
-
-interface AmazonQConfig {
-    profileArn?: string
-}
 
 interface Features {
     lsp: Lsp
@@ -110,25 +105,23 @@ export class AmazonQTokenServiceManager {
 
         this.logging?.log(`Amazon Q server: setting Q Language Server Configuration handler`)
 
-        this.features.lsp.workspace.onUpdateConfiguration(
-            async (params: UpdateConfigurationParams): Promise<undefined | AmazonQLspResponseError> => {
-                try {
-                    if (params.section === 'amazon.q' && params.settings.profileArn) {
-                        await this.handleProfileChange(params.settings.profileArn)
-                    }
-                } catch (error) {
-                    this.logging?.log(`Error handling configuration change: ${error}`)
-
-                    if (error instanceof AmazonQError) {
-                        return new ResponseError(LSPErrorCodes.RequestFailed, error.message, {
-                            awsErrorCode: error.code,
-                        })
-                    }
-
-                    return new ResponseError(LSPErrorCodes.RequestFailed, 'Failed to update configuration')
+        this.features.lsp.workspace.onUpdateConfiguration(async (params: UpdateConfigurationParams) => {
+            try {
+                if (params.section === 'amazon.q' && params.settings.profileArn) {
+                    await this.handleProfileChange(params.settings.profileArn)
                 }
+            } catch (error) {
+                this.logging?.log(`Error handling configuration change: ${error}`)
+
+                if (error instanceof AmazonQError) {
+                    throw new ResponseError(LSPErrorCodes.RequestFailed, error.message, {
+                        awsErrorCode: error.code,
+                    })
+                }
+
+                throw new ResponseError(LSPErrorCodes.RequestFailed, 'Failed to update configuration')
             }
-        )
+        })
     }
 
     private async handleProfileChange(newProfileArn: string): Promise<void> {

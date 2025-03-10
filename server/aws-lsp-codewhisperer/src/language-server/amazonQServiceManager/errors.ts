@@ -1,4 +1,4 @@
-import { AwsResponseError, ResponseError } from '@aws/language-server-runtimes/protocol'
+import { AwsResponseError } from '@aws/language-server-runtimes/protocol'
 
 // Base error class for Amazon Q
 export class AmazonQError extends Error {
@@ -58,5 +58,3 @@ export class AmazonQServiceInvalidProfileError extends AmazonQError {
         this.name = 'AmazonQServiceInvalidProfileError'
     }
 }
-
-export type AmazonQLspResponseError = AwsResponseError
