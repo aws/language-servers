@@ -12,14 +12,14 @@ import { BUILDER_ID_START_URL } from './constants'
 
 describe('getBearerTokenFromProvider', () => {
     const mockToken = 'mockToken'
-    const mockCredsProvider: CredentialsProvider = {
-        hasCredentials: sinon.stub().returns(true),
-        getCredentials: sinon.stub().returns({ token: mockToken }),
-        getConnectionMetadata: sinon.stub(),
-        getConnectionType: sinon.stub(),
-    }
     it('returns the bearer token from the provider', () => {
-        assert.strictEqual(getBearerTokenFromProvider(mockCredsProvider), mockToken)
+        const mockCredentialsProvider: CredentialsProvider = {
+            hasCredentials: sinon.stub().returns(true),
+            getCredentials: sinon.stub().returns({ token: mockToken }),
+            getConnectionMetadata: sinon.stub(),
+            getConnectionType: sinon.stub(),
+        }
+        assert.strictEqual(getBearerTokenFromProvider(mockCredentialsProvider), mockToken)
     })
 
     it('throws an error if the credentials does not contain bearer credentials', () => {
@@ -37,8 +37,14 @@ describe('getBearerTokenFromProvider', () => {
     })
 
     it('throws an error if token is empty in bearer token', () => {
+        const mockCredentialsProvider: CredentialsProvider = {
+            hasCredentials: sinon.stub().returns(true),
+            getCredentials: sinon.stub().returns({ token: '' }),
+            getConnectionMetadata: sinon.stub(),
+            getConnectionType: sinon.stub(),
+        }
         assert.throws(
-            () => getBearerTokenFromProvider(mockCredsProvider),
+            () => getBearerTokenFromProvider(mockCredentialsProvider),
             Error,
             'credentialsProvider does not have bearer token credentials'
         )
