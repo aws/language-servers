@@ -118,7 +118,7 @@ describe('MynahUI', () => {
 
             inboundChatApi.openTab()
 
-            sinon.assert.calledOnceWithExactly(createTabStub, false, false)
+            sinon.assert.calledOnceWithExactly(createTabStub, true, false)
             sinon.assert.notCalled(selectTabSpy)
             sinon.assert.calledOnce(onOpenTabSpy)
         })

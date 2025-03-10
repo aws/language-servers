@@ -278,8 +278,8 @@ export const createMynahUi = (
         return tabId ? mynahUi.getAllTabs()[tabId]?.store : undefined
     }
 
-    const createTabId = () => {
-        const tabId = mynahUi.updateStore('', tabFactory.createTab(false, disclaimerCardActive))
+    const createTabId = (needWelcomeMessages: boolean = false) => {
+        const tabId = mynahUi.updateStore('', tabFactory.createTab(needWelcomeMessages, disclaimerCardActive))
         if (tabId === undefined) {
             mynahUi.notify({
                 content: uiComponentsTexts.noMoreTabsTooltip,
@@ -405,7 +405,7 @@ ${params.message}`,
             mynahUi.selectTab(tabId)
         }
         if (!tabId) {
-            tabId = createTabId()
+            tabId = createTabId(true)
         }
 
         if (tabId) {
