@@ -29,18 +29,6 @@ export const QChatServer =
             sdkInitializator
         )
 
-        const QServerConfigurationManager = AmazonQTokenServiceManager.getInstance({
-            lsp,
-            logging,
-            sdkInitializator,
-            runtime,
-            workspace,
-            credentialsProvider,
-        })
-        QServerConfigurationManager.addListener('profileArnChanged', ({ newRegion, newEndpoint }) => {
-            // TODO: Update/re-instantiate codeWhispererService on profile change
-        })
-
         const telemetryService = new TelemetryService(
             credentialsProvider,
             'bearer',

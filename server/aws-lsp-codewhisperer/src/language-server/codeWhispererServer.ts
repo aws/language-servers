@@ -42,6 +42,8 @@ import { AcceptedSuggestionEntry, CodeDiffTracker } from './telemetry/codeDiffTr
 import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../constants'
 import { AmazonQTokenServiceManager } from './amazonQServiceManager/AmazonQTokenServiceManager'
 import { AmazonQError } from './amazonQServiceManager/errors'
+import { AmazonQIAMServiceManager } from './amazonQServiceManager/AmazonQIAMServiceManager'
+import { BaseAmazonQServiceManager } from './amazonQServiceManager/BaseAmazonQServiceManager'
 
 const EMPTY_RESULT = { sessionId: '', items: [] }
 export const CONTEXT_CHARACTERS_LIMIT = 10240
@@ -258,22 +260,38 @@ export const CodewhispererServerFactory =
             sdkInitializator
         )
 
+        let QServerConfigurationManager: BaseAmazonQServiceManager
         const serviceType = codeWhispererService.constructor.name
-        if (serviceType !== 'CodeWhispererServiceIAM' && serviceType !== 'CodeWhispererServiceToken') {
-            throw new Error('Unexpected CodewhispererService object')
+        if (serviceType === 'CodeWhispererServiceToken') {
+            QServerConfigurationManager = AmazonQTokenServiceManager.getInstance({
+                lsp,
+                logging,
+                credentialsProvider,
+                sdkInitializator,
+                workspace,
+                runtime,
+            })
+        } else if (serviceType === 'CodeWhispererServiceIAM') {
+            QServerConfigurationManager = AmazonQIAMServiceManager.getInstance({
+                lsp,
+                logging,
+                credentialsProvider,
+                sdkInitializator,
+                workspace,
+                runtime,
+            })
+        } else {
+            // Fallback to default passed service factory
+            QServerConfigurationManager = {
+                getCodewhispererService: () => {
+                    return codeWhispererService
+                },
+            }
         }
-
-        const QServerConfigurationManager = AmazonQTokenServiceManager.getInstance({
-            lsp,
-            logging,
-            credentialsProvider,
-            sdkInitializator,
-            workspace,
-            runtime,
-        })
 
         const telemetryService = new TelemetryService(
             credentialsProvider,
+            // TODO: stop relying of this method for TelelemetryService
             codeWhispererService.getCredentialsType(),
             telemetry,
             logging,
