@@ -23,8 +23,14 @@ describe('getBearerTokenFromProvider', () => {
     })
 
     it('throws an error if the credentials does not contain bearer credentials', () => {
+        const mockCredentialsProvider: CredentialsProvider = {
+            hasCredentials: sinon.stub().returns(false),
+            getCredentials: sinon.stub().returns({ token: mockToken }),
+            getConnectionMetadata: sinon.stub(),
+            getConnectionType: sinon.stub(),
+        }
         assert.throws(
-            () => getBearerTokenFromProvider(mockCredsProvider),
+            () => getBearerTokenFromProvider(mockCredentialsProvider),
             Error,
             'credentialsProvider does not have bearer token credentials'
         )
