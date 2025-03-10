@@ -14,6 +14,9 @@ import {
     TextDocument,
     Workspace,
     SDKInitializator,
+    ResponseError,
+    ErrorCodes,
+    LSPErrorCodes,
 } from '@aws/language-server-runtimes/server-interface'
 import { AWSError } from 'aws-sdk'
 import { autoTrigger, triggerType } from './auto-trigger/autoTrigger'
@@ -28,11 +31,7 @@ import { CodewhispererLanguage, getSupportedLanguageId } from './languageDetecti
 import { truncateOverlapWithRightContext } from './mergeRightUtils'
 import { CodeWhispererSession, SessionManager } from './session/sessionManager'
 import { CodePercentageTracker } from './telemetry/codePercentage'
-import {
-    CodeWhispererPerceivedLatencyEvent,
-    CodeWhispererServiceInvocationEvent,
-    CodeWhispererUserDecisionEvent,
-} from './telemetry/types'
+import { CodeWhispererPerceivedLatencyEvent, CodeWhispererServiceInvocationEvent } from './telemetry/types'
 import { getCompletionType, getEndPositionForAcceptedSuggestion, isAwsError } from './utils'
 import { getUserAgent, makeUserContextObject } from './utilities/telemetryUtils'
 import { Q_CONFIGURATION_SECTION } from './configuration/qConfigurationServer'
@@ -41,6 +40,10 @@ import { undefinedIfEmpty } from './utilities/textUtils'
 import { TelemetryService } from './telemetryService'
 import { AcceptedSuggestionEntry, CodeDiffTracker } from './telemetry/codeDiffTracker'
 import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../constants'
+import { AmazonQTokenServiceManager } from './amazonQServiceManager/AmazonQTokenServiceManager'
+import { AmazonQError } from './amazonQServiceManager/errors'
+import { AmazonQIAMServiceManager } from './amazonQServiceManager/AmazonQIAMServiceManager'
+import { BaseAmazonQServiceManager } from './amazonQServiceManager/BaseAmazonQServiceManager'
 
 const EMPTY_RESULT = { sessionId: '', items: [] }
 export const CONTEXT_CHARACTERS_LIMIT = 10240
@@ -256,8 +259,39 @@ export const CodewhispererServerFactory =
             awsQEndpointUrl,
             sdkInitializator
         )
+
+        let QServerConfigurationManager: BaseAmazonQServiceManager
+        const serviceType = codeWhispererService.constructor.name
+        if (serviceType === 'CodeWhispererServiceToken') {
+            QServerConfigurationManager = AmazonQTokenServiceManager.getInstance({
+                lsp,
+                logging,
+                credentialsProvider,
+                sdkInitializator,
+                workspace,
+                runtime,
+            })
+        } else if (serviceType === 'CodeWhispererServiceIAM') {
+            QServerConfigurationManager = AmazonQIAMServiceManager.getInstance({
+                lsp,
+                logging,
+                credentialsProvider,
+                sdkInitializator,
+                workspace,
+                runtime,
+            })
+        } else {
+            // Fallback to default passed service factory
+            QServerConfigurationManager = {
+                getCodewhispererService: () => {
+                    return codeWhispererService
+                },
+            }
+        }
+
         const telemetryService = new TelemetryService(
             credentialsProvider,
+            // TODO: stop relying of this method for TelelemetryService
             codeWhispererService.getCredentialsType(),
             telemetry,
             logging,
@@ -268,6 +302,7 @@ export const CodewhispererServerFactory =
         )
 
         lsp.addInitializer((params: InitializeParams) => {
+            // TODO: move initialization of service to ServiceManager. Delay all calls to Q LSP until service exists
             codeWhispererService.updateClientConfig({
                 customUserAgent: getUserAgent(params, runtime.serverInfo),
             })
@@ -407,7 +442,7 @@ export const CodewhispererServerFactory =
                     customizationArn: undefinedIfEmpty(codeWhispererService.customizationArn),
                 })
 
-                return codeWhispererService
+                return QServerConfigurationManager.getCodewhispererService()
                     .generateSuggestions({
                         ...requestContext,
                         fileContext: {
@@ -511,13 +546,23 @@ export const CodewhispererServerFactory =
 
                         return { items: suggestionsWithRightContext, sessionId: newSession.id }
                     })
-                    .catch(err => {
+                    .catch(error => {
                         // TODO, handle errors properly
-                        logging.log('Recommendation failure: ' + err)
-                        emitServiceInvocationFailure(telemetry, newSession, err)
+                        logging.log('Recommendation failure: ' + error)
+                        emitServiceInvocationFailure(telemetry, newSession, error)
 
                         // TODO: check if we can/should emit UserTriggerDecision
                         sessionManager.closeSession(newSession)
+
+                        if (error instanceof AmazonQError) {
+                            throw new ResponseError(
+                                LSPErrorCodes.RequestFailed,
+                                error.message || 'Error processing suggestion requests',
+                                {
+                                    awsErrorCode: error.code,
+                                }
+                            )
+                        }
 
                         return EMPTY_RESULT
                     })
@@ -600,9 +645,9 @@ export const CodewhispererServerFactory =
                         `Inline completion configuration updated to use ${codeWhispererService.customizationArn}`
                     )
                     /*
-                                                        The flag enableTelemetryEventsToDestination is set to true temporarily. It's value will be determined through destination
-                                                        configuration post all events migration to STE. It'll be replaced by qConfig['enableTelemetryEventsToDestination'] === true
-                                                     */
+                                                            The flag enableTelemetryEventsToDestination is set to true temporarily. It's value will be determined through destination
+                                                            configuration post all events migration to STE. It'll be replaced by qConfig['enableTelemetryEventsToDestination'] === true
+                                                         */
                     // const enableTelemetryEventsToDestination = true
                     // telemetryService.updateEnableTelemetryEventsToDestination(enableTelemetryEventsToDestination)
                     const optOutTelemetryPreference = qConfig['optOutTelemetry'] === true ? 'OPTOUT' : 'OPTIN'
@@ -627,6 +672,7 @@ export const CodewhispererServerFactory =
             }
         }
 
+        // TODO: Update protocol to start returning errors
         lsp.extensions.onInlineCompletionWithReferences(onInlineCompletionHandler)
         lsp.extensions.onLogInlineCompletionSessionResults(onLogInlineCompletionSessionResultsHandler)
         lsp.onInitialized(updateConfiguration)
