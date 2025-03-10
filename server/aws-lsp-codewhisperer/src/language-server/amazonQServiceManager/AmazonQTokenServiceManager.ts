@@ -19,6 +19,7 @@ import {
     AmazonQServicePendingProfileError,
     AmazonQServicePendingSigninError,
 } from './errors'
+import { BaseAmazonQServiceManager } from './BaseAmazonQServiceManager'
 
 interface Features {
     lsp: Lsp
@@ -35,7 +36,7 @@ interface AmazonQDeveloperProfile {
     region: string
 }
 
-export class AmazonQTokenServiceManager {
+export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
     private static instance: AmazonQTokenServiceManager | null = null
     private features?: Features
     private logging?: Logging
