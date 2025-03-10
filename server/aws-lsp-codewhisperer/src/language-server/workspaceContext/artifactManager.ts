@@ -152,7 +152,7 @@ export class ArtifactManager {
     async getFileMetadata(currentWorkspace: WorkspaceFolder, filePath: string): Promise<FileMetadata> {
         const workspaceUri = URI.parse(currentWorkspace.uri)
         const fileUri = URI.parse(filePath)
-        const relativePath = path.join(currentWorkspace.name, path.relative(workspaceUri.path, fileUri.path))
+        // const relativePath = path.join(currentWorkspace.name, path.relative(workspaceUri.path, fileUri.path))
 
         const language = getCodeWhispererLanguageIdFromPath(filePath)
         if (!language || !SUPPORTED_WORKSPACE_CONTEXT_LANGUAGES.includes(language)) {
@@ -163,8 +163,7 @@ export class ArtifactManager {
             fileUri.path,
             path.relative(workspaceUri.path, fileUri.path),
             language,
-            currentWorkspace,
-            true
+            currentWorkspace
         )
 
         const zippedMetadata = await this.createZipForFile(
@@ -191,8 +190,7 @@ export class ArtifactManager {
         filePath: string,
         relativePath: string,
         language: CodewhispererLanguage,
-        workspaceFolder: WorkspaceFolder,
-        shouldCalculateHash = false
+        workspaceFolder: WorkspaceFolder
     ): Promise<FileMetadata> {
         const fileContent = this.workspace.fs.readFileSync(filePath)
 
