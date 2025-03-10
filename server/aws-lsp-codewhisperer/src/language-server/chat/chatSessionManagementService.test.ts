@@ -34,6 +34,7 @@ describe('ChatSessionManagementService', () => {
             hasCredentials: sinon.stub().returns(true),
             getCredentials: sinon.stub().returns(Promise.resolve({ token: 'mockToken' })),
             getConnectionMetadata: sinon.stub(),
+            getConnectionType: sinon.stub(),
         }
 
         const mockSessionId2 = 'mockSessionId2'

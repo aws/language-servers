@@ -17,6 +17,7 @@ import {
     FollowUpClickParams,
     InfoLinkClickParams,
     LinkClickParams,
+    OpenTabResult,
     QuickActionParams,
     SourceLinkClickParams,
     TabAddParams,
@@ -58,6 +59,7 @@ export interface OutboundChatApi {
     infoLinkClick(params: InfoLinkClickParams): void
     uiReady(): void
     disclaimerAcknowledged(): void
+    onOpenTab(result: OpenTabResult): void
 }
 
 export class Messager {
@@ -151,5 +153,9 @@ export class Messager {
 
     onError = (params: ErrorParams): void => {
         this.chatApi.telemetry({ ...params, name: ERROR_MESSAGE_TELEMETRY_EVENT })
+    }
+
+    onOpenTab = (tabId: string): void => {
+        this.chatApi.onOpenTab({ tabId })
     }
 }

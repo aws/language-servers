@@ -11,6 +11,7 @@ import {
     SDKInitializator,
     SDKClientConstructorV2,
     SDKClientConstructorV3,
+    SsoConnectionType,
 } from '@aws/language-server-runtimes/server-interface'
 import { UserContext, OptOutPreference } from '../client/token/codewhispererbearertokenclient'
 import { CodeWhispererSession } from './session/sessionManager'
@@ -24,6 +25,7 @@ class MockCredentialsProvider implements CredentialsProvider {
     private mockIamCredentials: IamCredentials | undefined
     private mockBearerCredentials: BearerCredentials | undefined
     private mockConnectionMetadata: ConnectionMetadata | undefined
+    private mockConnectionType: SsoConnectionType | undefined
 
     hasCredentials(type: CredentialsType): boolean {
         if (type === 'iam') {
@@ -47,8 +49,16 @@ class MockCredentialsProvider implements CredentialsProvider {
         return this.mockConnectionMetadata
     }
 
+    getConnectionType(): SsoConnectionType {
+        return this.mockConnectionType ?? 'none'
+    }
+
     setConnectionMetadata(metadata: ConnectionMetadata | undefined) {
         this.mockConnectionMetadata = metadata
+    }
+
+    setConnectionType(connectionType: SsoConnectionType | undefined) {
+        this.mockConnectionType = connectionType
     }
 }
 

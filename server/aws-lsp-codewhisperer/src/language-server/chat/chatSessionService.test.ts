@@ -24,6 +24,7 @@ describe('Chat Session Service', () => {
         hasCredentials: sinon.stub().returns(true),
         getCredentials: sinon.stub().returns(Promise.resolve({ token: 'mockToken ' })),
         getConnectionMetadata: sinon.stub(),
+        getConnectionType: sinon.stub(),
     }
     const awsQRegion: string = DEFAULT_AWS_Q_REGION
     const awsQEndpointUrl: string = DEFAULT_AWS_Q_ENDPOINT_URL
