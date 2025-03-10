@@ -28,6 +28,8 @@ import {
     InfoLinkClickParams,
     LINK_CLICK_NOTIFICATION_METHOD,
     LinkClickParams,
+    OPEN_TAB_REQUEST_METHOD,
+    OpenTabResult,
     QUICK_ACTION_REQUEST_METHOD,
     QuickActionParams,
     READY_NOTIFICATION_METHOD,
@@ -75,6 +77,9 @@ export const createChat = (
         switch (message?.command) {
             case CHAT_REQUEST_METHOD:
                 mynahApi.addChatResponse(message.params, message.tabId, message.isPartialResult)
+                break
+            case OPEN_TAB_REQUEST_METHOD:
+                mynahApi.openTab(message.tabId)
                 break
             case SEND_TO_PROMPT:
                 mynahApi.sendToPrompt((message as SendToPromptMessage).params)
@@ -160,6 +165,9 @@ export const createChat = (
         },
         disclaimerAcknowledged: () => {
             sendMessageToClient({ command: DISCLAIMER_ACKNOWLEDGED })
+        },
+        onOpenTab: (result: OpenTabResult) => {
+            sendMessageToClient({ command: OPEN_TAB_REQUEST_METHOD, params: result })
         },
     }
 

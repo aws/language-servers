@@ -31,6 +31,7 @@ export interface InboundChatApi {
     sendToPrompt(params: SendToPromptParams): void
     sendGenericCommand(params: GenericCommandParams): void
     showError(params: ErrorParams): void
+    openTab(tabId?: string): void
 }
 
 export const handleChatPrompt = (
@@ -399,11 +400,25 @@ ${params.message}`,
         messager.onError(params)
     }
 
+    const openTab = (tabId?: string) => {
+        if (tabId && tabId !== mynahUi.getSelectedTabId()) {
+            mynahUi.selectTab(tabId)
+        }
+        if (!tabId) {
+            tabId = createTabId()
+        }
+
+        if (tabId) {
+            messager.onOpenTab(tabId)
+        }
+    }
+
     const api = {
         addChatResponse: addChatResponse,
         sendToPrompt: sendToPrompt,
         sendGenericCommand: sendGenericCommand,
         showError: showError,
+        openTab: openTab,
     }
 
     return [mynahUi, api]
