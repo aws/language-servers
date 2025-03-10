@@ -4,6 +4,8 @@ import {
     ErrorCodes,
     FeedbackParams,
     InsertToCursorPositionParams,
+    OpenTabParams,
+    OpenTabResult,
     TextDocumentEdit,
     TextEdit,
     chatRequestType,
@@ -42,7 +44,7 @@ import { Q_CONFIGURATION_SECTION } from '../configuration/qConfigurationServer'
 import { undefinedIfEmpty } from '../utilities/textUtils'
 import { TelemetryService } from '../telemetryService'
 
-type ChatHandlers = LspHandlers<Chat>
+type ChatHandlers = Omit<LspHandlers<Chat>, 'openTab'>
 
 export class ChatController implements ChatHandlers {
     #features: Features
