@@ -17,6 +17,7 @@ import {
     ResponseError,
     ErrorCodes,
     LSPErrorCodes,
+    CredentialsType,
 } from '@aws/language-server-runtimes/server-interface'
 import { AWSError } from 'aws-sdk'
 import { autoTrigger, triggerType } from './auto-trigger/autoTrigger'
@@ -252,7 +253,7 @@ export const CodewhispererServerFactory =
 
         const awsQRegion = runtime.getConfiguration('AWS_Q_REGION') ?? DEFAULT_AWS_Q_REGION
         const awsQEndpointUrl = runtime.getConfiguration('AWS_Q_ENDPOINT_URL') ?? DEFAULT_AWS_Q_ENDPOINT_URL
-        const codeWhispererService = service(
+        const fallbackCodeWhispererService = service(
             credentialsProvider,
             workspace,
             awsQRegion,
@@ -260,8 +261,9 @@ export const CodewhispererServerFactory =
             sdkInitializator
         )
 
+        let credentialsType: CredentialsType
         let AmazonQServiceManager: BaseAmazonQServiceManager
-        const serviceType = codeWhispererService.constructor.name
+        const serviceType = fallbackCodeWhispererService.constructor.name
         if (serviceType === 'CodeWhispererServiceToken') {
             AmazonQServiceManager = AmazonQTokenServiceManager.getInstance({
                 lsp,
@@ -271,6 +273,7 @@ export const CodewhispererServerFactory =
                 workspace,
                 runtime,
             })
+            credentialsType = 'bearer'
         } else if (serviceType === 'CodeWhispererServiceIAM') {
             AmazonQServiceManager = AmazonQIAMServiceManager.getInstance({
                 lsp,
@@ -280,19 +283,20 @@ export const CodewhispererServerFactory =
                 workspace,
                 runtime,
             })
+            credentialsType = 'iam'
         } else {
             // Fallback to default passed service factory
             AmazonQServiceManager = {
                 getCodewhispererService: () => {
-                    return codeWhispererService
+                    return fallbackCodeWhispererService
                 },
             }
+            credentialsType = fallbackCodeWhispererService.getCredentialsType()
         }
 
         const telemetryService = new TelemetryService(
             credentialsProvider,
-            // TODO: stop relying of this method for TelelemetryService
-            codeWhispererService.getCredentialsType(),
+            credentialsType,
             telemetry,
             logging,
             workspace,
@@ -302,9 +306,10 @@ export const CodewhispererServerFactory =
         )
 
         lsp.addInitializer((params: InitializeParams) => {
-            // TODO: move initialization of service to ServiceManager.
-            // Delay all calls to Q LSP until service exists
-            codeWhispererService.updateClientConfig({
+            // TODO: handle initialization in SessionManager to setup UserAgent correcty.
+            // TODO: Review configuration options expected in other features
+            // TODO: review how to support Chat server with service manager (maybe in separate PR).
+            fallbackCodeWhispererService.updateClientConfig({
                 customUserAgent: getUserAgent(params, runtime.serverInfo),
             })
             telemetryService.updateClientConfig({
@@ -658,15 +663,15 @@ export const CodewhispererServerFactory =
             try {
                 const qConfig = await lsp.workspace.getConfiguration(Q_CONFIGURATION_SECTION)
                 if (qConfig) {
-                    codeWhispererService.customizationArn = undefinedIfEmpty(qConfig.customization)
+                    fallbackCodeWhispererService.customizationArn = undefinedIfEmpty(qConfig.customization)
                     codePercentageTracker.customizationArn = undefinedIfEmpty(qConfig.customization)
                     logging.log(
-                        `Inline completion configuration updated to use ${codeWhispererService.customizationArn}`
+                        `Inline completion configuration updated to use ${fallbackCodeWhispererService.customizationArn}`
                     )
                     /*
-                                                            The flag enableTelemetryEventsToDestination is set to true temporarily. It's value will be determined through destination
-                                                            configuration post all events migration to STE. It'll be replaced by qConfig['enableTelemetryEventsToDestination'] === true
-                                                         */
+                        The flag enableTelemetryEventsToDestination is set to true temporarily. It's value will be determined through destination
+                        configuration post all events migration to STE. It'll be replaced by qConfig['enableTelemetryEventsToDestination'] === true
+                    */
                     // const enableTelemetryEventsToDestination = true
                     // telemetryService.updateEnableTelemetryEventsToDestination(enableTelemetryEventsToDestination)
                     const optOutTelemetryPreference = qConfig['optOutTelemetry'] === true ? 'OPTOUT' : 'OPTIN'
@@ -681,10 +686,10 @@ export const CodewhispererServerFactory =
                     `Configuration updated to ${includeSuggestionsWithCodeReferences ? 'include' : 'exclude'} suggestions with code references`
                 )
 
-                codeWhispererService.shareCodeWhispererContentWithAWS =
+                fallbackCodeWhispererService.shareCodeWhispererContentWithAWS =
                     config['shareCodeWhispererContentWithAWS'] === true
                 logging.log(
-                    `Configuration updated to ${codeWhispererService.shareCodeWhispererContentWithAWS ? 'share' : 'not share'} Amazon Q content with AWS`
+                    `Configuration updated to ${fallbackCodeWhispererService.shareCodeWhispererContentWithAWS ? 'share' : 'not share'} Amazon Q content with AWS`
                 )
             } catch (error) {
                 logging.log(`Error in GetConfiguration: ${error}`)

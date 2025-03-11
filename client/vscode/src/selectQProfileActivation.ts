@@ -20,7 +20,7 @@ export async function registerQProfileSelection(languageClient: LanguageClient):
 function setProfile(languageClient: LanguageClient, profileArn: string) {
     return async () => {
         const result = await languageClient.sendRequest(updateConfigurationRequestType.method, {
-            section: 'amazon.q',
+            section: 'aws.q',
             settings: {
                 profileArn: profileArn,
             },

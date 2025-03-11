@@ -22,8 +22,9 @@ import {
     AmazonQServicePendingSigninError,
 } from './errors'
 import { BaseAmazonQServiceManager } from './BaseAmazonQServiceManager'
-import { Q_LSP_CONFIGURATION_SECTION } from '../constants'
 import { listAvailableProfiles } from './listAvailableProfilesMock'
+import { Q_CONFIGURATION_SECTION } from '../configuration/qConfigurationServer'
+import { undefinedIfEmpty } from '../utilities/textUtils'
 
 export interface Features {
     lsp: Lsp
@@ -45,6 +46,7 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
     private features!: Features
     private logging!: Logging
     private cachedCodewhispererService?: CodeWhispererServiceToken
+    private configurationCache = new Map()
     private activeIdcProfile?: AmazonQDeveloperProfile
     private connectionType?: 'builderId' | 'identityCenter' | 'none'
     private serviceStatus: 'PENDING_CONNECTION' | 'PENDING_Q_PROFILE' | 'PENDING_Q_PROFILE_UPDATE' | 'INITIALIZED' =
@@ -61,13 +63,15 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
     }
 
     private initialize(features: Features): void {
-        if (!this.features) {
+        if (!features || !features.logging || !features.lsp) {
             throw new Error('Service features not initialized. Please ensure proper initialization.')
         }
         this.features = features
         this.logging = features.logging
 
-        this.handleSsoConnectionChange()
+        this.connectionType = 'none'
+        this.serviceStatus = 'PENDING_CONNECTION'
+
         this.setupAuthListener()
         this.setupConfigurationListener()
 
@@ -76,6 +80,27 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
 
     private setupAuthListener(): void {
         // TODO: listen on changes to credentials and signout events from client to manage state correctly.
+    }
+
+    private setupConfigurationListener(): void {
+        this.features.lsp.onInitialized(this.handleDidChangeConfiguration)
+        this.features.lsp.didChangeConfiguration(this.handleDidChangeConfiguration)
+
+        this.features.lsp.workspace.onUpdateConfiguration(async (params: UpdateConfigurationParams) => {
+            try {
+                if (params.section === Q_CONFIGURATION_SECTION && params.settings.profileArn) {
+                    await this.handleProfileChange(params.settings.profileArn)
+                }
+            } catch (error) {
+                if (error instanceof AmazonQError) {
+                    throw new ResponseError(LSPErrorCodes.RequestFailed, error.message, {
+                        awsErrorCode: error.code,
+                    })
+                }
+
+                throw new ResponseError(LSPErrorCodes.RequestFailed, 'Failed to update configuration')
+            }
+        })
     }
 
     private handleSsoConnectionChange() {
@@ -128,42 +153,59 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
             this.serviceStatus = 'PENDING_Q_PROFILE'
 
             this.logServiceState('Pending profile selection for IDC connection')
-
-            // if (!this.activeIdcProfile) {
-            //     this.logging?.log('[Amazon Q Validate Connection] Profile is not set for connectionType identityCenter')
-
-            //     this.connectionType = 'identityCenter'
-            //     this.serviceStatus = 'PENDING_Q_PROFILE'
-
-            //     this.logging?.log(
-            //         `[Amazon Q Validate Connection] New State: connectionType=${this.connectionType}, serviceStatus=${this.serviceStatus}`
-            //     )
-
-            //     return
-            // }
-
-            // this.initializeCodewhispererService('identityCenter', this.activeIdcProfile.region)
         }
 
         this.logServiceState('Unknown Connection state')
     }
 
-    private setupConfigurationListener(): void {
-        this.features.lsp.workspace.onUpdateConfiguration(async (params: UpdateConfigurationParams) => {
-            try {
-                if (params.section === Q_LSP_CONFIGURATION_SECTION && params.settings.profileArn) {
-                    await this.handleProfileChange(params.settings.profileArn)
-                }
-            } catch (error) {
-                if (error instanceof AmazonQError) {
-                    throw new ResponseError(LSPErrorCodes.RequestFailed, error.message, {
-                        awsErrorCode: error.code,
-                    })
-                }
+    private async handleDidChangeConfiguration() {
+        // TODO: Reconfigure existing CodewhispererService when configuration change is detected
+        try {
+            const qConfig = await this.features.lsp.workspace.getConfiguration(Q_CONFIGURATION_SECTION)
+            if (qConfig) {
+                // aws.q.customizationArn - selected customization
+                const customizationArn = undefinedIfEmpty(qConfig.customization)
+                this.configurationCache.set('customizationArn', customizationArn)
+                this.logging.log(`Amazon Q Service Configuration updated to use ${customizationArn}`)
 
-                throw new ResponseError(LSPErrorCodes.RequestFailed, 'Failed to update configuration')
+                // aws.q.optOutTelemetry - telemetry optout option
+                const optOutTelemetryPreference = qConfig['optOutTelemetry'] === true ? 'OPTOUT' : 'OPTIN'
+                this.configurationCache.set('optOutTelemetryPreference', optOutTelemetryPreference)
+
+                if (this.cachedCodewhispererService) {
+                    this.cachedCodewhispererService.customizationArn = customizationArn
+                }
             }
-        })
+
+            const codeWhispererConfig = await this.features.lsp.workspace.getConfiguration('aws.codeWhisperer')
+            if (codeWhispererConfig) {
+                // aws.codeWhisperer.includeSuggestionsWithCodeReferences - return suggestions with code references
+                const includeSuggestionsWithCodeReferences =
+                    codeWhispererConfig['includeSuggestionsWithCodeReferences'] === true
+                this.logging.log(
+                    `Configuration updated to ${includeSuggestionsWithCodeReferences ? 'include' : 'exclude'} suggestions with code references`
+                )
+
+                // aws.codeWhisperershareCodeWhispererContentWithAWS - share content with AWS
+                const shareCodeWhispererContentWithAWS =
+                    codeWhispererConfig['shareCodeWhispererContentWithAWS'] === true
+                this.logging.log(
+                    `Configuration updated to ${shareCodeWhispererContentWithAWS ? 'share' : 'not share'} Amazon Q content with AWS`
+                )
+
+                this.configurationCache.set(
+                    'includeSuggestionsWithCodeReferences',
+                    includeSuggestionsWithCodeReferences
+                )
+                this.configurationCache.set('shareCodeWhispererContentWithAWS', shareCodeWhispererContentWithAWS)
+
+                if (this.cachedCodewhispererService) {
+                    this.cachedCodewhispererService.shareCodeWhispererContentWithAWS = shareCodeWhispererContentWithAWS
+                }
+            }
+        } catch (error) {
+            this.logging.log(`Error in GetConfiguration: ${error}`)
+        }
     }
 
     private async handleProfileChange(newProfileArn: string): Promise<void> {
@@ -172,6 +214,9 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
         }
 
         this.logServiceState('UpdateProfile is requested')
+
+        // Test if connection type changed
+        this.handleSsoConnectionChange()
 
         if (this.connectionType !== 'identityCenter') {
             this.logServiceState('Q Profile can not be set')
@@ -244,6 +289,7 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
     }
 
     public getCodewhispererService(): CodeWhispererServiceToken {
+        // Prevent initiating requests while profile is change is in progress.
         if (this.serviceStatus === 'PENDING_Q_PROFILE_UPDATE') {
             throw new AmazonQServicePendingProfileUpdateError()
         }
