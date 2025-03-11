@@ -19,6 +19,8 @@ import { URI } from 'vscode-uri'
 import { getCodeWhispererLanguageIdFromPath } from './languageDetection'
 import { DependencyDiscoverer } from './workspaceContext/dependency/dependencyDiscoverer'
 
+const Q_CONTEXT_CONFIGURATION_SECTION = 'aws.q.workspaceContext'
+
 export const WorkspaceContextServer =
     (
         service: (
@@ -85,8 +87,26 @@ export const WorkspaceContextServer =
                         },
                     },
                 },
+                awsServerCapabilities: {
+                    configurationProvider: { sections: [Q_CONTEXT_CONFIGURATION_SECTION] },
+                },
             }
         })
+
+        lsp.extensions.onGetConfigurationFromServer(
+            async (params: GetConfigurationFromServerParams, token: CancellationToken) => {
+                if (params.section === Q_CONTEXT_CONFIGURATION_SECTION) {
+                    const workspaceMap = workspaceFolderManager.getWorkspaces()
+
+                    const workspaceArray = Array.from(workspaceMap, ([workspaceRoot, workspaceState]) => ({
+                        workspaceRoot,
+                        workspaceId: workspaceState.workspaceId ?? '',
+                    }))
+
+                    return workspaceArray
+                }
+            }
+        )
 
         const updateConfiguration = async () => {
             try {
