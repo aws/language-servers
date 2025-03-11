@@ -22,8 +22,8 @@ interface Features {
 
 export class AmazonQIAMServiceManager implements BaseAmazonQServiceManager {
     private static instance: AmazonQIAMServiceManager | null = null
-    private features?: Features
-    private logging?: Logging
+    private features!: Features
+    private logging!: Logging
     private codewhispererService?: CodeWhispererServiceIAM
     private serviceStatus: 'PENDING_CONNECTION' | 'INITIALIZED' = 'PENDING_CONNECTION'
 
@@ -38,6 +38,9 @@ export class AmazonQIAMServiceManager implements BaseAmazonQServiceManager {
     }
 
     private initialize(features: Features): void {
+        if (!features) {
+            throw new Error('Service features not initialized. Please ensure proper initialization.')
+        }
         this.features = features
         this.logging = features.logging
 
@@ -47,11 +50,6 @@ export class AmazonQIAMServiceManager implements BaseAmazonQServiceManager {
     }
 
     private setupCodewhispererService() {
-        if (!this.features) {
-            throw new Error('Features not initialized')
-        }
-
-        // Starting with default region.
         const awsQRegion = this.features.runtime.getConfiguration('AWS_Q_REGION') ?? DEFAULT_AWS_Q_REGION
         const awsQEndpointUrl =
             this.features.runtime.getConfiguration('AWS_Q_ENDPOINT_URL') ?? DEFAULT_AWS_Q_ENDPOINT_URL

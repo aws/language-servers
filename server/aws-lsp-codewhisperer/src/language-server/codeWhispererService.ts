@@ -279,7 +279,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     async listAvailableProfiles() {
         return this.client
             .listAvailableProfiles({
-                maxResults: 100,
+                maxResults: 10,
             })
             .promise()
     }
