@@ -93,6 +93,21 @@
                 "category": "Test Amazon Q Extension"
             },
             {
+                "command": "aws.sample-vscode-ext-amazonq.updateProfileIad",
+                "title": "Update Amazon Q IDC Profile IAD",
+                "category": "Test Amazon Q Extension"
+            },
+            {
+                "command": "aws.sample-vscode-ext-amazonq.updateProfileFra",
+                "title": "Update Amazon Q IDC Profile FRA",
+                "category": "Test Amazon Q Extension"
+            },
+            {
+                "command": "aws.sample-vscode-ext-amazonq.updateProfileInvalid",
+                "title": "Update Amazon Q IDC Profile (Invalid)",
+                "category": "Test Amazon Q Extension"
+            },
+            {
                 "command": "aws.qNetTransform.startTransform",
                 "title": "Start Transform"
             },

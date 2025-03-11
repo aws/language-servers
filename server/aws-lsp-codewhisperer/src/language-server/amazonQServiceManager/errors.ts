@@ -1,5 +1,3 @@
-import { AwsResponseError } from '@aws/language-server-runtimes/protocol'
-
 // Base error class for Amazon Q
 export class AmazonQError extends Error {
     public code: string
@@ -40,7 +38,7 @@ export class AmazonQServiceNotInitializedError extends AmazonQError {
 
 export class AmazonQServicePendingSigninError extends AmazonQError {
     constructor(message: string = 'Amazon Q service is not signed in') {
-        super(message, 'E_AMAZON_Q_PENDING_SIGNIN')
+        super(message, 'E_AMAZON_Q_PENDING_CONNECTION')
         this.name = 'AmazonQServicePendingSigninError'
     }
 }
@@ -52,9 +50,23 @@ export class AmazonQServicePendingProfileError extends AmazonQError {
     }
 }
 
+export class AmazonQServicePendingProfileUpdateError extends AmazonQError {
+    constructor(message: string = 'Amazon Q Profile is pending update') {
+        super(message, 'E_AMAZON_Q_PENDING_PROFILE_UPDATE')
+        this.name = 'AmazonQServicePendingProfileUpdateError'
+    }
+}
+
 export class AmazonQServiceInvalidProfileError extends AmazonQError {
     constructor(message: string = 'Selected Amazon Q Profile is invalid') {
         super(message, 'E_AMAZON_Q_INVALID_PROFILE')
         this.name = 'AmazonQServiceInvalidProfileError'
+    }
+}
+
+export class AmazonQServiceNoProfileSupportError extends AmazonQError {
+    constructor(message: string = 'Current Connection type does not support Amazon Q Profiles') {
+        super(message, 'E_AMAZON_Q_CONNECTION_NO_PROFILE_SUPPORT')
+        this.name = 'AmazonQServiceNoProfileSupportError'
     }
 }

@@ -23,6 +23,7 @@ import { randomUUID } from 'crypto'
 import { registerCustomizations } from './customizationActivation'
 import { registerIdentity } from './identityActivation'
 import { registerNotification } from './notificationActivation'
+import { registerQProfileSelection } from './selectQProfileActivation'
 
 export async function activateDocumentsLanguageServer(extensionContext: ExtensionContext) {
     /**
@@ -208,6 +209,11 @@ export async function activateDocumentsLanguageServer(extensionContext: Extensio
     const enableNotification = process.env.ENABLE_NOTIFICATION === 'true'
     if (enableNotification) {
         await registerNotification(client)
+    }
+
+    const enableAmazonQProfiles = process.env.AMAZON_Q_PROFILES === 'true'
+    if (enableAmazonQProfiles) {
+        await registerQProfileSelection(client)
     }
 
     return client
