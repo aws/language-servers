@@ -8,11 +8,7 @@ import {
 } from '@aws/language-server-runtimes/server-interface'
 import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../../constants'
 import { CodeWhispererServiceIAM } from '../codeWhispererService'
-import {
-    AmazonQServiceNotInitializedError,
-    AmazonQServicePendingProfileError,
-    AmazonQServicePendingSigninError,
-} from './errors'
+import { AmazonQServiceNotInitializedError, AmazonQServicePendingSigninError } from './errors'
 import { BaseAmazonQServiceManager } from './BaseAmazonQServiceManager'
 
 interface Features {
@@ -29,7 +25,7 @@ export class AmazonQIAMServiceManager implements BaseAmazonQServiceManager {
     private features?: Features
     private logging?: Logging
     private codewhispererService?: CodeWhispererServiceIAM
-    private serviceStatus: 'UNINITIALIZED' | 'PENDING_SIGNIN' | 'PENDING_Q_PROFILE' | 'INITIALIZED' = 'UNINITIALIZED'
+    private serviceStatus: 'PENDING_CONNECTION' | 'INITIALIZED' = 'PENDING_CONNECTION'
 
     private constructor() {}
 
@@ -46,6 +42,8 @@ export class AmazonQIAMServiceManager implements BaseAmazonQServiceManager {
         this.logging = features.logging
 
         this.setupCodewhispererService()
+
+        this.logging?.log('Amazon Q: Initialized IAM credentials Service manager')
     }
 
     private setupCodewhispererService() {
@@ -71,16 +69,8 @@ export class AmazonQIAMServiceManager implements BaseAmazonQServiceManager {
     }
 
     public getCodewhispererService(): CodeWhispererServiceIAM {
-        if (this.serviceStatus === 'UNINITIALIZED') {
-            throw new AmazonQServiceNotInitializedError()
-        }
-
-        if (this.serviceStatus === 'PENDING_SIGNIN') {
+        if (this.serviceStatus === 'PENDING_CONNECTION') {
             throw new AmazonQServicePendingSigninError()
-        }
-
-        if (this.serviceStatus === 'PENDING_Q_PROFILE') {
-            throw new AmazonQServicePendingProfileError()
         }
 
         if (!this.codewhispererService) {
