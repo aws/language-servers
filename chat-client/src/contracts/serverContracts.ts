@@ -19,6 +19,8 @@ import {
     SOURCE_LINK_CLICK_NOTIFICATION_METHOD,
     INFO_LINK_CLICK_NOTIFICATION_METHOD,
     QUICK_ACTION_REQUEST_METHOD,
+    OpenTabResult,
+    OPEN_TAB_REQUEST_METHOD,
 } from '@aws/language-server-runtimes-types'
 
 export const TELEMETRY = 'telemetry/event'
@@ -36,6 +38,7 @@ export type ServerMessageCommand =
     | typeof SOURCE_LINK_CLICK_NOTIFICATION_METHOD
     | typeof INFO_LINK_CLICK_NOTIFICATION_METHOD
     | typeof QUICK_ACTION_REQUEST_METHOD
+    | typeof OPEN_TAB_REQUEST_METHOD
 
 export interface Message {
     command: ServerMessageCommand
@@ -61,3 +64,4 @@ export type ServerMessageParams =
     | InfoLinkClickParams
     | SourceLinkClickParams
     | FollowUpClickParams
+    | OpenTabResult

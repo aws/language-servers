@@ -147,6 +147,7 @@ describe('ChatController', () => {
                     startUrl: undefined,
                 },
             }),
+            getConnectionType: sinon.stub().returns('none'),
         }
 
         const mockWorkspace = {} as unknown as Workspace

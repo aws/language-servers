@@ -31,6 +31,7 @@ export interface InboundChatApi {
     sendToPrompt(params: SendToPromptParams): void
     sendGenericCommand(params: GenericCommandParams): void
     showError(params: ErrorParams): void
+    openTab(tabId?: string): void
 }
 
 export const handleChatPrompt = (
@@ -277,8 +278,8 @@ export const createMynahUi = (
         return tabId ? mynahUi.getAllTabs()[tabId]?.store : undefined
     }
 
-    const createTabId = () => {
-        const tabId = mynahUi.updateStore('', tabFactory.createTab(false, disclaimerCardActive))
+    const createTabId = (needWelcomeMessages: boolean = false) => {
+        const tabId = mynahUi.updateStore('', tabFactory.createTab(needWelcomeMessages, disclaimerCardActive))
         if (tabId === undefined) {
             mynahUi.notify({
                 content: uiComponentsTexts.noMoreTabsTooltip,
@@ -399,11 +400,25 @@ ${params.message}`,
         messager.onError(params)
     }
 
+    const openTab = (tabId?: string) => {
+        if (tabId && tabId !== mynahUi.getSelectedTabId()) {
+            mynahUi.selectTab(tabId)
+        }
+        if (!tabId) {
+            tabId = createTabId(true)
+        }
+
+        if (tabId) {
+            messager.onOpenTab(tabId)
+        }
+    }
+
     const api = {
         addChatResponse: addChatResponse,
         sendToPrompt: sendToPrompt,
         sendGenericCommand: sendGenericCommand,
         showError: showError,
+        openTab: openTab,
     }
 
     return [mynahUi, api]
