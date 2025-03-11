@@ -17,6 +17,7 @@ import {
     CodeWhispererTokenClientConfigurationOptions,
     createCodeWhispererTokenClient,
 } from '../client/token/codewhisperer'
+import * as https from 'node:https'
 
 // Define our own Suggestion interface to wrap the differences between Token and IAM Client
 export interface Suggestion extends CodeWhispererTokenClient.Completion, CodeWhispererSigv4Client.Recommendation {
@@ -154,6 +155,13 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
                     })
                 },
             ],
+            httpOptions: {
+                agent: new https.Agent({
+                    keepAlive: true,
+                    keepAliveMsecs: 30000, // Keep alive for 30 seconds
+                    maxSockets: 10, // Maximum number of sockets to allow per host
+                }),
+            },
         }
         this.client = createCodeWhispererTokenClient(options, sdkInitializator)
     }
