@@ -10,7 +10,11 @@ export const findWorkspaceRootFolder = (
     fileUri: string,
     workspaceFolders: WorkspaceFolder[]
 ): WorkspaceFolder | undefined => {
-    const matchingFolder = workspaceFolders.find(folder => fileUri.startsWith(folder.uri))
+    const matchingFolder = workspaceFolders.find(folder => {
+        const parsedFileUri = URI.parse(fileUri)
+        const parsedFolderUri = URI.parse(folder.uri)
+        return parsedFileUri.path.startsWith(parsedFolderUri.path)
+    })
     return matchingFolder ? matchingFolder : undefined
 }
 

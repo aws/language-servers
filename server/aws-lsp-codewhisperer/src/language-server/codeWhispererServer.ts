@@ -40,6 +40,8 @@ import { undefinedIfEmpty } from './utilities/textUtils'
 import { TelemetryService } from './telemetryService'
 import { AcceptedSuggestionEntry, CodeDiffTracker } from './telemetry/codeDiffTracker'
 import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../constants'
+import { WorkspaceFolderManager } from './workspaceContext/workspaceFolderManager'
+import { getRelativePath } from './workspaceContext/util'
 
 const EMPTY_RESULT = { sessionId: '', items: [] }
 export const CONTEXT_CHARACTERS_LIMIT = 10240
@@ -66,8 +68,14 @@ const getFileContext = (params: {
         end: params.textDocument.positionAt(params.textDocument.getText().length),
     })
 
+    let relativeFileName = params.textDocument.uri
+    let workspaceFolder = WorkspaceFolderManager.getInstance()?.getWorkspaceFolder(params.textDocument.uri)
+    if (workspaceFolder) {
+        relativeFileName = getRelativePath(workspaceFolder, params.textDocument.uri)
+    }
+
     return {
-        filename: params.textDocument.uri,
+        filename: relativeFileName,
         programmingLanguage: {
             languageName: params.inferredLanguageId,
         },

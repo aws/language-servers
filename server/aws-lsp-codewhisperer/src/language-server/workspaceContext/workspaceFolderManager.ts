@@ -124,6 +124,11 @@ export class WorkspaceFolderManager {
         return { workspaceDetails, workspaceRoot }
     }
 
+    getWorkspaceFolder(fileUri: string): WorkspaceFolder | undefined {
+        const workspaceRoot = findWorkspaceRootFolder(fileUri, this.workspaceFolders)
+        return workspaceRoot
+    }
+
     private async createNewWorkspace(workspace: WorkspaceRoot) {
         const createWorkspaceResponse = await this.createWorkspace(workspace)
         if (!createWorkspaceResponse) {
