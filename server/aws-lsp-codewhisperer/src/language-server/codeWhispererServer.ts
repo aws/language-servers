@@ -15,6 +15,7 @@ import {
     Workspace,
 } from '@aws/language-server-runtimes/server-interface'
 import { AWSError } from 'aws-sdk'
+import path = require('path')
 import { autoTrigger, triggerType } from './auto-trigger/autoTrigger'
 import {
     CodeWhispererServiceBase,
@@ -72,6 +73,8 @@ const getFileContext = (params: {
     let workspaceFolder = WorkspaceFolderManager.getInstance()?.getWorkspaceFolder(params.textDocument.uri)
     if (workspaceFolder) {
         relativeFileName = getRelativePath(workspaceFolder, params.textDocument.uri)
+    } else {
+        relativeFileName = path.basename(params.textDocument.uri)
     }
 
     return {
