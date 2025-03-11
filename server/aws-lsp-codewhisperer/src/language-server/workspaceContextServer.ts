@@ -1,4 +1,5 @@
 import {
+    CancellationToken,
     CredentialsProvider,
     InitializeParams,
     Server,

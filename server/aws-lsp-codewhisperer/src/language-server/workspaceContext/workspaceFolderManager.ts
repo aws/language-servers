@@ -117,7 +117,7 @@ export class WorkspaceFolderManager {
 
         const workspaceDetails = this.getWorkspaces().get(workspaceRoot.uri)
         if (!workspaceDetails || !workspaceDetails.workspaceId) {
-            this.logging.log(`Workspace folder ${workspaceRoot} is under processing`)
+            this.logging.log(`Workspace folder ${workspaceRoot.uri} is under processing`)
             return null
         }
 
@@ -308,14 +308,14 @@ export class WorkspaceFolderManager {
                                 added: [],
                                 removed: [
                                     {
-                                        uri: folder.uri,
+                                        uri: folder.name,
                                         name: folder.name,
                                     },
                                 ],
                             },
                             workspaceChangeMetadata: {
                                 workspaceId: this.getWorkspaces().get(folder.uri)?.workspaceId ?? '',
-                                s3Path: '',
+                                // s3Path: '',
                                 programmingLanguage: '',
                             },
                         },
@@ -394,7 +394,7 @@ export class WorkspaceFolderManager {
                         workspaceFoldersChangeEvent: {
                             added: [
                                 {
-                                    uri: fileMetadata.workspaceFolder.uri,
+                                    uri: fileMetadata.workspaceFolder.name,
                                     name: fileMetadata.workspaceFolder.name,
                                 },
                             ],
