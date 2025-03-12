@@ -234,6 +234,20 @@ export class WorkspaceFolderManager {
         this.removeWorkspaceEntry(workspace)
     }
 
+    async clearAllWorkspaceResources() {
+        for (const [workspace, workspaceState] of this.workspaceMap) {
+            if (workspaceState.webSocketClient) {
+                workspaceState.webSocketClient.disconnect()
+            }
+
+            if (workspaceState.workspaceId) {
+                await this.deleteWorkspace(workspaceState.workspaceId)
+            }
+
+            this.removeWorkspaceEntry(workspace)
+        }
+    }
+
     private optOutCheckScheduler() {
         setInterval(
             async () => {
@@ -533,7 +547,7 @@ export class WorkspaceFolderManager {
             const response = await this.cwsprClient.listWorkspaceMetadata({
                 workspaceRoot: workspaceRoot,
             })
-            this.logging.log(`ListWorkspaceMetadata response: ${JSON.stringify(response)}`)
+            this.logging.log(`ListWorkspaceMetadata response for ${workspaceRoot}: ${JSON.stringify(response)}`)
             metadata = response && response.workspaces.length ? response.workspaces[0] : null
         } catch (e: any) {
             this.logging.warn(`Error while fetching workspace (${workspaceRoot}) metadata: ${e?.message}`)

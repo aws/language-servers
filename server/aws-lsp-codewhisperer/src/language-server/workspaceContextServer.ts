@@ -123,6 +123,10 @@ export const WorkspaceContextServer =
                 }
                 isOptedIn = workspaceContextConfig
                 logging.info(`Workspace context optin: ${isOptedIn}`)
+
+                if (!isOptedIn) {
+                    await workspaceFolderManager.clearAllWorkspaceResources()
+                }
             } catch (error) {
                 logging.error(`Error in GetConfiguration: ${error}`)
             }
