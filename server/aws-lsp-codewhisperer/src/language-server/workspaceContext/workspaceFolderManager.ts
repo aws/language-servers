@@ -308,7 +308,7 @@ export class WorkspaceFolderManager {
                                 added: [],
                                 removed: [
                                     {
-                                        uri: folder.name,
+                                        uri: '/',
                                         name: folder.name,
                                     },
                                 ],
@@ -394,7 +394,7 @@ export class WorkspaceFolderManager {
                         workspaceFoldersChangeEvent: {
                             added: [
                                 {
-                                    uri: fileMetadata.workspaceFolder.name,
+                                    uri: '/',
                                     name: fileMetadata.workspaceFolder.name,
                                 },
                             ],
