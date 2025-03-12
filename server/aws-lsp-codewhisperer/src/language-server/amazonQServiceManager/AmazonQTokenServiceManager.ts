@@ -26,7 +26,8 @@ import { BaseAmazonQServiceManager } from './BaseAmazonQServiceManager'
 import { listAvailableProfiles } from './listAvailableProfilesMock'
 import { Q_CONFIGURATION_SECTION } from '../configuration/qConfigurationServer'
 import { undefinedIfEmpty } from '../utilities/textUtils'
-import { getUserAgent } from '../utilities/telemetryUtils'
+
+const ENABLE_DEVELOPER_PROFILE_SUPPORT = false
 
 export interface Features {
     lsp: Lsp
@@ -49,7 +50,7 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
     private logging!: Logging
     private cachedCodewhispererService?: CodeWhispererServiceToken
     private customUserAgent: string = 'Amazon Q Language Server'
-    private enableDeveloperProfileSupport = false
+    private enableDeveloperProfileSupport = ENABLE_DEVELOPER_PROFILE_SUPPORT
     private configurationCache = new Map()
     private activeIdcProfile?: AmazonQDeveloperProfile
     private connectionType?: SsoConnectionType
@@ -76,29 +77,16 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
         this.connectionType = 'none'
         this.serviceStatus = 'PENDING_CONNECTION'
 
-        this.setupLspInitializer()
         this.setupAuthListener()
         this.setupConfigurationListeners()
 
         this.logging?.log('Amazon Q: Initialized CodeWhispererToken Service Manager')
     }
 
-    private setupLspInitializer() {
-        this.logging.log('Setting up initializer for Service Manager')
-        this.features.lsp.addInitializer((params: InitializeParams) => {
-            // Cache UserAgent value for future use
-            this.customUserAgent = getUserAgent(params, this.features.runtime.serverInfo)
-
-            // TODO: Enable profiles support based on custom InitializationOption for q.
-            console.log(
-                `Amazon Q: Developer Profiles Support ${this.enableDeveloperProfileSupport ? 'enabled' : 'disabled'}`
-            )
-
-            // TODO: consider returning Q Developer Profiles support capability
-            return {
-                capabilities: {},
-            }
-        })
+    public updateClientConfig(config: { userAgent: string }) {
+        if (config.userAgent) {
+            this.customUserAgent = config.userAgent
+        }
     }
 
     private setupAuthListener(): void {

@@ -211,7 +211,7 @@ export async function activateDocumentsLanguageServer(extensionContext: Extensio
         await registerNotification(client)
     }
 
-    const enableAmazonQProfiles = process.env.AMAZON_Q_PROFILES === 'true'
+    const enableAmazonQProfiles = process.env.ENABLE_AMAZON_Q_PROFILES === 'true'
     if (enableAmazonQProfiles) {
         await registerQProfileSelection(client)
     }
