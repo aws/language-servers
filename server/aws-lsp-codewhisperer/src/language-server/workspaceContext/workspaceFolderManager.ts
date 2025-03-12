@@ -22,12 +22,6 @@ interface WorkspaceState {
 
 type WorkspaceRoot = string
 
-interface WorkspaceStateChange {
-    workspace: WorkspaceRoot //TODO, check whether workspace info is used anywhere or if it can be removed
-    previousState: RemoteWorkspaceState
-    currentState: RemoteWorkspaceState
-}
-
 export class WorkspaceFolderManager {
     private cwsprClient: CodeWhispererServiceToken
     private logging: Logging
@@ -157,7 +151,7 @@ export class WorkspaceFolderManager {
     private async pollWorkspaceUntilReadyOrStateChange(
         workspace: WorkspaceRoot,
         timeout: number = 300000 // 5 minutes default timeout
-    ): Promise<WorkspaceStateChange> {
+    ): Promise<RemoteWorkspaceState> {
         return new Promise((resolve, reject) => {
             const startTime = Date.now()
             const initialState = this.workspaceMap.get(workspace)?.remoteWorkspaceState
@@ -166,11 +160,7 @@ export class WorkspaceFolderManager {
                 return reject(`Can't find initial state of the workspace`)
             }
             if (initialState === 'READY' || initialState === 'CONNECTED') {
-                return resolve({
-                    workspace,
-                    previousState: initialState,
-                    currentState: initialState,
-                })
+                return resolve(initialState)
             }
 
             const pollIntervalId = setInterval(async () => {
@@ -180,15 +170,11 @@ export class WorkspaceFolderManager {
                         clearInterval(pollIntervalId)
                         return reject(new Error(`Workspace ${workspace} is opted out`))
                     }
-                    const currentState = metadata?.workspaceStatus
+                    const latestState = metadata?.workspaceStatus
 
-                    if (currentState && currentState !== initialState) {
+                    if (latestState && latestState !== initialState) {
                         clearInterval(pollIntervalId)
-                        return resolve({
-                            workspace,
-                            previousState: initialState,
-                            currentState,
-                        })
+                        return resolve(latestState)
                     }
 
                     if (Date.now() - startTime > timeout) {
@@ -295,9 +281,9 @@ export class WorkspaceFolderManager {
 
         // Handle state changes
         try {
-            const stateChange = await this.pollWorkspaceUntilReadyOrStateChange(workspace)
+            const latestState = await this.pollWorkspaceUntilReadyOrStateChange(workspace)
 
-            switch (stateChange.currentState) {
+            switch (latestState) {
                 case 'READY':
                     await this.establishConnection(workspace)
                     break
@@ -309,7 +295,7 @@ export class WorkspaceFolderManager {
                     await this.createNewWorkspace(workspace)
                     break
                 default:
-                    this.logging.warn(`Unexpected workspace state: ${stateChange.currentState}`)
+                    this.logging.warn(`Unexpected workspace state: ${latestState}`)
             }
         } catch (error) {
             this.logging.error(`Error handling workspace ${workspace}: ${error}`)
