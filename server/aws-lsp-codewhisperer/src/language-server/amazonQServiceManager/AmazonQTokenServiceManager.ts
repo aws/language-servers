@@ -8,10 +8,11 @@ import {
     Runtime,
     Workspace,
     LSPErrorCodes,
+    SsoConnectionType,
+    InitializeParams,
 } from '@aws/language-server-runtimes/server-interface'
 import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION, AWS_Q_ENDPOINTS } from '../../constants'
 import { CodeWhispererServiceToken } from '../codeWhispererService'
-import { getSsoConnectionType } from '../utils'
 import {
     AmazonQError,
     AmazonQServiceInvalidProfileError,
@@ -25,6 +26,7 @@ import { BaseAmazonQServiceManager } from './BaseAmazonQServiceManager'
 import { listAvailableProfiles } from './listAvailableProfilesMock'
 import { Q_CONFIGURATION_SECTION } from '../configuration/qConfigurationServer'
 import { undefinedIfEmpty } from '../utilities/textUtils'
+import { getUserAgent } from '../utilities/telemetryUtils'
 
 export interface Features {
     lsp: Lsp
@@ -46,9 +48,11 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
     private features!: Features
     private logging!: Logging
     private cachedCodewhispererService?: CodeWhispererServiceToken
+    private customUserAgent: string = 'Amazon Q Language Server'
+    private enableDeveloperProfileSupport = false
     private configurationCache = new Map()
     private activeIdcProfile?: AmazonQDeveloperProfile
-    private connectionType?: 'builderId' | 'identityCenter' | 'none'
+    private connectionType?: SsoConnectionType
     private serviceStatus: 'PENDING_CONNECTION' | 'PENDING_Q_PROFILE' | 'PENDING_Q_PROFILE_UPDATE' | 'INITIALIZED' =
         'PENDING_CONNECTION'
 
@@ -72,17 +76,36 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
         this.connectionType = 'none'
         this.serviceStatus = 'PENDING_CONNECTION'
 
+        this.setupLspInitializer()
         this.setupAuthListener()
-        this.setupConfigurationListener()
+        this.setupConfigurationListeners()
 
         this.logging?.log('Amazon Q: Initialized CodeWhispererToken Service Manager')
+    }
+
+    private setupLspInitializer() {
+        this.logging.log('Setting up initializer for Service Manager')
+        this.features.lsp.addInitializer((params: InitializeParams) => {
+            // Cache UserAgent value for future use
+            this.customUserAgent = getUserAgent(params, this.features.runtime.serverInfo)
+
+            // TODO: Enable profiles support based on custom InitializationOption for q.
+            console.log(
+                `Amazon Q: Developer Profiles Support ${this.enableDeveloperProfileSupport ? 'enabled' : 'disabled'}`
+            )
+
+            // TODO: consider returning Q Developer Profiles support capability
+            return {
+                capabilities: {},
+            }
+        })
     }
 
     private setupAuthListener(): void {
         // TODO: listen on changes to credentials and signout events from client to manage state correctly.
     }
 
-    private setupConfigurationListener(): void {
+    private setupConfigurationListeners(): void {
         this.features.lsp.onInitialized(this.handleDidChangeConfiguration)
         this.features.lsp.didChangeConfiguration(this.handleDidChangeConfiguration)
 
@@ -104,8 +127,7 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
     }
 
     private handleSsoConnectionChange() {
-        // TODO: replace with reading ssoType directly from Credentials provider.
-        const newConnectionType = getSsoConnectionType(this.features.credentialsProvider)
+        const newConnectionType = this.features.credentialsProvider.getConnectionType()
 
         this.logServiceState('Validate State of SSO Connection')
 
@@ -126,6 +148,7 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
         }
 
         // Connection type hasn't change.
+
         if (newConnectionType === this.connectionType) {
             this.logServiceState('Connection type did not change.')
 
@@ -138,21 +161,28 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
             this.logging.log('Detected New connection type: builderId')
             this.resetCodewhispererService()
             this.initializeCodewhispererService('builderId')
+            this.logging.log('Initialized Amazon Q service with builderId connection')
 
             return
         }
 
-        // Connection type changed to identityCenter
+        // Connection type changed to 'identityCenter'
 
         if (newConnectionType === 'identityCenter') {
             this.logging.log('Detected New connection type: identityCenter')
 
             this.resetCodewhispererService()
 
-            this.connectionType = 'identityCenter'
-            this.serviceStatus = 'PENDING_Q_PROFILE'
+            if (this.enableDeveloperProfileSupport) {
+                this.connectionType = 'identityCenter'
+                this.serviceStatus = 'PENDING_Q_PROFILE'
+                this.logServiceState('Pending profile selection for IDC connection')
 
-            this.logServiceState('Pending profile selection for IDC connection')
+                return
+            }
+
+            this.initializeCodewhispererService('identityCenter')
+            this.logging.log('Initialized Amazon Q service with identityCenter connection')
         }
 
         this.logServiceState('Unknown Connection state')
@@ -209,6 +239,11 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
     }
 
     private async handleProfileChange(newProfileArn: string): Promise<void> {
+        if (!this.enableDeveloperProfileSupport) {
+            this.logging.log('Developer Profiles Support is not enabled')
+            return
+        }
+
         if (!newProfileArn || newProfileArn.length === 0) {
             throw new Error('Received invalid Profile ARN')
         }
@@ -347,6 +382,9 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
             awsQEndpointUrl,
             this.features.sdkInitializator
         )
+        this.cachedCodewhispererService.updateClientConfig({
+            customUserAgent: this.customUserAgent,
+        })
 
         this.connectionType = connectionType
         this.serviceStatus = 'INITIALIZED'
