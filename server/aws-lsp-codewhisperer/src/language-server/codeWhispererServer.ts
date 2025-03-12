@@ -344,6 +344,7 @@ export const CodewhispererServerFactory =
                 sessionManager.discardSession(currentSession)
             }
 
+            // prettier-ignore - keeping file diff manageable
             return workspace
                 .getTextDocument(params.textDocument.uri)
                 .then(async textDocument => {
