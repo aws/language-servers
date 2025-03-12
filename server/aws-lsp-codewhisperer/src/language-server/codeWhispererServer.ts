@@ -445,7 +445,8 @@ export const CodewhispererServerFactory =
                     .generateSuggestions({
                         ...requestContext,
                         fileContext: {
-                            ...requestContext.fileContext,
+                            filename: requestContext.fileContext.filename,
+                            programmingLanguage: requestContext.fileContext.programmingLanguage,
                             leftFileContent: requestContext.fileContext.leftFileContent
                                 .slice(-CONTEXT_CHARACTERS_LIMIT)
                                 .replaceAll('\r\n', '\n'),
