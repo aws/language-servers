@@ -6,7 +6,7 @@ import { TelemetryService } from './telemetryService'
 import { getUserAgent, makeUserContextObject } from './utilities/telemetryUtils'
 import { DEFAULT_AWS_Q_REGION, DEFAULT_AWS_Q_ENDPOINT_URL } from '../constants'
 import { SDKInitializator } from '@aws/language-server-runtimes/server-interface'
-import { UpdateConfigurationHandler } from './configuration/updateConfigurationHandler'
+import { AmazonQTokenServiceManager } from './amazonQServiceManager/AmazonQTokenServiceManager'
 
 export const QChatServer =
     (
@@ -29,7 +29,14 @@ export const QChatServer =
             sdkInitializator
         )
 
-        const QServerConfigurationManager = UpdateConfigurationHandler.getInstance({ lsp, logging })
+        const QServerConfigurationManager = AmazonQTokenServiceManager.getInstance({
+            lsp,
+            logging,
+            sdkInitializator,
+            runtime,
+            workspace,
+            credentialsProvider,
+        })
         QServerConfigurationManager.addListener('profileArnChanged', ({ newRegion, newEndpoint }) => {
             // TODO: Update/re-instantiate codeWhispererService on profile change
         })
