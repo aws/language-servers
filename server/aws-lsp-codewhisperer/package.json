@@ -29,7 +29,7 @@
     "dependencies": {
         "@amzn/codewhisperer-streaming": "file:../../core/codewhisperer-streaming/amzn-codewhisperer-streaming-1.0.0.tgz",
         "@aws-sdk/util-retry": "^3.374.0",
-        "@aws/chat-client-ui-types": "^0.1.0",
+        "@aws/chat-client-ui-types": "^0.1.4",
         "@aws/language-server-runtimes": "^0.2.40",
         "@gerhobbelt/gitignore-parser": "^0.2.0-9",
         "@smithy/node-http-handler": "^2.5.0",
