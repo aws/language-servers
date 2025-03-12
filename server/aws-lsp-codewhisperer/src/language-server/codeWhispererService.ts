@@ -277,6 +277,13 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     }
 
     /**
+     * @description Get list of available profiles
+     */
+    async listAvailableProfiles(request: CodeWhispererTokenClient.ListAvailableProfilesRequest) {
+        return this.client.listAvailableProfiles(request).promise()
+    }
+
+    /**
      * @description send telemetry event to code whisperer data warehouse
      */
     async sendTelemetryEvent(request: CodeWhispererTokenClient.SendTelemetryEventRequest) {
