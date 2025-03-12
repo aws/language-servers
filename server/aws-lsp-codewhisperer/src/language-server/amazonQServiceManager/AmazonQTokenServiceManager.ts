@@ -114,6 +114,10 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
         })
     }
 
+    /**
+     * Validate if Bearer Token Connection type has changed mid-session.
+     * When connection type change is detected: reinitialize CodeWhispererService class with current connection type.
+     */
     private handleSsoConnectionChange() {
         const newConnectionType = this.features.credentialsProvider.getConnectionType()
 
@@ -177,7 +181,6 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
     }
 
     private async handleDidChangeConfiguration() {
-        // TODO: Reconfigure existing CodewhispererService when configuration change is detected
         try {
             const qConfig = await this.features.lsp.workspace.getConfiguration(Q_CONFIGURATION_SECTION)
             if (qConfig) {
@@ -312,7 +315,7 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
     }
 
     public getCodewhispererService(): CodeWhispererServiceToken {
-        // Prevent initiating requests while profile is change is in progress.
+        // Prevent initiating requests while profile change is in progress.
         if (this.serviceStatus === 'PENDING_Q_PROFILE_UPDATE') {
             throw new AmazonQServicePendingProfileUpdateError()
         }
@@ -331,13 +334,7 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
             throw new AmazonQServicePendingProfileError()
         }
 
-        if (!this.cachedCodewhispererService) {
-            throw new AmazonQServiceNotInitializedError()
-        }
-
-        this.logServiceState('Active CodeWhispererService Instance is found')
-
-        return this.cachedCodewhispererService
+        throw new AmazonQServiceNotInitializedError()
     }
 
     private resetCodewhispererService() {
