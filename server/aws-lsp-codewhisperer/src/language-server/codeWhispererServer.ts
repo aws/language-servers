@@ -15,7 +15,6 @@ import {
     Workspace,
     SDKInitializator,
     ResponseError,
-    ErrorCodes,
     LSPErrorCodes,
     CredentialsType,
 } from '@aws/language-server-runtimes/server-interface'
@@ -43,7 +42,6 @@ import { AcceptedSuggestionEntry, CodeDiffTracker } from './telemetry/codeDiffTr
 import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../constants'
 import { AmazonQTokenServiceManager } from './amazonQServiceManager/AmazonQTokenServiceManager'
 import { AmazonQError } from './amazonQServiceManager/errors'
-import { AmazonQIAMServiceManager } from './amazonQServiceManager/AmazonQIAMServiceManager'
 import { BaseAmazonQServiceManager } from './amazonQServiceManager/BaseAmazonQServiceManager'
 
 const EMPTY_RESULT = { sessionId: '', items: [] }
@@ -274,18 +272,8 @@ export const CodewhispererServerFactory =
                 runtime,
             })
             credentialsType = 'bearer'
-        } else if (serviceType === 'CodeWhispererServiceIAM') {
-            AmazonQServiceManager = AmazonQIAMServiceManager.getInstance({
-                lsp,
-                logging,
-                credentialsProvider,
-                sdkInitializator,
-                workspace,
-                runtime,
-            })
-            credentialsType = 'iam'
         } else {
-            // Fallback to default passed service factory
+            // Fallback to default passed service factory for IAM credentials type
             AmazonQServiceManager = {
                 getCodewhispererService: () => {
                     return fallbackCodeWhispererService
@@ -306,9 +294,7 @@ export const CodewhispererServerFactory =
         )
 
         lsp.addInitializer((params: InitializeParams) => {
-            // TODO: handle initialization in SessionManager to setup UserAgent correcty.
             // TODO: Review configuration options expected in other features
-            // TODO: review how to support Chat server with service manager (maybe in separate PR).
             fallbackCodeWhispererService.updateClientConfig({
                 customUserAgent: getUserAgent(params, runtime.serverInfo),
             })

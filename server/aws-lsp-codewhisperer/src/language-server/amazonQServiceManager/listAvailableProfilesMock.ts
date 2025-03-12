@@ -1,3 +1,5 @@
+// TODO: Will be replaced with proper implementation https://github.com/aws/language-servers/pull/822
+
 import { AWS_Q_ENDPOINTS } from '../../constants'
 import { CodeWhispererServiceToken } from '../codeWhispererService'
 import { AmazonQDeveloperProfile, Features } from './AmazonQTokenServiceManager'
