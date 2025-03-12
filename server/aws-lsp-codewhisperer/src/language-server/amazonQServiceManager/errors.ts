@@ -8,27 +8,6 @@ export class AmazonQError extends Error {
     }
 }
 
-export class AmazonQConnectionError extends AmazonQError {
-    constructor(message: string = 'Failed to connect to Amazon Q service') {
-        super(message, 'E_AMAZON_Q_CONNECTION')
-        this.name = 'AmazonQConnectionError'
-    }
-}
-
-export class AmazonQAuthenticationError extends AmazonQError {
-    constructor(message: string = 'Failed to authenticate with Amazon Q service') {
-        super(message, 'E_AMAZON_Q_AUTHENTICATION')
-        this.name = 'AmazonQAuthenticationError'
-    }
-}
-
-export class AmazonQConfigurationError extends AmazonQError {
-    constructor(message: string = 'Invalid Amazon Q configuration') {
-        super(message, 'E_AMAZON_Q_CONFIGURATION')
-        this.name = 'AmazonQConfigurationError'
-    }
-}
-
 export class AmazonQServiceNotInitializedError extends AmazonQError {
     constructor(message: string = 'Amazon Q service SDK is not initialized') {
         super(message, 'E_AMAZON_Q_NOT_INITIALIZED')
