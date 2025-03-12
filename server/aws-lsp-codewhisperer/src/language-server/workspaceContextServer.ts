@@ -1,6 +1,7 @@
 import {
     CancellationToken,
     CredentialsProvider,
+    GetConfigurationFromServerParams,
     InitializeParams,
     Server,
     Workspace,
