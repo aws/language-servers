@@ -104,7 +104,12 @@ export const WorkspaceContextServer =
                         workspaceId: workspaceState.workspaceId ?? '',
                     }))
 
-                    return workspaceArray
+                    return {
+                        workspaces: workspaceArray,
+                    }
+                }
+                return {
+                    workspace: [],
                 }
             }
         )
