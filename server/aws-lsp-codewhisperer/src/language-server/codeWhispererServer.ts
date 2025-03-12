@@ -24,7 +24,7 @@ import {
     GenerateSuggestionsRequest,
     Suggestion,
 } from './codeWhispererService'
-import { CodewhispererLanguage, getSupportedLanguageId } from './languageDetection'
+import { CodewhispererLanguage, getRuntimeLanguage, getSupportedLanguageId } from './languageDetection'
 import { truncateOverlapWithRightContext } from './mergeRightUtils'
 import { CodeWhispererSession, SessionManager } from './session/sessionManager'
 import { CodePercentageTracker } from './telemetry/codePercentage'
@@ -70,7 +70,7 @@ const getFileContext = (params: {
     return {
         filename: params.textDocument.uri,
         programmingLanguage: {
-            languageName: params.inferredLanguageId,
+            languageName: getRuntimeLanguage(params.inferredLanguageId),
         },
         leftFileContent: left,
         rightFileContent: right,
