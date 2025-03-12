@@ -54,7 +54,15 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
     private configurationCache = new Map()
     private activeIdcProfile?: AmazonQDeveloperProfile
     private connectionType?: SsoConnectionType
-    private serviceStatus: 'PENDING_CONNECTION' | 'PENDING_Q_PROFILE' | 'PENDING_Q_PROFILE_UPDATE' | 'INITIALIZED' =
+    /**
+     * Internal state of Service connection, based on status of bearer token and Amazon Q Developer profile selection.
+     * Supported states:
+     * PENDING_CONNECTION - Waiting for Bearer Token and StartURL to be passed
+     * PENDING_Q_PROFILE - (only for identityCenter connection) waiting for setting Developer Profile
+     * PENDING_Q_PROFILE_UPDATE (only for identityCenter connection) waiting for Developer Profile to complete
+     * INITIALIZED - Service is initialized
+     */
+    private state: 'PENDING_CONNECTION' | 'PENDING_Q_PROFILE' | 'PENDING_Q_PROFILE_UPDATE' | 'INITIALIZED' =
         'PENDING_CONNECTION'
 
     private constructor() {}
@@ -75,7 +83,7 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
         this.logging = features.logging
 
         this.connectionType = 'none'
-        this.serviceStatus = 'PENDING_CONNECTION'
+        this.state = 'PENDING_CONNECTION'
 
         this.setupAuthListener()
         this.setupConfigurationListeners()
@@ -167,7 +175,7 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
 
             if (this.enableDeveloperProfileSupport) {
                 this.connectionType = 'identityCenter'
-                this.serviceStatus = 'PENDING_Q_PROFILE'
+                this.state = 'PENDING_Q_PROFILE'
                 this.logServiceState('Pending profile selection for IDC connection')
 
                 return
@@ -251,13 +259,11 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
             )
         }
 
-        // Check if profile region changed compared to cached value
-        // Reset client if yes, to prevent making calls to wrong region
-        if (this.serviceStatus === 'INITIALIZED' && this.activeIdcProfile) {
+        if (this.state === 'INITIALIZED' && this.activeIdcProfile) {
             // Change status to pending to prevent API calls until profile is updated.
             // Because `listAvailableProfiles` below can take few seconds to complete,
             // there is possibility that client could send requests while profile is changing.
-            this.serviceStatus = 'PENDING_Q_PROFILE_UPDATE'
+            this.state = 'PENDING_Q_PROFILE_UPDATE'
         }
 
         const profiles = await listAvailableProfiles(this.features)
@@ -269,7 +275,7 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
             // TODO: do we need to reset service here if requested profile does not exist anymore?
             this.logging?.log(`Amazon Q Profile ${newProfileArn} is not valid`)
             this.resetCodewhispererService()
-            this.serviceStatus = 'PENDING_Q_PROFILE'
+            this.state = 'PENDING_Q_PROFILE'
 
             throw new AmazonQServiceInvalidProfileError('Requested Amazon Q Profile does not exist')
         }
@@ -286,7 +292,7 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
             // Update cached profile fields, keep existing client
             this.logging?.log('Amazon Q Profile Change: profile selection did not change')
             this.activeIdcProfile = newProfile
-            this.serviceStatus = 'INITIALIZED'
+            this.state = 'INITIALIZED'
 
             return
         }
@@ -298,7 +304,7 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
         if (oldRegion === newRegion) {
             this.logging?.log(`Amazon Q server: new profile is in the same region as old one, keeping exising service.`)
             this.activeIdcProfile = newProfile
-            this.serviceStatus = 'INITIALIZED'
+            this.state = 'INITIALIZED'
 
             return
         }
@@ -316,21 +322,21 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
 
     public getCodewhispererService(): CodeWhispererServiceToken {
         // Prevent initiating requests while profile change is in progress.
-        if (this.serviceStatus === 'PENDING_Q_PROFILE_UPDATE') {
+        if (this.state === 'PENDING_Q_PROFILE_UPDATE') {
             throw new AmazonQServicePendingProfileUpdateError()
         }
 
         this.handleSsoConnectionChange()
 
-        if (this.serviceStatus === 'INITIALIZED' && this.cachedCodewhispererService) {
+        if (this.state === 'INITIALIZED' && this.cachedCodewhispererService) {
             return this.cachedCodewhispererService
         }
 
-        if (this.serviceStatus === 'PENDING_CONNECTION') {
+        if (this.state === 'PENDING_CONNECTION') {
             throw new AmazonQServicePendingSigninError()
         }
 
-        if (this.serviceStatus === 'PENDING_Q_PROFILE') {
+        if (this.state === 'PENDING_Q_PROFILE') {
             throw new AmazonQServicePendingProfileError()
         }
 
@@ -342,7 +348,7 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
 
         this.cachedCodewhispererService = undefined
         this.activeIdcProfile = undefined
-        this.serviceStatus = 'PENDING_CONNECTION'
+        this.state = 'PENDING_CONNECTION'
     }
 
     private initializeCodewhispererService(
@@ -372,7 +378,7 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
         })
 
         this.connectionType = connectionType
-        this.serviceStatus = 'INITIALIZED'
+        this.state = 'INITIALIZED'
 
         this.logServiceState('CodewhispererService Initialization finished')
     }
@@ -387,7 +393,7 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
             JSON.stringify({
                 context,
                 state: {
-                    serviceStatus: this.serviceStatus,
+                    serviceStatus: this.state,
                     connectionType: this.connectionType,
                     activeIdcProfile: this.activeIdcProfile,
                 },
