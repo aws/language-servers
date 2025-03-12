@@ -222,7 +222,7 @@ export class ArtifactManager {
 
         return {
             filePath: zipPath,
-            relativePath: path.join(workspaceFolder.name, subDirectory, `${language}.zip`),
+            relativePath: path.join(workspaceFolder.name, subDirectory, `files.zip`),
             language,
             contentLength: stats.size,
             lastModified: stats.mtimeMs,
@@ -240,7 +240,7 @@ export class ArtifactManager {
         const zipDirectoryPath = path.join(this.tempDirPath, workspaceFolder.name, subDirectory)
         this.createFolderIfNotExist(zipDirectoryPath)
 
-        const zipPath = path.join(zipDirectoryPath, `file.zip`)
+        const zipPath = path.join(zipDirectoryPath, `files.zip`)
 
         const zip = new JSZip()
         for (const file of files) {
@@ -254,7 +254,7 @@ export class ArtifactManager {
 
         return {
             filePath: zipPath,
-            relativePath: path.join(workspaceFolder.name, subDirectory, 'file.zip'),
+            relativePath: path.join(workspaceFolder.name, subDirectory, 'files.zip'),
             language,
             contentLength: stats.size,
             lastModified: stats.mtimeMs,
