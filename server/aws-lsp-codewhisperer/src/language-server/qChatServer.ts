@@ -6,6 +6,7 @@ import { TelemetryService } from './telemetryService'
 import { getUserAgent, makeUserContextObject } from './utilities/telemetryUtils'
 import { DEFAULT_AWS_Q_REGION, DEFAULT_AWS_Q_ENDPOINT_URL } from '../constants'
 import { SDKInitializator } from '@aws/language-server-runtimes/server-interface'
+import { AmazonQTokenServiceManager } from './amazonQServiceManager/AmazonQTokenServiceManager'
 
 export const QChatServer =
     (
@@ -27,6 +28,7 @@ export const QChatServer =
             awsQEndpointUrl,
             sdkInitializator
         )
+
         const telemetryService = new TelemetryService(
             credentialsProvider,
             'bearer',
