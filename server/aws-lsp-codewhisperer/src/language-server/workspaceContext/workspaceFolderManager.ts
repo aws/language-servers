@@ -451,33 +451,7 @@ export class WorkspaceFolderManager {
                 workspaceDetails.requiresS3Upload = true
             }
         })
-
-        const intervalId = setInterval(
-            async () => {
-                const keys = [...fileMetadataMap.keys()]
-                const totalWorkspaces = keys.length
-                let workspacesWithS3UploadComplete = 0
-                for (const key of keys) {
-                    const workspaceDetails = this.getWorkspaces().get(key)
-                    if (!workspaceDetails) {
-                        continue
-                    }
-                    if (workspaceDetails.workspaceId && workspaceDetails.requiresS3Upload) {
-                        await this.uploadS3AndQueueEvents(fileMetadataMap.get(key) ?? [])
-                        workspaceDetails.requiresS3Upload = false
-                    }
-                    if (workspaceDetails.workspaceId) {
-                        workspacesWithS3UploadComplete++
-                    }
-                }
-
-                if (totalWorkspaces === workspacesWithS3UploadComplete) {
-                    clearInterval(intervalId)
-                }
-            },
-            3000,
-            fileMetadataMap
-        )
+        await this.uploadWithTimeout(fileMetadataMap)
 
         this.optOutCheckScheduler()
 
@@ -485,6 +459,38 @@ export class WorkspaceFolderManager {
             this.handleNewWorkspace(folder.uri).catch(e => {
                 this.logging.warn(`Error processing new workspace: ${e}`)
             })
+        }
+    }
+
+    private async uploadWithTimeout(fileMetadataMap: Map<string, FileMetadata[]>) {
+        const keys = [...fileMetadataMap.keys()]
+        const totalWorkspaces = keys.length
+        let workspacesWithS3UploadComplete = 0
+
+        for (const key of keys) {
+            const workspaceDetails = this.getWorkspaces().get(key)
+            if (!workspaceDetails) {
+                continue
+            }
+
+            if (workspaceDetails.workspaceId && workspaceDetails.requiresS3Upload) {
+                this.logging.log(`Starting S3 upload for ${key}, workspace id: ${workspaceDetails.workspaceId}`)
+                await this.uploadS3AndQueueEvents(fileMetadataMap.get(key) ?? [])
+                workspaceDetails.requiresS3Upload = false
+            }
+            // This if condition needs to be separate because workspacesWithS3UploadComplete variable is set to 0 every time this function is called
+            // If this function is run once and uploads some of the workspace folders, we need to ensure we don't forget about already uploaded folders the next time the function is run
+            if (workspaceDetails.workspaceId) {
+                workspacesWithS3UploadComplete++
+            }
+        }
+
+        if (totalWorkspaces !== workspacesWithS3UploadComplete) {
+            // Schedule next check if not all workspaces are complete
+            // Notice that we don't await the uploadWithTimeout now, it is fire and forget at the moment
+            setTimeout(() => this.uploadWithTimeout(fileMetadataMap), 3000)
+        } else {
+            this.logging.log(`All workspaces with S3 upload complete`)
         }
     }
 
