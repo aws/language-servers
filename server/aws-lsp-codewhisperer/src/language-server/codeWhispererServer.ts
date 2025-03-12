@@ -275,6 +275,7 @@ export const CodewhispererServerFactory =
         } else {
             // Fallback to default passed service factory for IAM credentials type
             AmazonQServiceManager = {
+                updateClientConfig: () => {},
                 getCodewhispererService: () => {
                     return fallbackCodeWhispererService
                 },
@@ -284,7 +285,7 @@ export const CodewhispererServerFactory =
 
         const telemetryService = new TelemetryService(
             credentialsProvider,
-            credentialsType,
+            fallbackCodeWhispererService.getCredentialsType(),
             telemetry,
             logging,
             workspace,
@@ -294,6 +295,10 @@ export const CodewhispererServerFactory =
         )
 
         lsp.addInitializer((params: InitializeParams) => {
+            AmazonQServiceManager.updateClientConfig({
+                userAgent: getUserAgent(params, runtime.serverInfo),
+            })
+
             // TODO: Review configuration options expected in other features
             fallbackCodeWhispererService.updateClientConfig({
                 customUserAgent: getUserAgent(params, runtime.serverInfo),
