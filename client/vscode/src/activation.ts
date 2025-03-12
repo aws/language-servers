@@ -23,6 +23,7 @@ import { randomUUID } from 'crypto'
 import { registerCustomizations } from './customizationActivation'
 import { registerIdentity } from './identityActivation'
 import { registerNotification } from './notificationActivation'
+import { registerDeveloperProfiles } from './developerProfilesActivation'
 
 export async function activateDocumentsLanguageServer(extensionContext: ExtensionContext) {
     /**
@@ -198,6 +199,11 @@ export async function activateDocumentsLanguageServer(extensionContext: Extensio
     const enableCustomizations = process.env.ENABLE_CUSTOMIZATIONS === 'true'
     if (enableCustomizations) {
         registerCustomizations(client)
+    }
+
+    const enableDeveloperProfiles = process.env.ENABLE_DEVELOPER_PROFILES === 'true'
+    if (enableDeveloperProfiles) {
+        registerDeveloperProfiles(client)
     }
 
     const enableIdentity = process.env.ENABLE_IDENTITY === 'true'

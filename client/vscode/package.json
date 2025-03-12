@@ -93,6 +93,11 @@
                 "category": "Test Amazon Q Extension"
             },
             {
+                "command": "aws.sample-vscode-ext-amazonq.getDeveloperProfiles",
+                "title": "Get developer profiles",
+                "category": "Test Amazon Q Extension"
+            },
+            {
                 "command": "aws.qNetTransform.startTransform",
                 "title": "Start Transform"
             },
