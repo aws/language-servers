@@ -164,11 +164,6 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         // add cancellation check
         // add error check
         if (this.customizationArn) request = { ...request, customizationArn: this.customizationArn }
-        if (WorkspaceFolderManager.getInstance()?.getWorkspaceDetailsWithId(request.fileContext.filename)) {
-            request.workspaceId = WorkspaceFolderManager.getInstance()?.getWorkspaceDetailsWithId(
-                request.fileContext.filename
-            )?.workspaceDetails.workspaceId
-        }
 
         const response = await this.client.generateCompletions(request).promise()
         const responseContext = {

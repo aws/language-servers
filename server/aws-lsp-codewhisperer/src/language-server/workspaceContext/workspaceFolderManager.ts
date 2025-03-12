@@ -129,6 +129,18 @@ export class WorkspaceFolderManager {
         return workspaceRoot
     }
 
+    getWorkspaceId(workspaceFolder?: WorkspaceFolder): string | undefined {
+        if (!workspaceFolder) {
+            return undefined
+        }
+        const workspaceDetails = this.getWorkspaces().get(workspaceFolder.uri)
+        if (!workspaceDetails || !workspaceDetails.workspaceId) {
+            this.logging.log(`Workspace folder ${workspaceFolder.uri} is under processing`)
+            return undefined
+        }
+        return workspaceDetails.workspaceId
+    }
+
     private async createNewWorkspace(workspace: WorkspaceRoot) {
         const createWorkspaceResponse = await this.createWorkspace(workspace)
         if (!createWorkspaceResponse) {
