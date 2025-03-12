@@ -277,7 +277,7 @@
         "@aws/chat-client-ui-types": "^0.1.0",
         "@aws/language-server-runtimes": "^0.2.40",
         "@types/uuid": "^9.0.8",
-        "@types/vscode": "^1.96.0",
+        "@types/vscode": "^1.98.0",
         "jose": "^5.2.4",
         "typescript": "^5.5.3",
         "vscode-languageclient": "^9.0.1"
