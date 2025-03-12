@@ -539,6 +539,7 @@ export class WorkspaceFolderManager {
             response = await this.cwsprClient.createWorkspace({
                 workspaceRoot: workspaceRoot,
             })
+            this.logging.log(`CreateWorkspace response for ${workspaceRoot}: ${JSON.stringify(response)}`)
         } catch (e: any) {
             this.logging.warn(`Error while creating workspace (${workspaceRoot}): ${e.message}`)
         }
