@@ -31,6 +31,9 @@
         },
         "server/aws-lsp-yaml": {
             "component": "lsp-yaml"
+        },
+        "server/aws-lsp-identity": {
+            "component": "lsp-identity"
         }
     },
     "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json"
