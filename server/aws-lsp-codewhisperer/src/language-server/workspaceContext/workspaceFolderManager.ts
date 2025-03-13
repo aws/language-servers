@@ -311,28 +311,33 @@ export class WorkspaceFolderManager {
         for (const folder of workspaceFolders) {
             const workspaceDetails = this.workspaceMap.get(folder.uri)
             const websocketClient = workspaceDetails?.webSocketClient
+
+            const languagesMap = this.artifactManager.getLanguagesForWorkspaceFolder(folder)
+            const programmingLanguages = languagesMap ? Array.from(languagesMap.keys()) : []
+
             if (websocketClient) {
-                websocketClient.send(
-                    JSON.stringify({
-                        method: 'workspace/didChangeWorkspaceFolders',
-                        params: {
-                            workspaceFoldersChangeEvent: {
-                                added: [],
-                                removed: [
-                                    {
-                                        uri: '/',
-                                        name: folder.name,
-                                    },
-                                ],
+                for (const language of programmingLanguages) {
+                    websocketClient.send(
+                        JSON.stringify({
+                            method: 'workspace/didChangeWorkspaceFolders',
+                            params: {
+                                workspaceFoldersChangeEvent: {
+                                    added: [],
+                                    removed: [
+                                        {
+                                            uri: '/',
+                                            name: folder.name,
+                                        },
+                                    ],
+                                },
+                                workspaceChangeMetadata: {
+                                    workspaceId: this.getWorkspaces().get(folder.uri)?.workspaceId ?? '',
+                                    programmingLanguage: language,
+                                },
                             },
-                            workspaceChangeMetadata: {
-                                workspaceId: this.getWorkspaces().get(folder.uri)?.workspaceId ?? '',
-                                // s3Path: '',
-                                programmingLanguage: '',
-                            },
-                        },
-                    })
-                )
+                        })
+                    )
+                }
                 websocketClient.disconnect()
             }
             this.removeWorkspaceEntry(folder.uri)

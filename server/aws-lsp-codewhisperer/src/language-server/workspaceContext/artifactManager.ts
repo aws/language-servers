@@ -183,6 +183,18 @@ export class ArtifactManager {
         }
     }
 
+    getLanguagesForWorkspaceFolder(
+        workspaceFolder: WorkspaceFolder
+    ): Map<CodewhispererLanguage, FileMetadata[]> | undefined {
+        // Find the matching workspace folder by URI
+        for (const [existingFolder, languagesMap] of this.filesByWorkspaceFolderAndLanguage) {
+            if (existingFolder.uri === workspaceFolder.uri) {
+                return languagesMap
+            }
+        }
+        return undefined
+    }
+
     // TODO, if MD5 hash is not needed, better to remove this function and remove content from FileMetadata interface to be memory efficient
     // Doing the readfile call inside this function and storing the contents in the FileMetadata allows us to call readFile only once
     // instead of calling it twice: once in md5 calculation and once during zip creation
