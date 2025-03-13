@@ -109,6 +109,8 @@ export const EXPECTED_RESPONSE_CONTEXT: ResponseContext = {
 }
 export const EXPECTED_SESSION_ID = 'some-random-session-uuid-0'
 
+export const EXPECTED_NEXT_TOKEN = 'some-random-next-token'
+
 export const EXPECTED_RESULT = {
     sessionId: EXPECTED_SESSION_ID,
     items: [
@@ -119,6 +121,7 @@ export const EXPECTED_RESULT = {
             references: undefined,
         },
     ],
+    nextToken: undefined,
 }
 
 export const EXPECTED_REFERENCE = {

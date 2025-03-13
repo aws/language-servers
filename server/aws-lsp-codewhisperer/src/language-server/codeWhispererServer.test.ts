@@ -20,6 +20,7 @@ import {
 import { CodeWhispererSession, SessionData, SessionManager } from './session/sessionManager'
 import {
     EMPTY_RESULT,
+    EXPECTED_NEXT_TOKEN,
     EXPECTED_REFERENCE,
     EXPECTED_RESPONSE_CONTEXT,
     EXPECTED_RESULT,
@@ -474,6 +475,53 @@ describe('CodeWhisperer Server', () => {
             )
             // Check the completion result
             assert.deepEqual(result, EMPTY_RESULT)
+        })
+
+        // pagination
+        it('should be able to return next token from service', async () => {
+            const result = await features.doInlineCompletionWithReferences(
+                {
+                    textDocument: { uri: SOME_FILE.uri },
+                    position: { line: 0, character: 0 },
+                    context: { triggerKind: InlineCompletionTriggerKind.Invoked },
+                },
+                CancellationToken.None
+            )
+
+            // Check the completion result
+            service.generateSuggestions.returns(
+                Promise.resolve({
+                    suggestions: EXPECTED_SUGGESTION,
+                    responseContext: EXPECTED_RESPONSE_CONTEXT,
+                    nextToken: EXPECTED_NEXT_TOKEN,
+                })
+            )
+            assert.deepEqual(result, { ...EXPECTED_RESULT, nextToken: EXPECTED_NEXT_TOKEN })
+        })
+
+        it('should be able to handle partialResultToken in request', async () => {
+            await features.doInlineCompletionWithReferences(
+                {
+                    textDocument: { uri: SOME_FILE.uri },
+                    position: { line: 0, character: 0 },
+                    context: { triggerKind: InlineCompletionTriggerKind.Invoked },
+                    partialResultToken: EXPECTED_NEXT_TOKEN,
+                },
+                CancellationToken.None
+            )
+
+            const expectedGenerateSuggestionsRequest = {
+                fileContext: {
+                    filename: SOME_FILE.uri,
+                    programmingLanguage: { languageName: 'csharp' },
+                    leftFileContent: '',
+                    rightFileContent: HELLO_WORLD_IN_CSHARP,
+                },
+                maxResults: 5,
+                nextToken: EXPECTED_NEXT_TOKEN,
+            }
+
+            sinon.assert.calledOnceWithExactly(service.generateSuggestions, expectedGenerateSuggestionsRequest)
         })
 
         describe('Supplemental Context', () => {
