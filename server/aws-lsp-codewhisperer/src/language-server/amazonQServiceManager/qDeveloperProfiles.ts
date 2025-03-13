@@ -1,4 +1,4 @@
-import { Logging } from '@aws/language-server-runtimes/server-interface'
+import { Logging, LSPErrorCodes, ResponseError } from '@aws/language-server-runtimes/server-interface'
 import { SsoConnectionType } from '../utils'
 import { AWS_Q_ENDPOINTS } from '../../constants'
 import { CodeWhispererServiceToken } from '../codeWhispererService'
@@ -23,7 +23,8 @@ export type ListAllAvailableProfilesHandler = (
     params: ListAllAvailableProfilesHandlerParams
 ) => Promise<AmazonQDeveloperProfile[]>
 
-const MAX_Q_DEVELOPER_PROFILES = 10
+export const MAX_Q_DEVELOPER_PROFILE_PAGES = 10
+const MAX_Q_DEVELOPER_PROFILES_PER_PAGE = 10
 
 export const getListAllAvailableProfilesHandler =
     (service: (region: string, endpoint: string) => CodeWhispererServiceToken): ListAllAvailableProfilesHandler =>
@@ -33,40 +34,64 @@ export const getListAllAvailableProfilesHandler =
             return []
         }
 
-        const allProfiles: AmazonQDeveloperProfile[] = []
+        let allProfiles: AmazonQDeveloperProfile[] = []
         const qEndpoints = endpoints ?? AWS_Q_ENDPOINTS
 
-        try {
-            for (const [region, endpoint] of Object.entries(qEndpoints)) {
-                try {
-                    logging.debug(`Fetching profiles from region: ${region} and endpoint: ${endpoint}`)
+        const result = await Promise.allSettled(
+            Object.entries(qEndpoints).map(([region, endpoint]) => {
+                const codeWhispererService = service(region, endpoint)
+                return fetchProfilesFromRegion(codeWhispererService, region, logging)
+            })
+        )
 
-                    const codeWhispererService = service(region, endpoint)
+        const fulfilledResults = result.filter(settledResult => settledResult.status === 'fulfilled')
 
-                    const response = await codeWhispererService.listAvailableProfiles({
-                        maxResults: MAX_Q_DEVELOPER_PROFILES,
-                    })
-
-                    if (response) {
-                        const profiles = response.profiles.map(profile => ({
-                            arn: profile.arn,
-                            name: profile.profileName,
-                            identityDetails: {
-                                region,
-                            },
-                        }))
-
-                        allProfiles.push(...profiles)
-                    }
-
-                    logging.debug(`Fetched profiles from ${region}: ${JSON.stringify(response)}`)
-                } catch (error) {
-                    logging.error(`Error fetching profiles from ${region}: ${error}`)
-                }
-            }
-            return allProfiles
-        } catch (error) {
-            logging.error(`Failed to list all profiles: ${error}`)
-            throw error
+        if (fulfilledResults.length === 0) {
+            throw new ResponseError(LSPErrorCodes.RequestFailed, `Failed to retrieve profiles from all queried regions`)
         }
+
+        fulfilledResults.forEach(fulfilledResult => allProfiles.push(...fulfilledResult.value))
+
+        return allProfiles
     }
+
+async function fetchProfilesFromRegion(
+    service: CodeWhispererServiceToken,
+    region: string,
+    logging: Logging
+): Promise<AmazonQDeveloperProfile[]> {
+    let allRegionalProfiles: AmazonQDeveloperProfile[] = []
+    let nextToken: string | undefined = undefined
+    let numberOfPages = 0
+
+    try {
+        do {
+            logging.debug(`Fetching profiles from region: ${region} (iteration: ${numberOfPages})`)
+
+            const response = await service.listAvailableProfiles({
+                maxResults: MAX_Q_DEVELOPER_PROFILES_PER_PAGE,
+            })
+
+            const profiles = response.profiles.map(profile => ({
+                arn: profile.arn,
+                name: profile.profileName,
+                identityDetails: {
+                    region,
+                },
+            }))
+
+            allRegionalProfiles.push(...profiles)
+
+            nextToken = response.nextToken
+            numberOfPages++
+
+            logging.debug(`Fetched profiles from ${region}: ${JSON.stringify(response)} (iteration: ${numberOfPages})`)
+        } while (nextToken !== undefined && numberOfPages < MAX_Q_DEVELOPER_PROFILE_PAGES)
+
+        return allRegionalProfiles
+    } catch (error) {
+        logging.error(`Error fetching profiles from ${region}: ${error}`)
+
+        throw error
+    }
+}

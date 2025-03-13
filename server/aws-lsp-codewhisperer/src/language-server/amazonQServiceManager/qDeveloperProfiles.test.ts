@@ -12,10 +12,13 @@ import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../../constant
 
 const SOME_Q_DEVELOPER_PROFILE_ARN = 'some-random-q-developer-profile-arn'
 const SOME_Q_DEVELOPER_PROFILE_NAME = 'some-random-q-developer-profile-name'
-const SOME_Q_ENDPOINT = 'some-random-q-endpoint'
-const SOME_AWS_Q_ENDPOINTS = {
+const SOME_Q_ENDPOINT_URL = 'some-random-q-endpoint'
+const SOME_AWS_Q_ENDPOINT = {
     [DEFAULT_AWS_Q_REGION]: DEFAULT_AWS_Q_ENDPOINT_URL,
-    'eu-central-1': SOME_Q_ENDPOINT,
+}
+const SOME_AWS_Q_ENDPOINTS = {
+    ...SOME_AWS_Q_ENDPOINT,
+    'eu-central-1': SOME_Q_ENDPOINT_URL,
 }
 
 const EXPECTED_DEVELOPER_PROFILES_LIST: AmazonQDeveloperProfile[] = Object.keys(SOME_AWS_Q_ENDPOINTS).map(region => ({
@@ -34,21 +37,25 @@ describe('ListAllAvailableProfiles Handler', () => {
     let codeWhispererService: StubbedInstance<CodeWhispererServiceToken>
     let handler: ListAllAvailableProfilesHandler
 
+    const listAvailableProfilesResponse = {
+        profiles: [
+            {
+                arn: SOME_Q_DEVELOPER_PROFILE_ARN,
+                profileName: SOME_Q_DEVELOPER_PROFILE_NAME,
+            },
+        ],
+        $response: {} as any,
+    }
+
+    const listAvailableProfilesResponseWithNextToken = {
+        ...listAvailableProfilesResponse,
+        nextToken: 'some-random-next-token',
+    }
+
     beforeEach(() => {
         logging = stubInterface<Logging>()
         codeWhispererService = stubInterface<CodeWhispererServiceToken>()
-
-        codeWhispererService.listAvailableProfiles.returns(
-            Promise.resolve({
-                profiles: [
-                    {
-                        arn: SOME_Q_DEVELOPER_PROFILE_ARN,
-                        profileName: SOME_Q_DEVELOPER_PROFILE_NAME,
-                    },
-                ],
-                $response: {} as any,
-            })
-        )
+        codeWhispererService.listAvailableProfiles.resolves(listAvailableProfilesResponse)
 
         handler = getListAllAvailableProfilesHandler(() => codeWhispererService)
     })
@@ -75,6 +82,44 @@ describe('ListAllAvailableProfiles Handler', () => {
             })
 
             assert.deepStrictEqual(profiles, [])
+        })
+    })
+
+    describe('Pagination', () => {
+        const MAX_EXPECTED_PAGES = 10
+
+        it('should paginate if nextToken is defined', async () => {
+            const EXPECTED_CALLS = 3
+
+            codeWhispererService.listAvailableProfiles
+                .onFirstCall()
+                .resolves(listAvailableProfilesResponseWithNextToken)
+            codeWhispererService.listAvailableProfiles
+                .onSecondCall()
+                .resolves(listAvailableProfilesResponseWithNextToken)
+            codeWhispererService.listAvailableProfiles.onThirdCall().resolves(listAvailableProfilesResponse)
+
+            const profiles = await handler({
+                connectionType: 'identityCenter',
+                logging,
+                endpoints: SOME_AWS_Q_ENDPOINT,
+            })
+
+            assert.strictEqual(codeWhispererService.listAvailableProfiles.callCount, EXPECTED_CALLS)
+            assert.deepStrictEqual(profiles, Array(EXPECTED_CALLS).fill(EXPECTED_DEVELOPER_PROFILES_LIST[0]))
+        })
+
+        it(`should retrieve at most ${MAX_EXPECTED_PAGES} pages`, async () => {
+            codeWhispererService.listAvailableProfiles.resolves(listAvailableProfilesResponseWithNextToken)
+
+            const profiles = await handler({
+                connectionType: 'identityCenter',
+                logging,
+                endpoints: SOME_AWS_Q_ENDPOINT,
+            })
+
+            assert.strictEqual(codeWhispererService.listAvailableProfiles.callCount, MAX_EXPECTED_PAGES)
+            assert.deepStrictEqual(profiles, Array(MAX_EXPECTED_PAGES).fill(EXPECTED_DEVELOPER_PROFILES_LIST[0]))
         })
     })
 })
