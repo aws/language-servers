@@ -125,6 +125,7 @@ export const WorkspaceContextServer =
                 logging.info(`Workspace context optin: ${isOptedIn}`)
 
                 if (!isOptedIn) {
+                    isWorkflowInitialized = false
                     await workspaceFolderManager.clearAllWorkspaceResources()
                 }
             } catch (error) {
