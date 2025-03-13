@@ -149,7 +149,7 @@ async function listAvailableProfiles(
     logging: Logging
 ): Promise<AmazonQDeveloperProfile[]> {
     const handler = getListAllAvailableProfilesHandler(service)
-    const connectionType = getSsoConnectionType(credentialsProvider)
+    const connectionType = credentialsProvider.getConnectionType()
     const profiles = await handler({
         connectionType,
         logging,
