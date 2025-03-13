@@ -18,6 +18,7 @@ import {
     FollowUpClickParams,
     InfoLinkClickParams,
     LinkClickParams,
+    OpenTabParams,
     SourceLinkClickParams,
 } from '@aws/language-server-runtimes-types'
 import { ChatItem, ChatItemType, ChatPrompt, MynahUI, MynahUIDataModel, NotificationType } from '@aws/mynah-ui'
@@ -31,7 +32,7 @@ export interface InboundChatApi {
     sendToPrompt(params: SendToPromptParams): void
     sendGenericCommand(params: GenericCommandParams): void
     showError(params: ErrorParams): void
-    openTab(tabId?: string): void
+    openTab(params: OpenTabParams): void
 }
 
 export const handleChatPrompt = (
@@ -400,16 +401,22 @@ ${params.message}`,
         messager.onError(params)
     }
 
-    const openTab = (tabId?: string) => {
-        if (tabId && tabId !== mynahUi.getSelectedTabId()) {
-            mynahUi.selectTab(tabId)
-        }
-        if (!tabId) {
-            tabId = createTabId(true)
-        }
-
+    const openTab = ({ tabId }: OpenTabParams) => {
         if (tabId) {
-            messager.onOpenTab(tabId)
+            if (tabId !== mynahUi.getSelectedTabId()) {
+                mynahUi.selectTab(tabId)
+            }
+            messager.onOpenTab({ tabId })
+        } else {
+            const tabId = createTabId(true)
+            if (tabId) {
+                messager.onOpenTab({ tabId })
+            } else {
+                messager.onOpenTab({
+                    type: 'InvalidRequest',
+                    message: 'No more tabs available',
+                })
+            }
         }
     }
 
