@@ -39,7 +39,7 @@ export class WebSocketClient {
         if (!this.ws) return
 
         this.ws.on('open', () => {
-            this.logging.log('Connected to server')
+            this.logging.log(`Connected to server ${this.url}`)
             this.reconnectAttempts = 0
             this.flushMessageQueue()
         })
@@ -76,11 +76,12 @@ export class WebSocketClient {
 
     private handleDisconnect(): void {
         if (this.ws) {
-            this.ws.terminate()
+            this.ws.close()
             this.ws = null
         }
 
         if (!this.cleanClosure) {
+            this.logging.log(`Reconnecting...`)
             this.connect()
             this.cleanClosure = true
         } else if (this.reconnectAttempts < this.maxReconnectAttempts) {
@@ -97,6 +98,7 @@ export class WebSocketClient {
     }
 
     private flushMessageQueue(): void {
+        this.logging.log(`Flushing message queue of length ${this.messageQueue.length}, ${this.url}`)
         while (this.messageQueue.length > 0) {
             this.logging.log(`Flushing ${this.messageQueue.length} queued events through websocket`)
             const message = this.messageQueue.shift()
@@ -119,7 +121,7 @@ export class WebSocketClient {
 
     public disconnect(): void {
         if (this.ws) {
-            this.ws.terminate()
+            this.ws.close()
             this.ws = null
         }
     }

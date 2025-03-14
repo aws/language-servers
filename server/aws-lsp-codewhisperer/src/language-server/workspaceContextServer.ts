@@ -204,7 +204,7 @@ export const WorkspaceContextServer =
             if (!isOptedIn) {
                 return
             }
-            logging.log(`Document saved ${JSON.stringify(event)}`)
+            logging.log(`Document saved: ${event.textDocument.uri}`)
             if (!isLoggedInUsingBearerToken(credentialsProvider)) {
                 return
             }

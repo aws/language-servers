@@ -43,8 +43,7 @@ export class ArtifactManager {
         this.workspaceFolders = workspaceFolders
         this.filesByWorkspaceFolderAndLanguage = new Map<WorkspaceFolder, Map<CodewhispererLanguage, FileMetadata[]>>()
 
-        const workspaceId = '123' //TODO, create or get workspace id
-        this.tempDirPath = path.join(this.workspace.fs.getTempDirPath(), ARTIFACT_FOLDER_NAME, workspaceId)
+        this.tempDirPath = path.join(this.workspace.fs.getTempDirPath(), ARTIFACT_FOLDER_NAME)
         this.createFolderIfNotExist(this.tempDirPath)
     }
 
@@ -391,7 +390,7 @@ export class ArtifactManager {
         // Generate Eclipse configuration files
         const javaManager = new JavaProjectAnalyzer(workspacePath)
         const structure = await javaManager.analyze()
-        const generator = new EclipseConfigGenerator()
+        const generator = new EclipseConfigGenerator(workspacePath)
 
         // Generate and add .classpath file
         const classpathContent = await generator.generateDotClasspath(structure)
