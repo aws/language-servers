@@ -134,20 +134,15 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
 
         this.logServiceState('Validate State of SSO Connection')
 
-        if (newConnectionType === 'none') {
+        if (newConnectionType === 'none' || !this.features.credentialsProvider.hasCredentials('bearer')) {
             // Connection was reset, wait for SSO connection token from client
             this.resetCodewhispererService()
             this.connectionType = 'none'
+            this.state = 'PENDING_CONNECTION'
 
             this.logServiceState('Connection is not set')
 
             return
-        }
-
-        if (!this.features.credentialsProvider.hasCredentials('bearer')) {
-            this.resetCodewhispererService()
-
-            throw new AmazonQServicePendingSigninError()
         }
 
         // Connection type hasn't change.
@@ -163,7 +158,8 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
         if (newConnectionType === 'builderId') {
             this.logging.log('Detected New connection type: builderId')
             this.resetCodewhispererService()
-            this.initializeCodewhispererService('builderId')
+            this.createCodewhispererServiceInstance('builderId')
+            this.state = 'INITIALIZED'
             this.logging.log('Initialized Amazon Q service with builderId connection')
 
             return
@@ -184,7 +180,8 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
                 return
             }
 
-            this.initializeCodewhispererService('identityCenter')
+            this.createCodewhispererServiceInstance('identityCenter')
+            this.state = 'INITIALIZED'
             this.logging.log('Initialized Amazon Q service with identityCenter connection')
         }
 
@@ -255,7 +252,6 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
         // Test if connection type changed
         this.handleSsoConnectionChange()
 
-        console.log('PROFILE CHANGE 2', this.connectionType)
         if (this.connectionType === 'none') {
             throw new AmazonQServicePendingSigninError()
         }
@@ -280,8 +276,6 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
         const newProfile = profiles.find(el => el.arn === newProfileArn)
 
         if (!newProfile) {
-            // TODO: do more validation if necessary, for now, checking only existence of the profile
-            // TODO: do we need to reset service here if requested profile does not exist anymore?
             this.logging.log(`Amazon Q Profile ${newProfileArn} is not valid`)
             this.resetCodewhispererService()
             this.state = 'PENDING_Q_PROFILE'
@@ -290,7 +284,8 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
         }
 
         if (!this.activeIdcProfile) {
-            this.initializeCodewhispererService('identityCenter', newProfile.region)
+            this.createCodewhispererServiceInstance('identityCenter', newProfile.region)
+            this.state = 'INITIALIZED'
             this.activeIdcProfile = newProfile
 
             return
@@ -322,7 +317,8 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
 
         // Selected new profile is in different region. Re-initialize service and terminate inflight requests
         this.resetCodewhispererService()
-        this.initializeCodewhispererService('identityCenter', newProfile.region)
+        this.createCodewhispererServiceInstance('identityCenter', newProfile.region)
+        this.state = 'INITIALIZED'
 
         this.activeIdcProfile = newProfile
 
@@ -357,10 +353,9 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
 
         this.cachedCodewhispererService = undefined
         this.activeIdcProfile = undefined
-        this.state = 'PENDING_CONNECTION'
     }
 
-    private initializeCodewhispererService(
+    private createCodewhispererServiceInstance(
         connectionType: 'builderId' | 'identityCenter',
         region: string = DEFAULT_AWS_Q_REGION
     ) {
@@ -381,7 +376,6 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
         })
 
         this.connectionType = connectionType
-        this.state = 'INITIALIZED'
 
         this.logServiceState('CodewhispererService Initialization finished')
     }
