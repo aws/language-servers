@@ -13,9 +13,11 @@ import {
     Telemetry,
     TextDocument,
     Workspace,
+    WorkspaceFolder,
     SDKInitializator,
 } from '@aws/language-server-runtimes/server-interface'
 import { AWSError } from 'aws-sdk'
+import path = require('path')
 import { autoTrigger, triggerType } from './auto-trigger/autoTrigger'
 import {
     CodeWhispererServiceBase,
@@ -41,6 +43,8 @@ import { undefinedIfEmpty } from './utilities/textUtils'
 import { TelemetryService } from './telemetryService'
 import { AcceptedSuggestionEntry, CodeDiffTracker } from './telemetry/codeDiffTracker'
 import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../constants'
+import { WorkspaceFolderManager } from './workspaceContext/workspaceFolderManager'
+import { getRelativePath } from './workspaceContext/util'
 
 const EMPTY_RESULT = { sessionId: '', items: [] }
 export const CONTEXT_CHARACTERS_LIMIT = 10240
@@ -57,6 +61,7 @@ const getFileContext = (params: {
     }
     leftFileContent: string
     rightFileContent: string
+    workspaceFolder?: WorkspaceFolder
 } => {
     const left = params.textDocument.getText({
         start: { line: 0, character: 0 },
@@ -67,13 +72,22 @@ const getFileContext = (params: {
         end: params.textDocument.positionAt(params.textDocument.getText().length),
     })
 
+    let relativeFileName = params.textDocument.uri
+    let workspaceFolder = WorkspaceFolderManager.getInstance()?.getWorkspaceFolder(params.textDocument.uri)
+    if (workspaceFolder) {
+        relativeFileName = getRelativePath(workspaceFolder, params.textDocument.uri)
+    } else {
+        relativeFileName = path.basename(params.textDocument.uri)
+    }
+
     return {
-        filename: params.textDocument.uri,
+        filename: relativeFileName,
         programmingLanguage: {
             languageName: params.inferredLanguageId,
         },
         leftFileContent: left,
         rightFileContent: right,
+        workspaceFolder: workspaceFolder,
     }
 }
 
@@ -337,6 +351,7 @@ export const CodewhispererServerFactory =
                 const selectionRange = params.context.selectedCompletionInfo?.range
                 const fileContext = getFileContext({ textDocument, inferredLanguageId, position: params.position })
 
+                const workspaceId = WorkspaceFolderManager.getInstance()?.getWorkspaceId(fileContext.workspaceFolder)
                 // TODO: Can we get this derived from a keyboard event in the future?
                 // This picks the last non-whitespace character, if any, before the cursor
                 const triggerCharacter = fileContext.leftFileContent.trim().at(-1) ?? ''
@@ -411,7 +426,8 @@ export const CodewhispererServerFactory =
                     .generateSuggestions({
                         ...requestContext,
                         fileContext: {
-                            ...requestContext.fileContext,
+                            filename: requestContext.fileContext.filename,
+                            programmingLanguage: requestContext.fileContext.programmingLanguage,
                             leftFileContent: requestContext.fileContext.leftFileContent
                                 .slice(-CONTEXT_CHARACTERS_LIMIT)
                                 .replaceAll('\r\n', '\n'),
@@ -419,6 +435,7 @@ export const CodewhispererServerFactory =
                                 .slice(0, CONTEXT_CHARACTERS_LIMIT)
                                 .replaceAll('\r\n', '\n'),
                         },
+                        workspaceId: workspaceId,
                     })
                     .then(async suggestionResponse => {
                         codePercentageTracker.countInvocation(inferredLanguageId)
