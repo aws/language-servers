@@ -44,6 +44,7 @@ export interface GenerateSuggestionsResponse {
 
 import CodeWhispererSigv4Client = require('../client/sigv4/codewhisperersigv4client')
 import CodeWhispererTokenClient = require('../client/token/codewhispererbearertokenclient')
+import { WorkspaceFolderManager } from './workspaceContext/workspaceFolderManager'
 
 // Right now the only difference between the token client and the IAM client for codewhsiperer is the difference in function name
 // This abstract class can grow in the future to account for any additional changes across the clients
@@ -281,5 +282,26 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
      */
     async sendTelemetryEvent(request: CodeWhispererTokenClient.SendTelemetryEventRequest) {
         return this.client.sendTelemetryEvent(request).promise()
+    }
+
+    /**
+     * @description create a remote workspace
+     */
+    async createWorkspace(request: CodeWhispererTokenClient.CreateWorkspaceRequest) {
+        return this.client.createWorkspace(request).promise()
+    }
+
+    /**
+     * @description get list of workspace metadata
+     */
+    async listWorkspaceMetadata(request: CodeWhispererTokenClient.ListWorkspaceMetadataRequest) {
+        return this.client.listWorkspaceMetadata(request).promise()
+    }
+
+    /**
+     * @description delete the remote workspace
+     */
+    async deleteWorkspace(request: CodeWhispererTokenClient.DeleteWorkspaceRequest) {
+        return this.client.deleteWorkspace(request).promise()
     }
 }

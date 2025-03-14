@@ -89,6 +89,13 @@ const supportedFileTypes: CodewhispererLanguage[] = [
 
 export const supportedSecurityScanLanguages: CodewhispererLanguage[] = ['csharp']
 
+export const supportedWorkspaceContextLanguages: CodewhispererLanguage[] = [
+    'java',
+    'python',
+    'javascript',
+    'typescript',
+]
+
 export const languageByExtension: { [key: string]: CodewhispererLanguage } = {
     '.c': 'c',
     '.cpp': 'cpp',
@@ -247,4 +254,39 @@ export const getRuntimeLanguage = (language: CodewhispererLanguage): RuntimeLang
             }
             return language
     }
+}
+
+/**
+ * Determines the CodeWhisperer language identifier based on a file path's extension.
+ * This function maps file extensions to their corresponding CodeWhisperer language IDs
+ * using the languageByExtension mapping.
+ *
+ * @param filePath - The complete file path to analyze. This should include the file extension
+ *                  (e.g., '/path/to/file.js', 'script.py', etc.)
+ *
+ * @returns {CodewhispererLanguage | undefined} - Returns the corresponding CodeWhisperer
+ *          language identifier if a matching extension is found, undefined otherwise.
+ *          The returned language ID is compatible with CodeWhisperer's expected format.
+ *
+ * @example
+ * // Returns 'javascript' for a .js file
+ * getCodeWhispererLanguageIdFromPath('src/app.js')
+ *
+ * // Returns 'python' for a .py file
+ * getCodeWhispererLanguageIdFromPath('script.py')
+ *
+ * // Returns undefined for unsupported extensions
+ * getCodeWhispererLanguageIdFromPath('document.txt')
+ *
+ * @remarks
+ * - This function is extension-based only
+ */
+export function getCodeWhispererLanguageIdFromPath(filePath: string) {
+    for (const [extension, languageId] of Object.entries(languageByExtension)) {
+        if (filePath.endsWith(extension)) {
+            return languageId
+        }
+    }
+
+    return undefined
 }

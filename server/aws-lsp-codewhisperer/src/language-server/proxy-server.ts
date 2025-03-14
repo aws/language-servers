@@ -6,6 +6,7 @@ import { CodeWhispererServiceIAM, CodeWhispererServiceToken } from './codeWhispe
 import { QNetTransformServerToken } from './netTransformServer'
 import { QChatServer } from './qChatServer'
 import { QConfigurationServerToken } from './configuration/qConfigurationServer'
+import { WorkspaceContextServer } from './workspaceContextServer'
 
 export const CodeWhispererServerTokenProxy = CodewhispererServerFactory(
     (credentialsProvider, workspace, awsQRegion, awsQEndpointUrl, sdkInitializator) => {
@@ -62,6 +63,18 @@ export const QChatServerProxy = QChatServer((credentialsProvider, awsQRegion, aw
         .withCodeWhispererRegion(awsQRegion)
         .withSdkRuntimeConfigurator(sdkInitializator)
 })
+
+export const WorkspaceContextServerTokenProxy = WorkspaceContextServer(
+    (credentialsProvider, workspace, awsQRegion, awsQEndpointUrl, sdkInitializator) => {
+        return new CodeWhispererServiceToken(
+            credentialsProvider,
+            workspace,
+            awsQRegion,
+            awsQEndpointUrl,
+            sdkInitializator
+        )
+    }
+)
 
 export const QConfigurationServerTokenProxy = QConfigurationServerToken(
     (credentialsProvider, workspace, awsQRegion, awsQEndpointUrl, sdkInitializator) => {
