@@ -3,7 +3,6 @@ import {
     CredentialsProvider,
     GetConfigurationFromServerParams,
     InitializeParams,
-    Logging,
     LSPErrorCodes,
     ResponseError,
     Server,
@@ -13,18 +12,14 @@ import { CodeWhispererServiceToken } from '../codeWhispererService'
 import { getUserAgent } from '../utilities/telemetryUtils'
 import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../../constants'
 import { SDKInitializator } from '@aws/language-server-runtimes/server-interface'
-import { getSsoConnectionType } from '../utils'
-import {
-    AmazonQDeveloperProfile,
-    getListAllAvailableProfilesHandler,
-} from '../amazonQServiceManager/qDeveloperProfiles'
-import CodeWhispererBearerTokenClient = require('../../client/token/codewhispererbearertokenclient')
+import { AmazonQDeveloperProfile } from '../amazonQServiceManager/qDeveloperProfiles'
+import { Customizations } from '../../client/token/codewhispererbearertokenclient'
+import { Q_CUSTOMIZATIONS, Q_DEVELOPER_PROFILES } from './constants'
+import { OnGetConfigurationFromServerManager } from './onConfigurationFromServerManager'
 
 // The configuration section that the server will register and listen to
 export const Q_CONFIGURATION_SECTION = 'aws.q'
 
-const Q_CUSTOMIZATIONS = 'customizations'
-const Q_DEVELOPER_PROFILES = 'developerProfiles'
 export const Q_CUSTOMIZATIONS_CONFIGURATION_SECTION = `${Q_CONFIGURATION_SECTION}.${Q_CUSTOMIZATIONS}`
 export const Q_DEVELOPER_PROFILES_CONFIGURATION_SECTION = `${Q_CONFIGURATION_SECTION}.${Q_DEVELOPER_PROFILES}`
 
@@ -69,49 +64,38 @@ export const QConfigurationServerToken =
             }
         })
 
-        const customizationsErrorMessage = `Failed to fetch: ${Q_CUSTOMIZATIONS}`
-        const developerProfilesErrorMessage = `Failed to fetch: ${Q_DEVELOPER_PROFILES}`
-        const errorCallback = (message: string) => (err: any) => {
-            logging.error(`${message}: ${err}`)
-            throw new ResponseError(LSPErrorCodes.RequestFailed, message)
-        }
-
-        const configurationSubSections = {
-            [Q_CUSTOMIZATIONS]: () =>
-                listAvailableCustomizations(codeWhispererService).catch(errorCallback(customizationsErrorMessage)),
-            [Q_DEVELOPER_PROFILES]: () =>
-                listAvailableProfiles(
-                    (region, endpoint) => service(credentialsProvider, workspace, region, endpoint, sdkInitializator),
-                    credentialsProvider,
-                    logging
-                ).catch(errorCallback(developerProfilesErrorMessage)),
-        }
+        const onGetConfigurationFromServerManager = new OnGetConfigurationFromServerManager(
+            codeWhispererService,
+            credentialsProvider,
+            logging,
+            (region, endpoint) => service(credentialsProvider, workspace, region, endpoint, sdkInitializator)
+        )
 
         lsp.extensions.onGetConfigurationFromServer(
             async (params: GetConfigurationFromServerParams, token: CancellationToken) => {
                 const section = params.section
 
-                let customizations: CodeWhispererBearerTokenClient.Customizations
+                let customizations: Customizations
                 let developerProfiles: AmazonQDeveloperProfile[]
 
                 try {
                     switch (section) {
                         case Q_CONFIGURATION_SECTION:
                             ;[customizations, developerProfiles] = await Promise.all([
-                                configurationSubSections[Q_CUSTOMIZATIONS](),
+                                onGetConfigurationFromServerManager.listAvailableCustomizations(),
                                 Q_DEVELOPER_PROFILES_ENABLED
-                                    ? configurationSubSections[Q_DEVELOPER_PROFILES]()
+                                    ? onGetConfigurationFromServerManager.listAvailableProfiles()
                                     : Promise.resolve([]),
                             ])
                             return Q_DEVELOPER_PROFILES_ENABLED
                                 ? { customizations, developerProfiles }
                                 : { customizations }
                         case Q_CUSTOMIZATIONS_CONFIGURATION_SECTION:
-                            customizations = await configurationSubSections[Q_CUSTOMIZATIONS]()
+                            customizations = await onGetConfigurationFromServerManager.listAvailableCustomizations()
 
                             return customizations
                         case Q_DEVELOPER_PROFILES_CONFIGURATION_SECTION:
-                            developerProfiles = await configurationSubSections[Q_DEVELOPER_PROFILES]()
+                            developerProfiles = await onGetConfigurationFromServerManager.listAvailableProfiles()
 
                             return developerProfiles
                         default:
@@ -134,26 +118,3 @@ export const QConfigurationServerToken =
         logging.log('Amazon Q Customization server has been initialised')
         return () => {}
     }
-
-async function listAvailableCustomizations(
-    service: CodeWhispererServiceToken
-): Promise<CodeWhispererBearerTokenClient.Customizations> {
-    const customizations = (await service.listAvailableCustomizations({ maxResults: 100 })).customizations
-
-    return customizations
-}
-
-async function listAvailableProfiles(
-    service: (region: string, endpoint: string) => CodeWhispererServiceToken,
-    credentialsProvider: CredentialsProvider,
-    logging: Logging
-): Promise<AmazonQDeveloperProfile[]> {
-    const handler = getListAllAvailableProfilesHandler(service)
-    const connectionType = credentialsProvider.getConnectionType()
-    const profiles = await handler({
-        connectionType,
-        logging,
-    })
-
-    return profiles
-}

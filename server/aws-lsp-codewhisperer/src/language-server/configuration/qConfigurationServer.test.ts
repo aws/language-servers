@@ -1,4 +1,4 @@
-import sinon, { StubbedInstance, stubInterface } from 'ts-sinon'
+import sinon, { stubInterface } from 'ts-sinon'
 import {
     Q_CONFIGURATION_SECTION,
     Q_CUSTOMIZATIONS_CONFIGURATION_SECTION,
@@ -8,18 +8,29 @@ import {
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import { CodeWhispererServiceToken } from '../codeWhispererService'
 import { Server } from '@aws/language-server-runtimes/server-interface'
+import { OnGetConfigurationFromServerManager } from './onConfigurationFromServerManager'
 
 describe('QConfigurationServer', () => {
     describe('OnGetConfigurationFromServer', () => {
         let testFeatures: TestFeatures
         let disposeServer: () => void
-        let codeWhispererService: StubbedInstance<CodeWhispererServiceToken>
+        let listAvailableProfilesStub: sinon.SinonStub
+        let listAvailableCustomizationsStub: sinon.SinonStub
 
         beforeEach(() => {
             testFeatures = new TestFeatures()
 
-            codeWhispererService = stubInterface<CodeWhispererServiceToken>()
+            const codeWhispererService = stubInterface<CodeWhispererServiceToken>()
             const configurationServerFactory: Server = QConfigurationServerToken(() => codeWhispererService)
+
+            listAvailableCustomizationsStub = sinon.stub(
+                OnGetConfigurationFromServerManager.prototype,
+                'listAvailableCustomizations'
+            )
+            listAvailableProfilesStub = sinon.stub(
+                OnGetConfigurationFromServerManager.prototype,
+                'listAvailableProfiles'
+            )
 
             disposeServer = configurationServerFactory(testFeatures)
         })
@@ -34,8 +45,8 @@ describe('QConfigurationServer', () => {
                 section: Q_CONFIGURATION_SECTION,
             })
 
-            sinon.assert.calledOnce(codeWhispererService.listAvailableCustomizations)
-            sinon.assert.notCalled(codeWhispererService.listAvailableProfiles)
+            sinon.assert.calledOnce(listAvailableCustomizationsStub)
+            sinon.assert.notCalled(listAvailableProfilesStub)
         })
 
         it(`only calls listAvailableCustomizations when ${Q_CUSTOMIZATIONS_CONFIGURATION_SECTION} is requested`, () => {
@@ -43,18 +54,17 @@ describe('QConfigurationServer', () => {
                 section: Q_CUSTOMIZATIONS_CONFIGURATION_SECTION,
             })
 
-            sinon.assert.calledOnce(codeWhispererService.listAvailableCustomizations)
-            sinon.assert.notCalled(codeWhispererService.listAvailableProfiles)
+            sinon.assert.calledOnce(listAvailableCustomizationsStub)
+            sinon.assert.notCalled(listAvailableProfilesStub)
         })
 
         it(`only calls listAvailableProfiles when ${Q_DEVELOPER_PROFILES_CONFIGURATION_SECTION} is requested`, () => {
-            testFeatures.credentialsProvider.getConnectionType.returns('identityCenter')
             testFeatures.lsp.extensions.onGetConfigurationFromServer.firstCall.firstArg({
                 section: Q_DEVELOPER_PROFILES_CONFIGURATION_SECTION,
             })
 
-            sinon.assert.notCalled(codeWhispererService.listAvailableCustomizations)
-            sinon.assert.called(codeWhispererService.listAvailableProfiles)
+            sinon.assert.notCalled(listAvailableCustomizationsStub)
+            sinon.assert.calledOnce(listAvailableProfilesStub)
         })
     })
 })
