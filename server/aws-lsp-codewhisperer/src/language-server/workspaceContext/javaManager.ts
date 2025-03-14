@@ -422,7 +422,15 @@ export class JavaProjectAnalyzer {
 }
 
 export class EclipseConfigGenerator {
+    constructor(private readonly workspacePath: string) {}
+
     async generateDotClasspath(structure: JavaProjectStructure): Promise<string> {
+        const existingContent = await this.readFileIfExists('.classpath')
+        if (existingContent !== null) {
+            console.log('Found existing .classpath file, returning its contents')
+            return existingContent
+        }
+
         const builder = create({ version: '1.0', encoding: 'UTF-8' })
         const classpath = builder.ele('classpath')
 
@@ -546,6 +554,12 @@ export class EclipseConfigGenerator {
     }
 
     async generateDotProject(projectName: string, structure: JavaProjectStructure): Promise<string> {
+        const existingContent = await this.readFileIfExists('.project')
+        if (existingContent !== null) {
+            console.log('Found existing .project file, returning its contents')
+            return existingContent
+        }
+
         const builder = create({ version: '1.0', encoding: 'UTF-8' })
         const project = builder.ele('projectDescription')
 
@@ -652,8 +666,18 @@ export class EclipseConfigGenerator {
         return settings
     }
 
+    private async readFileIfExists(fileName: string): Promise<string | null> {
+        try {
+            const filePath = path.join(this.workspacePath, fileName)
+            const content = await fs.readFile(filePath, 'utf-8')
+            return content
+        } catch (error: any) {
+            console.error(`Error reading ${fileName}: ${error.message}`)
+            return null
+        }
+    }
+
     private addAttribute(node: any, attribute: ClasspathAttribute, value: string = 'true'): void {
-        console.log('Adding attributes')
         // Get existing attributes element or create a new one
         let attrs = node.ele('attributes')
 
