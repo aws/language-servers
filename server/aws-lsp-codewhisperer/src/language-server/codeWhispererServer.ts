@@ -41,11 +41,10 @@ import { undefinedIfEmpty } from './utilities/textUtils'
 import { TelemetryService } from './telemetryService'
 import { AcceptedSuggestionEntry, CodeDiffTracker } from './telemetry/codeDiffTracker'
 import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../constants'
-import * as https from 'node:https'
 
 const EMPTY_RESULT = { sessionId: '', items: [] }
 export const CONTEXT_CHARACTERS_LIMIT = 10240
-console.log(https.globalAgent.maxSockets)
+
 // Both clients (token, sigv4) define their own types, this return value needs to match both of them.
 const getFileContext = (params: {
     textDocument: TextDocument
@@ -601,9 +600,9 @@ export const CodewhispererServerFactory =
                         `Inline completion configuration updated to use ${codeWhispererService.customizationArn}`
                     )
                     /*
-                                                            The flag enableTelemetryEventsToDestination is set to true temporarily. It's value will be determined through destination
-                                                            configuration post all events migration to STE. It'll be replaced by qConfig['enableTelemetryEventsToDestination'] === true
-                                                         */
+                                                        The flag enableTelemetryEventsToDestination is set to true temporarily. It's value will be determined through destination
+                                                        configuration post all events migration to STE. It'll be replaced by qConfig['enableTelemetryEventsToDestination'] === true
+                                                     */
                     // const enableTelemetryEventsToDestination = true
                     // telemetryService.updateEnableTelemetryEventsToDestination(enableTelemetryEventsToDestination)
                     const optOutTelemetryPreference = qConfig['optOutTelemetry'] === true ? 'OPTOUT' : 'OPTIN'
