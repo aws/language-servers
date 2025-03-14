@@ -1,7 +1,7 @@
 // Port of implementation in AWS Toolkit for VSCode
 // https://github.com/aws/aws-toolkit-vscode/blob/ac9a78db90192fe13dcd82ac0b30e6f84c39b9c8/packages/core/src/shared/filesystemUtilities.ts
 
-import * as pathutils from './pathUtils'
+import * as pathutils from './path'
 
 /**
  *

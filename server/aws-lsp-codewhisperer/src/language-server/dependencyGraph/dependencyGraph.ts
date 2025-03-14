@@ -1,5 +1,5 @@
 import { Logging, Workspace } from '@aws/language-server-runtimes/server-interface'
-import { GitIgnoreFilter } from './gitIgnoreFilter'
+import { gitIgnoreFilterUtils } from '@aws/lsp-core'
 import * as admZip from 'adm-zip'
 import * as path from 'path'
 import * as CodeWhispererConstants from './constants'
@@ -131,7 +131,11 @@ export abstract class DependencyGraph {
             return files
         }
 
-        const gitIgnoreFilter = await GitIgnoreFilter.build(rootPath, gitIgnoreFiles, this.workspace)
+        const gitIgnoreFilter = await gitIgnoreFilterUtils.GitIgnoreFilter.build(
+            rootPath,
+            gitIgnoreFiles,
+            this.workspace
+        )
 
         return gitIgnoreFilter.filterFiles(files)
     }
