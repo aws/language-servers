@@ -4,19 +4,6 @@ import { AWS_Q_ENDPOINTS } from '../../constants'
 import { CodeWhispererServiceToken } from '../codeWhispererService'
 import { AmazonQDeveloperProfile, Features } from './AmazonQTokenServiceManager'
 
-const dummyProfiles: AmazonQDeveloperProfile[] = [
-    {
-        arn: 'profile-iad',
-        profileName: 'profile-iad',
-        region: 'us-east-1',
-    },
-    {
-        arn: 'profile-fra',
-        profileName: 'profile-fra',
-        region: 'eu-central-1',
-    },
-]
-
 export async function listAvailableProfiles(features: Features) {
     const allProfiles: AmazonQDeveloperProfile[] = []
 
@@ -49,9 +36,6 @@ export async function listAvailableProfiles(features: Features) {
             features!.logging.error(`Error fetching profiles from ${region}: ${error}`)
         }
     }
-
-    // TODO: remove, only for testings
-    allProfiles.push(...dummyProfiles)
 
     return allProfiles
 }

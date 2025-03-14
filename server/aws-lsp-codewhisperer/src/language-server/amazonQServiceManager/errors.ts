@@ -36,6 +36,13 @@ export class AmazonQServicePendingProfileUpdateError extends AmazonQError {
     }
 }
 
+export class AmazonQServiceProfileUpdateCancelled extends AmazonQError {
+    constructor(message: string = 'Amazon Q Profile cancelled') {
+        super(message, 'E_AMAZON_Q_PROFILE_UPDATE_CANCELLED')
+        this.name = 'AmazonQServiceProfileUpdateCancelled'
+    }
+}
+
 export class AmazonQServiceInvalidProfileError extends AmazonQError {
     constructor(message: string = 'Selected Amazon Q Profile is invalid') {
         super(message, 'E_AMAZON_Q_INVALID_PROFILE')

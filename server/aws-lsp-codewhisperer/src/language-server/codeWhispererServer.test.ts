@@ -42,6 +42,8 @@ import {
 } from './testUtils'
 import { CodeDiffTracker } from './telemetry/codeDiffTracker'
 import { TelemetryService } from './telemetryService'
+import { BaseAmazonQServiceManager } from './amazonQServiceManager/BaseAmazonQServiceManager'
+import { AmazonQTokenServiceManager } from './amazonQServiceManager/AmazonQTokenServiceManager'
 
 describe('CodeWhisperer Server', () => {
     const sandbox = sinon.createSandbox()
@@ -68,6 +70,7 @@ describe('CodeWhisperer Server', () => {
         generateSessionIdStub.restore()
         SessionManager.reset()
         sandbox.restore()
+        sinon.restore()
         SESSION_IDS_LOG = []
     })
 
@@ -491,8 +494,16 @@ describe('CodeWhisperer Server', () => {
 
                 const test_server = CodewhispererServerFactory(_auth => test_service)
 
+                // @ts-ignore
+                sinon.stub(AmazonQTokenServiceManager, 'getInstance').returns({
+                    getCodewhispererService: () => test_service,
+                })
+
                 // Initialize the features, but don't start server yet
                 const test_features = new TestFeatures()
+
+                test_features.credentialsProvider.hasCredentials.returns(true)
+                test_features.credentialsProvider.getConnectionType.returns('builderId')
 
                 // Return no specific configuration for CodeWhisperer
                 test_features.lsp.workspace.getConfiguration.returns(Promise.resolve({}))

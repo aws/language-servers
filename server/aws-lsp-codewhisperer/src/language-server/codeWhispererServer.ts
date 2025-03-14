@@ -259,7 +259,6 @@ export const CodewhispererServerFactory =
             sdkInitializator
         )
 
-        let credentialsType: CredentialsType
         let AmazonQServiceManager: BaseAmazonQServiceManager
         const serviceType = fallbackCodeWhispererService.constructor.name
         if (serviceType === 'CodeWhispererServiceToken') {
@@ -271,7 +270,6 @@ export const CodewhispererServerFactory =
                 workspace,
                 runtime,
             })
-            credentialsType = 'bearer'
         } else {
             // Fallback to default passed service factory for IAM credentials type
             AmazonQServiceManager = {
@@ -280,7 +278,6 @@ export const CodewhispererServerFactory =
                     return fallbackCodeWhispererService
                 },
             }
-            credentialsType = fallbackCodeWhispererService.getCredentialsType()
         }
 
         const telemetryService = new TelemetryService(
@@ -396,6 +393,7 @@ export const CodewhispererServerFactory =
                 }
 
                 const codeWhispererService = AmazonQServiceManager.getCodewhispererService()
+                
                 // supplementalContext available only via token authentication
                 const supplementalContextPromise =
                     codeWhispererService instanceof CodeWhispererServiceToken
@@ -443,8 +441,7 @@ export const CodewhispererServerFactory =
                     customizationArn: undefinedIfEmpty(codeWhispererService.customizationArn),
                 })
 
-                return AmazonQServiceManager.getCodewhispererService()
-                    .generateSuggestions({
+                return codeWhispererService.generateSuggestions({
                         ...requestContext,
                         fileContext: {
                             ...requestContext.fileContext,

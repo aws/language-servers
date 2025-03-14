@@ -9,7 +9,7 @@ import {
     Workspace,
     LSPErrorCodes,
     SsoConnectionType,
-    InitializeParams,
+    CancellationToken,
 } from '@aws/language-server-runtimes/server-interface'
 import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION, AWS_Q_ENDPOINTS } from '../../constants'
 import { CodeWhispererServiceToken } from '../codeWhispererService'
@@ -26,8 +26,6 @@ import { BaseAmazonQServiceManager } from './BaseAmazonQServiceManager'
 import { listAvailableProfiles } from './listAvailableProfilesMock'
 import { Q_CONFIGURATION_SECTION } from '../configuration/qConfigurationServer'
 import { undefinedIfEmpty } from '../utilities/textUtils'
-
-const ENABLE_DEVELOPER_PROFILE_SUPPORT = false
 
 export interface Features {
     lsp: Lsp
@@ -50,7 +48,7 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
     private logging!: Logging
     private cachedCodewhispererService?: CodeWhispererServiceToken
     private customUserAgent: string = 'Amazon Q Language Server'
-    private enableDeveloperProfileSupport = ENABLE_DEVELOPER_PROFILE_SUPPORT
+    private enableDeveloperProfileSupport?: boolean
     private configurationCache = new Map()
     private activeIdcProfile?: AmazonQDeveloperProfile
     private connectionType?: SsoConnectionType
@@ -67,20 +65,23 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
 
     private constructor() {}
 
-    public static getInstance(features: Features): AmazonQTokenServiceManager {
+    public static getInstance(features: Features, enableDeveloperProfileSupport = false): AmazonQTokenServiceManager {
         if (!AmazonQTokenServiceManager.instance) {
             AmazonQTokenServiceManager.instance = new AmazonQTokenServiceManager()
-            AmazonQTokenServiceManager.instance.initialize(features)
+            AmazonQTokenServiceManager.instance.initialize(features, enableDeveloperProfileSupport)
         }
         return AmazonQTokenServiceManager.instance
     }
 
-    private initialize(features: Features): void {
+    private initialize(features: Features, enableDeveloperProfileSupport = false): void {
         if (!features || !features.logging || !features.lsp) {
             throw new Error('Service features not initialized. Please ensure proper initialization.')
         }
+
         this.features = features
         this.logging = features.logging
+
+        this.enableDeveloperProfileSupport = enableDeveloperProfileSupport
 
         this.connectionType = 'none'
         this.state = 'PENDING_CONNECTION'
@@ -105,21 +106,23 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
         this.features.lsp.onInitialized(this.handleDidChangeConfiguration)
         this.features.lsp.didChangeConfiguration(this.handleDidChangeConfiguration)
 
-        this.features.lsp.workspace.onUpdateConfiguration(async (params: UpdateConfigurationParams) => {
-            try {
-                if (params.section === Q_CONFIGURATION_SECTION && params.settings.profileArn) {
-                    await this.handleProfileChange(params.settings.profileArn)
-                }
-            } catch (error) {
-                if (error instanceof AmazonQError) {
-                    throw new ResponseError(LSPErrorCodes.RequestFailed, error.message, {
-                        awsErrorCode: error.code,
-                    })
-                }
+        this.features.lsp.workspace.onUpdateConfiguration(
+            async (params: UpdateConfigurationParams, _token: CancellationToken) => {
+                try {
+                    if (params.section === Q_CONFIGURATION_SECTION && params.settings.profileArn) {
+                        await this.handleProfileChange(params.settings.profileArn)
+                    }
+                } catch (error) {
+                    if (error instanceof AmazonQError) {
+                        throw new ResponseError(LSPErrorCodes.RequestFailed, error.message, {
+                            awsErrorCode: error.code,
+                        })
+                    }
 
-                throw new ResponseError(LSPErrorCodes.RequestFailed, 'Failed to update configuration')
+                    throw new ResponseError(LSPErrorCodes.RequestFailed, 'Failed to update configuration')
+                }
             }
-        })
+        )
     }
 
     /**
@@ -252,10 +255,15 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
         // Test if connection type changed
         this.handleSsoConnectionChange()
 
+        console.log('PROFILE CHANGE 2', this.connectionType)
+        if (this.connectionType === 'none') {
+            throw new AmazonQServicePendingSigninError()
+        }
+
         if (this.connectionType !== 'identityCenter') {
             this.logServiceState('Q Profile can not be set')
             throw new AmazonQServiceNoProfileSupportError(
-                `Connection type ${this.connectionType} does not support profiles feature.`
+                `Connection type ${this.connectionType} does not support Developer Profiles feature.`
             )
         }
 
@@ -266,6 +274,7 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
             this.state = 'PENDING_Q_PROFILE_UPDATE'
         }
 
+        // TODO: Using tmp helper, switch to proper API call service provider https://github.com/aws/language-servers/pull/822
         const profiles = await listAvailableProfiles(this.features)
 
         const newProfile = profiles.find(el => el.arn === newProfileArn)
@@ -273,7 +282,7 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
         if (!newProfile) {
             // TODO: do more validation if necessary, for now, checking only existence of the profile
             // TODO: do we need to reset service here if requested profile does not exist anymore?
-            this.logging?.log(`Amazon Q Profile ${newProfileArn} is not valid`)
+            this.logging.log(`Amazon Q Profile ${newProfileArn} is not valid`)
             this.resetCodewhispererService()
             this.state = 'PENDING_Q_PROFILE'
 
@@ -366,13 +375,7 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
             awsQEndpointUrl = AWS_Q_ENDPOINTS[region]
         }
 
-        this.cachedCodewhispererService = new CodeWhispererServiceToken(
-            this.features.credentialsProvider,
-            this.features.workspace,
-            awsQRegion,
-            awsQEndpointUrl,
-            this.features.sdkInitializator
-        )
+        this.cachedCodewhispererService = this.serviceFactory(awsQRegion, awsQEndpointUrl)
         this.cachedCodewhispererService.updateClientConfig({
             customUserAgent: this.customUserAgent,
         })
@@ -383,9 +386,14 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
         this.logServiceState('CodewhispererService Initialization finished')
     }
 
-    // Optional: Method to reset the singleton instance (mainly for testing purposes)
-    public static resetInstance(): void {
-        AmazonQTokenServiceManager.instance = null
+    private serviceFactory(region: string, endpoint: string): CodeWhispererServiceToken {
+        return new CodeWhispererServiceToken(
+            this.features.credentialsProvider,
+            this.features.workspace,
+            region,
+            endpoint,
+            this.features.sdkInitializator
+        )
     }
 
     private logServiceState(context: string): void {
@@ -399,5 +407,26 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
                 },
             })
         )
+    }
+
+    // For Unit Tests
+    public static resetInstance(): void {
+        AmazonQTokenServiceManager.instance = null
+    }
+
+    public getState() {
+        return this.state
+    }
+
+    public getConnectionType() {
+        return this.connectionType
+    }
+
+    public getActiveProfileArn() {
+        return this.activeIdcProfile?.arn
+    }
+
+    public setServiceFactory(factory: (region: string, endpoint: string) => CodeWhispererServiceToken) {
+        this.serviceFactory = factory
     }
 }
