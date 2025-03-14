@@ -68,7 +68,14 @@ export const QConfigurationServerToken =
             codeWhispererService,
             credentialsProvider,
             logging,
-            (region, endpoint) => service(credentialsProvider, workspace, region, endpoint, sdkInitializator)
+            (region, endpoint) => {
+                const client = service(credentialsProvider, workspace, region, endpoint, sdkInitializator)
+                if (codeWhispererService.client.config.customUserAgent)
+                    client.updateClientConfig({
+                        customUserAgent: codeWhispererService.client.config.customUserAgent,
+                    })
+                return client
+            }
         )
 
         lsp.extensions.onGetConfigurationFromServer(
