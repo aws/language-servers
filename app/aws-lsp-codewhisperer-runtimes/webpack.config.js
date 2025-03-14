@@ -54,4 +54,40 @@ const nodeJsIamBundleConfig = {
     target: 'node',
 }
 
-module.exports = [nodeJsBearerTokenBundleConfig, nodeJsIamBundleConfig]
+const webworkerIamBundleConfig = {
+    target: 'webworker',
+    mode: 'production',
+    output: {
+        path: path.resolve(__dirname, 'build'),
+        filename: '[name].js',
+    },
+    entry: {
+        worker: './src/iam-webworker.ts',
+    },
+    resolve: {
+        fallback: {
+            path: 'path-browserify',
+            os: 'os-browserify',
+            https: 'https-browserify',
+            http: 'stream-http',
+            process: false,
+        },
+        extensions: ['.ts', '.tsx', '.js', '.jsx'],
+    },
+    module: {
+        parser: {
+            javascript: {
+                importMeta: false,
+            },
+        },
+        rules: [
+            {
+                test: /\.(ts|tsx)$/,
+                loader: 'ts-loader',
+                exclude: /node_modules/,
+            },
+        ],
+    },
+}
+
+module.exports = [nodeJsBearerTokenBundleConfig, nodeJsIamBundleConfig, webworkerIamBundleConfig]
