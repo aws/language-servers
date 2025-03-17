@@ -17,6 +17,7 @@ import {
     AmazonQDeveloperProfile,
     getListAllAvailableProfilesHandler,
     ListAllAvailableProfilesHandler,
+    signalsAWSQDeveloperProfilesEnabled,
 } from '../amazonQServiceManager/qDeveloperProfiles'
 import { Customizations } from '../../client/token/codewhispererbearertokenclient'
 
@@ -47,10 +48,29 @@ export const QConfigurationServerToken =
             sdkInitializator
         )
 
+        const serverConfigurationProvider = new ServerConfigurationProvider(
+            codeWhispererService,
+            credentialsProvider,
+            logging,
+            (region, endpoint) => {
+                const client = service(credentialsProvider, workspace, region, endpoint, sdkInitializator)
+                if (codeWhispererService.client.config.customUserAgent)
+                    client.updateClientConfig({
+                        customUserAgent: codeWhispererService.client.config.customUserAgent,
+                    })
+                return client
+            }
+        )
+
         lsp.addInitializer((params: InitializeParams) => {
             codeWhispererService.updateClientConfig({
                 customUserAgent: getUserAgent(params, runtime.serverInfo),
             })
+
+            if (params.initializationOptions?.aws) {
+                const isDeveloperProfilesEnabled = signalsAWSQDeveloperProfilesEnabled(params.initializationOptions.aws)
+                serverConfigurationProvider.qDeveloperProfilesEnabled = isDeveloperProfilesEnabled
+            }
 
             return {
                 capabilities: {},
@@ -65,20 +85,6 @@ export const QConfigurationServerToken =
                 },
             }
         })
-
-        const serverConfigurationProvider = new ServerConfigurationProvider(
-            codeWhispererService,
-            credentialsProvider,
-            logging,
-            (region, endpoint) => {
-                const client = service(credentialsProvider, workspace, region, endpoint, sdkInitializator)
-                if (codeWhispererService.client.config.customUserAgent)
-                    client.updateClientConfig({
-                        customUserAgent: codeWhispererService.client.config.customUserAgent,
-                    })
-                return client
-            }
-        )
 
         lsp.extensions.onGetConfigurationFromServer(
             async (params: GetConfigurationFromServerParams, token: CancellationToken) => {
@@ -145,6 +151,11 @@ export class ServerConfigurationProvider {
 
     get qDeveloperProfilesEnabled(): boolean {
         return this._qDeveloperProfilesEnabled
+    }
+
+    set qDeveloperProfilesEnabled(value: boolean) {
+        this.logging.debug(`Setting qDeveloperProfilesEnabled to: ${value}`)
+        this._qDeveloperProfilesEnabled = value
     }
 
     async listAvailableProfiles(): Promise<AmazonQDeveloperProfile[]> {
