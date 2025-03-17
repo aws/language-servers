@@ -382,7 +382,8 @@ export class WorkspaceFolderManager {
             }
             const response = await this.cwsprClient.createUploadUrl(request)
             s3Url = response.uploadUrl
-            await uploadArtifactToS3(Buffer.from(fileMetadata.content), response)
+            // Override upload id to be workspace id
+            await uploadArtifactToS3(Buffer.from(fileMetadata.content), { ...response, uploadId: workspaceId })
         } catch (e: any) {
             this.logging.warn(`Error uploading file to S3: ${e.message}`)
         }
