@@ -121,7 +121,7 @@ export const EXPECTED_RESULT = {
             references: undefined,
         },
     ],
-    nextToken: undefined,
+    partialResultToken: undefined,
 }
 
 export const EXPECTED_REFERENCE = {

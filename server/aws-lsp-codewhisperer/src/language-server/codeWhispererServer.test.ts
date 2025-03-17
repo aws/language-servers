@@ -335,6 +335,7 @@ describe('CodeWhisperer Server', () => {
                         references: undefined,
                     },
                 ],
+                partialResultToken: undefined,
             }
 
             const result = await features.doInlineCompletionWithReferences(
@@ -415,6 +416,7 @@ describe('CodeWhisperer Server', () => {
                         references: undefined,
                     },
                 ],
+                partialResultToken: undefined,
             }
 
             const result = await features.doInlineCompletionWithReferences(
@@ -447,6 +449,7 @@ describe('CodeWhisperer Server', () => {
                         references: undefined,
                     },
                 ],
+                partialResultToken: undefined,
             }
 
             const result = await features.doInlineCompletionWithReferences(
@@ -478,7 +481,7 @@ describe('CodeWhisperer Server', () => {
         })
 
         // pagination
-        it('should be able to return next token from service', async () => {
+        it('returns next token from service', async () => {
             const result = await features.doInlineCompletionWithReferences(
                 {
                     textDocument: { uri: SOME_FILE.uri },
@@ -492,14 +495,16 @@ describe('CodeWhisperer Server', () => {
             service.generateSuggestions.returns(
                 Promise.resolve({
                     suggestions: EXPECTED_SUGGESTION,
-                    responseContext: EXPECTED_RESPONSE_CONTEXT,
-                    nextToken: EXPECTED_NEXT_TOKEN,
+                    responseContext: {
+                        ...EXPECTED_RESPONSE_CONTEXT,
+                        nextToken: EXPECTED_NEXT_TOKEN,
+                    },
                 })
             )
-            assert.deepEqual(result, { ...EXPECTED_RESULT, nextToken: EXPECTED_NEXT_TOKEN })
+            assert.deepEqual(result, { ...EXPECTED_RESULT, partialResultToken: EXPECTED_NEXT_TOKEN })
         })
 
-        it('should be able to handle partialResultToken in request', async () => {
+        it('handles partialResultToken in request', async () => {
             await features.doInlineCompletionWithReferences(
                 {
                     textDocument: { uri: SOME_FILE.uri },
@@ -835,6 +840,7 @@ describe('CodeWhisperer Server', () => {
                         ],
                     },
                 ],
+                partialResultToken: undefined,
             }
             service.generateSuggestions.returns(
                 Promise.resolve({
@@ -894,6 +900,7 @@ describe('CodeWhisperer Server', () => {
                         references: undefined,
                     },
                 ],
+                partialResultToken: undefined,
             }
             service.generateSuggestions.returns(
                 Promise.resolve({
