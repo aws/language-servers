@@ -1,5 +1,10 @@
-import { Logging, LSPErrorCodes, ResponseError } from '@aws/language-server-runtimes/server-interface'
-import { SsoConnectionType } from '../utils'
+import {
+    AWSInitializationOptions,
+    Logging,
+    LSPErrorCodes,
+    ResponseError,
+} from '@aws/language-server-runtimes/server-interface'
+import { isBool, isObject, SsoConnectionType } from '../utils'
 import { AWS_Q_ENDPOINTS } from '../../constants'
 import { CodeWhispererServiceToken } from '../codeWhispererService'
 
@@ -94,4 +99,37 @@ async function fetchProfilesFromRegion(
 
         throw error
     }
+}
+
+const AWSQCapabilitiesKey = 'q'
+const developerProfilesEnabledKey = 'developerProfiles'
+
+/**
+ * @returns true if AWSInitializationOptions has the Q developer profiles flag set explicitly to true
+ *
+ * @example
+ * The function expects to receive the following structure:
+ * ```ts
+ * {
+ *  awsClientCapabilities?: {
+ *    q?: {
+ *        developerProfiles?: boolean
+ *    }
+ *  }
+ * }
+ * ```
+ */
+export function signalsAWSQDeveloperProfilesEnabled(initializationOptions: AWSInitializationOptions): boolean {
+    const qCapibilities = initializationOptions.awsClientCapabilities?.[AWSQCapabilitiesKey]
+
+    if (
+        isObject(qCapibilities) &&
+        !(qCapibilities instanceof Array) &&
+        developerProfilesEnabledKey in qCapibilities &&
+        isBool(qCapibilities[developerProfilesEnabledKey])
+    ) {
+        return qCapibilities[developerProfilesEnabledKey]
+    }
+
+    return false
 }
