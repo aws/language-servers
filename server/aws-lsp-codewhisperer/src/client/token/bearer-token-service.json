@@ -806,6 +806,52 @@
                 }
             ],
             "documentation": "<p>API to stop code transformation status.</p>"
+        },
+        "CreateWorkspace": {
+            "name": "CreateWorkspace",
+            "http": {
+                "method": "POST",
+                "requestUri": "/"
+            },
+            "input": { "shape": "CreateWorkspaceRequest" },
+            "output": { "shape": "CreateWorkspaceResponse" },
+            "errors": [
+                { "shape": "ThrottlingException" },
+                { "shape": "ConflictException" },
+                { "shape": "InternalServerException" },
+                { "shape": "ValidationException" },
+                { "shape": "AccessDeniedException" }
+            ]
+        },
+        "ListWorkspaceMetadata": {
+            "name": "ListWorkspaceMetadata",
+            "http": {
+                "method": "POST",
+                "requestUri": "/"
+            },
+            "input": { "shape": "ListWorkspaceMetadataRequest" },
+            "output": { "shape": "ListWorkspaceMetadataResponse" },
+            "errors": [
+                { "shape": "ThrottlingException" },
+                { "shape": "InternalServerException" },
+                { "shape": "ValidationException" },
+                { "shape": "AccessDeniedException" }
+            ]
+        },
+        "DeleteWorkspace": {
+            "name": "DeleteWorkspace",
+            "http": {
+                "method": "POST",
+                "requestUri": "/"
+            },
+            "input": { "shape": "DeleteWorkspaceRequest" },
+            "output": { "shape": "DeleteWorkspaceResponse" },
+            "errors": [
+                { "shape": "ThrottlingException" },
+                { "shape": "InternalServerException" },
+                { "shape": "ValidationException" },
+                { "shape": "AccessDeniedException" }
+            ]
         }
     },
     "shapes": {
@@ -5231,6 +5277,84 @@
             },
             "max": 100,
             "min": 0
+        },
+        "CreateWorkspaceRequest": {
+            "type": "structure",
+            "required": ["workspaceRoot"],
+            "members": {
+                "workspaceRoot": { "shape": "CreateWorkspaceRequestWorkspaceRootString" }
+            }
+        },
+        "CreateWorkspaceRequestWorkspaceRootString": {
+            "type": "string",
+            "max": 1024,
+            "min": 1
+        },
+        "CreateWorkspaceResponse": {
+            "type": "structure",
+            "required": ["workspace"],
+            "members": {
+                "workspace": { "shape": "WorkspaceMetadata" }
+            }
+        },
+        "WorkspaceMetadata": {
+            "type": "structure",
+            "required": ["workspaceId", "workspaceStatus"],
+            "members": {
+                "workspaceId": { "shape": "UUID" },
+                "workspaceStatus": { "shape": "WorkspaceStatus" },
+                "environmentId": { "shape": "SensitiveString" }
+            }
+        },
+        "WorkspaceStatus": {
+            "type": "string",
+            "enum": ["CREATED", "PENDING", "READY", "CONNECTED", "DELETING"]
+        },
+        "ListWorkspaceMetadataRequest": {
+            "type": "structure",
+            "required": ["workspaceRoot"],
+            "members": {
+                "workspaceRoot": { "shape": "ListWorkspaceMetadataRequestWorkspaceRootString" },
+                "nextToken": { "shape": "String" },
+                "maxResults": { "shape": "Integer" }
+            }
+        },
+        "ListWorkspaceMetadataRequestWorkspaceRootString": {
+            "type": "string",
+            "max": 1024,
+            "min": 1
+        },
+        "ListWorkspaceMetadataResponse": {
+            "type": "structure",
+            "required": ["workspaces"],
+            "members": {
+                "workspaces": { "shape": "WorkspaceList" },
+                "nextToken": { "shape": "String" }
+            }
+        },
+        "WorkspaceList": {
+            "type": "list",
+            "member": { "shape": "WorkspaceMetadata" }
+        },
+        "WorkspaceContextUploadContext": {
+            "type": "structure",
+            "required": ["workspaceId", "relativePath", "programmingLanguage"],
+            "members": {
+                "workspaceId": { "shape": "UUID" },
+                "relativePath": { "shape": "SensitiveString" },
+                "programmingLanguage": { "shape": "ProgrammingLanguage" }
+            }
+        },
+        "DeleteWorkspaceRequest": {
+            "type": "structure",
+            "required": ["workspaceId"],
+            "members": {
+                "workspaceId": { "shape": "UUID" }
+            }
+        },
+        "DeleteWorkspaceResponse": {
+            "type": "structure",
+            "members": {}
         }
     }
 }

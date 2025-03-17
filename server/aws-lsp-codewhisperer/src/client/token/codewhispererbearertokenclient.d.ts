@@ -122,11 +122,11 @@ declare class CodeWhispererBearerTokenClient extends Service {
    */
   getTransformationPlan(callback?: (err: AWSError, data: CodeWhispererBearerTokenClient.Types.GetTransformationPlanResponse) => void): Request<CodeWhispererBearerTokenClient.Types.GetTransformationPlanResponse, AWSError>;
   /**
-   * 
+   *
    */
   listAvailableCustomizations(params: CodeWhispererBearerTokenClient.Types.ListAvailableCustomizationsRequest, callback?: (err: AWSError, data: CodeWhispererBearerTokenClient.Types.ListAvailableCustomizationsResponse) => void): Request<CodeWhispererBearerTokenClient.Types.ListAvailableCustomizationsResponse, AWSError>;
   /**
-   * 
+   *
    */
   listAvailableCustomizations(callback?: (err: AWSError, data: CodeWhispererBearerTokenClient.Types.ListAvailableCustomizationsResponse) => void): Request<CodeWhispererBearerTokenClient.Types.ListAvailableCustomizationsResponse, AWSError>;
   /**
@@ -225,6 +225,30 @@ declare class CodeWhispererBearerTokenClient extends Service {
    * API to stop code transformation status.
    */
   stopTransformation(callback?: (err: AWSError, data: CodeWhispererBearerTokenClient.Types.StopTransformationResponse) => void): Request<CodeWhispererBearerTokenClient.Types.StopTransformationResponse, AWSError>;
+  /**
+   *
+   */
+  createWorkspace(params: CodeWhispererBearerTokenClient.Types.CreateWorkspaceRequest, callback?: (err: AWSError, data: CodeWhispererBearerTokenClient.Types.CreateWorkspaceResponse) => void): Request<CodeWhispererBearerTokenClient.Types.CreateWorkspaceResponse, AWSError>;
+  /**
+   *
+   */
+  createWorkspace(callback?: (err: AWSError, data: CodeWhispererBearerTokenClient.Types.CreateWorkspaceResponse) => void): Request<CodeWhispererBearerTokenClient.Types.CreateWorkspaceResponse, AWSError>;
+  /**
+   *
+   */
+  listWorkspaceMetadata(params: CodeWhispererBearerTokenClient.Types.ListWorkspaceMetadataRequest, callback?: (err: AWSError, data: CodeWhispererBearerTokenClient.Types.ListWorkspaceMetadataResponse) => void): Request<CodeWhispererBearerTokenClient.Types.ListWorkspaceMetadataResponse, AWSError>;
+  /**
+   *
+   */
+  listWorkspaceMetadata(callback?: (err: AWSError, data: CodeWhispererBearerTokenClient.Types.ListWorkspaceMetadataResponse) => void): Request<CodeWhispererBearerTokenClient.Types.ListWorkspaceMetadataResponse, AWSError>;
+  /**
+   *
+   */
+  deleteWorkspace(params: CodeWhispererBearerTokenClient.Types.DeleteWorkspaceRequest, callback?: (err: AWSError, data: CodeWhispererBearerTokenClient.Types.DeleteWorkspaceResponse) => void): Request<CodeWhispererBearerTokenClient.Types.DeleteWorkspaceResponse, AWSError>;
+  /**
+   *
+   */
+  deleteWorkspace(callback?: (err: AWSError, data: CodeWhispererBearerTokenClient.Types.DeleteWorkspaceResponse) => void): Request<CodeWhispererBearerTokenClient.Types.DeleteWorkspaceResponse, AWSError>;
 }
 declare namespace CodeWhispererBearerTokenClient {
   export type ActiveFunctionalityList = FunctionalityName[];
@@ -1682,6 +1706,40 @@ declare namespace CodeWhispererBearerTokenClient {
   }
   export type WorkspaceStatus = "CREATED" | "PENDING" | "READY" | "CONNECTED" | "DELETING" | string;
   export type timeBetweenChunks = Double[];
+  export interface CreateWorkspaceRequest {
+    workspaceRoot: CreateWorkspaceRequestWorkspaceRootString;
+  }
+  export type CreateWorkspaceRequestWorkspaceRootString = string;
+  export interface CreateWorkspaceResponse {
+    workspace: WorkspaceMetadata;
+  }
+  export interface WorkspaceMetadata {
+    workspaceId: UUID;
+    workspaceStatus: WorkspaceStatus;
+    environmentId?: SensitiveString;
+  }
+  export type WorkspaceStatus = "CREATED"|"PENDING"|"READY"|"CONNECTED"|"DELETING";
+  export interface ListWorkspaceMetadataRequest {
+    workspaceRoot: ListWorkspaceMetadataRequestWorkspaceRootString;
+    nextToken?: String;
+    maxResults?: Integer;
+  }
+  export type ListWorkspaceMetadataRequestWorkspaceRootString = string;
+  export interface ListWorkspaceMetadataResponse {
+    workspaces: WorkspaceList;
+    nextToken?: String;
+  }
+  export type WorkspaceList = WorkspaceMetadata[];
+  export interface WorkspaceContextUploadContext {
+    workspaceId: UUID;
+    relativePath: SensitiveString;
+    programmingLanguage: ProgrammingLanguage;
+  }
+  export interface DeleteWorkspaceRequest {
+    workspaceId: UUID;
+  }
+  export interface DeleteWorkspaceResponse {
+  }
   /**
    * A string in YYYY-MM-DD format that represents the latest possible API version that can be used in this service. Specify 'latest' to use the latest possible version.
    */

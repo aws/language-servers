@@ -29,6 +29,9 @@
         "vscode-languageserver": "^9.0.1",
         "vscode-languageserver-textdocument": "^1.0.8"
     },
+    "devDependencies": {
+        "ts-mocha": "^11.1.0"
+    },
     "prettier": {
         "printWidth": 120,
         "trailingComma": "es5",
