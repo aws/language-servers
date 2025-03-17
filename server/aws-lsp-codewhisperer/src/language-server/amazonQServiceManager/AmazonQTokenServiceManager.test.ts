@@ -88,6 +88,7 @@ describe('AmazonQTokenServiceManager', () => {
     describe('Client is not connected', () => {
         it('should be in PENDING_CONNECTION state when bearer token is not set', () => {
             setupServiceManager()
+            assert.strictEqual(amazonQTokenServiceManager.getState(), 'PENDING_CONNECTION')
             clearCredentials()
 
             assert.throws(() => amazonQTokenServiceManager.getCodewhispererService(), AmazonQServicePendingSigninError)
@@ -99,6 +100,8 @@ describe('AmazonQTokenServiceManager', () => {
     describe('BuilderId support', () => {
         it('should be INITIALIZED with BuilderId Connection', async () => {
             setupServiceManager()
+            assert.strictEqual(amazonQTokenServiceManager.getState(), 'PENDING_CONNECTION')
+
             setCredentials('builderId')
 
             const service = amazonQTokenServiceManager.getCodewhispererService()
@@ -115,6 +118,8 @@ describe('AmazonQTokenServiceManager', () => {
         describe('Developer Profiles Support is disabled', () => {
             it('should be INITIALIZED with IdentityCenter Connection', async () => {
                 setupServiceManager()
+                assert.strictEqual(amazonQTokenServiceManager.getState(), 'PENDING_CONNECTION')
+
                 setCredentials('identityCenter')
 
                 const service = amazonQTokenServiceManager.getCodewhispererService()
@@ -130,6 +135,8 @@ describe('AmazonQTokenServiceManager', () => {
         describe('Developer Profiles Support is enabled', () => {
             beforeEach(() => {
                 setupServiceManager(true)
+                assert.strictEqual(amazonQTokenServiceManager.getState(), 'PENDING_CONNECTION')
+
                 setCredentials('identityCenter')
             })
 
@@ -266,7 +273,7 @@ describe('AmazonQTokenServiceManager', () => {
                 assert.strictEqual(amazonQTokenServiceManager.getActiveProfileArn(), 'profile-iad')
                 assert(codewhispererStubFactory.calledOnceWithExactly('us-east-1', 'amazon-q-in-us-east-1-endpoint'))
 
-                // Profile change
+                // Profile change to invalid profile
 
                 await assert.rejects(
                     features.doUpdateConfiguration(
@@ -353,6 +360,8 @@ describe('AmazonQTokenServiceManager', () => {
                     AmazonQServicePendingProfileUpdateError
                 )
 
+                assert.strictEqual(amazonQTokenServiceManager.getState(), 'PENDING_Q_PROFILE_UPDATE')
+
                 await pendingProfileUpdate
 
                 const service = amazonQTokenServiceManager.getCodewhispererService()
@@ -419,6 +428,8 @@ describe('AmazonQTokenServiceManager', () => {
             setupServiceManager(true)
             clearCredentials()
 
+            assert.strictEqual(amazonQTokenServiceManager.getState(), 'PENDING_CONNECTION')
+
             await assert.rejects(
                 features.doUpdateConfiguration(
                     {
@@ -433,6 +444,8 @@ describe('AmazonQTokenServiceManager', () => {
                     awsErrorCode: 'E_AMAZON_Q_PENDING_CONNECTION',
                 })
             )
+
+            assert.strictEqual(amazonQTokenServiceManager.getState(), 'PENDING_CONNECTION')
         })
 
         it('returns error when profile update is requested and connection type is builderId', async () => {
@@ -457,6 +470,9 @@ describe('AmazonQTokenServiceManager', () => {
                     }
                 )
             )
+
+            assert.strictEqual(amazonQTokenServiceManager.getState(), 'INITIALIZED')
+            assert.strictEqual(amazonQTokenServiceManager.getConnectionType(), 'builderId')
         })
     })
 
