@@ -42,6 +42,32 @@ export interface AmazonQDeveloperProfile {
     region: string
 }
 
+/**
+ * AmazonQTokenServiceManager manages state and provides centralized access to
+ * instance of CodeWhispererServiceToken SDK client to any consuming code.
+ * It ensures that CodeWhispererServiceToken is configured to always access correct regionalized Amazon Q Developer API endpoint.
+ * Regional endppoint is selected based on:
+ * 1) current SSO auth connection type (BuilderId or IDC).
+ * 2) selected Amazon Q Developer profile (only for IDC connection type).
+ *
+ * @states
+ * - PENDING_CONNECTION: Initial state when no bearer token is set
+ * - PENDING_Q_PROFILE: When using Identity Center and waiting for profile selection
+ * - PENDING_Q_PROFILE_UPDATE: During profile update operation
+ * - INITIALIZED: Service is ready to handle requests
+ *
+ * @connectionTypes
+ * - none: No active connection
+ * - builderId: Connected via Builder ID
+ * - identityCenter: Connected via Identity Center
+ *
+ * AmazonQTokenServiceManager is a singleton class, which must be instantiated with Language Server runtimes [Features](https://github.com/aws/language-server-runtimes/blob/21d5d1dc7c73499475b7c88c98d2ce760e5d26c8/runtimes/server-interface/server.ts#L31-L42)
+ * To get access to current CodeWhispererServiceToken client object, call `getCodewhispererService()` mathod:
+ *
+ * @example
+ * const AmazonQServiceManager = AmazonQTokenServiceManager.getInstance(features);
+ * const codewhispererService = AmazonQServiceManager.getCodewhispererService();
+ */
 export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
     private static instance: AmazonQTokenServiceManager | null = null
     private features!: Features
