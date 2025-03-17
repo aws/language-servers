@@ -1,8 +1,8 @@
 import { Workspace } from '@aws/language-server-runtimes/server-interface'
 import { GitIgnoreAcceptor } from '@gerhobbelt/gitignore-parser'
 import * as parser from '@gerhobbelt/gitignore-parser'
-import * as pathUtils from '../utilities/pathUtils'
-import path = require('path')
+import * as pathUtils from './path'
+import * as path from 'path'
 
 type GitIgnoreRelativeAcceptor = {
     folderPath: string
@@ -25,7 +25,6 @@ export class GitIgnoreFilter {
 
         for (const file of gitIgnoreFiles) {
             const fileContent = await workspace.fs.readFile(file)
-
             const gitIgnoreAcceptor = parser.compile(fileContent)
 
             acceptors.push({
