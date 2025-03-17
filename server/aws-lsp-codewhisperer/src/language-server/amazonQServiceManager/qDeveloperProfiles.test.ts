@@ -2,13 +2,15 @@ import * as assert from 'assert'
 import { StubbedInstance, stubInterface } from 'ts-sinon'
 import { CodeWhispererServiceToken } from '../codeWhispererService'
 import { SsoConnectionType } from '../utils'
-import { Logging } from '@aws/language-server-runtimes/server-interface'
+import { AWSInitializationOptions, Logging } from '@aws/language-server-runtimes/server-interface'
 import {
     AmazonQDeveloperProfile,
     getListAllAvailableProfilesHandler,
     ListAllAvailableProfilesHandler,
+    signalsAWSQDeveloperProfilesEnabled,
 } from './qDeveloperProfiles'
 import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../../constants'
+import { isBool, isObject } from '../utils'
 
 const SOME_Q_DEVELOPER_PROFILE_ARN = 'some-random-q-developer-profile-arn'
 const SOME_Q_DEVELOPER_PROFILE_NAME = 'some-random-q-developer-profile-name'
@@ -120,6 +122,34 @@ describe('ListAllAvailableProfiles Handler', () => {
 
             assert.strictEqual(codeWhispererService.listAvailableProfiles.callCount, MAX_EXPECTED_PAGES)
             assert.deepStrictEqual(profiles, Array(MAX_EXPECTED_PAGES).fill(EXPECTED_DEVELOPER_PROFILES_LIST[0]))
+        })
+    })
+})
+
+describe('signalsAWSQDeveloperProfilesEnabled', () => {
+    const makeQCapability = (value?: any) => {
+        return value !== undefined ? { developerProfiles: value } : {}
+    }
+
+    const makeInitOptions = (value?: any): AWSInitializationOptions => {
+        return { awsClientCapabilities: { q: makeQCapability(value) } }
+    }
+
+    const TEST_CASES: { input: AWSInitializationOptions; expected: boolean }[] = [
+        { input: {}, expected: false },
+        { input: { awsClientCapabilities: {} }, expected: false },
+        { input: makeInitOptions(), expected: false },
+        { input: makeInitOptions([]), expected: false },
+        { input: makeInitOptions({}), expected: false },
+        { input: makeInitOptions(42), expected: false },
+        { input: makeInitOptions('some-string'), expected: false },
+        { input: makeInitOptions(false), expected: false },
+        { input: makeInitOptions(true), expected: true },
+    ]
+
+    TEST_CASES.forEach(testCase => {
+        it(`should return: ${testCase.expected} when passed: ${JSON.stringify(testCase.input)}`, () => {
+            assert.strictEqual(signalsAWSQDeveloperProfilesEnabled(testCase.input), testCase.expected)
         })
     })
 })

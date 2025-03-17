@@ -6,11 +6,10 @@ import {
     Q_DEVELOPER_PROFILES_CONFIGURATION_SECTION,
     QConfigurationServerToken,
     ServerConfigurationProvider,
-    signalsAWSQDeveloperProfilesEnabled,
 } from './qConfigurationServer'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import { CodeWhispererServiceToken } from '../codeWhispererService'
-import { AWSInitializationOptions, Server } from '@aws/language-server-runtimes/server-interface'
+import { Server } from '@aws/language-server-runtimes/server-interface'
 
 describe('QConfigurationServerToken', () => {
     let testFeatures: TestFeatures
@@ -143,33 +142,5 @@ describe('ServerConfigurationProvider', () => {
         await serverConfigurationProvider.listAvailableProfiles()
 
         sinon.assert.called(listAvailableProfilesHandlerSpy)
-    })
-})
-
-describe('signalsAWSQDeveloperProfilesEnabled', () => {
-    const makeQCapability = (value?: any) => {
-        return value !== undefined ? { developerProfiles: value } : {}
-    }
-
-    const makeInitOptions = (value?: any): AWSInitializationOptions => {
-        return { awsClientCapabilities: { q: makeQCapability(value) } }
-    }
-
-    const TEST_CASES: { input: AWSInitializationOptions; expected: boolean }[] = [
-        { input: {}, expected: false },
-        { input: { awsClientCapabilities: {} }, expected: false },
-        { input: makeInitOptions(), expected: false },
-        { input: makeInitOptions([]), expected: false },
-        { input: makeInitOptions({}), expected: false },
-        { input: makeInitOptions(42), expected: false },
-        { input: makeInitOptions('some-string'), expected: false },
-        { input: makeInitOptions(false), expected: false },
-        { input: makeInitOptions(true), expected: true },
-    ]
-
-    TEST_CASES.forEach(testCase => {
-        it(`should return: ${testCase.expected} when passed: ${JSON.stringify(testCase.input)}`, () => {
-            assert.strictEqual(signalsAWSQDeveloperProfilesEnabled(testCase.input), testCase.expected)
-        })
     })
 })

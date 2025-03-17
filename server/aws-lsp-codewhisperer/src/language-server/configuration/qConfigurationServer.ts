@@ -1,5 +1,4 @@
 import {
-    AWSInitializationOptions,
     CancellationToken,
     CredentialsProvider,
     GetConfigurationFromServerParams,
@@ -18,9 +17,9 @@ import {
     AmazonQDeveloperProfile,
     getListAllAvailableProfilesHandler,
     ListAllAvailableProfilesHandler,
+    signalsAWSQDeveloperProfilesEnabled,
 } from '../amazonQServiceManager/qDeveloperProfiles'
 import { Customizations } from '../../client/token/codewhispererbearertokenclient'
-import { isBool, isObject } from '../utils'
 
 // The configuration section that the server will register and listen to
 export const Q_CONFIGURATION_SECTION = 'aws.q'
@@ -194,22 +193,4 @@ export class ServerConfigurationProvider {
         this.logging.error(`${message}: ${error}`)
         return new ResponseError(LSPErrorCodes.RequestFailed, message)
     }
-}
-
-const AWSQCapabilitiesKey = 'q'
-const developerProfilesEnabledKey = 'developerProfiles'
-
-export function signalsAWSQDeveloperProfilesEnabled(initializationOptions: AWSInitializationOptions): boolean {
-    const qCapibilities = initializationOptions.awsClientCapabilities?.[AWSQCapabilitiesKey]
-
-    if (
-        isObject(qCapibilities) &&
-        !(qCapibilities instanceof Array) &&
-        developerProfilesEnabledKey in qCapibilities &&
-        isBool(qCapibilities[developerProfilesEnabledKey])
-    ) {
-        return qCapibilities[developerProfilesEnabledKey]
-    }
-
-    return false
 }
