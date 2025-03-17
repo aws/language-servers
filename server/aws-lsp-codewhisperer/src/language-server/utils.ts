@@ -36,6 +36,10 @@ export function isNullish(value: unknown): value is null | undefined {
     return value === null || value === undefined
 }
 
+export function isBool(value: unknown): value is boolean {
+    return typeof value === 'boolean'
+}
+
 export function getCompletionType(suggestion: Suggestion): CodewhispererCompletionType {
     const nonBlankLines = suggestion.content.split('\n').filter(line => line.trim() !== '').length
 

@@ -153,6 +153,9 @@ export async function activateDocumentsLanguageServer(extensionContext: Extensio
                     clientId: randomUUID(),
                 },
                 awsClientCapabilities: {
+                    q: {
+                        developerProfiles: false,
+                    },
                     window: {
                         notifications: true,
                     },
