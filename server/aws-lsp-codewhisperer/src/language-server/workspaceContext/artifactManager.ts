@@ -148,7 +148,8 @@ export class ArtifactManager {
         this.log(`Number of workspace folders in memory after deletion: ${this.filesByWorkspaceFolderAndLanguage.size}`)
     }
 
-    async getFileMetadata(currentWorkspace: WorkspaceFolder, filePath: string): Promise<FileMetadata> {
+    async processNewFile(currentWorkspace: WorkspaceFolder, filePath: string): Promise<FileMetadata> {
+        this.log(`Processing new file: ${filePath}`)
         const workspaceUri = URI.parse(currentWorkspace.uri)
         const fileUri = URI.parse(filePath)
         // const relativePath = path.join(currentWorkspace.name, path.relative(workspaceUri.path, fileUri.path))
@@ -165,6 +166,28 @@ export class ArtifactManager {
             currentWorkspace
         )
 
+        // Find existing workspace folder or use current one
+        const workspaceKey = this.findWorkspaceFolder(currentWorkspace) || currentWorkspace
+
+        // Update the internal map with the new file metadata
+        if (!this.filesByWorkspaceFolderAndLanguage.has(workspaceKey)) {
+            this.filesByWorkspaceFolderAndLanguage.set(workspaceKey, new Map<CodewhispererLanguage, FileMetadata[]>())
+        }
+
+        const workspaceMap = this.filesByWorkspaceFolderAndLanguage.get(workspaceKey)!
+        if (!workspaceMap.has(language)) {
+            workspaceMap.set(language, [])
+        }
+
+        // Replace or add the file metadata
+        const files = workspaceMap.get(language)!
+        const existingIndex = files.findIndex(f => f.filePath === fileMetadata.filePath)
+        if (existingIndex !== -1) {
+            files[existingIndex] = fileMetadata
+        } else {
+            files.push(fileMetadata)
+        }
+
         const zippedMetadata = await this.createZipForFile(
             currentWorkspace,
             language,
@@ -172,6 +195,37 @@ export class ArtifactManager {
             path.relative(workspaceUri.path, fileUri.path)
         )
         return zippedMetadata
+    }
+
+    public determineLanguagesForDeletedPath(fileUri: string, workspaceRoot: WorkspaceFolder): CodewhispererLanguage[] {
+        // Try to determine if it's a file by checking its language
+        const fileLanguage = getCodeWhispererLanguageIdFromPath(fileUri)
+        // TODO, this will likely return wrong result in the case that user has a folder named with an extension e.g: folder.py
+        if (fileLanguage) {
+            return [fileLanguage]
+        }
+
+        // If we can't determine the language directly, check previously associated languages
+        const languagesMap = this.getLanguagesForWorkspaceFolder(workspaceRoot)
+        if (!languagesMap) {
+            return []
+        }
+
+        const deletedFilePath = URI.parse(fileUri).fsPath
+        const programmingLanguages: CodewhispererLanguage[] = []
+
+        for (const [language, files] of languagesMap.entries()) {
+            const hasFilesInDeletedPath = files.some(path => {
+                const knownFilePath = path.filePath
+                return knownFilePath.startsWith(deletedFilePath) || knownFilePath === deletedFilePath
+            })
+
+            if (hasFilesInDeletedPath) {
+                programmingLanguages.push(language)
+            }
+        }
+
+        return programmingLanguages
     }
 
     cleanup() {
@@ -282,7 +336,18 @@ export class ArtifactManager {
         return await zip.generateAsync({ type: 'nodebuffer' })
     }
 
-    private async processDirectory(
+    private findWorkspaceFolder(workspace: WorkspaceFolder): WorkspaceFolder | undefined {
+        for (const [existingWorkspace] of this.filesByWorkspaceFolderAndLanguage) {
+            if (existingWorkspace.uri === workspace.uri) {
+                this.log(`Found existing workspace`)
+                return existingWorkspace
+            }
+        }
+        this.log(`No existing workspace found`)
+        return undefined
+    }
+
+    public async processDirectory(
         workspaceFolder: WorkspaceFolder,
         directoryPath: string,
         baseRelativePath: string = ''
@@ -328,11 +393,12 @@ export class ArtifactManager {
         workspaceFolder: WorkspaceFolder,
         filesByLanguage: Map<CodewhispererLanguage, FileMetadata[]>
     ): Promise<void> {
-        if (!this.filesByWorkspaceFolderAndLanguage.has(workspaceFolder)) {
-            this.filesByWorkspaceFolderAndLanguage.set(
-                workspaceFolder,
-                new Map<CodewhispererLanguage, FileMetadata[]>()
-            )
+        // Find existing workspace folder or use current one
+        const workspaceKey = this.findWorkspaceFolder(workspaceFolder) || workspaceFolder
+
+        // Initialize map for new workspace folders
+        if (!this.filesByWorkspaceFolderAndLanguage.has(workspaceKey)) {
+            this.filesByWorkspaceFolderAndLanguage.set(workspaceKey, new Map<CodewhispererLanguage, FileMetadata[]>())
         }
 
         const workspaceMap = this.filesByWorkspaceFolderAndLanguage.get(workspaceFolder)!

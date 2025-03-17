@@ -218,7 +218,7 @@ export const WorkspaceContextServer =
             }
             const { workspaceDetails, workspaceRoot } = result
 
-            const fileMetadata = await artifactManager.getFileMetadata(workspaceRoot, event.textDocument.uri)
+            const fileMetadata = await artifactManager.processNewFile(workspaceRoot, event.textDocument.uri)
             const s3Url = await workspaceFolderManager.uploadToS3(fileMetadata)
             if (!s3Url) {
                 return
@@ -265,7 +265,7 @@ export const WorkspaceContextServer =
                 } else if (isDir) {
                     filesMetadata = await artifactManager.addNewDirectories([URI.parse(file.uri)])
                 } else {
-                    filesMetadata = [await artifactManager.getFileMetadata(workspaceRoot, file.uri)]
+                    filesMetadata = [await artifactManager.processNewFile(workspaceRoot, file.uri)]
                 }
 
                 logging.log(`Files metadata created: ${JSON.stringify(filesMetadata)}`)
@@ -302,40 +302,49 @@ export const WorkspaceContextServer =
         })
 
         lsp.workspace.onDidDeleteFiles(async event => {
-            if (!isOptedIn) {
+            if (!isOptedIn || !isLoggedInUsingBearerToken(credentialsProvider)) {
                 return
             }
             logging.log(`Documents deleted ${JSON.stringify(event)}`)
-            if (!isLoggedInUsingBearerToken(credentialsProvider)) {
-                return
-            }
+
             for (const file of event.files) {
-                let programmingLanguage = getCodeWhispererLanguageIdFromPath(file.uri)
                 const result = workspaceFolderManager.getWorkspaceDetailsWithId(file.uri, workspaceFolders)
                 if (!result) {
+                    logging.log(`Workspace details not found for deleted file: ${file.uri}`)
                     continue
                 }
                 const { workspaceDetails, workspaceRoot } = result
-                const message = JSON.stringify({
-                    method: 'workspace/didDeleteFiles',
-                    params: {
-                        files: [
-                            {
-                                uri: getRelativePath(workspaceRoot, file.uri),
+
+                const programmingLanguages = artifactManager.determineLanguagesForDeletedPath(file.uri, workspaceRoot)
+                if (programmingLanguages.length === 0) {
+                    logging.log(`No programming languages determined for: ${file.uri}`)
+                    continue
+                }
+
+                logging.log(`Programming languages for deleted item: ${file.uri} is ${programmingLanguages}`)
+
+                // Send notification for each programming language
+                for (const language of programmingLanguages) {
+                    const message = JSON.stringify({
+                        method: 'workspace/didDeleteFiles',
+                        params: {
+                            files: [
+                                {
+                                    uri: getRelativePath(workspaceRoot, file.uri),
+                                },
+                            ],
+                            workspaceChangeMetadata: {
+                                workspaceId: workspaceDetails.workspaceId,
+                                programmingLanguage: language,
                             },
-                        ],
-                        workspaceChangeMetadata: {
-                            workspaceId: workspaceDetails.workspaceId,
-                            s3Path: '',
-                            programmingLanguage: programmingLanguage,
                         },
-                    },
-                })
-                if (!workspaceDetails.webSocketClient) {
-                    logging.log(`Websocket client is not connected yet: ${workspaceRoot.uri}`)
-                    workspaceDetails.messageQueue?.push(message)
-                } else {
-                    workspaceDetails.webSocketClient.send(message)
+                    })
+                    if (!workspaceDetails.webSocketClient) {
+                        logging.log(`Websocket client is not connected yet: ${workspaceRoot.uri}`)
+                        workspaceDetails.messageQueue?.push(message)
+                    } else {
+                        workspaceDetails.webSocketClient.send(message)
+                    }
                 }
             }
         })
@@ -362,7 +371,7 @@ export const WorkspaceContextServer =
                 } else if (isDir) {
                     filesMetadata = await artifactManager.addNewDirectories([URI.parse(file.newUri)])
                 } else {
-                    filesMetadata = [await artifactManager.getFileMetadata(workspaceRoot, file.newUri)]
+                    filesMetadata = [await artifactManager.processNewFile(workspaceRoot, file.newUri)]
                 }
 
                 logging.log(`Files metadata renamed: ${JSON.stringify(filesMetadata)}`)
