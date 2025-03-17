@@ -1,4 +1,5 @@
 import {
+    AuthorizationFlowKind,
     AwsBuilderIdSsoTokenSource,
     AwsErrorCodes,
     CancellationToken,
@@ -13,23 +14,37 @@ import {
     SsoTokenSourceKind,
 } from '@aws/language-server-runtimes/server-interface'
 import { normalizeSettingList, ProfileStore } from './profiles/profileService'
-import { authorizationCodePkceFlow, awsBuilderIdReservedName, awsBuilderIdSsoRegion, ShowUrl } from '../sso'
+import { authorizationCodePkceFlow, awsBuilderIdReservedName, awsBuilderIdSsoRegion } from '../sso'
 import { SsoCache, SsoClientRegistration } from '../sso/cache'
 import { SsoTokenAutoRefresher } from './ssoTokenAutoRefresher'
-import { throwOnInvalidClientRegistration, throwOnInvalidSsoSession, throwOnInvalidSsoSessionName } from '../sso/utils'
+import {
+    throwOnInvalidClientRegistration,
+    throwOnInvalidSsoSession,
+    throwOnInvalidSsoSessionName,
+    SsoFlowParams,
+} from '../sso/utils'
 import { AwsError, Observability } from '@aws/lsp-core'
 import { __ServiceException } from '@aws-sdk/client-sso-oidc/dist-types/models/SSOOIDCServiceException'
+import { deviceCodeFlow } from '../sso/deviceCode/deviceCodeFlow'
+import { SSOToken } from '@smithy/shared-ini-file-loader'
 
 type SsoTokenSource = IamIdentityCenterSsoTokenSource | AwsBuilderIdSsoTokenSource
+type AuthFlows = Record<AuthorizationFlowKind, (params: SsoFlowParams) => Promise<SSOToken>>
+
+const flows: AuthFlows = {
+    [AuthorizationFlowKind.DeviceCode]: deviceCodeFlow,
+    [AuthorizationFlowKind.Pkce]: authorizationCodePkceFlow,
+}
 
 export class IdentityService {
     constructor(
         private readonly profileStore: ProfileStore,
         private readonly ssoCache: SsoCache,
         private readonly autoRefresher: SsoTokenAutoRefresher,
-        private readonly showUrl: ShowUrl,
+        private readonly handlers: SsoFlowParams['handlers'],
         private readonly clientName: string,
-        private readonly observability: Observability
+        private readonly observability: Observability,
+        private readonly authFlows: AuthFlows = flows
     ) {}
 
     async getSsoToken(params: GetSsoTokenParams, token: CancellationToken): Promise<GetSsoTokenResult> {
@@ -64,14 +79,25 @@ export class IdentityService {
                 clientRegistration = await this.ssoCache.getSsoClientRegistration(this.clientName, ssoSession)
                 throwOnInvalidClientRegistration(clientRegistration)
 
-                ssoToken = await authorizationCodePkceFlow(
-                    this.clientName,
+                const flowOpts: SsoFlowParams = {
+                    clientName: this.clientName,
                     clientRegistration,
                     ssoSession,
-                    this.showUrl,
+                    handlers: this.handlers,
                     token,
-                    this.observability
-                ).catch(reason => {
+                    observability: this.observability,
+                }
+
+                const flowKind = params.options?.authorizationFlow ?? getSsoTokenOptionsDefaults.authorizationFlow
+                if (!Object.keys(this.authFlows).includes(flowKind)) {
+                    throw new AwsError(
+                        `Unsupported authorization flow requested: ${flowKind}`,
+                        AwsErrorCodes.E_CANNOT_CREATE_SSO_TOKEN
+                    )
+                }
+
+                const flow = this.authFlows[flowKind]
+                ssoToken = await flow(flowOpts).catch(reason => {
                     throw AwsError.wrap(reason, AwsErrorCodes.E_CANNOT_CREATE_SSO_TOKEN)
                 })
 

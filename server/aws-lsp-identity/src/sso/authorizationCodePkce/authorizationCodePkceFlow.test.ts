@@ -65,16 +65,30 @@ describe('authorizationCodePkceFlow', () => {
         restore()
     })
 
-    it('Generates a valid authorize URL.', async () => {
-        let authUrl: URL
-        const actual = await authorizationCodePkceFlow(
-            'My Client',
+    function getDefaultFlowParams(): ssoUtils.SsoFlowParams {
+        return {
+            clientName: 'My Client',
             clientRegistration,
             ssoSession,
-            url => (authUrl = url),
-            CancellationToken.None,
-            observability
-        )
+            handlers: {
+                showMessageRequest: (_: any) => {
+                    return undefined as any
+                },
+                showProgress: async (_: any) => {},
+                showUrl: (_: any) => {},
+            },
+            token: CancellationToken.None,
+            observability,
+        }
+    }
+
+    it('Generates a valid authorize URL.', async () => {
+        let authUrl: URL
+        const params = getDefaultFlowParams()
+        params.handlers.showUrl = url => (authUrl = url)
+
+        await authorizationCodePkceFlow(params)
+
         expect(authUrl!.host).to.equal('oidc.us-east-1.amazonaws.com')
         expect(authUrl!.pathname).to.equal('/authorize')
         const search = authUrl!.searchParams
@@ -88,14 +102,9 @@ describe('authorizationCodePkceFlow', () => {
     })
 
     it('Returns a valid SSO token.', async () => {
-        const actual = await authorizationCodePkceFlow(
-            'My Client',
-            clientRegistration,
-            ssoSession,
-            _ => {},
-            CancellationToken.None,
-            observability
-        )
+        const params = getDefaultFlowParams()
+        const actual = await authorizationCodePkceFlow(params)
+
         expect(actual.accessToken).to.equal('my-access-token')
         expect(actual.clientId).to.equal('my-client-id')
         expect(actual.clientSecret).to.equal('my-client-secret')
