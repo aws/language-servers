@@ -276,12 +276,11 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         return this.client.listAvailableCustomizations(request).promise()
     }
 
-    async listAvailableProfiles() {
-        return this.client
-            .listAvailableProfiles({
-                maxResults: 10,
-            })
-            .promise()
+    /**
+     * @description Get list of available profiles
+     */
+    async listAvailableProfiles(request: CodeWhispererTokenClient.ListAvailableProfilesRequest) {
+        return this.client.listAvailableProfiles(request).promise()
     }
 
     /**

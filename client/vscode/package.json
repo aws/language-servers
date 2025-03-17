@@ -88,6 +88,11 @@
                 "category": "Test Amazon Q Extension"
             },
             {
+                "command": "aws.sample-vscode-ext-amazonq.getAwsQSection",
+                "title": "Get entire AWS Q section",
+                "category": "Test Amazon Q Extension"
+            },
+            {
                 "command": "aws.sample-vscode-ext-amazonq.getCustomizations",
                 "title": "Get customizations",
                 "category": "Test Amazon Q Extension"
@@ -104,7 +109,11 @@
             },
             {
                 "command": "aws.sample-vscode-ext-amazonq.updateProfileInvalid",
-                "title": "Update Amazon Q IDC Profile (Invalid)",
+                "title": "Update Amazon Q IDC Profile (Invalid)"
+            },
+            {
+                "command": "aws.sample-vscode-ext-amazonq.getDeveloperProfiles",
+                "title": "Get developer profiles",
                 "category": "Test Amazon Q Extension"
             },
             {

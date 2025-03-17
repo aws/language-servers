@@ -23,9 +23,10 @@ import {
     AmazonQServicePendingSigninError,
 } from './errors'
 import { BaseAmazonQServiceManager } from './BaseAmazonQServiceManager'
-import { listAvailableProfiles } from './listAvailableProfilesMock'
+// import { listAvailableProfiles } from './listAvailableProfilesMock'
 import { Q_CONFIGURATION_SECTION } from '../configuration/qConfigurationServer'
-import { undefinedIfEmpty } from '../utilities/textUtils'
+import { textUtils } from '@aws/lsp-core'
+import { AmazonQDeveloperProfile, getListAllAvailableProfilesHandler } from './qDeveloperProfiles'
 
 export interface Features {
     lsp: Lsp
@@ -34,12 +35,6 @@ export interface Features {
     credentialsProvider: CredentialsProvider
     sdkInitializator: SDKInitializator
     workspace: Workspace
-}
-
-export interface AmazonQDeveloperProfile {
-    arn: string
-    profileName: string
-    region: string
 }
 
 /**
@@ -219,7 +214,7 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
             const qConfig = await this.features.lsp.workspace.getConfiguration(Q_CONFIGURATION_SECTION)
             if (qConfig) {
                 // aws.q.customizationArn - selected customization
-                const customizationArn = undefinedIfEmpty(qConfig.customization)
+                const customizationArn = textUtils.undefinedIfEmpty(qConfig.customization)
                 this.configurationCache.set('customizationArn', customizationArn)
                 this.logging.log(`Amazon Q Service Configuration updated to use ${customizationArn}`)
 
@@ -296,12 +291,14 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
             this.state = 'PENDING_Q_PROFILE_UPDATE'
         }
 
-        // TODO: Using tmp helper, switch to proper API call service provider https://github.com/aws/language-servers/pull/822
-        const profiles = await listAvailableProfiles(this.features)
+        const profiles = await getListAllAvailableProfilesHandler(this.serviceFactory)({
+            connectionType: 'identityCenter',
+            logging: this.logging,
+        })
 
         const newProfile = profiles.find(el => el.arn === newProfileArn)
 
-        if (!newProfile) {
+        if (!newProfile || !newProfile.identityDetails?.region) {
             this.logging.log(`Amazon Q Profile ${newProfileArn} is not valid`)
             this.resetCodewhispererService()
             this.state = 'PENDING_Q_PROFILE'
@@ -310,7 +307,7 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
         }
 
         if (!this.activeIdcProfile) {
-            this.createCodewhispererServiceInstance('identityCenter', newProfile.region)
+            this.createCodewhispererServiceInstance('identityCenter', newProfile.identityDetails.region)
             this.state = 'INITIALIZED'
             this.activeIdcProfile = newProfile
 
@@ -329,8 +326,8 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
 
         // At this point new valid profile is selected.
 
-        const oldRegion = this.activeIdcProfile.region
-        const newRegion = newProfile.region
+        const oldRegion = this.activeIdcProfile.identityDetails?.region
+        const newRegion = newProfile.identityDetails.region
         if (oldRegion === newRegion) {
             this.logging?.log(`Amazon Q server: new profile is in the same region as old one, keeping exising service.`)
             this.activeIdcProfile = newProfile
@@ -343,7 +340,7 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
 
         // Selected new profile is in different region. Re-initialize service and terminate inflight requests
         this.resetCodewhispererService()
-        this.createCodewhispererServiceInstance('identityCenter', newProfile.region)
+        this.createCodewhispererServiceInstance('identityCenter', newProfile.identityDetails.region)
         this.state = 'INITIALIZED'
 
         this.activeIdcProfile = newProfile

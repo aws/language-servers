@@ -35,7 +35,7 @@ import { getCompletionType, getEndPositionForAcceptedSuggestion, isAwsError } fr
 import { getUserAgent, makeUserContextObject } from './utilities/telemetryUtils'
 import { Q_CONFIGURATION_SECTION } from './configuration/qConfigurationServer'
 import { fetchSupplementalContext } from './utilities/supplementalContextUtil/supplementalContextUtil'
-import { undefinedIfEmpty } from './utilities/textUtils'
+import { textUtils } from '@aws/lsp-core'
 import { TelemetryService } from './telemetryService'
 import { AcceptedSuggestionEntry, CodeDiffTracker } from './telemetry/codeDiffTracker'
 import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../constants'
@@ -437,7 +437,7 @@ export const CodewhispererServerFactory =
                     classifierThreshold: autoTriggerResult?.classifierThreshold,
                     credentialStartUrl: credentialsProvider.getConnectionMetadata?.()?.sso?.startUrl ?? undefined,
                     supplementalMetadata: supplementalContext,
-                    customizationArn: undefinedIfEmpty(codeWhispererService.customizationArn),
+                    customizationArn: textUtils.undefinedIfEmpty(codeWhispererService.customizationArn),
                 })
 
                 return codeWhispererService.generateSuggestions({
@@ -645,8 +645,8 @@ export const CodewhispererServerFactory =
             try {
                 const qConfig = await lsp.workspace.getConfiguration(Q_CONFIGURATION_SECTION)
                 if (qConfig) {
-                    fallbackCodeWhispererService.customizationArn = undefinedIfEmpty(qConfig.customization)
-                    codePercentageTracker.customizationArn = undefinedIfEmpty(qConfig.customization)
+                    fallbackCodeWhispererService.customizationArn = textUtils.undefinedIfEmpty(qConfig.customization)
+                    codePercentageTracker.customizationArn = textUtils.undefinedIfEmpty(qConfig.customization)
                     logging.log(
                         `Inline completion configuration updated to use ${fallbackCodeWhispererService.customizationArn}`
                     )

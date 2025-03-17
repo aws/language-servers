@@ -1,6 +1,6 @@
 import * as assert from 'assert'
 import sinon, { StubbedInstance, stubInterface } from 'ts-sinon'
-import { AmazonQDeveloperProfile, AmazonQTokenServiceManager } from './AmazonQTokenServiceManager'
+import { AmazonQTokenServiceManager } from './AmazonQTokenServiceManager'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import { CodeWhispererServiceToken, GenerateSuggestionsRequest } from '../codeWhispererService'
 import {
@@ -11,23 +11,30 @@ import {
 import { CancellationToken, LSPErrorCodes, ResponseError } from '@aws/language-server-runtimes/protocol'
 import { AWS_Q_ENDPOINTS } from '../../constants'
 import { SsoConnectionType } from '@aws/language-server-runtimes/server-interface'
-import * as listAvailableProfilesModule from './listAvailableProfilesMock'
+// import * as listAvailableProfilesModule from './listAvailableProfilesMock'
+import * as qDeveloperProfilesFetcherModule from './qDeveloperProfiles'
 
-const mockedProfiles: AmazonQDeveloperProfile[] = [
+const mockedProfiles: qDeveloperProfilesFetcherModule.AmazonQDeveloperProfile[] = [
     {
         arn: 'profile-iad',
-        profileName: 'profile-iad',
-        region: 'us-east-1',
+        name: 'profile-iad',
+        identityDetails: {
+            region: 'us-east-1',
+        },
     },
     {
         arn: 'profile-iad-2',
-        profileName: 'profile-iad',
-        region: 'us-east-1',
+        name: 'profile-iad',
+        identityDetails: {
+            region: 'us-east-1',
+        },
     },
     {
         arn: 'profile-fra',
-        profileName: 'profile-fra',
-        region: 'eu-central-1',
+        name: 'profile-fra',
+        identityDetails: {
+            region: 'eu-central-1',
+        },
     },
 ]
 
@@ -44,7 +51,9 @@ describe('AmazonQTokenServiceManager', () => {
         // @ts-ignore
         AWS_Q_ENDPOINTS['eu-central-1'] = 'amazon-q-in-eu-central-1-endpoint'
 
-        sinon.stub(listAvailableProfilesModule, 'listAvailableProfiles').resolves(mockedProfiles)
+        sinon
+            .stub(qDeveloperProfilesFetcherModule, 'getListAllAvailableProfilesHandler')
+            .returns(sinon.stub().resolves(mockedProfiles))
 
         AmazonQTokenServiceManager.resetInstance()
 
