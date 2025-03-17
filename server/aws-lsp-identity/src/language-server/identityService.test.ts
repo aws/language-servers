@@ -1,12 +1,16 @@
 import { expect, use } from 'chai'
 import { StubbedInstance, stubInterface } from 'ts-sinon'
 import { awsBuilderIdReservedName, SsoCache, SsoClientRegistration } from '../sso'
-import * as acp from '../sso/authorizationCodePkce/authorizationCodePkceFlow'
 import { IdentityService } from './identityService'
 import { ProfileData, ProfileStore } from './profiles/profileService'
 import { SsoTokenAutoRefresher } from './ssoTokenAutoRefresher'
-import { createStubInstance, restore, stub } from 'sinon'
-import { CancellationToken, ProfileKind, SsoTokenSourceKind } from '@aws/language-server-runtimes/protocol'
+import { createStubInstance, restore, spy, SinonSpy } from 'sinon'
+import {
+    AuthorizationFlowKind,
+    CancellationToken,
+    ProfileKind,
+    SsoTokenSourceKind,
+} from '@aws/language-server-runtimes/protocol'
 import { SSOToken } from '@smithy/shared-ini-file-loader'
 import { Logging, Telemetry } from '@aws/language-server-runtimes/server-interface'
 import { Observability } from '@aws/lsp-core'
@@ -20,6 +24,7 @@ let profileStore: StubbedInstance<ProfileStore>
 let ssoCache: StubbedInstance<SsoCache>
 let autoRefresher: StubbedInstance<SsoTokenAutoRefresher>
 let observability: StubbedInstance<Observability>
+let authFlowFn: SinonSpy
 
 describe('IdentityService', () => {
     beforeEach(() => {
@@ -55,6 +60,7 @@ describe('IdentityService', () => {
                 issuedAt: new Date(Date.now()).toISOString(),
                 scopes: ['sso:account:access'],
             } satisfies SsoClientRegistration),
+            getSsoToken: Promise.resolve(undefined),
             removeSsoToken: Promise.resolve(),
             setSsoToken: Promise.resolve(),
         })
@@ -64,7 +70,7 @@ describe('IdentityService', () => {
             unwatch: undefined,
         }) as StubbedInstance<SsoTokenAutoRefresher>
 
-        stub(acp, 'authorizationCodePkceFlow').returns(
+        authFlowFn = spy(() =>
             Promise.resolve({
                 accessToken: 'my-access-token',
                 expiresAt: new Date(Date.now() + 10 * 1000).toISOString(),
@@ -75,7 +81,22 @@ describe('IdentityService', () => {
         observability.logging = stubInterface<Logging>()
         observability.telemetry = stubInterface<Telemetry>()
 
-        sut = new IdentityService(profileStore, ssoCache, autoRefresher, _ => {}, 'My Client', observability)
+        sut = new IdentityService(
+            profileStore,
+            ssoCache,
+            autoRefresher,
+            {
+                showUrl: _ => {},
+                showMessageRequest: _ => Promise.resolve({ title: 'client-response' }),
+                showProgress: _ => Promise.resolve(),
+            },
+            'My Client',
+            observability,
+            {
+                [AuthorizationFlowKind.Pkce]: authFlowFn,
+                [AuthorizationFlowKind.DeviceCode]: authFlowFn,
+            }
+        )
     })
 
     afterEach(() => {
@@ -108,6 +129,34 @@ describe('IdentityService', () => {
 
             expect(actual.ssoToken.id).to.equal('my-sso-session')
             expect(actual.ssoToken.accessToken).to.equal('my-access-token')
+            expect(autoRefresher.watch.calledOnce).to.be.true
+        })
+
+        it('Can login with different auth flows.', async () => {
+            await sut.getSsoToken(
+                {
+                    clientName: 'my-client',
+                    source: { kind: SsoTokenSourceKind.IamIdentityCenter, profileName: 'my-profile' },
+                    options: {
+                        authorizationFlow: 'DeviceCode',
+                    },
+                },
+                CancellationToken.None
+            )
+            expect(authFlowFn).to.be.calledOnce
+
+            await sut.getSsoToken(
+                {
+                    clientName: 'my-client',
+                    source: { kind: SsoTokenSourceKind.IamIdentityCenter, profileName: 'my-profile' },
+                    options: {
+                        authorizationFlow: 'Pkce',
+                    },
+                },
+                CancellationToken.None
+            )
+            expect(authFlowFn).to.be.calledTwice
+
             expect(autoRefresher.watch.calledOnce).to.be.true
         })
 
