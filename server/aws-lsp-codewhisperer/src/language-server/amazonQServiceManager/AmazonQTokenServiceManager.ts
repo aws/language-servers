@@ -23,7 +23,6 @@ import {
     AmazonQServicePendingSigninError,
 } from './errors'
 import { BaseAmazonQServiceManager } from './BaseAmazonQServiceManager'
-// import { listAvailableProfiles } from './listAvailableProfilesMock'
 import { Q_CONFIGURATION_SECTION } from '../configuration/qConfigurationServer'
 import { textUtils } from '@aws/lsp-core'
 import { AmazonQDeveloperProfile, getListAllAvailableProfilesHandler } from './qDeveloperProfiles'
@@ -102,6 +101,8 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
         this.features = features
         this.logging = features.logging
 
+        this.serviceFactory = this.serviceFactory.bind(this)
+
         this.enableDeveloperProfileSupport = enableDeveloperProfileSupport
 
         this.connectionType = 'none'
@@ -131,9 +132,12 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
             async (params: UpdateConfigurationParams, _token: CancellationToken) => {
                 try {
                     if (params.section === Q_CONFIGURATION_SECTION && params.settings.profileArn) {
+                        this.log(`Profile update is requested for profile ${params.settings.profileArn}`)
+
                         await this.handleProfileChange(params.settings.profileArn)
                     }
                 } catch (error) {
+                    this.log('Error updating profiles: ' + error)
                     if (error instanceof AmazonQError) {
                         throw new ResponseError(LSPErrorCodes.RequestFailed, error.message, {
                             awsErrorCode: error.code,
@@ -157,11 +161,10 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
 
         if (newConnectionType === 'none' || !this.features.credentialsProvider.hasCredentials('bearer')) {
             // Connection was reset, wait for SSO connection token from client
+            this.log('No active SSO connection is detected, resetting the client')
             this.resetCodewhispererService()
             this.connectionType = 'none'
             this.state = 'PENDING_CONNECTION'
-
-            this.logServiceState('Connection is not set')
 
             return
         }
@@ -169,7 +172,7 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
         // Connection type hasn't change.
 
         if (newConnectionType === this.connectionType) {
-            this.logServiceState('Connection type did not change.')
+            this.log('Connection type did not change.')
 
             return
         }
@@ -177,11 +180,11 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
         // Connection type changed to 'builderId'
 
         if (newConnectionType === 'builderId') {
-            this.logging.log('Detected New connection type: builderId')
+            this.log('Detected New connection type: builderId')
             this.resetCodewhispererService()
             this.createCodewhispererServiceInstance('builderId')
             this.state = 'INITIALIZED'
-            this.logging.log('Initialized Amazon Q service with builderId connection')
+            this.log('Initialized Amazon Q service with builderId connection')
 
             return
         }
@@ -189,7 +192,7 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
         // Connection type changed to 'identityCenter'
 
         if (newConnectionType === 'identityCenter') {
-            this.logging.log('Detected New connection type: identityCenter')
+            this.log('Detected New connection type: identityCenter')
 
             this.resetCodewhispererService()
 
@@ -203,7 +206,7 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
 
             this.createCodewhispererServiceInstance('identityCenter')
             this.state = 'INITIALIZED'
-            this.logging.log('Initialized Amazon Q service with identityCenter connection')
+            this.log('Initialized Amazon Q service with identityCenter connection')
         }
 
         this.logServiceState('Unknown Connection state')
@@ -216,7 +219,7 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
                 // aws.q.customizationArn - selected customization
                 const customizationArn = textUtils.undefinedIfEmpty(qConfig.customization)
                 this.configurationCache.set('customizationArn', customizationArn)
-                this.logging.log(`Amazon Q Service Configuration updated to use ${customizationArn}`)
+                this.log(`Amazon Q Service Configuration updated to use ${customizationArn}`)
 
                 // aws.q.optOutTelemetry - telemetry optout option
                 const optOutTelemetryPreference = qConfig['optOutTelemetry'] === true ? 'OPTOUT' : 'OPTIN'
@@ -232,14 +235,14 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
                 // aws.codeWhisperer.includeSuggestionsWithCodeReferences - return suggestions with code references
                 const includeSuggestionsWithCodeReferences =
                     codeWhispererConfig['includeSuggestionsWithCodeReferences'] === true
-                this.logging.log(
+                this.log(
                     `Configuration updated to ${includeSuggestionsWithCodeReferences ? 'include' : 'exclude'} suggestions with code references`
                 )
 
                 // aws.codeWhisperershareCodeWhispererContentWithAWS - share content with AWS
                 const shareCodeWhispererContentWithAWS =
                     codeWhispererConfig['shareCodeWhispererContentWithAWS'] === true
-                this.logging.log(
+                this.log(
                     `Configuration updated to ${shareCodeWhispererContentWithAWS ? 'share' : 'not share'} Amazon Q content with AWS`
                 )
 
@@ -254,13 +257,13 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
                 }
             }
         } catch (error) {
-            this.logging.log(`Error in GetConfiguration: ${error}`)
+            this.log(`Error in GetConfiguration: ${error}`)
         }
     }
 
     private async handleProfileChange(newProfileArn: string): Promise<void> {
         if (!this.enableDeveloperProfileSupport) {
-            this.logging.log('Developer Profiles Support is not enabled')
+            this.log('Developer Profiles Support is not enabled')
             return
         }
 
@@ -299,7 +302,7 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
         const newProfile = profiles.find(el => el.arn === newProfileArn)
 
         if (!newProfile || !newProfile.identityDetails?.region) {
-            this.logging.log(`Amazon Q Profile ${newProfileArn} is not valid`)
+            this.log(`Amazon Q Profile ${newProfileArn} is not valid`)
             this.resetCodewhispererService()
             this.state = 'PENDING_Q_PROFILE'
 
@@ -310,6 +313,9 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
             this.createCodewhispererServiceInstance('identityCenter', newProfile.identityDetails.region)
             this.state = 'INITIALIZED'
             this.activeIdcProfile = newProfile
+            this.log(
+                `Initialized identityCenter connection to region ${newProfile.identityDetails.region} for profile ${newProfile.arn}`
+            )
 
             return
         }
@@ -317,7 +323,7 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
         // Profile didn't change
         if (this.activeIdcProfile && this.activeIdcProfile.arn === newProfile.arn) {
             // Update cached profile fields, keep existing client
-            this.logging?.log('Amazon Q Profile Change: profile selection did not change')
+            this.log(`Profile selection did not change, active profile is ${this.activeIdcProfile.arn}`)
             this.activeIdcProfile = newProfile
             this.state = 'INITIALIZED'
 
@@ -329,14 +335,15 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
         const oldRegion = this.activeIdcProfile.identityDetails?.region
         const newRegion = newProfile.identityDetails.region
         if (oldRegion === newRegion) {
-            this.logging?.log(`Amazon Q server: new profile is in the same region as old one, keeping exising service.`)
+            this.log(`New profile is in the same region as old one, keeping exising service.`)
+            this.log(`New active profile is ${this.activeIdcProfile.arn}, region ${oldRegion}`)
             this.activeIdcProfile = newProfile
             this.state = 'INITIALIZED'
 
             return
         }
 
-        this.logging?.log(`Amazon Q: switching service client region from ${oldRegion} to ${newRegion}`)
+        this.log(`Switching service client region from ${oldRegion} to ${newRegion}`)
 
         // Selected new profile is in different region. Re-initialize service and terminate inflight requests
         this.resetCodewhispererService()
@@ -400,6 +407,9 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
 
         this.connectionType = connectionType
 
+        this.log(
+            `CodeWhispererToken service for connection type ${connectionType} was initialized, region=${awsQRegion}`
+        )
         this.logServiceState('CodewhispererService Initialization finished')
     }
 
@@ -411,6 +421,11 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
             endpoint,
             this.features.sdkInitializator
         )
+    }
+
+    private log(message: string): void {
+        const prefix = 'Amazon Q Token Service Manager'
+        this.logging?.log(`${prefix}: ${message}`)
     }
 
     private logServiceState(context: string): void {
@@ -444,6 +459,6 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
     }
 
     public setServiceFactory(factory: (region: string, endpoint: string) => CodeWhispererServiceToken) {
-        this.serviceFactory = factory
+        this.serviceFactory = factory.bind(this)
     }
 }

@@ -19,13 +19,17 @@ export async function registerQProfileSelection(languageClient: LanguageClient):
 
 function setProfile(languageClient: LanguageClient, profileArn: string) {
     return async () => {
-        const result = await languageClient.sendRequest(updateConfigurationRequestType.method, {
-            section: 'aws.q',
-            settings: {
-                profileArn: profileArn,
-            },
-        })
+        try {
+            const result = await languageClient.sendRequest(updateConfigurationRequestType.method, {
+                section: 'aws.q',
+                settings: {
+                    profileArn: profileArn,
+                },
+            })
 
-        languageClient.info(`Client: Updated Amazon Q Profile`, result)
+            languageClient.info(`Client: Updated Amazon Q Profile`, result)
+        } catch (err) {
+            console.log('Error when setting Q Developer Profile', err)
+        }
     }
 }

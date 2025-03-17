@@ -14,7 +14,7 @@ import { SsoConnectionType } from '@aws/language-server-runtimes/server-interfac
 // import * as listAvailableProfilesModule from './listAvailableProfilesMock'
 import * as qDeveloperProfilesFetcherModule from './qDeveloperProfiles'
 
-const mockedProfiles: qDeveloperProfilesFetcherModule.AmazonQDeveloperProfile[] = [
+export const mockedProfiles: qDeveloperProfilesFetcherModule.AmazonQDeveloperProfile[] = [
     {
         arn: 'profile-iad',
         name: 'profile-iad',

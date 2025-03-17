@@ -143,6 +143,7 @@ export async function activateDocumentsLanguageServer(extensionContext: Extensio
             { scheme: 'untitled', language: 'csharp' },
         ],
         initializationOptions: {
+            logLevel: 'debug',
             aws: {
                 clientInfo: {
                     name: env.appName,
