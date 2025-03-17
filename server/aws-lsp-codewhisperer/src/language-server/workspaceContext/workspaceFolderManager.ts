@@ -205,7 +205,6 @@ export class WorkspaceFolderManager {
         this.updateWorkspaceEntry(workspace, {
             remoteWorkspaceState: 'CONNECTED',
             webSocketClient,
-            messageQueue: existingState?.messageQueue || [],
         })
 
         this.processMessagesInQueue(workspace)
