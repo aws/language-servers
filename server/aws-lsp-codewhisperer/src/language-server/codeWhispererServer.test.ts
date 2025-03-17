@@ -32,6 +32,7 @@ import {
     HELLO_WORLD_IN_CSHARP,
     HELLO_WORLD_LINE,
     HELLO_WORLD_WITH_WINDOWS_ENDING,
+    SAMPLE_SESSION_DATA,
     SINGLE_LINE_FILE_CUTOFF_INDEX,
     SOME_CLOSED_FILE,
     SOME_FILE,
@@ -482,16 +483,6 @@ describe('CodeWhisperer Server', () => {
 
         // pagination
         it('returns next token from service', async () => {
-            const result = await features.doInlineCompletionWithReferences(
-                {
-                    textDocument: { uri: SOME_FILE.uri },
-                    position: { line: 0, character: 0 },
-                    context: { triggerKind: InlineCompletionTriggerKind.Invoked },
-                },
-                CancellationToken.None
-            )
-
-            // Check the completion result
             service.generateSuggestions.returns(
                 Promise.resolve({
                     suggestions: EXPECTED_SUGGESTION,
@@ -501,10 +492,22 @@ describe('CodeWhisperer Server', () => {
                     },
                 })
             )
+
+            const result = await features.doInlineCompletionWithReferences(
+                {
+                    textDocument: { uri: SOME_FILE.uri },
+                    position: { line: 0, character: 0 },
+                    context: { triggerKind: InlineCompletionTriggerKind.Invoked },
+                },
+                CancellationToken.None
+            )
+
             assert.deepEqual(result, { ...EXPECTED_RESULT, partialResultToken: EXPECTED_NEXT_TOKEN })
         })
 
         it('handles partialResultToken in request', async () => {
+            const manager = SessionManager.getInstance()
+            manager.createSession(SAMPLE_SESSION_DATA)
             await features.doInlineCompletionWithReferences(
                 {
                     textDocument: { uri: SOME_FILE.uri },
@@ -1758,7 +1761,7 @@ describe('CodeWhisperer Server', () => {
             const EXPECTED_COMPLETION_RESPONSES = [
                 { sessionId: '', items: [] },
                 { sessionId: '', items: [] },
-                { sessionId: SESSION_IDS_LOG[2], items: EXPECTED_RESULT.items }, // Last session wins
+                { sessionId: SESSION_IDS_LOG[2], items: EXPECTED_RESULT.items, partialResultToken: undefined }, // Last session wins
             ]
             // Only last request must return completion items
             assert.deepEqual(getCompletionsResponses, EXPECTED_COMPLETION_RESPONSES)

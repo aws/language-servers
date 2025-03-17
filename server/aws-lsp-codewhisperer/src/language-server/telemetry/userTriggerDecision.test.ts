@@ -101,6 +101,7 @@ describe('Telemetry', () => {
                     references: undefined,
                 },
             ],
+            partialResultToken: undefined,
         }
         const EXPECTED_RESPONSE_CONTEXT: ResponseContext = {
             requestId: 'cwspr-request-id',

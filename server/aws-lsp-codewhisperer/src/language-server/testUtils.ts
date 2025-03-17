@@ -1,5 +1,6 @@
 import { TextDocument } from 'vscode-languageserver-textdocument'
 import { ResponseContext, Suggestion } from './codeWhispererService'
+import { SessionData } from './session/sessionManager'
 
 export const HELLO_WORLD_IN_CSHARP = `class HelloWorld
 {
@@ -162,6 +163,7 @@ export const EXPECTED_RESULT_WITH_REFERENCES = {
             ],
         },
     ],
+    partialResultToken: undefined,
 }
 
 export const EXPECTED_RESULT_WITHOUT_REFERENCES = {
@@ -174,9 +176,29 @@ export const EXPECTED_RESULT_WITHOUT_REFERENCES = {
             references: undefined,
         },
     ],
+    partialResultToken: undefined,
 }
 
 export const EMPTY_RESULT = { items: [], sessionId: '' }
+
+export const SAMPLE_SESSION_DATA: SessionData = {
+    document: SOME_FILE,
+    startPosition: {
+        line: 0,
+        character: 0,
+    },
+    triggerType: 'OnDemand',
+    language: 'csharp',
+    requestContext: {
+        fileContext: {
+            filename: SOME_FILE.uri,
+            programmingLanguage: { languageName: 'csharp' },
+            leftFileContent: '',
+            rightFileContent: HELLO_WORLD_IN_CSHARP,
+        },
+        maxResults: 5,
+    },
+}
 
 export const createIterableResponse = <T>(data: T[]): AsyncIterable<T> => {
     let index = 0
