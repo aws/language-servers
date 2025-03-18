@@ -272,6 +272,7 @@ export const CodewhispererServerFactory =
         } else {
             // Fallback to default passed service factory for IAM credentials type
             AmazonQServiceManager = {
+                handleDidChangeConfiguration: async () => {},
                 updateClientConfig: () => {},
                 getCodewhispererService: () => {
                     return fallbackCodeWhispererService
@@ -643,6 +644,11 @@ export const CodewhispererServerFactory =
 
         const updateConfiguration = async () => {
             try {
+                // Currently can't hook AmazonQTokenServiceManager.handleDidChangeConfiguration to lsp listenre directly
+                // as it will override listeners from each consuming Server.
+                // TODO: refactor configuration listener in Server and AmazonQTokenServiceManager in runtimes.
+                await AmazonQServiceManager.handleDidChangeConfiguration()
+
                 const qConfig = await lsp.workspace.getConfiguration(Q_CONFIGURATION_SECTION)
                 if (qConfig) {
                     fallbackCodeWhispererService.customizationArn = textUtils.undefinedIfEmpty(qConfig.customization)

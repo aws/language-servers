@@ -174,7 +174,6 @@ describe('AmazonQTokenServiceManager', () => {
 
                 assert.strictEqual(amazonQTokenServiceManager.getState(), 'INITIALIZED')
                 assert.strictEqual(amazonQTokenServiceManager.getConnectionType(), 'identityCenter')
-                console.log(codewhispererStubFactory.getCalls())
                 assert(codewhispererStubFactory.calledOnceWithExactly('us-east-1', 'amazon-q-in-us-east-1-endpoint'))
             })
 
@@ -562,6 +561,50 @@ describe('AmazonQTokenServiceManager', () => {
 
         describe('sign out event support', () => {
             it.skip('should handle sign out event and reset service connection')
+        })
+    })
+
+    describe('handle LSP Configuration settings', () => {
+        it('should initialize codewhisperer service with default configurations when not set by client', async () => {
+            amazonQTokenServiceManager = AmazonQTokenServiceManager.getInstance(features, false)
+            setCredentials('identityCenter')
+
+            const service = amazonQTokenServiceManager.getCodewhispererService()
+
+            assert.strictEqual(service.customizationArn, undefined)
+            assert.strictEqual(service.shareCodeWhispererContentWithAWS, false)
+            assert.strictEqual(service.client.config.customUserAgent, 'Amazon Q Language Server')
+        })
+
+        it('should returned configured codewhispererService with expected configuration values', async () => {
+            const getConfigStub = features.lsp.workspace.getConfiguration
+            getConfigStub.withArgs('aws.q').resolves({
+                customization: 'test-customization-arn',
+                optOutTelemetryPreference: true,
+            })
+            getConfigStub.withArgs('aws.codeWhisperer').resolves({
+                includeSuggestionsWithCodeReferences: true,
+                shareCodeWhispererContentWithAWS: true,
+            })
+
+            await features.start(sinon.stub().returns(sinon.stub()))
+
+            amazonQTokenServiceManager = AmazonQTokenServiceManager.getInstance(features, false)
+            setCredentials('identityCenter')
+            const service = amazonQTokenServiceManager.getCodewhispererService()
+
+            assert.strictEqual(service.customizationArn, undefined)
+            assert.strictEqual(service.shareCodeWhispererContentWithAWS, false)
+            assert.strictEqual(service.client.config.customUserAgent, 'Amazon Q Language Server')
+
+            await amazonQTokenServiceManager.handleDidChangeConfiguration()
+
+            // Force next tick to allow async work inside handleDidChangeConfiguration to complete
+            await Promise.resolve()
+
+            assert.strictEqual(service.customizationArn, 'test-customization-arn')
+            assert.strictEqual(service.shareCodeWhispererContentWithAWS, true)
+            assert.strictEqual(service.client.config.customUserAgent, 'Amazon Q Language Server')
         })
     })
 })

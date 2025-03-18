@@ -101,7 +101,9 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
         this.features = features
         this.logging = features.logging
 
+        // Bind methods that are passed by reference to some handlers to maintain proper scope.
         this.serviceFactory = this.serviceFactory.bind(this)
+        this.handleDidChangeConfiguration = this.handleDidChangeConfiguration.bind(this)
 
         this.enableDeveloperProfileSupport = enableDeveloperProfileSupport
 
@@ -111,7 +113,7 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
         this.setupAuthListener()
         this.setupConfigurationListeners()
 
-        this.logging?.log('Amazon Q: Initialized CodeWhispererToken Service Manager')
+        this.log('Manager instance is initialize')
     }
 
     public updateClientConfig(config: { userAgent: string }) {
@@ -125,8 +127,10 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
     }
 
     private setupConfigurationListeners(): void {
-        this.features.lsp.onInitialized(this.handleDidChangeConfiguration)
-        this.features.lsp.didChangeConfiguration(this.handleDidChangeConfiguration)
+        // TODO: refactor how handleDidChangeConfiguration can be hooked to lsp Feature.
+        // Currently can't do this, as it overrides handler set by Server, using ServiceManager.
+        // this.features.lsp.onInitialized(this.handleDidChangeConfiguration)
+        // this.features.lsp.didChangeConfiguration(this.handleDidChangeConfiguration)
 
         this.features.lsp.workspace.onUpdateConfiguration(
             async (params: UpdateConfigurationParams, _token: CancellationToken) => {
@@ -207,25 +211,29 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
             this.createCodewhispererServiceInstance('identityCenter')
             this.state = 'INITIALIZED'
             this.log('Initialized Amazon Q service with identityCenter connection')
+
+            return
         }
 
         this.logServiceState('Unknown Connection state')
     }
 
-    private async handleDidChangeConfiguration() {
+    public async handleDidChangeConfiguration() {
         try {
             const qConfig = await this.features.lsp.workspace.getConfiguration(Q_CONFIGURATION_SECTION)
             if (qConfig) {
                 // aws.q.customizationArn - selected customization
                 const customizationArn = textUtils.undefinedIfEmpty(qConfig.customization)
+                this.log(`Read configuration customizationArn=${customizationArn}`)
                 this.configurationCache.set('customizationArn', customizationArn)
-                this.log(`Amazon Q Service Configuration updated to use ${customizationArn}`)
 
                 // aws.q.optOutTelemetry - telemetry optout option
                 const optOutTelemetryPreference = qConfig['optOutTelemetry'] === true ? 'OPTOUT' : 'OPTIN'
+                this.log(`Read configuration optOutTelemetryPreference=${optOutTelemetryPreference}`)
                 this.configurationCache.set('optOutTelemetryPreference', optOutTelemetryPreference)
 
                 if (this.cachedCodewhispererService) {
+                    this.log(`Using customization=${customizationArn}`)
                     this.cachedCodewhispererService.customizationArn = customizationArn
                 }
             }
@@ -236,23 +244,24 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
                 const includeSuggestionsWithCodeReferences =
                     codeWhispererConfig['includeSuggestionsWithCodeReferences'] === true
                 this.log(
-                    `Configuration updated to ${includeSuggestionsWithCodeReferences ? 'include' : 'exclude'} suggestions with code references`
+                    `Read сonfiguration includeSuggestionsWithCodeReferences=${includeSuggestionsWithCodeReferences}`
+                )
+                this.configurationCache.set(
+                    'includeSuggestionsWithCodeReferences',
+                    includeSuggestionsWithCodeReferences
                 )
 
                 // aws.codeWhisperershareCodeWhispererContentWithAWS - share content with AWS
                 const shareCodeWhispererContentWithAWS =
                     codeWhispererConfig['shareCodeWhispererContentWithAWS'] === true
-                this.log(
-                    `Configuration updated to ${shareCodeWhispererContentWithAWS ? 'share' : 'not share'} Amazon Q content with AWS`
-                )
-
-                this.configurationCache.set(
-                    'includeSuggestionsWithCodeReferences',
-                    includeSuggestionsWithCodeReferences
-                )
+                this.log(`Read configuration shareCodeWhispererContentWithAWS=${shareCodeWhispererContentWithAWS}`)
                 this.configurationCache.set('shareCodeWhispererContentWithAWS', shareCodeWhispererContentWithAWS)
 
                 if (this.cachedCodewhispererService) {
+                    this.log(
+                        'Update shareCodeWhispererContentWithAWS setting on cachedCodewhispererService to ' +
+                            shareCodeWhispererContentWithAWS
+                    )
                     this.cachedCodewhispererService.shareCodeWhispererContentWithAWS = shareCodeWhispererContentWithAWS
                 }
             }
@@ -401,9 +410,6 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
         }
 
         this.cachedCodewhispererService = this.serviceFactory(awsQRegion, awsQEndpointUrl)
-        this.cachedCodewhispererService.updateClientConfig({
-            customUserAgent: this.customUserAgent,
-        })
 
         this.connectionType = connectionType
 
@@ -414,13 +420,27 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
     }
 
     private serviceFactory(region: string, endpoint: string): CodeWhispererServiceToken {
-        return new CodeWhispererServiceToken(
+        const service = new CodeWhispererServiceToken(
             this.features.credentialsProvider,
             this.features.workspace,
             region,
             endpoint,
             this.features.sdkInitializator
         )
+
+        service.updateClientConfig({
+            customUserAgent: this.customUserAgent,
+        })
+        service.customizationArn = this.configurationCache.get('customizationArn')
+        service.shareCodeWhispererContentWithAWS =
+            this.configurationCache.get('shareCodeWhispererContentWithAWS') === true
+
+        this.log('Configured CodeWhispererServiceToken instance settings:')
+        this.log(
+            `customUserAgent=${this.customUserAgent}, customizationArn=${service.customizationArn}, shareCodeWhispererContentWithAWS=${service.shareCodeWhispererContentWithAWS}`
+        )
+
+        return service
     }
 
     private log(message: string): void {

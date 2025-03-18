@@ -42,7 +42,6 @@ import {
 } from './testUtils'
 import { CodeDiffTracker } from './telemetry/codeDiffTracker'
 import { TelemetryService } from './telemetryService'
-import { BaseAmazonQServiceManager } from './amazonQServiceManager/BaseAmazonQServiceManager'
 import { AmazonQTokenServiceManager } from './amazonQServiceManager/AmazonQTokenServiceManager'
 
 describe('CodeWhisperer Server', () => {
