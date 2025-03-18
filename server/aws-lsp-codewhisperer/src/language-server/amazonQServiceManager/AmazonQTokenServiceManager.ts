@@ -10,7 +10,6 @@ import {
     LSPErrorCodes,
     SsoConnectionType,
     CancellationToken,
-    ExecuteCommandParams,
 } from '@aws/language-server-runtimes/server-interface'
 import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION, AWS_Q_ENDPOINTS } from '../../constants'
 import { CodeWhispererServiceToken } from '../codeWhispererService'
