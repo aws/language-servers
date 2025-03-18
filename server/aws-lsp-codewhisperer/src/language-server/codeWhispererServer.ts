@@ -305,7 +305,11 @@ export const CodewhispererServerFactory =
             })
             telemetryService.updateUserContext(makeUserContextObject(params, runtime.platform, 'INLINE'))
             return {
-                capabilities: {},
+                capabilities: {
+                    executeCommandProvider: {
+                        commands: ['bearerCredentialsDeleteCommand'],
+                    },
+                },
             }
         })
 
@@ -393,7 +397,7 @@ export const CodewhispererServerFactory =
                 }
 
                 const codeWhispererService = AmazonQServiceManager.getCodewhispererService()
-                
+
                 // supplementalContext available only via token authentication
                 const supplementalContextPromise =
                     codeWhispererService instanceof CodeWhispererServiceToken

@@ -10,6 +10,7 @@ import {
     LSPErrorCodes,
     SsoConnectionType,
     CancellationToken,
+    ExecuteCommandParams,
 } from '@aws/language-server-runtimes/server-interface'
 import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION, AWS_Q_ENDPOINTS } from '../../constants'
 import { CodeWhispererServiceToken } from '../codeWhispererService'
@@ -123,7 +124,19 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
     }
 
     private setupAuthListener(): void {
-        // TODO: listen on changes to credentials and signout events from client to manage state correctly.
+        this.features.lsp.onExecuteCommand(
+            async (params: ExecuteCommandParams, _token: CancellationToken): Promise<any> => {
+                this.log(`Received command: ${params.command}`)
+                switch (params.command) {
+                    case 'bearerCredentialsDeleteCommand':
+                        this.cachedCodewhispererService = undefined
+                        this.activeIdcProfile = undefined
+                        this.connectionType = 'none'
+                        break
+                }
+                return
+            }
+        )
     }
 
     private setupConfigurationListeners(): void {
