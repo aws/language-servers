@@ -3,6 +3,9 @@ import * as path from 'path'
 import * as xml2js from 'xml2js'
 import { glob } from 'glob'
 import { create } from 'xmlbuilder2'
+import { FileMetadata } from './artifactManager'
+import { URI } from 'vscode-uri'
+import { WorkspaceFolder } from '@aws/language-server-runtimes/protocol'
 
 interface SourcePath {
     path: string
@@ -422,14 +425,26 @@ export class JavaProjectAnalyzer {
 }
 
 export class EclipseConfigGenerator {
-    constructor(private readonly workspacePath: string) {}
+    private readonly projectFiles: Map<string, FileMetadata[]>
+    private initializationPromise: Promise<void> | null = null
+    private readonly workspacePath: string
 
-    async generateDotClasspath(structure: JavaProjectStructure): Promise<string> {
-        const existingContent = await this.readFileIfExists('.classpath')
-        if (existingContent !== null) {
-            console.log('Found existing .classpath file, returning its contents')
-            return existingContent
+    constructor(private readonly workspaceFolder: WorkspaceFolder) {
+        this.projectFiles = new Map()
+        this.workspacePath = URI.parse(workspaceFolder.uri).path
+        this.initializeProjectFiles().catch(error => {
+            console.error('Failed to initialize project files:', error)
+        })
+    }
+    async generateDotClasspath(structure: JavaProjectStructure): Promise<FileMetadata[]> {
+        await this.ensureInitialized()
+        const existingClasspaths = this.projectFiles.get('.classpath') || []
+
+        if (existingClasspaths.length > 0) {
+            console.log('Found existing .classpath files, returning them')
+            return existingClasspaths
         }
+        console.log('No existing classpath found, creating')
 
         const builder = create({ version: '1.0', encoding: 'UTF-8' })
         const classpath = builder.ele('classpath')
@@ -550,15 +565,31 @@ export class EclipseConfigGenerator {
             this.addAttribute(aptTestEntry, ClasspathAttribute.IGNORE_OPTIONAL_PROBLEMS)
         }
 
-        return builder.end({ prettyPrint: true })
+        const generatedContent = builder.end({ prettyPrint: true })
+        const relativePath = '.classpath'
+
+        const newClasspathFile: FileMetadata = {
+            filePath: path.join(this.workspacePath, relativePath),
+            relativePath,
+            language: 'java',
+            contentLength: generatedContent.length,
+            lastModified: Date.now(),
+            content: generatedContent,
+            workspaceFolder: this.workspaceFolder,
+        }
+
+        return [newClasspathFile]
     }
 
-    async generateDotProject(projectName: string, structure: JavaProjectStructure): Promise<string> {
-        const existingContent = await this.readFileIfExists('.project')
-        if (existingContent !== null) {
-            console.log('Found existing .project file, returning its contents')
-            return existingContent
+    async generateDotProject(projectName: string, structure: JavaProjectStructure): Promise<FileMetadata[]> {
+        await this.ensureInitialized()
+        const existingProjects = this.projectFiles.get('.project') || []
+
+        if (existingProjects.length > 0) {
+            console.log('Found existing .project files, returning them')
+            return existingProjects
         }
+        console.log('No existing .project found, creating')
 
         const builder = create({ version: '1.0', encoding: 'UTF-8' })
         const project = builder.ele('projectDescription')
@@ -588,7 +619,20 @@ export class EclipseConfigGenerator {
             link.ele('location').txt(path.resolve(process.cwd(), 'target/generated-sources'))
         }
 
-        return builder.end({ prettyPrint: true })
+        const generatedContent = builder.end({ prettyPrint: true })
+        const relativePath = '.project'
+
+        const newProjectFile: FileMetadata = {
+            filePath: path.join(this.workspacePath, relativePath),
+            relativePath,
+            language: 'java',
+            contentLength: generatedContent.length,
+            lastModified: Date.now(),
+            content: generatedContent,
+            workspaceFolder: this.workspaceFolder,
+        }
+
+        return [newProjectFile]
     }
 
     async generateDotFactorypath(structure: JavaProjectStructure): Promise<string> {
@@ -666,15 +710,53 @@ export class EclipseConfigGenerator {
         return settings
     }
 
-    private async readFileIfExists(fileName: string): Promise<string | null> {
+    private async initializeProjectFiles(): Promise<void> {
         try {
-            const filePath = path.join(this.workspacePath, fileName)
-            const content = await fs.readFile(filePath, 'utf-8')
-            return content
-        } catch (error: any) {
-            console.error(`Error reading ${fileName}: ${error.message}`)
-            return null
+            const eclipseFiles = ['.project', '.classpath']
+
+            for (const fileName of eclipseFiles) {
+                const pattern = path.join(this.workspacePath, '**', fileName)
+                const files = await glob(pattern, {
+                    ignore: ['**/node_modules/**', '**/target/**', '**/build/**', '**/.git/**'],
+                    nodir: true,
+                    dot: true,
+                })
+
+                const fileMetadataArray: FileMetadata[] = []
+
+                for (const file of files) {
+                    try {
+                        const content = await fs.readFile(file, 'utf-8')
+                        const relativePath = path.relative(this.workspacePath, file)
+
+                        fileMetadataArray.push({
+                            filePath: file,
+                            relativePath,
+                            language: 'java',
+                            contentLength: content.length,
+                            lastModified: (await fs.stat(file)).mtimeMs,
+                            content,
+                            workspaceFolder: this.workspaceFolder,
+                        })
+                    } catch (error) {
+                        console.warn(`Error reading file ${file}:`, error)
+                    }
+                }
+
+                this.projectFiles.set(fileName, fileMetadataArray)
+            }
+        } catch (error) {
+            console.error('Error initializing project files:', error)
         }
+    }
+
+    private async ensureInitialized(): Promise<void> {
+        if (!this.initializationPromise) {
+            console.log(`EclipseConfigGenerator not initialized yet`)
+            this.initializationPromise = this.initializeProjectFiles()
+        }
+        await this.initializationPromise
+        console.log(`EclipseConfigGenerator initialized`)
     }
 
     private addAttribute(node: any, attribute: ClasspathAttribute, value: string = 'true'): void {

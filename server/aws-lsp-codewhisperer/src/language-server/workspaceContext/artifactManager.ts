@@ -456,32 +456,19 @@ export class ArtifactManager {
         // Generate Eclipse configuration files
         const javaManager = new JavaProjectAnalyzer(workspacePath)
         const structure = await javaManager.analyze()
-        const generator = new EclipseConfigGenerator(workspacePath)
+        const generator = new EclipseConfigGenerator(workspaceFolder)
 
         // Generate and add .classpath file
-        const classpathContent = await generator.generateDotClasspath(structure)
-        additionalFiles.push({
-            filePath: path.join(workspacePath, '.classpath'),
-            relativePath: '.classpath',
-            language: 'java',
-            contentLength: Buffer.from(classpathContent).length,
-            lastModified: Date.now(),
-            content: classpathContent,
-            workspaceFolder,
-        })
+        const classpathFiles = await generator.generateDotClasspath(structure)
+        for (const classpathFile of classpathFiles) {
+            additionalFiles.push(classpathFile)
+        }
 
         // Generate and add .project file
-        const projectContent = await generator.generateDotProject(path.basename(workspacePath), structure)
-        this.log(`Generated project content: ${projectContent}`)
-        additionalFiles.push({
-            filePath: path.join(workspacePath, '.project'),
-            relativePath: '.project',
-            language: 'java',
-            contentLength: Buffer.from(projectContent).length,
-            lastModified: Date.now(),
-            content: projectContent,
-            workspaceFolder,
-        })
+        const projectFiles = await generator.generateDotProject(path.basename(workspacePath), structure)
+        for (const projectFile of projectFiles) {
+            additionalFiles.push(projectFile)
+        }
 
         return [...files, ...additionalFiles]
     }
