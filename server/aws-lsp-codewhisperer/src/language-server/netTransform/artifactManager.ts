@@ -109,9 +109,23 @@ export class ArtifactManager {
                         reference.AssemblyFullPath,
                         this.getWorkspaceReferencePathFromRelativePath(relativePath)
                     )
+                    var thirdPartyPackage = project.ThirdPartyPackages.find(
+                        p => p.FrameworkRelativePath == reference.RelativePath
+                    )
+                    if (thirdPartyPackage) {
+                        this.copyFile(
+                            thirdPartyPackage.CoreCompatibleRelativePath,
+                            this.getWorkspaceReferencePathFromRelativePath(thirdPartyPackage.CoreCompatibleRelativePath)
+                        )
+                    }
                     references.push({
                         includedInArtifact: reference.IncludedInArtifact,
                         relativePath: relativePath,
+                        isThirdPartyPackage: thirdPartyPackage ? true : false,
+                        netCompatibleRelativePath: thirdPartyPackage
+                            ? thirdPartyPackage.CoreCompatibleRelativePath
+                            : undefined,
+                        netCompatibleVersion: thirdPartyPackage ? thirdPartyPackage.CoreCompatbileVersion : undefined,
                     })
                 } catch (error) {
                     this.logging.log('Failed to process file: ' + error + reference.AssemblyFullPath)

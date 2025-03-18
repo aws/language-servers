@@ -85,6 +85,12 @@ export interface ExternalReference {
     IncludedInArtifact: boolean
 }
 
+export interface ThirdPartyPackage {
+    FrameworkRelativePath: string
+    CoreCompatibleRelativePath: string
+    CoreCompatbileVersion: string
+}
+
 export interface TransformProjectMetadata {
     Name: string
     ProjectTargetFramework: string
@@ -93,6 +99,7 @@ export interface TransformProjectMetadata {
     ProjectLanguage: string
     ProjectType: string
     ExternalReferences: ExternalReference[]
+    ThirdPartyPackages: ThirdPartyPackage[]
 }
 
 export interface Project {
@@ -110,4 +117,7 @@ export interface CodeFile {
 export interface References {
     includedInArtifact: boolean
     relativePath: string
+    isThirdPartyPackage: boolean
+    netCompatibleRelativePath?: string
+    netCompatibleVersion?: string
 }
