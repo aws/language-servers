@@ -51,12 +51,18 @@ export const WorkspaceContextServer =
                 logging.error(`WORKSPACE FOLDERS IS NOT SET`)
             }
             artifactManager = new ArtifactManager(workspace, logging, workspaceFolders)
-            dependencyDiscoverer = new DependencyDiscoverer(workspace, logging, workspaceFolders)
             workspaceFolderManager = WorkspaceFolderManager.createInstance(
                 cwsprClient,
                 logging,
                 artifactManager,
                 workspaceFolders
+            )
+            dependencyDiscoverer = new DependencyDiscoverer(
+                workspace,
+                logging,
+                workspaceFolders,
+                artifactManager,
+                workspaceFolderManager
             )
 
             return {
@@ -121,7 +127,7 @@ export const WorkspaceContextServer =
                 if (configJetBrains) {
                     workspaceContextConfig = workspaceContextConfig || configJetBrains['workspaceContext']
                 }
-                isOptedIn = workspaceContextConfig
+                isOptedIn = workspaceContextConfig || true
                 logging.info(`Workspace context optin: ${isOptedIn}`)
 
                 if (!isOptedIn) {
@@ -170,7 +176,6 @@ export const WorkspaceContextServer =
                     await workspaceFolderManager.processWorkspaceFoldersDeletion(removedFolders)
                 }
             })
-
             /**
              * The below code checks the login state of the workspace and initializes the workspace
              * folders. *isWorkflowInitialized* variable is used to keep track if the workflow has been initialized
@@ -407,12 +412,12 @@ export const WorkspaceContextServer =
             }
         })
 
-        lsp.extensions.onDidChangeDependencyPaths(async params => {
-            logging.log(`Dependency path changed ${JSON.stringify(params)}`)
-            if (!isOptedIn) {
-                return
-            }
-        })
+        // lsp.extensions.onDidChangeDependencyPaths(async params => {
+        //     logging.log(`Dependency path changed ${JSON.stringify(params)}`)
+        //     if (!isOptedIn) {
+        //         return
+        //     }
+        // })
 
         logging.log('Workspace context server has been initialized')
 

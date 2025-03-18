@@ -10,6 +10,8 @@ import {
     LanguageDependencyHandler,
 } from './dependencyHandler/LanguageDependencyHandler'
 import { supportedWorkspaceContextLanguages } from '../../languageDetection'
+import { ArtifactManager, FileMetadata } from '../artifactManager'
+import { WorkspaceFolderManager } from '../workspaceFolderManager'
 
 const excludePatterns = [/^\./, /^node_modules$/, /^dist$/, /^build$/, /^test$/, /^bin$/, /^out$/, /^logs$/, /^env$/]
 
@@ -17,16 +19,33 @@ export class DependencyDiscoverer {
     private workspace: Workspace
     private logging: Logging
     private workspaceFolders: WorkspaceFolder[]
+    private artifactManager: ArtifactManager
+    private workspaceFolderManager: WorkspaceFolderManager
     private dependencyHandlerRegistry: LanguageDependencyHandler<BaseDependencyInfo>[] = []
+    private initialized: boolean = false
 
-    constructor(workspace: Workspace, logging: Logging, workspaceFolders: WorkspaceFolder[]) {
+    constructor(
+        workspace: Workspace,
+        logging: Logging,
+        workspaceFolders: WorkspaceFolder[],
+        artifactManager: ArtifactManager,
+        workspaceFolderManager: WorkspaceFolderManager
+    ) {
         this.workspace = workspace
         this.workspaceFolders = workspaceFolders
         this.logging = logging
+        this.artifactManager = artifactManager
+        this.workspaceFolderManager = workspaceFolderManager
 
         let jstsHandlerCreated = false
         supportedWorkspaceContextLanguages.forEach(language => {
-            const handler = DependencyHandlerFactory.createHandler(language, workspace, logging, workspaceFolders)
+            const handler = DependencyHandlerFactory.createHandler(
+                language,
+                workspace,
+                logging,
+                workspaceFolders,
+                artifactManager
+            )
             if (handler) {
                 // Share handler for javascript and typescript
                 if (language === 'javascript' || language === 'typescript') {
@@ -79,7 +98,12 @@ export class DependencyDiscoverer {
     }
 
     async searchDependencies(): Promise<void> {
+        if (this.initialized) {
+            return
+        }
+        this.initialized = true
         this.logging.log(`number of workspace folders: ${this.workspaceFolders.length}`)
+        this.logging.log(`The workspace path: ${this.workspace}`)
         for (const workspaceFolder of this.workspaceFolders) {
             const workspaceFolderPath = URI.parse(workspaceFolder.uri).path
             this.logging.log(`Start to search dependencies under: ${workspaceFolderPath}`)
@@ -91,7 +115,7 @@ export class DependencyDiscoverer {
 
                 let foundDependencyInCurrentDir = false
                 for (const dependencyHandler of this.dependencyHandlerRegistry) {
-                    if (dependencyHandler.discover(currentDir)) {
+                    if (dependencyHandler.discover(currentDir, workspaceFolder)) {
                         foundDependencyInCurrentDir = true
                         this.logging.log(`Found ${dependencyHandler.language} dependency in ${currentDir}`)
                         break
@@ -119,9 +143,13 @@ export class DependencyDiscoverer {
             }
         }
 
-        this.dependencyHandlerRegistry.forEach(dependencyHandler => {
-            dependencyHandler.createDependencyMap()
+        this.dependencyHandlerRegistry.forEach(async dependencyHandler => {
+            dependencyHandler.initiateDependencyMap()
             dependencyHandler.setupWatchers()
+            let zips: FileMetadata[] = await dependencyHandler.generateFileMetadata()
+            for (const zip of zips) {
+                this.workspaceFolderManager.uploadToS3(zip)
+            }
         })
     }
 

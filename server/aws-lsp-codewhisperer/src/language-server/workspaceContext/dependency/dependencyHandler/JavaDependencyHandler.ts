@@ -1,9 +1,12 @@
 import { BaseDependencyInfo, Dependency, LanguageDependencyHandler } from './LanguageDependencyHandler'
 import * as path from 'path'
 import * as fs from 'fs'
-import { URI } from 'vscode-uri'
-import { findPackageJSON } from 'module'
 import * as xml2js from 'xml2js'
+import { FileMetadata } from '../../artifactManager'
+import { WorkspaceFolder } from '@aws/language-server-runtimes/server-interface'
+import walk = require('ignore-walk')
+import { CodewhispererLanguage } from '../../../languageDetection'
+import { escape } from 'querystring'
 
 export interface JavaDependencyInfo extends BaseDependencyInfo {
     dotClasspathPath: string
@@ -16,6 +19,7 @@ export interface JavaDependencyInfo extends BaseDependencyInfo {
  */
 export class JavaDependencyHandler extends LanguageDependencyHandler<JavaDependencyInfo> {
     private javaDependencyInfos: JavaDependencyInfo[] = []
+    private RELATIVE_PATH: string = 'dependencies'
 
     /*
      * It will return a boolean indicating whether it finds any dependency info.
@@ -23,12 +27,16 @@ export class JavaDependencyHandler extends LanguageDependencyHandler<JavaDepende
      * - pkgDir: the package directory
      * - dotClasspathPath: the path to the .classpath file
      */
-    discover(currentDir: string): boolean {
+    discover(currentDir: string, workspaceFolder: WorkspaceFolder): boolean {
         let result: JavaDependencyInfo | null = null
         const dotClasspathPath = path.join(currentDir, '.classpath')
         if (fs.existsSync(dotClasspathPath) && fs.statSync(dotClasspathPath).isFile()) {
             console.log(`Found .classpath in ${currentDir}`)
-            result = { pkgDir: currentDir, dotClasspathPath: dotClasspathPath }
+            result = {
+                pkgDir: currentDir,
+                dotClasspathPath: dotClasspathPath,
+                workspaceFolder: workspaceFolder,
+            }
             this.javaDependencyInfos.push(result)
         }
 
@@ -42,10 +50,13 @@ export class JavaDependencyHandler extends LanguageDependencyHandler<JavaDepende
      * - version: the version of the dependency
      * - path: the path to the dependency
      */
-    createDependencyMap(): void {
+    initiateDependencyMap(): void {
         for (const javaDependencyInfo of this.javaDependencyInfos) {
             try {
-                this.generateDependencyMap(javaDependencyInfo, this.dependencyMap)
+                this.dependencyMap.set(
+                    javaDependencyInfo.workspaceFolder,
+                    this.generateDependencyMap(javaDependencyInfo)
+                )
                 // Log found dependencies
                 this.logging.log(
                     `Total java dependencies found: ${this.dependencyMap.size} under ${javaDependencyInfo.pkgDir}`
@@ -66,11 +77,10 @@ export class JavaDependencyHandler extends LanguageDependencyHandler<JavaDepende
             this.logging.log(`Setting up java dependency watcher for ${dotClasspathPath}`)
             try {
                 const watcher = fs.watch(dotClasspathPath, (eventType, filename) => {
-                    const updatedDependencyMap: Map<string, Dependency> = new Map<string, Dependency>()
                     if (eventType === 'change') {
                         this.logging.log(`Change detected in ${dotClasspathPath}`)
-                        this.generateDependencyMap(javaDependencyInfo, updatedDependencyMap)
-                        this.compareAndUpdateDependencies(updatedDependencyMap)
+                        const updatedDependencyMap = this.generateDependencyMap(javaDependencyInfo)
+                        this.compareAndUpdateDependencies(javaDependencyInfo, updatedDependencyMap)
                     }
                 })
                 this.dependencyWatchers.set(dotClasspathPath, watcher)
@@ -83,7 +93,8 @@ export class JavaDependencyHandler extends LanguageDependencyHandler<JavaDepende
     /*
      * It will parse .classpath file and find location of dependency jars with version
      */
-    generateDependencyMap(javaDependencyInfo: JavaDependencyInfo, dependencyMap: Map<string, Dependency>) {
+    generateDependencyMap(javaDependencyInfo: JavaDependencyInfo): Map<string, Dependency> {
+        const dependencyMap = new Map<string, Dependency>()
         // Read and parse .classpath XML file
         const dotClasspathPath = javaDependencyInfo.dotClasspathPath
         const parser = new xml2js.Parser()
@@ -121,6 +132,7 @@ export class JavaDependencyHandler extends LanguageDependencyHandler<JavaDepende
                                     name,
                                     version,
                                     path: absolutePath,
+                                    size: fs.statSync(absolutePath).size,
                                 })
                             }
                         }
@@ -128,5 +140,6 @@ export class JavaDependencyHandler extends LanguageDependencyHandler<JavaDepende
                 })
             }
         })
+        return dependencyMap
     }
 }

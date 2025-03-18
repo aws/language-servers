@@ -1,6 +1,9 @@
 import { BaseDependencyInfo, Dependency, LanguageDependencyHandler } from './LanguageDependencyHandler'
+import { WorkspaceFolder } from '@aws/language-server-runtimes/server-interface'
 import * as path from 'path'
 import * as fs from 'fs'
+import { FileMetadata } from '../../artifactManager'
+import { isDirectory } from '../../util'
 
 export interface PythonDependencyInfo extends BaseDependencyInfo {
     vscCodeSettingsJsonPath: string
@@ -22,7 +25,7 @@ export class PythonDependencyHandler extends LanguageDependencyHandler<PythonDep
      * - vscCodeSettingsJsonPath: the path to the .vscode/settings.json file
      * - sitePackagesPaths: the path to site-packages directory
      */
-    discover(currentDir: string): boolean {
+    discover(currentDir: string, workspaceFolder: WorkspaceFolder): boolean {
         let result: PythonDependencyInfo | null = null
         const vscCodeSettingsJsonPath = path.join(currentDir, '.vscode', 'settings.json')
         if (fs.existsSync(vscCodeSettingsJsonPath) && fs.statSync(vscCodeSettingsJsonPath).isFile()) {
@@ -44,6 +47,7 @@ export class PythonDependencyHandler extends LanguageDependencyHandler<PythonDep
                     pkgDir: currentDir,
                     vscCodeSettingsJsonPath: vscCodeSettingsJsonPath,
                     sitePackagesPaths: sitePackagesPaths,
+                    workspaceFolder: workspaceFolder,
                 }
                 this.pythonDependencyInfos.push(result)
             }
@@ -58,10 +62,13 @@ export class PythonDependencyHandler extends LanguageDependencyHandler<PythonDep
      * - version: the version of the dependency
      * - path: the path to the dependency
      */
-    createDependencyMap(): void {
+    initiateDependencyMap(): void {
         this.pythonDependencyInfos.forEach(pythonDependencyInfo => {
             try {
-                this.generateDependencyMap(pythonDependencyInfo, this.dependencyMap)
+                this.dependencyMap.set(
+                    pythonDependencyInfo.workspaceFolder,
+                    this.generateDependencyMap(pythonDependencyInfo)
+                )
                 // Log found dependencies
                 this.logging.log(
                     `Total python dependencies found: ${this.dependencyMap.size} under ${pythonDependencyInfo.pkgDir}`
@@ -80,19 +87,19 @@ export class PythonDependencyHandler extends LanguageDependencyHandler<PythonDep
      */
     setupWatchers(): void {
         this.pythonDependencyInfos.forEach(pythonDependencyInfo => {
-            const updatedDependencyMap: Map<string, Dependency> = new Map<string, Dependency>()
             pythonDependencyInfo.sitePackagesPaths.forEach(sitePackagesPath => {
                 try {
                     const watcher = fs.watch(sitePackagesPath, { recursive: false }, (eventType, fileName) => {
                         if (!fileName) return
                         // Handle event types
                         if (eventType === 'rename') {
+                            const updatedDependencyMap: Map<string, Dependency> = new Map<string, Dependency>()
                             if (this.isMetadataDirectory(fileName)) {
                                 this.handleMetadataChange(sitePackagesPath, fileName, updatedDependencyMap)
                             } else {
                                 this.handlePackageChange(sitePackagesPath, fileName, updatedDependencyMap)
                             }
-                            this.compareAndUpdateDependencies(updatedDependencyMap)
+                            this.compareAndUpdateDependencies(pythonDependencyInfo, updatedDependencyMap)
                         }
                     })
                     this.dependencyWatchers.set(sitePackagesPath, watcher)
@@ -111,7 +118,8 @@ export class PythonDependencyHandler extends LanguageDependencyHandler<PythonDep
      * @param pythonDependencyInfo
      * @param dependencyMap
      */
-    generateDependencyMap(pythonDependencyInfo: PythonDependencyInfo, dependencyMap: Map<string, Dependency>) {
+    generateDependencyMap(pythonDependencyInfo: PythonDependencyInfo) {
+        const dependencyMap = new Map<string, Dependency>()
         // Process each site-packages directory
         for (const sitePackagesPath of pythonDependencyInfo.sitePackagesPaths) {
             const sitePackagesContent = fs.readdirSync(sitePackagesPath)
@@ -125,15 +133,23 @@ export class PythonDependencyHandler extends LanguageDependencyHandler<PythonDep
                 }
 
                 // Add to dependency map if not already present
-                if (!this.dependencyMap.has(item)) {
-                    this.dependencyMap.set(item, {
+                if (!dependencyMap.has(item)) {
+                    let dependencySize: number = 0
+                    if (isDirectory(itemPath)) {
+                        dependencySize = this.getDirectorySize(itemPath)
+                    } else {
+                        dependencySize = fs.statSync(itemPath).size
+                    }
+                    dependencyMap.set(item, {
                         name: item,
                         version: 'unknown',
                         path: itemPath,
+                        size: dependencySize,
                     })
                 }
             }
         }
+        return dependencyMap
     }
 
     private isMetadataDirectory(filename: string): boolean {
@@ -157,6 +173,7 @@ export class PythonDependencyHandler extends LanguageDependencyHandler<PythonDep
                 name: dependencyName,
                 version: 'unknown',
                 path: dependencyPath,
+                size: this.getDirectorySize(dependencyPath),
             }
             updatedDependencyMap.set(dependencyName, updatedDependency)
             this.logging.log(`Python package updated (metadata change): ${dependencyPath}`)
@@ -174,6 +191,7 @@ export class PythonDependencyHandler extends LanguageDependencyHandler<PythonDep
                 name: fileName,
                 version: 'unknown',
                 path: dependencyPath,
+                size: this.getDirectorySize(dependencyPath),
             }
             updatedDependencyMap.set(fileName, updatedDependency)
             this.logging.log(`Python package updated: ${fileName}`)

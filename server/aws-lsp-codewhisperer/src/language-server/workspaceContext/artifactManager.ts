@@ -6,6 +6,7 @@ import { URI } from 'vscode-uri'
 import * as walk from 'ignore-walk'
 import JSZip = require('jszip')
 import { EclipseConfigGenerator, JavaProjectAnalyzer } from './javaManager'
+import { isDirectory } from './util'
 
 export interface FileMetadata {
     filePath: string
@@ -148,6 +149,59 @@ export class ArtifactManager {
         this.log(`Number of workspace folders in memory after deletion: ${this.filesByWorkspaceFolderAndLanguage.size}`)
     }
 
+    async getFileMetadata(
+        currentWorkspace: WorkspaceFolder,
+        filePath: string,
+        languageOverride?: CodewhispererLanguage,
+        filePathInZipOverride?: string
+    ): Promise<FileMetadata[]> {
+        let fileMetadataList: FileMetadata[] = []
+        const language =
+            languageOverride !== undefined ? languageOverride : getCodeWhispererLanguageIdFromPath(filePath)
+        if (!language || !SUPPORTED_WORKSPACE_CONTEXT_LANGUAGES.includes(language)) {
+            return Promise.reject('unsupported language')
+        }
+
+        if (isDirectory(filePath)) {
+            const files = await walk({
+                path: filePath,
+                ignoreFiles: ['.gitignore'],
+                follow: false,
+                includeEmpty: false,
+            })
+            for (const relativePath of files) {
+                const fullPath = path.join(filePath, relativePath)
+                try {
+                    const fileMetadata = await this.createFileMetadata(
+                        fullPath,
+                        path.join(filePathInZipOverride !== undefined ? filePathInZipOverride : '', relativePath),
+                        language,
+                        currentWorkspace
+                    )
+                    fileMetadataList.push(fileMetadata)
+                } catch (error) {
+                    this.log(`Error processing file ${fullPath}: ${error}`)
+                }
+            }
+        } else {
+            const workspaceUri = URI.parse(currentWorkspace.uri)
+            const fileUri = URI.parse(filePath)
+            const relativePath =
+                filePathInZipOverride !== undefined
+                    ? filePathInZipOverride
+                    : path.join(currentWorkspace.name, path.relative(workspaceUri.path, fileUri.path))
+
+            const fileMetadata: FileMetadata = await this.createFileMetadata(
+                fileUri.path,
+                relativePath,
+                language,
+                currentWorkspace
+            )
+            fileMetadataList.push(fileMetadata)
+        }
+        return fileMetadataList
+    }
+
     async processNewFile(currentWorkspace: WorkspaceFolder, filePath: string): Promise<FileMetadata> {
         this.log(`Processing new file: ${filePath}`)
         const workspaceUri = URI.parse(currentWorkspace.uri)
@@ -251,7 +305,7 @@ export class ArtifactManager {
     // TODO, if MD5 hash is not needed, better to remove this function and remove content from FileMetadata interface to be memory efficient
     // Doing the readfile call inside this function and storing the contents in the FileMetadata allows us to call readFile only once
     // instead of calling it twice: once in md5 calculation and once during zip creation
-    private async createFileMetadata(
+    async createFileMetadata(
         filePath: string,
         relativePath: string,
         language: CodewhispererLanguage,
@@ -270,7 +324,25 @@ export class ArtifactManager {
         }
     }
 
-    private async createZipForLanguage(
+    async createFileMetadataWithoutContent(
+        filePath: string,
+        relativePath: string,
+        language: CodewhispererLanguage,
+        workspaceFolder: WorkspaceFolder,
+        shouldCalculateHash = false
+    ): Promise<FileMetadata> {
+        return {
+            filePath,
+            contentLength: 0,
+            lastModified: fs.statSync(filePath).mtimeMs,
+            content: '',
+            language,
+            relativePath,
+            workspaceFolder,
+        }
+    }
+
+    async createZipForLanguage(
         workspaceFolder: WorkspaceFolder,
         language: CodewhispererLanguage,
         files: FileMetadata[],
@@ -320,6 +392,33 @@ export class ArtifactManager {
         return {
             filePath: zipPath,
             relativePath: path.join(workspaceFolder.name, subDirectory, 'files.zip'),
+            language,
+            contentLength: stats.size,
+            lastModified: stats.mtimeMs,
+            content: zipBuffer,
+            workspaceFolder: workspaceFolder,
+        }
+    }
+
+    async createZipForDependencies(
+        workspaceFolder: WorkspaceFolder,
+        language: CodewhispererLanguage,
+        files: FileMetadata[],
+        subDirectory: string = '',
+        zipChunkIndex: number
+    ): Promise<FileMetadata> {
+        const zipDirectoryPath = path.join(this.tempDirPath, workspaceFolder.name, subDirectory)
+        this.createFolderIfNotExist(zipDirectoryPath)
+
+        const zipPath = path.join(zipDirectoryPath, `${zipChunkIndex}.zip`)
+        const zipBuffer = await this.createZipBuffer(files)
+        await fs.promises.writeFile(zipPath, zipBuffer)
+
+        const stats = fs.statSync(zipPath)
+
+        return {
+            filePath: zipPath,
+            relativePath: path.join(workspaceFolder.name, subDirectory, `${zipChunkIndex}.zip`),
             language,
             contentLength: stats.size,
             lastModified: stats.mtimeMs,

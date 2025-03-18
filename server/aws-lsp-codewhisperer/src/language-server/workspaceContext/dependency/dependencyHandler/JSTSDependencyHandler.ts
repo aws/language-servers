@@ -1,6 +1,8 @@
 import { BaseDependencyInfo, Dependency, LanguageDependencyHandler } from './LanguageDependencyHandler'
 import * as path from 'path'
 import * as fs from 'fs'
+import { WorkspaceFolder } from '@aws/language-server-runtimes/server-interface'
+import { FileMetadata } from '../../artifactManager'
 
 interface JSTSDependencyInfo extends BaseDependencyInfo {
     packageJsonPath: string
@@ -22,7 +24,7 @@ export class JSTSDependencyHandler extends LanguageDependencyHandler<JSTSDepende
      * - packageJsonPath: the path to the package.json file
      * - nodeModulesPath: the path to /node_modules directory
      */
-    discover(currentDir: string): boolean {
+    discover(currentDir: string, workspaceFolder: WorkspaceFolder): boolean {
         let result: JSTSDependencyInfo | null = null
         const packageJsonPath = path.join(currentDir, 'package.json')
         const nodeModulesPath = path.join(currentDir, 'node_modules')
@@ -32,7 +34,12 @@ export class JSTSDependencyHandler extends LanguageDependencyHandler<JSTSDepende
             fs.statSync(nodeModulesPath).isDirectory()
         ) {
             console.log(`Found package.json and node_modules in ${currentDir}`)
-            result = { pkgDir: currentDir, packageJsonPath: packageJsonPath, nodeModulesPath: nodeModulesPath }
+            result = {
+                pkgDir: currentDir,
+                packageJsonPath: packageJsonPath,
+                nodeModulesPath: nodeModulesPath,
+                workspaceFolder: workspaceFolder, //TODO for all dependency, add WorkspaceFolder.
+            }
             this.jstsDependencyInfos.push(result)
         }
         return result !== null
@@ -45,10 +52,13 @@ export class JSTSDependencyHandler extends LanguageDependencyHandler<JSTSDepende
      * - version: the version of the dependency
      * - path: the path to the dependency
      */
-    createDependencyMap(): void {
+    initiateDependencyMap(): void {
         this.jstsDependencyInfos.forEach(jstsDependencyInfo => {
             try {
-                this.generateDependencyMap(jstsDependencyInfo, this.dependencyMap)
+                this.dependencyMap.set(
+                    jstsDependencyInfo.workspaceFolder,
+                    this.generateDependencyMap(jstsDependencyInfo)
+                )
                 // Log found dependencies
                 this.logging.log(
                     `Total javascript/typescript dependencies found: ${this.dependencyMap.size} under ${jstsDependencyInfo.pkgDir}`
@@ -63,7 +73,8 @@ export class JSTSDependencyHandler extends LanguageDependencyHandler<JSTSDepende
      * First, it will record dependencies with version under node_modules based on package.json
      * Then, it will also record dependencies with version under node_modules which are not declared in package.json
      */
-    generateDependencyMap(jstsDependencyInfo: JSTSDependencyInfo, dependencyMap: Map<string, Dependency>) {
+    generateDependencyMap(jstsDependencyInfo: JSTSDependencyInfo): Map<string, Dependency> {
+        const dependencyMap = new Map<string, Dependency>()
         let packageJsonPath = jstsDependencyInfo.packageJsonPath
         let nodeModulesPath = jstsDependencyInfo.nodeModulesPath
         // Read and parse package.json
@@ -94,6 +105,7 @@ export class JSTSDependencyHandler extends LanguageDependencyHandler<JSTSDepende
                     name,
                     version: actualVersion.toString().replace(/[\^~]/g, ''), // Remove ^ and ~ from version
                     path: dependencyPath,
+                    size: this.getDirectorySize(dependencyPath),
                 })
             }
         }
@@ -117,11 +129,13 @@ export class JSTSDependencyHandler extends LanguageDependencyHandler<JSTSDepende
                             name: item,
                             version: depPackageJson.version || 'unknown',
                             path: itemPath,
+                            size: this.getDirectorySize(itemPath),
                         })
                     }
                 }
             }
         }
+        return dependencyMap
     }
 
     /*
@@ -134,11 +148,10 @@ export class JSTSDependencyHandler extends LanguageDependencyHandler<JSTSDepende
             this.logging.log(`Setting up js/ts dependency watcher for ${packageJsonPath}`)
             try {
                 const watcher = fs.watch(packageJsonPath, (eventType, filename) => {
-                    const updatedDependencyMap: Map<string, Dependency> = new Map<string, Dependency>()
                     if (eventType === 'change') {
                         this.logging.log(`Change detected in ${packageJsonPath}`)
-                        this.generateDependencyMap(jstsDependencyInfo, updatedDependencyMap)
-                        this.compareAndUpdateDependencies(updatedDependencyMap)
+                        const updatedDependencyMap = this.generateDependencyMap(jstsDependencyInfo)
+                        this.compareAndUpdateDependencies(jstsDependencyInfo, updatedDependencyMap)
                     }
                 })
                 this.dependencyWatchers.set(packageJsonPath, watcher)
