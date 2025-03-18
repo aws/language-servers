@@ -305,11 +305,7 @@ export const CodewhispererServerFactory =
             })
             telemetryService.updateUserContext(makeUserContextObject(params, runtime.platform, 'INLINE'))
             return {
-                capabilities: {
-                    executeCommandProvider: {
-                        commands: ['bearerCredentialsDeleteCommand'],
-                    },
-                },
+                capabilities: {},
             }
         })
 
