@@ -124,19 +124,12 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
     }
 
     private setupAuthListener(): void {
-        this.features.lsp.onExecuteCommand(
-            async (params: ExecuteCommandParams, _token: CancellationToken): Promise<any> => {
-                this.log(`Received command: ${params.command}`)
-                switch (params.command) {
-                    case 'bearerCredentialsDeleteCommand':
-                        this.cachedCodewhispererService = undefined
-                        this.activeIdcProfile = undefined
-                        this.connectionType = 'none'
-                        break
-                }
-                return
-            }
-        )
+        this.features.credentialsProvider.onBearerCredentialsDelete(() => {
+            this.log(`Received bearer token sign out event`)
+            this.cachedCodewhispererService = undefined
+            this.activeIdcProfile = undefined
+            this.connectionType = 'none'
+        })
     }
 
     private setupConfigurationListeners(): void {
