@@ -11,7 +11,6 @@ import {
 import { CancellationToken, LSPErrorCodes, ResponseError } from '@aws/language-server-runtimes/protocol'
 import { AWS_Q_ENDPOINTS } from '../../constants'
 import { SsoConnectionType } from '@aws/language-server-runtimes/server-interface'
-// import * as listAvailableProfilesModule from './listAvailableProfilesMock'
 import * as qDeveloperProfilesFetcherModule from './qDeveloperProfiles'
 
 export const mockedProfiles: qDeveloperProfilesFetcherModule.AmazonQDeveloperProfile[] = [

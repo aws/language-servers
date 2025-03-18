@@ -20,6 +20,8 @@ export const QChatServer =
     features => {
         const { chat, credentialsProvider, telemetry, logging, lsp, runtime, workspace, sdkInitializator } = features
 
+        const amazonQServiceManager = AmazonQTokenServiceManager.getInstance(features)
+
         const awsQRegion = runtime.getConfiguration('AWS_Q_REGION') ?? DEFAULT_AWS_Q_REGION
         const awsQEndpointUrl = runtime.getConfiguration('AWS_Q_ENDPOINT_URL') ?? DEFAULT_AWS_Q_ENDPOINT_URL
         const chatSessionManagementService: ChatSessionManagementService = service(
@@ -27,7 +29,7 @@ export const QChatServer =
             awsQRegion,
             awsQEndpointUrl,
             sdkInitializator
-        )
+        ).withAmazonQServiceManager(amazonQServiceManager)
 
         const telemetryService = new TelemetryService(
             credentialsProvider,
@@ -40,9 +42,18 @@ export const QChatServer =
             sdkInitializator
         )
 
-        const chatController = new ChatController(chatSessionManagementService, features, telemetryService)
+        const chatController = new ChatController(
+            chatSessionManagementService,
+            features,
+            telemetryService,
+            amazonQServiceManager
+        )
 
         lsp.addInitializer((params: InitializeParams) => {
+            amazonQServiceManager.updateClientConfig({
+                userAgent: getUserAgent(params, runtime.serverInfo),
+            })
+
             chatSessionManagementService.setCustomUserAgent(getUserAgent(params, runtime.serverInfo))
             telemetryService.updateClientConfig({
                 customUserAgent: getUserAgent(params, runtime.serverInfo),

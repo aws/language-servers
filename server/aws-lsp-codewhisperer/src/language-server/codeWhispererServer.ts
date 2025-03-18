@@ -275,6 +275,14 @@ export const CodewhispererServerFactory =
                 handleDidChangeConfiguration: async () => {},
                 updateClientConfig: () => {},
                 getCodewhispererService: () => {
+                    const fallbackCodeWhispererService = service(
+                        credentialsProvider,
+                        workspace,
+                        awsQRegion,
+                        awsQEndpointUrl,
+                        sdkInitializator
+                    )
+
                     return fallbackCodeWhispererService
                 },
             }

@@ -43,6 +43,8 @@ import { HELP_MESSAGE } from './constants'
 import { Q_CONFIGURATION_SECTION } from '../configuration/qConfigurationServer'
 import { textUtils } from '@aws/lsp-core'
 import { TelemetryService } from '../telemetryService'
+import { AmazonQTokenServiceManager } from '../amazonQServiceManager/AmazonQTokenServiceManager'
+import { AmazonQServicePendingSigninError } from '../amazonQServiceManager/errors'
 
 type ChatHandlers = Omit<LspHandlers<Chat>, 'openTab'>
 
@@ -53,17 +55,20 @@ export class ChatController implements ChatHandlers {
     #triggerContext: QChatTriggerContext
     #customizationArn?: string
     #telemetryService: TelemetryService
+    #amazonQServiceManager: AmazonQTokenServiceManager
 
     constructor(
         chatSessionManagementService: ChatSessionManagementService,
         features: Features,
-        telemetryService: TelemetryService
+        telemetryService: TelemetryService,
+        amazonQServiceManager: AmazonQTokenServiceManager
     ) {
         this.#features = features
         this.#chatSessionManagementService = chatSessionManagementService
         this.#triggerContext = new QChatTriggerContext(features.workspace, features.logging)
         this.#telemetryController = new ChatTelemetryController(features, telemetryService)
         this.#telemetryService = telemetryService
+        this.#amazonQServiceManager = amazonQServiceManager
     }
 
     dispose() {
@@ -113,6 +118,13 @@ export class ChatController implements ChatHandlers {
             if (isAwsError(err) || (isObject(err) && 'statusCode' in err && typeof err.statusCode === 'number')) {
                 metric.setDimension('cwsprChatRepsonseCode', err.statusCode ?? 400)
                 this.#telemetryController.emitMessageResponseError(params.tabId, metric.metric)
+            }
+
+            // TODO: Handle AmazonQServicePendingSigninError error types when not signed in and other error types
+            if (err instanceof AmazonQServicePendingSigninError) {
+                this.#log(`Q auth error: ${getErrorMessage(err)}`)
+
+                return createAuthFollowUpResult('full-auth')
             }
 
             const authFollowType = getAuthFollowUpType(err)
@@ -432,6 +444,8 @@ export class ChatController implements ChatHandlers {
 
     updateConfiguration = async () => {
         try {
+            await this.#amazonQServiceManager.handleDidChangeConfiguration()
+
             const qConfig = await this.#features.lsp.workspace.getConfiguration(Q_CONFIGURATION_SECTION)
             if (qConfig) {
                 this.#customizationArn = textUtils.undefinedIfEmpty(qConfig.customization)

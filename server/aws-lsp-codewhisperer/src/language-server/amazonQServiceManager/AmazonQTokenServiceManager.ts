@@ -10,6 +10,7 @@ import {
     LSPErrorCodes,
     SsoConnectionType,
     CancellationToken,
+    BearerCredentials,
 } from '@aws/language-server-runtimes/server-interface'
 import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION, AWS_Q_ENDPOINTS } from '../../constants'
 import { CodeWhispererServiceToken } from '../codeWhispererService'
@@ -26,6 +27,9 @@ import { BaseAmazonQServiceManager } from './BaseAmazonQServiceManager'
 import { Q_CONFIGURATION_SECTION } from '../configuration/qConfigurationServer'
 import { textUtils } from '@aws/lsp-core'
 import { AmazonQDeveloperProfile, getListAllAvailableProfilesHandler } from './qDeveloperProfiles'
+import { CodeWhispererStreaming } from '@amzn/codewhisperer-streaming'
+import { MISSING_BEARER_TOKEN_ERROR } from '../constants'
+import { ConfiguredRetryStrategy } from '@aws-sdk/util-retry'
 
 export interface Features {
     lsp: Lsp
@@ -72,6 +76,8 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
     private configurationCache = new Map()
     private activeIdcProfile?: AmazonQDeveloperProfile
     private connectionType?: SsoConnectionType
+    private region?: string
+    private endpoint?: string
     /**
      * Internal state of Service connection, based on status of bearer token and Amazon Q Developer profile selection.
      * Supported states:
@@ -387,6 +393,22 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
         throw new AmazonQServiceNotInitializedError()
     }
 
+    public createStreamingClient(): CodeWhispererStreaming {
+        this.log('Getting instance of CodeWhispererStreaming client')
+
+        // Trigger all check to initialize service manager.
+        this.getCodewhispererService()
+
+        if (!this.region || !this.endpoint) {
+            throw new AmazonQServiceNotInitializedError()
+        }
+
+        this.log(
+            `Returning new instance of CodeWhispererStreaming client with region=${this.region} endpoint=${this.endpoint}`
+        )
+        return this.streamingClientFactory(this.region, this.endpoint)
+    }
+
     private resetCodewhispererService() {
         // TODO: terminate inflight requests for old service, if exist
 
@@ -410,6 +432,10 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
         }
 
         this.cachedCodewhispererService = this.serviceFactory(awsQRegion, awsQEndpointUrl)
+
+        // Cache active region and endpoint selection
+        this.region = awsQRegion
+        this.endpoint = awsQEndpointUrl
 
         this.connectionType = connectionType
 
@@ -441,6 +467,24 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
         )
 
         return service
+    }
+
+    private streamingClientFactory(region: string, endpoint: string): CodeWhispererStreaming {
+        const credentials = this.features.credentialsProvider.getCredentials('bearer') as BearerCredentials
+
+        if (!credentials || !credentials.token) {
+            throw new Error(MISSING_BEARER_TOKEN_ERROR)
+        }
+
+        const streamingClient = this.features.sdkInitializator(CodeWhispererStreaming, {
+            region,
+            endpoint,
+            token: { token: credentials.token },
+            retryStrategy: new ConfiguredRetryStrategy(0, (attempt: number) => 500 + attempt ** 10),
+            customUserAgent: this.customUserAgent,
+        })
+
+        return streamingClient
     }
 
     private log(message: string): void {

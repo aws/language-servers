@@ -31,6 +31,7 @@ import { TextEdit } from 'vscode-languageserver-textdocument'
 import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../../constants'
 import { Service } from 'aws-sdk'
 import { ServiceConfigurationOptions } from 'aws-sdk/lib/service'
+import { AmazonQTokenServiceManager } from '../amazonQServiceManager/AmazonQTokenServiceManager'
 
 describe('ChatController', () => {
     const mockTabId = 'tab-1'
@@ -168,7 +169,12 @@ describe('ChatController', () => {
             mockSdkRuntimeConfigurator
         )
         invokeSendTelemetryEventStub = sinon.stub(telemetryService, 'sendTelemetryEvent' as any)
-        chatController = new ChatController(chatSessionManagementService, testFeatures, telemetryService)
+        chatController = new ChatController(
+            chatSessionManagementService,
+            testFeatures,
+            telemetryService,
+            {} as AmazonQTokenServiceManager
+        )
     })
 
     afterEach(() => {

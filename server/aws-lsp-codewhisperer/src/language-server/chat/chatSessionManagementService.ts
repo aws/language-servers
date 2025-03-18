@@ -1,6 +1,7 @@
 import { CredentialsProvider, SDKInitializator } from '@aws/language-server-runtimes/server-interface'
 import { Result } from '../types'
 import { ChatSessionService, ChatSessionServiceConfig } from './chatSessionService'
+import { AmazonQTokenServiceManager } from '../amazonQServiceManager/AmazonQTokenServiceManager'
 
 export class ChatSessionManagementService {
     static #instance?: ChatSessionManagementService
@@ -11,6 +12,7 @@ export class ChatSessionManagementService {
     #codeWhispererRegion?: string
     #codeWhispererEndpoint?: string
     #sdkInitializator?: SDKInitializator
+    #amazonQServiceManager?: AmazonQTokenServiceManager
 
     public static getInstance() {
         if (!ChatSessionManagementService.#instance) {
@@ -52,6 +54,12 @@ export class ChatSessionManagementService {
 
     public withSdkRuntimeConfigurator(sdkInitializator: SDKInitializator) {
         this.#sdkInitializator = sdkInitializator
+
+        return this
+    }
+
+    public withAmazonQServiceManager(amazonQServiceManager: AmazonQTokenServiceManager) {
+        this.#amazonQServiceManager = amazonQServiceManager
 
         return this
     }
@@ -101,7 +109,8 @@ export class ChatSessionManagementService {
             {
                 ...clientConfig,
                 customUserAgent: this.#customUserAgent,
-            }
+            },
+            this.#amazonQServiceManager
         )
 
         this.#sessionByTab.set(tabId, newSession)
