@@ -224,17 +224,18 @@ export class WorkspaceFolderManager {
     }
 
     async clearAllWorkspaceResources() {
-        for (const [workspace, workspaceState] of this.workspaceMap) {
-            if (workspaceState.webSocketClient) {
-                workspaceState.webSocketClient.disconnect()
+        for (const { webSocketClient, workspaceId } of this.workspaceMap.values()) {
+            if (webSocketClient) {
+                webSocketClient.destroyClient()
             }
 
-            if (workspaceState.workspaceId) {
-                await this.deleteWorkspace(workspaceState.workspaceId)
+            if (workspaceId) {
+                await this.deleteWorkspace(workspaceId)
             }
-
-            this.removeWorkspaceEntry(workspace)
         }
+
+        this.workspaceMap.clear()
+        this.workspacesToPoll = []
     }
 
     private optOutCheckScheduler() {
@@ -545,7 +546,7 @@ export class WorkspaceFolderManager {
             this.logging.log(`ListWorkspaceMetadata response for ${workspaceRoot}: ${JSON.stringify(response)}`)
             metadata = response && response.workspaces.length ? response.workspaces[0] : null
         } catch (e: any) {
-            this.logging.warn(`Error while fetching workspace (${workspaceRoot}) metadata: ${e?.message}`)
+            this.logging.warn(`Error while fetching workspace (${workspaceRoot}) metadata: ${e?.message}, ${e?.__type}`)
             if (e?.__type?.includes('AccessDeniedException')) {
                 this.logging.warn(`Access denied while fetching workspace (${workspaceRoot}) metadata.`)
                 optOut = true

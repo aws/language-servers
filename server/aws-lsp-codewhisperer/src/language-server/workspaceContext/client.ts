@@ -8,7 +8,6 @@ export class WebSocketClient {
     private reconnectAttempts: number = 0
     private readonly maxReconnectAttempts: number = 5
     private messageQueue: string[] = []
-    private cleanClosure: boolean = true
 
     constructor(url: string, logging: Logging) {
         this.url = url
@@ -50,11 +49,8 @@ export class WebSocketClient {
         })
 
         this.ws.onclose = event => {
-            this.logging.log(`WebSocket connection closed ${JSON.stringify(event)}`)
-            if (event.wasClean) {
-                this.cleanClosure = true
-            } else {
-                this.cleanClosure = false
+            this.logging.log(`WebSocket connection closed ${event.code}, ${event.reason}, ${event.wasClean}`)
+            if (!event.wasClean) {
                 this.handleDisconnect()
             }
         }
@@ -80,11 +76,8 @@ export class WebSocketClient {
             this.ws = null
         }
 
-        if (!this.cleanClosure) {
-            this.logging.log(`Reconnecting...`)
-            this.connect()
-            this.cleanClosure = true
-        } else if (this.reconnectAttempts < this.maxReconnectAttempts) {
+        // Apply exponential backoff for both unclean closures and failed reconnection attempts
+        if (this.reconnectAttempts < this.maxReconnectAttempts) {
             this.reconnectAttempts++
             const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000)
             this.logging.log(`Reconnecting attempt ${this.reconnectAttempts} in ${delay}ms...`)
@@ -124,5 +117,23 @@ export class WebSocketClient {
             this.ws.close()
             this.ws = null
         }
+    }
+
+    public destroyClient(): void {
+        // Clear the message queue
+        this.messageQueue = []
+
+        // Prevent any further reconnection attempts
+        this.reconnectAttempts = this.maxReconnectAttempts
+
+        if (this.ws) {
+            // Remove all event listeners
+            this.ws.removeAllListeners()
+            // Close the connection
+            this.ws.close()
+            this.ws = null
+        }
+
+        this.logging.log('WebSocket client destroyed')
     }
 }
