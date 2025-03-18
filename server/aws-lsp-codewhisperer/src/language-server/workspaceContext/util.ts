@@ -19,7 +19,7 @@ export const findWorkspaceRootFolder = (
 }
 
 export const uploadArtifactToS3 = async (content: Buffer, resp: CreateUploadUrlResponse) => {
-    const encryptionContext = `{"uploadId":"${resp.uploadId}"}`
+    const encryptionContext = `{"WorkspaceId":"${resp.uploadId}"}`
     let headersObj = resp.requestHeaders
         ? {
               'x-amz-checksum-sha256': resp.requestHeaders['x-amz-checksum-sha256'],

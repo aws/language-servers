@@ -190,6 +190,8 @@ export class WorkspaceFolderManager {
     }
 
     private async establishConnection(workspace: WorkspaceRoot) {
+        const existingState = this.workspaceMap.get(workspace)
+
         const { metadata, optOut } = await this.listWorkspaceMetadata(workspace)
         if (optOut) {
             throw new Error(`Workspace ${workspace} is opted out`)
@@ -205,6 +207,7 @@ export class WorkspaceFolderManager {
         this.updateWorkspaceEntry(workspace, {
             remoteWorkspaceState: 'CONNECTED',
             webSocketClient,
+            messageQueue: existingState?.messageQueue || [],
         })
 
         this.processMessagesInQueue(workspace)
