@@ -136,7 +136,6 @@ export const QConfigurationServerToken =
 const ON_GET_CONFIGURATION_FROM_SERVER_ERROR_PREFIX = 'Failed to fetch: '
 
 export class ServerConfigurationProvider {
-    // WIP: add functionality to set profiles enabled based on client capabilities
     private _qDeveloperProfilesEnabled = false
     private listAllAvailableProfilesHandler: ListAllAvailableProfilesHandler
 
