@@ -52,13 +52,14 @@ export abstract class CodeWhispererServiceBase {
     protected readonly codeWhispererEndpoint
     public shareCodeWhispererContentWithAWS = false
     public customizationArn?: string
+    public profileArn?: string
     abstract client: CodeWhispererSigv4Client | CodeWhispererTokenClient
 
     abstract getCredentialsType(): CredentialsType
 
     abstract generateSuggestions(request: GenerateSuggestionsRequest): Promise<GenerateSuggestionsResponse>
 
-    constructor(workspace: Workspace, codeWhispererRegion: string, codeWhispererEndpoint: string) {
+    constructor(codeWhispererRegion: string, codeWhispererEndpoint: string) {
         this.codeWhispererRegion = codeWhispererRegion
         this.codeWhispererEndpoint = codeWhispererEndpoint
     }
@@ -82,7 +83,7 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
         codeWhispererEndpoint: string,
         sdkInitializator: SDKInitializator
     ) {
-        super(workspace, codeWhispererRegion, codeWhispererEndpoint)
+        super(codeWhispererRegion, codeWhispererEndpoint)
         const options: CodeWhispererSigv4ClientConfigurationOptions = {
             region: this.codeWhispererRegion,
             endpoint: this.codeWhispererEndpoint,
@@ -138,7 +139,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         codeWhispererEndpoint: string,
         sdkInitializator: SDKInitializator
     ) {
-        super(workspace, codeWhispererRegion, codeWhispererEndpoint)
+        super(codeWhispererRegion, codeWhispererEndpoint)
         const options: CodeWhispererTokenClientConfigurationOptions = {
             region: this.codeWhispererRegion,
             endpoint: this.codeWhispererEndpoint,
@@ -166,6 +167,9 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         // add cancellation check
         // add error check
         if (this.customizationArn) request = { ...request, customizationArn: this.customizationArn }
+        if (this.profileArn) {
+            request.profileArn = this.profileArn
+        }
 
         const response = await this.client.generateCompletions(request).promise()
         const responseContext = {

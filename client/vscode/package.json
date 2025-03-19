@@ -98,6 +98,20 @@
                 "category": "Test Amazon Q Extension"
             },
             {
+                "command": "aws.sample-vscode-ext-amazonq.updateProfileIad",
+                "title": "Update Amazon Q IDC Profile IAD",
+                "category": "Test Amazon Q Extension"
+            },
+            {
+                "command": "aws.sample-vscode-ext-amazonq.updateProfileFra",
+                "title": "Update Amazon Q IDC Profile FRA",
+                "category": "Test Amazon Q Extension"
+            },
+            {
+                "command": "aws.sample-vscode-ext-amazonq.updateProfileInvalid",
+                "title": "Update Amazon Q IDC Profile (Invalid)"
+            },
+            {
                 "command": "aws.sample-vscode-ext-amazonq.getDeveloperProfiles",
                 "title": "Get developer profiles",
                 "category": "Test Amazon Q Extension"
@@ -216,6 +230,21 @@
                     "scope": "resource",
                     "type": "string",
                     "description": "The selected Q customization"
+                },
+                "aws.q.optOutTelemetry": {
+                    "scope": "resource",
+                    "type": "boolean",
+                    "description": "Opt Out from Q Telemetry (optOutTelemetry)"
+                },
+                "aws.codeWhisperer.includeSuggestionsWithCodeReferences": {
+                    "scope": "resource",
+                    "type": "boolean",
+                    "description": "Incluse suggestions with Code References"
+                },
+                "aws.codeWhisperer.shareCodeWhispererContentWithAWS": {
+                    "scope": "resource",
+                    "type": "boolean",
+                    "description": "Share CodeWhisperer content with AWS"
                 }
             }
         },
