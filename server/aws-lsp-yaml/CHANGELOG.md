@@ -1,3 +1,19 @@
+# Changelog
+
+## [0.1.1](https://github.com/aws/language-servers/compare/lsp-yaml/v0.1.0...lsp-yaml/v0.1.1) (2025-03-18)
+
+
+### Features
+
+* **chat-client:** handle 'openTab' requests ([#817](https://github.com/aws/language-servers/issues/817)) ([fdd0b87](https://github.com/aws/language-servers/commit/fdd0b87ad2d2c9a540d2594bb9243cad01b5887a))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @aws/lsp-core bumped from ^0.0.1 to ^0.0.2
+
 [0.0.1] - 2024-06-07
 
 - Intial release of the YAML LSP Server

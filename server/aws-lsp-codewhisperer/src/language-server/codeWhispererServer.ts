@@ -258,27 +258,9 @@ export const CodewhispererServerFactory =
             sdkInitializator
         )
 
-        let AmazonQServiceManager: BaseAmazonQServiceManager
+        // AmazonQTokenServiceManager is initialized in `onInitialized` handler to make sure Language Server connection is started
+        let amazonQServiceManager: BaseAmazonQServiceManager
         const serviceType = fallbackCodeWhispererService.constructor.name
-        if (serviceType === 'CodeWhispererServiceToken') {
-            AmazonQServiceManager = AmazonQTokenServiceManager.getInstance({
-                lsp,
-                logging,
-                credentialsProvider,
-                sdkInitializator,
-                workspace,
-                runtime,
-            })
-        } else {
-            // Fallback to default passed service factory for IAM credentials type
-            AmazonQServiceManager = {
-                handleDidChangeConfiguration: async () => {},
-                updateClientConfig: () => {},
-                getCodewhispererService: () => {
-                    return fallbackCodeWhispererService
-                },
-            }
-        }
 
         const telemetryService = new TelemetryService(
             credentialsProvider,
@@ -292,10 +274,6 @@ export const CodewhispererServerFactory =
         )
 
         lsp.addInitializer((params: InitializeParams) => {
-            AmazonQServiceManager.updateClientConfig({
-                userAgent: getUserAgent(params, runtime.serverInfo),
-            })
-
             // TODO: Review configuration options expected in other features
             fallbackCodeWhispererService.updateClientConfig({
                 customUserAgent: getUserAgent(params, runtime.serverInfo),
@@ -392,8 +370,7 @@ export const CodewhispererServerFactory =
                     return EMPTY_RESULT
                 }
 
-                const codeWhispererService = AmazonQServiceManager.getCodewhispererService()
-
+                const codeWhispererService = amazonQServiceManager.getCodewhispererService()
                 // supplementalContext available only via token authentication
                 const supplementalContextPromise =
                     codeWhispererService instanceof CodeWhispererServiceToken
@@ -647,7 +624,7 @@ export const CodewhispererServerFactory =
                 // Currently can't hook AmazonQTokenServiceManager.handleDidChangeConfiguration to lsp listenre directly
                 // as it will override listeners from each consuming Server.
                 // TODO: refactor configuration listener in Server and AmazonQTokenServiceManager in runtimes.
-                await AmazonQServiceManager.handleDidChangeConfiguration()
+                await amazonQServiceManager.handleDidChangeConfiguration()
 
                 const qConfig = await lsp.workspace.getConfiguration(Q_CONFIGURATION_SECTION)
                 if (qConfig) {
@@ -684,9 +661,32 @@ export const CodewhispererServerFactory =
             }
         }
 
+        const onInitializedHandler = async () => {
+            if (serviceType === 'CodeWhispererServiceToken') {
+                amazonQServiceManager = AmazonQTokenServiceManager.getInstance({
+                    lsp,
+                    logging,
+                    credentialsProvider,
+                    sdkInitializator,
+                    workspace,
+                    runtime,
+                })
+            } else {
+                // Fallback to default passed service factory for IAM credentials type
+                amazonQServiceManager = {
+                    handleDidChangeConfiguration: async () => {},
+                    getCodewhispererService: () => {
+                        return fallbackCodeWhispererService
+                    },
+                }
+            }
+
+            await updateConfiguration()
+        }
+
         lsp.extensions.onInlineCompletionWithReferences(onInlineCompletionHandler)
         lsp.extensions.onLogInlineCompletionSessionResults(onLogInlineCompletionSessionResultsHandler)
-        lsp.onInitialized(updateConfiguration)
+        lsp.onInitialized(onInitializedHandler)
         lsp.didChangeConfiguration(updateConfiguration)
 
         lsp.onDidChangeTextDocument(async p => {
