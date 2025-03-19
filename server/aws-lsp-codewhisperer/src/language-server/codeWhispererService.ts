@@ -54,6 +54,23 @@ export abstract class CodeWhispererServiceBase {
     public customizationArn?: string
     abstract client: CodeWhispererSigv4Client | CodeWhispererTokenClient
 
+    inflightRequests: Set<any> = new Set()
+
+    abortInflightRequests() {
+        this.inflightRequests.forEach(request => {
+            request.abort()
+        })
+        this.inflightRequests.clear()
+    }
+
+    trackRequest(request: any) {
+        this.inflightRequests.add(request)
+    }
+
+    completeRequest(request: any) {
+        this.inflightRequests.delete(request)
+    }
+
     abstract getCredentialsType(): CredentialsType
 
     abstract generateSuggestions(request: GenerateSuggestionsRequest): Promise<GenerateSuggestionsResponse>
@@ -144,6 +161,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
             endpoint: this.codeWhispererEndpoint,
             onRequestSetup: [
                 req => {
+                    this.trackRequest(req)
                     req.on('build', ({ httpRequest }) => {
                         const creds = credentialsProvider.getCredentials('bearer') as BearerCredentials
                         if (!creds?.token) {
@@ -151,6 +169,12 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
                         }
                         httpRequest.headers['Authorization'] = `Bearer ${creds.token}`
                         httpRequest.headers['x-amzn-codewhisperer-optout'] = `${!this.shareCodeWhispererContentWithAWS}`
+                    })
+                    req.on('complete', () => {
+                        this.completeRequest(req)
+                    })
+                    req.on('error', () => {
+                        this.completeRequest(req)
                     })
                 },
             ],
