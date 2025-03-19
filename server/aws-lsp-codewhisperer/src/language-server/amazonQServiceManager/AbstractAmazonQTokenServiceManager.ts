@@ -11,13 +11,11 @@ import {
     SsoConnectionType,
     CancellationToken,
     BearerCredentials,
-    InitializeParams,
 } from '@aws/language-server-runtimes/server-interface'
 import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION, AWS_Q_ENDPOINTS } from '../../constants'
 import { CodeWhispererServiceToken } from '../codeWhispererService'
 import {
     AmazonQError,
-    AmazonQServiceInitializationError,
     AmazonQServiceInvalidProfileError,
     AmazonQServiceNoProfileSupportError,
     AmazonQServiceNotInitializedError,
@@ -28,15 +26,11 @@ import {
 import { BaseAmazonQServiceManager } from './BaseAmazonQServiceManager'
 import { Q_CONFIGURATION_SECTION } from '../configuration/qConfigurationServer'
 import { textUtils } from '@aws/lsp-core'
+import { AmazonQDeveloperProfile, getListAllAvailableProfilesHandler } from './qDeveloperProfiles'
 import { CodeWhispererStreaming } from '@amzn/codewhisperer-streaming'
 import { MISSING_BEARER_TOKEN_ERROR } from '../constants'
 import { ConfiguredRetryStrategy } from '@aws-sdk/util-retry'
-import {
-    AmazonQDeveloperProfile,
-    getListAllAvailableProfilesHandler,
-    signalsAWSQDeveloperProfilesEnabled,
-} from './qDeveloperProfiles'
-import { getUserAgent } from '../utilities/telemetryUtils'
+import { StreamingClient } from '../../client/streamingClient/codewhispererStreamingClient'
 
 export interface Features {
     lsp: Lsp
@@ -73,17 +67,17 @@ export interface Features {
  * const AmazonQServiceManager = AmazonQTokenServiceManager.getInstance(features);
  * const codewhispererService = AmazonQServiceManager.getCodewhispererService();
  */
-export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
-    private static instance: AmazonQTokenServiceManager | null = null
-    private features!: Features
-    private logging!: Logging
-    private cachedCodewhispererService?: CodeWhispererServiceToken
-    private enableDeveloperProfileSupport?: boolean
-    private configurationCache = new Map()
-    private activeIdcProfile?: AmazonQDeveloperProfile
-    private connectionType?: SsoConnectionType
-    private region?: string
-    private endpoint?: string
+export abstract class BaseAmazonQTokenServiceManager implements BaseAmazonQServiceManager {
+    // private static instance: AmazonQTokenServiceManager | null = null
+    protected features!: Features
+    protected logging!: Logging
+    protected cachedCodewhispererService?: CodeWhispererServiceToken
+    protected customUserAgent: string = 'Amazon Q Language Server'
+    protected enableDeveloperProfileSupport?: boolean
+    protected configurationCache = new Map()
+    protected activeIdcProfile?: AmazonQDeveloperProfile
+    protected connectionType?: SsoConnectionType
+
     /**
      * Internal state of Service connection, based on status of bearer token and Amazon Q Developer profile selection.
      * Supported states:
@@ -95,44 +89,29 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
     private state: 'PENDING_CONNECTION' | 'PENDING_Q_PROFILE' | 'PENDING_Q_PROFILE_UPDATE' | 'INITIALIZED' =
         'PENDING_CONNECTION'
 
-    private constructor() {}
+    protected constructor() {}
 
-    public static getInstance(features: Features): AmazonQTokenServiceManager {
-        if (!AmazonQTokenServiceManager.instance) {
-            AmazonQTokenServiceManager.instance = new AmazonQTokenServiceManager()
-            AmazonQTokenServiceManager.instance.initialize(features)
-        }
-        return AmazonQTokenServiceManager.instance
-    }
+    // public static getInstance(features: Features, enableDeveloperProfileSupport = false): AmazonQTokenServiceManager {
+    //     if (!AmazonQTokenServiceManager.instance) {
+    //         AmazonQTokenServiceManager.instance = new AmazonQTokenServiceManager()
+    //         AmazonQTokenServiceManager.instance.initialize(features, enableDeveloperProfileSupport)
+    //     }
+    //     return AmazonQTokenServiceManager.instance
+    // }
 
-    private initialize(features: Features): void {
+    protected initialize(features: Features, enableDeveloperProfileSupport = false): void {
         if (!features || !features.logging || !features.lsp) {
-            throw new AmazonQServiceInitializationError(
-                'Service features not initialized. Please ensure proper initialization.'
-            )
+            throw new Error('Service features not initialized. Please ensure proper initialization.')
         }
 
         this.features = features
         this.logging = features.logging
 
-        if (!this.features.lsp.getClientInitializeParams()) {
-            this.log('AmazonQTokenServiceManager initialized before LSP connection was not initialized.')
-            throw new AmazonQServiceInitializationError(
-                'AmazonQTokenServiceManager initialized before LSP connection was not initialized.'
-            )
-        }
-
         // Bind methods that are passed by reference to some handlers to maintain proper scope.
         this.serviceFactory = this.serviceFactory.bind(this)
         this.handleDidChangeConfiguration = this.handleDidChangeConfiguration.bind(this)
 
-        this.log('Reading enableDeveloperProfileSupport setting from AWSInitializationOptions')
-        if (this.features.lsp.getClientInitializeParams()?.initializationOptions?.aws) {
-            const awsOptions = this.features.lsp.getClientInitializeParams()?.initializationOptions?.aws || {}
-            this.enableDeveloperProfileSupport = signalsAWSQDeveloperProfilesEnabled(awsOptions)
-
-            this.log(`Enabled Q Developer Profile support: ${this.enableDeveloperProfileSupport}`)
-        }
+        this.enableDeveloperProfileSupport = enableDeveloperProfileSupport
 
         this.connectionType = 'none'
         this.state = 'PENDING_CONNECTION'
@@ -141,6 +120,14 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
         this.setupConfigurationListeners()
 
         this.log('Manager instance is initialize')
+    }
+
+    protected abstract serviceFactory(region: string, endpoint: string): any
+
+    public updateClientConfig(config: { userAgent: string }) {
+        if (config.userAgent) {
+            this.customUserAgent = config.userAgent
+        }
     }
 
     private setupAuthListener(): void {
@@ -317,7 +304,7 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
             )
         }
 
-        if ((this.state === 'INITIALIZED' && this.activeIdcProfile) || this.state === 'PENDING_Q_PROFILE') {
+        if (this.state === 'INITIALIZED' && this.activeIdcProfile) {
             // Change status to pending to prevent API calls until profile is updated.
             // Because `listAvailableProfiles` below can take few seconds to complete,
             // there is possibility that client could send requests while profile is changing.
@@ -340,9 +327,9 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
         }
 
         if (!this.activeIdcProfile) {
-            this.activeIdcProfile = newProfile
             this.createCodewhispererServiceInstance('identityCenter', newProfile.identityDetails.region)
             this.state = 'INITIALIZED'
+            this.activeIdcProfile = newProfile
             this.log(
                 `Initialized identityCenter connection to region ${newProfile.identityDetails.region} for profile ${newProfile.arn}`
             )
@@ -370,21 +357,17 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
             this.activeIdcProfile = newProfile
             this.state = 'INITIALIZED'
 
-            if (this.cachedCodewhispererService) {
-                this.cachedCodewhispererService.profileArn = newProfile.arn
-            }
-
             return
         }
 
         this.log(`Switching service client region from ${oldRegion} to ${newRegion}`)
 
-        // Selected new profile is in different region. Re-initialize service
+        // Selected new profile is in different region. Re-initialize service and terminate inflight requests
         this.resetCodewhispererService()
-
-        this.activeIdcProfile = newProfile
         this.createCodewhispererServiceInstance('identityCenter', newProfile.identityDetails.region)
         this.state = 'INITIALIZED'
+
+        this.activeIdcProfile = newProfile
 
         return
     }
@@ -412,22 +395,6 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
         throw new AmazonQServiceNotInitializedError()
     }
 
-    public createStreamingClient(): CodeWhispererStreaming {
-        this.log('Getting instance of CodeWhispererStreaming client')
-
-        // Trigger all check to initialize service manager.
-        this.getCodewhispererService()
-
-        if (!this.region || !this.endpoint) {
-            throw new AmazonQServiceNotInitializedError()
-        }
-
-        this.log(
-            `Returning new instance of CodeWhispererStreaming client with region=${this.region} endpoint=${this.endpoint}`
-        )
-        return this.streamingClientFactory(this.region, this.endpoint)
-    }
-
     private resetCodewhispererService() {
         // TODO: terminate inflight requests for old service, if exist
 
@@ -435,7 +402,10 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
         this.activeIdcProfile = undefined
     }
 
-    private createCodewhispererServiceInstance(connectionType: 'builderId' | 'identityCenter', region?: string) {
+    private createCodewhispererServiceInstance(
+        connectionType: 'builderId' | 'identityCenter',
+        region: string = DEFAULT_AWS_Q_REGION
+    ) {
         this.logServiceState('Initializing CodewhispererService')
 
         let awsQRegion = this.features.runtime.getConfiguration('AWS_Q_REGION') ?? DEFAULT_AWS_Q_REGION
@@ -449,10 +419,6 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
 
         this.cachedCodewhispererService = this.serviceFactory(awsQRegion, awsQEndpointUrl)
 
-        // Cache active region and endpoint selection
-        this.region = awsQRegion
-        this.endpoint = awsQEndpointUrl
-
         this.connectionType = connectionType
 
         this.log(
@@ -461,57 +427,7 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
         this.logServiceState('CodewhispererService Initialization finished')
     }
 
-    private getCustomUserAgent() {
-        const initializeParams = this.features.lsp.getClientInitializeParams() || {}
-
-        return getUserAgent(initializeParams as InitializeParams, this.features.runtime.serverInfo)
-    }
-
-    private serviceFactory(region: string, endpoint: string): CodeWhispererServiceToken {
-        const service = new CodeWhispererServiceToken(
-            this.features.credentialsProvider,
-            this.features.workspace,
-            region,
-            endpoint,
-            this.features.sdkInitializator
-        )
-
-        const customUserAgent = this.getCustomUserAgent()
-        service.updateClientConfig({
-            customUserAgent: customUserAgent,
-        })
-        service.customizationArn = textUtils.undefinedIfEmpty(this.configurationCache.get('customizationArn'))
-        service.profileArn = this.activeIdcProfile?.arn
-        service.shareCodeWhispererContentWithAWS =
-            this.configurationCache.get('shareCodeWhispererContentWithAWS') === true
-
-        this.log('Configured CodeWhispererServiceToken instance settings:')
-        this.log(
-            `customUserAgent=${customUserAgent}, customizationArn=${service.customizationArn}, shareCodeWhispererContentWithAWS=${service.shareCodeWhispererContentWithAWS}`
-        )
-
-        return service
-    }
-
-    private streamingClientFactory(region: string, endpoint: string): CodeWhispererStreaming {
-        const credentials = this.features.credentialsProvider.getCredentials('bearer') as BearerCredentials
-
-        if (!credentials || !credentials.token) {
-            throw new Error(MISSING_BEARER_TOKEN_ERROR)
-        }
-
-        const streamingClient = this.features.sdkInitializator(CodeWhispererStreaming, {
-            region,
-            endpoint,
-            token: { token: credentials.token },
-            retryStrategy: new ConfiguredRetryStrategy(0, (attempt: number) => 500 + attempt ** 10),
-            customUserAgent: this.customUserAgent,
-        })
-
-        return streamingClient
-    }
-
-    private log(message: string): void {
+    protected log(message: string): void {
         const prefix = 'Amazon Q Token Service Manager'
         this.logging?.log(`${prefix}: ${message}`)
     }
@@ -529,10 +445,10 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
         )
     }
 
-    // For Unit Tests
-    public static resetInstance(): void {
-        AmazonQTokenServiceManager.instance = null
-    }
+    // // For Unit Tests
+    // public static resetInstance(): void {
+    //     AmazonQTokenServiceManager.instance = null
+    // }
 
     public getState() {
         return this.state
@@ -548,5 +464,89 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
 
     public setServiceFactory(factory: (region: string, endpoint: string) => CodeWhispererServiceToken) {
         this.serviceFactory = factory.bind(this)
+    }
+}
+
+export class AmazonQTokenServiceManager extends BaseAmazonQTokenServiceManager {
+    private static instance: AmazonQTokenServiceManager | null = null
+
+    private constructor() {
+        super()
+    }
+
+    public static getInstance(features: Features, enableDeveloperProfileSupport = false): AmazonQTokenServiceManager {
+        if (!AmazonQTokenServiceManager.instance) {
+            AmazonQTokenServiceManager.instance = new AmazonQTokenServiceManager()
+            AmazonQTokenServiceManager.instance.initialize(features, enableDeveloperProfileSupport)
+        }
+        return AmazonQTokenServiceManager.instance
+    }
+
+    override serviceFactory(region: string, endpoint: string): CodeWhispererServiceToken {
+        const service = new CodeWhispererServiceToken(
+            this.features.credentialsProvider,
+            this.features.workspace,
+            region,
+            endpoint,
+            this.features.sdkInitializator
+        )
+
+        service.updateClientConfig({
+            customUserAgent: this.customUserAgent,
+        })
+        service.customizationArn = this.configurationCache.get('customizationArn')
+        service.shareCodeWhispererContentWithAWS =
+            this.configurationCache.get('shareCodeWhispererContentWithAWS') === true
+
+        this.log('Configured CodeWhispererServiceToken instance settings:')
+        this.log(
+            `customUserAgent=${this.customUserAgent}, customizationArn=${service.customizationArn}, shareCodeWhispererContentWithAWS=${service.shareCodeWhispererContentWithAWS}`
+        )
+
+        return service
+    }
+
+    // For Unit Tests
+    public static resetInstance(): void {
+        AmazonQTokenServiceManager.instance = null
+    }
+}
+
+export class AmazonQStreamingClient extends BaseAmazonQTokenServiceManager {
+    private static instance: AmazonQStreamingClient | null = null
+
+    private constructor() {
+        super()
+    }
+
+    public static getInstance(features: Features, enableDeveloperProfileSupport = false): AmazonQStreamingClient {
+        if (!AmazonQStreamingClient.instance) {
+            AmazonQStreamingClient.instance = new AmazonQStreamingClient()
+            AmazonQStreamingClient.instance.initialize(features, enableDeveloperProfileSupport)
+        }
+        return AmazonQStreamingClient.instance
+    }
+
+    override serviceFactory(region: string, endpoint: string): CodeWhispererStreaming {
+        const credentials = this.features.credentialsProvider.getCredentials('bearer') as BearerCredentials
+
+        if (!credentials || !credentials.token) {
+            throw new Error(MISSING_BEARER_TOKEN_ERROR)
+        }
+
+        const streamingClient = this.features.sdkInitializator(CodeWhispererStreaming, {
+            region,
+            endpoint,
+            token: { token: credentials.token },
+            retryStrategy: new ConfiguredRetryStrategy(0, (attempt: number) => 500 + attempt ** 10),
+            customUserAgent: this.customUserAgent,
+        })
+
+        return streamingClient
+    }
+
+    // For Unit Tests
+    public static resetInstance(): void {
+        AmazonQStreamingClient.instance = null
     }
 }

@@ -8,6 +8,13 @@ export class AmazonQError extends Error {
     }
 }
 
+export class AmazonQServiceInitializationError extends AmazonQError {
+    constructor(message: string = 'Amazon Q service manager initilization error') {
+        super(message, 'E_AMAZON_Q_INITIALIZATION_ERROR')
+        this.name = 'AmazonQServiceInitializationError'
+    }
+}
+
 export class AmazonQServiceNotInitializedError extends AmazonQError {
     constructor(message: string = 'Amazon Q service SDK is not initialized') {
         super(message, 'E_AMAZON_Q_NOT_INITIALIZED')
