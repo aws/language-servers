@@ -311,7 +311,7 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
             )
         }
 
-        if (this.state === 'INITIALIZED' && this.activeIdcProfile) {
+        if ((this.state === 'INITIALIZED' && this.activeIdcProfile) || this.state === 'PENDING_Q_PROFILE') {
             // Change status to pending to prevent API calls until profile is updated.
             // Because `listAvailableProfiles` below can take few seconds to complete,
             // there is possibility that client could send requests while profile is changing.
@@ -334,9 +334,9 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
         }
 
         if (!this.activeIdcProfile) {
+            this.activeIdcProfile = newProfile
             this.createCodewhispererServiceInstance('identityCenter', newProfile.identityDetails.region)
             this.state = 'INITIALIZED'
-            this.activeIdcProfile = newProfile
             this.log(
                 `Initialized identityCenter connection to region ${newProfile.identityDetails.region} for profile ${newProfile.arn}`
             )
@@ -364,17 +364,21 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
             this.activeIdcProfile = newProfile
             this.state = 'INITIALIZED'
 
+            if (this.cachedCodewhispererService) {
+                this.cachedCodewhispererService.profileArn = newProfile.arn
+            }
+
             return
         }
 
         this.log(`Switching service client region from ${oldRegion} to ${newRegion}`)
 
-        // Selected new profile is in different region. Re-initialize service and terminate inflight requests
+        // Selected new profile is in different region. Re-initialize service
         this.resetCodewhispererService()
-        this.createCodewhispererServiceInstance('identityCenter', newProfile.identityDetails.region)
-        this.state = 'INITIALIZED'
 
         this.activeIdcProfile = newProfile
+        this.createCodewhispererServiceInstance('identityCenter', newProfile.identityDetails.region)
+        this.state = 'INITIALIZED'
 
         return
     }
@@ -451,6 +455,7 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
             customUserAgent: customUserAgent,
         })
         service.customizationArn = textUtils.undefinedIfEmpty(this.configurationCache.get('customizationArn'))
+        service.profileArn = this.activeIdcProfile?.arn
         service.shareCodeWhispererContentWithAWS =
             this.configurationCache.get('shareCodeWhispererContentWithAWS') === true
 
