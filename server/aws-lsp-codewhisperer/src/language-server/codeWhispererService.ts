@@ -52,6 +52,7 @@ export abstract class CodeWhispererServiceBase {
     protected readonly codeWhispererEndpoint
     public shareCodeWhispererContentWithAWS = false
     public customizationArn?: string
+    public profileArn?: string
     abstract client: CodeWhispererSigv4Client | CodeWhispererTokenClient
 
     inflightRequests: Set<any> = new Set()
@@ -190,6 +191,9 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         // add cancellation check
         // add error check
         if (this.customizationArn) request = { ...request, customizationArn: this.customizationArn }
+        if (this.profileArn) {
+            request.profileArn = this.profileArn
+        }
 
         const response = await this.client.generateCompletions(request).promise()
         const responseContext = {
