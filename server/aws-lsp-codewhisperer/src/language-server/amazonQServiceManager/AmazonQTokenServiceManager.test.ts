@@ -9,7 +9,7 @@ import {
     AmazonQServicePendingSigninError,
 } from './errors'
 import { CancellationToken, LSPErrorCodes, ResponseError } from '@aws/language-server-runtimes/protocol'
-import { AWS_Q_ENDPOINTS } from '../../constants'
+import { AWS_Q_ENDPOINTS, DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../../constants'
 import { SsoConnectionType } from '@aws/language-server-runtimes/server-interface'
 // import * as listAvailableProfilesModule from './listAvailableProfilesMock'
 import * as qDeveloperProfilesFetcherModule from './qDeveloperProfiles'
@@ -505,7 +505,8 @@ describe('AmazonQTokenServiceManager', () => {
                 assert.strictEqual(amazonQTokenServiceManager.getActiveProfileArn(), undefined)
 
                 assert(codewhispererStubFactory.calledTwice)
-                assert(codewhispererStubFactory.calledWithExactly('us-east-1', 'amazon-q-in-us-east-1-endpoint'))
+                console.log(codewhispererStubFactory.getCalls())
+                assert(codewhispererStubFactory.calledWithExactly(DEFAULT_AWS_Q_REGION, DEFAULT_AWS_Q_ENDPOINT_URL))
             })
 
             it('should initialize service to PENDING_Q_PROFILE state when profile support is enabled', async () => {
@@ -531,7 +532,7 @@ describe('AmazonQTokenServiceManager', () => {
                 assert.strictEqual(amazonQTokenServiceManager.getActiveProfileArn(), undefined)
 
                 assert(codewhispererStubFactory.calledOnce)
-                assert(codewhispererStubFactory.calledWithExactly('us-east-1', 'amazon-q-in-us-east-1-endpoint'))
+                assert(codewhispererStubFactory.calledWithExactly(DEFAULT_AWS_Q_REGION, DEFAULT_AWS_Q_ENDPOINT_URL))
             })
         })
 
@@ -555,7 +556,7 @@ describe('AmazonQTokenServiceManager', () => {
                 assert.strictEqual(amazonQTokenServiceManager.getActiveProfileArn(), undefined)
 
                 assert(codewhispererStubFactory.calledTwice)
-                assert(codewhispererStubFactory.calledWithExactly('us-east-1', 'amazon-q-in-us-east-1-endpoint'))
+                assert(codewhispererStubFactory.calledWithExactly(DEFAULT_AWS_Q_REGION, DEFAULT_AWS_Q_ENDPOINT_URL))
             })
         })
 

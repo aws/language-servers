@@ -394,10 +394,7 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
         this.activeIdcProfile = undefined
     }
 
-    private createCodewhispererServiceInstance(
-        connectionType: 'builderId' | 'identityCenter',
-        region: string = DEFAULT_AWS_Q_REGION
-    ) {
+    private createCodewhispererServiceInstance(connectionType: 'builderId' | 'identityCenter', region?: string) {
         this.logServiceState('Initializing CodewhispererService')
 
         let awsQRegion = this.features.runtime.getConfiguration('AWS_Q_REGION') ?? DEFAULT_AWS_Q_REGION
