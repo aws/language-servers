@@ -45,6 +45,8 @@ class MockCredentialsProvider implements CredentialsProvider {
         return undefined
     }
 
+    onCredentialsDeleted(handler: (type: CredentialsType) => void) {}
+
     getConnectionMetadata(): ConnectionMetadata | undefined {
         return this.mockConnectionMetadata
     }
