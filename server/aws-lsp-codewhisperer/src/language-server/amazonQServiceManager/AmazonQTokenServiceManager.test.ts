@@ -4,14 +4,19 @@ import { AmazonQTokenServiceManager } from './AmazonQTokenServiceManager'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import { CodeWhispererServiceToken, GenerateSuggestionsRequest } from '../codeWhispererService'
 import {
+    AmazonQServiceInitializationError,
     AmazonQServicePendingProfileError,
     AmazonQServicePendingProfileUpdateError,
     AmazonQServicePendingSigninError,
 } from './errors'
-import { CancellationToken, LSPErrorCodes, ResponseError } from '@aws/language-server-runtimes/protocol'
+import {
+    CancellationToken,
+    InitializeParams,
+    LSPErrorCodes,
+    ResponseError,
+} from '@aws/language-server-runtimes/protocol'
 import { AWS_Q_ENDPOINTS, DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../../constants'
 import { SsoConnectionType } from '@aws/language-server-runtimes/server-interface'
-// import * as listAvailableProfilesModule from './listAvailableProfilesMock'
 import * as qDeveloperProfilesFetcherModule from './qDeveloperProfiles'
 
 export const mockedProfiles: qDeveloperProfilesFetcherModule.AmazonQDeveloperProfile[] = [
@@ -64,6 +69,8 @@ describe('AmazonQTokenServiceManager', () => {
         codewhispererServiceStub = stubInterface<CodeWhispererServiceToken>()
         // @ts-ignore
         codewhispererServiceStub.client = sinon.stub()
+        codewhispererServiceStub.customizationArn = undefined
+        codewhispererServiceStub.shareCodeWhispererContentWithAWS = false
 
         // Initialize the class with mocked dependencies
         codewhispererStubFactory = sinon.stub().returns(codewhispererServiceStub)
@@ -76,7 +83,21 @@ describe('AmazonQTokenServiceManager', () => {
     })
 
     const setupServiceManager = (enableProfiles = false) => {
-        amazonQTokenServiceManager = AmazonQTokenServiceManager.getInstance(features, enableProfiles)
+        // @ts-ignore
+        const cachedInitializeParams: InitializeParams = {
+            initializationOptions: {
+                aws: {
+                    awsClientCapabilities: {
+                        q: {
+                            developerProfiles: enableProfiles,
+                        },
+                    },
+                },
+            },
+        }
+        features.lsp.getClientInitializeParams.returns(cachedInitializeParams)
+
+        amazonQTokenServiceManager = AmazonQTokenServiceManager.getInstance(features)
         amazonQTokenServiceManager.setServiceFactory(codewhispererStubFactory)
     }
 
@@ -505,7 +526,6 @@ describe('AmazonQTokenServiceManager', () => {
                 assert.strictEqual(amazonQTokenServiceManager.getActiveProfileArn(), undefined)
 
                 assert(codewhispererStubFactory.calledTwice)
-                console.log(codewhispererStubFactory.getCalls())
                 assert(codewhispererStubFactory.calledWithExactly(DEFAULT_AWS_Q_REGION, DEFAULT_AWS_Q_ENDPOINT_URL))
             })
 
@@ -567,14 +587,15 @@ describe('AmazonQTokenServiceManager', () => {
 
     describe('handle LSP Configuration settings', () => {
         it('should initialize codewhisperer service with default configurations when not set by client', async () => {
-            amazonQTokenServiceManager = AmazonQTokenServiceManager.getInstance(features, false)
+            setupServiceManager()
             setCredentials('identityCenter')
+
+            await amazonQTokenServiceManager.handleDidChangeConfiguration()
 
             const service = amazonQTokenServiceManager.getCodewhispererService()
 
             assert.strictEqual(service.customizationArn, undefined)
             assert.strictEqual(service.shareCodeWhispererContentWithAWS, false)
-            assert.strictEqual(service.client.config.customUserAgent, 'Amazon Q Language Server')
         })
 
         it('should returned configured codewhispererService with expected configuration values', async () => {
@@ -588,15 +609,15 @@ describe('AmazonQTokenServiceManager', () => {
                 shareCodeWhispererContentWithAWS: true,
             })
 
-            await features.start(sinon.stub().returns(sinon.stub()))
-
-            amazonQTokenServiceManager = AmazonQTokenServiceManager.getInstance(features, false)
+            // Initialize mock server
+            setupServiceManager()
             setCredentials('identityCenter')
+
+            amazonQTokenServiceManager = AmazonQTokenServiceManager.getInstance(features)
             const service = amazonQTokenServiceManager.getCodewhispererService()
 
             assert.strictEqual(service.customizationArn, undefined)
             assert.strictEqual(service.shareCodeWhispererContentWithAWS, false)
-            assert.strictEqual(service.client.config.customUserAgent, 'Amazon Q Language Server')
 
             await amazonQTokenServiceManager.handleDidChangeConfiguration()
 
@@ -605,7 +626,14 @@ describe('AmazonQTokenServiceManager', () => {
 
             assert.strictEqual(service.customizationArn, 'test-customization-arn')
             assert.strictEqual(service.shareCodeWhispererContentWithAWS, true)
-            assert.strictEqual(service.client.config.customUserAgent, 'Amazon Q Language Server')
+        })
+    })
+
+    describe('Initialize', () => {
+        it('should throw when initialize is called before LSP has been initialized with InitializeParams', () => {
+            features.lsp.getClientInitializeParams.returns(undefined)
+
+            assert.throws(() => AmazonQTokenServiceManager.getInstance(features), AmazonQServiceInitializationError)
         })
     })
 })

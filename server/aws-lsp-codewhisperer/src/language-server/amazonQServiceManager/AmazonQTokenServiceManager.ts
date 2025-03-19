@@ -10,11 +10,13 @@ import {
     LSPErrorCodes,
     SsoConnectionType,
     CancellationToken,
+    InitializeParams,
 } from '@aws/language-server-runtimes/server-interface'
 import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION, AWS_Q_ENDPOINTS } from '../../constants'
 import { CodeWhispererServiceToken } from '../codeWhispererService'
 import {
     AmazonQError,
+    AmazonQServiceInitializationError,
     AmazonQServiceInvalidProfileError,
     AmazonQServiceNoProfileSupportError,
     AmazonQServiceNotInitializedError,
@@ -25,7 +27,12 @@ import {
 import { BaseAmazonQServiceManager } from './BaseAmazonQServiceManager'
 import { Q_CONFIGURATION_SECTION } from '../configuration/qConfigurationServer'
 import { textUtils } from '@aws/lsp-core'
-import { AmazonQDeveloperProfile, getListAllAvailableProfilesHandler } from './qDeveloperProfiles'
+import {
+    AmazonQDeveloperProfile,
+    getListAllAvailableProfilesHandler,
+    signalsAWSQDeveloperProfilesEnabled,
+} from './qDeveloperProfiles'
+import { getUserAgent } from '../utilities/telemetryUtils'
 
 export interface Features {
     lsp: Lsp
@@ -67,7 +74,6 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
     private features!: Features
     private logging!: Logging
     private cachedCodewhispererService?: CodeWhispererServiceToken
-    private customUserAgent: string = 'Amazon Q Language Server'
     private enableDeveloperProfileSupport?: boolean
     private configurationCache = new Map()
     private activeIdcProfile?: AmazonQDeveloperProfile
@@ -85,27 +91,42 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
 
     private constructor() {}
 
-    public static getInstance(features: Features, enableDeveloperProfileSupport = false): AmazonQTokenServiceManager {
+    public static getInstance(features: Features): AmazonQTokenServiceManager {
         if (!AmazonQTokenServiceManager.instance) {
             AmazonQTokenServiceManager.instance = new AmazonQTokenServiceManager()
-            AmazonQTokenServiceManager.instance.initialize(features, enableDeveloperProfileSupport)
+            AmazonQTokenServiceManager.instance.initialize(features)
         }
         return AmazonQTokenServiceManager.instance
     }
 
-    private initialize(features: Features, enableDeveloperProfileSupport = false): void {
+    private initialize(features: Features): void {
         if (!features || !features.logging || !features.lsp) {
-            throw new Error('Service features not initialized. Please ensure proper initialization.')
+            throw new AmazonQServiceInitializationError(
+                'Service features not initialized. Please ensure proper initialization.'
+            )
         }
 
         this.features = features
         this.logging = features.logging
 
+        if (!this.features.lsp.getClientInitializeParams()) {
+            this.log('AmazonQTokenServiceManager initialized before LSP connection was not initialized.')
+            throw new AmazonQServiceInitializationError(
+                'AmazonQTokenServiceManager initialized before LSP connection was not initialized.'
+            )
+        }
+
         // Bind methods that are passed by reference to some handlers to maintain proper scope.
         this.serviceFactory = this.serviceFactory.bind(this)
         this.handleDidChangeConfiguration = this.handleDidChangeConfiguration.bind(this)
 
-        this.enableDeveloperProfileSupport = enableDeveloperProfileSupport
+        this.log('Reading enableDeveloperProfileSupport setting from AWSInitializationOptions')
+        if (this.features.lsp.getClientInitializeParams()?.initializationOptions?.aws) {
+            const awsOptions = this.features.lsp.getClientInitializeParams()?.initializationOptions?.aws || {}
+            this.enableDeveloperProfileSupport = signalsAWSQDeveloperProfilesEnabled(awsOptions)
+
+            this.log(`Enabled Q Developer Profile support: ${this.enableDeveloperProfileSupport}`)
+        }
 
         this.connectionType = 'none'
         this.state = 'PENDING_CONNECTION'
@@ -114,12 +135,6 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
         this.setupConfigurationListeners()
 
         this.log('Manager instance is initialize')
-    }
-
-    public updateClientConfig(config: { userAgent: string }) {
-        if (config.userAgent) {
-            this.customUserAgent = config.userAgent
-        }
     }
 
     private setupAuthListener(): void {
@@ -416,6 +431,12 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
         this.logServiceState('CodewhispererService Initialization finished')
     }
 
+    private getCustomUserAgent() {
+        const initializeParams = this.features.lsp.getClientInitializeParams() || {}
+
+        return getUserAgent(initializeParams as InitializeParams, this.features.runtime.serverInfo)
+    }
+
     private serviceFactory(region: string, endpoint: string): CodeWhispererServiceToken {
         const service = new CodeWhispererServiceToken(
             this.features.credentialsProvider,
@@ -425,16 +446,17 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
             this.features.sdkInitializator
         )
 
+        const customUserAgent = this.getCustomUserAgent()
         service.updateClientConfig({
-            customUserAgent: this.customUserAgent,
+            customUserAgent: customUserAgent,
         })
-        service.customizationArn = this.configurationCache.get('customizationArn')
+        service.customizationArn = textUtils.undefinedIfEmpty(this.configurationCache.get('customizationArn'))
         service.shareCodeWhispererContentWithAWS =
             this.configurationCache.get('shareCodeWhispererContentWithAWS') === true
 
         this.log('Configured CodeWhispererServiceToken instance settings:')
         this.log(
-            `customUserAgent=${this.customUserAgent}, customizationArn=${service.customizationArn}, shareCodeWhispererContentWithAWS=${service.shareCodeWhispererContentWithAWS}`
+            `customUserAgent=${customUserAgent}, customizationArn=${service.customizationArn}, shareCodeWhispererContentWithAWS=${service.shareCodeWhispererContentWithAWS}`
         )
 
         return service
