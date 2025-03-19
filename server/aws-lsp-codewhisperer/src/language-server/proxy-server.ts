@@ -62,14 +62,4 @@ export const QChatServerProxy = QChatServer((credentialsProvider, awsQRegion, aw
         .withSdkRuntimeConfigurator(sdkInitializator)
 })
 
-export const QConfigurationServerTokenProxy = QConfigurationServerToken(
-    (credentialsProvider, workspace, awsQRegion, awsQEndpointUrl, sdkInitializator) => {
-        return new CodeWhispererServiceToken(
-            credentialsProvider,
-            workspace,
-            awsQRegion,
-            awsQEndpointUrl,
-            sdkInitializator
-        )
-    }
-)
+export const QConfigurationServerTokenProxy = QConfigurationServerToken()

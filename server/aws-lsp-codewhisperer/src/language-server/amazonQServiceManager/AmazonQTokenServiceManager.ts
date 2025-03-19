@@ -10,6 +10,7 @@ import {
     LSPErrorCodes,
     SsoConnectionType,
     CancellationToken,
+    InitializeParams,
 } from '@aws/language-server-runtimes/server-interface'
 import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION, AWS_Q_ENDPOINTS } from '../../constants'
 import { CodeWhispererServiceToken } from '../codeWhispererService'
@@ -186,7 +187,15 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
         if (newConnectionType === 'builderId') {
             this.log('Detected New connection type: builderId')
             this.resetCodewhispererService()
-            this.createCodewhispererServiceInstance('builderId')
+
+            // For the builderId connection type regional endpoint discovery chain is:
+            // region set by client -> runtime region -> default region
+            const clientParams = this.features.lsp.getClientInitializeParams()
+            if (!clientParams) {
+                this.logging.warn('Connection of type builderId established before completing initialization handshake')
+            }
+
+            this.createCodewhispererServiceInstance('builderId', clientParams?.initializationOptions?.aws?.region)
             this.state = 'INITIALIZED'
             this.log('Initialized Amazon Q service with builderId connection')
 
@@ -396,7 +405,6 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
 
     private createCodewhispererServiceInstance(connectionType: 'builderId' | 'identityCenter', region?: string) {
         this.logServiceState('Initializing CodewhispererService')
-
         let awsQRegion = this.features.runtime.getConfiguration('AWS_Q_REGION') ?? DEFAULT_AWS_Q_REGION
         let awsQEndpointUrl = this.features.runtime.getConfiguration('AWS_Q_ENDPOINT_URL') ?? DEFAULT_AWS_Q_ENDPOINT_URL
 
@@ -477,5 +485,9 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
 
     public setServiceFactory(factory: (region: string, endpoint: string) => CodeWhispererServiceToken) {
         this.serviceFactory = factory.bind(this)
+    }
+
+    public getServiceFactory() {
+        return this.serviceFactory
     }
 }

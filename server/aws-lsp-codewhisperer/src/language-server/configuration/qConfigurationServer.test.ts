@@ -10,9 +10,11 @@ import {
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import { CodeWhispererServiceToken } from '../codeWhispererService'
 import { Server } from '@aws/language-server-runtimes/server-interface'
+import { AmazonQTokenServiceManager } from '../amazonQServiceManager/AmazonQTokenServiceManager'
 
 describe('QConfigurationServerToken', () => {
     let testFeatures: TestFeatures
+    let amazonQServiceManager: AmazonQTokenServiceManager
     let disposeServer: () => void
     let listAvailableProfilesStub: sinon.SinonStub
     let listAvailableCustomizationsStub: sinon.SinonStub
@@ -22,8 +24,12 @@ describe('QConfigurationServerToken', () => {
     beforeEach(() => {
         testFeatures = new TestFeatures()
 
+        amazonQServiceManager = AmazonQTokenServiceManager.getInstance(testFeatures)
+
         const codeWhispererService = stubInterface<CodeWhispererServiceToken>()
-        const configurationServerFactory: Server = QConfigurationServerToken(() => codeWhispererService)
+        const configurationServerFactory: Server = QConfigurationServerToken()
+
+        amazonQServiceManager.setServiceFactory(sinon.stub().returns(codeWhispererService))
 
         listAvailableCustomizationsStub = sinon.stub(
             ServerConfigurationProvider.prototype,
@@ -40,6 +46,7 @@ describe('QConfigurationServerToken', () => {
 
     afterEach(() => {
         sinon.restore()
+        AmazonQTokenServiceManager.resetInstance()
     })
 
     it(`enables Q developer profiles when signalled by client`, () => {
@@ -94,6 +101,7 @@ describe('QConfigurationServerToken', () => {
 
 describe('ServerConfigurationProvider', () => {
     let serverConfigurationProvider: ServerConfigurationProvider
+    let amazonQServiceManager: AmazonQTokenServiceManager
     let codeWhispererService: StubbedInstance<CodeWhispererServiceToken>
     let testFeatures: TestFeatures
     let listAvailableProfilesHandlerSpy: sinon.SinonSpy
@@ -104,14 +112,27 @@ describe('ServerConfigurationProvider', () => {
             customizations: [],
             $response: {} as any,
         })
+        codeWhispererService.listAvailableProfiles.resolves({
+            profiles: [],
+            $response: {} as any,
+        })
 
         testFeatures = new TestFeatures()
 
+        testFeatures.credentialsProvider.hasCredentials.returns(true)
+        testFeatures.credentialsProvider.getConnectionType.returns('identityCenter')
+        testFeatures.credentialsProvider.getCredentials.returns({
+            token: 'test-token',
+        })
+
+        amazonQServiceManager = AmazonQTokenServiceManager.getInstance(testFeatures)
+
+        amazonQServiceManager.setServiceFactory(sinon.stub().returns(codeWhispererService))
+
         serverConfigurationProvider = new ServerConfigurationProvider(
-            codeWhispererService,
+            amazonQServiceManager,
             testFeatures.credentialsProvider,
-            testFeatures.logging,
-            () => codeWhispererService
+            testFeatures.logging
         )
 
         listAvailableProfilesHandlerSpy = sinon.spy(
@@ -141,6 +162,6 @@ describe('ServerConfigurationProvider', () => {
         serverConfigurationProvider.qDeveloperProfilesEnabled = true
         await serverConfigurationProvider.listAvailableProfiles()
 
-        sinon.assert.called(listAvailableProfilesHandlerSpy)
+        sinon.assert.calledOnce(listAvailableProfilesHandlerSpy)
     })
 })
