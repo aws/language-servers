@@ -10,6 +10,7 @@ import {
     LSPErrorCodes,
     SsoConnectionType,
     CancellationToken,
+    CredentialsType,
 } from '@aws/language-server-runtimes/server-interface'
 import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION, AWS_Q_ENDPOINTS } from '../../constants'
 import { CodeWhispererServiceToken } from '../codeWhispererService'
@@ -123,8 +124,11 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
     }
 
     private setupAuthListener(): void {
-        this.features.credentialsProvider.onBearerCredentialsDelete(() => {
-            this.log(`Received bearer token sign out event`)
+        this.features.credentialsProvider.onCredentialsDeleted((type: CredentialsType) => {
+            this.log(`Received credentials delete event for type: ${type}`)
+            if (type === 'iam') {
+                return
+            }
             this.cachedCodewhispererService = undefined
             this.activeIdcProfile = undefined
             this.connectionType = 'none'
