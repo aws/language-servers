@@ -505,7 +505,7 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
             endpoint,
             token: { token: credentials.token },
             retryStrategy: new ConfiguredRetryStrategy(0, (attempt: number) => 500 + attempt ** 10),
-            customUserAgent: this.customUserAgent,
+            customUserAgent: this.getCustomUserAgent(),
         })
 
         return streamingClient

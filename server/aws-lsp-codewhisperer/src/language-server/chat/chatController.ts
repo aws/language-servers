@@ -55,20 +55,17 @@ export class ChatController implements ChatHandlers {
     #triggerContext: QChatTriggerContext
     #customizationArn?: string
     #telemetryService: TelemetryService
-    #amazonQServiceManager: AmazonQTokenServiceManager
 
     constructor(
         chatSessionManagementService: ChatSessionManagementService,
         features: Features,
-        telemetryService: TelemetryService,
-        amazonQServiceManager: AmazonQTokenServiceManager
+        telemetryService: TelemetryService
     ) {
         this.#features = features
         this.#chatSessionManagementService = chatSessionManagementService
         this.#triggerContext = new QChatTriggerContext(features.workspace, features.logging)
         this.#telemetryController = new ChatTelemetryController(features, telemetryService)
         this.#telemetryService = telemetryService
-        this.#amazonQServiceManager = amazonQServiceManager
     }
 
     dispose() {
@@ -444,8 +441,6 @@ export class ChatController implements ChatHandlers {
 
     updateConfiguration = async () => {
         try {
-            await this.#amazonQServiceManager.handleDidChangeConfiguration()
-
             const qConfig = await this.#features.lsp.workspace.getConfiguration(Q_CONFIGURATION_SECTION)
             if (qConfig) {
                 this.#customizationArn = textUtils.undefinedIfEmpty(qConfig.customization)

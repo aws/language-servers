@@ -169,12 +169,7 @@ describe('ChatController', () => {
             mockSdkRuntimeConfigurator
         )
         invokeSendTelemetryEventStub = sinon.stub(telemetryService, 'sendTelemetryEvent' as any)
-        chatController = new ChatController(
-            chatSessionManagementService,
-            testFeatures,
-            telemetryService,
-            {} as AmazonQTokenServiceManager
-        )
+        chatController = new ChatController(chatSessionManagementService, testFeatures, telemetryService)
     })
 
     afterEach(() => {
