@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.5](https://github.com/aws/language-servers/compare/lsp-partiql/v0.0.4...lsp-partiql/v0.0.5) (2025-03-18)
+
+
+### Features
+
+* **chat-client:** handle 'openTab' requests ([#817](https://github.com/aws/language-servers/issues/817)) ([fdd0b87](https://github.com/aws/language-servers/commit/fdd0b87ad2d2c9a540d2594bb9243cad01b5887a))
+
 ## [0.0.4] - 2024-09-03
 - Features: add PRIMARY KEY and table options support PartiQL server grammar
 
