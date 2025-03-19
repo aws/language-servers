@@ -3,6 +3,7 @@ import { CodewhispererLanguage } from '../../../languageDetection'
 import * as fs from 'fs'
 import { ArtifactManager, FileMetadata } from '../../artifactManager'
 import path = require('path')
+import { WorkspaceFolderManager } from '../../workspaceFolderManager'
 
 export interface Dependency {
     name: string
@@ -26,6 +27,7 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
     protected dependencyMap = new Map<WorkspaceFolder, Map<string, Dependency>>()
     protected dependencyWatchers: Map<string, fs.FSWatcher> = new Map<string, fs.FSWatcher>()
     protected artifactManager: ArtifactManager
+    protected workspaceFolderManager: WorkspaceFolderManager
     protected dependenciesFolderName: string
 
     constructor(
@@ -34,6 +36,7 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
         logging: Logging,
         workspaceFolders: WorkspaceFolder[],
         artifactManager: ArtifactManager,
+        workspaceFolderManager: WorkspaceFolderManager,
         dependenciesFolderName: string
     ) {
         this.language = language
@@ -41,6 +44,7 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
         this.logging = logging
         this.workspaceFolders = workspaceFolders
         this.artifactManager = artifactManager
+        this.workspaceFolderManager = workspaceFolderManager
         this.dependenciesFolderName = dependenciesFolderName
     }
 
@@ -59,40 +63,86 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
      */
     abstract setupWatchers(): void
 
-    async generateFileMetadata(): Promise<FileMetadata[]> {
+    async zipDependencyMap(): Promise<void> {
         const zipFileMetadata: FileMetadata[] = []
         const MAX_CHUNK_SIZE_BYTES = 100 * 1024 * 1024 // 100MB per chunk
 
         let chunkIndex = 0
         // Process each workspace folder sequentially
         for (const [workspaceFolder, correspondingDependencyMap] of this.dependencyMap) {
-            // Process dependencies in size-based chunks
-            let currentChunkSize = 0
-            let currentChunk: Dependency[] = []
-            for (const dependency of correspondingDependencyMap.values()) {
-                // If adding this dependency would exceed the chunk size limit,
-                // process the current chunk first
-                if (currentChunkSize + dependency.size > MAX_CHUNK_SIZE_BYTES && currentChunk.length > 0) {
-                    // Process current chunk
-                    this.logging.log(`${chunkIndex} chunk's currentChunkSize: ${currentChunkSize}`)
-                    await this.processChunk(currentChunk, workspaceFolder, zipFileMetadata, chunkIndex)
+            const chunkZipFileMetadata = await this.generateFileMetadata(
+                [...correspondingDependencyMap.values()],
+                workspaceFolder
+            )
+            zipFileMetadata.push(...chunkZipFileMetadata)
+        }
 
-                    // Reset chunk
-                    currentChunk = []
-                    currentChunkSize = 0
-                    chunkIndex++
-
-                    // Add a small delay between chunks
-                    await new Promise(resolve => setTimeout(resolve, 100))
-                }
-                // Add dependency to current chunk
-                currentChunk.push(dependency)
-                currentChunkSize += dependency.size
+        for (const zip of zipFileMetadata) {
+            let s3Url = await this.workspaceFolderManager.uploadToS3(zip)
+            if (!s3Url) {
+                return
             }
-            // Process any remaining dependencies in the last chunk
-            if (currentChunk.length > 0) {
+            this.generateWebSocketRequest(zip.workspaceFolder, s3Url)
+        }
+    }
+
+    private generateWebSocketRequest(workspaceFolder: WorkspaceFolder, s3Url: string) {
+        let workspaceDetails = this.workspaceFolderManager.getWorkspaceDetailsByWorkspaceFolder(workspaceFolder)
+        if (!workspaceDetails) {
+            return
+        }
+        const message = JSON.stringify({
+            method: 'didChangeDependencyPaths',
+            params: {
+                event: { paths: [] },
+                workspaceChangeMetadata: {
+                    workspaceId: workspaceDetails.workspaceId,
+                    s3Path: s3Url,
+                    programmingLanguage: this.language,
+                },
+            },
+        })
+        if (!workspaceDetails.webSocketClient) {
+            this.logging.log(`Websocket client is not connected yet: ${workspaceFolder.uri}`)
+            workspaceDetails.messageQueue?.push(message)
+        } else {
+            workspaceDetails.webSocketClient.send(message)
+        }
+    }
+
+    private async generateFileMetadata(
+        dependencyList: Dependency[],
+        workspaceFolder: WorkspaceFolder
+    ): Promise<FileMetadata[]> {
+        const zipFileMetadata: FileMetadata[] = []
+        const MAX_CHUNK_SIZE_BYTES = 100 * 1024 * 1024 // 100MB per chunk
+        // Process each workspace folder sequentially
+        let chunkIndex = 0
+        let currentChunkSize = 0
+        let currentChunk: Dependency[] = []
+        for (const dependency of dependencyList) {
+            // If adding this dependency would exceed the chunk size limit,
+            // process the current chunk first
+            if (currentChunkSize + dependency.size > MAX_CHUNK_SIZE_BYTES && currentChunk.length > 0) {
+                // Process current chunk
+                this.logging.log(`${chunkIndex} chunk's currentChunkSize: ${currentChunkSize}`)
                 await this.processChunk(currentChunk, workspaceFolder, zipFileMetadata, chunkIndex)
+
+                // Reset chunk
+                currentChunk = []
+                currentChunkSize = 0
+                chunkIndex++
+
+                // Add a small delay between chunks
+                await new Promise(resolve => setTimeout(resolve, 100))
             }
+            // Add dependency to current chunk
+            currentChunk.push(dependency)
+            currentChunkSize += dependency.size
+        }
+        // Process any remaining dependencies in the last chunk
+        if (currentChunk.length > 0) {
+            await this.processChunk(currentChunk, workspaceFolder, zipFileMetadata, chunkIndex)
         }
         return zipFileMetadata
     }
@@ -157,7 +207,10 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
      */
     protected abstract generateDependencyMap(dependencyInfo: T, dependencyMap: Map<string, Dependency>): void
 
-    protected compareAndUpdateDependencies(dependencyInfo: T, updatedDependencyMap: Map<string, Dependency>): void {
+    protected async compareAndUpdateDependencies(
+        dependencyInfo: T,
+        updatedDependencyMap: Map<string, Dependency>
+    ): Promise<void> {
         const changes = {
             added: [] as Dependency[],
             updated: [] as Dependency[],
@@ -187,6 +240,18 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
         updatedDependencyMap.forEach((newDep, name) => {
             this.dependencyMap.get(dependencyInfo.workspaceFolder)?.set(name, newDep)
         })
+
+        let zips: FileMetadata[] = await this.generateFileMetadata(
+            [...changes.added, ...changes.updated],
+            dependencyInfo.workspaceFolder
+        )
+        for (const zip of zips) {
+            let s3Url = await this.workspaceFolderManager.uploadToS3(zip)
+            if (!s3Url) {
+                return
+            }
+            this.generateWebSocketRequest(zip.workspaceFolder, s3Url)
+        }
     }
 
     protected log(message: string): void {

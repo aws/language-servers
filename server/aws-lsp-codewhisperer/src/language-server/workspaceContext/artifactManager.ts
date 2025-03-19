@@ -409,8 +409,8 @@ export class ArtifactManager {
     ): Promise<FileMetadata> {
         const zipDirectoryPath = path.join(this.tempDirPath, workspaceFolder.name, subDirectory)
         this.createFolderIfNotExist(zipDirectoryPath)
-
-        const zipPath = path.join(zipDirectoryPath, `${zipChunkIndex}.zip`)
+        const zipFileName = `${zipChunkIndex}_${Date.now()}.zip`
+        const zipPath = path.join(zipDirectoryPath, zipFileName)
         const zipBuffer = await this.createZipBuffer(files)
         await fs.promises.writeFile(zipPath, zipBuffer)
 
@@ -418,7 +418,7 @@ export class ArtifactManager {
 
         return {
             filePath: zipPath,
-            relativePath: path.join(workspaceFolder.name, subDirectory, `${zipChunkIndex}.zip`),
+            relativePath: path.join(workspaceFolder.name, subDirectory, zipFileName),
             language,
             contentLength: stats.size,
             lastModified: stats.mtimeMs,

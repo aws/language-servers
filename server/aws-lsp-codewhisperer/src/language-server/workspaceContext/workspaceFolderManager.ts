@@ -118,6 +118,17 @@ export class WorkspaceFolderManager {
         return { workspaceDetails, workspaceRoot }
     }
 
+    getWorkspaceDetailsByWorkspaceFolder(workspaceFolder?: WorkspaceFolder): WorkspaceState | null {
+        if (!workspaceFolder) {
+            return null
+        }
+        const workspaceDetails = this.getWorkspaces().get(workspaceFolder.uri)
+        if (!workspaceDetails || !workspaceDetails.workspaceId) {
+            return null
+        }
+        return workspaceDetails
+    }
+
     getWorkspaceFolder(fileUri: string): WorkspaceFolder | undefined {
         const workspaceRoot = findWorkspaceRootFolder(fileUri, this.workspaceFolders)
         return workspaceRoot

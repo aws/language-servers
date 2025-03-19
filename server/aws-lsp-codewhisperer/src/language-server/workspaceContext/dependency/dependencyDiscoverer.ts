@@ -44,7 +44,8 @@ export class DependencyDiscoverer {
                 workspace,
                 logging,
                 workspaceFolders,
-                artifactManager
+                artifactManager,
+                workspaceFolderManager
             )
             if (handler) {
                 // Share handler for javascript and typescript
@@ -146,10 +147,7 @@ export class DependencyDiscoverer {
         this.dependencyHandlerRegistry.forEach(async dependencyHandler => {
             dependencyHandler.initiateDependencyMap()
             dependencyHandler.setupWatchers()
-            let zips: FileMetadata[] = await dependencyHandler.generateFileMetadata()
-            for (const zip of zips) {
-                this.workspaceFolderManager.uploadToS3(zip)
-            }
+            dependencyHandler.zipDependencyMap()
         })
     }
 
