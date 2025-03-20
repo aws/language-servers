@@ -200,8 +200,6 @@ export const WorkspaceContextServer =
                     await workspaceFolderManager.processNewWorkspaceFolders(workspaceFolders, {
                         initialize: true,
                     })
-                    isWorkflowInitialized = true
-                    logging.log(`Workflow initialized`)
                 } else if (!isLoggedIn) {
                     isWorkflowInitialized = false
                 }
