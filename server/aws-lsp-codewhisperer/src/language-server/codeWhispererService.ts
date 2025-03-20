@@ -16,6 +16,7 @@ import {
 import {
     CodeWhispererTokenClientConfigurationOptions,
     createCodeWhispererTokenClient,
+    RequestExtras,
 } from '../client/token/codewhisperer'
 
 // Define our own Suggestion interface to wrap the differences between Token and IAM Client
@@ -55,7 +56,7 @@ export abstract class CodeWhispererServiceBase {
     public profileArn?: string
     abstract client: CodeWhispererSigv4Client | CodeWhispererTokenClient
 
-    inflightRequests: Set<any> = new Set()
+    inflightRequests: Set<AWS.Request<any, AWSError> & RequestExtras> = new Set()
 
     abortInflightRequests() {
         this.inflightRequests.forEach(request => {
@@ -64,11 +65,11 @@ export abstract class CodeWhispererServiceBase {
         this.inflightRequests.clear()
     }
 
-    trackRequest(request: any) {
+    trackRequest(request: AWS.Request<any, AWSError> & RequestExtras) {
         this.inflightRequests.add(request)
     }
 
-    completeRequest(request: any) {
+    completeRequest(request: AWS.Request<any, AWSError> & RequestExtras) {
         this.inflightRequests.delete(request)
     }
 
@@ -172,9 +173,6 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
                         httpRequest.headers['x-amzn-codewhisperer-optout'] = `${!this.shareCodeWhispererContentWithAWS}`
                     })
                     req.on('complete', () => {
-                        this.completeRequest(req)
-                    })
-                    req.on('error', () => {
                         this.completeRequest(req)
                     })
                 },
