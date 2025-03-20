@@ -195,6 +195,8 @@ export const WorkspaceContextServer =
                 }
                 const isLoggedIn = isLoggedInUsingBearerToken(credentialsProvider)
                 if (isLoggedIn && !isWorkflowInitialized) {
+                    isWorkflowInitialized = true
+                    logging.log(`Workflow initialized`)
                     artifactManager.updateWorkspaceFolders(workspaceFolders)
                     await dependencyDiscoverer.searchDependencies()
                     await workspaceFolderManager.processNewWorkspaceFolders(workspaceFolders, {
