@@ -526,6 +526,8 @@ export class WorkspaceFolderManager {
             setTimeout(() => this.uploadWithTimeout(fileMetadataMap), 3000)
         } else {
             this.logging.log(`All workspaces with S3 upload complete`)
+            // Clean up zip files after S3 upload
+            this.artifactManager.cleanup()
         }
     }
 

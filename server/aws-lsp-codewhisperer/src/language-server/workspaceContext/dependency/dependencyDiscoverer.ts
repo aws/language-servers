@@ -78,26 +78,6 @@ export class DependencyDiscoverer {
     // zip depdnency
     // translate to LSP
 
-    private async zipDependency(dependency: Dependency): Promise<void> {
-        const { exec } = require('child_process')
-        const zipPath = path.join(path.dirname(dependency.path), `${dependency.name}-${dependency.version}.zip`)
-
-        return new Promise((resolve, reject) => {
-            exec(
-                `cd "${path.dirname(dependency.path)}" && zip -r "${zipPath}" "${path.basename(dependency.path)}"`,
-                (error: any) => {
-                    if (error) {
-                        this.logging.log(`Error zipping ${dependency.name}: ${error}`)
-                        reject(error)
-                    } else {
-                        this.logging.log(`Successfully zipped ${dependency.name} to ${zipPath}`)
-                        resolve()
-                    }
-                }
-            )
-        })
-    }
-
     async searchDependencies(): Promise<void> {
         if (this.initialized) {
             return
@@ -146,6 +126,12 @@ export class DependencyDiscoverer {
             dependencyHandler.initiateDependencyMap()
             dependencyHandler.setupWatchers()
             await dependencyHandler.zipDependencyMap()
+        })
+    }
+
+    cleanup(): void {
+        this.dependencyHandlerRegistry.forEach(dependencyHandler => {
+            dependencyHandler.dispose()
         })
     }
 

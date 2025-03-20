@@ -135,6 +135,8 @@ export const WorkspaceContextServer =
                 if (!isOptedIn) {
                     isWorkflowInitialized = false
                     await workspaceFolderManager.clearAllWorkspaceResources()
+                    artifactManager.cleanup()
+                    dependencyDiscoverer.cleanup()
                 }
             } catch (error) {
                 logging.error(`Error in GetConfiguration: ${error}`)
@@ -423,5 +425,8 @@ export const WorkspaceContextServer =
 
         logging.log('Workspace context server has been initialized')
 
-        return () => {}
+        return () => {
+            artifactManager.cleanup()
+            dependencyDiscoverer.cleanup()
+        }
     }

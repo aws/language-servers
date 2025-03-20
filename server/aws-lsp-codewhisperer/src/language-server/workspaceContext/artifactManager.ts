@@ -18,8 +18,6 @@ export interface FileMetadata {
     workspaceFolder: WorkspaceFolder
 }
 
-// TODO, add excluded dirs to list of filtered files
-const EXCLUDED_DIRS = ['dist', 'build', 'out', '.git', '.idea', '.vscode', 'coverage']
 export const SUPPORTED_WORKSPACE_CONTEXT_LANGUAGES: CodewhispererLanguage[] = [
     'python',
     'javascript',
@@ -33,8 +31,6 @@ export class ArtifactManager {
     private logging: Logging
     private workspaceFolders: WorkspaceFolder[]
     // TODO, how to handle when two workspace folders have the same name but different URI
-    // TODO, maintaining this map might be redundant. It helps with keeping track of the overall state of the workspace
-    // this means we keep a copy of the workspace in memory. We should clean the map contents after every zip creation
     private filesByWorkspaceFolderAndLanguage: Map<WorkspaceFolder, Map<CodewhispererLanguage, FileMetadata[]>>
     private tempDirPath: string
 
@@ -284,7 +280,10 @@ export class ArtifactManager {
 
     cleanup() {
         try {
-            fs.rmSync(this.tempDirPath, { recursive: true, force: true })
+            this.workspaceFolders.forEach(workspaceToRemove => {
+                const workspaceDirPath = path.join(this.tempDirPath, workspaceToRemove.name)
+                fs.rmSync(workspaceDirPath, { recursive: true, force: true })
+            })
         } catch (error) {
             this.log('Failed to cleanup:' + error)
         }
@@ -312,7 +311,6 @@ export class ArtifactManager {
         workspaceFolder: WorkspaceFolder
     ): Promise<FileMetadata> {
         const fileContent = this.workspace.fs.readFileSync(filePath)
-
         return {
             filePath,
             contentLength: fileContent.length,
@@ -328,8 +326,7 @@ export class ArtifactManager {
         filePath: string,
         relativePath: string,
         language: CodewhispererLanguage,
-        workspaceFolder: WorkspaceFolder,
-        shouldCalculateHash = false
+        workspaceFolder: WorkspaceFolder
     ): Promise<FileMetadata> {
         return {
             filePath,
