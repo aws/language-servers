@@ -10,6 +10,7 @@ import {
     LSPErrorCodes,
     SsoConnectionType,
     CancellationToken,
+    CredentialsType,
     InitializeParams,
 } from '@aws/language-server-runtimes/server-interface'
 import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION, AWS_Q_ENDPOINTS } from '../../constants'
@@ -138,7 +139,15 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
     }
 
     private setupAuthListener(): void {
-        // TODO: listen on changes to credentials and signout events from client to manage state correctly.
+        this.features.credentialsProvider.onCredentialsDeleted((type: CredentialsType) => {
+            this.log(`Received credentials delete event for type: ${type}`)
+            if (type === 'iam') {
+                return
+            }
+            this.resetCodewhispererService()
+            this.connectionType = 'none'
+            this.state = 'PENDING_CONNECTION'
+        })
     }
 
     private setupConfigurationListeners(): void {

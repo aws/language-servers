@@ -128,6 +128,34 @@ describe('AmazonQTokenServiceManager', () => {
         })
     })
 
+    describe('Clear state upon bearer token deletion', () => {
+        it('should clear local state variables on receiving bearer token deletion event', () => {
+            setupServiceManager()
+            assert.strictEqual(amazonQTokenServiceManager.getState(), 'PENDING_CONNECTION')
+            setCredentials('builderId')
+            amazonQTokenServiceManager.getCodewhispererService()
+            const callback = features.credentialsProvider.onCredentialsDeleted.firstCall.args[0]
+            callback('bearer')
+            assert.strictEqual(amazonQTokenServiceManager.getState(), 'PENDING_CONNECTION')
+            assert.strictEqual(amazonQTokenServiceManager.getConnectionType(), 'none')
+            assert.strictEqual((amazonQTokenServiceManager as any)['cachedCodewhispererService'], undefined)
+            assert.strictEqual((amazonQTokenServiceManager as any)['activeIdcProfile'], undefined)
+        })
+
+        it('should not clear local state variables on receiving iam token deletion event', () => {
+            setupServiceManager()
+            assert.strictEqual(amazonQTokenServiceManager.getState(), 'PENDING_CONNECTION')
+            setCredentials('builderId')
+            amazonQTokenServiceManager.getCodewhispererService()
+            const callback = features.credentialsProvider.onCredentialsDeleted.firstCall.args[0]
+            callback('iam')
+            assert.strictEqual(amazonQTokenServiceManager.getState(), 'INITIALIZED')
+            assert.strictEqual(amazonQTokenServiceManager.getConnectionType(), 'builderId')
+            assert.ok(!((amazonQTokenServiceManager as any)['cachedCodewhispererService'] === undefined))
+            assert.strictEqual((amazonQTokenServiceManager as any)['activeIdcProfile'], undefined)
+        })
+    })
+
     describe('BuilderId support', () => {
         it('should be INITIALIZED with BuilderId Connection', async () => {
             setupServiceManager()

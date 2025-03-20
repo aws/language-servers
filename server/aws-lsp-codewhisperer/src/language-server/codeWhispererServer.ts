@@ -371,7 +371,6 @@ export const CodewhispererServerFactory =
                 }
 
                 const codeWhispererService = amazonQServiceManager.getCodewhispererService()
-                
                 // supplementalContext available only via token authentication
                 const supplementalContextPromise =
                     codeWhispererService instanceof CodeWhispererServiceToken

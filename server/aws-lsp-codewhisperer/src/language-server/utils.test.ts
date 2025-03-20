@@ -18,6 +18,7 @@ describe('getBearerTokenFromProvider', () => {
             getCredentials: sinon.stub().returns({ token: mockToken }),
             getConnectionMetadata: sinon.stub(),
             getConnectionType: sinon.stub(),
+            onCredentialsDeleted: sinon.stub(),
         }
         assert.strictEqual(getBearerTokenFromProvider(mockCredentialsProvider), mockToken)
     })
@@ -28,6 +29,7 @@ describe('getBearerTokenFromProvider', () => {
             getCredentials: sinon.stub().returns({ token: mockToken }),
             getConnectionMetadata: sinon.stub(),
             getConnectionType: sinon.stub(),
+            onCredentialsDeleted: sinon.stub(),
         }
         assert.throws(
             () => getBearerTokenFromProvider(mockCredentialsProvider),
@@ -42,6 +44,7 @@ describe('getBearerTokenFromProvider', () => {
             getCredentials: sinon.stub().returns({ token: '' }),
             getConnectionMetadata: sinon.stub(),
             getConnectionType: sinon.stub(),
+            onCredentialsDeleted: sinon.stub(),
         }
         assert.throws(
             () => getBearerTokenFromProvider(mockCredentialsProvider),
@@ -58,6 +61,7 @@ describe('getSsoConnectionType', () => {
         getCredentials: sinon.stub().returns({ token: mockToken }),
         getConnectionMetadata: sinon.stub(),
         getConnectionType: sinon.stub(),
+        onCredentialsDeleted: sinon.stub(),
     }
     it('should return ssoConnectionType as builderId', () => {
         const mockCredentialsProvider: CredentialsProvider = {
@@ -69,6 +73,7 @@ describe('getSsoConnectionType', () => {
                 },
             }),
             getConnectionType: sinon.stub(),
+            onCredentialsDeleted: sinon.stub(),
         }
         const ssoConnectionType = getSsoConnectionType(mockCredentialsProvider)
         expect(ssoConnectionType).to.equal('builderId')
@@ -84,6 +89,7 @@ describe('getSsoConnectionType', () => {
                 },
             }),
             getConnectionType: sinon.stub(),
+            onCredentialsDeleted: sinon.stub(),
         }
         const ssoConnectionType = getSsoConnectionType(mockCredentialsProvider)
         expect(ssoConnectionType).to.equal('identityCenter')
@@ -102,6 +108,7 @@ describe('getSsoConnectionType', () => {
                 sso: undefined,
             }),
             getConnectionType: sinon.stub(),
+            onCredentialsDeleted: sinon.stub(),
         }
         const ssoConnectionType = getSsoConnectionType(mockCredentialsProvider)
         expect(ssoConnectionType).to.equal('none')
@@ -117,6 +124,7 @@ describe('getSsoConnectionType', () => {
                 },
             }),
             getConnectionType: sinon.stub(),
+            onCredentialsDeleted: sinon.stub(),
         }
         const ssoConnectionType = getSsoConnectionType(mockCredentialsProvider)
         expect(ssoConnectionType).to.equal('none')
@@ -132,6 +140,7 @@ describe('getSsoConnectionType', () => {
                 },
             }),
             getConnectionType: sinon.stub(),
+            onCredentialsDeleted: sinon.stub(),
         }
         const ssoConnectionType = getSsoConnectionType(mockCredentialsProvider)
         expect(ssoConnectionType).to.equal('none')

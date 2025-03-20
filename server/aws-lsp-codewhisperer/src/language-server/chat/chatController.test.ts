@@ -148,6 +148,7 @@ describe('ChatController', () => {
                 },
             }),
             getConnectionType: sinon.stub().returns('none'),
+            onCredentialsDeleted: sinon.stub(),
         }
 
         const mockWorkspace = {} as unknown as Workspace
