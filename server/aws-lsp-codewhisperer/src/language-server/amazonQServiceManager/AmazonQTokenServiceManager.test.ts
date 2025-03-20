@@ -43,8 +43,8 @@ export const mockedProfiles: qDeveloperProfilesFetcherModule.AmazonQDeveloperPro
     },
 ]
 
-const TEST_ENDPOINT_US_EAST_1 = 'amazon-q-in-us-east-1-endpoint'
-const TEST_ENDPOINT_EU_CENTRAL_1 = 'amazon-q-in-eu-central-1-endpoint'
+const TEST_ENDPOINT_US_EAST_1 = 'http://amazon-q-in-us-east-1-endpoint'
+const TEST_ENDPOINT_EU_CENTRAL_1 = 'http://amazon-q-in-eu-central-1-endpoint'
 
 describe('AmazonQTokenServiceManager', () => {
     let codewhispererServiceStub: StubbedInstance<CodeWhispererServiceToken>
@@ -155,7 +155,7 @@ describe('AmazonQTokenServiceManager', () => {
 
     describe('BuilderId support', () => {
         const testRegion = 'some-region'
-        const testEndpoint = 'some-endpoint-in-some-region'
+        const testEndpoint = 'http://some-endpoint-in-some-region'
 
         beforeEach(() => {
             setupServiceManager()
