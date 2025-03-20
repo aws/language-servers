@@ -1,4 +1,3 @@
-import { ChatSessionManagementService } from './chat/chatSessionManagementService'
 import { SecurityScanServerToken } from './codeWhispererSecurityScanServer'
 import { CodewhispererServerFactory } from './codeWhispererServer'
 import { CodeWhispererServiceIAM, CodeWhispererServiceToken } from './codeWhispererService'
@@ -54,12 +53,6 @@ export const QNetTransformServerTokenProxy = QNetTransformServerToken(
     }
 )
 
-export const QChatServerProxy = QChatServer((credentialsProvider, awsQRegion, awsQEndpointUrl, sdkInitializator) => {
-    return ChatSessionManagementService.getInstance()
-        .withCredentialsProvider(credentialsProvider)
-        .withCodeWhispererEndpoint(awsQEndpointUrl)
-        .withCodeWhispererRegion(awsQRegion)
-        .withSdkRuntimeConfigurator(sdkInitializator)
-})
+export const QChatServerProxy = QChatServer()
 
 export const QConfigurationServerTokenProxy = QConfigurationServerToken()

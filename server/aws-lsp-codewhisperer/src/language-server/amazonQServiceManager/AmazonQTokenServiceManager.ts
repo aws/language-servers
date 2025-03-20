@@ -10,6 +10,7 @@ import {
     LSPErrorCodes,
     SsoConnectionType,
     CancellationToken,
+    BearerCredentials,
     CredentialsType,
     InitializeParams,
 } from '@aws/language-server-runtimes/server-interface'
@@ -28,6 +29,9 @@ import {
 import { BaseAmazonQServiceManager } from './BaseAmazonQServiceManager'
 import { Q_CONFIGURATION_SECTION } from '../configuration/qConfigurationServer'
 import { textUtils } from '@aws/lsp-core'
+import { CodeWhispererStreaming } from '@amzn/codewhisperer-streaming'
+import { MISSING_BEARER_TOKEN_ERROR } from '../constants'
+import { ConfiguredRetryStrategy } from '@aws-sdk/util-retry'
 import {
     AmazonQDeveloperProfile,
     getListAllAvailableProfilesHandler,
@@ -79,6 +83,8 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
     private configurationCache = new Map()
     private activeIdcProfile?: AmazonQDeveloperProfile
     private connectionType?: SsoConnectionType
+    private region?: string
+    private endpoint?: string
     /**
      * Internal state of Service connection, based on status of bearer token and Amazon Q Developer profile selection.
      * Supported states:
@@ -111,9 +117,9 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
         this.logging = features.logging
 
         if (!this.features.lsp.getClientInitializeParams()) {
-            this.log('AmazonQTokenServiceManager initialized before LSP connection was not initialized.')
+            this.log('AmazonQTokenServiceManager initialized before LSP connection was initialized.')
             throw new AmazonQServiceInitializationError(
-                'AmazonQTokenServiceManager initialized before LSP connection was not initialized.'
+                'AmazonQTokenServiceManager initialized before LSP connection was initialized.'
             )
         }
 
@@ -420,6 +426,22 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
         throw new AmazonQServiceNotInitializedError()
     }
 
+    public createStreamingClientInstance(): CodeWhispererStreaming {
+        this.log('Getting instance of CodeWhispererStreaming client')
+
+        // Trigger checks in token service
+        const tokenService = this.getCodewhispererService()
+
+        if (!tokenService || !this.region || !this.endpoint) {
+            throw new AmazonQServiceNotInitializedError()
+        }
+
+        this.log(
+            `Returning new instance of CodeWhispererStreaming client with region=${this.region} endpoint=${this.endpoint}`
+        )
+        return this.streamingClientFactory(this.region, this.endpoint)
+    }
+
     private resetCodewhispererService() {
         this.cachedCodewhispererService?.abortInflightRequests()
         this.cachedCodewhispererService = undefined
@@ -447,6 +469,10 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
         }
 
         this.cachedCodewhispererService = this.serviceFactory(awsQRegion, awsQEndpointUrl)
+
+        // Cache active region and endpoint selection
+        this.region = awsQRegion
+        this.endpoint = awsQEndpointUrl
 
         this.connectionType = connectionType
 
@@ -486,6 +512,24 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
         )
 
         return service
+    }
+
+    private streamingClientFactory(region: string, endpoint: string): CodeWhispererStreaming {
+        const credentials = this.features.credentialsProvider.getCredentials('bearer') as BearerCredentials
+
+        if (!credentials || !credentials.token) {
+            throw new Error(MISSING_BEARER_TOKEN_ERROR)
+        }
+
+        const streamingClient = this.features.sdkInitializator(CodeWhispererStreaming, {
+            region,
+            endpoint,
+            token: { token: credentials.token },
+            retryStrategy: new ConfiguredRetryStrategy(0, (attempt: number) => 500 + attempt ** 10),
+            customUserAgent: this.getCustomUserAgent(),
+        })
+
+        return streamingClient
     }
 
     private log(message: string): void {
