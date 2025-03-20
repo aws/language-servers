@@ -167,9 +167,9 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         // add cancellation check
         // add error check
         if (this.customizationArn) request = { ...request, customizationArn: this.customizationArn }
-        if (this.profileArn) {
-            request.profileArn = this.profileArn
-        }
+        // if (this.profileArn) {
+        //     request.profileArn = this.profileArn
+        // }
 
         const response = await this.client.generateCompletions(request).promise()
         const responseContext = {

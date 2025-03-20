@@ -324,10 +324,40 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
             this.state = 'PENDING_Q_PROFILE_UPDATE'
         }
 
-        const profiles = await getListAllAvailableProfilesHandler(this.serviceFactory)({
-            connectionType: 'identityCenter',
-            logging: this.logging,
-        })
+        // const profiles = await getListAllAvailableProfilesHandler(this.serviceFactory)({
+        //     connectionType: 'identityCenter',
+        //     logging: this.logging,
+        // })
+        const profiles = [
+            {
+                arn: 'profile-iad',
+                name: 'profile-iad',
+                identityDetails: {
+                    region: 'us-east-1',
+                },
+            },
+            {
+                arn: 'arn:aws:codewhisperer:us-east-1:724904587780:profile/KGGD9MM7EMNX',
+                name: 'profile-iad',
+                identityDetails: {
+                    region: 'us-east-1',
+                },
+            },
+            {
+                arn: 'profile-fra',
+                name: 'profile-fra',
+                identityDetails: {
+                    region: 'eu-central-1',
+                },
+            },
+            {
+                arn: 'arn:aws:codewhisperer:us-west-2:724904587780:profile/KGGD9MM7EMNX',
+                name: 'profile-fra',
+                identityDetails: {
+                    region: 'us-west-2',
+                },
+            },
+        ]
 
         const newProfile = profiles.find(el => el.arn === newProfileArn)
 

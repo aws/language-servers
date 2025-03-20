@@ -108,6 +108,11 @@
                 "category": "Test Amazon Q Extension"
             },
             {
+                "command": "aws.sample-vscode-ext-amazonq.updateProfilePdx",
+                "title": "Update Amazon Q IDC Profile PDX",
+                "category": "Test Amazon Q Extension"
+            },
+            {
                 "command": "aws.sample-vscode-ext-amazonq.updateProfileInvalid",
                 "title": "Update Amazon Q IDC Profile (Invalid)"
             },

@@ -8,6 +8,6 @@
             "source.organizeImports": "never",
             "source.sortMembers": "never"
         },
-        "editor.formatOnSave": true
+        "editor.formatOnSave": false
     }
 }

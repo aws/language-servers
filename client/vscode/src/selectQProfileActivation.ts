@@ -5,11 +5,15 @@ import { updateConfigurationRequestType } from '@aws/language-server-runtimes/pr
 export async function registerQProfileSelection(languageClient: LanguageClient): Promise<void> {
     commands.registerCommand(
         'aws.sample-vscode-ext-amazonq.updateProfileIad',
-        setProfile(languageClient, 'profile-iad')
+        setProfile(languageClient, 'arn:aws:codewhisperer:us-east-1:724904587780:profile/KGGD9MM7EMNX')
     )
     commands.registerCommand(
         'aws.sample-vscode-ext-amazonq.updateProfileFra',
         setProfile(languageClient, 'profile-fra')
+    )
+    commands.registerCommand(
+        'aws.sample-vscode-ext-amazonq.updateProfilePdx',
+        setProfile(languageClient, 'arn:aws:codewhisperer:us-west-2:724904587780:profile/KGGD9MM7EMNX')
     )
     commands.registerCommand(
         'aws.sample-vscode-ext-amazonq.updateProfileInvalid',
