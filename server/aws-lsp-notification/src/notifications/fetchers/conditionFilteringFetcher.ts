@@ -1,10 +1,12 @@
 import { Fetcher } from './fetcher'
 import { Notification } from '../notification'
 
-export class CachingFetcher implements Fetcher {
+// TODO Implement set operations
+
+export class ConditionFilteringFetcher implements Fetcher {
     constructor(private readonly next: Fetcher) {}
 
-    fetch(): Promise<Notification[]> {
+    fetch(): AsyncGenerator<Notification> {
         return this.next.fetch()
     }
 }

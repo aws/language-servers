@@ -1,59 +1,79 @@
 // TODO Should this be exported from server-interface in @aws/language-server-runtimes?
-import { NotificationFollowupParams, NotificationParams } from '@aws/language-server-runtimes/protocol'
-import { Observability } from '@aws/lsp-core'
+import {
+    FollowupNotificationActionType,
+    MessageType,
+    NotificationFollowupParams,
+} from '@aws/language-server-runtimes/protocol'
+import { Disposables, disposeAll, Observability } from '@aws/lsp-core'
 import { MetadataStore } from '../notifications/metadata/metadataStore'
-import { NotificationConfiguration } from './notificationConfiguration'
-import { Notification } from '../notifications/notification'
 import { Fetcher } from '../notifications/fetchers/fetcher'
 import { NotificationClient } from './notificationServer'
+import { NotificationConfiguration } from './notificationConfiguration'
 
-export type ShowNotification = (params: NotificationParams) => void
+export interface NotificationServiceOptions {
+    periodicShowNotifications?: boolean
+    showNotificationsIntervalMillis?: number
+}
 
-export class NotificationService implements Fetcher {
-    #clientConfiguration?: NotificationConfiguration
+const defaultNotificationServiceOptions: NotificationServiceOptions = {
+    periodicShowNotifications: true,
+    showNotificationsIntervalMillis: 3000, // TODO set to a suitable value
+}
 
-    get clientConfiguration(): NotificationConfiguration | undefined {
-        return this.#clientConfiguration
-    }
-
-    set clientConfiguration(value: NotificationConfiguration) {
-        this.#clientConfiguration = value
-        this.onClientConfigurationChanged()
-    }
+export class NotificationService implements Disposable {
+    private readonly disposables: Disposables = []
 
     constructor(
-        private readonly next: Fetcher,
+        private readonly fetcher: Fetcher,
         private readonly metadataStore: MetadataStore,
         private readonly notificationClient: NotificationClient,
-        private readonly observability: Observability
-    ) {}
+        private readonly observability: Observability,
+        private readonly options: NotificationServiceOptions = {}
+    ) {
+        this.options = { ...defaultNotificationServiceOptions, ...options }
 
-    async notificationFollowup(params: NotificationFollowupParams): Promise<void> {
-        this.observability.logging.log(`Received NotificationFollowup: ${JSON.stringify(params)}`)
-        // TODO: Acknowledge notification by ID in MetadataStore
+        if (this.options.periodicShowNotifications) {
+            const id = setInterval(
+                async () => await this.showNotifications(),
+                this.options.showNotificationsIntervalMillis
+            )
+            this.disposables.push(() => clearInterval(id))
+        }
     }
 
-    async fetch(): Promise<Notification[]> {
-        const notifications = await this.next.fetch()
+    [Symbol.dispose](): void {
+        disposeAll(this.disposables)
+    }
 
-        notifications.forEach(notification => {
+    async notificationFollowup(params: NotificationFollowupParams): Promise<void> {
+        if (params.action === FollowupNotificationActionType.Acknowledge) {
+            // Synchronization/locking isn't needed as this is the only load/save section
+            // in the server at this time, but may need to be introduced in the future
+            const metadataFile = await this.metadataStore.load()
+            metadataFile.acknowledged[params.source.id] = { acknowledgedAt: new Date().toISOString() }
+            await this.metadataStore.save(metadataFile)
+        }
+    }
+
+    private async showNotifications(): Promise<void> {
+        // TODO Clones and/or freezes the clientState and pass it to fetch in a request object
+        // to prevent race conditions with getConfiguration clientState updates.
+        // TODO Rename fetcher/fetch to getNotifications
+        // TODO How will the interval call which should have no context work?
+        for await (const notification of this.fetcher.fetch()) {
             this.notificationClient.showNotification({
                 id: notification.id,
-                type: notification.type,
+                type: MessageType.Info,
                 content: {
                     title: notification.content['en-US'].title,
                     text: notification.content['en-US'].text,
                 },
                 actions: undefined,
             })
-        })
-
-        return notifications
+        }
     }
 
-    private onClientConfigurationChanged() {
-        this.fetch().catch(reason => {
-            this.observability.logging.error(`Failed to send notifications: ${reason}`)
-        })
+    async updateClientConfiguration(config: NotificationConfiguration): Promise<void> {
+        await this.showNotifications()
     }
 }

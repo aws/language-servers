@@ -1,13 +1,17 @@
 import { InitializeParams, PartialInitializeResult } from '@aws/language-server-runtimes/server-interface'
 import { ServerBase, ServerState } from '@aws/lsp-core'
 import { NotificationService } from './notificationService'
-import { NotificationFollowupParams, NotificationParams } from '@aws/language-server-runtimes/protocol'
+import {
+    InitializedParams,
+    NotificationFollowupParams,
+    NotificationParams,
+} from '@aws/language-server-runtimes/protocol'
 import { FilesystemMetadataStore } from '../notifications/metadata/filesystemMetadataStore'
-import { CriteriaFilteringFetcher as CriteriaFilteringFetcher } from '../notifications/fetchers/criteriaFilteringFetcher'
+import { ConditionFilteringFetcher as ConditionFilteringFetcher } from '../notifications/fetchers/conditionFilteringFetcher'
 import { MetadataFilteringFetcher } from '../notifications/fetchers/metadataFilteringFetcher'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
-import { UriFetcher } from '../notifications/fetchers/uriFetcher'
-import { CachingFetcher } from '../notifications/fetchers/cachingFetcher'
+import { MemoryCacheFetcher } from '../notifications/fetchers/memoryCacheFetcher'
+import { FilesystemFetcher } from '../notifications/fetchers/filesystemFetcher'
 
 // Pattern: Model JSON-RPC requests/notifications calls (server->client) as
 // interface implemented by the server to be injected into service
@@ -15,25 +19,32 @@ export interface NotificationClient {
     showNotification(params: NotificationParams): Promise<void>
 }
 
-const section: string = 'aws.notification.clientConfiguration'
-
-export class NotificationServer extends ServerBase implements NotificationClient {
+export class NotificationServer extends ServerBase {
     private readonly notificationService: NotificationService
 
     constructor(features: Features) {
-        super(features)
+        super('AWS Toolkit Language Server for Notifications', features)
 
         // Initialize dependencies
-        const metadataStore = new FilesystemMetadataStore()
-        const next = new CriteriaFilteringFetcher(
-            new MetadataFilteringFetcher(new CachingFetcher(new UriFetcher(features.workspace)))
+        const metadataStore = new FilesystemMetadataStore(features.workspace, this.dataDirPath)
+        const next = new ConditionFilteringFetcher(
+            new MetadataFilteringFetcher(
+                new MemoryCacheFetcher(new FilesystemFetcher(features.workspace)),
+                metadataStore
+            )
         )
 
-        this.notificationService = new NotificationService(next, metadataStore, this, this.observability)
+        this.notificationService = new NotificationService(
+            next,
+            metadataStore,
+            { showNotification: this.showNotification.bind(this) },
+            this.observability
+        )
+
+        this.disposables.push(this.notificationService)
     }
 
     static create(features: Features): () => void {
-        features.logging.info('Creating notification server.')
         return new NotificationServer(features)[Symbol.dispose]
     }
 
@@ -49,23 +60,23 @@ export class NotificationServer extends ServerBase implements NotificationClient
                 })
         )
 
-        this.features.lsp.didChangeConfiguration(
-            async () =>
-                (this.notificationService.clientConfiguration =
-                    await this.features.lsp.workspace.getConfiguration(section))
-        )
+        this.features.lsp.didChangeConfiguration(this.updateClientConfiguration.bind(this))
 
-        return {
-            ...result,
-            ...{
-                serverInfo: {
-                    name: 'AWS Toolkit Language Server for Notifications',
-                },
-            },
-        }
+        return result
     }
 
-    showNotification(params: NotificationParams): Promise<void> {
+    protected override async initialized(params: InitializedParams): Promise<void> {
+        await super.initialized(params)
+        await this.updateClientConfiguration()
+    }
+
+    private updateClientConfiguration(): Promise<void> {
+        return this.notificationService.updateClientConfiguration(
+            this.features.lsp.workspace.getConfiguration('aws.notification.clientConfiguration')
+        )
+    }
+
+    private showNotification(params: NotificationParams): Promise<void> {
         // Only send notifications in Initialized state to avoid violating LSP spec
         // https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#initialize
         if (this.state === ServerState.Initialized) {

@@ -1,29 +1,28 @@
-import { MessageType } from '@aws/language-server-runtimes/protocol'
-
-export interface Notification {
-    id: string
-    type: MessageType
-    criteria: Criteria
-    content: Record<
-        string, // locale
-        {
-            title?: string
-            text: string
-        }
-    >
-    actions?: Action[]
+// Metadata
+export interface Metadata {
+    schema: string
+    comments?: string
 }
 
+// Notifications
+export interface Notification {
+    id: string
+    condition?: Condition
+    context?: string
+    content: Content
+    presentationHints?: PresentationHints
+    clientCommands?: ClientCommand[]
+}
+
+// Operations used for both scalar and set values
 type Operation = ExactlyOne<{
-    '==': string
-    '!=': string
-    '<': string
-    '<=': string
-    '>': string
-    '>=': string
-    anyOf: string[]
-    noneOf: string[]
-}> & { defaultValue?: string }
+    '==': string // For sets, client state contains only the expression values
+    '!=': string // For sets, negation of == for sets
+    '<': string // For sets, client state is a proper subset of expression values
+    '<=': string // For sets, client state is a subset of expression values
+    '>': string // For sets, client state is a proper superset of expression values
+    '>=': string // For sets, client state is a superset of expression values
+}>
 
 type Expression =
     | Operation
@@ -32,17 +31,24 @@ type Expression =
     | { and: Expression[] }
     | { or: Expression[] }
 
-type Criteria = Record<string, Record<string, Expression>>
+type Condition = Record<string, Record<string, Expression>>
 
-type Action = {
-    type: string
-    content: Record<
-        string, // locale
-        {
-            text: string
-            uri?: string
-        }
-    >
+type Locale = string
+
+type ContentItem = { title?: string; text: string }
+
+type Content = Record<Locale, ContentItem>
+
+type PresentationHints = Record<string, string>
+
+type ClientCommandContentItem = {
+    text: string
+    uri?: string
+}
+
+type ClientCommand = {
+    command: string
+    content: Record<Locale, ClientCommandContentItem>
 }
 
 // https://stackoverflow.com/questions/62158066/typescript-type-where-an-object-consists-of-exactly-a-single-property-of-a-set-o

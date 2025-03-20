@@ -1,17 +1,55 @@
-[
-    {
-        "id": "1",
-        "type": 1,
-        "criteria": {
-            "regions": {
-                "code": { "==": "IAD" }
+{
+    "metadata": {
+        "schema": "2025-03-08",
+        "comments": "The file owner can put whatever they want here."
+    },
+    "notifications": [
+        {
+            "id": "1",
+            "condition": {
+                "auth/region": {
+                    "==": "IAD"
+                }
+            },
+            "content": {
+                "en-US": {
+                    "title": "Notification PoC Sample",
+                    "text": "This is a sample notification sent from the Flare notification server PoC. Yay!"
+                }
+            },
+            "presentationHints": {
+                "icon": "info",
+                "isModal": "false"
             }
         },
-        "content": {
-            "en-US": {
-                "title": "Notification PoC Sample",
-                "text": "This is a sample notification sent from the Flare notification server PoC. Yay!"
-            }
+        {
+            "id": "2",
+            "context": "ide/startup",
+            "content": {
+                "en-US": {
+                    "title": "Sample 2",
+                    "text": "Just need a second sample notification."
+                }
+            },
+            "clientCommands": [
+                {
+                    "command": "showMarketplace",
+                    "content": {
+                        "en-US": {
+                            "text": "Show the marketplace"
+                        }
+                    }
+                },
+                {
+                    "command": "showInBrowser",
+                    "content": {
+                        "en-US": {
+                            "text": "Click bait!",
+                            "uri": "https://amazon.com"
+                        }
+                    }
+                }
+            ]
         }
-    }
-]
+    ]
+}

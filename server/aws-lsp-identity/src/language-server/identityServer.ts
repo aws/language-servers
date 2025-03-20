@@ -21,11 +21,10 @@ import { ShowUrl, ShowMessageRequest, ShowProgress } from '../sso/utils'
 
 export class IdentityServer extends ServerBase {
     constructor(features: Features) {
-        super(features)
+        super('Language Server for AWS Identity Management', features)
     }
 
     static create(features: Features): () => void {
-        features.logging.log('Creating identity server.')
         return new IdentityServer(features)[Symbol.dispose]
     }
 
@@ -96,14 +95,7 @@ export class IdentityServer extends ServerBase {
 
         this.disposables.push(autoRefresher)
 
-        return {
-            ...result,
-            ...{
-                serverInfo: {
-                    name: 'Language Server for AWS Identity Management',
-                },
-            },
-        }
+        return result
     }
 
     private getClientName(params: InitializeParams): string {
