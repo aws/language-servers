@@ -16,15 +16,15 @@
         "clean": "rm -fr ./out tsconfig.tsbuildinfo",
         "compile": "tsc --build --verbose",
         "test": "npm run test-unit",
-        "test-unit": "mocha 'out/**/*.test.js'"
+        "test-unit": "mocha \"./out/**/*.test.js\""
     },
     "dependencies": {
-        "@aws/language-server-runtimes": "^0.2.31",
+        "@aws/language-server-runtimes": "^0.2.40",
         "@aws/lsp-core": "0.0.1",
         "vscode-languageserver": "^9.0.1"
     },
     "devDependencies": {
-        "@aws-sdk/types": "^3.609.0",
+        "@aws-sdk/types": "^3.734.0",
         "@smithy/types": "^3.4.1",
         "@types/chai": "^4.3.5",
         "@types/chai-as-promised": "^7.1.5",
@@ -36,7 +36,7 @@
         "mock-fs": "^5.2.0",
         "sinon": "^19.0.2",
         "ts-loader": "^9.5.1",
-        "ts-mocha": "^10.0.0",
+        "ts-mocha": "^11.1.0",
         "ts-sinon": "^2.0.2"
     },
     "prettier": {

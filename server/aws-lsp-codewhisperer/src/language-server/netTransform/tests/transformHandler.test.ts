@@ -1,5 +1,12 @@
 import { CodeWhispererStreaming } from '@amzn/codewhisperer-streaming'
-import { Logging, Workspace } from '@aws/language-server-runtimes/server-interface'
+import {
+    Logging,
+    Workspace,
+    SDKInitializator,
+    SDKClientConstructorV2,
+    SDKClientConstructorV3,
+    Runtime,
+} from '@aws/language-server-runtimes/server-interface'
 import * as assert from 'assert'
 import { HttpResponse } from 'aws-sdk'
 import { expect } from 'chai'
@@ -19,7 +26,8 @@ import { TransformHandler } from '../transformHandler'
 import { EXAMPLE_REQUEST } from './mockData'
 import sinon = require('sinon')
 import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../../../constants'
-import { Readable } from 'stream'
+import { Service } from 'aws-sdk'
+import { ServiceConfigurationOptions } from 'aws-sdk/lib/service'
 
 const mocked$Response = {
     $response: {
@@ -36,28 +44,11 @@ const mocked$Response = {
 const testUploadId = 'test-upoload-id'
 const testTransformId = 'test-transform-id'
 const payloadFileName = 'C:\\test.zip'
-const mockReadStream = {
-    on: sinon.stub(),
-    pipe: sinon.stub(),
-}
-
-export function createMockReadableStream(chunks: any[]): Readable {
-    const readable = new Readable({
-        read() {
-            if (chunks.length > 0) {
-                this.push(chunks.shift())
-            } else {
-                this.push(null) // Signal end of stream
-            }
-        },
-    })
-
-    return readable
-}
 
 describe('Test Transform handler ', () => {
     let client: StubbedInstance<CodeWhispererServiceToken>
     let workspace: StubbedInstance<Workspace>
+    let runtime: StubbedInstance<Runtime>
     let transformHandler: TransformHandler
     const mockedLogging = stubInterface<Logging>()
     const awsQRegion: string = DEFAULT_AWS_Q_REGION
@@ -66,14 +57,14 @@ describe('Test Transform handler ', () => {
         // Set up the server with a mock service
         client = stubInterface<CodeWhispererServiceToken>()
         workspace = stubInterface<Workspace>()
-        transformHandler = new TransformHandler(client, workspace, mockedLogging)
+        runtime = stubInterface<Runtime>()
+        transformHandler = new TransformHandler(client, workspace, mockedLogging, runtime)
     })
 
     describe('test upload artifact', () => {
         it('call upload method correctly', async () => {
             const putStub = sinon.stub(got, 'put').resolves({ statusCode: 'Success' })
-
-            const createReadStreamStub = sinon.stub(fs, 'createReadStream').returns(mockReadStream as any)
+            const readFileSyncStub = sinon.stub(fs, 'readFileSync').returns('text file content')
             await transformHandler.uploadArtifactToS3Async(
                 payloadFileName,
                 {
@@ -85,9 +76,9 @@ describe('Test Transform handler ', () => {
                 'dummy-256'
             )
             simon.assert.callCount(putStub, 1)
-            simon.assert.callCount(createReadStreamStub, 1)
+            simon.assert.callCount(readFileSyncStub, 1)
             putStub.restore()
-            createReadStreamStub.restore()
+            readFileSyncStub.restore()
         })
     })
 
@@ -103,23 +94,19 @@ describe('Test Transform handler ', () => {
         })
 
         it('returns upload id correctly', async () => {
-            const chunks = ['Hello, ', 'World!']
-            const mockStream = createMockReadableStream(chunks)
-            const createReadStreamStub = sinon.stub(fs, 'createReadStream').returns(mockStream as any)
+            const readFileSyncStub = sinon.stub(fs, 'readFileSync').returns('text file content')
             const uploadStub = sinon.stub(transformHandler, 'uploadArtifactToS3Async')
             const res = await transformHandler.uploadPayloadAsync(payloadFileName)
-            simon.assert.callCount(createReadStreamStub, 1)
+            simon.assert.callCount(readFileSyncStub, 1)
             simon.assert.callCount(uploadStub, 1)
             assert.equal(res, testUploadId)
             uploadStub.restore()
-            createReadStreamStub.restore()
+            readFileSyncStub.restore()
         })
 
         it('should throw error if uploadArtifactToS3Async fails', async () => {
             const mockError = new Error('Error in uploadArtifactToS3 call')
-            const chunks = ['Hello, ', 'World!']
-            const mockStream = createMockReadableStream(chunks)
-            const createReadStreamStub = sinon.stub(fs, 'createReadStream').returns(mockStream as any)
+            const readFileSyncStub = sinon.stub(fs, 'readFileSync').returns('text file content')
             sinon.stub(transformHandler, 'uploadArtifactToS3Async').rejects(mockError)
 
             // Call the method to be tested
@@ -128,8 +115,8 @@ describe('Test Transform handler ', () => {
             } catch (error) {
                 // Assertions
                 expect((error as Error).message).to.equal(mockError.message)
-                sinon.assert.calledOnce(createReadStreamStub)
-                createReadStreamStub.restore()
+                sinon.assert.calledOnce(readFileSyncStub)
+                readFileSyncStub.restore()
             }
         })
         /*
@@ -202,13 +189,26 @@ describe('Test Transform handler ', () => {
         getCredentials: sinon.stub().returns({ token: 'mockedToken' }),
     }
 
+    const mockSdkRuntimeConfigurator: SDKInitializator = Object.assign(
+        // Default callable function for v3 clients
+        <T, P>(Ctor: SDKClientConstructorV3<T, P>, current_config: P): T => new Ctor({ ...current_config }),
+        // Property for v2 clients
+        {
+            v2: <T extends Service, P extends ServiceConfigurationOptions>(
+                Ctor: SDKClientConstructorV2<T, P>,
+                current_config: P
+            ): T => new Ctor({ ...current_config }),
+        }
+    )
+
     describe('StreamingClient', () => {
         it('should create a new streaming client', async () => {
             const streamingClient = new StreamingClient()
             const client = await streamingClient.getStreamingClient(
                 mockedCredentialsProvider,
                 awsQRegion,
-                awsQEndpointUrl
+                awsQEndpointUrl,
+                mockSdkRuntimeConfigurator
             )
             expect(client).to.be.instanceOf(CodeWhispererStreaming)
         })
@@ -216,7 +216,12 @@ describe('Test Transform handler ', () => {
 
     describe('createStreamingClient', () => {
         it('should create a new streaming client with correct configurations', async () => {
-            const client = await createStreamingClient(mockedCredentialsProvider, awsQRegion, awsQEndpointUrl)
+            const client = await createStreamingClient(
+                mockedCredentialsProvider,
+                awsQRegion,
+                awsQEndpointUrl,
+                mockSdkRuntimeConfigurator
+            )
             expect(client).to.be.instanceOf(CodeWhispererStreaming)
         })
     })

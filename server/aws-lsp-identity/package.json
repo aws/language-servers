@@ -18,12 +18,12 @@
         "copy": "copyfiles --error --flat ./src/sso/authorizationCodePkce/resources/* ./out/sso/authorizationCodePkce/resources/",
         "package": "npm run compile && npm run copy",
         "test": "npm run package && npm run test-unit",
-        "test-unit": "mocha 'out/**/*.test.js'"
+        "test-unit": "mocha \"./out/**/*.test.js\""
     },
     "dependencies": {
         "@aws-sdk/client-sso-oidc": "^3.616.0",
-        "@aws-sdk/token-providers": "^3.614.0",
-        "@aws/language-server-runtimes": "^0.2.31",
+        "@aws-sdk/token-providers": "^3.744.0",
+        "@aws/language-server-runtimes": "^0.2.40",
         "@aws/lsp-core": "^0.0.1",
         "@smithy/node-http-handler": "^3.2.5",
         "@smithy/shared-ini-file-loader": "^4.0.1",
@@ -31,7 +31,7 @@
         "vscode-languageserver": "^9.0.1"
     },
     "devDependencies": {
-        "@aws-sdk/types": "^3.609.0",
+        "@aws-sdk/types": "^3.734.0",
         "@smithy/types": "^3.4.1",
         "@types/chai": "^4.3.5",
         "@types/chai-as-promised": "^7.1.5",
@@ -44,7 +44,7 @@
         "mock-fs": "^5.2.0",
         "sinon": "^19.0.2",
         "ts-loader": "^9.5.1",
-        "ts-mocha": "^10.0.0",
+        "ts-mocha": "^11.1.0",
         "ts-sinon": "^2.0.2"
     },
     "prettier": {

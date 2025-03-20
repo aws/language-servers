@@ -3,11 +3,18 @@ import {
     SendMessageCommandInput,
     SendMessageCommandOutput,
 } from '@amzn/codewhisperer-streaming'
-import { CredentialsProvider } from '@aws/language-server-runtimes/server-interface'
+import {
+    CredentialsProvider,
+    SDKInitializator,
+    SDKClientConstructorV2,
+    SDKClientConstructorV3,
+} from '@aws/language-server-runtimes/server-interface'
 import * as assert from 'assert'
 import sinon from 'ts-sinon'
 import { ChatSessionService } from './chatSessionService'
 import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../../constants'
+import { Service } from 'aws-sdk'
+import { ServiceConfigurationOptions } from 'aws-sdk/lib/service'
 
 describe('Chat Session Service', () => {
     let sendMessageStub: sinon.SinonStub<any, any>
@@ -17,10 +24,23 @@ describe('Chat Session Service', () => {
         hasCredentials: sinon.stub().returns(true),
         getCredentials: sinon.stub().returns(Promise.resolve({ token: 'mockToken ' })),
         getConnectionMetadata: sinon.stub(),
+        getConnectionType: sinon.stub(),
     }
     const awsQRegion: string = DEFAULT_AWS_Q_REGION
     const awsQEndpointUrl: string = DEFAULT_AWS_Q_ENDPOINT_URL
     const mockConversationId = 'mockConversationId'
+
+    const mockSdkRuntimeConfigurator: SDKInitializator = Object.assign(
+        // Default callable function for v3 clients
+        <T, P>(Ctor: SDKClientConstructorV3<T, P>, current_config: P): T => new Ctor({ ...current_config }),
+        // Property for v2 clients
+        {
+            v2: <T extends Service, P extends ServiceConfigurationOptions>(
+                Ctor: SDKClientConstructorV2<T, P>,
+                current_config: P
+            ): T => new Ctor({ ...current_config }),
+        }
+    )
 
     const mockRequestParams: SendMessageCommandInput = {
         conversationState: {
@@ -45,7 +65,12 @@ describe('Chat Session Service', () => {
             .stub(CodeWhispererStreaming.prototype, 'sendMessage')
             .callsFake(() => Promise.resolve(mockRequestResponse))
 
-        chatSessionService = new ChatSessionService(mockCredentialsProvider, awsQRegion, awsQEndpointUrl)
+        chatSessionService = new ChatSessionService(
+            mockCredentialsProvider,
+            awsQRegion,
+            awsQEndpointUrl,
+            mockSdkRuntimeConfigurator
+        )
     })
 
     afterEach(() => {

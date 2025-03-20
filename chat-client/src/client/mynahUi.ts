@@ -18,6 +18,7 @@ import {
     FollowUpClickParams,
     InfoLinkClickParams,
     LinkClickParams,
+    OpenTabParams,
     SourceLinkClickParams,
 } from '@aws/language-server-runtimes-types'
 import { ChatItem, ChatItemType, ChatPrompt, MynahUI, MynahUIDataModel, NotificationType } from '@aws/mynah-ui'
@@ -31,6 +32,7 @@ export interface InboundChatApi {
     sendToPrompt(params: SendToPromptParams): void
     sendGenericCommand(params: GenericCommandParams): void
     showError(params: ErrorParams): void
+    openTab(params: OpenTabParams): void
 }
 
 export const handleChatPrompt = (
@@ -277,8 +279,8 @@ export const createMynahUi = (
         return tabId ? mynahUi.getAllTabs()[tabId]?.store : undefined
     }
 
-    const createTabId = () => {
-        const tabId = mynahUi.updateStore('', tabFactory.createTab(false, disclaimerCardActive))
+    const createTabId = (needWelcomeMessages: boolean = false) => {
+        const tabId = mynahUi.updateStore('', tabFactory.createTab(needWelcomeMessages, disclaimerCardActive))
         if (tabId === undefined) {
             mynahUi.notify({
                 content: uiComponentsTexts.noMoreTabsTooltip,
@@ -399,11 +401,31 @@ ${params.message}`,
         messager.onError(params)
     }
 
+    const openTab = ({ tabId }: OpenTabParams) => {
+        if (tabId) {
+            if (tabId !== mynahUi.getSelectedTabId()) {
+                mynahUi.selectTab(tabId)
+            }
+            messager.onOpenTab({ tabId })
+        } else {
+            const tabId = createTabId(true)
+            if (tabId) {
+                messager.onOpenTab({ tabId })
+            } else {
+                messager.onOpenTab({
+                    type: 'InvalidRequest',
+                    message: 'No more tabs available',
+                })
+            }
+        }
+    }
+
     const api = {
         addChatResponse: addChatResponse,
         sendToPrompt: sendToPrompt,
         sendGenericCommand: sendGenericCommand,
         showError: showError,
+        openTab: openTab,
     }
 
     return [mynahUi, api]

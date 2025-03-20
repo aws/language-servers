@@ -20,9 +20,9 @@ import {
 import { registerInlineCompletion } from './inlineCompletionActivation'
 import { registerLogCommand, registerTransformCommand } from './sampleCommandActivation'
 import { randomUUID } from 'crypto'
-import { registerCustomizations } from './customizationActivation'
 import { registerIdentity } from './identityActivation'
 import { registerNotification } from './notificationActivation'
+import { registerAwsQSection } from './awsQSectionActivation'
 
 export async function activateDocumentsLanguageServer(extensionContext: ExtensionContext) {
     /**
@@ -58,9 +58,9 @@ export async function activateDocumentsLanguageServer(extensionContext: Extensio
      */
     const enableIamProvider = process.env.ENABLE_IAM_PROVIDER === 'true'
     const enableBearerTokenProvider = process.env.ENABLE_TOKEN_PROVIDER === 'true'
-    const enableEncryptionInit = enableIamProvider || enableBearerTokenProvider
+    const enableEncryptionInit = process.env.ENABLE_ENCRYPTION === 'true'
 
-    const debugOptions = { execArgv: ['--nolazy', '--inspect=6012', '--preserve-symlinks'] }
+    const debugOptions = { execArgv: ['--nolazy', '--inspect=6012'] }
 
     // If the extension is launch in debug mode the debug server options are use
     // Otherwise the run options are used
@@ -153,6 +153,9 @@ export async function activateDocumentsLanguageServer(extensionContext: Extensio
                     clientId: randomUUID(),
                 },
                 awsClientCapabilities: {
+                    q: {
+                        developerProfiles: false,
+                    },
                     window: {
                         notifications: true,
                     },
@@ -172,11 +175,11 @@ export async function activateDocumentsLanguageServer(extensionContext: Extensio
     const client = new LanguageClient('awsDocuments', 'AWS Documents Language Server', serverOptions, clientOptions)
 
     if (enableIamProvider) {
-        await registerIamCredentialsProviderSupport(client, extensionContext)
+        await registerIamCredentialsProviderSupport(client, extensionContext, enableEncryptionInit)
     }
 
     if (enableBearerTokenProvider) {
-        await registerBearerTokenProviderSupport(client, extensionContext)
+        await registerBearerTokenProviderSupport(client, extensionContext, enableEncryptionInit)
     }
 
     if (enableInlineCompletion) {
@@ -195,9 +198,9 @@ export async function activateDocumentsLanguageServer(extensionContext: Extensio
         registerChat(client, extensionContext.extensionUri, enableEncryptionInit ? encryptionKey : undefined)
     }
 
-    const enableCustomizations = process.env.ENABLE_CUSTOMIZATIONS === 'true'
-    if (enableCustomizations) {
-        registerCustomizations(client)
+    const enableAwsQSection = process.env.ENABLE_AWS_Q_SECTION === 'true'
+    if (enableAwsQSection) {
+        registerAwsQSection(client)
     }
 
     const enableIdentity = process.env.ENABLE_IDENTITY === 'true'

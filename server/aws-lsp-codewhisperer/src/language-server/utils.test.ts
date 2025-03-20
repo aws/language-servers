@@ -17,8 +17,8 @@ describe('getBearerTokenFromProvider', () => {
             hasCredentials: sinon.stub().returns(true),
             getCredentials: sinon.stub().returns({ token: mockToken }),
             getConnectionMetadata: sinon.stub(),
+            getConnectionType: sinon.stub(),
         }
-
         assert.strictEqual(getBearerTokenFromProvider(mockCredentialsProvider), mockToken)
     })
 
@@ -27,8 +27,8 @@ describe('getBearerTokenFromProvider', () => {
             hasCredentials: sinon.stub().returns(false),
             getCredentials: sinon.stub().returns({ token: mockToken }),
             getConnectionMetadata: sinon.stub(),
+            getConnectionType: sinon.stub(),
         }
-
         assert.throws(
             () => getBearerTokenFromProvider(mockCredentialsProvider),
             Error,
@@ -41,8 +41,8 @@ describe('getBearerTokenFromProvider', () => {
             hasCredentials: sinon.stub().returns(true),
             getCredentials: sinon.stub().returns({ token: '' }),
             getConnectionMetadata: sinon.stub(),
+            getConnectionType: sinon.stub(),
         }
-
         assert.throws(
             () => getBearerTokenFromProvider(mockCredentialsProvider),
             Error,
@@ -52,6 +52,13 @@ describe('getBearerTokenFromProvider', () => {
 })
 
 describe('getSsoConnectionType', () => {
+    const mockToken = 'mockToken'
+    const mockCredsProvider: CredentialsProvider = {
+        hasCredentials: sinon.stub().returns(true),
+        getCredentials: sinon.stub().returns({ token: mockToken }),
+        getConnectionMetadata: sinon.stub(),
+        getConnectionType: sinon.stub(),
+    }
     it('should return ssoConnectionType as builderId', () => {
         const mockCredentialsProvider: CredentialsProvider = {
             hasCredentials: sinon.stub().returns(true),
@@ -61,6 +68,7 @@ describe('getSsoConnectionType', () => {
                     startUrl: BUILDER_ID_START_URL,
                 },
             }),
+            getConnectionType: sinon.stub(),
         }
         const ssoConnectionType = getSsoConnectionType(mockCredentialsProvider)
         expect(ssoConnectionType).to.equal('builderId')
@@ -75,18 +83,14 @@ describe('getSsoConnectionType', () => {
                     startUrl: 'idc-url',
                 },
             }),
+            getConnectionType: sinon.stub(),
         }
         const ssoConnectionType = getSsoConnectionType(mockCredentialsProvider)
         expect(ssoConnectionType).to.equal('identityCenter')
     })
 
     it('should return ssoConnectionType as none when getConnectionMetadata returns undefined', () => {
-        const mockCredentialsProvider: CredentialsProvider = {
-            hasCredentials: sinon.stub().returns(true),
-            getCredentials: sinon.stub().returns({ token: 'token' }),
-            getConnectionMetadata: sinon.stub().returns(undefined),
-        }
-        const ssoConnectionType = getSsoConnectionType(mockCredentialsProvider)
+        const ssoConnectionType = getSsoConnectionType(mockCredsProvider)
         expect(ssoConnectionType).to.equal('none')
     })
 
@@ -97,6 +101,7 @@ describe('getSsoConnectionType', () => {
             getConnectionMetadata: sinon.stub().returns({
                 sso: undefined,
             }),
+            getConnectionType: sinon.stub(),
         }
         const ssoConnectionType = getSsoConnectionType(mockCredentialsProvider)
         expect(ssoConnectionType).to.equal('none')
@@ -111,6 +116,7 @@ describe('getSsoConnectionType', () => {
                     startUrl: '',
                 },
             }),
+            getConnectionType: sinon.stub(),
         }
         const ssoConnectionType = getSsoConnectionType(mockCredentialsProvider)
         expect(ssoConnectionType).to.equal('none')
@@ -125,6 +131,7 @@ describe('getSsoConnectionType', () => {
                     startUrl: undefined,
                 },
             }),
+            getConnectionType: sinon.stub(),
         }
         const ssoConnectionType = getSsoConnectionType(mockCredentialsProvider)
         expect(ssoConnectionType).to.equal('none')

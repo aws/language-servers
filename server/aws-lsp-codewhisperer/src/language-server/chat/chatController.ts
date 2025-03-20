@@ -4,6 +4,8 @@ import {
     ErrorCodes,
     FeedbackParams,
     InsertToCursorPositionParams,
+    OpenTabParams,
+    OpenTabResult,
     TextDocumentEdit,
     TextEdit,
     chatRequestType,
@@ -39,10 +41,10 @@ import { Metric } from '../telemetry/metric'
 import { QChatTriggerContext, TriggerContext } from './contexts/triggerContext'
 import { HELP_MESSAGE } from './constants'
 import { Q_CONFIGURATION_SECTION } from '../configuration/qConfigurationServer'
-import { undefinedIfEmpty } from '../utilities/textUtils'
+import { textUtils } from '@aws/lsp-core'
 import { TelemetryService } from '../telemetryService'
 
-type ChatHandlers = LspHandlers<Chat>
+type ChatHandlers = Omit<LspHandlers<Chat>, 'openTab'>
 
 export class ChatController implements ChatHandlers {
     #features: Features
@@ -432,7 +434,7 @@ export class ChatController implements ChatHandlers {
         try {
             const qConfig = await this.#features.lsp.workspace.getConfiguration(Q_CONFIGURATION_SECTION)
             if (qConfig) {
-                this.#customizationArn = undefinedIfEmpty(qConfig.customization)
+                this.#customizationArn = textUtils.undefinedIfEmpty(qConfig.customization)
                 this.#log(`Chat configuration updated to use ${this.#customizationArn}`)
                 /*
                     The flag enableTelemetryEventsToDestination is set to true temporarily. It's value will be determined through destination

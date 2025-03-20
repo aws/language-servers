@@ -40,9 +40,9 @@ jobs:
               run: |
                   npm run package
             - name: Attach bundles
-              uses: actions/upload-artifact@v3
+              uses: actions/upload-artifact@v4
               with:
-                  name: language-servers
+                  name: language-servers-${{ matrix.runs-on }}
                   # Make sure you don't include node_modules
                   path: app/**/build/*
     test-windows:
@@ -78,8 +78,8 @@ jobs:
               run: |
                   npm run package
             - name: Attach bundles
-              uses: actions/upload-artifact@v3
+              uses: actions/upload-artifact@v4
               with:
-                  name: language-servers
+                  name: language-servers-pack-win-${{ matrix.runs-on }}
                   # Make sure you don't include node_modules
                   path: app/**/build/*

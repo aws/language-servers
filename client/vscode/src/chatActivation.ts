@@ -154,6 +154,13 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri, 
             params: { selection: selection, triggerType },
         })
     })
+
+    commands.registerCommand('aws.sample-vscode-ext-amazonq.openTab', data => {
+        panel.webview.postMessage({
+            command: 'aws/chat/openTab',
+            params: {},
+        })
+    })
 }
 
 function getWebviewContent(webView: Webview, extensionUri: Uri) {

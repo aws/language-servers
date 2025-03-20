@@ -20,11 +20,11 @@
     ],
     "scripts": {
         "compile": "tsc --build",
-        "test": "ts-mocha -b 'src/**/*.test.ts'",
+        "test": "ts-mocha -b \"./src/**/*.test.ts\"",
         "prepack": "shx cp ../../LICENSE ../../NOTICE ../../SECURITY.md ."
     },
     "dependencies": {
-        "@aws/language-server-runtimes": "^0.2.31",
+        "@aws/language-server-runtimes": "^0.2.40",
         "@aws/lsp-core": "^0.0.1",
         "vscode-languageserver": "^9.0.1",
         "vscode-languageserver-textdocument": "^1.0.8"

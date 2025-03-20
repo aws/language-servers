@@ -1,5 +1,5 @@
 import { CodeWhispererStreaming, ExportIntent } from '@amzn/codewhisperer-streaming'
-import { Logging, Workspace } from '@aws/language-server-runtimes/server-interface'
+import { Logging, Runtime, Workspace } from '@aws/language-server-runtimes/server-interface'
 import * as fs from 'fs'
 import got from 'got'
 import { v4 as uuidv4 } from 'uuid'
@@ -41,10 +41,12 @@ export class TransformHandler {
     private client: CodeWhispererServiceToken
     private workspace: Workspace
     private logging: Logging
-    constructor(client: CodeWhispererServiceToken, workspace: Workspace, logging: Logging) {
+    private runtime: Runtime
+    constructor(client: CodeWhispererServiceToken, workspace: Workspace, logging: Logging, runtime: Runtime) {
         this.client = client
         this.workspace = workspace
         this.logging = logging
+        this.runtime = runtime
     }
 
     async startTransformation(userInputrequest: StartTransformRequest): Promise<StartTransformResponse> {
@@ -98,7 +100,10 @@ export class TransformHandler {
             this.logging.log(errorMessage)
             throw new Error(errorMessage)
         } finally {
-            artifactManager.cleanup()
+            const env = this.runtime.getConfiguration('RUNENV') ?? ''
+            if (env.toUpperCase() != 'TEST') {
+                artifactManager.cleanup()
+            }
         }
     }
 
@@ -114,7 +119,7 @@ export class TransformHandler {
     }
 
     async uploadPayloadAsync(payloadFileName: string): Promise<string> {
-        const sha256 = await ArtifactManager.getSha256Async(payloadFileName)
+        const sha256 = ArtifactManager.getSha256(payloadFileName)
         let response: CreateUploadUrlResponse
         try {
             response = await this.client.codeModernizerCreateUploadUrl({
@@ -150,9 +155,8 @@ export class TransformHandler {
     async uploadArtifactToS3Async(fileName: string, resp: CreateUploadUrlResponse, sha256: string) {
         const headersObj = this.getHeadersObj(sha256, resp.kmsKeyArn)
         try {
-            const fileStream = fs.createReadStream(fileName)
             const response = await got.put(resp.uploadUrl, {
-                body: fileStream,
+                body: fs.readFileSync(fileName),
                 headers: headersObj,
             })
 

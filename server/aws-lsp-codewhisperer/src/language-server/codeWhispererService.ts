@@ -3,9 +3,11 @@ import {
     CredentialsProvider,
     CredentialsType,
     Workspace,
+    SDKInitializator,
 } from '@aws/language-server-runtimes/server-interface'
 import { AWSError, ConfigurationOptions, CredentialProviderChain, Credentials } from 'aws-sdk'
 import { PromiseResult } from 'aws-sdk/lib/request'
+import { Request } from 'aws-sdk/lib/core'
 import { v4 as uuidv4 } from 'uuid'
 import {
     CodeWhispererSigv4ClientConfigurationOptions,
@@ -42,7 +44,6 @@ export interface GenerateSuggestionsResponse {
 
 import CodeWhispererSigv4Client = require('../client/sigv4/codewhisperersigv4client')
 import CodeWhispererTokenClient = require('../client/token/codewhispererbearertokenclient')
-import { makeProxyConfig } from './utils'
 import { WorkspaceFolderManager } from './workspaceContext/workspaceFolderManager'
 
 // Right now the only difference between the token client and the IAM client for codewhsiperer is the difference in function name
@@ -50,7 +51,6 @@ import { WorkspaceFolderManager } from './workspaceContext/workspaceFolderManage
 export abstract class CodeWhispererServiceBase {
     protected readonly codeWhispererRegion
     protected readonly codeWhispererEndpoint
-    protected proxyConfig: ConfigurationOptions = {}
     public shareCodeWhispererContentWithAWS = false
     public customizationArn?: string
     abstract client: CodeWhispererSigv4Client | CodeWhispererTokenClient
@@ -60,7 +60,6 @@ export abstract class CodeWhispererServiceBase {
     abstract generateSuggestions(request: GenerateSuggestionsRequest): Promise<GenerateSuggestionsResponse>
 
     constructor(workspace: Workspace, codeWhispererRegion: string, codeWhispererEndpoint: string) {
-        this.proxyConfig = makeProxyConfig(workspace)
         this.codeWhispererRegion = codeWhispererRegion
         this.codeWhispererEndpoint = codeWhispererEndpoint
     }
@@ -77,12 +76,12 @@ export abstract class CodeWhispererServiceBase {
 
 export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
     client: CodeWhispererSigv4Client
-
     constructor(
         credentialsProvider: CredentialsProvider,
         workspace: Workspace,
         codeWhispererRegion: string,
-        codeWhispererEndpoint: string
+        codeWhispererEndpoint: string,
+        sdkInitializator: SDKInitializator
     ) {
         super(workspace, codeWhispererRegion, codeWhispererEndpoint)
         const options: CodeWhispererSigv4ClientConfigurationOptions = {
@@ -92,10 +91,14 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
                 () => credentialsProvider.getCredentials('iam') as Credentials,
             ]),
         }
-        this.client = createCodeWhispererSigv4Client(options)
-        this.updateClientConfig(this.proxyConfig)
-        this.client.setupRequestListeners = ({ httpRequest }) => {
-            httpRequest.headers['x-amzn-codewhisperer-optout'] = `${!this.shareCodeWhispererContentWithAWS}`
+        this.client = createCodeWhispererSigv4Client(options, sdkInitializator)
+        // Avoid overwriting any existing client listeners
+        const clientRequestListeners = this.client.setupRequestListeners
+        this.client.setupRequestListeners = (request: Request<unknown, AWSError>) => {
+            if (clientRequestListeners) {
+                clientRequestListeners.call(this.client, request)
+            }
+            request.httpRequest.headers['x-amzn-codewhisperer-optout'] = `${!this.shareCodeWhispererContentWithAWS}`
         }
     }
 
@@ -133,7 +136,8 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         credentialsProvider: CredentialsProvider,
         workspace: Workspace,
         codeWhispererRegion: string,
-        codeWhispererEndpoint: string
+        codeWhispererEndpoint: string,
+        sdkInitializator: SDKInitializator
     ) {
         super(workspace, codeWhispererRegion, codeWhispererEndpoint)
         const options: CodeWhispererTokenClientConfigurationOptions = {
@@ -152,8 +156,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
                 },
             ],
         }
-        this.client = createCodeWhispererTokenClient(options)
-        this.updateClientConfig(this.proxyConfig)
+        this.client = createCodeWhispererTokenClient(options, sdkInitializator)
     }
 
     getCredentialsType(): CredentialsType {
@@ -272,6 +275,13 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
      */
     async listAvailableCustomizations(request: CodeWhispererTokenClient.ListAvailableCustomizationsRequest) {
         return this.client.listAvailableCustomizations(request).promise()
+    }
+
+    /**
+     * @description Get list of available profiles
+     */
+    async listAvailableProfiles(request: CodeWhispererTokenClient.ListAvailableProfilesRequest) {
+        return this.client.listAvailableProfiles(request).promise()
     }
 
     /**

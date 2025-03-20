@@ -16,6 +16,8 @@ import {
     SendToPromptMessage,
     UiMessage,
     DISCLAIMER_ACKNOWLEDGED,
+    ErrorResult,
+    UiResultMessage,
 } from '@aws/chat-client-ui-types'
 import {
     CHAT_REQUEST_METHOD,
@@ -28,6 +30,9 @@ import {
     InfoLinkClickParams,
     LINK_CLICK_NOTIFICATION_METHOD,
     LinkClickParams,
+    OPEN_TAB_REQUEST_METHOD,
+    OpenTabParams,
+    OpenTabResult,
     QUICK_ACTION_REQUEST_METHOD,
     QuickActionParams,
     READY_NOTIFICATION_METHOD,
@@ -56,13 +61,13 @@ const DEFAULT_TAB_DATA = {
 type ChatClientConfig = Pick<MynahUIDataModel, 'quickActionCommands'> & { disclaimerAcknowledged?: boolean }
 
 export const createChat = (
-    clientApi: { postMessage: (msg: UiMessage | ServerMessage) => void },
+    clientApi: { postMessage: (msg: UiMessage | UiResultMessage | ServerMessage) => void },
     config?: ChatClientConfig
 ) => {
     // eslint-disable-next-line semi
     let mynahApi: InboundChatApi
 
-    const sendMessageToClient = (message: UiMessage | ServerMessage) => {
+    const sendMessageToClient = (message: UiMessage | UiResultMessage | ServerMessage) => {
         clientApi.postMessage(message)
     }
 
@@ -75,6 +80,9 @@ export const createChat = (
         switch (message?.command) {
             case CHAT_REQUEST_METHOD:
                 mynahApi.addChatResponse(message.params, message.tabId, message.isPartialResult)
+                break
+            case OPEN_TAB_REQUEST_METHOD:
+                mynahApi.openTab(message.params as OpenTabParams)
                 break
             case SEND_TO_PROMPT:
                 mynahApi.sendToPrompt((message as SendToPromptMessage).params)
@@ -160,6 +168,25 @@ export const createChat = (
         },
         disclaimerAcknowledged: () => {
             sendMessageToClient({ command: DISCLAIMER_ACKNOWLEDGED })
+        },
+        onOpenTab: (params: OpenTabResult | ErrorResult) => {
+            if ('tabId' in params) {
+                sendMessageToClient({
+                    command: OPEN_TAB_REQUEST_METHOD,
+                    params: {
+                        success: true,
+                        result: params as OpenTabResult,
+                    },
+                })
+            } else {
+                sendMessageToClient({
+                    command: OPEN_TAB_REQUEST_METHOD,
+                    params: {
+                        success: false,
+                        error: params as ErrorResult,
+                    },
+                })
+            }
         },
     }
 

@@ -78,13 +78,28 @@
                 "category": "Test Amazon Q Extension"
             },
             {
+                "command": "aws.sample-vscode-ext-amazonq.openTab",
+                "title": "Open tab",
+                "category": "Test Amazon Q Extension"
+            },
+            {
                 "command": "aws.sample-vscode-ext-amazonq.invokeInlineCompletion",
                 "title": "Manual trigger inline code completions",
                 "category": "Test Amazon Q Extension"
             },
             {
+                "command": "aws.sample-vscode-ext-amazonq.getAwsQSection",
+                "title": "Get entire AWS Q section",
+                "category": "Test Amazon Q Extension"
+            },
+            {
                 "command": "aws.sample-vscode-ext-amazonq.getCustomizations",
                 "title": "Get customizations",
+                "category": "Test Amazon Q Extension"
+            },
+            {
+                "command": "aws.sample-vscode-ext-amazonq.getDeveloperProfiles",
+                "title": "Get developer profiles",
                 "category": "Test Amazon Q Extension"
             },
             {
@@ -274,11 +289,11 @@
     },
     "devDependencies": {
         "@aws-sdk/credential-providers": "^3.731.1",
-        "@aws-sdk/types": "^3.535.0",
-        "@aws/chat-client-ui-types": "^0.1.0",
-        "@aws/language-server-runtimes": "^0.2.31",
+        "@aws-sdk/types": "^3.734.0",
+        "@aws/chat-client-ui-types": "^0.1.5",
+        "@aws/language-server-runtimes": "^0.2.40",
         "@types/uuid": "^9.0.8",
-        "@types/vscode": "^1.96.0",
+        "@types/vscode": "^1.98.0",
         "jose": "^5.2.4",
         "typescript": "^5.5.3",
         "vscode-languageclient": "^9.0.1"

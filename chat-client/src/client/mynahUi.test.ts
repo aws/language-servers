@@ -19,6 +19,8 @@ describe('MynahUI', () => {
     let addChatItemSpy: sinon.SinonSpy
     let onChatPromptSpy: sinon.SinonSpy
     let onQuickActionSpy: sinon.SinonSpy
+    let onOpenTabSpy: sinon.SinonSpy
+    let selectTabSpy: sinon.SinonSpy
 
     beforeEach(() => {
         outboundChatApi = {
@@ -38,11 +40,13 @@ describe('MynahUI', () => {
             infoLinkClick: sinon.stub(),
             uiReady: sinon.stub(),
             disclaimerAcknowledged: sinon.stub(),
+            onOpenTab: sinon.stub(),
         }
 
         messager = new Messager(outboundChatApi)
         onChatPromptSpy = sinon.spy(messager, 'onChatPrompt')
         onQuickActionSpy = sinon.spy(messager, 'onQuickActionCommand')
+        onOpenTabSpy = sinon.spy(messager, 'onOpenTab')
 
         const tabFactory = new TabFactory({})
         createTabStub = sinon.stub(tabFactory, 'createTab')
@@ -54,6 +58,7 @@ describe('MynahUI', () => {
         getAllTabsStub = sinon.stub(mynahUi, 'getAllTabs').returns({})
         updateStoreSpy = sinon.spy(mynahUi, 'updateStore')
         addChatItemSpy = sinon.spy(mynahUi, 'addChatItem')
+        selectTabSpy = sinon.spy(mynahUi, 'selectTab')
     })
 
     afterEach(() => {
@@ -104,6 +109,56 @@ describe('MynahUI', () => {
             })
             assert.calledOnce(updateStoreSpy)
             assert.calledWith(updateStoreSpy, tabId, { loadingChat: true, promptInputDisabledState: true })
+        })
+    })
+
+    describe('openTab', () => {
+        it('should create a new tab if tabId not passed', () => {
+            createTabStub.resetHistory()
+
+            inboundChatApi.openTab({})
+
+            sinon.assert.calledOnceWithExactly(createTabStub, true, false)
+            sinon.assert.notCalled(selectTabSpy)
+            sinon.assert.calledOnce(onOpenTabSpy)
+        })
+
+        it('should call onOpenTab if a new tab if tabId not passed and tab not created', () => {
+            createTabStub.resetHistory()
+            updateStoreSpy.restore()
+            sinon.stub(mynahUi, 'updateStore').returns(undefined)
+
+            inboundChatApi.openTab({})
+
+            sinon.assert.calledOnceWithExactly(createTabStub, true, false)
+            sinon.assert.notCalled(selectTabSpy)
+            sinon.assert.calledOnceWithMatch(onOpenTabSpy, { type: 'InvalidRequest' })
+        })
+
+        it('should open existing tab if tabId passed and tabId not selected', () => {
+            createTabStub.resetHistory()
+
+            getSelectedTabIdStub.returns('1')
+            const tabId = '2'
+
+            inboundChatApi.openTab({ tabId })
+
+            sinon.assert.notCalled(createTabStub)
+            sinon.assert.calledOnceWithExactly(selectTabSpy, tabId)
+            sinon.assert.calledOnceWithExactly(onOpenTabSpy, { tabId })
+        })
+
+        it('should not open existing tab if tabId passed but tabId already selected', () => {
+            createTabStub.resetHistory()
+
+            const tabId = '1'
+            getSelectedTabIdStub.returns(tabId)
+
+            inboundChatApi.openTab({ tabId })
+
+            sinon.assert.notCalled(createTabStub)
+            sinon.assert.notCalled(selectTabSpy)
+            sinon.assert.calledOnceWithExactly(onOpenTabSpy, { tabId })
         })
     })
 

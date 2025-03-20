@@ -4,13 +4,12 @@ import {
     Position,
     Workspace,
 } from '@aws/language-server-runtimes/server-interface'
-import { AWSError, ConfigurationOptions } from 'aws-sdk'
+import { AWSError } from 'aws-sdk'
 import { distance } from 'fastest-levenshtein'
 import { Suggestion } from './codeWhispererService'
 import { CodewhispererCompletionType } from './telemetry/types'
 import { BUILDER_ID_START_URL, MISSING_BEARER_TOKEN_ERROR } from './constants'
 import { ServerInfo } from '@aws/language-server-runtimes/server-interface/runtime'
-import { HttpsProxyAgent } from 'hpagent'
 export type SsoConnectionType = 'builderId' | 'identityCenter' | 'none'
 
 export function isAwsError(error: unknown): error is AWSError {
@@ -35,6 +34,10 @@ export function isObject(value: unknown): value is { [key: number | string | sym
 
 export function isNullish(value: unknown): value is null | undefined {
     return value === null || value === undefined
+}
+
+export function isBool(value: unknown): value is boolean {
+    return typeof value === 'boolean'
 }
 
 export function getCompletionType(suggestion: Suggestion): CodewhispererCompletionType {
@@ -129,30 +132,4 @@ export function getEndPositionForAcceptedSuggestion(content: string, startPositi
         }
     }
     return endPosition
-}
-
-export const makeProxyConfig = (workspace: Workspace) => {
-    let additionalAwsConfig: ConfigurationOptions = {}
-    // short term solution to fix webworker bundling, broken due to this node.js specific logic in here
-    const isNodeJS: boolean = typeof process !== 'undefined' && process.release && process.release.name === 'node'
-    const proxyUrl = isNodeJS ? (process.env.HTTPS_PROXY ?? process.env.https_proxy) : undefined
-
-    if (proxyUrl) {
-        const certs = isNodeJS
-            ? process.env.AWS_CA_BUNDLE
-                ? [workspace.fs.readFileSync(process.env.AWS_CA_BUNDLE)]
-                : undefined
-            : undefined
-        const agent = new HttpsProxyAgent({
-            proxy: proxyUrl,
-            ca: certs,
-        })
-        additionalAwsConfig = {
-            httpOptions: {
-                agent: agent,
-            },
-        }
-    }
-
-    return additionalAwsConfig
 }

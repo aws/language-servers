@@ -5,9 +5,11 @@
     "always-link-local": false,
     "separate-pull-requests": false,
     "group-pull-request-title-pattern": "chore(release): release packages from branch ${branch}",
+    "pull-request-footer": "This PR was generated with [Release Please](https://github.com/googleapis/release-please) bot. When you are ready to release these changes, merge this PR.\n\n**Blocking GitHub Checks Issue:** if GitHub checks do not run, close and immediately re-open this PR manually.",
     "plugins": ["node-workspace"],
     "tag-separator": "/",
     "include-v-in-tag": true,
+    "draft-pull-request": true,
     "packages": {
         "chat-client": {
             "component": "chat-client"

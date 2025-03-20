@@ -142,20 +142,23 @@ export class CodeDiffTracker<T extends AcceptedSuggestionEntry = AcceptedSuggest
 
     #startInterval() {
         if (!this.#interval) {
-            this.#interval = setInterval(async () => {
-                try {
-                    await this.flush()
-                } catch (e) {
-                    this.#logging.log(`flush failed: ${getErrorMessage(e)}`)
-                } finally {
-                    this.#interval?.refresh()
-                }
-            }, this.#flushInterval)
+            const recursiveSetTimeout = () => {
+                this.#interval = setTimeout(async () => {
+                    try {
+                        await this.flush()
+                    } catch (e) {
+                        this.#logging.log(`flush failed: ${getErrorMessage(e)}`)
+                    } finally {
+                        recursiveSetTimeout()
+                    }
+                }, this.#flushInterval)
+            }
+            recursiveSetTimeout()
         }
     }
 
     #clearInterval() {
-        clearInterval(this.#interval)
+        clearTimeout(this.#interval)
         this.#interval = undefined
     }
 }

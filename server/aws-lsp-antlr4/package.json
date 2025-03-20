@@ -28,7 +28,7 @@
         "clean": "rm -rf node_modules"
     },
     "dependencies": {
-        "@aws/language-server-runtimes": "^0.2.31",
+        "@aws/language-server-runtimes": "^0.2.40",
         "@aws/lsp-core": "^0.0.1"
     },
     "peerDependencies": {
@@ -37,11 +37,11 @@
     },
     "devDependencies": {
         "@babel/plugin-transform-modules-commonjs": "^7.24.1",
-        "@types/jest": "29.5.12",
-        "antlr4-c3": "^3.4.1",
-        "antlr4ng": "^3.0.4",
+        "@types/jest": "29.5.14",
+        "antlr4-c3": "3.4.2",
+        "antlr4ng": "3.0.14",
         "antlr4ng-cli": "^2.0.0",
-        "babel-plugin-transform-import-meta": "^2.2.1",
+        "babel-plugin-transform-import-meta": "^2.3.2",
         "jest": "^29.7.0",
         "prettier": "^2.8.8",
         "ts-jest": "^29.2.3",

@@ -2,10 +2,11 @@ name: Publish a notification to Slack
 on:
     pull_request:
         branches: [main]
+        types: [opened, reopened, ready_for_review, synchronize]
 jobs:
     notify:
         name: Slack notification
-        if: github.event.pull_request.user.login != 'dependabot[bot]'
+        if: github.event.pull_request.user.login != 'dependabot[bot]' && github.event.pull_request.draft == false
         runs-on: [ubuntu-latest]
         steps:
             - name: Post message

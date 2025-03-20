@@ -8,17 +8,16 @@ import {
     GetSsoTokenParams,
     InvalidateSsoTokenParams,
     InitializeParams,
-    HandlerResult,
     PartialInitializeResult,
-    InitializeError,
+    ShowMessageRequestParams,
 } from '@aws/language-server-runtimes/server-interface'
 import { SharedConfigProfileStore } from './profiles/sharedConfigProfileStore'
 import { IdentityService } from './identityService'
 import { FileSystemSsoCache, RefreshingSsoCache } from '../sso/cache'
 import { SsoTokenAutoRefresher } from './ssoTokenAutoRefresher'
-import { ShowUrl } from '../sso'
 import { AwsError, ServerBase } from '@aws/lsp-core'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
+import { ShowUrl, ShowMessageRequest, ShowProgress } from '../sso/utils'
 
 export class IdentityServer extends ServerBase {
     constructor(features: Features) {
@@ -30,12 +29,15 @@ export class IdentityServer extends ServerBase {
         return new IdentityServer(features)[Symbol.dispose]
     }
 
-    protected override initialize(
-        params: InitializeParams
-    ): HandlerResult<PartialInitializeResult<any>, InitializeError> {
+    protected override async initialize(params: InitializeParams): Promise<PartialInitializeResult<any>> {
+        const result = await super.initialize(params)
+
         // Callbacks for server->client JSON-RPC calls
         const showUrl: ShowUrl = (url: URL) =>
             this.features.lsp.window.showDocument({ uri: url.toString(), external: true })
+        const showMessageRequest: ShowMessageRequest = (params: ShowMessageRequestParams) =>
+            this.features.lsp.window.showMessageRequest(params)
+        const showProgress: ShowProgress = this.features.lsp.sendProgress
 
         // Initialize dependencies
         const profileStore = new SharedConfigProfileStore(this.observability)
@@ -52,7 +54,7 @@ export class IdentityServer extends ServerBase {
             profileStore,
             ssoCache,
             autoRefresher,
-            showUrl,
+            { showUrl, showMessageRequest, showProgress },
             this.getClientName(params),
             this.observability
         )
@@ -94,7 +96,14 @@ export class IdentityServer extends ServerBase {
 
         this.disposables.push(autoRefresher)
 
-        return { capabilities: {} }
+        return {
+            ...result,
+            ...{
+                serverInfo: {
+                    name: 'Language Server for AWS Identity Management',
+                },
+            },
+        }
     }
 
     private getClientName(params: InitializeParams): string {

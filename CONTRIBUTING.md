@@ -180,7 +180,7 @@ This repo contains a minimal vscode client that can be used to easily run and
 debug changes to this language server.
 
 1. Run `npm run package` in the root folder
-2. Set the breakpoints you need, **make sure to set them in node_modules**, e.g.: to set a breakpoint in the package `aws-lsp-codewhisperer`, set it in the symlinked `node_modules/@aws/lsp-codewhisperer`, not in `server/aws-lsp-codewhisperer`. 
+2. Set the breakpoints you need. 
 3. **Make sure that the preLaunchTask option** (for the configuration you are running in `.vscode/launch.json`) is either not set or set to `watch`, **not** `compile`.
 4. In the `Run & Debug` menu, run `"Launch as VSCode Extension + Debugging"`. Make sure this is launching the server you wish to use, look at the [launch configuration](.vscode/launch.json#L202). Keep the `Attach to AWS Documents Language Server` to use the debugger.
 5. When the debugging is launched, select the `Attach to AWS Documents Language Server` option from the drop down menu (close to pause/stop buttons).
@@ -225,7 +225,7 @@ Using other clients can also be done with the bundle created from this package.
 
 1. Produce a local server bundle `npm run package`. The `app/` folder contains the configuration of server(s) and it's runtime(s).
 2. Take note of the bundle you wish to use. For this example we will use `app/aws-lsp-codewhisperer-runtimes/out/token-standalone.js`.
-3. Run the bundle using these args `node --inspect=6012 {rootPath}/app/aws-lsp-codewhisperer-runtimes/out/token-standalone.js --nolazy --preserve-symlinks --stdio --pre-init-encryption --set-credentials-encryption-key` or adjust as needed. Refer to the [activation file](client/vscode/src/activation.ts). *NOTE: make sure that --inspect or --inspect-brk args are passed right after the `node` command*
+3. Run the bundle using these args `node --inspect=6012 {rootPath}/app/aws-lsp-codewhisperer-runtimes/out/token-standalone.js --nolazy --stdio --pre-init-encryption --set-credentials-encryption-key` or adjust as needed. Refer to the [activation file](client/vscode/src/activation.ts). *NOTE: make sure that --inspect or --inspect-brk args are passed right after the `node` command*
 4. Attach the debugger you wish to use to the node process. Example in Visual Studio [here](https://learn.microsoft.com/en-us/visualstudio/debugger/attach-to-running-processes-with-the-visual-studio-debugger?view=vs-2022#BKMK_Attach_to_a_running_process)
 
 ## Testing
@@ -415,4 +415,37 @@ npm install &&
 npm -ws install &&
 npm link @aws/language-server-runtimes @aws/language-server-runtimes-types &&
 npm run compile -- --force
+```
+
+### Endpoint and region override
+It is possible to override the default region and default endpoint utilized by the AWS SDK clients (e.g. for the Q developer backend api endpoint) when building the capabilities servers.
+
+In order to set such variables and override the default values, it is sufficient to add the `AWS_Q_REGION` and `AWS_Q_ENDPOINT_URL` environment variables respectively to the [launch configuration](https://github.com/aws/language-servers/blob/34dd2f6598bc9b17014ae6f0d2ffbcf8297cfd80/.vscode/launch.json#L84).
+
+**Example:**
+```
+{
+            "name": "CodeWhisperer Server Token",
+            "type": "extensionHost",
+            "request": "launch",
+            "runtimeExecutable": "${execPath}",
+            "args": ["--extensionDevelopmentPath=${workspaceFolder}/client/vscode", "--disable-extensions"],
+            "outFiles": ["${workspaceFolder}/client/vscode/out/**/*.js"],
+            "env": {
+                "LSP_SERVER": "${workspaceFolder}/app/aws-lsp-codewhisperer-runtimes/out/token-standalone.js",
+                "ENABLE_INLINE_COMPLETION": "true",
+                "ENABLE_TOKEN_PROVIDER": "true",
+                "ENABLE_CUSTOM_COMMANDS": "true",
+                "ENABLE_CHAT": "true",
+                "ENABLE_CUSTOMIZATIONS": "true",
+                "AWS_Q_REGION": "set_region_here",
+                "AWS_Q_ENDPOINT_URL" : "set_q_endpoint_here"
+            },
+            "preLaunchTask": "compile"
+        }
+```
+As visible [here](https://github.com/aws/language-servers/blob/34dd2f6598bc9b17014ae6f0d2ffbcf8297cfd80/server/aws-lsp-codewhisperer/src/constants.ts), the default values for such variables is:
+```
+export const DEFAULT_AWS_Q_ENDPOINT_URL = 'https://codewhisperer.us-east-1.amazonaws.com/'
+export const DEFAULT_AWS_Q_REGION = 'us-east-1'
 ```

@@ -3,10 +3,11 @@
 // Implementation is converted to work with LSP TextDocument instead of vscode APIs.
 
 import * as path from 'path'
+import * as nodeUrl from 'url'
 import { BM25Document, BM25Okapi } from './rankBm25'
 import { crossFileContextConfig } from '../../models/constants'
 import { isTestFile } from './codeParsingUtil'
-import { getFileDistance } from '../filesystemUtilities'
+import { fileSystemUtils } from '@aws/lsp-core'
 import { CodeWhispererSupplementalContext, CodeWhispererSupplementalContextItem } from '../../models/model'
 import {
     CancellationToken,
@@ -213,6 +214,12 @@ type FileDistance = {
     fileDistance: number
 }
 
+// Creates fileUrl for any condition (including .\file and ./file)
+function createFileUrl(uri: string): URL {
+    const resolvedPath = path.resolve(uri.replace('file:', ''))
+    return nodeUrl.pathToFileURL(resolvedPath)
+}
+
 /**
  * This function will return relevant cross files sorted by file distance for the given editor file
  * by referencing open files, imported files and same package files.
@@ -234,18 +241,25 @@ export async function getCrossFileCandidates(document: TextDocument, workspace: 
     const unsortedCandidates = await workspace.getAllTextDocuments()
     return unsortedCandidates
         .filter((candidateFile: TextDocument) => {
+            let candidateFileURL
+            try {
+                candidateFileURL = createFileUrl(candidateFile.uri)
+            } catch (err) {
+                return false
+            }
             return !!(
                 targetFile !== candidateFile.uri &&
                 (path.extname(targetFile) === path.extname(candidateFile.uri) ||
                     (dialects && dialects.has(path.extname(candidateFile.uri)))) &&
-                !isTestFile(new URL(candidateFile.uri).pathname, { languageId: language })
+                candidateFileURL?.pathname != null &&
+                !isTestFile(candidateFileURL.pathname, { languageId: language })
             )
         })
         .map((candidate: TextDocument): FileDistance => {
             return {
                 file: candidate,
                 // PORT_TODO: port and test getFileDistance to work with LSP's URIs
-                fileDistance: getFileDistance(targetFile, candidate.uri),
+                fileDistance: fileSystemUtils.getFileDistance(targetFile, candidate.uri),
             }
         })
         .sort((file1: FileDistance, file2: FileDistance) => {

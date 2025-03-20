@@ -2,7 +2,9 @@
 // https://github.com/aws/aws-toolkit-vscode/blob/24840fda8559a3e3ace3517ad9844db76680dc50/packages/core/src/test/shared/utilities/pathUtils.test.ts
 
 import * as assert from 'assert'
-import { normalizeSeparator, normalize } from './pathUtils'
+import * as path from 'path'
+import * as os from 'os'
+import { normalizeSeparator, normalize, isInDirectory } from './path'
 
 describe('pathUtils', async function () {
     it('normalizeSeparator()', function () {
@@ -47,5 +49,31 @@ describe('pathUtils', async function () {
             normalize('\\\\codebuild\\tmp\\output\\js-manifest-in-root\\'),
             '//codebuild/tmp/output/js-manifest-in-root/'
         )
+    })
+
+    it('isInDirectory()', function () {
+        const basePath = path.join('this', 'is', 'the', 'way')
+        const extendedPath = path.join(basePath, 'forward')
+        const filename = 'yadayadayada.log'
+
+        assert.ok(isInDirectory(basePath, basePath))
+        assert.ok(isInDirectory(basePath, extendedPath))
+        assert.ok(isInDirectory(basePath, path.join(basePath, filename)))
+        assert.ok(isInDirectory(basePath, path.join(extendedPath, filename)))
+        assert.ok(!isInDirectory(basePath, path.join('what', 'are', 'you', 'looking', 'at')))
+        assert.ok(!isInDirectory(basePath, `${basePath}point`))
+        assert.ok(isInDirectory('/foo/bar/baz/', '/foo/bar/baz/a.txt'))
+        assert.ok(isInDirectory('/foo/bar/baz/', ''))
+        assert.ok(isInDirectory('/', ''))
+        assert.ok(isInDirectory('', 'foo'))
+        assert.ok(isInDirectory('foo', 'foo'))
+
+        if (os.platform() === 'win32') {
+            assert.ok(isInDirectory('/foo/bar/baz/', '/FOO/BAR/BAZ/A.TXT'))
+            assert.ok(isInDirectory('C:\\foo\\bar\\baz\\', 'C:/FOO/BAR/BAZ/A.TXT'))
+            assert.ok(isInDirectory('C:\\foo\\bar\\baz', 'C:\\foo\\bar\\baz\\a.txt'))
+        } else {
+            assert.ok(!isInDirectory('/foo/bar/baz/', '/FOO/BAR/BAZ/A.TXT'))
+        }
     })
 })

@@ -8,15 +8,15 @@
         "lint": "npm run lint:src && npm run lint:bundle:webworker",
         "lint:bundle:webworker": "webpack --config webpack.lint.config.js && eslint bundle/hello-world-lsp-webworker.js # Verify compatibility with web runtime target",
         "lint:src": "eslint src/ --ext .ts,.tsx",
-        "test": "ts-mocha -b 'src/**/*.test.ts'"
+        "test": "ts-mocha -b \"./src/**/*.test.ts\""
     },
     "dependencies": {
-        "@aws/language-server-runtimes": "^0.2.31",
+        "@aws/language-server-runtimes": "^0.2.40",
         "vscode-languageserver": "^9.0.1"
     },
     "devDependencies": {
         "ts-loader": "^9.4.4",
         "webpack": "^5.94.0",
-        "webpack-cli": "^5.1.4"
+        "webpack-cli": "^6.0.1"
     }
 }

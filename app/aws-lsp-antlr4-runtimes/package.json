@@ -8,11 +8,11 @@
         "generate-grammar": "antlr4ng -Dlanguage=TypeScript -no-visitor -no-listener -Xexact-output-dir -o src/antlr-generated ./PostgreSQLLexer.g4 ./PostgreSQLParser.g4",
         "package": "npm run compile && npm run webpack",
         "test": "npm run test-integ",
-        "test-integ": "npm run package && mocha --timeout 5000 './out/**/*Integ.test.js' --retries 2",
+        "test-integ": "npm run package && mocha --timeout 5000 \"./out/**/*Integ.test.js\" --retries 2",
         "webpack": "webpack"
     },
     "dependencies": {
-        "@aws/language-server-runtimes": "^0.2.31",
+        "@aws/language-server-runtimes": "^0.2.40",
         "@aws/lsp-antlr4": "*",
         "antlr4-c3": "^3.4.1",
         "antlr4ng": "^3.0.4"
@@ -28,6 +28,6 @@
         "ts-loader": "^9.4.4",
         "ts-lsp-client": "^1.0.3",
         "webpack": "^5.94.0",
-        "webpack-cli": "^5.1.4"
+        "webpack-cli": "^6.0.1"
     }
 }

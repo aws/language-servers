@@ -10,12 +10,12 @@
         "lint": "npm run lint:bundle:webworker",
         "lint:bundle:webworker": "webpack && eslint out/hello-world-lsp-webworker.js",
         "test": "npm run test-integ",
-        "test-integ": "npm run package && mocha --timeout 5000 './out/**/*Integ.test.js'",
+        "test-integ": "npm run package && mocha --timeout 5000 \"./out/**/*Integ.test.js\"",
         "webpack": "webpack"
     },
     "dependencies": {
         "@aws/hello-world-lsp": "^0.0.1",
-        "@aws/language-server-runtimes": "^0.2.31"
+        "@aws/language-server-runtimes": "^0.2.40"
     },
     "devDependencies": {
         "@types/chai": "^4.3.5",
@@ -27,6 +27,6 @@
         "ts-loader": "^9.4.4",
         "ts-lsp-client": "^1.0.3",
         "webpack": "^5.94.0",
-        "webpack-cli": "^5.1.4"
+        "webpack-cli": "^6.0.1"
     }
 }

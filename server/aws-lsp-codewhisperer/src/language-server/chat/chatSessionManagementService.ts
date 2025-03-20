@@ -1,4 +1,4 @@
-import { CredentialsProvider } from '@aws/language-server-runtimes/server-interface'
+import { CredentialsProvider, SDKInitializator } from '@aws/language-server-runtimes/server-interface'
 import { Result } from '../types'
 import { ChatSessionService, ChatSessionServiceConfig } from './chatSessionService'
 
@@ -10,6 +10,7 @@ export class ChatSessionManagementService {
     #customUserAgent?: string = '%Amazon-Q-For-LanguageServers%'
     #codeWhispererRegion?: string
     #codeWhispererEndpoint?: string
+    #sdkInitializator?: SDKInitializator
 
     public static getInstance() {
         if (!ChatSessionManagementService.#instance) {
@@ -49,6 +50,12 @@ export class ChatSessionManagementService {
         return this
     }
 
+    public withSdkRuntimeConfigurator(sdkInitializator: SDKInitializator) {
+        this.#sdkInitializator = sdkInitializator
+
+        return this
+    }
+
     public setCustomUserAgent(customUserAgent: string) {
         this.#customUserAgent = customUserAgent
     }
@@ -73,6 +80,11 @@ export class ChatSessionManagementService {
                 success: false,
                 error: 'CodeWhispererEndpoint is not set',
             }
+        } else if (!this.#sdkInitializator) {
+            return {
+                success: false,
+                error: 'SdkInitializator is not set',
+            }
         } else if (this.#sessionByTab.has(tabId)) {
             return {
                 success: true,
@@ -85,6 +97,7 @@ export class ChatSessionManagementService {
             this.#credentialsProvider,
             this.#codeWhispererRegion,
             this.#codeWhispererEndpoint,
+            this.#sdkInitializator,
             {
                 ...clientConfig,
                 customUserAgent: this.#customUserAgent,

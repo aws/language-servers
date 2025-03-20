@@ -3,15 +3,16 @@ var path = require('path')
 const baseConfig = {
     mode: 'development',
     output: {
-        path: __dirname,
-        filename: 'build/[name].js',
+        path: path.resolve(__dirname, 'build'),
+        filename: '[name].js',
         globalObject: 'this',
+        chunkFormat: false,
         library: {
             type: 'umd',
         },
     },
     resolve: {
-        extensions: ['.ts', '.tsx', '.js'],
+        extensions: ['.ts', '.tsx', '.js', '.node'],
     },
     module: {
         rules: [
@@ -19,6 +20,13 @@ const baseConfig = {
                 test: /\.tsx?$/,
                 use: 'ts-loader',
                 exclude: /node_modules/,
+            },
+            {
+                test: /\.node$/,
+                loader: 'node-loader',
+                options: {
+                    name: '[name].[ext]', // Preserves original path and filename
+                },
             },
         ],
     },
@@ -46,4 +54,44 @@ const nodeJsIamBundleConfig = {
     target: 'node',
 }
 
-module.exports = [nodeJsBearerTokenBundleConfig, nodeJsIamBundleConfig]
+const webworkerIamBundleConfig = {
+    target: 'webworker',
+    mode: 'production',
+    output: {
+        path: path.resolve(__dirname, 'build'),
+        filename: '[name].js',
+    },
+    entry: {
+        worker: './src/iam-webworker.ts',
+    },
+    resolve: {
+        fallback: {
+            path: 'path-browserify',
+            os: 'os-browserify',
+            https: 'https-browserify',
+            http: 'stream-http',
+            crypto: 'crypto-browserify',
+            stream: 'stream-browserify',
+            process: false,
+            fs: false,
+            vm: false,
+        },
+        extensions: ['.ts', '.tsx', '.js', '.jsx'],
+    },
+    module: {
+        parser: {
+            javascript: {
+                importMeta: false,
+            },
+        },
+        rules: [
+            {
+                test: /\.(ts|tsx)$/,
+                loader: 'ts-loader',
+                exclude: /node_modules/,
+            },
+        ],
+    },
+}
+
+module.exports = [nodeJsBearerTokenBundleConfig, nodeJsIamBundleConfig, webworkerIamBundleConfig]

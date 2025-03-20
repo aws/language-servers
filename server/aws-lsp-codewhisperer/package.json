@@ -1,6 +1,6 @@
 {
     "name": "@aws/lsp-codewhisperer",
-    "version": "0.0.25",
+    "version": "0.0.27",
     "description": "CodeWhisperer Language Server",
     "main": "out/index.js",
     "repository": {
@@ -21,7 +21,7 @@
         "lint": "npm run lint:src",
         "lint:bundle:webworker": "webpack --config webpack.lint.config.js && eslint bundle/aws-lsp-codewhisperer-webworker.js # Verify compatibility with web runtime target",
         "lint:src": "eslint src/ --ext .ts,.tsx",
-        "test:unit": "ts-mocha -b 'src/**/*.test.ts'",
+        "test:unit": "ts-mocha -b \"./src/**/*.test.ts\"",
         "test": "npm run lint && npm run test:unit",
         "prepack": "npm run compile && ts-node ../../script/link_bundled_dependencies.ts",
         "postinstall": "node ./script/install_transitive_dep.js"
@@ -29,8 +29,9 @@
     "dependencies": {
         "@amzn/codewhisperer-streaming": "file:../../core/codewhisperer-streaming/amzn-codewhisperer-streaming-1.0.0.tgz",
         "@aws-sdk/util-retry": "^3.374.0",
-        "@aws/chat-client-ui-types": "^0.1.0",
-        "@aws/language-server-runtimes": "^0.2.38",
+        "@aws/chat-client-ui-types": "^0.1.5",
+        "@aws/language-server-runtimes": "^0.2.43",
+        "@aws/lsp-core": "^0.0.1",
         "@gerhobbelt/gitignore-parser": "^0.2.0-9",
         "@smithy/node-http-handler": "^2.5.0",
         "adm-zip": "^0.5.10",
@@ -44,8 +45,8 @@
         "ignore-walk": "^7.0.0",
         "js-md5": "^0.8.3",
         "jszip": "^3.10.1",
-        "uuid": "^9.0.1",
-        "vscode-uri": "^3.0.8",
+        "uuid": "^11.0.5",
+        "vscode-uri": "^3.1.0",
         "ws": "^8.18.0",
         "xml2js": "^0.6.2",
         "xmlbuilder2": "^3.1.1"
@@ -61,11 +62,11 @@
         "mock-fs": "^5.2.0",
         "sinon": "^19.0.2",
         "ts-loader": "^9.4.4",
-        "ts-mocha": "^10.0.0",
+        "ts-mocha": "^11.1.0",
         "ts-sinon": "^2.0.2",
         "vscode-languageserver-textdocument": "^1.0.11",
         "webpack": "^5.94.0",
-        "webpack-cli": "^5.1.4"
+        "webpack-cli": "^6.0.1"
     },
     "prettier": {
         "printWidth": 120,
