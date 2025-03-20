@@ -412,12 +412,12 @@ export const WorkspaceContextServer =
             }
         })
 
-        // lsp.extensions.onDidChangeDependencyPaths(async params => {
-        //     logging.log(`Dependency path changed ${JSON.stringify(params)}`)
-        //     if (!isOptedIn) {
-        //         return
-        //     }
-        // })
+        lsp.extensions.onDidChangeDependencyPaths(async params => {
+            logging.log(`Dependency path changed ${JSON.stringify(params)}`)
+            if (!isOptedIn) {
+                return
+            }
+        })
 
         logging.log('Workspace context server has been initialized')
 

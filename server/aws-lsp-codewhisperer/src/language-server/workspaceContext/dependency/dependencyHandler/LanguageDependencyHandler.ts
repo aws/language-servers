@@ -66,7 +66,7 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
     async zipDependencyMap(): Promise<void> {
         const zipFileMetadata: FileMetadata[] = []
         const MAX_CHUNK_SIZE_BYTES = 100 * 1024 * 1024 // 100MB per chunk
-
+        this.logging.log(`Start to zip and upload all ${this.language} dependencies`)
         let chunkIndex = 0
         // Process each workspace folder sequentially
         for (const [workspaceFolder, correspondingDependencyMap] of this.dependencyMap) {
@@ -77,13 +77,7 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
             zipFileMetadata.push(...chunkZipFileMetadata)
         }
 
-        for (const zip of zipFileMetadata) {
-            let s3Url = await this.workspaceFolderManager.uploadToS3(zip)
-            if (!s3Url) {
-                return
-            }
-            this.generateWebSocketRequest(zip.workspaceFolder, s3Url)
-        }
+        await this.uploadZipsAndNotifyWeboscket(zipFileMetadata)
     }
 
     private generateWebSocketRequest(workspaceFolder: WorkspaceFolder, s3Url: string) {
@@ -125,7 +119,9 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
             // process the current chunk first
             if (currentChunkSize + dependency.size > MAX_CHUNK_SIZE_BYTES && currentChunk.length > 0) {
                 // Process current chunk
-                this.logging.log(`${chunkIndex} chunk's currentChunkSize: ${currentChunkSize}`)
+                this.logging.log(
+                    `Under ${workspaceFolder.name}, #${chunkIndex} chunk containing ${this.language} dependencies with size: ${currentChunkSize} has reached chunk limit. Start to process...`
+                )
                 await this.processChunk(currentChunk, workspaceFolder, zipFileMetadata, chunkIndex)
 
                 // Reset chunk
@@ -155,7 +151,7 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
     ): Promise<void> {
         let fileMetadataList: FileMetadata[] = []
         this.logging.log(
-            `Processing ${chunkIndex} chunk of ${chunk.length} ${this.language} dependencies for ${workspaceFolder.name}`
+            `Processing #${chunkIndex} chunk containing ${chunk.length} ${this.language} dependencies under ${workspaceFolder.name}`
         )
         for (const dependency of chunk) {
             try {
@@ -176,7 +172,7 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
         }
         if (fileMetadataList.length > 0) {
             this.logging.log(
-                `Start to zip ${chunkIndex} chunk of ${chunk.length} ${this.language} dependencies for ${workspaceFolder.name}`
+                `Start to zip #${chunkIndex} chunk containing ${chunk.length} ${this.language} dependencies under ${workspaceFolder.name}`
             )
             try {
                 const singleZip = await this.artifactManager.createZipForDependencies(
@@ -187,7 +183,9 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
                     chunkIndex
                 )
                 zipFileMetadata.push(singleZip)
-                this.logging.log(`Created zip: ${singleZip.filePath}`)
+                this.logging.log(
+                    `Created zip: ${singleZip.filePath} for #${chunkIndex} chunk containing ${chunk.length} ${this.language} dependencies under ${workspaceFolder.name}`
+                )
             } catch (error) {
                 this.logging.log(`Error creating zip for workspace ${workspaceFolder.uri}: ${error}`)
             }
@@ -195,10 +193,10 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
         // Log chunk statistics
         const totalChunkSize = chunk.reduce((sum, dep) => sum + dep.size, 0)
         this.logging.log(
-            `Processed chunk of ${chunk.length} ${this.language} dependencies with total size: ${(
+            `Completed #${chunkIndex} chunk containing ${chunk.length} ${this.language} dependencies with total size: ${(
                 totalChunkSize /
                 (1024 * 1024)
-            ).toFixed(2)}MB for ${workspaceFolder.name}`
+            ).toFixed(2)}MB under ${workspaceFolder.name}`
         )
     }
 
@@ -245,13 +243,8 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
             [...changes.added, ...changes.updated],
             dependencyInfo.workspaceFolder
         )
-        for (const zip of zips) {
-            let s3Url = await this.workspaceFolderManager.uploadToS3(zip)
-            if (!s3Url) {
-                return
-            }
-            this.generateWebSocketRequest(zip.workspaceFolder, s3Url)
-        }
+
+        await this.uploadZipsAndNotifyWeboscket(zips)
     }
 
     protected log(message: string): void {
@@ -283,6 +276,35 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
             return totalSize
         } catch (error) {
             throw new Error(`Error calculating directory size: ${error}`)
+        }
+    }
+
+    private async cleanupZipFiles(zipFileMetadata: FileMetadata[]): Promise<void> {
+        for (const zip of zipFileMetadata) {
+            try {
+                if (fs.existsSync(zip.filePath)) {
+                    fs.unlinkSync(zip.filePath)
+                    this.logging.log(`Cleanup zip file: ${zip.filePath}`)
+                }
+            } catch (error) {
+                // Log error but don't throw to ensure other files are processed
+                this.logging.log(`Error deleting zip file ${zip.filePath}: ${error}`)
+            }
+        }
+    }
+
+    private async uploadZipsAndNotifyWeboscket(zips: FileMetadata[]): Promise<void> {
+        try {
+            for (const zip of zips) {
+                let s3Url = await this.workspaceFolderManager.uploadToS3(zip)
+                if (!s3Url) {
+                    return
+                }
+                this.generateWebSocketRequest(zip.workspaceFolder, s3Url)
+            }
+        } finally {
+            // Clean up zip files after processing
+            await this.cleanupZipFiles(zips)
         }
     }
 }

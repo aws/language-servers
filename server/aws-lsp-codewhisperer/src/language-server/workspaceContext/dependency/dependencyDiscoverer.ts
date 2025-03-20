@@ -112,8 +112,6 @@ export class DependencyDiscoverer {
 
             while (queue.length > 0) {
                 const { dir: currentDir, depth } = queue.shift()!
-                this.logging.log(`looking at ${currentDir} with depth ${depth}`)
-
                 let foundDependencyInCurrentDir = false
                 for (const dependencyHandler of this.dependencyHandlerRegistry) {
                     if (dependencyHandler.discover(currentDir, workspaceFolder)) {
