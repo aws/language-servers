@@ -247,7 +247,7 @@ export class ArtifactManager {
         return zippedMetadata
     }
 
-    public determineLanguagesForDeletedPath(fileUri: string, workspaceRoot: WorkspaceFolder): CodewhispererLanguage[] {
+    determineLanguagesForDeletedPath(fileUri: string, workspaceRoot: WorkspaceFolder): CodewhispererLanguage[] {
         // Try to determine if it's a file by checking its language
         const fileLanguage = getCodeWhispererLanguageIdFromPath(fileUri)
         // TODO, this will likely return wrong result in the case that user has a folder named with an extension e.g: folder.py
@@ -301,24 +301,30 @@ export class ArtifactManager {
         return undefined
     }
 
-    // TODO, if MD5 hash is not needed, better to remove this function and remove content from FileMetadata interface to be memory efficient
-    // Doing the readfile call inside this function and storing the contents in the FileMetadata allows us to call readFile only once
-    // instead of calling it twice: once in md5 calculation and once during zip creation
-    async createFileMetadata(
-        filePath: string,
-        relativePath: string,
+    async createZipForDependencies(
+        workspaceFolder: WorkspaceFolder,
         language: CodewhispererLanguage,
-        workspaceFolder: WorkspaceFolder
+        files: FileMetadata[],
+        subDirectory: string = '',
+        zipChunkIndex: number
     ): Promise<FileMetadata> {
-        const fileContent = this.workspace.fs.readFileSync(filePath)
+        const zipDirectoryPath = path.join(this.tempDirPath, workspaceFolder.name, subDirectory)
+        this.createFolderIfNotExist(zipDirectoryPath)
+        const zipFileName = `${zipChunkIndex}_${Date.now()}.zip`
+        const zipPath = path.join(zipDirectoryPath, zipFileName)
+        const zipBuffer = await this.createZipBuffer(files)
+        await fs.promises.writeFile(zipPath, zipBuffer)
+
+        const stats = fs.statSync(zipPath)
+
         return {
-            filePath,
-            contentLength: fileContent.length,
-            lastModified: fs.statSync(filePath).mtimeMs,
-            content: fileContent,
+            filePath: zipPath,
+            relativePath: path.join(workspaceFolder.name, subDirectory, zipFileName),
             language,
-            relativePath,
-            workspaceFolder,
+            contentLength: stats.size,
+            lastModified: stats.mtimeMs,
+            content: zipBuffer,
+            workspaceFolder: workspaceFolder,
         }
     }
 
@@ -339,7 +345,70 @@ export class ArtifactManager {
         }
     }
 
-    async createZipForLanguage(
+    async processDirectory(
+        workspaceFolder: WorkspaceFolder,
+        directoryPath: string,
+        baseRelativePath: string = ''
+    ): Promise<Map<CodewhispererLanguage, FileMetadata[]>> {
+        const filesByLanguage = new Map<CodewhispererLanguage, FileMetadata[]>()
+
+        const files = await walk({
+            path: directoryPath,
+            ignoreFiles: ['.gitignore'],
+            follow: false,
+            includeEmpty: false,
+        })
+
+        for (const relativePath of files) {
+            const fullPath = path.join(directoryPath, relativePath)
+            const language = getCodeWhispererLanguageIdFromPath(fullPath)
+
+            if (!language || !SUPPORTED_WORKSPACE_CONTEXT_LANGUAGES.includes(language)) {
+                continue
+            }
+
+            try {
+                const fileMetadata = await this.createFileMetadata(
+                    fullPath,
+                    path.join(baseRelativePath, relativePath),
+                    language,
+                    workspaceFolder
+                )
+
+                if (!filesByLanguage.has(language)) {
+                    filesByLanguage.set(language, [])
+                }
+                filesByLanguage.get(language)!.push(fileMetadata)
+            } catch (error) {
+                this.log(`Error processing file ${fullPath}: ${error}`)
+            }
+        }
+
+        return filesByLanguage
+    }
+
+    // TODO, if MD5 hash is not needed, better to remove this function and remove content from FileMetadata interface to be memory efficient
+    // Doing the readfile call inside this function and storing the contents in the FileMetadata allows us to call readFile only once
+    // instead of calling it twice: once in md5 calculation and once during zip creation
+    private async createFileMetadata(
+        filePath: string,
+        relativePath: string,
+        language: CodewhispererLanguage,
+        workspaceFolder: WorkspaceFolder
+    ): Promise<FileMetadata> {
+        const fileContent = this.workspace.fs.readFileSync(filePath)
+        return {
+            filePath,
+            contentLength: fileContent.length,
+            lastModified: fs.statSync(filePath).mtimeMs,
+            content: fileContent,
+            language,
+            relativePath,
+            workspaceFolder,
+        }
+    }
+
+    private async createZipForLanguage(
         workspaceFolder: WorkspaceFolder,
         language: CodewhispererLanguage,
         files: FileMetadata[],
@@ -397,33 +466,6 @@ export class ArtifactManager {
         }
     }
 
-    async createZipForDependencies(
-        workspaceFolder: WorkspaceFolder,
-        language: CodewhispererLanguage,
-        files: FileMetadata[],
-        subDirectory: string = '',
-        zipChunkIndex: number
-    ): Promise<FileMetadata> {
-        const zipDirectoryPath = path.join(this.tempDirPath, workspaceFolder.name, subDirectory)
-        this.createFolderIfNotExist(zipDirectoryPath)
-        const zipFileName = `${zipChunkIndex}_${Date.now()}.zip`
-        const zipPath = path.join(zipDirectoryPath, zipFileName)
-        const zipBuffer = await this.createZipBuffer(files)
-        await fs.promises.writeFile(zipPath, zipBuffer)
-
-        const stats = fs.statSync(zipPath)
-
-        return {
-            filePath: zipPath,
-            relativePath: path.join(workspaceFolder.name, subDirectory, zipFileName),
-            language,
-            contentLength: stats.size,
-            lastModified: stats.mtimeMs,
-            content: zipBuffer,
-            workspaceFolder: workspaceFolder,
-        }
-    }
-
     private async createZipBuffer(files: FileMetadata[]): Promise<Buffer> {
         const zip = new JSZip()
         for (const file of files) {
@@ -441,48 +483,6 @@ export class ArtifactManager {
         }
         this.log(`No existing workspace found`)
         return undefined
-    }
-
-    public async processDirectory(
-        workspaceFolder: WorkspaceFolder,
-        directoryPath: string,
-        baseRelativePath: string = ''
-    ): Promise<Map<CodewhispererLanguage, FileMetadata[]>> {
-        const filesByLanguage = new Map<CodewhispererLanguage, FileMetadata[]>()
-
-        const files = await walk({
-            path: directoryPath,
-            ignoreFiles: ['.gitignore'],
-            follow: false,
-            includeEmpty: false,
-        })
-
-        for (const relativePath of files) {
-            const fullPath = path.join(directoryPath, relativePath)
-            const language = getCodeWhispererLanguageIdFromPath(fullPath)
-
-            if (!language || !SUPPORTED_WORKSPACE_CONTEXT_LANGUAGES.includes(language)) {
-                continue
-            }
-
-            try {
-                const fileMetadata = await this.createFileMetadata(
-                    fullPath,
-                    path.join(baseRelativePath, relativePath),
-                    language,
-                    workspaceFolder
-                )
-
-                if (!filesByLanguage.has(language)) {
-                    filesByLanguage.set(language, [])
-                }
-                filesByLanguage.get(language)!.push(fileMetadata)
-            } catch (error) {
-                this.log(`Error processing file ${fullPath}: ${error}`)
-            }
-        }
-
-        return filesByLanguage
     }
 
     private async updateWorkspaceFiles(
