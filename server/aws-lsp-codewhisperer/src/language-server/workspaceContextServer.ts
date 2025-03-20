@@ -49,6 +49,7 @@ export const WorkspaceContextServer =
             workspaceFolders = params.workspaceFolders || []
             if (params.workspaceFolders) {
                 workspaceFolders = params.workspaceFolders
+                logging.log(`Workspace folders set: ${workspaceFolders.map(folder => folder.uri).join(', ')}`)
             } else {
                 logging.error(`WORKSPACE FOLDERS IS NOT SET`)
             }
@@ -226,6 +227,7 @@ export const WorkspaceContextServer =
                 return
             }
             const { workspaceDetails, workspaceRoot } = result
+            logging.log(`Retrieved workspace details - ID: ${workspaceDetails.workspaceId}, Root: ${workspaceRoot.uri}`)
 
             const fileMetadata = await artifactManager.processNewFile(workspaceRoot, event.textDocument.uri)
             const s3Url = await workspaceFolderManager.uploadToS3(fileMetadata)

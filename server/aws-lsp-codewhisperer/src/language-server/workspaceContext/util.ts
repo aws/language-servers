@@ -10,12 +10,21 @@ export const findWorkspaceRootFolder = (
     fileUri: string,
     workspaceFolders: WorkspaceFolder[]
 ): WorkspaceFolder | undefined => {
-    const matchingFolder = workspaceFolders.find(folder => {
-        const parsedFileUri = URI.parse(fileUri)
+    const parsedFileUri = URI.parse(fileUri)
+
+    // Sort workspace folders by path length (descending) to find most specific match first
+    const sortedFolders = [...workspaceFolders].sort((a, b) => {
+        const aPath = URI.parse(a.uri).path
+        const bPath = URI.parse(b.uri).path
+        return bPath.length - aPath.length // Longest path first
+    })
+
+    const matchingFolder = sortedFolders.find(folder => {
         const parsedFolderUri = URI.parse(folder.uri)
         return parsedFileUri.path.startsWith(parsedFolderUri.path)
     })
-    return matchingFolder ? matchingFolder : undefined
+
+    return matchingFolder
 }
 
 export const uploadArtifactToS3 = async (content: Buffer, resp: CreateUploadUrlResponse) => {
