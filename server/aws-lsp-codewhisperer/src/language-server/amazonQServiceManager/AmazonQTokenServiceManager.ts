@@ -144,8 +144,7 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
             if (type === 'iam') {
                 return
             }
-            this.cachedCodewhispererService = undefined
-            this.activeIdcProfile = undefined
+            this.resetCodewhispererService()
             this.connectionType = 'none'
             this.state = 'PENDING_CONNECTION'
         })
