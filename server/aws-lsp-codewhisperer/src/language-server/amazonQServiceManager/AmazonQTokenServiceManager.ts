@@ -459,8 +459,7 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
     }
 
     private resetCodewhispererService() {
-        // TODO: terminate inflight requests for old service, if exist
-
+        this.cachedCodewhispererService?.abortInflightRequests()
         this.cachedCodewhispererService = undefined
         this.activeIdcProfile = undefined
     }

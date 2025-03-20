@@ -16,6 +16,7 @@ import {
 import {
     CodeWhispererTokenClientConfigurationOptions,
     createCodeWhispererTokenClient,
+    RequestExtras,
 } from '../client/token/codewhisperer'
 
 // Define our own Suggestion interface to wrap the differences between Token and IAM Client
@@ -54,6 +55,23 @@ export abstract class CodeWhispererServiceBase {
     public customizationArn?: string
     public profileArn?: string
     abstract client: CodeWhispererSigv4Client | CodeWhispererTokenClient
+
+    inflightRequests: Set<AWS.Request<any, AWSError> & RequestExtras> = new Set()
+
+    abortInflightRequests() {
+        this.inflightRequests.forEach(request => {
+            request.abort()
+        })
+        this.inflightRequests.clear()
+    }
+
+    trackRequest(request: AWS.Request<any, AWSError> & RequestExtras) {
+        this.inflightRequests.add(request)
+    }
+
+    completeRequest(request: AWS.Request<any, AWSError> & RequestExtras) {
+        this.inflightRequests.delete(request)
+    }
 
     abstract getCredentialsType(): CredentialsType
 
@@ -145,6 +163,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
             endpoint: this.codeWhispererEndpoint,
             onRequestSetup: [
                 req => {
+                    this.trackRequest(req)
                     req.on('build', ({ httpRequest }) => {
                         const creds = credentialsProvider.getCredentials('bearer') as BearerCredentials
                         if (!creds?.token) {
@@ -152,6 +171,9 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
                         }
                         httpRequest.headers['Authorization'] = `Bearer ${creds.token}`
                         httpRequest.headers['x-amzn-codewhisperer-optout'] = `${!this.shareCodeWhispererContentWithAWS}`
+                    })
+                    req.on('complete', () => {
+                        this.completeRequest(req)
                     })
                 },
             ],
