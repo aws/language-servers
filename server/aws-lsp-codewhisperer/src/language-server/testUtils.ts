@@ -1,5 +1,7 @@
 import { TextDocument } from 'vscode-languageserver-textdocument'
 import { ResponseContext, Suggestion } from './codeWhispererService'
+import { TestFeatures } from '@aws/language-server-runtimes/testing'
+import { SsoConnectionType } from './utils'
 
 export const HELLO_WORLD_IN_CSHARP = `class HelloWorld
 {
@@ -205,4 +207,15 @@ export function shuffleList<T>(list: T[]): T[] {
     }
 
     return shuffledList
+}
+
+export const setCredentialsForAmazonQTokenServiceManagerFactory = (getFeatures: () => TestFeatures) => {
+    return (connectionType: SsoConnectionType) => {
+        const features = getFeatures()
+        features.credentialsProvider.hasCredentials.returns(true)
+        features.credentialsProvider.getConnectionType.returns(connectionType)
+        features.credentialsProvider.getCredentials.returns({
+            token: 'test-token',
+        })
+    }
 }

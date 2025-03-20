@@ -7,19 +7,14 @@ import {
     LSPErrorCodes,
     ResponseError,
     Server,
-    Workspace,
 } from '@aws/language-server-runtimes/server-interface'
-import { CodeWhispererServiceToken } from '../codeWhispererService'
-import { getUserAgent } from '../utilities/telemetryUtils'
-import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../../constants'
-import { SDKInitializator } from '@aws/language-server-runtimes/server-interface'
 import {
     AmazonQDeveloperProfile,
     getListAllAvailableProfilesHandler,
     ListAllAvailableProfilesHandler,
-    signalsAWSQDeveloperProfilesEnabled,
 } from '../amazonQServiceManager/qDeveloperProfiles'
 import { Customizations } from '../../client/token/codewhispererbearertokenclient'
+import { AmazonQTokenServiceManager } from '../amazonQServiceManager/AmazonQTokenServiceManager'
 
 // The configuration section that the server will register and listen to
 export const Q_CONFIGURATION_SECTION = 'aws.q'
@@ -30,48 +25,12 @@ export const Q_CUSTOMIZATIONS_CONFIGURATION_SECTION = `${Q_CONFIGURATION_SECTION
 export const Q_DEVELOPER_PROFILES_CONFIGURATION_SECTION = `${Q_CONFIGURATION_SECTION}.${Q_DEVELOPER_PROFILES}`
 
 export const QConfigurationServerToken =
-    (
-        service: (
-            credentials: CredentialsProvider,
-            workspace: Workspace,
-            awsQRegion: string,
-            awsQEndpointUrl: string,
-            sdkInitializator: SDKInitializator
-        ) => CodeWhispererServiceToken
-    ): Server =>
+    (): Server =>
     ({ credentialsProvider, lsp, logging, runtime, workspace, sdkInitializator }) => {
-        const codeWhispererService = service(
-            credentialsProvider,
-            workspace,
-            runtime.getConfiguration('AWS_Q_REGION') ?? DEFAULT_AWS_Q_REGION,
-            runtime.getConfiguration('AWS_Q_ENDPOINT_URL') ?? DEFAULT_AWS_Q_ENDPOINT_URL,
-            sdkInitializator
-        )
-
-        const serverConfigurationProvider = new ServerConfigurationProvider(
-            codeWhispererService,
-            credentialsProvider,
-            logging,
-            (region, endpoint) => {
-                const client = service(credentialsProvider, workspace, region, endpoint, sdkInitializator)
-                if (codeWhispererService.client.config.customUserAgent)
-                    client.updateClientConfig({
-                        customUserAgent: codeWhispererService.client.config.customUserAgent,
-                    })
-                return client
-            }
-        )
+        let amazonQServiceManager: AmazonQTokenServiceManager
+        let serverConfigurationProvider: ServerConfigurationProvider
 
         lsp.addInitializer((params: InitializeParams) => {
-            codeWhispererService.updateClientConfig({
-                customUserAgent: getUserAgent(params, runtime.serverInfo),
-            })
-
-            if (params.initializationOptions?.aws) {
-                const isDeveloperProfilesEnabled = signalsAWSQDeveloperProfilesEnabled(params.initializationOptions.aws)
-                serverConfigurationProvider.qDeveloperProfilesEnabled = isDeveloperProfilesEnabled
-            }
-
             return {
                 capabilities: {},
                 awsServerCapabilities: {
@@ -84,6 +43,23 @@ export const QConfigurationServerToken =
                     },
                 },
             }
+        })
+
+        lsp.onInitialized(() => {
+            amazonQServiceManager = AmazonQTokenServiceManager.getInstance({
+                credentialsProvider,
+                lsp,
+                logging,
+                runtime,
+                workspace,
+                sdkInitializator,
+            })
+
+            serverConfigurationProvider = new ServerConfigurationProvider(
+                amazonQServiceManager,
+                credentialsProvider,
+                logging
+            )
         })
 
         lsp.extensions.onGetConfigurationFromServer(
@@ -101,7 +77,7 @@ export const QConfigurationServerToken =
                                 serverConfigurationProvider.listAvailableProfiles(),
                             ])
 
-                            return serverConfigurationProvider.qDeveloperProfilesEnabled
+                            return serverConfigurationProvider.isQDeveloperProfilesEnabled()
                                 ? { customizations, developerProfiles }
                                 : { customizations }
                         case Q_CUSTOMIZATIONS_CONFIGURATION_SECTION:
@@ -129,36 +105,33 @@ export const QConfigurationServerToken =
             }
         )
 
-        logging.log('Amazon Q Customization server has been initialised')
+        logging.log('Amazon Q Configuration server has been initialised')
         return () => {}
     }
 
 const ON_GET_CONFIGURATION_FROM_SERVER_ERROR_PREFIX = 'Failed to fetch: '
 
 export class ServerConfigurationProvider {
-    private _qDeveloperProfilesEnabled = false
     private listAllAvailableProfilesHandler: ListAllAvailableProfilesHandler
 
     constructor(
-        private service: CodeWhispererServiceToken,
+        private serviceManager: AmazonQTokenServiceManager,
         private credentialsProvider: CredentialsProvider,
-        private logging: Logging,
-        serviceFromEndpointAndRegion: (region: string, endpoint: string) => CodeWhispererServiceToken
+        private logging: Logging
     ) {
-        this.listAllAvailableProfilesHandler = getListAllAvailableProfilesHandler(serviceFromEndpointAndRegion)
+        this.listAllAvailableProfilesHandler = getListAllAvailableProfilesHandler(
+            this.serviceManager.getServiceFactory()
+        )
     }
 
-    get qDeveloperProfilesEnabled(): boolean {
-        return this._qDeveloperProfilesEnabled
-    }
+    public isQDeveloperProfilesEnabled(): boolean {
+        const enableDeveloperProfileSupport = this.serviceManager.getEnableDeveloperProfileSupport()
 
-    set qDeveloperProfilesEnabled(value: boolean) {
-        this.logging.debug(`Setting qDeveloperProfilesEnabled to: ${value}`)
-        this._qDeveloperProfilesEnabled = value
+        return enableDeveloperProfileSupport !== undefined ? enableDeveloperProfileSupport : false
     }
 
     async listAvailableProfiles(): Promise<AmazonQDeveloperProfile[]> {
-        if (!this.qDeveloperProfilesEnabled) {
+        if (!this.isQDeveloperProfilesEnabled()) {
             this.logging.debug('Q developer profiles disabled - returning empty list')
             return []
         }
@@ -180,7 +153,9 @@ export class ServerConfigurationProvider {
 
     async listAvailableCustomizations(): Promise<Customizations> {
         try {
-            const customizations = (await this.service.listAvailableCustomizations({ maxResults: 100 })).customizations
+            const customizations = (
+                await this.serviceManager.getCodewhispererService().listAvailableCustomizations({ maxResults: 100 })
+            ).customizations
 
             return customizations
         } catch (error) {

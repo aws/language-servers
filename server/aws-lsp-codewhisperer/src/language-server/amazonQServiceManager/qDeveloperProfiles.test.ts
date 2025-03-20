@@ -10,7 +10,6 @@ import {
     signalsAWSQDeveloperProfilesEnabled,
 } from './qDeveloperProfiles'
 import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../../constants'
-import { isBool, isObject } from '../utils'
 
 const SOME_Q_DEVELOPER_PROFILE_ARN = 'some-random-q-developer-profile-arn'
 const SOME_Q_DEVELOPER_PROFILE_NAME = 'some-random-q-developer-profile-name'

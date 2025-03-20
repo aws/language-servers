@@ -18,6 +18,7 @@ import {
 import { AWS_Q_ENDPOINTS, DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../../constants'
 import { SsoConnectionType } from '@aws/language-server-runtimes/server-interface'
 import * as qDeveloperProfilesFetcherModule from './qDeveloperProfiles'
+import { setCredentialsForAmazonQTokenServiceManagerFactory } from '../testUtils'
 
 export const mockedProfiles: qDeveloperProfilesFetcherModule.AmazonQDeveloperProfile[] = [
     {
@@ -43,6 +44,9 @@ export const mockedProfiles: qDeveloperProfilesFetcherModule.AmazonQDeveloperPro
     },
 ]
 
+const TEST_ENDPOINT_US_EAST_1 = 'amazon-q-in-us-east-1-endpoint'
+const TEST_ENDPOINT_EU_CENTRAL_1 = 'amazon-q-in-eu-central-1-endpoint'
+
 describe('AmazonQTokenServiceManager', () => {
     let codewhispererServiceStub: StubbedInstance<CodeWhispererServiceToken>
     let codewhispererStubFactory: sinon.SinonStub<any[], StubbedInstance<CodeWhispererServiceToken>>
@@ -52,9 +56,9 @@ describe('AmazonQTokenServiceManager', () => {
 
     beforeEach(() => {
         // Override endpoints for testing
-        AWS_Q_ENDPOINTS['us-east-1'] = 'amazon-q-in-us-east-1-endpoint'
+        AWS_Q_ENDPOINTS['us-east-1'] = TEST_ENDPOINT_US_EAST_1
         // @ts-ignore
-        AWS_Q_ENDPOINTS['eu-central-1'] = 'amazon-q-in-eu-central-1-endpoint'
+        AWS_Q_ENDPOINTS['eu-central-1'] = TEST_ENDPOINT_EU_CENTRAL_1
 
         sinon
             .stub(qDeveloperProfilesFetcherModule, 'getListAllAvailableProfilesHandler')
@@ -102,13 +106,7 @@ describe('AmazonQTokenServiceManager', () => {
         amazonQTokenServiceManager.setServiceFactory(codewhispererStubFactory)
     }
 
-    const setCredentials = (connectionType: SsoConnectionType) => {
-        features.credentialsProvider.hasCredentials.returns(true)
-        features.credentialsProvider.getConnectionType.returns(connectionType)
-        features.credentialsProvider.getCredentials.returns({
-            token: 'test-token',
-        })
-    }
+    const setCredentials = setCredentialsForAmazonQTokenServiceManagerFactory(() => features)
 
     const clearCredentials = () => {
         features.credentialsProvider.hasCredentials.returns(false)
@@ -129,12 +127,26 @@ describe('AmazonQTokenServiceManager', () => {
     })
 
     describe('BuilderId support', () => {
-        it('should be INITIALIZED with BuilderId Connection', async () => {
+        const testRegion = 'some-region'
+        const testEndpoint = 'some-endpoint-in-some-region'
+
+        beforeEach(() => {
             setupServiceManager()
             assert.strictEqual(amazonQTokenServiceManager.getState(), 'PENDING_CONNECTION')
 
             setCredentials('builderId')
 
+            // @ts-ignore
+            AWS_Q_ENDPOINTS[testRegion] = testEndpoint
+
+            features.lsp.getClientInitializeParams.reset()
+        })
+
+        afterEach(() => {
+            AmazonQTokenServiceManager.resetInstance()
+        })
+
+        it('should be INITIALIZED with BuilderId Connection', async () => {
             const service = amazonQTokenServiceManager.getCodewhispererService()
             await service.generateSuggestions({} as GenerateSuggestionsRequest)
 
@@ -142,6 +154,35 @@ describe('AmazonQTokenServiceManager', () => {
             assert.strictEqual(amazonQTokenServiceManager.getConnectionType(), 'builderId')
 
             assert(codewhispererServiceStub.generateSuggestions.calledOnce)
+        })
+
+        it('should initialize service with region set by client', () => {
+            features.lsp.getClientInitializeParams.returns({
+                processId: 0,
+                rootUri: 'some-root-uri',
+                capabilities: {},
+                initializationOptions: {
+                    aws: {
+                        region: testRegion,
+                    },
+                },
+            })
+
+            amazonQTokenServiceManager.getCodewhispererService()
+            assert(codewhispererStubFactory.calledOnceWithExactly(testRegion, testEndpoint))
+        })
+
+        it('should initialize service with region set by runtime if not set by client', () => {
+            features.runtime.getConfiguration.withArgs('AWS_Q_REGION').returns('eu-central-1')
+            features.runtime.getConfiguration.withArgs('AWS_Q_ENDPOINT_URL').returns(TEST_ENDPOINT_EU_CENTRAL_1)
+
+            amazonQTokenServiceManager.getCodewhispererService()
+            assert(codewhispererStubFactory.calledOnceWithExactly('eu-central-1', TEST_ENDPOINT_EU_CENTRAL_1))
+        })
+
+        it('should initialize service with default region if not set by client and runtime', () => {
+            amazonQTokenServiceManager.getCodewhispererService()
+            assert(codewhispererStubFactory.calledOnceWithExactly(DEFAULT_AWS_Q_REGION, DEFAULT_AWS_Q_ENDPOINT_URL))
         })
     })
 
@@ -199,7 +240,7 @@ describe('AmazonQTokenServiceManager', () => {
 
                 assert.strictEqual(amazonQTokenServiceManager.getState(), 'INITIALIZED')
                 assert.strictEqual(amazonQTokenServiceManager.getConnectionType(), 'identityCenter')
-                assert(codewhispererStubFactory.calledOnceWithExactly('us-east-1', 'amazon-q-in-us-east-1-endpoint'))
+                assert(codewhispererStubFactory.calledOnceWithExactly('us-east-1', TEST_ENDPOINT_US_EAST_1))
             })
 
             it('handles Profile configuration change to valid profile in same region', async () => {
@@ -225,7 +266,7 @@ describe('AmazonQTokenServiceManager', () => {
                 assert.strictEqual(amazonQTokenServiceManager.getConnectionType(), 'identityCenter')
                 assert.strictEqual(amazonQTokenServiceManager.getActiveProfileArn(), 'profile-iad')
 
-                assert(codewhispererStubFactory.calledOnceWithExactly('us-east-1', 'amazon-q-in-us-east-1-endpoint'))
+                assert(codewhispererStubFactory.calledOnceWithExactly('us-east-1', TEST_ENDPOINT_US_EAST_1))
 
                 // Profile change
 
@@ -245,7 +286,7 @@ describe('AmazonQTokenServiceManager', () => {
                 assert.strictEqual(amazonQTokenServiceManager.getActiveProfileArn(), 'profile-iad-2')
 
                 // CodeWhisperer Service was not recreated
-                assert(codewhispererStubFactory.calledOnceWithExactly('us-east-1', 'amazon-q-in-us-east-1-endpoint'))
+                assert(codewhispererStubFactory.calledOnceWithExactly('us-east-1', TEST_ENDPOINT_US_EAST_1))
             })
 
             it('handles Profile configuration change to valid profile in different region', async () => {
@@ -270,7 +311,7 @@ describe('AmazonQTokenServiceManager', () => {
                 assert.strictEqual(amazonQTokenServiceManager.getState(), 'INITIALIZED')
                 assert.strictEqual(amazonQTokenServiceManager.getConnectionType(), 'identityCenter')
                 assert.strictEqual(amazonQTokenServiceManager.getActiveProfileArn(), 'profile-iad')
-                assert(codewhispererStubFactory.calledOnceWithExactly('us-east-1', 'amazon-q-in-us-east-1-endpoint'))
+                assert(codewhispererStubFactory.calledOnceWithExactly('us-east-1', TEST_ENDPOINT_US_EAST_1))
 
                 // Profile change
 
@@ -293,7 +334,7 @@ describe('AmazonQTokenServiceManager', () => {
                 assert(codewhispererStubFactory.calledTwice)
                 assert.deepStrictEqual(codewhispererStubFactory.lastCall.args, [
                     'eu-central-1',
-                    'amazon-q-in-eu-central-1-endpoint',
+                    TEST_ENDPOINT_EU_CENTRAL_1,
                 ])
             })
 
@@ -319,7 +360,7 @@ describe('AmazonQTokenServiceManager', () => {
                 assert.strictEqual(amazonQTokenServiceManager.getState(), 'INITIALIZED')
                 assert.strictEqual(amazonQTokenServiceManager.getConnectionType(), 'identityCenter')
                 assert.strictEqual(amazonQTokenServiceManager.getActiveProfileArn(), 'profile-iad')
-                assert(codewhispererStubFactory.calledOnceWithExactly('us-east-1', 'amazon-q-in-us-east-1-endpoint'))
+                assert(codewhispererStubFactory.calledOnceWithExactly('us-east-1', TEST_ENDPOINT_US_EAST_1))
 
                 // Profile change to invalid profile
 
@@ -349,10 +390,7 @@ describe('AmazonQTokenServiceManager', () => {
 
                 // CodeWhisperer Service was not recreated
                 assert(codewhispererStubFactory.calledOnce)
-                assert.deepStrictEqual(codewhispererStubFactory.lastCall.args, [
-                    'us-east-1',
-                    'amazon-q-in-us-east-1-endpoint',
-                ])
+                assert.deepStrictEqual(codewhispererStubFactory.lastCall.args, ['us-east-1', TEST_ENDPOINT_US_EAST_1])
             })
 
             it('handles invalid profile selection', async () => {
@@ -436,7 +474,7 @@ describe('AmazonQTokenServiceManager', () => {
                 assert.strictEqual(amazonQTokenServiceManager.getActiveProfileArn(), 'profile-fra')
                 assert.deepStrictEqual(codewhispererStubFactory.lastCall.args, [
                     'eu-central-1',
-                    'amazon-q-in-eu-central-1-endpoint',
+                    TEST_ENDPOINT_EU_CENTRAL_1,
                 ])
             })
 
@@ -537,7 +575,7 @@ describe('AmazonQTokenServiceManager', () => {
                 assert.strictEqual(amazonQTokenServiceManager.getActiveProfileArn(), 'profile-fra')
                 assert.deepStrictEqual(codewhispererStubFactory.lastCall.args, [
                     'eu-central-1',
-                    'amazon-q-in-eu-central-1-endpoint',
+                    TEST_ENDPOINT_EU_CENTRAL_1,
                 ])
             })
 
