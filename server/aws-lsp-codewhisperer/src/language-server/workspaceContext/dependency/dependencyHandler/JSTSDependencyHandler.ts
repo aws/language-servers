@@ -147,11 +147,11 @@ export class JSTSDependencyHandler extends LanguageDependencyHandler<JSTSDepende
             const packageJsonPath = jstsDependencyInfo.packageJsonPath
             this.logging.log(`Setting up js/ts dependency watcher for ${packageJsonPath}`)
             try {
-                const watcher = fs.watch(packageJsonPath, (eventType, filename) => {
+                const watcher = fs.watch(packageJsonPath, async (eventType, filename) => {
                     if (eventType === 'change') {
                         this.logging.log(`Change detected in ${packageJsonPath}`)
                         const updatedDependencyMap = this.generateDependencyMap(jstsDependencyInfo)
-                        this.compareAndUpdateDependencies(jstsDependencyInfo, updatedDependencyMap)
+                        await this.compareAndUpdateDependencies(jstsDependencyInfo, updatedDependencyMap)
                     }
                 })
                 this.dependencyWatchers.set(packageJsonPath, watcher)

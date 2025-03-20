@@ -3,6 +3,7 @@ import {
     CredentialsProvider,
     GetConfigurationFromServerParams,
     InitializeParams,
+    SDKInitializator,
     Server,
     Workspace,
     WorkspaceFolder,
@@ -28,11 +29,12 @@ export const WorkspaceContextServer =
             credentialsProvider: CredentialsProvider,
             workspace: Workspace,
             awsQRegion: string,
-            awsQEndpointUrl: string
+            awsQEndpointUrl: string,
+            sdkInitializator: SDKInitializator
         ) => CodeWhispererServiceToken
     ): Server =>
     features => {
-        const { logging, lsp, workspace, runtime, credentialsProvider, chat } = features
+        const { logging, lsp, workspace, runtime, credentialsProvider, sdkInitializator } = features
         let workspaceFolders: WorkspaceFolder[] = []
         let artifactManager: ArtifactManager
         let dependencyDiscoverer: DependencyDiscoverer
@@ -42,7 +44,7 @@ export const WorkspaceContextServer =
 
         const awsQRegion = runtime.getConfiguration('AWS_Q_REGION') ?? DEFAULT_AWS_Q_REGION
         const awsQEndpointUrl = runtime.getConfiguration('AWS_Q_ENDPOINT_URL') ?? DEFAULT_AWS_Q_ENDPOINT_URL
-        const cwsprClient = service(credentialsProvider, workspace, awsQRegion, awsQEndpointUrl)
+        const cwsprClient = service(credentialsProvider, workspace, awsQRegion, awsQEndpointUrl, sdkInitializator)
         lsp.addInitializer((params: InitializeParams) => {
             workspaceFolders = params.workspaceFolders || []
             if (params.workspaceFolders) {

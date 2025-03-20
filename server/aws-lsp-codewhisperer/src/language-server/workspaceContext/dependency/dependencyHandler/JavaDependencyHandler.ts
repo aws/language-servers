@@ -76,11 +76,11 @@ export class JavaDependencyHandler extends LanguageDependencyHandler<JavaDepende
             const dotClasspathPath = javaDependencyInfo.dotClasspathPath
             this.logging.log(`Setting up java dependency watcher for ${dotClasspathPath}`)
             try {
-                const watcher = fs.watch(dotClasspathPath, (eventType, filename) => {
+                const watcher = fs.watch(dotClasspathPath, async (eventType, filename) => {
                     if (eventType === 'change') {
                         this.logging.log(`Change detected in ${dotClasspathPath}`)
                         const updatedDependencyMap = this.generateDependencyMap(javaDependencyInfo)
-                        this.compareAndUpdateDependencies(javaDependencyInfo, updatedDependencyMap)
+                        await this.compareAndUpdateDependencies(javaDependencyInfo, updatedDependencyMap)
                     }
                 })
                 this.dependencyWatchers.set(dotClasspathPath, watcher)

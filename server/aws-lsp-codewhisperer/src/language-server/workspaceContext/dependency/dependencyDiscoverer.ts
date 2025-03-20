@@ -145,7 +145,7 @@ export class DependencyDiscoverer {
         this.dependencyHandlerRegistry.forEach(async dependencyHandler => {
             dependencyHandler.initiateDependencyMap()
             dependencyHandler.setupWatchers()
-            dependencyHandler.zipDependencyMap()
+            await dependencyHandler.zipDependencyMap()
         })
     }
 

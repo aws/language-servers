@@ -89,7 +89,7 @@ export class PythonDependencyHandler extends LanguageDependencyHandler<PythonDep
         this.pythonDependencyInfos.forEach(pythonDependencyInfo => {
             pythonDependencyInfo.sitePackagesPaths.forEach(sitePackagesPath => {
                 try {
-                    const watcher = fs.watch(sitePackagesPath, { recursive: false }, (eventType, fileName) => {
+                    const watcher = fs.watch(sitePackagesPath, { recursive: false }, async (eventType, fileName) => {
                         if (!fileName) return
                         // Handle event types
                         if (eventType === 'rename') {
@@ -99,7 +99,7 @@ export class PythonDependencyHandler extends LanguageDependencyHandler<PythonDep
                             } else {
                                 this.handlePackageChange(sitePackagesPath, fileName, updatedDependencyMap)
                             }
-                            this.compareAndUpdateDependencies(pythonDependencyInfo, updatedDependencyMap)
+                            await this.compareAndUpdateDependencies(pythonDependencyInfo, updatedDependencyMap)
                         }
                     })
                     this.dependencyWatchers.set(sitePackagesPath, watcher)

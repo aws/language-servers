@@ -5,15 +5,14 @@ import {
     CreateUploadUrlRequest,
     CreateWorkspaceResponse,
     WorkspaceMetadata,
+    WorkspaceStatus,
 } from '../../client/token/codewhispererbearertokenclient'
 import { Logging } from '@aws/language-server-runtimes/server-interface'
 import { ArtifactManager, FileMetadata } from './artifactManager'
 import { findWorkspaceRootFolder, getSha256Async, uploadArtifactToS3 } from './util'
 
-export type RemoteWorkspaceState = 'CREATED' | 'PENDING' | 'READY' | 'CONNECTED' | 'DELETING'
-
 interface WorkspaceState {
-    remoteWorkspaceState: RemoteWorkspaceState
+    remoteWorkspaceState: WorkspaceStatus
     webSocketClient?: WebSocketClient
     workspaceId?: string
     requiresS3Upload?: boolean
@@ -162,7 +161,7 @@ export class WorkspaceFolderManager {
     private async pollWorkspaceUntilReadyOrStateChange(
         workspace: WorkspaceRoot,
         timeout: number = 300000 // 5 minutes default timeout
-    ): Promise<RemoteWorkspaceState> {
+    ): Promise<WorkspaceStatus> {
         return new Promise((resolve, reject) => {
             const startTime = Date.now()
             const initialState = this.workspaceMap.get(workspace)?.remoteWorkspaceState
@@ -398,7 +397,10 @@ export class WorkspaceFolderManager {
             const response = await this.cwsprClient.createUploadUrl(request)
             s3Url = response.uploadUrl
             // Override upload id to be workspace id
-            await uploadArtifactToS3(Buffer.from(fileMetadata.content), { ...response, uploadId: workspaceId })
+            await uploadArtifactToS3(
+                Buffer.isBuffer(fileMetadata.content) ? fileMetadata.content : Buffer.from(fileMetadata.content),
+                { ...response, uploadId: workspaceId }
+            )
         } catch (e: any) {
             this.logging.warn(`Error uploading file to S3: ${e.message}`)
         }
