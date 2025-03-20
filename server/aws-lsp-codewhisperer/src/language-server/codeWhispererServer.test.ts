@@ -20,6 +20,7 @@ import {
 import { CodeWhispererSession, SessionData, SessionManager } from './session/sessionManager'
 import {
     EMPTY_RESULT,
+    EXPECTED_NEXT_TOKEN,
     EXPECTED_REFERENCE,
     EXPECTED_RESPONSE_CONTEXT,
     EXPECTED_RESULT,
@@ -31,6 +32,7 @@ import {
     HELLO_WORLD_IN_CSHARP,
     HELLO_WORLD_LINE,
     HELLO_WORLD_WITH_WINDOWS_ENDING,
+    SAMPLE_SESSION_DATA,
     SINGLE_LINE_FILE_CUTOFF_INDEX,
     SOME_CLOSED_FILE,
     SOME_FILE,
@@ -334,6 +336,7 @@ describe('CodeWhisperer Server', () => {
                         references: undefined,
                     },
                 ],
+                partialResultToken: undefined,
             }
 
             const result = await features.doInlineCompletionWithReferences(
@@ -414,6 +417,7 @@ describe('CodeWhisperer Server', () => {
                         references: undefined,
                     },
                 ],
+                partialResultToken: undefined,
             }
 
             const result = await features.doInlineCompletionWithReferences(
@@ -446,6 +450,7 @@ describe('CodeWhisperer Server', () => {
                         references: undefined,
                     },
                 ],
+                partialResultToken: undefined,
             }
 
             const result = await features.doInlineCompletionWithReferences(
@@ -474,6 +479,57 @@ describe('CodeWhisperer Server', () => {
             )
             // Check the completion result
             assert.deepEqual(result, EMPTY_RESULT)
+        })
+
+        // pagination
+        it('returns next token from service', async () => {
+            service.generateSuggestions.returns(
+                Promise.resolve({
+                    suggestions: EXPECTED_SUGGESTION,
+                    responseContext: {
+                        ...EXPECTED_RESPONSE_CONTEXT,
+                        nextToken: EXPECTED_NEXT_TOKEN,
+                    },
+                })
+            )
+
+            const result = await features.doInlineCompletionWithReferences(
+                {
+                    textDocument: { uri: SOME_FILE.uri },
+                    position: { line: 0, character: 0 },
+                    context: { triggerKind: InlineCompletionTriggerKind.Invoked },
+                },
+                CancellationToken.None
+            )
+
+            assert.deepEqual(result, { ...EXPECTED_RESULT, partialResultToken: EXPECTED_NEXT_TOKEN })
+        })
+
+        it('handles partialResultToken in request', async () => {
+            const manager = SessionManager.getInstance()
+            manager.createSession(SAMPLE_SESSION_DATA)
+            await features.doInlineCompletionWithReferences(
+                {
+                    textDocument: { uri: SOME_FILE.uri },
+                    position: { line: 0, character: 0 },
+                    context: { triggerKind: InlineCompletionTriggerKind.Invoked },
+                    partialResultToken: EXPECTED_NEXT_TOKEN,
+                },
+                CancellationToken.None
+            )
+
+            const expectedGenerateSuggestionsRequest = {
+                fileContext: {
+                    filename: SOME_FILE.uri,
+                    programmingLanguage: { languageName: 'csharp' },
+                    leftFileContent: '',
+                    rightFileContent: HELLO_WORLD_IN_CSHARP,
+                },
+                maxResults: 5,
+                nextToken: EXPECTED_NEXT_TOKEN,
+            }
+
+            sinon.assert.calledOnceWithExactly(service.generateSuggestions, expectedGenerateSuggestionsRequest)
         })
 
         describe('Supplemental Context', () => {
@@ -787,6 +843,7 @@ describe('CodeWhisperer Server', () => {
                         ],
                     },
                 ],
+                partialResultToken: undefined,
             }
             service.generateSuggestions.returns(
                 Promise.resolve({
@@ -846,6 +903,7 @@ describe('CodeWhisperer Server', () => {
                         references: undefined,
                     },
                 ],
+                partialResultToken: undefined,
             }
             service.generateSuggestions.returns(
                 Promise.resolve({
@@ -1703,7 +1761,7 @@ describe('CodeWhisperer Server', () => {
             const EXPECTED_COMPLETION_RESPONSES = [
                 { sessionId: '', items: [] },
                 { sessionId: '', items: [] },
-                { sessionId: SESSION_IDS_LOG[2], items: EXPECTED_RESULT.items }, // Last session wins
+                { sessionId: SESSION_IDS_LOG[2], items: EXPECTED_RESULT.items, partialResultToken: undefined }, // Last session wins
             ]
             // Only last request must return completion items
             assert.deepEqual(getCompletionsResponses, EXPECTED_COMPLETION_RESPONSES)
