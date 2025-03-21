@@ -21,8 +21,8 @@
         "package": "webpack"
     },
     "dependencies": {
-        "@aws/chat-client-ui-types": "^0.1.5",
-        "@aws/language-server-runtimes-types": "^0.1.0",
+        "@aws/chat-client-ui-types": "^0.1.7",
+        "@aws/language-server-runtimes-types": "^0.1.5",
         "@aws/mynah-ui": "^4.25.0"
     },
     "devDependencies": {
