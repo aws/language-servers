@@ -77,7 +77,7 @@ export const QConfigurationServerToken =
                                 serverConfigurationProvider.listAvailableProfiles(),
                             ])
 
-                            return serverConfigurationProvider.isQDeveloperProfilesEnabled()
+                            return amazonQServiceManager.getEnableDeveloperProfileSupport()
                                 ? { customizations, developerProfiles }
                                 : { customizations }
                         case Q_CUSTOMIZATIONS_CONFIGURATION_SECTION:
@@ -124,14 +124,8 @@ export class ServerConfigurationProvider {
         )
     }
 
-    public isQDeveloperProfilesEnabled(): boolean {
-        const enableDeveloperProfileSupport = this.serviceManager.getEnableDeveloperProfileSupport()
-
-        return enableDeveloperProfileSupport !== undefined ? enableDeveloperProfileSupport : false
-    }
-
     async listAvailableProfiles(): Promise<AmazonQDeveloperProfile[]> {
-        if (!this.isQDeveloperProfilesEnabled()) {
+        if (!this.serviceManager.getEnableDeveloperProfileSupport()) {
             this.logging.debug('Q developer profiles disabled - returning empty list')
             return []
         }

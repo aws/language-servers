@@ -421,12 +421,21 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
     private createCodewhispererServiceInstance(connectionType: 'builderId' | 'identityCenter', region?: string) {
         this.logServiceState('Initializing CodewhispererService')
         let awsQRegion = this.features.runtime.getConfiguration('AWS_Q_REGION') ?? DEFAULT_AWS_Q_REGION
-        let awsQEndpointUrl = this.features.runtime.getConfiguration('AWS_Q_ENDPOINT_URL') ?? DEFAULT_AWS_Q_ENDPOINT_URL
+        let awsQEndpointUrl: string | undefined =
+            this.features.runtime.getConfiguration('AWS_Q_ENDPOINT_URL') ?? DEFAULT_AWS_Q_ENDPOINT_URL
 
         if (region) {
             awsQRegion = region
             // @ts-ignore
             awsQEndpointUrl = AWS_Q_ENDPOINTS[region]
+        }
+
+        if (!awsQEndpointUrl) {
+            this.log(
+                `Unable to determine endpoint (found: ${awsQEndpointUrl}) for region: ${awsQRegion}, falling back to default region and endpoint`
+            )
+            awsQRegion = DEFAULT_AWS_Q_REGION
+            awsQEndpointUrl = DEFAULT_AWS_Q_ENDPOINT_URL
         }
 
         this.cachedCodewhispererService = this.serviceFactory(awsQRegion, awsQEndpointUrl)
@@ -514,7 +523,7 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
         return this.serviceFactory
     }
 
-    public getEnableDeveloperProfileSupport(): boolean | undefined {
-        return this.enableDeveloperProfileSupport
+    public getEnableDeveloperProfileSupport(): boolean {
+        return this.enableDeveloperProfileSupport === undefined ? false : this.enableDeveloperProfileSupport
     }
 }

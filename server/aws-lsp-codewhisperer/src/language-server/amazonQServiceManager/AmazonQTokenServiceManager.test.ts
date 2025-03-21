@@ -16,7 +16,6 @@ import {
     ResponseError,
 } from '@aws/language-server-runtimes/protocol'
 import { AWS_Q_ENDPOINTS, DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../../constants'
-import { SsoConnectionType } from '@aws/language-server-runtimes/server-interface'
 import * as qDeveloperProfilesFetcherModule from './qDeveloperProfiles'
 import { setCredentialsForAmazonQTokenServiceManagerFactory } from '../testUtils'
 
@@ -506,10 +505,7 @@ describe('AmazonQTokenServiceManager', () => {
                 assert.strictEqual(amazonQTokenServiceManager.getState(), 'INITIALIZED')
                 assert.strictEqual(amazonQTokenServiceManager.getConnectionType(), 'identityCenter')
                 assert.strictEqual(amazonQTokenServiceManager.getActiveProfileArn(), 'profile-iad')
-                assert.deepStrictEqual(codewhispererStubFactory.lastCall.args, [
-                    'us-east-1',
-                    'amazon-q-in-us-east-1-endpoint',
-                ])
+                assert.deepStrictEqual(codewhispererStubFactory.lastCall.args, ['us-east-1', TEST_ENDPOINT_US_EAST_1])
 
                 // Updaing profile
                 const pendingProfileUpdate = features.doUpdateConfiguration(
