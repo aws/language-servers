@@ -7,18 +7,14 @@ import {
     CredentialsProvider,
     Telemetry,
     Logging,
-    Workspace,
     Position,
     InsertToCursorPositionParams,
     TextDocumentEdit,
-    SDKInitializator,
-    SDKClientConstructorV2,
-    SDKClientConstructorV3,
 } from '@aws/language-server-runtimes/server-interface'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import * as assert from 'assert'
-import sinon from 'ts-sinon'
 import { createIterableResponse, setCredentialsForAmazonQTokenServiceManagerFactory } from '../testUtils'
+import sinon from 'ts-sinon'
 import { ChatController } from './chatController'
 import { ChatSessionManagementService } from './chatSessionManagementService'
 import { ChatSessionService } from './chatSessionService'
@@ -27,9 +23,6 @@ import { DocumentContextExtractor } from './contexts/documentContext'
 import * as utils from './utils'
 import { DEFAULT_HELP_FOLLOW_UP_PROMPT, HELP_MESSAGE } from './constants'
 import { TelemetryService } from '../telemetryService'
-import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../../constants'
-import { Service } from 'aws-sdk'
-import { ServiceConfigurationOptions } from 'aws-sdk/lib/service'
 import { AmazonQTokenServiceManager } from '../amazonQServiceManager/AmazonQTokenServiceManager'
 
 describe('ChatController', () => {
@@ -80,9 +73,6 @@ describe('ChatController', () => {
         },
     } as Logging
 
-    const awsQRegion: string = DEFAULT_AWS_Q_REGION
-    const awsQEndpointUrl: string = DEFAULT_AWS_Q_ENDPOINT_URL
-
     let sendMessageStub: sinon.SinonStub
     let disposeStub: sinon.SinonStub
     let activeTabSpy: {
@@ -97,7 +87,6 @@ describe('ChatController', () => {
     let chatSessionManagementService: ChatSessionManagementService
     let chatController: ChatController
     let telemetryService: TelemetryService
-    let invokeSendTelemetryEventStub: sinon.SinonStub
     let telemetry: Telemetry
 
     const setCredentials = setCredentialsForAmazonQTokenServiceManagerFactory(() => testFeatures)
@@ -139,18 +128,6 @@ describe('ChatController', () => {
 
         disposeStub = sinon.stub(ChatSessionService.prototype, 'dispose')
 
-        const mockSdkRuntimeConfigurator: SDKInitializator = Object.assign(
-            // Default callable function for v3 clients
-            <T, P>(Ctor: SDKClientConstructorV3<T, P>, current_config: P): T => new Ctor({ ...current_config }),
-            // Property for v2 clients
-            {
-                v2: <T extends Service, P extends ServiceConfigurationOptions>(
-                    Ctor: SDKClientConstructorV2<T, P>,
-                    current_config: P
-                ): T => new Ctor({ ...current_config }),
-            }
-        )
-
         AmazonQTokenServiceManager.resetInstance()
 
         amazonQServiceManager = AmazonQTokenServiceManager.getInstance(testFeatures)
@@ -169,24 +146,12 @@ describe('ChatController', () => {
             onCredentialsDeleted: sinon.stub(),
         }
 
-        const mockWorkspace = {} as unknown as Workspace
-
         telemetry = {
             emitMetric: sinon.stub(),
             onClientTelemetry: sinon.stub(),
         }
 
-        telemetryService = new TelemetryService(
-            mockCredentialsProvider,
-            'bearer',
-            telemetry,
-            logging,
-            mockWorkspace,
-            awsQRegion,
-            awsQEndpointUrl,
-            mockSdkRuntimeConfigurator
-        )
-        invokeSendTelemetryEventStub = sinon.stub(telemetryService, 'sendTelemetryEvent' as any)
+        telemetryService = new TelemetryService(amazonQServiceManager, mockCredentialsProvider, telemetry, logging)
         chatController = new ChatController(chatSessionManagementService, testFeatures, telemetryService)
     })
 
