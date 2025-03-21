@@ -339,7 +339,8 @@ export class ArtifactManager {
         this.createFolderIfNotExist(zipDirectoryPath)
         const zipFileName = `${zipChunkIndex}_${Date.now()}.zip`
         const zipPath = path.join(zipDirectoryPath, zipFileName)
-        const zipBuffer = await this.createZipBufferForJar(files)
+        const zipBuffer =
+            language == 'java' ? await this.createZipBufferForJar(files) : await this.createZipBuffer(files)
         await fs.promises.writeFile(zipPath, zipBuffer)
 
         const stats = fs.statSync(zipPath)
