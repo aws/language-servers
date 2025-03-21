@@ -39,10 +39,7 @@ describe('QChatServer', () => {
 
         const chatServerFactory: Server = QChatServer()
 
-        disposeServer = chatServerFactory(testFeatures)
-
-        // Trigger initialize notification
-        await testFeatures.lsp.onInitialized.firstCall.firstArg()
+        await testFeatures.start(chatServerFactory)
     })
 
     afterEach(() => {
@@ -56,7 +53,7 @@ describe('QChatServer', () => {
     })
 
     it('dispose should dispose all chat session services', () => {
-        disposeServer()
+        testFeatures.dispose()
 
         sinon.assert.calledOnce(disposeStub)
     })

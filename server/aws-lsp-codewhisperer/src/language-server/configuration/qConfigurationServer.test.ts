@@ -33,18 +33,17 @@ const getInitializeParams = (developerProfiles = true): InitializeParams => {
 describe('QConfigurationServerToken', () => {
     let testFeatures: TestFeatures
     let amazonQServiceManager: AmazonQTokenServiceManager
-    let disposeServer: () => void
     let listAvailableProfilesStub: sinon.SinonStub
     let listAvailableCustomizationsStub: sinon.SinonStub
 
-    beforeEach(() => {
+    beforeEach(async () => {
         testFeatures = new TestFeatures()
         testFeatures.lsp.getClientInitializeParams.returns(getInitializeParams())
 
         amazonQServiceManager = AmazonQTokenServiceManager.getInstance(testFeatures)
 
         const codeWhispererService = stubInterface<CodeWhispererServiceToken>()
-        const configurationServerFactory: Server = QConfigurationServerToken()
+        const configurationServer: Server = QConfigurationServerToken()
 
         amazonQServiceManager.setServiceFactory(sinon.stub().returns(codeWhispererService))
 
@@ -54,9 +53,7 @@ describe('QConfigurationServerToken', () => {
         )
         listAvailableProfilesStub = sinon.stub(ServerConfigurationProvider.prototype, 'listAvailableProfiles')
 
-        disposeServer = configurationServerFactory(testFeatures)
-        // trigger initialize notification
-        testFeatures.lsp.onInitialized.firstCall.firstArg()
+        await testFeatures.start(configurationServer)
     })
 
     afterEach(() => {

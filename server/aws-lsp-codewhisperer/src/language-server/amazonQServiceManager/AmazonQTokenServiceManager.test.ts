@@ -165,8 +165,6 @@ describe('AmazonQTokenServiceManager', () => {
 
             // @ts-ignore
             AWS_Q_ENDPOINTS[testRegion] = testEndpoint
-
-            features.lsp.getClientInitializeParams.reset()
         })
 
         afterEach(() => {
