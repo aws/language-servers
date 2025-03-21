@@ -47,7 +47,7 @@ export const mockedProfiles: qDeveloperProfilesFetcherModule.AmazonQDeveloperPro
 const TEST_ENDPOINT_US_EAST_1 = 'http://amazon-q-in-us-east-1-endpoint'
 const TEST_ENDPOINT_EU_CENTRAL_1 = 'http://amazon-q-in-eu-central-1-endpoint'
 
-describe.only('AmazonQTokenServiceManager', () => {
+describe('AmazonQTokenServiceManager', () => {
     let codewhispererServiceStub: StubbedInstance<CodeWhispererServiceToken>
     let codewhispererStubFactory: sinon.SinonStub<any[], StubbedInstance<CodeWhispererServiceToken>>
     let sdkInitializatorSpy: sinon.SinonSpy
@@ -161,7 +161,6 @@ describe.only('AmazonQTokenServiceManager', () => {
             assert.strictEqual(amazonQTokenServiceManager.getState(), 'INITIALIZED')
             assert.strictEqual(amazonQTokenServiceManager.getConnectionType(), 'builderId')
             assert(!(amazonQTokenServiceManager['cachedCodewhispererService'] === undefined))
-            assert(!(amazonQTokenServiceManager['cachedStreamingClient'] === undefined))
             assert.strictEqual((amazonQTokenServiceManager as any)['activeIdcProfile'], undefined)
         })
     })
@@ -356,7 +355,7 @@ describe.only('AmazonQTokenServiceManager', () => {
                 assert(codewhispererStubFactory.calledOnceWithExactly('us-east-1', TEST_ENDPOINT_US_EAST_1))
 
                 assert(streamingClient2 instanceof CodeWhispererStreaming)
-                assert.strictEqual(streamingClient1, streamingClient2)
+                assert.notStrictEqual(streamingClient1, streamingClient2)
                 assert.strictEqual(await streamingClient2.config.region(), 'us-east-1')
             })
 

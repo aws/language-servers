@@ -79,11 +79,12 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
     private features!: Features
     private logging!: Logging
     private cachedCodewhispererService?: CodeWhispererServiceToken
-    private cachedStreamingClient?: CodeWhispererStreaming
     private enableDeveloperProfileSupport?: boolean
     private configurationCache = new Map()
     private activeIdcProfile?: AmazonQDeveloperProfile
     private connectionType?: SsoConnectionType
+    private region?: string
+    private endpoint?: string
     /**
      * Internal state of Service connection, based on status of bearer token and Amazon Q Developer profile selection.
      * Supported states:
@@ -426,22 +427,21 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
     }
 
     public getStreamingClient(): CodeWhispererStreaming {
-        this.log('Getting cached instance of CodeWhispererStreaming client')
+        this.log('Getting instance of CodeWhispererStreaming client')
 
         // Trigger checks in token service
         const tokenService = this.getCodewhispererService()
 
-        if (!tokenService || !this.cachedStreamingClient) {
+        if (!tokenService || !this.region || !this.endpoint) {
             throw new AmazonQServiceNotInitializedError()
         }
 
-        return this.cachedStreamingClient
+        return this.streamingClientFactory(this.region, this.endpoint)
     }
 
     private resetCodewhispererService() {
         this.cachedCodewhispererService?.abortInflightRequests()
         this.cachedCodewhispererService = undefined
-        this.cachedStreamingClient = undefined
         this.activeIdcProfile = undefined
     }
 
@@ -467,9 +467,10 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
 
         // Cache active region and endpoint selection
         this.connectionType = connectionType
+        this.region = awsQRegion
+        this.endpoint = awsQEndpoint
 
         this.cachedCodewhispererService = this.serviceFactory(awsQRegion, awsQEndpoint)
-        this.cachedStreamingClient = this.streamingClientFactory(awsQRegion, awsQEndpoint)
 
         this.log(
             `CodeWhispererToken service for connection type ${connectionType} was initialized, region=${awsQRegion}`
@@ -516,6 +517,8 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
             throw new Error(MISSING_BEARER_TOKEN_ERROR)
         }
 
+        // TODO: Follow-up with creating CodeWhispererStreaming client which supports inplace access to CredentialsProvider instead of caching static value.
+        // Without this, we need more complex mechanism for managing token change state when caching streaming client.
         const streamingClient = this.features.sdkInitializator(CodeWhispererStreaming, {
             region,
             endpoint,
@@ -523,6 +526,7 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
             retryStrategy: new ConfiguredRetryStrategy(0, (attempt: number) => 500 + attempt ** 10),
             customUserAgent: this.getCustomUserAgent(),
         })
+        this.log(`Created streaming client instance region=${region}, endpoint=${endpoint}`)
 
         return streamingClient
     }
