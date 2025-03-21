@@ -312,7 +312,7 @@ export class ArtifactManager {
         this.createFolderIfNotExist(zipDirectoryPath)
         const zipFileName = `${zipChunkIndex}_${Date.now()}.zip`
         const zipPath = path.join(zipDirectoryPath, zipFileName)
-        const zipBuffer = await this.createZipBuffer(files)
+        const zipBuffer = await this.createZipBufferForJar(files)
         await fs.promises.writeFile(zipPath, zipBuffer)
 
         const stats = fs.statSync(zipPath)
@@ -473,6 +473,23 @@ export class ArtifactManager {
         }
         return await zip.generateAsync({ type: 'nodebuffer' })
     }
+
+    private async createZipBufferForJar(files: FileMetadata[]): Promise<Buffer> {
+        const zip = new JSZip()
+        for (const file of files) {
+            // Read the jar file as a buffer
+            const jarContent = await fs.promises.readFile(file.filePath)
+            zip.file(file.relativePath, jarContent, {
+                binary: true,
+                compression: 'STORE'
+            })
+        }
+        return await zip.generateAsync({
+            type: 'nodebuffer',
+            compression: 'STORE'
+        })
+    }
+
 
     private findWorkspaceFolder(workspace: WorkspaceFolder): WorkspaceFolder | undefined {
         for (const [existingWorkspace] of this.filesByWorkspaceFolderAndLanguage) {
