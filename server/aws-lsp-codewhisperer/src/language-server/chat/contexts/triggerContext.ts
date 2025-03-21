@@ -32,7 +32,8 @@ export class QChatTriggerContext {
     getChatParamsFromTrigger(
         params: ChatParams,
         triggerContext: TriggerContext,
-        customizationArn?: string
+        customizationArn?: string,
+        profileArn?: string
     ): SendMessageCommandInput {
         const { prompt } = params
 
@@ -60,6 +61,7 @@ export class QChatTriggerContext {
                 },
                 customizationArn,
             },
+            profileArn,
         }
 
         return data

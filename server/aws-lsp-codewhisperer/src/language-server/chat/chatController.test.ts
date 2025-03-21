@@ -18,7 +18,7 @@ import {
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import * as assert from 'assert'
 import sinon from 'ts-sinon'
-import { createIterableResponse } from '../testUtils'
+import { createIterableResponse, setCredentialsForAmazonQTokenServiceManagerFactory } from '../testUtils'
 import { ChatController } from './chatController'
 import { ChatSessionManagementService } from './chatSessionManagementService'
 import { ChatSessionService } from './chatSessionService'
@@ -27,10 +27,10 @@ import { DocumentContextExtractor } from './contexts/documentContext'
 import * as utils from './utils'
 import { DEFAULT_HELP_FOLLOW_UP_PROMPT, HELP_MESSAGE } from './constants'
 import { TelemetryService } from '../telemetryService'
-import { TextEdit } from 'vscode-languageserver-textdocument'
 import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../../constants'
 import { Service } from 'aws-sdk'
 import { ServiceConfigurationOptions } from 'aws-sdk/lib/service'
+import { AmazonQTokenServiceManager } from '../amazonQServiceManager/AmazonQTokenServiceManager'
 
 describe('ChatController', () => {
     const mockTabId = 'tab-1'
@@ -93,11 +93,14 @@ describe('ChatController', () => {
     let emitConversationMetricStub: sinon.SinonStub
 
     let testFeatures: TestFeatures
+    let amazonQServiceManager: AmazonQTokenServiceManager
     let chatSessionManagementService: ChatSessionManagementService
     let chatController: ChatController
     let telemetryService: TelemetryService
     let invokeSendTelemetryEventStub: sinon.SinonStub
     let telemetry: Telemetry
+
+    const setCredentials = setCredentialsForAmazonQTokenServiceManagerFactory(() => testFeatures)
 
     beforeEach(() => {
         sendMessageStub = sinon.stub(CodeWhispererStreaming.prototype, 'sendMessage').callsFake(() => {
@@ -114,6 +117,21 @@ describe('ChatController', () => {
         })
 
         testFeatures = new TestFeatures()
+
+        // @ts-ignore
+        const cachedInitializeParams: InitializeParams = {
+            initializationOptions: {
+                aws: {
+                    awsClientCapabilities: {
+                        q: {
+                            developerProfiles: false,
+                        },
+                    },
+                },
+            },
+        }
+        testFeatures.lsp.getClientInitializeParams.returns(cachedInitializeParams)
+        setCredentials('builderId')
 
         activeTabSpy = sinon.spy(ChatTelemetryController.prototype, 'activeTabId', ['get', 'set'])
         removeConversationSpy = sinon.spy(ChatTelemetryController.prototype, 'removeConversation')
@@ -133,11 +151,11 @@ describe('ChatController', () => {
             }
         )
 
+        AmazonQTokenServiceManager.resetInstance()
+
+        amazonQServiceManager = AmazonQTokenServiceManager.getInstance(testFeatures)
         chatSessionManagementService = ChatSessionManagementService.getInstance()
-            .withCredentialsProvider(testFeatures.credentialsProvider)
-            .withCodeWhispererRegion(awsQRegion)
-            .withCodeWhispererEndpoint(awsQEndpointUrl)
-            .withSdkRuntimeConfigurator(mockSdkRuntimeConfigurator)
+        chatSessionManagementService.withAmazonQServiceManager(amazonQServiceManager)
 
         const mockCredentialsProvider: CredentialsProvider = {
             hasCredentials: sinon.stub().returns(true),
@@ -255,15 +273,6 @@ describe('ChatController', () => {
     describe('onChatPrompt', () => {
         beforeEach(() => {
             chatController.onTabAdd({ tabId: mockTabId })
-        })
-        it("throws error if credentials provider doesn't exist", async () => {
-            ChatSessionManagementService.getInstance().withCredentialsProvider(undefined as any)
-            const result = await chatController.onChatPrompt(
-                { tabId: 'XXXX', prompt: { prompt: 'Hello' } },
-                mockCancellationToken
-            )
-
-            assert.ok(result instanceof ResponseError)
         })
 
         it('read all the response streams and return compiled results', async () => {
