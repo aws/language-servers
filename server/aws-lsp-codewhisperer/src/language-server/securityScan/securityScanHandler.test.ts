@@ -8,6 +8,7 @@ import { StartCodeAnalysisRequest } from '../../client/token/codewhispererbearer
 import { CodeWhispererServiceToken } from '../codeWhispererService'
 import { SecurityScanHandler } from './securityScanHandler'
 import { RawCodeScanIssue } from './types'
+import * as ScanConstants from './constants'
 
 const mockCodeScanFindings = JSON.stringify([
     {
@@ -99,6 +100,8 @@ describe('securityScanHandler', () => {
             const requestParams: StartCodeAnalysisRequest = {
                 artifacts: { SourceCode: 'dummy-upload-id' },
                 programmingLanguage: { languageName: 'csharp' },
+                scope: ScanConstants.projectCodeAnalysisScope,
+                codeScanName: 'dummy-scan-name',
             }
             const res = await securityScanhandler.createScanJob(artifactMap, 'csharp', 'dummy-scan-name')
             simon.assert.calledOnceWithExactly(client.startCodeAnalysis, requestParams)
