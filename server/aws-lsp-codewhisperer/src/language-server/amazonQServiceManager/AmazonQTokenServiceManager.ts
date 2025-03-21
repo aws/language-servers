@@ -38,6 +38,7 @@ import {
     signalsAWSQDeveloperProfilesEnabled,
 } from './qDeveloperProfiles'
 import { getUserAgent } from '../utilities/telemetryUtils'
+import { getBearerTokenFromProvider } from '../utils'
 
 export interface Features {
     lsp: Lsp
@@ -511,22 +512,18 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
     }
 
     private streamingClientFactory(region: string, endpoint: string): CodeWhispererStreaming {
-        const credentials = this.features.credentialsProvider.getCredentials('bearer') as BearerCredentials
-
-        if (!credentials || !credentials.token) {
-            throw new Error(MISSING_BEARER_TOKEN_ERROR)
-        }
+        const token = getBearerTokenFromProvider(this.features.credentialsProvider)
 
         // TODO: Follow-up with creating CodeWhispererStreaming client which supports inplace access to CredentialsProvider instead of caching static value.
         // Without this, we need more complex mechanism for managing token change state when caching streaming client.
         const streamingClient = this.features.sdkInitializator(CodeWhispererStreaming, {
             region,
             endpoint,
-            token: { token: credentials.token },
+            token: { token: token },
             retryStrategy: new ConfiguredRetryStrategy(0, (attempt: number) => 500 + attempt ** 10),
             customUserAgent: this.getCustomUserAgent(),
         })
-        this.log(`Created streaming client instance region=${region}, endpoint=${endpoint}`)
+        this.logging.debug(`Created streaming client instance region=${region}, endpoint=${endpoint}`)
 
         return streamingClient
     }
