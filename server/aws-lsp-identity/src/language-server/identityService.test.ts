@@ -179,6 +179,41 @@ describe('IdentityService', () => {
             expect(autoRefresher.watch.calledOnce).to.be.false
         })
 
+        it('Can login with cache error if loginOnInvalidToken is true.', async () => {
+            const err = new Error('test created error')
+            ssoCache.getSsoToken = (() => Promise.reject(err)) as any
+            const actual = await sut.getSsoToken(
+                {
+                    clientName: 'my-client',
+                    source: { kind: SsoTokenSourceKind.IamIdentityCenter, profileName: 'my-profile' },
+                },
+                CancellationToken.None
+            )
+
+            expect(actual.ssoToken.id).to.equal('my-sso-session')
+            expect(actual.ssoToken.accessToken).to.equal('my-access-token')
+            expect(autoRefresher.watch.calledOnce).to.be.true
+        })
+
+        it('Returns existing SSO token.', async () => {
+            ssoCache.getSsoToken = (() =>
+                Promise.resolve({
+                    accessToken: 'my-other-access-token',
+                })) as any
+            const actual = await sut.getSsoToken(
+                {
+                    clientName: 'my-client',
+                    source: { kind: SsoTokenSourceKind.IamIdentityCenter, profileName: 'my-profile' },
+                },
+                CancellationToken.None
+            )
+
+            expect(actual.ssoToken.id).to.equal('my-sso-session')
+            expect(actual.ssoToken.accessToken).to.equal('my-other-access-token')
+            expect(authFlowFn.called).to.be.false
+            expect(autoRefresher.watch.calledOnce).to.be.true
+        })
+
         it('Throws when no SSO token cached and loginOnInvalidToken is false.', async () => {
             const error = await expect(
                 sut.getSsoToken(
@@ -195,6 +230,27 @@ describe('IdentityService', () => {
             ).rejectedWith(Error)
 
             expect(error.message).to.equal('SSO token not found.')
+            expect(autoRefresher.watch.calledOnce).to.be.false
+        })
+
+        it('Throws when SSO retrieval throws and loginOnInvalidToken is false.', async () => {
+            const err = new Error('test created error')
+            ssoCache.getSsoToken = (() => Promise.reject(err)) as any
+
+            await expect(
+                sut.getSsoToken(
+                    {
+                        clientName: 'my-client',
+                        source: {
+                            kind: SsoTokenSourceKind.AwsBuilderId,
+                            ssoRegistrationScopes: ['sso:account:access'],
+                        },
+                        options: { loginOnInvalidToken: false },
+                    },
+                    CancellationToken.None
+                )
+            ).rejectedWith(err)
+
             expect(autoRefresher.watch.calledOnce).to.be.false
         })
     })
