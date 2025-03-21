@@ -7,6 +7,7 @@ import {
 import got from 'got'
 import { md5 } from 'js-md5'
 import * as path from 'path'
+import { v4 as uuidv4 } from 'uuid'
 
 import {
     ArtifactMap,
@@ -99,11 +100,14 @@ export class SecurityScanHandler {
     }
 
     async createScanJob(artifactMap: ArtifactMap, languageName: string) {
+        const scanName = uuidv4()
         const req: StartCodeAnalysisRequest = {
             artifacts: artifactMap,
             programmingLanguage: {
                 languageName,
             },
+            scope: `PROJECT`,
+            codeScanName: scanName,
         }
         this.logging.log(`Creating scan job...`)
         try {
@@ -120,7 +124,7 @@ export class SecurityScanHandler {
         let status = 'Pending'
         let timer = 0
         const codeScanJobPollingIntervalSeconds = 1
-        const codeScanJobTimeoutSeconds = 50
+        const codeScanJobTimeoutSeconds = 900
         // eslint-disable-next-line no-constant-condition
         while (true) {
             const req: GetCodeAnalysisRequest = {
