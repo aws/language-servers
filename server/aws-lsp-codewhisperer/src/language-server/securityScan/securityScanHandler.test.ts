@@ -74,7 +74,10 @@ describe('securityScanHandler', () => {
 
         it('returns correct source code', async () => {
             const expectedSourceCode = 'dummy-upload-id'
-            const res = await securityScanhandler.createCodeResourcePresignedUrlHandler(Buffer.from('dummy-data'))
+            const res = await securityScanhandler.createCodeResourcePresignedUrlHandler(
+                Buffer.from('dummy-data'),
+                'dummy-scan-name'
+            )
             simon.assert.callCount(putStub, 1)
             assert.equal(res.SourceCode, expectedSourceCode)
         })
@@ -97,7 +100,7 @@ describe('securityScanHandler', () => {
                 artifacts: { SourceCode: 'dummy-upload-id' },
                 programmingLanguage: { languageName: 'csharp' },
             }
-            const res = await securityScanhandler.createScanJob(artifactMap, 'csharp')
+            const res = await securityScanhandler.createScanJob(artifactMap, 'csharp', 'dummy-scan-name')
             simon.assert.calledOnceWithExactly(client.startCodeAnalysis, requestParams)
             assert.equal(res.jobId, 'dummy-job-id')
             assert.equal(res.status, 'Pending')
