@@ -26,7 +26,7 @@ export class WorkspaceFolderManager {
     private logging: Logging
     private artifactManager: ArtifactManager
     private workspaceMap: Map<WorkspaceRoot, WorkspaceState>
-    private readonly pollInterval: number = 15 * 1000 // 15 seconds
+    private readonly pollInterval: number = 5 * 1000 // 5 seconds
     private static instance: WorkspaceFolderManager | undefined
     private workspaceFolders: WorkspaceFolder[]
     private credentialsProvider: CredentialsProvider
@@ -166,48 +166,6 @@ export class WorkspaceFolderManager {
         })
     }
 
-    private async pollWorkspaceUntilReadyOrStateChange(
-        workspace: WorkspaceRoot,
-        timeout: number = 300000 // 5 minutes default timeout
-    ): Promise<WorkspaceStatus> {
-        return new Promise((resolve, reject) => {
-            const startTime = Date.now()
-            const initialState = this.workspaceMap.get(workspace)?.remoteWorkspaceState
-
-            if (!initialState) {
-                return reject(`Can't find initial state of the workspace`)
-            }
-            if (initialState === 'READY' || initialState === 'CONNECTED') {
-                return resolve(initialState)
-            }
-
-            const pollIntervalId = setInterval(async () => {
-                try {
-                    this.logging.log(`Polling workspace ${workspace} for state change`)
-                    const { metadata, optOut } = await this.listWorkspaceMetadata(workspace)
-                    if (optOut) {
-                        clearInterval(pollIntervalId)
-                        return reject(new Error(`Workspace ${workspace} is opted out`))
-                    }
-                    const latestState = metadata?.workspaceStatus
-
-                    if (latestState && latestState !== initialState) {
-                        clearInterval(pollIntervalId)
-                        return resolve(latestState)
-                    }
-
-                    if (Date.now() - startTime > timeout) {
-                        clearInterval(pollIntervalId)
-                        return reject(new Error(`Polling timeout for workspace ${workspace}`))
-                    }
-                } catch (error) {
-                    clearInterval(pollIntervalId)
-                    return reject(error)
-                }
-            }, this.pollInterval)
-        })
-    }
-
     private async establishConnection(workspace: WorkspaceRoot) {
         const existingState = this.workspaceMap.get(workspace)
         this.logging.log(`Establishing connection to ${workspace}`)
@@ -256,23 +214,6 @@ export class WorkspaceFolderManager {
         this.workspaceMap.clear()
     }
 
-    private optOutCheckScheduler() {
-        setInterval(
-            async () => {
-                const workspaceMap = this.getWorkspaces()
-                for (const [workspace, workspaceState] of workspaceMap) {
-                    this.logging.log(`Checking opt out status for workspace ${workspace}`)
-                    const { metadata, optOut } = await this.listWorkspaceMetadata(workspace)
-                    if (optOut) {
-                        this.logging.log(`Workspace ${workspace} is opted out`)
-                        await this.clearWorkspaceResources(workspace, workspaceState)
-                    }
-                }
-            },
-            5 * 60 * 1000
-        )
-    }
-
     private async handleNewWorkspace(workspace: WorkspaceRoot, queueEvents?: any[]) {
         this.logging.log(`Processing new workspace ${workspace}`)
 
@@ -301,24 +242,60 @@ export class WorkspaceFolderManager {
             // Create new workspace if it doesn't exist
             await this.createNewWorkspace(workspace)
         }
+        this.startWorkspaceStatusMonitor(workspace)
+    }
 
-        // Handle state changes
-        try {
-            const latestState = await this.pollWorkspaceUntilReadyOrStateChange(workspace)
+    private startWorkspaceStatusMonitor(workspace: WorkspaceRoot) {
+        const statusCheck = setInterval(async () => {
+            try {
+                const workspaceState = this.workspaceMap.get(workspace)
+                if (!workspaceState) {
+                    clearInterval(statusCheck)
+                    return
+                }
 
-            switch (latestState) {
-                case 'READY':
-                    await this.establishConnection(workspace)
-                    break
-                case 'CREATED':
-                    await this.createNewWorkspace(workspace)
-                    break
-                default:
-                    this.logging.warn(`Unexpected workspace state: ${latestState}`)
+                const { metadata, optOut } = await this.listWorkspaceMetadata(workspace)
+
+                if (optOut) {
+                    this.logging.log(`Workspace ${workspace} is opted out, stopping monitor`)
+                    await this.clearWorkspaceResources(workspace, workspaceState)
+                    clearInterval(statusCheck)
+                    return
+                }
+
+                if (!metadata) {
+                    return
+                }
+
+                this.updateWorkspaceEntry(workspace, {
+                    ...workspaceState,
+                    remoteWorkspaceState: metadata.workspaceStatus,
+                })
+
+                switch (metadata.workspaceStatus) {
+                    case 'READY':
+                        // Check if connection exists
+                        const client = workspaceState.webSocketClient
+                        if (!client || !client.isConnected()) {
+                            this.logging.log(
+                                `Workspace ${workspace} is ready but no connection exists or connection lost`
+                            )
+                            await this.establishConnection(workspace)
+                        }
+                        break
+                    case 'PENDING':
+                        // Do nothing while pending
+                        break
+                    case 'CREATED':
+                        await this.createNewWorkspace(workspace)
+                        break
+                    default:
+                        this.logging.warn(`Unknown workspace status: ${metadata.workspaceStatus}`)
+                }
+            } catch (error) {
+                this.logging.error(`Error monitoring workspace ${workspace}: ${error}`)
             }
-        } catch (error) {
-            this.logging.error(`Error handling workspace ${workspace}: ${error}`)
-        }
+        }, this.pollInterval)
     }
 
     /**
@@ -492,8 +469,6 @@ export class WorkspaceFolderManager {
             }
         })
         await this.uploadWithTimeout(fileMetadataMap)
-
-        this.optOutCheckScheduler()
 
         for (const folder of folders) {
             this.handleNewWorkspace(folder.uri).catch(e => {

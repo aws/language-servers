@@ -108,6 +108,10 @@ export class WebSocketClient {
         }
     }
 
+    public isConnected(): boolean {
+        return this.ws?.readyState === WebSocket.OPEN
+    }
+
     // https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API/Writing_WebSocket_client_applications#sending_data_to_the_server
     public send(message: string): void {
         if (this.ws?.readyState === WebSocket.OPEN) {
