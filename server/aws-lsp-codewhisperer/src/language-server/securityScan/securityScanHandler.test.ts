@@ -5,7 +5,7 @@ import got from 'got'
 import * as Sinon from 'sinon'
 import { StubbedInstance, default as simon, stubInterface } from 'ts-sinon'
 import { StartCodeAnalysisRequest } from '../../client/token/codewhispererbearertokenclient'
-import { CodeWhispererServiceToken } from '../codeWhispererService'
+import { CodeWhispererServiceToken } from '../../client/codeWhispererService'
 import { SecurityScanHandler } from './securityScanHandler'
 import { RawCodeScanIssue } from './types'
 

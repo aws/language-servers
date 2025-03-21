@@ -6,8 +6,8 @@ import {
     SourceLink,
 } from '@aws/language-server-runtimes/protocol'
 import { Result } from '../types'
-import { AddMessageEvent } from '../telemetry/types'
-import { Metric } from '../telemetry/metric'
+import { AddMessageEvent } from '../../utilities/telemetry/types'
+import { Metric } from '../../utilities/telemetry/metric'
 
 export type ChatResultWithMetadata = {
     chatResult: ChatResult

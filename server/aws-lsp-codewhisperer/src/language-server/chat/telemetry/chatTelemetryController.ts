@@ -7,7 +7,7 @@ import {
     CombinedConversationEvent,
     InteractWithMessageEvent,
     ModifyCodeEvent,
-} from '../../telemetry/types'
+} from '../../../utilities/telemetry/types'
 import { Features, KeysMatching } from '../../types'
 import {
     ChatUIEventName,
@@ -17,10 +17,10 @@ import {
 } from './clientTelemetry'
 import { UserIntent } from '@amzn/codewhisperer-streaming'
 import { TriggerContext } from '../contexts/triggerContext'
-import { AcceptedSuggestionEntry, CodeDiffTracker } from '../../telemetry/codeDiffTracker'
-import { TelemetryService } from '../../telemetryService'
-import { getEndPositionForAcceptedSuggestion } from '../../utils'
-import { CodewhispererLanguage } from '../../languageDetection'
+import { AcceptedSuggestionEntry, CodeDiffTracker } from '../../../utilities/telemetry/codeDiffTracker'
+import { TelemetryService } from '../../../utilities/telemetry/telemetryService'
+import { getEndPositionForAcceptedSuggestion } from '../../../utilities/utils'
+import { CodewhispererLanguage } from '../../../utilities/languageDetection'
 
 export const CONVERSATION_ID_METRIC_KEY = 'cwsprChatConversationId'
 

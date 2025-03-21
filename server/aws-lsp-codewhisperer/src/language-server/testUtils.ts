@@ -1,7 +1,7 @@
 import { TextDocument } from 'vscode-languageserver-textdocument'
-import { ResponseContext, Suggestion } from './codeWhispererService'
+import { ResponseContext, Suggestion } from '../client/codeWhispererService'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
-import { SsoConnectionType } from './utils'
+import { SsoConnectionType } from '../utilities/utils'
 
 export const HELLO_WORLD_IN_CSHARP = `class HelloWorld
 {

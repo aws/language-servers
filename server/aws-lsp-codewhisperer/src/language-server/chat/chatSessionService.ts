@@ -6,7 +6,7 @@ import {
 } from '@amzn/codewhisperer-streaming'
 import { ConfiguredRetryStrategy } from '@aws-sdk/util-retry'
 import { CredentialsProvider } from '@aws/language-server-runtimes/server-interface'
-import { getBearerTokenFromProvider } from '../utils'
+import { getBearerTokenFromProvider } from '../../utilities/utils'
 import { SDKInitializator } from '@aws/language-server-runtimes/server-interface'
 
 export type ChatSessionServiceConfig = CodeWhispererStreamingClientConfig
