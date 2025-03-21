@@ -87,10 +87,9 @@ async function fetchProfilesFromRegion(
 
             allRegionalProfiles.push(...profiles)
 
+            logging.debug(`Fetched profiles from ${region}: ${JSON.stringify(response)} (iteration: ${numberOfPages})`)
             nextToken = response.nextToken
             numberOfPages++
-
-            logging.debug(`Fetched profiles from ${region}: ${JSON.stringify(response)} (iteration: ${numberOfPages})`)
         } while (nextToken !== undefined && numberOfPages < MAX_Q_DEVELOPER_PROFILE_PAGES)
 
         return allRegionalProfiles
@@ -120,15 +119,15 @@ const developerProfilesEnabledKey = 'developerProfiles'
  * ```
  */
 export function signalsAWSQDeveloperProfilesEnabled(initializationOptions: AWSInitializationOptions): boolean {
-    const qCapibilities = initializationOptions.awsClientCapabilities?.[AWSQCapabilitiesKey]
+    const qCapabilities = initializationOptions.awsClientCapabilities?.[AWSQCapabilitiesKey]
 
     if (
-        isObject(qCapibilities) &&
-        !(qCapibilities instanceof Array) &&
-        developerProfilesEnabledKey in qCapibilities &&
-        isBool(qCapibilities[developerProfilesEnabledKey])
+        isObject(qCapabilities) &&
+        !(qCapabilities instanceof Array) &&
+        developerProfilesEnabledKey in qCapabilities &&
+        isBool(qCapabilities[developerProfilesEnabledKey])
     ) {
-        return qCapibilities[developerProfilesEnabledKey]
+        return qCapabilities[developerProfilesEnabledKey]
     }
 
     return false
