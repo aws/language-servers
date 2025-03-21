@@ -9,7 +9,7 @@ import {
     StopTransformationRequest,
     TransformationJob,
 } from '../../client/token/codewhispererbearertokenclient'
-import { CodeWhispererServiceToken } from '../codeWhispererService'
+import { CodeWhispererServiceToken } from '../../client/codeWhispererService'
 import { ArtifactManager } from './artifactManager'
 import { getCWStartTransformRequest, getCWStartTransformResponse } from './converter'
 import {
