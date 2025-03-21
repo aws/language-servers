@@ -17,9 +17,9 @@ import {
     ListCodeAnalysisFindingsRequest,
     StartCodeAnalysisRequest,
 } from '../../client/token/codewhispererbearertokenclient'
-import { sleep } from '../dependencyGraph/commonUtil'
+import { sleep } from './dependencyGraph/commonUtil'
 import { AggregatedCodeScanIssue, RawCodeScanIssue } from './types'
-import { AmazonQTokenServiceManager } from '../amazonQServiceManager/AmazonQTokenServiceManager'
+import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 
 export class SecurityScanHandler {
     private serviceManager: AmazonQTokenServiceManager
