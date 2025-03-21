@@ -44,7 +44,7 @@ import { TelemetryService } from '../telemetryService'
 import { AmazonQServicePendingProfileError, AmazonQServicePendingSigninError } from '../amazonQServiceManager/errors'
 import { AmazonQTokenServiceManager } from '../amazonQServiceManager/AmazonQTokenServiceManager'
 
-type ChatHandlers = Omit<LspHandlers<Chat>, 'openTab'>
+type ChatHandlers = Omit<LspHandlers<Chat>, 'openTab' | 'sendChatUpdate' | 'onFileClicked'>
 
 export class ChatController implements ChatHandlers {
     #features: Features
