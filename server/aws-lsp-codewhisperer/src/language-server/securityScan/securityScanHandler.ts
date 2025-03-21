@@ -16,8 +16,8 @@ import {
     ListCodeAnalysisFindingsRequest,
     StartCodeAnalysisRequest,
 } from '../../client/token/codewhispererbearertokenclient'
-import { CodeWhispererServiceToken } from '../codeWhispererService'
-import { sleep } from '../dependencyGraph/commonUtil'
+import { CodeWhispererServiceToken } from '../../client/codeWhispererService'
+import { sleep } from './dependencyGraph/commonUtil'
 import { AggregatedCodeScanIssue, RawCodeScanIssue } from './types'
 
 export class SecurityScanHandler {

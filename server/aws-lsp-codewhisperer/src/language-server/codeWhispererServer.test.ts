@@ -16,8 +16,8 @@ import {
     CodeWhispererServiceToken,
     ResponseContext,
     Suggestion,
-} from './codeWhispererService'
-import { CodeWhispererSession, SessionData, SessionManager } from './session/sessionManager'
+} from '../client/codeWhispererService'
+import { CodeWhispererSession, SessionData, SessionManager } from '../utilities/session/sessionManager'
 import {
     EMPTY_RESULT,
     EXPECTED_REFERENCE,
@@ -40,9 +40,9 @@ import {
     SOME_UNSUPPORTED_FILE,
     SPECIAL_CHARACTER_HELLO_WORLD,
 } from './testUtils'
-import { CodeDiffTracker } from './telemetry/codeDiffTracker'
-import { TelemetryService } from './telemetryService'
-import { AmazonQTokenServiceManager } from './amazonQServiceManager/AmazonQTokenServiceManager'
+import { CodeDiffTracker } from '../utilities/telemetry/codeDiffTracker'
+import { TelemetryService } from '../utilities/telemetry/telemetryService'
+import { AmazonQTokenServiceManager } from '../utilities/amazonQServiceManager/AmazonQTokenServiceManager'
 
 describe('CodeWhisperer Server', () => {
     const sandbox = sinon.createSandbox()

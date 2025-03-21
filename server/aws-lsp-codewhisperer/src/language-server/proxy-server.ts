@@ -1,9 +1,9 @@
 import { ChatSessionManagementService } from './chat/chatSessionManagementService'
-import { SecurityScanServerToken } from './codeWhispererSecurityScanServer'
+import { SecurityScanServerToken } from './securityScan/codeWhispererSecurityScanServer'
 import { CodewhispererServerFactory } from './codeWhispererServer'
-import { CodeWhispererServiceIAM, CodeWhispererServiceToken } from './codeWhispererService'
-import { QNetTransformServerToken } from './netTransformServer'
-import { QChatServer } from './qChatServer'
+import { CodeWhispererServiceIAM, CodeWhispererServiceToken } from '../client/codeWhispererService'
+import { QNetTransformServerToken } from './netTransform/netTransformServer'
+import { QChatServer } from './chat/qChatServer'
 import { QConfigurationServerToken } from './configuration/qConfigurationServer'
 
 export const CodeWhispererServerTokenProxy = CodewhispererServerFactory(
