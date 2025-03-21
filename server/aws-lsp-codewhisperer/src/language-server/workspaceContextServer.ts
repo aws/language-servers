@@ -58,7 +58,8 @@ export const WorkspaceContextServer =
                 cwsprClient,
                 logging,
                 artifactManager,
-                workspaceFolders
+                workspaceFolders,
+                credentialsProvider
             )
             dependencyDiscoverer = new DependencyDiscoverer(
                 workspace,
@@ -130,7 +131,7 @@ export const WorkspaceContextServer =
                 if (configJetBrains) {
                     workspaceContextConfig = workspaceContextConfig || configJetBrains['workspaceContext']
                 }
-                isOptedIn = workspaceContextConfig || true
+                isOptedIn = workspaceContextConfig === true
                 logging.info(`Workspace context optin: ${isOptedIn}`)
 
                 if (!isOptedIn) {

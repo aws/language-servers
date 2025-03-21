@@ -278,14 +278,41 @@ export class ArtifactManager {
         return programmingLanguages
     }
 
-    cleanup() {
+    cleanup(preserveDependencies: boolean = false) {
         try {
             this.workspaceFolders.forEach(workspaceToRemove => {
                 const workspaceDirPath = path.join(this.tempDirPath, workspaceToRemove.name)
-                fs.rmSync(workspaceDirPath, { recursive: true, force: true })
+
+                if (preserveDependencies) {
+                    // Define the zip files to delete
+                    const zipPatternsToDelete = [
+                        'files.zip',
+                        ...SUPPORTED_WORKSPACE_CONTEXT_LANGUAGES.map(lang => `${lang}.zip`),
+                    ]
+
+                    // If directory exists, only delete specific zip files
+                    if (fs.existsSync(workspaceDirPath)) {
+                        const entries = fs.readdirSync(workspaceDirPath)
+                        entries.forEach(entry => {
+                            const entryPath = path.join(workspaceDirPath, entry)
+                            const stat = fs.statSync(entryPath)
+
+                            if (stat.isFile() && zipPatternsToDelete.includes(entry.toLowerCase())) {
+                                fs.rmSync(entryPath, { force: true })
+                                this.log(`Deleted zip file: ${entry}`)
+                            }
+                        })
+                    }
+                } else {
+                    // Original cleanup behavior - delete everything
+                    if (fs.existsSync(workspaceDirPath)) {
+                        fs.rmSync(workspaceDirPath, { recursive: true, force: true })
+                        this.log(`Deleted workspace directory: ${workspaceDirPath}`)
+                    }
+                }
             })
         } catch (error) {
-            this.log('Failed to cleanup:' + error)
+            this.log('Failed to cleanup: ' + error)
         }
     }
 
@@ -481,15 +508,14 @@ export class ArtifactManager {
             const jarContent = await fs.promises.readFile(file.filePath)
             zip.file(file.relativePath, jarContent, {
                 binary: true,
-                compression: 'STORE'
+                compression: 'STORE',
             })
         }
         return await zip.generateAsync({
             type: 'nodebuffer',
-            compression: 'STORE'
+            compression: 'STORE',
         })
     }
-
 
     private findWorkspaceFolder(workspace: WorkspaceFolder): WorkspaceFolder | undefined {
         for (const [existingWorkspace] of this.filesByWorkspaceFolderAndLanguage) {

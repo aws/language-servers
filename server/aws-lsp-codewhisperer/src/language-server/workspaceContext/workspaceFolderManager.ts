@@ -7,7 +7,7 @@ import {
     WorkspaceMetadata,
     WorkspaceStatus,
 } from '../../client/token/codewhispererbearertokenclient'
-import { Logging } from '@aws/language-server-runtimes/server-interface'
+import { CredentialsProvider, Logging } from '@aws/language-server-runtimes/server-interface'
 import { ArtifactManager, FileMetadata } from './artifactManager'
 import { findWorkspaceRootFolder, getSha256Async, uploadArtifactToS3 } from './util'
 
@@ -26,19 +26,26 @@ export class WorkspaceFolderManager {
     private logging: Logging
     private artifactManager: ArtifactManager
     private workspaceMap: Map<WorkspaceRoot, WorkspaceState>
-    private workspacesToPoll: WorkspaceRoot[]
     private readonly pollInterval: number = 15 * 1000 // 15 seconds
     private static instance: WorkspaceFolderManager | undefined
     private workspaceFolders: WorkspaceFolder[]
+    private credentialsProvider: CredentialsProvider
 
     static createInstance(
         cwsprClient: CodeWhispererServiceToken,
         logging: Logging,
         artifactManager: ArtifactManager,
-        workspaceFolders: WorkspaceFolder[]
+        workspaceFolders: WorkspaceFolder[],
+        credentialsProvider: CredentialsProvider
     ): WorkspaceFolderManager {
         if (!this.instance) {
-            this.instance = new WorkspaceFolderManager(cwsprClient, logging, artifactManager, workspaceFolders)
+            this.instance = new WorkspaceFolderManager(
+                cwsprClient,
+                logging,
+                artifactManager,
+                workspaceFolders,
+                credentialsProvider
+            )
         }
         return this.instance
     }
@@ -51,14 +58,15 @@ export class WorkspaceFolderManager {
         cwsprClient: CodeWhispererServiceToken,
         logging: Logging,
         artifactManager: ArtifactManager,
-        workspaceFolders: WorkspaceFolder[]
+        workspaceFolders: WorkspaceFolder[],
+        credentialsProvider: CredentialsProvider
     ) {
         this.cwsprClient = cwsprClient
         this.logging = logging
         this.artifactManager = artifactManager
         this.workspaceMap = new Map<WorkspaceRoot, WorkspaceState>()
-        this.workspacesToPoll = []
         this.workspaceFolders = workspaceFolders
+        this.credentialsProvider = credentialsProvider
     }
 
     /**
@@ -175,6 +183,7 @@ export class WorkspaceFolderManager {
 
             const pollIntervalId = setInterval(async () => {
                 try {
+                    this.logging.log(`Polling workspace ${workspace} for state change`)
                     const { metadata, optOut } = await this.listWorkspaceMetadata(workspace)
                     if (optOut) {
                         clearInterval(pollIntervalId)
@@ -201,7 +210,7 @@ export class WorkspaceFolderManager {
 
     private async establishConnection(workspace: WorkspaceRoot) {
         const existingState = this.workspaceMap.get(workspace)
-
+        this.logging.log(`Establishing connection to ${workspace}`)
         const { metadata, optOut } = await this.listWorkspaceMetadata(workspace)
         if (optOut) {
             throw new Error(`Workspace ${workspace} is opted out`)
@@ -213,7 +222,7 @@ export class WorkspaceFolderManager {
         const websocketUrl = `ws://${metadata.environmentId}--8081.localhost:8080/ws`
         this.logging.log(`Establishing connection to ${websocketUrl}`)
 
-        const webSocketClient = new WebSocketClient(websocketUrl, this.logging)
+        const webSocketClient = new WebSocketClient(websocketUrl, this.logging, this.credentialsProvider)
         this.updateWorkspaceEntry(workspace, {
             remoteWorkspaceState: 'CONNECTED',
             webSocketClient,
@@ -245,7 +254,6 @@ export class WorkspaceFolderManager {
         }
 
         this.workspaceMap.clear()
-        this.workspacesToPoll = []
     }
 
     private optOutCheckScheduler() {
@@ -253,6 +261,7 @@ export class WorkspaceFolderManager {
             async () => {
                 const workspaceMap = this.getWorkspaces()
                 for (const [workspace, workspaceState] of workspaceMap) {
+                    this.logging.log(`Checking opt out status for workspace ${workspace}`)
                     const { metadata, optOut } = await this.listWorkspaceMetadata(workspace)
                     if (optOut) {
                         this.logging.log(`Workspace ${workspace} is opted out`)
@@ -300,10 +309,6 @@ export class WorkspaceFolderManager {
             switch (latestState) {
                 case 'READY':
                     await this.establishConnection(workspace)
-                    break
-                case 'CONNECTED':
-                    // TODO, implement polling logic for workspacesToPoll
-                    this.workspacesToPoll.push(workspace)
                     break
                 case 'CREATED':
                     await this.createNewWorkspace(workspace)
@@ -526,8 +531,10 @@ export class WorkspaceFolderManager {
             setTimeout(() => this.uploadWithTimeout(fileMetadataMap), 3000)
         } else {
             this.logging.log(`All workspaces with S3 upload complete`)
-            // Clean up zip files after S3 upload
-            this.artifactManager.cleanup()
+            // Clean up source code zip files after S3 upload
+            // Preserve dependencies because they might still be processing
+            // LanguageDependencyHandler is responsible for deleting dependency zips
+            this.artifactManager.cleanup(true)
         }
     }
 

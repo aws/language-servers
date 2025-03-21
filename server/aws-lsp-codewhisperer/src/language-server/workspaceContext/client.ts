@@ -1,17 +1,19 @@
 import { WebSocket } from 'ws'
-import { Logging } from '@aws/language-server-runtimes/server-interface'
+import { BearerCredentials, CredentialsProvider, Logging } from '@aws/language-server-runtimes/server-interface'
 
 export class WebSocketClient {
     private ws: WebSocket | null = null
     private logging: Logging
+    private credentialsProvider: CredentialsProvider
     private readonly url: string
     private reconnectAttempts: number = 0
     private readonly maxReconnectAttempts: number = 5
     private messageQueue: string[] = []
 
-    constructor(url: string, logging: Logging) {
+    constructor(url: string, logging: Logging, credentialsProvider: CredentialsProvider) {
         this.url = url
         this.logging = logging
+        this.credentialsProvider = credentialsProvider
         this.connect()
     }
 
@@ -22,9 +24,14 @@ export class WebSocketClient {
                 // Always return 127.0.0.1 regardless of the hostname
                 callback(null, '127.0.0.1', 4) // 4 for IPv4
             }
+            const creds = this.credentialsProvider.getCredentials('bearer') as BearerCredentials
+            if (!creds?.token) {
+                throw new Error('Authorization failed, bearer token is not set')
+            }
 
             this.ws = new WebSocket(this.url, {
                 lookup: customLookup,
+                // headers: { Authorization: `Bearer ${creds.token}` },
             })
 
             this.attachEventListeners()
@@ -104,6 +111,7 @@ export class WebSocketClient {
     // https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API/Writing_WebSocket_client_applications#sending_data_to_the_server
     public send(message: string): void {
         if (this.ws?.readyState === WebSocket.OPEN) {
+            // TODO, remove this log
             this.logging.log(`Sending message: ${message}`)
             this.ws.send(message)
         } else {
