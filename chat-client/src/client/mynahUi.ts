@@ -299,8 +299,11 @@ export const createMynahUi = (
     }
 
     const addChatResponse = (chatResult: ChatResult, tabId: string, isPartialResult: boolean) => {
+        const { type, ...chatResultWithoutType } = chatResult
+
         if (isPartialResult) {
-            mynahUi.updateLastChatAnswer(tabId, { ...chatResult })
+            // type for MynahUI differs from ChatResult types so we ignore it
+            mynahUi.updateLastChatAnswer(tabId, { ...chatResultWithoutType })
             return
         }
 
@@ -319,7 +322,7 @@ export const createMynahUi = (
         if (chatResult.body === '' && isValidAuthFollowUp) {
             mynahUi.addChatItem(tabId, {
                 type: ChatItemType.SYSTEM_PROMPT,
-                ...chatResult,
+                ...chatResultWithoutType, // type for MynahUI differs from ChatResult types so we ignore it
             })
 
             // TODO, prompt should be disabled until user is authenticated
