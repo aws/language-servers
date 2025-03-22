@@ -424,6 +424,12 @@ export const WorkspaceContextServer =
             if (!isOptedIn) {
                 return
             }
+            const workspaceFolder = workspaceFolderManager.getWorkspaceFolder(params.moduleName)
+            dependencyDiscoverer.handleDependencyUpdateFromLSP(
+                JSON.parse(JSON.stringify(params))['programmingLanguage'],
+                params.paths,
+                workspaceFolder
+            )
         })
 
         logging.log('Workspace context server has been initialized')

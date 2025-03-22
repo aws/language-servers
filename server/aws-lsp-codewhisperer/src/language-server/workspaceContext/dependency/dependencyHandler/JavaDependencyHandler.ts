@@ -53,10 +53,10 @@ export class JavaDependencyHandler extends LanguageDependencyHandler<JavaDepende
     initiateDependencyMap(): void {
         for (const javaDependencyInfo of this.javaDependencyInfos) {
             try {
-                this.dependencyMap.set(
-                    javaDependencyInfo.workspaceFolder,
-                    this.generateDependencyMap(javaDependencyInfo)
-                )
+                let generatedDependencyMap: Map<string, Dependency> = this.generateDependencyMap(javaDependencyInfo)
+                generatedDependencyMap.forEach((dep, name) => {
+                    this.dependencyMap.get(javaDependencyInfo.workspaceFolder)?.set(name, dep)
+                })
                 // Log found dependencies
                 this.logging.log(
                     `Total java dependencies found: ${this.dependencyMap.size} under ${javaDependencyInfo.pkgDir}`
@@ -80,7 +80,11 @@ export class JavaDependencyHandler extends LanguageDependencyHandler<JavaDepende
                     if (eventType === 'change') {
                         this.logging.log(`Change detected in ${dotClasspathPath}`)
                         const updatedDependencyMap = this.generateDependencyMap(javaDependencyInfo)
-                        await this.compareAndUpdateDependencies(javaDependencyInfo, updatedDependencyMap)
+                        let zips: FileMetadata[] = await this.compareAndUpdateDependencyMap(
+                            javaDependencyInfo.workspaceFolder,
+                            updatedDependencyMap
+                        )
+                        await this.uploadZipsAndNotifyWeboscket(zips)
                     }
                 })
                 this.dependencyWatchers.set(dotClasspathPath, watcher)
@@ -111,35 +115,38 @@ export class JavaDependencyHandler extends LanguageDependencyHandler<JavaDepende
                 result.classpath.classpathentry.forEach((entry: any) => {
                     if (entry.$ && entry.$.kind === 'lib' && entry.$.path) {
                         const jarPath = entry.$.path
-
-                        // Extract name and version from jar path
-                        // Example path patterns:
-                        // - lib/dependency-1.2.3.jar
-                        // - lib/dependency-1.2.3-SNAPSHOT.jar
-                        // - ~/.m2/repository/com/example/dependency/1.2.3/dependency-1.2.3.jar
                         const jarName = path.basename(jarPath)
-                        const match = jarName.match(/^(.*?)(?:-([\d.]+(?:-SNAPSHOT)?))?.jar$/)
-
-                        if (match) {
-                            const name = match[1]
-                            const version = match[2] || 'unknown'
-                            const absolutePath = path.isAbsolute(jarPath)
-                                ? jarPath
-                                : path.resolve(path.dirname(dotClasspathPath), jarPath)
-
-                            if (fs.existsSync(absolutePath)) {
-                                dependencyMap.set(name, {
-                                    name,
-                                    version,
-                                    path: absolutePath,
-                                    size: fs.statSync(absolutePath).size,
-                                })
-                            }
-                        }
+                        this.transformPathToDependency(jarName, jarPath, dependencyMap)
                     }
                 })
             }
         })
         return dependencyMap
+    }
+
+    transformPathToDependency(
+        dependencyName: string,
+        dependencyPath: string,
+        dependencyMap: Map<string, Dependency>
+    ): void {
+        // Extract name and version from jar path
+        // Example path patterns:
+        // - lib/dependency-1.2.3.jar
+        // - lib/dependency-1.2.3-SNAPSHOT.jar
+        // - ~/.m2/repository/com/example/dependency/1.2.3/dependency-1.2.3.jar
+        const match = dependencyName.match(/^(.*?)(?:-([\d.]+(?:-SNAPSHOT)?))?.jar$/)
+
+        if (match) {
+            const name = match[1]
+            const version = match[2] || 'unknown'
+            if (fs.existsSync(dependencyPath) && path.isAbsolute(dependencyPath)) {
+                dependencyMap.set(name, {
+                    name,
+                    version,
+                    path: dependencyPath,
+                    size: fs.statSync(dependencyPath).size,
+                })
+            }
+        }
     }
 }

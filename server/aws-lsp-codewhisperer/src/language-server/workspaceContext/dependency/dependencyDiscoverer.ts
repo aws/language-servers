@@ -9,7 +9,7 @@ import {
     Dependency,
     LanguageDependencyHandler,
 } from './dependencyHandler/LanguageDependencyHandler'
-import { supportedWorkspaceContextLanguages } from '../../languageDetection'
+import { CodewhispererLanguage, supportedWorkspaceContextLanguages } from '../../languageDetection'
 import { ArtifactManager, FileMetadata } from '../artifactManager'
 import { WorkspaceFolderManager } from '../workspaceFolderManager'
 
@@ -59,24 +59,11 @@ export class DependencyDiscoverer {
                 }
             }
         })
-        //TODO delete
-        this.logging.log(`${this.dependencyHandlerRegistry.length} handlers`)
     }
 
     private shouldExcludeDirectory(dir: string): boolean {
         return excludePatterns.some(pattern => pattern.test(dir))
     }
-
-    async createDependencyArtifacts(): Promise<void> {}
-
-    // find dependencies
-    // create dependency map
-    // zip dependency
-    // translate to LSP
-    // setup watcher
-    // Map comparison
-    // zip depdnency
-    // translate to LSP
 
     async searchDependencies(): Promise<void> {
         if (this.initialized) {
@@ -130,6 +117,21 @@ export class DependencyDiscoverer {
     }
 
     cleanup(): void {
+        this.dependencyHandlerRegistry.forEach(dependencyHandler => {
+            dependencyHandler.dispose()
+        })
+    }
+
+    async handleDependencyUpdateFromLSP(language: string, paths: string[], workspaceRoot?: WorkspaceFolder) {
+        for (const dependencyHandler of this.dependencyHandlerRegistry) {
+            if (dependencyHandler.language != language) {
+                continue
+            }
+            await dependencyHandler.updateDependencyMapBasedOnLSP(paths, workspaceRoot)
+        }
+    }
+
+    dispose(): void {
         this.dependencyHandlerRegistry.forEach(dependencyHandler => {
             dependencyHandler.dispose()
         })

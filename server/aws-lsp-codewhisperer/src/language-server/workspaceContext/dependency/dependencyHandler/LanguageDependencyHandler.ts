@@ -46,6 +46,9 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
         this.artifactManager = artifactManager
         this.workspaceFolderManager = workspaceFolderManager
         this.dependenciesFolderName = dependenciesFolderName
+        this.workspaceFolders.forEach(workSpaceFolder =>
+            this.dependencyMap.set(workSpaceFolder, new Map<string, Dependency>())
+        )
     }
 
     /*
@@ -63,10 +66,48 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
      */
     abstract setupWatchers(): void
 
+    /**
+     * Transform dependency path from LSP to dependency. Java and Python will have different logic to implement
+     * @param dependencyName
+     * @param dependencyPath
+     * @param dependencyMap
+     */
+    protected abstract transformPathToDependency(
+        dependencyName: string,
+        dependencyPath: string,
+        dependencyMap: Map<string, Dependency>
+    ): void
+
+    /**
+     * Update dependency map based on didChangeDependencyPaths LSP. Javascript and Typescript will not use LSP so no need to implement this method
+     * @param paths
+     * @param workspaceRoot
+     */
+    async updateDependencyMapBasedOnLSP(paths: string[], workspaceFolder?: WorkspaceFolder): Promise<void> {
+        const dependencyMap = new Map<string, Dependency>()
+        paths.forEach((dependencyPath: string) => {
+            // basename of the path should be the dependency name
+            const dependencyName = path.basename(dependencyPath)
+            this.transformPathToDependency(dependencyName, dependencyPath, dependencyMap)
+        })
+
+        if (workspaceFolder) {
+            let zips: FileMetadata[] = await this.compareAndUpdateDependencyMap(workspaceFolder, dependencyMap)
+            const workspaceStateCheck = setInterval(async () => {
+                const workspaceId = this.workspaceFolderManager.getWorkspaceId(workspaceFolder)
+                if (workspaceId) {
+                    clearInterval(workspaceStateCheck)
+                    await this.uploadZipsAndNotifyWeboscket(zips)
+                } else {
+                    this.logging.log(`Workspace Id is not ready for ${workspaceFolder.uri}. Waiting...`)
+                }
+            }, 5000)
+        }
+    }
+
     async zipDependencyMap(): Promise<void> {
         const zipFileMetadata: FileMetadata[] = []
         const MAX_CHUNK_SIZE_BYTES = 100 * 1024 * 1024 // 100MB per chunk
-        this.logging.log(`Start to zip and upload all ${this.language} dependencies`)
         let chunkIndex = 0
         // Process each workspace folder sequentially
         for (const [workspaceFolder, correspondingDependencyMap] of this.dependencyMap) {
@@ -76,7 +117,6 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
             )
             zipFileMetadata.push(...chunkZipFileMetadata)
         }
-
         await this.uploadZipsAndNotifyWeboscket(zipFileMetadata)
     }
 
@@ -98,8 +138,10 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
         })
         if (!workspaceDetails.webSocketClient) {
             this.logging.log(`Websocket client is not connected yet: ${workspaceFolder.uri}`)
+            this.logging.log(`Queue Websocket request ${message} for workspace: ${workspaceFolder.uri}`)
             workspaceDetails.messageQueue?.push(message)
         } else {
+            this.logging.log(`Send Websocket request ${message} for workspace: ${workspaceFolder.uri}`)
             workspaceDetails.webSocketClient.send(message)
         }
     }
@@ -205,15 +247,15 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
      */
     protected abstract generateDependencyMap(dependencyInfo: T, dependencyMap: Map<string, Dependency>): void
 
-    protected async compareAndUpdateDependencies(
-        dependencyInfo: T,
+    protected async compareAndUpdateDependencyMap(
+        workspaceFolder: WorkspaceFolder,
         updatedDependencyMap: Map<string, Dependency>
-    ): Promise<void> {
+    ): Promise<FileMetadata[]> {
         const changes = {
             added: [] as Dependency[],
             updated: [] as Dependency[],
         }
-        const currentDependencyMap = this.dependencyMap.get(dependencyInfo.workspaceFolder)
+        const currentDependencyMap = this.dependencyMap.get(workspaceFolder)
         // Check for added and updated dependencies
         updatedDependencyMap.forEach((newDep, name) => {
             const existingDependency = currentDependencyMap?.get(name)
@@ -236,15 +278,14 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
 
         // Update the dependency map
         updatedDependencyMap.forEach((newDep, name) => {
-            this.dependencyMap.get(dependencyInfo.workspaceFolder)?.set(name, newDep)
+            this.dependencyMap.get(workspaceFolder)?.set(name, newDep)
         })
 
         let zips: FileMetadata[] = await this.generateFileMetadata(
             [...changes.added, ...changes.updated],
-            dependencyInfo.workspaceFolder
+            workspaceFolder
         )
-
-        await this.uploadZipsAndNotifyWeboscket(zips)
+        return zips
     }
 
     protected log(message: string): void {
@@ -293,14 +334,16 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
         }
     }
 
-    private async uploadZipsAndNotifyWeboscket(zips: FileMetadata[]): Promise<void> {
+    protected async uploadZipsAndNotifyWeboscket(zips: FileMetadata[]): Promise<void> {
         try {
             for (const zip of zips) {
                 let s3Url = await this.workspaceFolderManager.uploadToS3(zip)
                 if (!s3Url) {
                     return
                 }
-                this.generateWebSocketRequest(zip.workspaceFolder, s3Url)
+                this.logging.log(`Uploaded dependency zip: ${zip.filePath}`)
+                const cleanUrl = new URL(s3Url).origin + new URL(s3Url).pathname
+                this.generateWebSocketRequest(zip.workspaceFolder, cleanUrl)
             }
         } finally {
             // Clean up zip files after processing

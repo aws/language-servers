@@ -99,7 +99,11 @@ export class PythonDependencyHandler extends LanguageDependencyHandler<PythonDep
                             } else {
                                 this.handlePackageChange(sitePackagesPath, fileName, updatedDependencyMap)
                             }
-                            await this.compareAndUpdateDependencies(pythonDependencyInfo, updatedDependencyMap)
+                            let zips: FileMetadata[] = await this.compareAndUpdateDependencyMap(
+                                pythonDependencyInfo.workspaceFolder,
+                                updatedDependencyMap
+                            )
+                            await this.uploadZipsAndNotifyWeboscket(zips)
                         }
                     })
                     this.dependencyWatchers.set(sitePackagesPath, watcher)
@@ -127,29 +131,37 @@ export class PythonDependencyHandler extends LanguageDependencyHandler<PythonDep
             for (const item of sitePackagesContent) {
                 const itemPath = path.join(sitePackagesPath, item)
 
-                // Skip if not a directory or if it's a metadata directory
-                if (this.isMetadataDirectory(itemPath)) {
-                    continue
-                }
-
-                // Add to dependency map if not already present
-                if (!dependencyMap.has(item)) {
-                    let dependencySize: number = 0
-                    if (isDirectory(itemPath)) {
-                        dependencySize = this.getDirectorySize(itemPath)
-                    } else {
-                        dependencySize = fs.statSync(itemPath).size
-                    }
-                    dependencyMap.set(item, {
-                        name: item,
-                        version: 'unknown',
-                        path: itemPath,
-                        size: dependencySize,
-                    })
-                }
+                this.transformPathToDependency(item, itemPath, dependencyMap)
             }
         }
         return dependencyMap
+    }
+
+    transformPathToDependency(
+        dependencyName: string,
+        dependencyPath: string,
+        dependencyMap: Map<string, Dependency>
+    ): void {
+        // Skip if it's a metadata directory
+        if (this.isMetadataDirectory(dependencyPath)) {
+            return
+        }
+
+        // Add to dependency map if not already present
+        if (!dependencyMap.has(dependencyName)) {
+            let dependencySize: number = 0
+            if (isDirectory(dependencyPath)) {
+                dependencySize = this.getDirectorySize(dependencyPath)
+            } else {
+                dependencySize = fs.statSync(dependencyPath).size
+            }
+            dependencyMap.set(dependencyName, {
+                name: dependencyName,
+                version: 'unknown',
+                path: dependencyPath,
+                size: dependencySize,
+            })
+        }
     }
 
     private isMetadataDirectory(filename: string): boolean {

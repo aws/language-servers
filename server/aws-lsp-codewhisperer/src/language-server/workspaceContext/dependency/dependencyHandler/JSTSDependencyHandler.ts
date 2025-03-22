@@ -38,7 +38,7 @@ export class JSTSDependencyHandler extends LanguageDependencyHandler<JSTSDepende
                 pkgDir: currentDir,
                 packageJsonPath: packageJsonPath,
                 nodeModulesPath: nodeModulesPath,
-                workspaceFolder: workspaceFolder, //TODO for all dependency, add WorkspaceFolder.
+                workspaceFolder: workspaceFolder,
             }
             this.jstsDependencyInfos.push(result)
         }
@@ -151,7 +151,11 @@ export class JSTSDependencyHandler extends LanguageDependencyHandler<JSTSDepende
                     if (eventType === 'change') {
                         this.logging.log(`Change detected in ${packageJsonPath}`)
                         const updatedDependencyMap = this.generateDependencyMap(jstsDependencyInfo)
-                        await this.compareAndUpdateDependencies(jstsDependencyInfo, updatedDependencyMap)
+                        let zips: FileMetadata[] = await this.compareAndUpdateDependencyMap(
+                            jstsDependencyInfo.workspaceFolder,
+                            updatedDependencyMap
+                        )
+                        await this.uploadZipsAndNotifyWeboscket(zips)
                     }
                 })
                 this.dependencyWatchers.set(packageJsonPath, watcher)
@@ -160,4 +164,12 @@ export class JSTSDependencyHandler extends LanguageDependencyHandler<JSTSDepende
             }
         })
     }
+
+    // JS and TS are not using LSP to sync dependencies
+    override async updateDependencyMapBasedOnLSP(paths: string[], workspaceFolder?: WorkspaceFolder): Promise<void> {}
+    override transformPathToDependency(
+        dependencyName: string,
+        dependencyPath: string,
+        dependencyMap: Map<string, Dependency>
+    ): void {}
 }
