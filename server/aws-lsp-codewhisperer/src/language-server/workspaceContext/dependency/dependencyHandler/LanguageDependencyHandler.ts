@@ -10,6 +10,7 @@ export interface Dependency {
     version: string
     path: string
     size: number
+    zipped: boolean
 }
 
 export interface BaseDependencyInfo {
@@ -46,6 +47,9 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
         this.artifactManager = artifactManager
         this.workspaceFolderManager = workspaceFolderManager
         this.dependenciesFolderName = dependenciesFolderName
+        // For each language, the dependency handler initializes dependency map per workspaceSpace folder
+        // regardless of knowing whether the workspaceFolder has the language
+        // to resolve the race condition when didChangeDependencyPaths LSP and dependency discover may override the dependency map.
         this.workspaceFolders.forEach(workSpaceFolder =>
             this.dependencyMap.set(workSpaceFolder, new Map<string, Dependency>())
         )
@@ -92,32 +96,20 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
         })
 
         if (workspaceFolder) {
-            let zips: FileMetadata[] = await this.compareAndUpdateDependencyMap(workspaceFolder, dependencyMap)
-            const workspaceStateCheck = setInterval(async () => {
-                const workspaceId = this.workspaceFolderManager.getWorkspaceId(workspaceFolder)
-                if (workspaceId) {
-                    clearInterval(workspaceStateCheck)
-                    await this.uploadZipsAndNotifyWeboscket(zips)
-                } else {
-                    this.logging.log(`Workspace Id is not ready for ${workspaceFolder.uri}. Waiting...`)
-                }
-            }, 5000)
+            let zips: FileMetadata[] = await this.compareAndUpdateDependencyMap(workspaceFolder, dependencyMap, true)
+            await this.uploadZipsAndNotifyWeboscket(zips, workspaceFolder)
         }
     }
 
     async zipDependencyMap(): Promise<void> {
-        const zipFileMetadata: FileMetadata[] = []
-        const MAX_CHUNK_SIZE_BYTES = 100 * 1024 * 1024 // 100MB per chunk
-        let chunkIndex = 0
         // Process each workspace folder sequentially
         for (const [workspaceFolder, correspondingDependencyMap] of this.dependencyMap) {
             const chunkZipFileMetadata = await this.generateFileMetadata(
                 [...correspondingDependencyMap.values()],
                 workspaceFolder
             )
-            zipFileMetadata.push(...chunkZipFileMetadata)
+            await this.uploadZipsAndNotifyWeboscket(chunkZipFileMetadata, workspaceFolder)
         }
-        await this.uploadZipsAndNotifyWeboscket(zipFileMetadata)
     }
 
     private generateWebSocketRequest(workspaceFolder: WorkspaceFolder, s3Url: string) {
@@ -174,9 +166,15 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
                 // Add a small delay between chunks
                 await new Promise(resolve => setTimeout(resolve, 100))
             }
-            // Add dependency to current chunk
-            currentChunk.push(dependency)
-            currentChunkSize += dependency.size
+            // Add dependency to current chunk. If the dependency has been zipped, skip it.
+            if (!this.isDependencyZipped(dependency.name, workspaceFolder)) {
+                currentChunk.push(dependency)
+                currentChunkSize += dependency.size
+                // Mark this dependency that has been zipped
+                dependency.zipped = true
+                this.dependencyMap.get(workspaceFolder)?.set(dependency.name, dependency)
+            }
+
         }
         // Process any remaining dependencies in the last chunk
         if (currentChunk.length > 0) {
@@ -192,9 +190,6 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
         chunkIndex: number
     ): Promise<void> {
         let fileMetadataList: FileMetadata[] = []
-        this.logging.log(
-            `Processing #${chunkIndex} chunk containing ${chunk.length} ${this.language} dependencies under ${workspaceFolder.name}`
-        )
         for (const dependency of chunk) {
             try {
                 if (fs.existsSync(dependency.path)) {
@@ -213,9 +208,6 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
             }
         }
         if (fileMetadataList.length > 0) {
-            this.logging.log(
-                `Start to zip #${chunkIndex} chunk containing ${chunk.length} ${this.language} dependencies under ${workspaceFolder.name}`
-            )
             try {
                 const singleZip = await this.artifactManager.createZipForDependencies(
                     workspaceFolder,
@@ -225,21 +217,18 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
                     chunkIndex
                 )
                 zipFileMetadata.push(singleZip)
+                const totalChunkSize = chunk.reduce((sum, dep) => sum + dep.size, 0)
+                // Log chunk statistics
                 this.logging.log(
-                    `Created zip: ${singleZip.filePath} for #${chunkIndex} chunk containing ${chunk.length} ${this.language} dependencies under ${workspaceFolder.name}`
+                    `Created zip: ${singleZip.filePath} for #${chunkIndex} chunk containing ${chunk.length} ${this.language} dependencies with total size: ${(
+                        totalChunkSize /
+                        (1024 * 1024)
+                    ).toFixed(2)}MB under ${workspaceFolder.name}`
                 )
             } catch (error) {
                 this.logging.log(`Error creating zip for workspace ${workspaceFolder.uri}: ${error}`)
             }
         }
-        // Log chunk statistics
-        const totalChunkSize = chunk.reduce((sum, dep) => sum + dep.size, 0)
-        this.logging.log(
-            `Completed #${chunkIndex} chunk containing ${chunk.length} ${this.language} dependencies with total size: ${(
-                totalChunkSize /
-                (1024 * 1024)
-            ).toFixed(2)}MB under ${workspaceFolder.name}`
-        )
     }
 
     /*
@@ -249,7 +238,8 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
 
     protected async compareAndUpdateDependencyMap(
         workspaceFolder: WorkspaceFolder,
-        updatedDependencyMap: Map<string, Dependency>
+        updatedDependencyMap: Map<string, Dependency>,
+        zipChanges: boolean = false
     ): Promise<FileMetadata[]> {
         const changes = {
             added: [] as Dependency[],
@@ -281,10 +271,14 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
             this.dependencyMap.get(workspaceFolder)?.set(name, newDep)
         })
 
-        let zips: FileMetadata[] = await this.generateFileMetadata(
-            [...changes.added, ...changes.updated],
-            workspaceFolder
-        )
+        let zips: FileMetadata[] = []
+        if (zipChanges) {
+            zips = await this.generateFileMetadata(
+                [...changes.added, ...changes.updated],
+                workspaceFolder
+            )
+        }
+
         return zips
     }
 
@@ -334,20 +328,34 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
         }
     }
 
-    protected async uploadZipsAndNotifyWeboscket(zips: FileMetadata[]): Promise<void> {
-        try {
-            for (const zip of zips) {
-                let s3Url = await this.workspaceFolderManager.uploadToS3(zip)
-                if (!s3Url) {
-                    return
+    protected async uploadZipsAndNotifyWeboscket(zips: FileMetadata[], workspaceFolder: WorkspaceFolder): Promise<void> {
+        const workspaceStateCheck = setInterval(async () => {
+            const workspaceId = this.workspaceFolderManager.getWorkspaceId(workspaceFolder)
+            if (workspaceId) {
+                clearInterval(workspaceStateCheck)
+
+                // Upload zip and notify websocket
+                try {
+                    for (const zip of zips) {
+                        let s3Url = await this.workspaceFolderManager.uploadToS3(zip)
+                        if (!s3Url) {
+                            return
+                        }
+                        this.logging.log(`Uploaded dependency zip: ${zip.filePath}`)
+                        const cleanUrl = new URL(s3Url).origin + new URL(s3Url).pathname
+                        this.generateWebSocketRequest(zip.workspaceFolder, cleanUrl)
+                    }
+                } finally {
+                    // Clean up zip files after processing
+                    await this.cleanupZipFiles(zips)
                 }
-                this.logging.log(`Uploaded dependency zip: ${zip.filePath}`)
-                const cleanUrl = new URL(s3Url).origin + new URL(s3Url).pathname
-                this.generateWebSocketRequest(zip.workspaceFolder, cleanUrl)
+            } else {
+                this.logging.log(`Workspace Id is not ready for ${workspaceFolder.uri}. Waiting to upload dependencies...`)
             }
-        } finally {
-            // Clean up zip files after processing
-            await this.cleanupZipFiles(zips)
-        }
+        }, 5000)
+    }
+
+    protected isDependencyZipped(dependencyName: string, workspaceFolder: WorkspaceFolder): boolean | undefined {
+        return this.dependencyMap.get(workspaceFolder)?.get(dependencyName)?.zipped
     }
 }

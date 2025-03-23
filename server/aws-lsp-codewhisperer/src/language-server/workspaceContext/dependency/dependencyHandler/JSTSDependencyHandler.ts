@@ -55,13 +55,13 @@ export class JSTSDependencyHandler extends LanguageDependencyHandler<JSTSDepende
     initiateDependencyMap(): void {
         this.jstsDependencyInfos.forEach(jstsDependencyInfo => {
             try {
-                this.dependencyMap.set(
-                    jstsDependencyInfo.workspaceFolder,
-                    this.generateDependencyMap(jstsDependencyInfo)
-                )
+                let generatedDependencyMap: Map<string, Dependency> = this.generateDependencyMap(jstsDependencyInfo)
+                generatedDependencyMap.forEach((dep, name) => {
+                    this.dependencyMap.get(jstsDependencyInfo.workspaceFolder)?.set(name, dep)
+                })
                 // Log found dependencies
                 this.logging.log(
-                    `Total javascript/typescript dependencies found: ${this.dependencyMap.size} under ${jstsDependencyInfo.pkgDir}`
+                    `Total javascript/typescript dependencies found: ${generatedDependencyMap.size} under ${jstsDependencyInfo.pkgDir}`
                 )
             } catch (error) {
                 this.logging.log(`Error parsing dependencies: ${error}`)
@@ -106,6 +106,7 @@ export class JSTSDependencyHandler extends LanguageDependencyHandler<JSTSDepende
                     version: actualVersion.toString().replace(/[\^~]/g, ''), // Remove ^ and ~ from version
                     path: dependencyPath,
                     size: this.getDirectorySize(dependencyPath),
+                    zipped: false
                 })
             }
         }
@@ -130,6 +131,7 @@ export class JSTSDependencyHandler extends LanguageDependencyHandler<JSTSDepende
                             version: depPackageJson.version || 'unknown',
                             path: itemPath,
                             size: this.getDirectorySize(itemPath),
+                            zipped: false
                         })
                     }
                 }
@@ -153,9 +155,10 @@ export class JSTSDependencyHandler extends LanguageDependencyHandler<JSTSDepende
                         const updatedDependencyMap = this.generateDependencyMap(jstsDependencyInfo)
                         let zips: FileMetadata[] = await this.compareAndUpdateDependencyMap(
                             jstsDependencyInfo.workspaceFolder,
-                            updatedDependencyMap
+                            updatedDependencyMap,
+                            true
                         )
-                        await this.uploadZipsAndNotifyWeboscket(zips)
+                        await this.uploadZipsAndNotifyWeboscket(zips, jstsDependencyInfo.workspaceFolder)
                     }
                 })
                 this.dependencyWatchers.set(packageJsonPath, watcher)

@@ -54,12 +54,10 @@ export class JavaDependencyHandler extends LanguageDependencyHandler<JavaDepende
         for (const javaDependencyInfo of this.javaDependencyInfos) {
             try {
                 let generatedDependencyMap: Map<string, Dependency> = this.generateDependencyMap(javaDependencyInfo)
-                generatedDependencyMap.forEach((dep, name) => {
-                    this.dependencyMap.get(javaDependencyInfo.workspaceFolder)?.set(name, dep)
-                })
+                this.compareAndUpdateDependencyMap(javaDependencyInfo.workspaceFolder, generatedDependencyMap)
                 // Log found dependencies
                 this.logging.log(
-                    `Total java dependencies found: ${this.dependencyMap.size} under ${javaDependencyInfo.pkgDir}`
+                    `Total java dependencies found:  ${generatedDependencyMap.size} under ${javaDependencyInfo.pkgDir}`
                 )
             } catch (error) {
                 this.logging.log(`Error processing Java dependencies: ${error}`)
@@ -82,9 +80,10 @@ export class JavaDependencyHandler extends LanguageDependencyHandler<JavaDepende
                         const updatedDependencyMap = this.generateDependencyMap(javaDependencyInfo)
                         let zips: FileMetadata[] = await this.compareAndUpdateDependencyMap(
                             javaDependencyInfo.workspaceFolder,
-                            updatedDependencyMap
+                            updatedDependencyMap,
+                            true
                         )
-                        await this.uploadZipsAndNotifyWeboscket(zips)
+                        await this.uploadZipsAndNotifyWeboscket(zips, javaDependencyInfo.workspaceFolder)
                     }
                 })
                 this.dependencyWatchers.set(dotClasspathPath, watcher)
@@ -145,6 +144,7 @@ export class JavaDependencyHandler extends LanguageDependencyHandler<JavaDepende
                     version,
                     path: dependencyPath,
                     size: fs.statSync(dependencyPath).size,
+                    zipped: false
                 })
             }
         }

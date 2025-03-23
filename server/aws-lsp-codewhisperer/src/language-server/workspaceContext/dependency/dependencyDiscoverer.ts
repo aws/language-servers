@@ -71,7 +71,6 @@ export class DependencyDiscoverer {
         }
         this.initialized = true
         this.logging.log(`number of workspace folders: ${this.workspaceFolders.length}`)
-        this.logging.log(`The workspace path: ${this.workspace}`)
         for (const workspaceFolder of this.workspaceFolders) {
             const workspaceFolderPath = URI.parse(workspaceFolder.uri).path
             this.logging.log(`Start to search dependencies under: ${workspaceFolderPath}`)

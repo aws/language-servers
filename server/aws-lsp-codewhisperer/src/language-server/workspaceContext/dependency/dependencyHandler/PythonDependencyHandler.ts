@@ -65,13 +65,11 @@ export class PythonDependencyHandler extends LanguageDependencyHandler<PythonDep
     initiateDependencyMap(): void {
         this.pythonDependencyInfos.forEach(pythonDependencyInfo => {
             try {
-                this.dependencyMap.set(
-                    pythonDependencyInfo.workspaceFolder,
-                    this.generateDependencyMap(pythonDependencyInfo)
-                )
+                let generatedDependencyMap: Map<string, Dependency> = this.generateDependencyMap(pythonDependencyInfo)
+                this.compareAndUpdateDependencyMap(pythonDependencyInfo.workspaceFolder, generatedDependencyMap)
                 // Log found dependencies
                 this.logging.log(
-                    `Total python dependencies found: ${this.dependencyMap.size} under ${pythonDependencyInfo.pkgDir}`
+                    `Total python dependencies found: ${generatedDependencyMap.size} under ${pythonDependencyInfo.pkgDir}`
                 )
             } catch (error) {
                 this.logging.log(`Error processing Python dependencies: ${error}`)
@@ -101,9 +99,10 @@ export class PythonDependencyHandler extends LanguageDependencyHandler<PythonDep
                             }
                             let zips: FileMetadata[] = await this.compareAndUpdateDependencyMap(
                                 pythonDependencyInfo.workspaceFolder,
-                                updatedDependencyMap
+                                updatedDependencyMap,
+                                true
                             )
-                            await this.uploadZipsAndNotifyWeboscket(zips)
+                            await this.uploadZipsAndNotifyWeboscket(zips, pythonDependencyInfo.workspaceFolder)
                         }
                     })
                     this.dependencyWatchers.set(sitePackagesPath, watcher)
@@ -160,6 +159,7 @@ export class PythonDependencyHandler extends LanguageDependencyHandler<PythonDep
                 version: 'unknown',
                 path: dependencyPath,
                 size: dependencySize,
+                zipped: false
             })
         }
     }
@@ -186,6 +186,7 @@ export class PythonDependencyHandler extends LanguageDependencyHandler<PythonDep
                 version: 'unknown',
                 path: dependencyPath,
                 size: this.getDirectorySize(dependencyPath),
+                zipped: false
             }
             updatedDependencyMap.set(dependencyName, updatedDependency)
             this.logging.log(`Python package updated (metadata change): ${dependencyPath}`)
@@ -204,6 +205,7 @@ export class PythonDependencyHandler extends LanguageDependencyHandler<PythonDep
                 version: 'unknown',
                 path: dependencyPath,
                 size: this.getDirectorySize(dependencyPath),
+                zipped: false
             }
             updatedDependencyMap.set(fileName, updatedDependency)
             this.logging.log(`Python package updated: ${fileName}`)
