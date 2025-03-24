@@ -186,6 +186,11 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
                     }
                 } catch (error) {
                     this.log('Error updating profiles: ' + error)
+                    if (error instanceof AmazonQServiceProfileUpdateCancelled) {
+                        throw new ResponseError(LSPErrorCodes.ServerCancelled, error.message, {
+                            awsErrorCode: error.code,
+                        })
+                    }
                     if (error instanceof AmazonQError) {
                         throw new ResponseError(LSPErrorCodes.RequestFailed, error.message, {
                             awsErrorCode: error.code,
@@ -335,6 +340,7 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
         }
 
         this.logServiceState('UpdateProfile is requested')
+        const initialState = this.state
 
         // Test if connection type changed
         this.handleSsoConnectionChange()
@@ -362,6 +368,11 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
             logging: this.logging,
         })
 
+        if (token.isCancellationRequested) {
+            this.state = initialState
+            throw new AmazonQServiceProfileUpdateCancelled('Requested profile update got cancelled')
+        }
+
         const newProfile = profiles.find(el => el.arn === newProfileArn)
 
         if (!newProfile || !newProfile.identityDetails?.region) {
@@ -373,6 +384,7 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
         }
 
         if (token.isCancellationRequested) {
+            this.state = initialState
             throw new AmazonQServiceProfileUpdateCancelled('Requested profile update got cancelled')
         }
 
@@ -398,6 +410,7 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
         }
 
         if (token.isCancellationRequested) {
+            this.state = initialState
             throw new AmazonQServiceProfileUpdateCancelled('Requested profile update got cancelled')
         }
 
@@ -420,14 +433,14 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
 
         this.log(`Switching service client region from ${oldRegion} to ${newRegion}`)
 
+        if (token.isCancellationRequested) {
+            this.state = initialState
+            throw new AmazonQServiceProfileUpdateCancelled('Requested profile update got cancelled')
+        }
         // Selected new profile is in different region. Re-initialize service
         this.resetCodewhispererService()
 
         this.activeIdcProfile = newProfile
-
-        if (token.isCancellationRequested) {
-            throw new AmazonQServiceProfileUpdateCancelled('Requested profile update got cancelled')
-        }
 
         this.createCodewhispererServiceInstances('identityCenter', newProfile.identityDetails.region)
         this.state = 'INITIALIZED'
