@@ -12,6 +12,7 @@ import {
     CancellationToken,
     CredentialsType,
     InitializeParams,
+    CancellationTokenSource,
 } from '@aws/language-server-runtimes/server-interface'
 import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION, AWS_Q_ENDPOINTS } from '../../constants'
 import { CodeWhispererServiceToken } from '../codeWhispererService'
@@ -24,6 +25,7 @@ import {
     AmazonQServicePendingProfileError,
     AmazonQServicePendingProfileUpdateError,
     AmazonQServicePendingSigninError,
+    AmazonQServiceProfileUpdateCancelled,
 } from './errors'
 import { BaseAmazonQServiceManager } from './BaseAmazonQServiceManager'
 import { Q_CONFIGURATION_SECTION } from '../configuration/qConfigurationServer'
@@ -79,6 +81,7 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
     private configurationCache = new Map()
     private activeIdcProfile?: AmazonQDeveloperProfile
     private connectionType?: SsoConnectionType
+    public profileChangeTokenSource: CancellationTokenSource | undefined
     /**
      * Internal state of Service connection, based on status of bearer token and Amazon Q Developer profile selection.
      * Supported states:
@@ -161,8 +164,13 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
                 try {
                     if (params.section === Q_CONFIGURATION_SECTION && params.settings.profileArn) {
                         this.log(`Profile update is requested for profile ${params.settings.profileArn}`)
+                        if (this.profileChangeTokenSource) {
+                            this.profileChangeTokenSource.cancel()
+                            this.profileChangeTokenSource.dispose()
+                        }
+                        this.profileChangeTokenSource = new CancellationTokenSource()
 
-                        await this.handleProfileChange(params.settings.profileArn)
+                        await this.handleProfileChange(params.settings.profileArn, this.profileChangeTokenSource.token)
                     }
                 } catch (error) {
                     this.log('Error updating profiles: ' + error)
@@ -173,6 +181,11 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
                     }
 
                     throw new ResponseError(LSPErrorCodes.RequestFailed, 'Failed to update configuration')
+                } finally {
+                    if (this.profileChangeTokenSource) {
+                        this.profileChangeTokenSource.dispose()
+                        this.profileChangeTokenSource = undefined
+                    }
                 }
             }
         )
@@ -294,7 +307,7 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
         }
     }
 
-    private async handleProfileChange(newProfileArn: string): Promise<void> {
+    private async handleProfileChange(newProfileArn: string, token: CancellationToken): Promise<void> {
         if (!this.enableDeveloperProfileSupport) {
             this.log('Developer Profiles Support is not enabled')
             return
@@ -342,6 +355,10 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
             throw new AmazonQServiceInvalidProfileError('Requested Amazon Q Profile does not exist')
         }
 
+        if (token.isCancellationRequested) {
+            throw new AmazonQServiceProfileUpdateCancelled('Requested profile update got cancelled')
+        }
+
         if (!this.activeIdcProfile) {
             this.activeIdcProfile = newProfile
             this.createCodewhispererServiceInstance('identityCenter', newProfile.identityDetails.region)
@@ -361,6 +378,10 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
             this.state = 'INITIALIZED'
 
             return
+        }
+
+        if (token.isCancellationRequested) {
+            throw new AmazonQServiceProfileUpdateCancelled('Requested profile update got cancelled')
         }
 
         // At this point new valid profile is selected.
@@ -386,6 +407,11 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
         this.resetCodewhispererService()
 
         this.activeIdcProfile = newProfile
+
+        if (token.isCancellationRequested) {
+            throw new AmazonQServiceProfileUpdateCancelled('Requested profile update got cancelled')
+        }
+
         this.createCodewhispererServiceInstance('identityCenter', newProfile.identityDetails.region)
         this.state = 'INITIALIZED'
 
