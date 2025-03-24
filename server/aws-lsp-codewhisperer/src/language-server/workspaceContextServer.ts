@@ -242,7 +242,7 @@ export const WorkspaceContextServer =
                     textDocument: { uri: getRelativePath(fileMetadata.workspaceFolder, event.textDocument.uri) },
                     workspaceChangeMetadata: {
                         workspaceId: workspaceDetails.workspaceId,
-                        s3Path: s3Url,
+                        s3Path: cleanUrl(s3Url),
                         programmingLanguage: programmingLanguage,
                     },
                 },
@@ -298,7 +298,7 @@ export const WorkspaceContextServer =
                             ],
                             workspaceChangeMetadata: {
                                 workspaceId: workspaceDetails.workspaceId,
-                                s3Path: s3Url,
+                                s3Path: cleanUrl(s3Url),
                                 programmingLanguage: fileMetadata.language,
                             },
                         },
@@ -404,7 +404,7 @@ export const WorkspaceContextServer =
                             ],
                             workspaceChangeMetadata: {
                                 workspaceId: workspaceDetails.workspaceId,
-                                s3Path: s3Url,
+                                s3Path: cleanUrl(s3Url),
                                 programmingLanguage: fileMetadata.language,
                             },
                         },

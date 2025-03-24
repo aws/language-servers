@@ -9,7 +9,7 @@ import {
 } from '../../client/token/codewhispererbearertokenclient'
 import { CredentialsProvider, Logging } from '@aws/language-server-runtimes/server-interface'
 import { ArtifactManager, FileMetadata } from './artifactManager'
-import { findWorkspaceRootFolder, getSha256Async, uploadArtifactToS3 } from './util'
+import { cleanUrl, findWorkspaceRootFolder, getSha256Async, uploadArtifactToS3 } from './util'
 
 interface WorkspaceState {
     remoteWorkspaceState: WorkspaceStatus
@@ -419,7 +419,7 @@ export class WorkspaceFolderManager {
                         },
                         workspaceChangeMetadata: {
                             workspaceId: this.getWorkspaces().get(fileMetadata.workspaceFolder.uri)?.workspaceId ?? '',
-                            s3Path: s3Url,
+                            s3Path: cleanUrl(s3Url),
                             programmingLanguage: fileMetadata.language,
                         },
                     },

@@ -4,6 +4,7 @@ import * as fs from 'fs'
 import { ArtifactManager, FileMetadata } from '../../artifactManager'
 import path = require('path')
 import { WorkspaceFolderManager } from '../../workspaceFolderManager'
+import { cleanUrl } from '../../util'
 
 export interface Dependency {
     name: string
@@ -123,7 +124,7 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
                 event: { paths: [] },
                 workspaceChangeMetadata: {
                     workspaceId: workspaceDetails.workspaceId,
-                    s3Path: s3Url,
+                    s3Path: cleanUrl(s3Url),
                     programmingLanguage: this.language,
                 },
             },
@@ -174,7 +175,6 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
                 dependency.zipped = true
                 this.dependencyMap.get(workspaceFolder)?.set(dependency.name, dependency)
             }
-
         }
         // Process any remaining dependencies in the last chunk
         if (currentChunk.length > 0) {
@@ -273,10 +273,7 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
 
         let zips: FileMetadata[] = []
         if (zipChanges) {
-            zips = await this.generateFileMetadata(
-                [...changes.added, ...changes.updated],
-                workspaceFolder
-            )
+            zips = await this.generateFileMetadata([...changes.added, ...changes.updated], workspaceFolder)
         }
 
         return zips
@@ -328,7 +325,10 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
         }
     }
 
-    protected async uploadZipsAndNotifyWeboscket(zips: FileMetadata[], workspaceFolder: WorkspaceFolder): Promise<void> {
+    protected async uploadZipsAndNotifyWeboscket(
+        zips: FileMetadata[],
+        workspaceFolder: WorkspaceFolder
+    ): Promise<void> {
         const workspaceStateCheck = setInterval(async () => {
             const workspaceId = this.workspaceFolderManager.getWorkspaceId(workspaceFolder)
             if (workspaceId) {
@@ -342,15 +342,16 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
                             return
                         }
                         this.logging.log(`Uploaded dependency zip: ${zip.filePath}`)
-                        const cleanUrl = new URL(s3Url).origin + new URL(s3Url).pathname
-                        this.generateWebSocketRequest(zip.workspaceFolder, cleanUrl)
+                        this.generateWebSocketRequest(zip.workspaceFolder, s3Url)
                     }
                 } finally {
                     // Clean up zip files after processing
                     await this.cleanupZipFiles(zips)
                 }
             } else {
-                this.logging.log(`Workspace Id is not ready for ${workspaceFolder.uri}. Waiting to upload dependencies...`)
+                this.logging.log(
+                    `Workspace Id is not ready for ${workspaceFolder.uri}. Waiting to upload dependencies...`
+                )
             }
         }, 5000)
     }

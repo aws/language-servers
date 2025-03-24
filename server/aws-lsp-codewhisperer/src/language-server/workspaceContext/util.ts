@@ -27,6 +27,10 @@ export const findWorkspaceRootFolder = (
     return matchingFolder
 }
 
+export const cleanUrl = (s3Url: string): string => {
+    return new URL(s3Url).origin + new URL(s3Url).pathname
+}
+
 export const uploadArtifactToS3 = async (content: Buffer, resp: CreateUploadUrlResponse) => {
     const encryptionContext = `{"WorkspaceId":"${resp.uploadId}"}`
     let headersObj = resp.requestHeaders
