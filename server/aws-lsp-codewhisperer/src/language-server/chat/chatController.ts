@@ -4,8 +4,6 @@ import {
     ErrorCodes,
     FeedbackParams,
     InsertToCursorPositionParams,
-    OpenTabParams,
-    OpenTabResult,
     TextDocumentEdit,
     TextEdit,
     chatRequestType,
@@ -43,6 +41,8 @@ import { HELP_MESSAGE } from './constants'
 import { Q_CONFIGURATION_SECTION } from '../configuration/qConfigurationServer'
 import { textUtils } from '@aws/lsp-core'
 import { TelemetryService } from '../telemetryService'
+import { AmazonQServicePendingProfileError, AmazonQServicePendingSigninError } from '../amazonQServiceManager/errors'
+import { AmazonQTokenServiceManager } from '../amazonQServiceManager/AmazonQTokenServiceManager'
 
 type ChatHandlers = Omit<LspHandlers<Chat>, 'openTab'>
 
@@ -104,7 +104,13 @@ export class ChatController implements ChatHandlers {
         const conversationIdentifier = session?.conversationId ?? 'New conversation'
         try {
             this.#log('Request for conversation id:', conversationIdentifier)
-            requestInput = this.#triggerContext.getChatParamsFromTrigger(params, triggerContext, this.#customizationArn)
+            const profileArn = AmazonQTokenServiceManager.getInstance(this.#features).getActiveProfileArn()
+            requestInput = this.#triggerContext.getChatParamsFromTrigger(
+                params,
+                triggerContext,
+                this.#customizationArn,
+                profileArn
+            )
 
             metric.recordStart()
             response = await session.sendMessage(requestInput)
@@ -113,6 +119,24 @@ export class ChatController implements ChatHandlers {
             if (isAwsError(err) || (isObject(err) && 'statusCode' in err && typeof err.statusCode === 'number')) {
                 metric.setDimension('cwsprChatRepsonseCode', err.statusCode ?? 400)
                 this.#telemetryController.emitMessageResponseError(params.tabId, metric.metric)
+            }
+
+            if (err instanceof AmazonQServicePendingSigninError) {
+                this.#log(`Q Chat SSO Connection error: ${getErrorMessage(err)}`)
+
+                return createAuthFollowUpResult('full-auth')
+            }
+
+            if (err instanceof AmazonQServicePendingProfileError) {
+                this.#log(`Q Chat SSO Connection error: ${getErrorMessage(err)}`)
+
+                const followUpResult = createAuthFollowUpResult('use-supported-auth')
+                // Access first element in array
+                if (followUpResult.followUp?.options) {
+                    followUpResult.followUp.options[0].pillText = 'Select Q Developer Profile'
+                }
+
+                return followUpResult
             }
 
             const authFollowType = getAuthFollowUpType(err)
