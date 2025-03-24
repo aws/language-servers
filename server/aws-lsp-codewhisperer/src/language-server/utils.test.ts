@@ -6,6 +6,7 @@ import {
     getSsoConnectionType,
     getUnmodifiedAcceptedTokens,
     getEndPositionForAcceptedSuggestion,
+    safeGet,
 } from './utils'
 import { expect } from 'chai'
 import { BUILDER_ID_START_URL } from './constants'
@@ -203,5 +204,19 @@ describe('getEndPositionForAcceptedSuggestion', () => {
         const result = getEndPositionForAcceptedSuggestion(content, startPosition)
 
         assert.deepStrictEqual(result, { line: 8, character: 0 })
+    })
+})
+
+describe('safeGet', () => {
+    const getStringOrUndefined = (defined: boolean) => {
+        return defined ? 'some-string' : undefined
+    }
+
+    it('does not throw if argument is defined', () => {
+        assert.doesNotThrow(() => safeGet(getStringOrUndefined(true)))
+    })
+
+    it('throws when argument is undefined', () => {
+        assert.throws(() => safeGet(getStringOrUndefined(false)))
     })
 })
