@@ -9,7 +9,13 @@ import {
     WorkspaceFolder,
 } from '@aws/language-server-runtimes/server-interface'
 import { CodeWhispererServiceToken } from './codeWhispererService'
-import { getRelativePath, isDirectory, isEmptyDirectory, isLoggedInUsingBearerToken } from './workspaceContext/util'
+import {
+    cleanUrl,
+    getRelativePath,
+    isDirectory,
+    isEmptyDirectory,
+    isLoggedInUsingBearerToken,
+} from './workspaceContext/util'
 import {
     ArtifactManager,
     FileMetadata,
