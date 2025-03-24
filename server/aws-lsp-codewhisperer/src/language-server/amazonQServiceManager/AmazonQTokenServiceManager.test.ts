@@ -15,7 +15,13 @@ import {
     LSPErrorCodes,
     ResponseError,
 } from '@aws/language-server-runtimes/protocol'
-import { AWS_Q_ENDPOINTS, DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../../constants'
+import {
+    AWS_Q_ENDPOINT_URL_ENV_VAR,
+    AWS_Q_ENDPOINTS,
+    AWS_Q_REGION_ENV_VAR,
+    DEFAULT_AWS_Q_ENDPOINT_URL,
+    DEFAULT_AWS_Q_REGION,
+} from '../../constants'
 import * as qDeveloperProfilesFetcherModule from './qDeveloperProfiles'
 import { setCredentialsForAmazonQTokenServiceManagerFactory } from '../testUtils'
 import { CodeWhispererStreaming } from '@amzn/codewhisperer-streaming'
@@ -215,8 +221,8 @@ describe('AmazonQTokenServiceManager', () => {
         })
 
         it('should initialize service with region set by runtime if not set by client', async () => {
-            features.runtime.getConfiguration.withArgs('AWS_Q_REGION').returns('eu-central-1')
-            features.runtime.getConfiguration.withArgs('AWS_Q_ENDPOINT_URL').returns(TEST_ENDPOINT_EU_CENTRAL_1)
+            features.runtime.getConfiguration.withArgs(AWS_Q_REGION_ENV_VAR).returns('eu-central-1')
+            features.runtime.getConfiguration.withArgs(AWS_Q_ENDPOINT_URL_ENV_VAR).returns(TEST_ENDPOINT_EU_CENTRAL_1)
 
             amazonQTokenServiceManager.getCodewhispererService()
             assert(codewhispererStubFactory.calledOnceWithExactly('eu-central-1', TEST_ENDPOINT_EU_CENTRAL_1))
