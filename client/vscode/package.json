@@ -235,6 +235,11 @@
                     "type": "string",
                     "description": "The selected Q customization"
                 },
+                "aws.q.extracontext": {
+                    "scope": "resource",
+                    "type": "string",
+                    "description": "Extra context for Q Inline Suggestions"
+                },
                 "aws.q.optOutTelemetry": {
                     "scope": "resource",
                     "type": "boolean",

@@ -250,6 +250,7 @@ export const CodewhispererServerFactory =
     ({ credentialsProvider, lsp, workspace, telemetry, logging, runtime, sdkInitializator }) => {
         let lastUserModificationTime: number
         let timeSinceLastUserModification: number = 0
+        let extraContext: string | undefined = undefined
 
         const sessionManager = SessionManager.getInstance()
 
@@ -323,6 +324,7 @@ export const CodewhispererServerFactory =
                 const selectionRange = params.context.selectedCompletionInfo?.range
                 const fileContext = getFileContext({ textDocument, inferredLanguageId, position: params.position })
 
+
                 // TODO: Can we get this derived from a keyboard event in the future?
                 // This picks the last non-whitespace character, if any, before the cursor
                 const triggerCharacter = fileContext.leftFileContent.trim().at(-1) ?? ''
@@ -395,6 +397,10 @@ export const CodewhispererServerFactory =
                     customizationArn: textUtils.undefinedIfEmpty(codeWhispererService.customizationArn),
                 })
 
+                // Add extra context to request context
+                if (extraContext) {
+                    requestContext.fileContext.leftFileContent = extraContext + '\n' + requestContext.fileContext.leftFileContent
+                }
                 return codeWhispererService.generateSuggestions({
                         ...requestContext,
                         fileContext: {
@@ -618,6 +624,7 @@ export const CodewhispererServerFactory =
                     // telemetryService.updateEnableTelemetryEventsToDestination(enableTelemetryEventsToDestination)
                     const optOutTelemetryPreference = qConfig['optOutTelemetry'] === true ? 'OPTOUT' : 'OPTIN'
                     telemetryService.updateOptOutPreference(optOutTelemetryPreference)
+                    extraContext = qConfig['extracontext']
                 }
 
                 const config = await lsp.workspace.getConfiguration('aws.codeWhisperer')
