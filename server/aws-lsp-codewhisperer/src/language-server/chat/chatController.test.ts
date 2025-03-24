@@ -7,18 +7,14 @@ import {
     CredentialsProvider,
     Telemetry,
     Logging,
-    Workspace,
     Position,
     InsertToCursorPositionParams,
     TextDocumentEdit,
-    SDKInitializator,
-    SDKClientConstructorV2,
-    SDKClientConstructorV3,
 } from '@aws/language-server-runtimes/server-interface'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import * as assert from 'assert'
+import { createIterableResponse, setCredentialsForAmazonQTokenServiceManagerFactory } from '../testUtils'
 import sinon from 'ts-sinon'
-import { createIterableResponse } from '../testUtils'
 import { ChatController } from './chatController'
 import { ChatSessionManagementService } from './chatSessionManagementService'
 import { ChatSessionService } from './chatSessionService'
@@ -27,10 +23,7 @@ import { DocumentContextExtractor } from './contexts/documentContext'
 import * as utils from './utils'
 import { DEFAULT_HELP_FOLLOW_UP_PROMPT, HELP_MESSAGE } from './constants'
 import { TelemetryService } from '../telemetryService'
-import { TextEdit } from 'vscode-languageserver-textdocument'
-import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../../constants'
-import { Service } from 'aws-sdk'
-import { ServiceConfigurationOptions } from 'aws-sdk/lib/service'
+import { AmazonQTokenServiceManager } from '../amazonQServiceManager/AmazonQTokenServiceManager'
 
 describe('ChatController', () => {
     const mockTabId = 'tab-1'
@@ -80,9 +73,6 @@ describe('ChatController', () => {
         },
     } as Logging
 
-    const awsQRegion: string = DEFAULT_AWS_Q_REGION
-    const awsQEndpointUrl: string = DEFAULT_AWS_Q_ENDPOINT_URL
-
     let sendMessageStub: sinon.SinonStub
     let disposeStub: sinon.SinonStub
     let activeTabSpy: {
@@ -93,11 +83,13 @@ describe('ChatController', () => {
     let emitConversationMetricStub: sinon.SinonStub
 
     let testFeatures: TestFeatures
+    let amazonQServiceManager: AmazonQTokenServiceManager
     let chatSessionManagementService: ChatSessionManagementService
     let chatController: ChatController
     let telemetryService: TelemetryService
-    let invokeSendTelemetryEventStub: sinon.SinonStub
     let telemetry: Telemetry
+
+    const setCredentials = setCredentialsForAmazonQTokenServiceManagerFactory(() => testFeatures)
 
     beforeEach(() => {
         sendMessageStub = sinon.stub(CodeWhispererStreaming.prototype, 'sendMessage').callsFake(() => {
@@ -115,29 +107,32 @@ describe('ChatController', () => {
 
         testFeatures = new TestFeatures()
 
+        // @ts-ignore
+        const cachedInitializeParams: InitializeParams = {
+            initializationOptions: {
+                aws: {
+                    awsClientCapabilities: {
+                        q: {
+                            developerProfiles: false,
+                        },
+                    },
+                },
+            },
+        }
+        testFeatures.lsp.getClientInitializeParams.returns(cachedInitializeParams)
+        setCredentials('builderId')
+
         activeTabSpy = sinon.spy(ChatTelemetryController.prototype, 'activeTabId', ['get', 'set'])
         removeConversationSpy = sinon.spy(ChatTelemetryController.prototype, 'removeConversation')
         emitConversationMetricStub = sinon.stub(ChatTelemetryController.prototype, 'emitConversationMetric')
 
         disposeStub = sinon.stub(ChatSessionService.prototype, 'dispose')
 
-        const mockSdkRuntimeConfigurator: SDKInitializator = Object.assign(
-            // Default callable function for v3 clients
-            <T, P>(Ctor: SDKClientConstructorV3<T, P>, current_config: P): T => new Ctor({ ...current_config }),
-            // Property for v2 clients
-            {
-                v2: <T extends Service, P extends ServiceConfigurationOptions>(
-                    Ctor: SDKClientConstructorV2<T, P>,
-                    current_config: P
-                ): T => new Ctor({ ...current_config }),
-            }
-        )
+        AmazonQTokenServiceManager.resetInstance()
 
+        amazonQServiceManager = AmazonQTokenServiceManager.getInstance(testFeatures)
         chatSessionManagementService = ChatSessionManagementService.getInstance()
-            .withCredentialsProvider(testFeatures.credentialsProvider)
-            .withCodeWhispererRegion(awsQRegion)
-            .withCodeWhispererEndpoint(awsQEndpointUrl)
-            .withSdkRuntimeConfigurator(mockSdkRuntimeConfigurator)
+        chatSessionManagementService.withAmazonQServiceManager(amazonQServiceManager)
 
         const mockCredentialsProvider: CredentialsProvider = {
             hasCredentials: sinon.stub().returns(true),
@@ -151,24 +146,12 @@ describe('ChatController', () => {
             onCredentialsDeleted: sinon.stub(),
         }
 
-        const mockWorkspace = {} as unknown as Workspace
-
         telemetry = {
             emitMetric: sinon.stub(),
             onClientTelemetry: sinon.stub(),
         }
 
-        telemetryService = new TelemetryService(
-            mockCredentialsProvider,
-            'bearer',
-            telemetry,
-            logging,
-            mockWorkspace,
-            awsQRegion,
-            awsQEndpointUrl,
-            mockSdkRuntimeConfigurator
-        )
-        invokeSendTelemetryEventStub = sinon.stub(telemetryService, 'sendTelemetryEvent' as any)
+        telemetryService = new TelemetryService(amazonQServiceManager, mockCredentialsProvider, telemetry, logging)
         chatController = new ChatController(chatSessionManagementService, testFeatures, telemetryService)
     })
 
@@ -255,15 +238,6 @@ describe('ChatController', () => {
     describe('onChatPrompt', () => {
         beforeEach(() => {
             chatController.onTabAdd({ tabId: mockTabId })
-        })
-        it("throws error if credentials provider doesn't exist", async () => {
-            ChatSessionManagementService.getInstance().withCredentialsProvider(undefined as any)
-            const result = await chatController.onChatPrompt(
-                { tabId: 'XXXX', prompt: { prompt: 'Hello' } },
-                mockCancellationToken
-            )
-
-            assert.ok(result instanceof ResponseError)
         })
 
         it('read all the response streams and return compiled results', async () => {

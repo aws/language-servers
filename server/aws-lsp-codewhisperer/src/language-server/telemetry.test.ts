@@ -3,6 +3,7 @@ import {
     InlineCompletionListWithReferences,
     CancellationToken,
     InlineCompletionTriggerKind,
+    InitializeParams,
 } from '@aws/language-server-runtimes/server-interface'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import sinon, { StubbedInstance, stubInterface } from 'ts-sinon'
@@ -58,6 +59,7 @@ class HelloWorld
 
             // Return no specific configuration for CodeWhisperer
             features.lsp.workspace.getConfiguration.returns(Promise.resolve({}))
+            features.lsp.getClientInitializeParams.returns({} as InitializeParams)
 
             // Start the server and open a document
             await features.start(server)

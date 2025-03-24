@@ -1,4 +1,3 @@
-import { ChatSessionManagementService } from './chat/chatSessionManagementService'
 import { SecurityScanServerToken } from './codeWhispererSecurityScanServer'
 import { CodewhispererServerFactory } from './codeWhispererServer'
 import { CodeWhispererServiceIAM, CodeWhispererServiceToken } from './codeWhispererService'
@@ -30,17 +29,7 @@ export const CodeWhispererServerIAMProxy = CodewhispererServerFactory(
     }
 )
 
-export const CodeWhispererSecurityScanServerTokenProxy = SecurityScanServerToken(
-    (credentialsProvider, workspace, awsQRegion, awsQEndpointUrl, sdkInitializator) => {
-        return new CodeWhispererServiceToken(
-            credentialsProvider,
-            workspace,
-            awsQRegion,
-            awsQEndpointUrl,
-            sdkInitializator
-        )
-    }
-)
+export const CodeWhispererSecurityScanServerTokenProxy = SecurityScanServerToken()
 
 export const QNetTransformServerTokenProxy = QNetTransformServerToken(
     (credentialsProvider, workspace, awsQRegion, awsQEndpointUrl, sdkInitializator) => {
@@ -54,22 +43,6 @@ export const QNetTransformServerTokenProxy = QNetTransformServerToken(
     }
 )
 
-export const QChatServerProxy = QChatServer((credentialsProvider, awsQRegion, awsQEndpointUrl, sdkInitializator) => {
-    return ChatSessionManagementService.getInstance()
-        .withCredentialsProvider(credentialsProvider)
-        .withCodeWhispererEndpoint(awsQEndpointUrl)
-        .withCodeWhispererRegion(awsQRegion)
-        .withSdkRuntimeConfigurator(sdkInitializator)
-})
+export const QChatServerProxy = QChatServer()
 
-export const QConfigurationServerTokenProxy = QConfigurationServerToken(
-    (credentialsProvider, workspace, awsQRegion, awsQEndpointUrl, sdkInitializator) => {
-        return new CodeWhispererServiceToken(
-            credentialsProvider,
-            workspace,
-            awsQRegion,
-            awsQEndpointUrl,
-            sdkInitializator
-        )
-    }
-)
+export const QConfigurationServerTokenProxy = QConfigurationServerToken()

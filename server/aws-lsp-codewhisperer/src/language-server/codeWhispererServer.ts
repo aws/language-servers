@@ -31,16 +31,21 @@ import { truncateOverlapWithRightContext } from './mergeRightUtils'
 import { CodeWhispererSession, SessionManager } from './session/sessionManager'
 import { CodePercentageTracker } from './telemetry/codePercentage'
 import { CodeWhispererPerceivedLatencyEvent, CodeWhispererServiceInvocationEvent } from './telemetry/types'
-import { getCompletionType, getEndPositionForAcceptedSuggestion, isAwsError } from './utils'
+import { getCompletionType, getEndPositionForAcceptedSuggestion, isAwsError, safeGet } from './utils'
 import { getUserAgent, makeUserContextObject } from './utilities/telemetryUtils'
 import { Q_CONFIGURATION_SECTION } from './configuration/qConfigurationServer'
 import { fetchSupplementalContext } from './utilities/supplementalContextUtil/supplementalContextUtil'
 import { textUtils } from '@aws/lsp-core'
 import { TelemetryService } from './telemetryService'
 import { AcceptedSuggestionEntry, CodeDiffTracker } from './telemetry/codeDiffTracker'
-import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../constants'
+import {
+    AWS_Q_ENDPOINT_URL_ENV_VAR,
+    AWS_Q_REGION_ENV_VAR,
+    DEFAULT_AWS_Q_ENDPOINT_URL,
+    DEFAULT_AWS_Q_REGION,
+} from '../constants'
 import { AmazonQTokenServiceManager } from './amazonQServiceManager/AmazonQTokenServiceManager'
-import { AmazonQError } from './amazonQServiceManager/errors'
+import { AmazonQError, AmazonQServiceInitializationError } from './amazonQServiceManager/errors'
 import { BaseAmazonQServiceManager } from './amazonQServiceManager/BaseAmazonQServiceManager'
 
 const EMPTY_RESULT = { sessionId: '', items: [] }
@@ -248,8 +253,8 @@ export const CodewhispererServerFactory =
 
         const sessionManager = SessionManager.getInstance()
 
-        const awsQRegion = runtime.getConfiguration('AWS_Q_REGION') ?? DEFAULT_AWS_Q_REGION
-        const awsQEndpointUrl = runtime.getConfiguration('AWS_Q_ENDPOINT_URL') ?? DEFAULT_AWS_Q_ENDPOINT_URL
+        const awsQRegion = runtime.getConfiguration(AWS_Q_REGION_ENV_VAR) ?? DEFAULT_AWS_Q_REGION
+        const awsQEndpointUrl = runtime.getConfiguration(AWS_Q_ENDPOINT_URL_ENV_VAR) ?? DEFAULT_AWS_Q_ENDPOINT_URL
         const fallbackCodeWhispererService = service(
             credentialsProvider,
             workspace,
@@ -258,30 +263,17 @@ export const CodewhispererServerFactory =
             sdkInitializator
         )
 
-        // AmazonQTokenServiceManager is initialized in `onInitialized` handler to make sure Language Server connection is started
+        // AmazonQTokenServiceManager and TelemetryService are initialized in `onInitialized` handler to make sure Language Server connection is started
         let amazonQServiceManager: BaseAmazonQServiceManager
+        let telemetryService: TelemetryService
         const serviceType = fallbackCodeWhispererService.constructor.name
-
-        const telemetryService = new TelemetryService(
-            credentialsProvider,
-            fallbackCodeWhispererService.getCredentialsType(),
-            telemetry,
-            logging,
-            workspace,
-            awsQRegion,
-            awsQEndpointUrl,
-            sdkInitializator
-        )
 
         lsp.addInitializer((params: InitializeParams) => {
             // TODO: Review configuration options expected in other features
             fallbackCodeWhispererService.updateClientConfig({
                 customUserAgent: getUserAgent(params, runtime.serverInfo),
             })
-            telemetryService.updateClientConfig({
-                customUserAgent: getUserAgent(params, runtime.serverInfo),
-            })
-            telemetryService.updateUserContext(makeUserContextObject(params, runtime.platform, 'INLINE'))
+
             return {
                 capabilities: {},
             }
@@ -293,24 +285,9 @@ export const CodewhispererServerFactory =
         // the context of a single response.
         let includeSuggestionsWithCodeReferences = false
 
-        const codePercentageTracker = new CodePercentageTracker(telemetryService)
-
-        const codeDiffTracker: CodeDiffTracker<AcceptedInlineSuggestionEntry> = new CodeDiffTracker(
-            workspace,
-            logging,
-            async (entry: AcceptedInlineSuggestionEntry, percentage, unmodifiedAcceptedCharacterCount) => {
-                await telemetryService.emitUserModificationEvent({
-                    sessionId: entry.sessionId,
-                    requestId: entry.requestId,
-                    languageId: entry.languageId,
-                    customizationArn: entry.customizationArn,
-                    timestamp: new Date(),
-                    acceptedCharacterCount: entry.originalString.length,
-                    modificationPercentage: percentage,
-                    unmodifiedAcceptedCharacterCount: unmodifiedAcceptedCharacterCount,
-                })
-            }
-        )
+        // CodePercentage and codeDiff tracker have a dependency on TelemetryService, so initialization is also delayed to `onInitialized` handler
+        let codePercentageTracker: CodePercentageTracker
+        let codeDiffTracker: CodeDiffTracker<AcceptedInlineSuggestionEntry>
 
         const onInlineCompletionHandler = async (
             params: InlineCompletionWithReferencesParams,
@@ -681,6 +658,34 @@ export const CodewhispererServerFactory =
                 }
             }
 
+            const clientParams = safeGet(
+                lsp.getClientInitializeParams(),
+                new AmazonQServiceInitializationError(
+                    'TelemetryService initialized before LSP connection was initialized.'
+                )
+            )
+
+            telemetryService = new TelemetryService(amazonQServiceManager, credentialsProvider, telemetry, logging)
+            telemetryService.updateUserContext(makeUserContextObject(clientParams, runtime.platform, 'INLINE'))
+
+            codePercentageTracker = new CodePercentageTracker(telemetryService)
+            codeDiffTracker = new CodeDiffTracker(
+                workspace,
+                logging,
+                async (entry: AcceptedInlineSuggestionEntry, percentage, unmodifiedAcceptedCharacterCount) => {
+                    await telemetryService.emitUserModificationEvent({
+                        sessionId: entry.sessionId,
+                        requestId: entry.requestId,
+                        languageId: entry.languageId,
+                        customizationArn: entry.customizationArn,
+                        timestamp: new Date(),
+                        acceptedCharacterCount: entry.originalString.length,
+                        modificationPercentage: percentage,
+                        unmodifiedAcceptedCharacterCount: unmodifiedAcceptedCharacterCount,
+                    })
+                }
+            )
+
             await updateConfiguration()
         }
 
@@ -711,8 +716,8 @@ export const CodewhispererServerFactory =
         logging.log('Amazon Q Inline Suggestion server has been initialised')
 
         return async () => {
-            codePercentageTracker.dispose()
-            await codeDiffTracker.shutdown()
+            codePercentageTracker?.dispose()
+            await codeDiffTracker?.shutdown()
         }
     }
 
