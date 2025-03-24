@@ -14,7 +14,13 @@ import {
     CredentialsType,
     InitializeParams,
 } from '@aws/language-server-runtimes/server-interface'
-import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION, AWS_Q_ENDPOINTS } from '../../constants'
+import {
+    DEFAULT_AWS_Q_ENDPOINT_URL,
+    DEFAULT_AWS_Q_REGION,
+    AWS_Q_ENDPOINTS,
+    AWS_Q_REGION_ENV_VAR,
+    AWS_Q_ENDPOINT_URL_ENV_VAR,
+} from '../../constants'
 import { CodeWhispererServiceToken } from '../codeWhispererService'
 import {
     AmazonQError,
@@ -447,14 +453,30 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
 
     private createCodewhispererServiceInstances(connectionType: 'builderId' | 'identityCenter', region?: string) {
         this.logServiceState('Initializing CodewhispererService')
-        let awsQRegion = this.features.runtime.getConfiguration('AWS_Q_REGION') ?? DEFAULT_AWS_Q_REGION
-        let awsQEndpoint: string | undefined =
-            this.features.runtime.getConfiguration('AWS_Q_ENDPOINT_URL') ?? DEFAULT_AWS_Q_ENDPOINT_URL
+        let awsQRegion: string
+        let awsQEndpoint: string | undefined
 
         if (region) {
+            this.log(
+                `Selecting region (found: ${region}) provided by ${connectionType === 'builderId' ? 'client' : 'profile'}`
+            )
             awsQRegion = region
             // @ts-ignore
-            awsQEndpoint = AWS_Q_ENDPOINTS[region]
+            awsQEndpoint = AWS_Q_ENDPOINTS[awsQRegion]
+        } else {
+            const runtimeRegion = this.features.runtime.getConfiguration(AWS_Q_REGION_ENV_VAR)
+
+            if (runtimeRegion) {
+                this.log(`Selecting region (found: ${runtimeRegion}) provided by runtime`)
+                awsQRegion = runtimeRegion
+                // prettier-ignore
+                awsQEndpoint = // @ts-ignore
+                    this.features.runtime.getConfiguration(AWS_Q_ENDPOINT_URL_ENV_VAR) ?? AWS_Q_ENDPOINTS[awsQRegion]
+            } else {
+                this.log('Region not provided by caller or runtime, falling back to default region and endpoint')
+                awsQRegion = DEFAULT_AWS_Q_REGION
+                awsQEndpoint = DEFAULT_AWS_Q_ENDPOINT_URL
+            }
         }
 
         if (!awsQEndpoint) {

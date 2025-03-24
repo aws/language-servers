@@ -29,17 +29,7 @@ export const CodeWhispererServerIAMProxy = CodewhispererServerFactory(
     }
 )
 
-export const CodeWhispererSecurityScanServerTokenProxy = SecurityScanServerToken(
-    (credentialsProvider, workspace, awsQRegion, awsQEndpointUrl, sdkInitializator) => {
-        return new CodeWhispererServiceToken(
-            credentialsProvider,
-            workspace,
-            awsQRegion,
-            awsQEndpointUrl,
-            sdkInitializator
-        )
-    }
-)
+export const CodeWhispererSecurityScanServerTokenProxy = SecurityScanServerToken()
 
 export const QNetTransformServerTokenProxy = QNetTransformServerToken(
     (credentialsProvider, workspace, awsQRegion, awsQEndpointUrl, sdkInitializator) => {

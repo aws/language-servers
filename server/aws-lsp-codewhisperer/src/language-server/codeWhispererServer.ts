@@ -38,7 +38,12 @@ import { fetchSupplementalContext } from './utilities/supplementalContextUtil/su
 import { textUtils } from '@aws/lsp-core'
 import { TelemetryService } from './telemetryService'
 import { AcceptedSuggestionEntry, CodeDiffTracker } from './telemetry/codeDiffTracker'
-import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../constants'
+import {
+    AWS_Q_ENDPOINT_URL_ENV_VAR,
+    AWS_Q_REGION_ENV_VAR,
+    DEFAULT_AWS_Q_ENDPOINT_URL,
+    DEFAULT_AWS_Q_REGION,
+} from '../constants'
 import { AmazonQTokenServiceManager } from './amazonQServiceManager/AmazonQTokenServiceManager'
 import { AmazonQError, AmazonQServiceInitializationError } from './amazonQServiceManager/errors'
 import { BaseAmazonQServiceManager } from './amazonQServiceManager/BaseAmazonQServiceManager'
@@ -248,8 +253,8 @@ export const CodewhispererServerFactory =
 
         const sessionManager = SessionManager.getInstance()
 
-        const awsQRegion = runtime.getConfiguration('AWS_Q_REGION') ?? DEFAULT_AWS_Q_REGION
-        const awsQEndpointUrl = runtime.getConfiguration('AWS_Q_ENDPOINT_URL') ?? DEFAULT_AWS_Q_ENDPOINT_URL
+        const awsQRegion = runtime.getConfiguration(AWS_Q_REGION_ENV_VAR) ?? DEFAULT_AWS_Q_REGION
+        const awsQEndpointUrl = runtime.getConfiguration(AWS_Q_ENDPOINT_URL_ENV_VAR) ?? DEFAULT_AWS_Q_ENDPOINT_URL
         const fallbackCodeWhispererService = service(
             credentialsProvider,
             workspace,
