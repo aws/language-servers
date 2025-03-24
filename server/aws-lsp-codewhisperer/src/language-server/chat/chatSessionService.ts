@@ -3,7 +3,8 @@ import {
     SendMessageCommandInput,
     SendMessageCommandOutput,
 } from '@amzn/codewhisperer-streaming'
-import { AmazonQTokenServiceManager } from '../amazonQServiceManager/AmazonQTokenServiceManager'
+
+import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 
 export type ChatSessionServiceConfig = CodeWhispererStreamingClientConfig
 export class ChatSessionService {

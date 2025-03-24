@@ -19,8 +19,8 @@ import {
     TransformationJobReceivedEvent,
     TransformationJobStartedEvent,
     TransformationPlanReceivedEvent,
-} from '../telemetry/types'
-import { flattenMetric } from '../utils'
+} from '../../shared/telemetry/types'
+import { flattenMetric } from '../../shared/utils'
 
 export const CODETRANSFORM_CATEGORY = 'codeTransform'
 

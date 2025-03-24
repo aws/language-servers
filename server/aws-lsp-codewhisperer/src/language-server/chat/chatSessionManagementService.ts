@@ -1,6 +1,6 @@
 import { Result } from '../types'
 import { ChatSessionService } from './chatSessionService'
-import { AmazonQTokenServiceManager } from '../amazonQServiceManager/AmazonQTokenServiceManager'
+import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 
 export class ChatSessionManagementService {
     static #instance?: ChatSessionManagementService

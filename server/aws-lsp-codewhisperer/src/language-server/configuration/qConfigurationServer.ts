@@ -12,9 +12,9 @@ import {
     AmazonQDeveloperProfile,
     getListAllAvailableProfilesHandler,
     ListAllAvailableProfilesHandler,
-} from '../amazonQServiceManager/qDeveloperProfiles'
+} from '../../shared/amazonQServiceManager/qDeveloperProfiles'
 import { Customizations } from '../../client/token/codewhispererbearertokenclient'
-import { AmazonQTokenServiceManager } from '../amazonQServiceManager/AmazonQTokenServiceManager'
+import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 
 // The configuration section that the server will register and listen to
 export const Q_CONFIGURATION_SECTION = 'aws.q'

@@ -5,5 +5,5 @@
         "outDir": "./out",
         "resolveJsonModule": true
     },
-    "include": ["src", "src/language-server/auto-trigger/coefficients.json"]
+    "include": ["src", "src/language-server/inline-completion/auto-trigger/coefficients.json"]
 }
