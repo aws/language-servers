@@ -20,30 +20,18 @@ import { getErrorMessage, parseJson } from './utils'
 import { getUserAgent } from './utilities/telemetryUtils'
 import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../constants'
 import { SDKInitializator } from '@aws/language-server-runtimes/server-interface'
+import { AmazonQTokenServiceManager } from './amazonQServiceManager/AmazonQTokenServiceManager'
 
 const RunSecurityScanCommand = 'aws/codewhisperer/runSecurityScan'
 const CancelSecurityScanCommand = 'aws/codewhisperer/cancelSecurityScan'
 
 export const SecurityScanServerToken =
-    (
-        service: (
-            credentialsProvider: CredentialsProvider,
-            workspace: Workspace,
-            awsQRegion: string,
-            awsQEndpointUrl: string,
-            sdkInitializator: SDKInitializator
-        ) => CodeWhispererServiceToken
-    ): Server =>
+    (): Server =>
     ({ credentialsProvider, workspace, logging, lsp, telemetry, runtime, sdkInitializator }) => {
-        const codewhispererclient = service(
-            credentialsProvider,
-            workspace,
-            runtime.getConfiguration('AWS_Q_REGION') ?? DEFAULT_AWS_Q_REGION,
-            runtime.getConfiguration('AWS_Q_ENDPOINT_URL') ?? DEFAULT_AWS_Q_ENDPOINT_URL,
-            sdkInitializator
-        )
+        let amazonQServiceManager: AmazonQTokenServiceManager
+        let scanHandler: SecurityScanHandler
+
         const diagnosticsProvider = new SecurityScanDiagnosticsProvider(lsp, logging)
-        const scanHandler = new SecurityScanHandler(codewhispererclient, workspace, logging)
 
         const runSecurityScan = async (params: SecurityScanRequestParams, token: CancellationToken) => {
             logging.log(`Starting security scan`)
@@ -228,10 +216,6 @@ export const SecurityScanServerToken =
             return
         }
         const onInitializeHandler = (params: InitializeParams) => {
-            codewhispererclient.updateClientConfig({
-                customUserAgent: getUserAgent(params, runtime.serverInfo),
-            })
-
             return {
                 capabilities: {
                     executeCommandProvider: {
@@ -241,8 +225,21 @@ export const SecurityScanServerToken =
             }
         }
 
+        const onInitializedHandler = () => {
+            amazonQServiceManager = AmazonQTokenServiceManager.getInstance({
+                lsp,
+                logging,
+                runtime,
+                credentialsProvider,
+                sdkInitializator,
+                workspace,
+            })
+            scanHandler = new SecurityScanHandler(amazonQServiceManager, workspace, logging)
+        }
+
         lsp.onExecuteCommand(onExecuteCommandHandler)
         lsp.addInitializer(onInitializeHandler)
+        lsp.onInitialized(onInitializedHandler)
         lsp.onDidChangeTextDocument(async p => {
             const textDocument = await workspace.getTextDocument(p.textDocument.uri)
             const languageId = getSupportedLanguageId(textDocument, supportedSecurityScanLanguages)
@@ -265,6 +262,6 @@ export const SecurityScanServerToken =
 
         return () => {
             // dispose function
-            scanHandler.tokenSource.dispose()
+            scanHandler?.tokenSource.dispose()
         }
     }

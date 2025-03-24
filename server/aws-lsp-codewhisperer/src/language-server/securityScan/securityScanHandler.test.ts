@@ -8,6 +8,7 @@ import { StartCodeAnalysisRequest } from '../../client/token/codewhispererbearer
 import { CodeWhispererServiceToken } from '../codeWhispererService'
 import { SecurityScanHandler } from './securityScanHandler'
 import { RawCodeScanIssue } from './types'
+import { AmazonQTokenServiceManager } from '../amazonQServiceManager/AmazonQTokenServiceManager'
 
 const mockCodeScanFindings = JSON.stringify([
     {
@@ -54,9 +55,11 @@ describe('securityScanHandler', () => {
     const mockedLogging = stubInterface<Logging>()
     beforeEach(async () => {
         // Set up the server with a mock service
+        const serviceManager = stubInterface<AmazonQTokenServiceManager>()
         client = stubInterface<CodeWhispererServiceToken>()
+        serviceManager.getCodewhispererService.returns(client)
         workspace = stubInterface<Workspace>()
-        securityScanhandler = new SecurityScanHandler(client, workspace, mockedLogging)
+        securityScanhandler = new SecurityScanHandler(serviceManager, workspace, mockedLogging)
     })
 
     describe('Test createCodeResourcePresignedUrlHandler', () => {
