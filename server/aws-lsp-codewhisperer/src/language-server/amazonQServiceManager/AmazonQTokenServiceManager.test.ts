@@ -69,7 +69,15 @@ describe('AmazonQTokenServiceManager', () => {
 
         sinon
             .stub(qDeveloperProfilesFetcherModule, 'getListAllAvailableProfilesHandler')
-            .returns(sinon.stub().resolves(mockedProfiles))
+            .returns(
+                sinon
+                    .stub()
+                    .resolves(
+                        Promise.resolve(mockedProfiles).then(() =>
+                            new Promise(resolve => setTimeout(resolve, 1)).then(() => mockedProfiles)
+                        )
+                    )
+            )
 
         AmazonQTokenServiceManager.resetInstance()
 
@@ -309,6 +317,53 @@ describe('AmazonQTokenServiceManager', () => {
 
                 assert(streamingClient instanceof CodeWhispererStreaming)
                 assert.strictEqual(await streamingClient.config.region(), 'us-east-1')
+            })
+
+            it('handles Profile configuration request for valid profile & cancels the old in-flight update request', async () => {
+                setupServiceManager(true)
+                assert.strictEqual(amazonQTokenServiceManager.getState(), 'PENDING_CONNECTION')
+
+                setCredentials('identityCenter')
+                assert.strictEqual((amazonQTokenServiceManager as any)['profileChangeTokenSource'], undefined)
+
+                let firstRequestStarted = false
+                const originalHandleProfileChange = amazonQTokenServiceManager['handleProfileChange']
+                amazonQTokenServiceManager['handleProfileChange'] = async (...args) => {
+                    firstRequestStarted = true
+                    return originalHandleProfileChange.apply(amazonQTokenServiceManager, args)
+                }
+                const firstUpdate = features.doUpdateConfiguration(
+                    {
+                        section: 'aws.q',
+                        settings: {
+                            profileArn: 'profile-iad',
+                        },
+                    },
+                    {} as CancellationToken
+                )
+                while (!firstRequestStarted) {
+                    await new Promise(resolve => setTimeout(resolve, 1))
+                }
+                const secondUpdate = features.doUpdateConfiguration(
+                    {
+                        section: 'aws.q',
+                        settings: {
+                            profileArn: 'profile-fra',
+                        },
+                    },
+                    {} as CancellationToken
+                )
+                const results = await Promise.allSettled([firstUpdate, secondUpdate])
+
+                assert.strictEqual((amazonQTokenServiceManager as any)['profileChangeTokenSource'], undefined)
+                const service = amazonQTokenServiceManager.getCodewhispererService()
+                assert.strictEqual(amazonQTokenServiceManager.getState(), 'INITIALIZED')
+                assert.strictEqual(amazonQTokenServiceManager.getConnectionType(), 'identityCenter')
+                assert(codewhispererStubFactory.calledOnceWithExactly('eu-central-1', TEST_ENDPOINT_EU_CENTRAL_1))
+
+                assert.strictEqual(results[0].status, 'rejected')
+                assert(results[0].reason.message, 'Requested profile update got cancelled')
+                assert.strictEqual(results[1].status, 'fulfilled')
             })
 
             it('handles Profile configuration change to valid profile in same region', async () => {

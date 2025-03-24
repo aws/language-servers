@@ -91,7 +91,7 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
     private configurationCache = new Map()
     private activeIdcProfile?: AmazonQDeveloperProfile
     private connectionType?: SsoConnectionType
-    public profileChangeTokenSource: CancellationTokenSource | undefined
+    private profileChangeTokenSource: CancellationTokenSource | undefined
     private region?: string
     private endpoint?: string
     /**
