@@ -127,3 +127,11 @@ export function getEndPositionForAcceptedSuggestion(content: string, startPositi
     }
     return endPosition
 }
+
+export function safeGet<T, E extends Error>(object: T | undefined, customError?: E): T {
+    if (object === undefined) {
+        throw customError ?? new Error(`Expected object: "${String(object)} to be defined, but found undefined`)
+    }
+
+    return object
+}
