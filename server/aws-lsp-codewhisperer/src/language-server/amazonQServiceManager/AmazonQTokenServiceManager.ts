@@ -30,7 +30,6 @@ import { BaseAmazonQServiceManager } from './BaseAmazonQServiceManager'
 import { Q_CONFIGURATION_SECTION } from '../configuration/qConfigurationServer'
 import { textUtils } from '@aws/lsp-core'
 import { CodeWhispererStreaming } from '@amzn/codewhisperer-streaming'
-import { MISSING_BEARER_TOKEN_ERROR } from '../constants'
 import { ConfiguredRetryStrategy } from '@aws-sdk/util-retry'
 import {
     AmazonQDeveloperProfile,

@@ -185,15 +185,18 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         return 'bearer'
     }
 
+    private withProfileArn<T extends object>(request: T): T {
+        if (!this.profileArn) return request
+
+        return { ...request, profileArn: this.profileArn }
+    }
+
     async generateSuggestions(request: GenerateSuggestionsRequest): Promise<GenerateSuggestionsResponse> {
         // add cancellation check
         // add error check
-        if (this.customizationArn) request = { ...request, customizationArn: this.customizationArn }
-        if (this.profileArn) {
-            request.profileArn = this.profileArn
-        }
+        if (this.customizationArn) request.customizationArn = this.customizationArn
 
-        const response = await this.client.generateCompletions(request).promise()
+        const response = await this.client.generateCompletions(this.withProfileArn(request)).promise()
         const responseContext = {
             requestId: response?.$response?.requestId,
             codewhispererSessionId: response?.$response?.httpResponse?.headers['x-amzn-sessionid'],
@@ -212,7 +215,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     public async codeModernizerCreateUploadUrl(
         request: CodeWhispererTokenClient.CreateUploadUrlRequest
     ): Promise<CodeWhispererTokenClient.CreateUploadUrlResponse> {
-        return this.client.createUploadUrl(request).promise()
+        return this.client.createUploadUrl(this.withProfileArn(request)).promise()
     }
     /**
      * @description Use this function to start the transformation job.
@@ -223,7 +226,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     public async codeModernizerStartCodeTransformation(
         request: CodeWhispererTokenClient.StartTransformationRequest
     ): Promise<PromiseResult<CodeWhispererTokenClient.StartTransformationResponse, AWSError>> {
-        return await this.client.startTransformation(request).promise()
+        return await this.client.startTransformation(this.withProfileArn(request)).promise()
     }
 
     /**
@@ -234,7 +237,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     public async codeModernizerStopCodeTransformation(
         request: CodeWhispererTokenClient.StopTransformationRequest
     ): Promise<PromiseResult<CodeWhispererTokenClient.StopTransformationResponse, AWSError>> {
-        return await this.client.stopTransformation(request).promise()
+        return await this.client.stopTransformation(this.withProfileArn(request)).promise()
     }
 
     /**
@@ -245,7 +248,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     public async codeModernizerGetCodeTransformation(
         request: CodeWhispererTokenClient.GetTransformationRequest
     ): Promise<PromiseResult<CodeWhispererTokenClient.GetTransformationResponse, AWSError>> {
-        return await this.client.getTransformation(request).promise()
+        return await this.client.getTransformation(this.withProfileArn(request)).promise()
     }
 
     /**
@@ -256,7 +259,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     public async codeModernizerGetCodeTransformationPlan(
         request: CodeWhispererTokenClient.GetTransformationPlanRequest
     ): Promise<PromiseResult<CodeWhispererTokenClient.GetTransformationPlanResponse, AWSError>> {
-        return this.client.getTransformationPlan(request).promise()
+        return this.client.getTransformationPlan(this.withProfileArn(request)).promise()
     }
 
     /**
@@ -265,7 +268,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     async createUploadUrl(
         request: CodeWhispererTokenClient.CreateUploadUrlRequest
     ): Promise<PromiseResult<CodeWhispererTokenClient.CreateUploadUrlResponse, AWSError>> {
-        return this.client.createUploadUrl(request).promise()
+        return this.client.createUploadUrl(this.withProfileArn(request)).promise()
     }
 
     /**
@@ -274,7 +277,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     async startCodeAnalysis(
         request: CodeWhispererTokenClient.StartCodeAnalysisRequest
     ): Promise<PromiseResult<CodeWhispererTokenClient.StartCodeAnalysisResponse, AWSError>> {
-        return this.client.startCodeAnalysis(request).promise()
+        return this.client.startCodeAnalysis(this.withProfileArn(request)).promise()
     }
 
     /**
@@ -283,7 +286,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     async getCodeAnalysis(
         request: CodeWhispererTokenClient.GetCodeAnalysisRequest
     ): Promise<PromiseResult<CodeWhispererTokenClient.GetCodeAnalysisResponse, AWSError>> {
-        return this.client.getCodeAnalysis(request).promise()
+        return this.client.getCodeAnalysis(this.withProfileArn(request)).promise()
     }
 
     /**
@@ -292,14 +295,14 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     async listCodeAnalysisFindings(
         request: CodeWhispererTokenClient.ListCodeAnalysisFindingsRequest
     ): Promise<PromiseResult<CodeWhispererTokenClient.ListCodeAnalysisFindingsResponse, AWSError>> {
-        return this.client.listCodeAnalysisFindings(request).promise()
+        return this.client.listCodeAnalysisFindings(this.withProfileArn(request)).promise()
     }
 
     /**
      * @description Get list of available customizations
      */
     async listAvailableCustomizations(request: CodeWhispererTokenClient.ListAvailableCustomizationsRequest) {
-        return this.client.listAvailableCustomizations(request).promise()
+        return this.client.listAvailableCustomizations(this.withProfileArn(request)).promise()
     }
 
     /**
@@ -313,6 +316,6 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
      * @description send telemetry event to code whisperer data warehouse
      */
     async sendTelemetryEvent(request: CodeWhispererTokenClient.SendTelemetryEventRequest) {
-        return this.client.sendTelemetryEvent(request).promise()
+        return this.client.sendTelemetryEvent(this.withProfileArn(request)).promise()
     }
 }
