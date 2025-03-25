@@ -93,4 +93,4 @@ const params: InitializeParams = {
 ```
 
 ### Extra context for Q Inline Suggestions
-In cases when the client runs in a specific environment that requires customized suggestions, the server supports a `aws.q.extracontext` workspace configuration. This extra context will be passed to the left file content of the request in the beginning of the file.
+In cases when the client runs in a specific environment that requires customized suggestions, the server supports a `aws.q.extraContext` workspace configuration. This extra context will be passed to the left file content of the request in the beginning of the file.

@@ -624,7 +624,7 @@ export const CodewhispererServerFactory =
                     // telemetryService.updateEnableTelemetryEventsToDestination(enableTelemetryEventsToDestination)
                     const optOutTelemetryPreference = qConfig['optOutTelemetry'] === true ? 'OPTOUT' : 'OPTIN'
                     telemetryService.updateOptOutPreference(optOutTelemetryPreference)
-                    extraContext = qConfig['extracontext']
+                    extraContext = qConfig['extraContext']
                 }
 
                 const config = await lsp.workspace.getConfiguration('aws.codeWhisperer')
