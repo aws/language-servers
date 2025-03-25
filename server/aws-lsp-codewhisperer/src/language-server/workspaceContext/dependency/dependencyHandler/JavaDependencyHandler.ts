@@ -144,7 +144,7 @@ export class JavaDependencyHandler extends LanguageDependencyHandler<JavaDepende
                     version,
                     path: dependencyPath,
                     size: fs.statSync(dependencyPath).size,
-                    zipped: false
+                    zipped: false,
                 })
             }
         }

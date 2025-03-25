@@ -106,7 +106,7 @@ export class JSTSDependencyHandler extends LanguageDependencyHandler<JSTSDepende
                     version: actualVersion.toString().replace(/[\^~]/g, ''), // Remove ^ and ~ from version
                     path: dependencyPath,
                     size: this.getDirectorySize(dependencyPath),
-                    zipped: false
+                    zipped: false,
                 })
             }
         }
@@ -131,7 +131,7 @@ export class JSTSDependencyHandler extends LanguageDependencyHandler<JSTSDepende
                             version: depPackageJson.version || 'unknown',
                             path: itemPath,
                             size: this.getDirectorySize(itemPath),
-                            zipped: false
+                            zipped: false,
                         })
                     }
                 }

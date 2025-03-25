@@ -159,7 +159,7 @@ export class PythonDependencyHandler extends LanguageDependencyHandler<PythonDep
                 version: 'unknown',
                 path: dependencyPath,
                 size: dependencySize,
-                zipped: false
+                zipped: false,
             })
         }
     }
@@ -186,7 +186,7 @@ export class PythonDependencyHandler extends LanguageDependencyHandler<PythonDep
                 version: 'unknown',
                 path: dependencyPath,
                 size: this.getDirectorySize(dependencyPath),
-                zipped: false
+                zipped: false,
             }
             updatedDependencyMap.set(dependencyName, updatedDependency)
             this.logging.log(`Python package updated (metadata change): ${dependencyPath}`)
@@ -205,7 +205,7 @@ export class PythonDependencyHandler extends LanguageDependencyHandler<PythonDep
                 version: 'unknown',
                 path: dependencyPath,
                 size: this.getDirectorySize(dependencyPath),
-                zipped: false
+                zipped: false,
             }
             updatedDependencyMap.set(fileName, updatedDependency)
             this.logging.log(`Python package updated: ${fileName}`)
