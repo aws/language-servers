@@ -9,7 +9,13 @@ import {
 } from '../../client/token/codewhispererbearertokenclient'
 import { CredentialsProvider, Logging } from '@aws/language-server-runtimes/server-interface'
 import { ArtifactManager, FileMetadata } from './artifactManager'
-import { cleanUrl, findWorkspaceRootFolder, getSha256Async, uploadArtifactToS3 } from './util'
+import {
+    cleanUrl,
+    findWorkspaceRootFolder,
+    getSha256Async,
+    isLoggedInUsingBearerToken,
+    uploadArtifactToS3,
+} from './util'
 
 interface WorkspaceState {
     remoteWorkspaceState: WorkspaceStatus
@@ -608,10 +614,14 @@ export class WorkspaceFolderManager {
 
     private async deleteWorkspace(workspaceId: string) {
         try {
-            await this.cwsprClient.deleteWorkspace({
-                workspaceId: workspaceId,
-            })
-            this.logging.log(`Workspace (${workspaceId}) deleted successfully`)
+            if (isLoggedInUsingBearerToken(this.credentialsProvider)) {
+                await this.cwsprClient.deleteWorkspace({
+                    workspaceId: workspaceId,
+                })
+                this.logging.log(`Workspace (${workspaceId}) deleted successfully`)
+            } else {
+                this.logging.log(`Skipping workspace (${workspaceId}) deletion because user is not logged in`)
+            }
         } catch (e: any) {
             this.logging.warn(`Error while deleting workspace (${workspaceId}): ${e.message}`)
         }

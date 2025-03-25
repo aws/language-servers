@@ -210,6 +210,13 @@ export const WorkspaceContextServer =
                         initialize: true,
                     })
                 } else if (!isLoggedIn) {
+                    if (isWorkflowInitialized) {
+                        // If user is not logged in but the workflow is marked as initialized, it means user was logged in and is now logged out
+                        // In this case, clear the resources and stop the monitoring
+                        await workspaceFolderManager.clearAllWorkspaceResources()
+                        artifactManager.cleanup()
+                        dependencyDiscoverer.cleanup()
+                    }
                     isWorkflowInitialized = false
                 }
             }, 5000)
