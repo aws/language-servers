@@ -48,17 +48,17 @@ export const QChatServer =
                 .withAmazonQServiceManager(amazonQServiceManager)
 
             telemetryService = new TelemetryService(
-                    amazonQServiceManager,
-                    credentialsProvider,
-                    telemetry,
-                    logging,
-                )
+                amazonQServiceManager,
+                credentialsProvider,
+                telemetry,
+                logging,
+            )
 
-            const clientParams = safeGet(lsp.getClientInitializeParams(),new AmazonQServiceInitializationError(
-                    'TelemetryService initialized before LSP connection was initialized.'))
-            
+            const clientParams = safeGet(lsp.getClientInitializeParams(), new AmazonQServiceInitializationError(
+                'TelemetryService initialized before LSP connection was initialized.'))
+
             telemetryService.updateUserContext(makeUserContextObject(clientParams, runtime.platform, 'CHAT'))
-        
+
             chatController = new ChatController(chatSessionManagementService, features, telemetryService)
 
             await updateConfigurationHandler()
@@ -103,6 +103,31 @@ export const QChatServer =
 
         chat.onCodeInsertToCursorPosition(params => {
             return chatController.onCodeInsertToCursorPosition(params)
+        })
+
+        chat.onReady(_ => {
+            logging.log('Q Chat Client is ready')
+            chat.openTab({
+                newTabOptions: {
+                    data: {
+                        messages: [{
+                            type: 'answer',
+                            body: 'how are you today?'
+                        },
+                        {
+                            type: 'answer',
+                            body: 'I am fine'
+                        }],
+                        placeholderText: 'I am an override placeholder.'
+                    }
+                }
+            })
+                .then(result => {
+                    logging.log(`Opened tab: ${result.tabId}`)
+                })
+                .catch(err => {
+                    logging.log(`Error opening tab: ${err}`)
+                })
         })
 
         logging.log('Q Chat server has been initialized')

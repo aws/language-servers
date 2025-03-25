@@ -4,6 +4,7 @@ import {
     AUTH_FOLLOW_UP_CLICKED,
     CHAT_OPTIONS,
     COPY_TO_CLIPBOARD,
+    UiMessageResultParams,
 } from '@aws/chat-client-ui-types'
 import {
     ChatResult,
@@ -14,13 +15,24 @@ import {
     QuickActionResult,
     QuickActionParams,
     insertToCursorPositionNotificationType,
+    openTabRequestType,
 } from '@aws/language-server-runtimes/protocol'
 import { v4 as uuidv4 } from 'uuid'
 import { Uri, ViewColumn, Webview, WebviewPanel, commands, window } from 'vscode'
-import { Disposable, LanguageClient, Position, State, TextDocumentIdentifier } from 'vscode-languageclient/node'
+import {
+    Disposable,
+    ErrorCodes,
+    LanguageClient,
+    Position,
+    ResponseError,
+    State,
+    TextDocumentIdentifier,
+} from 'vscode-languageclient/node'
 import * as jose from 'jose'
 
 export function registerChat(languageClient: LanguageClient, extensionUri: Uri, encryptionKey?: Buffer) {
+    const openTabResponseQueue: UiMessageResultParams[] = []
+
     const panel = window.createWebviewPanel(
         'testChat', // Identifies the type of the webview. Used internally
         'Chat Test', // Title of the panel displayed to the user
@@ -50,6 +62,35 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri, 
 
     languageClient.onTelemetry(e => {
         languageClient.info(`[VSCode Client] Received telemetry event from server ${JSON.stringify(e)}`)
+    })
+
+    languageClient.onRequest(openTabRequestType.method, async (params, _) => {
+        const mapErrorType = (type: string | undefined): number => {
+            switch (type) {
+                case 'InvalidRequest':
+                    return ErrorCodes.InvalidRequest
+                case 'InternalError':
+                    return ErrorCodes.InternalError
+                case 'UnknownError':
+                default:
+                    return ErrorCodes.UnknownErrorCode
+            }
+        }
+        panel.webview.postMessage({
+            command: openTabRequestType.method,
+            params: params,
+        })
+
+        const result = await waitForOpenTabResult()
+
+        if (result?.success) {
+            return { tabId: result.result.tabId }
+        } else {
+            return new ResponseError(
+                mapErrorType(result?.error.type),
+                result?.error.message ?? 'No response from client'
+            )
+        }
     })
 
     panel.webview.onDidReceiveMessage(async message => {
@@ -132,11 +173,29 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri, 
                 if (!isValidAuthFollowUpType(message.params.followUp.type))
                     languageClient.sendNotification(followUpClickNotificationType, message.params)
                 break
+            case openTabRequestType.method:
+                openTabResponseQueue.push(message.params)
+                break
             default:
                 if (isServerEvent(message.command)) languageClient.sendNotification(message.command, message.params)
                 break
         }
     }, undefined)
+
+    async function waitForOpenTabResult(): Promise<UiMessageResultParams | undefined> {
+        const endTime = Date.now() + 60000 // 1 minute from now
+        const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
+        while (Date.now() < endTime) {
+            if (openTabResponseQueue.length > 0) {
+                const result = openTabResponseQueue.shift()
+                return result
+            }
+
+            await sleep(100)
+        }
+
+        return undefined
+    }
 
     panel.webview.html = getWebviewContent(panel.webview, extensionUri)
 

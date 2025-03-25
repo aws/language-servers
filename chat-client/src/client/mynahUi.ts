@@ -21,7 +21,15 @@ import {
     OpenTabParams,
     SourceLinkClickParams,
 } from '@aws/language-server-runtimes-types'
-import { ChatItem, ChatItemType, ChatPrompt, MynahUI, MynahUIDataModel, NotificationType } from '@aws/mynah-ui'
+import {
+    ChatItem,
+    ChatItemType,
+    ChatPrompt,
+    InformationItemGroup,
+    MynahUI,
+    MynahUIDataModel,
+    NotificationType,
+} from '@aws/mynah-ui'
 import { VoteParams } from '../contracts/telemetry'
 import { Messager } from './messager'
 import { TabFactory } from './tabs/tabFactory'
@@ -279,8 +287,20 @@ export const createMynahUi = (
         return tabId ? mynahUi.getAllTabs()[tabId]?.store : undefined
     }
 
-    const createTabId = (needWelcomeMessages: boolean = false) => {
-        const tabId = mynahUi.updateStore('', tabFactory.createTab(needWelcomeMessages, disclaimerCardActive))
+    const createTabId = (
+        needWelcomeMessages: boolean = false,
+        agentSpecificWelcomeMessages?: Array<ChatItem | InformationItemGroup>,
+        overridePromptInputPlaceholder?: string
+    ) => {
+        const tabId = mynahUi.updateStore(
+            '',
+            tabFactory.createTab(
+                needWelcomeMessages,
+                disclaimerCardActive,
+                agentSpecificWelcomeMessages,
+                overridePromptInputPlaceholder
+            )
+        )
         if (tabId === undefined) {
             mynahUi.notify({
                 content: uiComponentsTexts.noMoreTabsTooltip,
@@ -295,7 +315,7 @@ export const createMynahUi = (
     const getOrCreateTabId = () => {
         const tabId = mynahUi.getSelectedTabId()
 
-        return tabId ?? createTabId()
+        return tabId ?? createTabId(true)
     }
 
     const addChatResponse = (chatResult: ChatResult, tabId: string, isPartialResult: boolean) => {
@@ -369,7 +389,7 @@ export const createMynahUi = (
 
         // send to a new tab if the current tab is loading
         if (getTabStore(tabId)?.loadingChat) {
-            tabId = createTabId()
+            tabId = createTabId(true)
             if (!tabId) return
         }
 
@@ -404,14 +424,17 @@ ${params.message}`,
         messager.onError(params)
     }
 
-    const openTab = ({ tabId }: OpenTabParams) => {
-        if (tabId) {
-            if (tabId !== mynahUi.getSelectedTabId()) {
-                mynahUi.selectTab(tabId)
+    const openTab = (params: OpenTabParams) => {
+        const agentSpecificWelcomeMessage: Array<ChatItem | InformationItemGroup> = params.newTabOptions?.data
+            ?.messages as Array<ChatItem>
+        const overridePromptInputPlaceholder = params.newTabOptions?.data?.placeholderText
+        if (params.tabId) {
+            if (params.tabId !== mynahUi.getSelectedTabId()) {
+                mynahUi.selectTab(params.tabId)
             }
-            messager.onOpenTab({ tabId })
+            messager.onOpenTab({ tabId: params.tabId })
         } else {
-            const tabId = createTabId(true)
+            const tabId = createTabId(true, agentSpecificWelcomeMessage, overridePromptInputPlaceholder)
             if (tabId) {
                 messager.onOpenTab({ tabId })
             } else {

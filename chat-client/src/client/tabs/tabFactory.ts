@@ -1,4 +1,4 @@
-import { ChatItemType, MynahUIDataModel } from '@aws/mynah-ui'
+import { ChatItem, ChatItemType, InformationItemGroup, MynahUIDataModel } from '@aws/mynah-ui'
 import { disclaimerCard } from '../texts/disclaimer'
 
 export type DefaultTabData = MynahUIDataModel
@@ -13,23 +13,32 @@ export class TabFactory {
 
     constructor(private defaultTabData: DefaultTabData) {}
 
-    public createTab(needWelcomeMessages: boolean, disclaimerCardActive: boolean): MynahUIDataModel {
+    public createTab(
+        needWelcomeMessages: boolean,
+        disclaimerCardActive: boolean,
+        agentSpecificWelcomeMessage?: Array<ChatItem | InformationItemGroup>,
+        overridePromptInputPlaceholder?: string
+    ): MynahUIDataModel {
+        const defaultWelcomeMessage = [
+            {
+                type: ChatItemType.ANSWER,
+                body: `Hi, I'm Amazon Q. I can answer your software development questions. 
+              Ask me to explain, debug, or optimize your code. 
+              You can enter \`/\` to see a list of quick actions.`,
+            },
+            {
+                type: ChatItemType.ANSWER,
+                followUp: this.getWelcomeBlock(),
+            },
+        ]
         const tabData: MynahUIDataModel = {
             ...this.defaultTabData,
             chatItems: needWelcomeMessages
-                ? [
-                      {
-                          type: ChatItemType.ANSWER,
-                          body: `Hi, I'm Amazon Q. I can answer your software development questions. 
-                        Ask me to explain, debug, or optimize your code. 
-                        You can enter \`/\` to see a list of quick actions.`,
-                      },
-                      {
-                          type: ChatItemType.ANSWER,
-                          followUp: this.getWelcomeBlock(),
-                      },
-                  ]
+                ? agentSpecificWelcomeMessage
+                    ? agentSpecificWelcomeMessage
+                    : defaultWelcomeMessage
                 : [],
+            promptInputPlaceholder: overridePromptInputPlaceholder ?? this.defaultTabData.promptInputPlaceholder,
             ...(disclaimerCardActive ? { promptInputStickyCard: disclaimerCard } : {}),
         }
         return tabData
