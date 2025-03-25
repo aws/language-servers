@@ -135,3 +135,7 @@ export function safeGet<T, E extends Error>(object: T | undefined, customError?:
 
     return object
 }
+
+export function isStringOrNull(object: any): object is string | null {
+    return typeof object === 'string' || object === null
+}

@@ -7,6 +7,7 @@ import {
     getUnmodifiedAcceptedTokens,
     getEndPositionForAcceptedSuggestion,
     safeGet,
+    isStringOrNull,
 } from './utils'
 import { expect } from 'chai'
 import { BUILDER_ID_START_URL } from './constants'
@@ -218,5 +219,24 @@ describe('safeGet', () => {
 
     it('throws when argument is undefined', () => {
         assert.throws(() => safeGet(getStringOrUndefined(false)))
+    })
+})
+
+describe('isStringOrNull', () => {
+    const testCases = [
+        { input: 0, expected: false },
+        { input: false, expected: false },
+        { input: [], expected: false },
+        { input: {}, expected: false },
+        { input: undefined, expected: false },
+        { input: 'some-string', expected: true },
+        { input: '', expected: true },
+        { input: null, expected: true },
+    ]
+
+    testCases.forEach(testCase => {
+        it(`should return: ${testCase.expected}, when passed: ${JSON.stringify(testCase.input)}`, () => {
+            assert(isStringOrNull(testCase.input) === testCase.expected)
+        })
     })
 })

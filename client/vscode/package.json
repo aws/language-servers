@@ -112,6 +112,10 @@
                 "title": "Update Amazon Q IDC Profile (Invalid)"
             },
             {
+                "command": "aws.sample-vscode-ext-amazonq.updateProfileNull",
+                "title": "Send Amazon Q IDC Null Profile (reset)"
+            },
+            {
                 "command": "aws.sample-vscode-ext-amazonq.getDeveloperProfiles",
                 "title": "Get developer profiles",
                 "category": "Test Amazon Q Extension"

@@ -15,9 +15,10 @@ export async function registerQProfileSelection(languageClient: LanguageClient):
         'aws.sample-vscode-ext-amazonq.updateProfileInvalid',
         setProfile(languageClient, 'invalid-profile')
     )
+    commands.registerCommand('aws.sample-vscode-ext-amazonq.updateProfileNull', setProfile(languageClient, null))
 }
 
-function setProfile(languageClient: LanguageClient, profileArn: string) {
+function setProfile(languageClient: LanguageClient, profileArn: string | null) {
     return async () => {
         try {
             const result = await languageClient.sendRequest(updateConfigurationRequestType.method, {

@@ -132,6 +132,29 @@ describe('AmazonQTokenServiceManager', () => {
         features.credentialsProvider.getConnectionType.returns('none')
     }
 
+    const setupServiceManagerWithProfile = async (profileArn = 'profile-iad'): Promise<CodeWhispererServiceToken> => {
+        setupServiceManager(true)
+        assert.strictEqual(amazonQTokenServiceManager.getState(), 'PENDING_CONNECTION')
+
+        setCredentials('identityCenter')
+
+        await features.doUpdateConfiguration(
+            {
+                section: 'aws.q',
+                settings: {
+                    profileArn: profileArn,
+                },
+            },
+            {} as CancellationToken
+        )
+
+        const service = amazonQTokenServiceManager.getCodewhispererService()
+        assert.strictEqual(amazonQTokenServiceManager.getState(), 'INITIALIZED')
+        assert.strictEqual(amazonQTokenServiceManager.getConnectionType(), 'identityCenter')
+
+        return service
+    }
+
     describe('Client is not connected', () => {
         it('should be in PENDING_CONNECTION state when bearer token is not set', () => {
             setupServiceManager()
@@ -145,11 +168,21 @@ describe('AmazonQTokenServiceManager', () => {
     })
 
     describe('Clear state upon bearer token deletion', () => {
-        it('should clear local state variables on receiving bearer token deletion event', () => {
+        let cancelActiveProfileChangeTokenSpy: sinon.SinonSpy
+
+        beforeEach(() => {
             setupServiceManager()
             assert.strictEqual(amazonQTokenServiceManager.getState(), 'PENDING_CONNECTION')
-            setCredentials('builderId')
 
+            cancelActiveProfileChangeTokenSpy = sinon.spy(
+                amazonQTokenServiceManager as any,
+                'cancelActiveProfileChangeToken'
+            )
+
+            setCredentials('builderId')
+        })
+
+        it('should clear local state variables on receiving bearer token deletion event', () => {
             amazonQTokenServiceManager.getCodewhispererService()
 
             const callback = features.credentialsProvider.onCredentialsDeleted.firstCall.args[0]
@@ -160,13 +193,10 @@ describe('AmazonQTokenServiceManager', () => {
             assert.strictEqual((amazonQTokenServiceManager as any)['cachedCodewhispererService'], undefined)
             assert.strictEqual((amazonQTokenServiceManager as any)['cachedStreamingClient'], undefined)
             assert.strictEqual((amazonQTokenServiceManager as any)['activeIdcProfile'], undefined)
+            sinon.assert.calledOnce(cancelActiveProfileChangeTokenSpy)
         })
 
         it('should not clear local state variables on receiving iam token deletion event', () => {
-            setupServiceManager()
-            assert.strictEqual(amazonQTokenServiceManager.getState(), 'PENDING_CONNECTION')
-            setCredentials('builderId')
-
             amazonQTokenServiceManager.getCodewhispererService()
 
             const callback = features.credentialsProvider.onCredentialsDeleted.firstCall.args[0]
@@ -176,6 +206,7 @@ describe('AmazonQTokenServiceManager', () => {
             assert.strictEqual(amazonQTokenServiceManager.getConnectionType(), 'builderId')
             assert(!(amazonQTokenServiceManager['cachedCodewhispererService'] === undefined))
             assert.strictEqual((amazonQTokenServiceManager as any)['activeIdcProfile'], undefined)
+            sinon.assert.notCalled(cancelActiveProfileChangeTokenSpy)
         })
     })
 
@@ -689,6 +720,84 @@ describe('AmazonQTokenServiceManager', () => {
                 assert.strictEqual(amazonQTokenServiceManager.getState(), 'PENDING_Q_PROFILE_UPDATE')
 
                 await pendingProfileUpdate
+            })
+
+            it('resets to PENDING_PROFILE from INITIALIZED when receiving null profileArn', async () => {
+                await setupServiceManagerWithProfile()
+
+                await features.doUpdateConfiguration(
+                    {
+                        section: 'aws.q',
+                        settings: {
+                            profileArn: null,
+                        },
+                    },
+                    {} as CancellationToken
+                )
+
+                assert.strictEqual(amazonQTokenServiceManager.getState(), 'PENDING_Q_PROFILE')
+                assert.strictEqual(amazonQTokenServiceManager.getActiveProfileArn(), undefined)
+                sinon.assert.calledOnce(codewhispererServiceStub.abortInflightRequests)
+            })
+
+            it('resets to PENDING_Q_PROFILE from PENDING_Q_PROFILE_UPDATE when receiving null profileArn', async () => {
+                await setupServiceManagerWithProfile()
+
+                const pendingUpdate = features.doUpdateConfiguration(
+                    {
+                        section: 'aws.q',
+                        settings: {
+                            profileArn: 'profile-fra',
+                        },
+                    },
+                    {} as CancellationToken
+                )
+
+                assert.strictEqual(amazonQTokenServiceManager.getState(), 'PENDING_Q_PROFILE_UPDATE')
+
+                const nullRequest = features.doUpdateConfiguration(
+                    {
+                        section: 'aws.q',
+                        settings: {
+                            profileArn: null,
+                        },
+                    },
+                    {} as CancellationToken
+                )
+
+                await Promise.allSettled([pendingUpdate, nullRequest])
+
+                assert.strictEqual(amazonQTokenServiceManager.getState(), 'PENDING_Q_PROFILE')
+                assert.strictEqual(amazonQTokenServiceManager.getActiveProfileArn(), undefined)
+                sinon.assert.calledOnce(codewhispererServiceStub.abortInflightRequests)
+                assert.throws(() => amazonQTokenServiceManager.getCodewhispererService())
+            })
+
+            it('cancels on-going profile update when credentials are deleted', async () => {
+                await setupServiceManagerWithProfile()
+
+                const pendingUpdate = features.doUpdateConfiguration(
+                    {
+                        section: 'aws.q',
+                        settings: {
+                            profileArn: 'profile-fra',
+                        },
+                    },
+                    {} as CancellationToken
+                )
+
+                assert.strictEqual(amazonQTokenServiceManager.getState(), 'PENDING_Q_PROFILE_UPDATE')
+
+                features.credentialsProvider.onCredentialsDeleted.firstCall.firstArg('bearer')
+
+                assert.strictEqual(amazonQTokenServiceManager.getState(), 'PENDING_CONNECTION')
+
+                await assert.rejects(() => pendingUpdate)
+
+                assert.strictEqual(amazonQTokenServiceManager.getState(), 'PENDING_CONNECTION')
+                assert.strictEqual(amazonQTokenServiceManager.getActiveProfileArn(), undefined)
+                sinon.assert.calledOnce(codewhispererServiceStub.abortInflightRequests)
+                assert.throws(() => amazonQTokenServiceManager.getCodewhispererService())
             })
 
             it.skip('cancels profile change request when new request comes in', async () => {
