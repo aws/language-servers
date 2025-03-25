@@ -241,6 +241,35 @@ describe('CodeWhisperer Server', () => {
             sinon.assert.notCalled(service.generateSuggestions)
         })
 
+        it.only('should include extra context in recommendation request when extraContext is configured', async () => {
+            const extraContext = 'Additional context for test'
+            features.lsp.workspace.getConfiguration.returns(Promise.resolve({ extraContext }))
+
+            await features.openDocument(SOME_FILE).doChangeConfiguration()
+
+            const result = await features.doInlineCompletionWithReferences(
+                {
+                    textDocument: { uri: SOME_FILE.uri },
+                    position: { line: 0, character: 0 },
+                    context: { triggerKind: InlineCompletionTriggerKind.Invoked },
+                },
+                CancellationToken.None
+            )
+
+            assert.deepEqual(result, EXPECTED_RESULT)
+
+            const expectedGenerateSuggestionsRequest = {
+                fileContext: {
+                    filename: SOME_FILE.uri,
+                    programmingLanguage: { languageName: 'csharp' },
+                    leftFileContent: extraContext + '\n',
+                    rightFileContent: HELLO_WORLD_IN_CSHARP,
+                },
+                maxResults: 5,
+            }
+            sinon.assert.calledOnceWithExactly(service.generateSuggestions, expectedGenerateSuggestionsRequest)
+        })
+
         it('should not return recommendations for an unsupported file type', async () => {
             const result = await features.doInlineCompletionWithReferences(
                 {
