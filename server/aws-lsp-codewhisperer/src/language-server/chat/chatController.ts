@@ -14,6 +14,7 @@ import {
     ChatParams,
     ChatResult,
     EndChatParams,
+    FileClickParams,
     LSPErrorCodes,
     QuickActionParams,
     ResponseError,
@@ -389,6 +390,15 @@ export class ChatController implements ChatHandlers {
             default:
                 return {}
         }
+    }
+
+    async onFileClicked(params: FileClickParams) {
+        const lastMessageTrigger = this.#telemetryController.getLastMessageTrigger(params.tabId)
+
+        await this.#telemetryController.emitInteractWithMessageMetric(params.tabId, {
+            cwsprChatMessageId: lastMessageTrigger?.messageId!,
+            cwsprChatInteractionType: ChatInteractionType.ClickFollowUp,
+        })
     }
 
     async #getTriggerContext(params: ChatParams, metric: Metric<CombinedConversationEvent>) {
