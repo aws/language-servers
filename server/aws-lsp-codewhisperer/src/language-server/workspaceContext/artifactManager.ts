@@ -339,8 +339,7 @@ export class ArtifactManager {
         this.createFolderIfNotExist(zipDirectoryPath)
         const zipFileName = `${zipChunkIndex}_${Date.now()}.zip`
         const zipPath = path.join(zipDirectoryPath, zipFileName)
-        const zipBuffer =
-            language == 'java' ? await this.createZipBufferForJar(files) : await this.createZipBuffer(files)
+        const zipBuffer = await this.createZipBuffer(files)
         await fs.promises.writeFile(zipPath, zipBuffer)
 
         const stats = fs.statSync(zipPath)
@@ -496,26 +495,25 @@ export class ArtifactManager {
 
     private async createZipBuffer(files: FileMetadata[]): Promise<Buffer> {
         const zip = new JSZip()
-        for (const file of files) {
-            zip.file(file.relativePath, file.content)
-        }
-        return await zip.generateAsync({ type: 'nodebuffer' })
-    }
 
-    private async createZipBufferForJar(files: FileMetadata[]): Promise<Buffer> {
-        const zip = new JSZip()
+        // Common compressed file extensions
+        const compressedExtensions = new Set(['.jar', '.zip', '.gz', '.bz2', '.7z', '.rar', '.war', '.ear', '.apk'])
+
         for (const file of files) {
-            // Read the jar file as a buffer
-            const jarContent = await fs.promises.readFile(file.filePath)
-            zip.file(file.relativePath, jarContent, {
-                binary: true,
-                compression: 'STORE',
-            })
+            const fileExt = path.extname(file.relativePath).toLowerCase()
+
+            if (compressedExtensions.has(fileExt)) {
+                // Store already compressed files without additional compression
+                zip.file(file.relativePath, file.content, {
+                    compression: 'STORE', // No compression, just store
+                })
+            } else {
+                // Use default compression for other files
+                zip.file(file.relativePath, file.content)
+            }
         }
-        return await zip.generateAsync({
-            type: 'nodebuffer',
-            compression: 'STORE',
-        })
+
+        return await zip.generateAsync({ type: 'nodebuffer' })
     }
 
     private findWorkspaceFolder(workspace: WorkspaceFolder): WorkspaceFolder | undefined {
