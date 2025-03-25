@@ -3,44 +3,17 @@ import {
     SendMessageCommandInput,
     SendMessageCommandOutput,
 } from '@amzn/codewhisperer-streaming'
-import {
-    CredentialsProvider,
-    SDKInitializator,
-    SDKClientConstructorV2,
-    SDKClientConstructorV3,
-} from '@aws/language-server-runtimes/server-interface'
 import * as assert from 'assert'
-import sinon from 'ts-sinon'
+import sinon, { StubbedInstance, stubInterface } from 'ts-sinon'
 import { ChatSessionService } from './chatSessionService'
-import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../../constants'
-import { Service } from 'aws-sdk'
-import { ServiceConfigurationOptions } from 'aws-sdk/lib/service'
+import { AmazonQTokenServiceManager } from '../amazonQServiceManager/AmazonQTokenServiceManager'
 
 describe('Chat Session Service', () => {
     let sendMessageStub: sinon.SinonStub<any, any>
     let abortStub: sinon.SinonStub<any, any>
     let chatSessionService: ChatSessionService
-    const mockCredentialsProvider: CredentialsProvider = {
-        hasCredentials: sinon.stub().returns(true),
-        getCredentials: sinon.stub().returns(Promise.resolve({ token: 'mockToken ' })),
-        getConnectionMetadata: sinon.stub(),
-        getConnectionType: sinon.stub(),
-    }
-    const awsQRegion: string = DEFAULT_AWS_Q_REGION
-    const awsQEndpointUrl: string = DEFAULT_AWS_Q_ENDPOINT_URL
+    let amazonQServiceManager: StubbedInstance<AmazonQTokenServiceManager>
     const mockConversationId = 'mockConversationId'
-
-    const mockSdkRuntimeConfigurator: SDKInitializator = Object.assign(
-        // Default callable function for v3 clients
-        <T, P>(Ctor: SDKClientConstructorV3<T, P>, current_config: P): T => new Ctor({ ...current_config }),
-        // Property for v2 clients
-        {
-            v2: <T extends Service, P extends ServiceConfigurationOptions>(
-                Ctor: SDKClientConstructorV2<T, P>,
-                current_config: P
-            ): T => new Ctor({ ...current_config }),
-        }
-    )
 
     const mockRequestParams: SendMessageCommandInput = {
         conversationState: {
@@ -59,18 +32,16 @@ describe('Chat Session Service', () => {
     }
 
     beforeEach(() => {
-        abortStub = sinon.stub(AbortController.prototype, 'abort')
-
         sendMessageStub = sinon
             .stub(CodeWhispererStreaming.prototype, 'sendMessage')
             .callsFake(() => Promise.resolve(mockRequestResponse))
 
-        chatSessionService = new ChatSessionService(
-            mockCredentialsProvider,
-            awsQRegion,
-            awsQEndpointUrl,
-            mockSdkRuntimeConfigurator
-        )
+        amazonQServiceManager = stubInterface<AmazonQTokenServiceManager>()
+        amazonQServiceManager.getStreamingClient.returns(new CodeWhispererStreaming())
+
+        abortStub = sinon.stub(AbortController.prototype, 'abort')
+
+        chatSessionService = new ChatSessionService(amazonQServiceManager)
     })
 
     afterEach(() => {
@@ -79,6 +50,15 @@ describe('Chat Session Service', () => {
     })
 
     describe('calling SendMessage', () => {
+        it('throws error is AmazonQTokenServiceManager is not initialized', async () => {
+            chatSessionService = new ChatSessionService(undefined)
+
+            await assert.rejects(
+                chatSessionService.sendMessage(mockRequestParams),
+                new Error('amazonQServiceManager is not initialized')
+            )
+        })
+
         it('should fill in conversationId in the request if exists', async () => {
             await chatSessionService.sendMessage(mockRequestParams)
 

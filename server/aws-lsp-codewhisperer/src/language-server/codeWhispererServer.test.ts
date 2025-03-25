@@ -5,6 +5,7 @@ import {
     TextDocument,
     MetricEvent,
     Position,
+    InitializeParams,
 } from '@aws/language-server-runtimes/server-interface'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import * as assert from 'assert'
@@ -42,6 +43,7 @@ import {
 } from './testUtils'
 import { CodeDiffTracker } from './telemetry/codeDiffTracker'
 import { TelemetryService } from './telemetryService'
+import { AmazonQTokenServiceManager } from './amazonQServiceManager/AmazonQTokenServiceManager'
 
 describe('CodeWhisperer Server', () => {
     const sandbox = sinon.createSandbox()
@@ -68,6 +70,7 @@ describe('CodeWhisperer Server', () => {
         generateSessionIdStub.restore()
         SessionManager.reset()
         sandbox.restore()
+        sinon.restore()
         SESSION_IDS_LOG = []
     })
 
@@ -93,6 +96,7 @@ describe('CodeWhisperer Server', () => {
 
             // Initialize the features, but don't start server yet
             features = new TestFeatures()
+            features.lsp.getClientInitializeParams.returns({} as InitializeParams)
 
             // Return no specific configuration for CodeWhisperer
             features.lsp.workspace.getConfiguration.returns(Promise.resolve({}))
@@ -491,8 +495,18 @@ describe('CodeWhisperer Server', () => {
 
                 const test_server = CodewhispererServerFactory(_auth => test_service)
 
+                // @ts-ignore
+                sinon.stub(AmazonQTokenServiceManager, 'getInstance').returns({
+                    getCodewhispererService: () => test_service,
+                    handleDidChangeConfiguration: () => Promise.resolve(),
+                })
+
                 // Initialize the features, but don't start server yet
                 const test_features = new TestFeatures()
+                features.lsp.getClientInitializeParams.returns({} as InitializeParams)
+
+                test_features.credentialsProvider.hasCredentials.returns(true)
+                test_features.credentialsProvider.getConnectionType.returns('builderId')
 
                 // Return no specific configuration for CodeWhisperer
                 test_features.lsp.workspace.getConfiguration.returns(Promise.resolve({}))
@@ -542,7 +556,6 @@ describe('CodeWhisperer Server', () => {
                 features.lsp.workspace.getConfiguration.returns(
                     Promise.resolve({ shareCodeWhispererContentWithAWS: false })
                 )
-                await features.start(server)
 
                 assert(service.shareCodeWhispererContentWithAWS === false)
             })
@@ -551,7 +564,6 @@ describe('CodeWhisperer Server', () => {
                 features.lsp.workspace.getConfiguration.returns(
                     Promise.resolve({ shareCodeWhispererContentWithAWS: false })
                 )
-                await features.start(server)
                 features.lsp.workspace.getConfiguration.returns(
                     Promise.resolve({ shareCodeWhispererContentWithAWS: true })
                 )
@@ -565,7 +577,6 @@ describe('CodeWhisperer Server', () => {
 
             it('should send opt-out header if no settings are specificed', async () => {
                 features.lsp.workspace.getConfiguration.returns(Promise.resolve({}))
-                await features.start(server)
 
                 assert(service.shareCodeWhispererContentWithAWS === false)
             })
@@ -594,6 +605,7 @@ describe('CodeWhisperer Server', () => {
 
             // Initialize the features, but don't start server yet
             features = new TestFeatures()
+            features.lsp.getClientInitializeParams.returns({} as InitializeParams)
         })
 
         afterEach(() => {
@@ -932,6 +944,7 @@ describe('CodeWhisperer Server', () => {
 
             // Initialize the features, but don't start server yet
             features = new TestFeatures()
+            features.lsp.getClientInitializeParams.returns({} as InitializeParams)
 
             // Return no specific configuration for CodeWhisperer
             features.lsp.workspace.getConfiguration.returns(Promise.resolve({}))
@@ -1067,6 +1080,7 @@ describe('CodeWhisperer Server', () => {
 
             // Initialize the features, but don't start server yet
             features = new TestFeatures()
+            features.lsp.getClientInitializeParams.returns({} as InitializeParams)
 
             // Start the server and open a document
             await features.start(server)
@@ -1178,7 +1192,7 @@ describe('CodeWhisperer Server', () => {
 
             // Initialize the features, but don't start server yet
             features = new TestFeatures()
-
+            features.lsp.getClientInitializeParams.returns({} as InitializeParams)
             // Return no specific configuration for CodeWhisperer
             features.lsp.workspace.getConfiguration.returns(Promise.resolve({}))
 
@@ -1618,7 +1632,7 @@ describe('CodeWhisperer Server', () => {
 
             // Initialize the features, but don't start server yet
             features = new TestFeatures()
-
+            features.lsp.getClientInitializeParams.returns({} as InitializeParams)
             // Return no specific configuration for CodeWhisperer
             features.lsp.workspace.getConfiguration.returns(Promise.resolve({}))
 

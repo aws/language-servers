@@ -10,7 +10,7 @@
         "webpack": "webpack"
     },
     "dependencies": {
-        "@aws/language-server-runtimes": "^0.2.40",
+        "@aws/language-server-runtimes": "^0.2.47",
         "@aws/lsp-codewhisperer": "*",
         "copyfiles": "^2.4.1",
         "crypto-browserify": "^3.12.1",

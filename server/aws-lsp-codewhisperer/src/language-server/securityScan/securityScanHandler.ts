@@ -17,18 +17,18 @@ import {
     ListCodeAnalysisFindingsRequest,
     StartCodeAnalysisRequest,
 } from '../../client/token/codewhispererbearertokenclient'
-import { CodeWhispererServiceToken } from '../codeWhispererService'
 import { sleep } from '../dependencyGraph/commonUtil'
 import { AggregatedCodeScanIssue, RawCodeScanIssue } from './types'
+import { AmazonQTokenServiceManager } from '../amazonQServiceManager/AmazonQTokenServiceManager'
 
 export class SecurityScanHandler {
-    private client: CodeWhispererServiceToken
+    private serviceManager: AmazonQTokenServiceManager
     private workspace: Workspace
     private logging: Logging
     public tokenSource: CancellationTokenSource
 
-    constructor(client: CodeWhispererServiceToken, workspace: Workspace, logging: Logging) {
-        this.client = client
+    constructor(serviceManager: AmazonQTokenServiceManager, workspace: Workspace, logging: Logging) {
+        this.serviceManager = serviceManager
         this.workspace = workspace
         this.logging = logging
         this.tokenSource = new CancellationTokenSource()
@@ -64,7 +64,7 @@ export class SecurityScanHandler {
         }
         try {
             this.logging.log('Prepare for uploading src context...')
-            const response = await this.client.createUploadUrl(request)
+            const response = await this.serviceManager.getCodewhispererService().createUploadUrl(request)
             this.logging.log(`Request id: ${response.$response.requestId}`)
             this.logging.log(`Complete Getting presigned Url for uploading src context.`)
             this.logging.log(`Uploading src context...`)
@@ -117,7 +117,7 @@ export class SecurityScanHandler {
         }
         this.logging.log(`Creating scan job...`)
         try {
-            const resp = await this.client.startCodeAnalysis(req)
+            const resp = await this.serviceManager.getCodewhispererService().startCodeAnalysis(req)
             this.logging.log(`Request id: ${resp.$response.requestId}`)
             return resp
         } catch (error) {
@@ -136,7 +136,7 @@ export class SecurityScanHandler {
             const req: GetCodeAnalysisRequest = {
                 jobId: jobId,
             }
-            const resp = await this.client.getCodeAnalysis(req)
+            const resp = await this.serviceManager.getCodewhispererService().getCodeAnalysis(req)
             this.logging.log(`Request id: ${resp.$response.requestId}`)
 
             if (resp.status !== 'Pending') {
@@ -161,7 +161,7 @@ export class SecurityScanHandler {
             jobId,
             codeAnalysisFindingsSchema: 'codeanalysis/findings/1.0',
         }
-        const response = await this.client.listCodeAnalysisFindings(request)
+        const response = await this.serviceManager.getCodewhispererService().listCodeAnalysisFindings(request)
         this.logging.log(`Request id: ${response.$response.requestId}`)
 
         const aggregatedCodeScanIssueList = await this.mapToAggregatedList(response.codeAnalysisFindings, projectPath)

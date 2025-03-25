@@ -33,3 +33,61 @@ NodeJS modules used in this package
 To override modules use next alternatives:
 - `path` - https://www.npmjs.com/package/path-browserify
 - `os` - https://www.npmjs.com/package/os-browserify
+
+### Fetching Amazon Q configuration(s)
+
+The following Amazon Q configurations can be fetched with the `aws/getConfigurationFromServer` request exposed by [QConfigurationServer](https://github.com/aws/language-servers/blob/main/server/aws-lsp-codewhisperer/src/language-server/configuration/qConfigurationServer.ts):
+
+- customizations
+- developer profiles
+
+The request expects a `section` parameter, recognizing the following options:
+
+- `aws.q`
+    - `aws.q.customizations`
+    - `aws.q.developerProfiles`
+
+Example:
+
+```ts
+await languageClient.sendRequest(getConfigurationFromServerRequestType.method, {
+            section: 'aws.q',
+        })
+// result:
+{
+  'customizations': [customization1, customization2, ...],
+  'developerProfiles': [profile1, profile2, ...] // (if enabled)
+}
+```
+
+Granular requests such as `aws.q.customizations` will only return that particular configuration.
+
+Example:
+
+```ts
+await languageClient.sendRequest(getConfigurationFromServerRequestType.method, {
+            section: 'aws.q.customizations',
+        })
+// result:
+[customization1, customization2, ...]
+```
+
+#### Developer Profiles
+
+By default, developer profiles are not fetched. To enable the fetching, the client needs to signal support for them at initialization in the `InitializeParams`.
+
+Example:
+
+```ts
+const params: InitializeParams = {
+  // ...
+  aws: {
+    // ...
+    awsClientCapabilities: {
+      q: {
+        developerProfiles: true
+      }
+    }
+  }
+}
+```

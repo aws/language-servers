@@ -143,8 +143,8 @@ describe('deviceCodeFlow', () => {
         params.handlers.showMessageRequest = async () => {
             throw errorToThrow
         }
-        const err = await expect(deviceCodeFlow(params)).to.be.rejectedWith(errorToThrow)
-        expect(err).to.equal(errorToThrow)
+
+        await expect(deviceCodeFlow(params)).to.be.rejectedWith(errorToThrow)
     })
 
     it('Throws error if authorization expires', async () => {
