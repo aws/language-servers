@@ -26,10 +26,13 @@ export class WorkspaceFolderManager {
     private logging: Logging
     private artifactManager: ArtifactManager
     private workspaceMap: Map<WorkspaceRoot, WorkspaceState>
-    private readonly pollInterval: number = 5 * 1000 // 5 seconds
     private static instance: WorkspaceFolderManager | undefined
     private workspaceFolders: WorkspaceFolder[]
     private credentialsProvider: CredentialsProvider
+    private readonly INITIAL_CHECK_INTERVAL = 5 * 1000 // 5 seconds
+    private readonly INITIAL_TIMEOUT = 5 * 60 * 1000 // 5 minutes
+    private readonly CONTINUOUS_MONITOR_INTERVAL = 5 * 60 * 1000 // 5 minutes
+    private monitorIntervals: Map<string, NodeJS.Timeout> = new Map()
 
     static createInstance(
         cwsprClient: CodeWhispererServiceToken,
@@ -190,30 +193,6 @@ export class WorkspaceFolderManager {
         this.processMessagesInQueue(workspace)
     }
 
-    async clearWorkspaceResources(workspace: WorkspaceRoot, workspaceState: WorkspaceState) {
-        if (workspaceState.webSocketClient) {
-            workspaceState.webSocketClient.disconnect()
-        }
-        if (workspaceState.workspaceId) {
-            await this.deleteWorkspace(workspaceState.workspaceId)
-        }
-        this.removeWorkspaceEntry(workspace)
-    }
-
-    async clearAllWorkspaceResources() {
-        for (const { webSocketClient, workspaceId } of this.workspaceMap.values()) {
-            if (webSocketClient) {
-                webSocketClient.destroyClient()
-            }
-
-            if (workspaceId) {
-                await this.deleteWorkspace(workspaceId)
-            }
-        }
-
-        this.workspaceMap.clear()
-    }
-
     private async handleNewWorkspace(workspace: WorkspaceRoot, queueEvents?: any[]) {
         this.logging.log(`Processing new workspace ${workspace}`)
 
@@ -245,21 +224,87 @@ export class WorkspaceFolderManager {
         this.startWorkspaceStatusMonitor(workspace)
     }
 
-    private startWorkspaceStatusMonitor(workspace: WorkspaceRoot) {
-        const statusCheck = setInterval(async () => {
+    private async waitForInitialConnection(workspace: WorkspaceRoot): Promise<boolean> {
+        this.logging.log(`Waiting for initial connection to ${workspace}`)
+        return new Promise(resolve => {
+            const startTime = Date.now()
+
+            const intervalId = setInterval(async () => {
+                try {
+                    const workspaceState = this.workspaceMap.get(workspace)
+                    if (!workspaceState) {
+                        clearInterval(intervalId)
+                        return resolve(false)
+                    }
+
+                    const { metadata, optOut } = await this.listWorkspaceMetadata(workspace)
+
+                    if (optOut) {
+                        this.logging.log(`Workspace ${workspace} is opted out during initial connection`)
+                        await this.clearWorkspaceResources(workspace, workspaceState)
+                        clearInterval(intervalId)
+                        return resolve(false)
+                    }
+
+                    if (!metadata) {
+                        return
+                    }
+
+                    this.updateWorkspaceEntry(workspace, {
+                        ...workspaceState,
+                        remoteWorkspaceState: metadata.workspaceStatus,
+                    })
+
+                    switch (metadata.workspaceStatus) {
+                        case 'READY':
+                            const client = workspaceState.webSocketClient
+                            if (!client || !client.isConnected()) {
+                                await this.establishConnection(workspace)
+                            }
+                            clearInterval(intervalId)
+                            return resolve(true)
+                        case 'PENDING':
+                            // Continue polling
+                            break
+                        case 'CREATED':
+                            await this.createNewWorkspace(workspace)
+                            break
+                        default:
+                            this.logging.warn(`Unknown workspace status: ${metadata.workspaceStatus}`)
+                            clearInterval(intervalId)
+                            return resolve(false)
+                    }
+
+                    if (Date.now() - startTime >= this.INITIAL_TIMEOUT) {
+                        this.logging.warn(`Initial connection timeout for workspace ${workspace}`)
+                        clearInterval(intervalId)
+                        return resolve(false)
+                    }
+                } catch (error) {
+                    this.logging.error(`Error during initial connection for workspace ${workspace}: ${error}`)
+                    clearInterval(intervalId)
+                    return resolve(false)
+                }
+            }, this.INITIAL_CHECK_INTERVAL)
+        })
+    }
+
+    private startContinuousMonitor(workspace: WorkspaceRoot) {
+        this.logging.log(`Starting continuous monitor for workspace ${workspace}`)
+        const intervalId = setInterval(async () => {
             try {
                 const workspaceState = this.workspaceMap.get(workspace)
                 if (!workspaceState) {
-                    clearInterval(statusCheck)
+                    this.stopMonitoring(workspace)
                     return
                 }
 
                 const { metadata, optOut } = await this.listWorkspaceMetadata(workspace)
 
                 if (optOut) {
-                    this.logging.log(`Workspace ${workspace} is opted out, stopping monitor`)
+                    this.logging.log(`Workspace ${workspace} is opted out`)
                     await this.clearWorkspaceResources(workspace, workspaceState)
-                    clearInterval(statusCheck)
+                    this.stopMonitoring(workspace)
                     return
                 }
 
@@ -295,7 +340,55 @@ export class WorkspaceFolderManager {
             } catch (error) {
                 this.logging.error(`Error monitoring workspace ${workspace}: ${error}`)
             }
-        }, this.pollInterval)
+        }, this.CONTINUOUS_MONITOR_INTERVAL)
+
+        this.monitorIntervals.set(workspace, intervalId)
+    }
+
+    private stopMonitoring(workspace: WorkspaceRoot) {
+        this.logging.log(`Stopping monitoring for workspace ${workspace}`)
+        const intervalId = this.monitorIntervals.get(workspace)
+        if (intervalId) {
+            clearInterval(intervalId)
+            this.monitorIntervals.delete(workspace)
+        }
+    }
+
+    private async startWorkspaceStatusMonitor(workspace: WorkspaceRoot) {
+        const success = await this.waitForInitialConnection(workspace)
+        this.logging.log(
+            `Initial connection ${success ? 'successful' : 'failed'} for ${workspace}, starting continuous monitor`
+        )
+        this.startContinuousMonitor(workspace)
+    }
+
+    private async clearWorkspaceResources(workspace: WorkspaceRoot, workspaceState: WorkspaceState) {
+        this.stopMonitoring(workspace)
+        if (workspaceState.webSocketClient) {
+            workspaceState.webSocketClient.disconnect()
+        }
+        if (workspaceState.workspaceId) {
+            await this.deleteWorkspace(workspaceState.workspaceId)
+        }
+        this.removeWorkspaceEntry(workspace)
+    }
+
+    async clearAllWorkspaceResources() {
+        for (const workspace of this.monitorIntervals.keys()) {
+            this.stopMonitoring(workspace)
+        }
+
+        for (const { webSocketClient, workspaceId } of this.workspaceMap.values()) {
+            if (webSocketClient) {
+                webSocketClient.destroyClient()
+            }
+
+            if (workspaceId) {
+                await this.deleteWorkspace(workspaceId)
+            }
+        }
+
+        this.workspaceMap.clear()
     }
 
     /**
@@ -513,7 +606,7 @@ export class WorkspaceFolderManager {
         }
     }
 
-    async deleteWorkspace(workspaceId: string) {
+    private async deleteWorkspace(workspaceId: string) {
         try {
             await this.cwsprClient.deleteWorkspace({
                 workspaceId: workspaceId,
