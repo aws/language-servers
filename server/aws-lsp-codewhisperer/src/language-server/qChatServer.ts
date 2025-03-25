@@ -107,7 +107,21 @@ export const QChatServer =
 
         chat.onReady(_ => {
             logging.log('Q Chat Client is ready')
-            chat.openTab({})
+            chat.openTab({
+                newTabOptions: {
+                    data: {
+                        messages: [{
+                            type: 'answer',
+                            body: 'how are you today?'
+                        },
+                        {
+                            type: 'answer',
+                            body: 'I am fine'
+                        }],
+                        placeholderText: 'I am an override placeholder.'
+                    }
+                }
+            })
                 .then(result => {
                     logging.log(`Opened tab: ${result.tabId}`)
                 })
