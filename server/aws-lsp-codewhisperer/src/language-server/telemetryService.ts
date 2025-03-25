@@ -134,19 +134,19 @@ export class TelemetryService {
     }
 
     private async invokeSendTelemetryEvent(event: TelemetryEvent) {
-        if (!this.shouldSendTelemetry()) {
-            return
-        }
-        const request: SendTelemetryEventRequest = {
-            telemetryEvent: event,
-        }
-        if (this.userContext !== undefined) {
-            request.userContext = this.userContext
-        }
-        if (this.optOutPreference !== undefined) {
-            request.optOutPreference = this.optOutPreference
-        }
         try {
+            if (!this.shouldSendTelemetry()) {
+                return
+            }
+            const request: SendTelemetryEventRequest = {
+                telemetryEvent: event,
+            }
+            if (this.userContext !== undefined) {
+                request.userContext = this.userContext
+            }
+            if (this.optOutPreference !== undefined) {
+                request.optOutPreference = this.optOutPreference
+            }
             await this.getService().sendTelemetryEvent(request)
         } catch (error) {
             this.logSendTelemetryEventFailure(error)
