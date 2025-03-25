@@ -85,10 +85,7 @@ describe('CodeWhisperer Server', () => {
             // Set up the server with a mock service, returning predefined recommendations
             service = stubInterface<CodeWhispererServiceBase>()
             service.generateSuggestions.returns(
-                Promise.resolve({
-                    suggestions: EXPECTED_SUGGESTION,
-                    responseContext: EXPECTED_RESPONSE_CONTEXT,
-                })
+                Promise.resolve({ suggestions: EXPECTED_SUGGESTION, responseContext: EXPECTED_RESPONSE_CONTEXT })
             )
 
             server = CodewhispererServerFactory(_auth => service)
@@ -287,10 +284,7 @@ describe('CodeWhisperer Server', () => {
             // The suggestion returned by generateSuggestions will be equal to the contents of the file
             const EXPECTED_SUGGESTION: Suggestion[] = [{ itemId: 'cwspr-item-id', content: HELLO_WORLD_IN_CSHARP }]
             service.generateSuggestions.returns(
-                Promise.resolve({
-                    suggestions: EXPECTED_SUGGESTION,
-                    responseContext: EXPECTED_RESPONSE_CONTEXT,
-                })
+                Promise.resolve({ suggestions: EXPECTED_SUGGESTION, responseContext: EXPECTED_RESPONSE_CONTEXT })
             )
 
             const result = await features.doInlineCompletionWithReferences(
@@ -317,12 +311,15 @@ describe('CodeWhisperer Server', () => {
             const MY_FILE = TextDocument.create('file:///rightContext.cs', 'csharp', 1, finalFileContent)
             features.openDocument(MY_FILE)
 
-            const EXPECTED_SUGGESTION: Suggestion[] = [{ itemId: 'cwspr-item-id', content: recommendation }]
+            const EXPECTED_SUGGESTION: Suggestion[] = [
+                {
+                    itemId: 'cwspr-item-id',
+                    content: recommendation,
+                    mostRelevantMissingImports: [{ statement: 'import_foo' }],
+                },
+            ]
             service.generateSuggestions.returns(
-                Promise.resolve({
-                    suggestions: EXPECTED_SUGGESTION,
-                    responseContext: EXPECTED_RESPONSE_CONTEXT,
-                })
+                Promise.resolve({ suggestions: EXPECTED_SUGGESTION, responseContext: EXPECTED_RESPONSE_CONTEXT })
             )
             // Expected result is the deleted line + new line + 4 spaces
             // Newline and the 4 spaces get lost when we do the `split` so we add them back to expected result
@@ -334,7 +331,7 @@ describe('CodeWhisperer Server', () => {
                         insertText: deletedLine.concat('\n    '),
                         range: undefined,
                         references: undefined,
-                        mostRelevantMissingImports: undefined,
+                        mostRelevantMissingImports: [{ statement: 'import_foo' }],
                     },
                 ],
                 partialResultToken: undefined,
@@ -401,12 +398,15 @@ describe('CodeWhisperer Server', () => {
         })
 
         it('should only show the part of the recommendation that does not overlap with the right context', async () => {
-            const EXPECTED_SUGGESTION: Suggestion[] = [{ itemId: 'cwspr-item-id', content: HELLO_WORLD_LINE }]
+            const EXPECTED_SUGGESTION: Suggestion[] = [
+                {
+                    itemId: 'cwspr-item-id',
+                    content: HELLO_WORLD_LINE,
+                    mostRelevantMissingImports: [{ statement: 'import_foo' }],
+                },
+            ]
             service.generateSuggestions.returns(
-                Promise.resolve({
-                    suggestions: EXPECTED_SUGGESTION,
-                    responseContext: EXPECTED_RESPONSE_CONTEXT,
-                })
+                Promise.resolve({ suggestions: EXPECTED_SUGGESTION, responseContext: EXPECTED_RESPONSE_CONTEXT })
             )
             const EXPECTED_RESULT = {
                 sessionId: EXPECTED_SESSION_ID,
@@ -416,7 +416,7 @@ describe('CodeWhisperer Server', () => {
                         insertText: HELLO_WORLD_LINE.substring(0, SINGLE_LINE_FILE_CUTOFF_INDEX),
                         range: undefined,
                         references: undefined,
-                        mostRelevantMissingImports: undefined,
+                        mostRelevantMissingImports: [{ statement: 'import_foo' }],
                     },
                 ],
                 partialResultToken: undefined,
@@ -435,12 +435,15 @@ describe('CodeWhisperer Server', () => {
         })
 
         it('should show full recommendation when the right context does not match recommendation ', async () => {
-            const EXPECTED_SUGGESTION: Suggestion[] = [{ itemId: 'cwspr-item-id', content: 'Something something' }]
+            const EXPECTED_SUGGESTION: Suggestion[] = [
+                {
+                    itemId: 'cwspr-item-id',
+                    content: 'Something something',
+                    mostRelevantMissingImports: [{ statement: 'import_foo' }],
+                },
+            ]
             service.generateSuggestions.returns(
-                Promise.resolve({
-                    suggestions: EXPECTED_SUGGESTION,
-                    responseContext: EXPECTED_RESPONSE_CONTEXT,
-                })
+                Promise.resolve({ suggestions: EXPECTED_SUGGESTION, responseContext: EXPECTED_RESPONSE_CONTEXT })
             )
             const EXPECTED_RESULT = {
                 sessionId: EXPECTED_SESSION_ID,
@@ -450,7 +453,7 @@ describe('CodeWhisperer Server', () => {
                         insertText: EXPECTED_SUGGESTION[0].content,
                         range: undefined,
                         references: undefined,
-                        mostRelevantMissingImports: undefined,
+                        mostRelevantMissingImports: [{ statement: 'import_foo' }],
                     },
                 ],
                 partialResultToken: undefined,
@@ -489,10 +492,7 @@ describe('CodeWhisperer Server', () => {
             service.generateSuggestions.returns(
                 Promise.resolve({
                     suggestions: EXPECTED_SUGGESTION,
-                    responseContext: {
-                        ...EXPECTED_RESPONSE_CONTEXT,
-                        nextToken: EXPECTED_NEXT_TOKEN,
-                    },
+                    responseContext: { ...EXPECTED_RESPONSE_CONTEXT, nextToken: EXPECTED_NEXT_TOKEN },
                 })
             )
 
@@ -542,10 +542,7 @@ describe('CodeWhisperer Server', () => {
                 ) as StubbedInstance<CodeWhispererServiceToken>
 
                 test_service.generateSuggestions.returns(
-                    Promise.resolve({
-                        suggestions: EXPECTED_SUGGESTION,
-                        responseContext: EXPECTED_RESPONSE_CONTEXT,
-                    })
+                    Promise.resolve({ suggestions: EXPECTED_SUGGESTION, responseContext: EXPECTED_RESPONSE_CONTEXT })
                 )
 
                 const test_server = CodewhispererServerFactory(_auth => test_service)
@@ -644,10 +641,7 @@ describe('CodeWhisperer Server', () => {
             service = stubInterface<CodeWhispererServiceBase>()
             service.customizationArn = undefined
             service.generateSuggestions.returns(
-                Promise.resolve({
-                    suggestions: EXPECTED_SUGGESTION_LIST,
-                    responseContext: EXPECTED_RESPONSE_CONTEXT,
-                })
+                Promise.resolve({ suggestions: EXPECTED_SUGGESTION_LIST, responseContext: EXPECTED_RESPONSE_CONTEXT })
             )
             server = CodewhispererServerFactory(_auth => service)
 
@@ -782,10 +776,7 @@ describe('CodeWhisperer Server', () => {
 
             const EXPECTED_SUGGESTION: Suggestion[] = [{ itemId: 'cwspr-item-id', content: HELLO_WORLD_IN_CSHARP }]
             service.generateSuggestions.returns(
-                Promise.resolve({
-                    suggestions: EXPECTED_SUGGESTION,
-                    responseContext: EXPECTED_RESPONSE_CONTEXT,
-                })
+                Promise.resolve({ suggestions: EXPECTED_SUGGESTION, responseContext: EXPECTED_RESPONSE_CONTEXT })
             )
 
             const result = await features.openDocument(SOME_FILE).doInlineCompletionWithReferences(
@@ -850,10 +841,7 @@ describe('CodeWhisperer Server', () => {
                 partialResultToken: undefined,
             }
             service.generateSuggestions.returns(
-                Promise.resolve({
-                    suggestions: EXPECTED_SUGGESTION,
-                    responseContext: EXPECTED_RESPONSE_CONTEXT,
-                })
+                Promise.resolve({ suggestions: EXPECTED_SUGGESTION, responseContext: EXPECTED_RESPONSE_CONTEXT })
             )
 
             const result = await features.openDocument(MY_FILE).doInlineCompletionWithReferences(
@@ -894,7 +882,12 @@ describe('CodeWhisperer Server', () => {
             }
 
             const EXPECTED_SUGGESTION: Suggestion[] = [
-                { itemId: 'cwspr-item-id', content: recommendation, references: [EXPECTED_REFERENCE_WITH_OUTER_RANGE] },
+                {
+                    itemId: 'cwspr-item-id',
+                    content: recommendation,
+                    references: [EXPECTED_REFERENCE_WITH_OUTER_RANGE],
+                    mostRelevantMissingImports: [{ statement: 'import_foo' }],
+                },
             ]
 
             const EXPECTED_RESULT = {
@@ -905,16 +898,13 @@ describe('CodeWhisperer Server', () => {
                         insertText: insertText,
                         range: undefined,
                         references: undefined,
-                        mostRelevantMissingImports: undefined,
+                        mostRelevantMissingImports: [{ statement: 'import_foo' }],
                     },
                 ],
                 partialResultToken: undefined,
             }
             service.generateSuggestions.returns(
-                Promise.resolve({
-                    suggestions: EXPECTED_SUGGESTION,
-                    responseContext: EXPECTED_RESPONSE_CONTEXT,
-                })
+                Promise.resolve({ suggestions: EXPECTED_SUGGESTION, responseContext: EXPECTED_RESPONSE_CONTEXT })
             )
 
             const result = await features.openDocument(MY_FILE).doInlineCompletionWithReferences(
@@ -985,10 +975,7 @@ describe('CodeWhisperer Server', () => {
             // Set up the server with a mock service, returning predefined recommendations
             service = stubInterface<CodeWhispererServiceBase>()
             service.generateSuggestions.returns(
-                Promise.resolve({
-                    suggestions: EXPECTED_SUGGESTION,
-                    responseContext: EXPECTED_RESPONSE_CONTEXT,
-                })
+                Promise.resolve({ suggestions: EXPECTED_SUGGESTION, responseContext: EXPECTED_RESPONSE_CONTEXT })
             )
 
             server = CodewhispererServerFactory(_auth => service)
@@ -1104,13 +1091,7 @@ describe('CodeWhisperer Server', () => {
 
         const sessionResultData = {
             sessionId: 'some-random-session-uuid-0',
-            completionSessionResult: {
-                'cwspr-item-id': {
-                    seen: true,
-                    accepted: false,
-                    discarded: false,
-                },
-            },
+            completionSessionResult: { 'cwspr-item-id': { seen: true, accepted: false, discarded: false } },
             firstCompletionDisplayLatency: 50,
             totalSessionDisplayTime: 1000,
         }
@@ -1178,13 +1159,7 @@ describe('CodeWhisperer Server', () => {
         it('should store session result data with only completion state provided', async () => {
             const sessionResultData = {
                 sessionId: 'some-random-session-uuid-0',
-                completionSessionResult: {
-                    'cwspr-item-id': {
-                        seen: true,
-                        accepted: false,
-                        discarded: false,
-                    },
-                },
+                completionSessionResult: { 'cwspr-item-id': { seen: true, accepted: false, discarded: false } },
             }
             const manager = SessionManager.getInstance()
             const session = manager.createSession(sessionData)
@@ -1204,13 +1179,7 @@ describe('CodeWhisperer Server', () => {
         }
         const sessionResultData = {
             sessionId: 'some-random-session-uuid-0',
-            completionSessionResult: {
-                'cwspr-item-id': {
-                    seen: true,
-                    accepted: false,
-                    discarded: false,
-                },
-            },
+            completionSessionResult: { 'cwspr-item-id': { seen: true, accepted: false, discarded: false } },
             firstCompletionDisplayLatency: 50,
             totalSessionDisplayTime: 1000,
         }
@@ -1224,17 +1193,12 @@ describe('CodeWhisperer Server', () => {
         let clock: sinon.SinonFakeTimers
 
         beforeEach(async () => {
-            clock = sinon.useFakeTimers({
-                now: 1483228800000,
-            })
+            clock = sinon.useFakeTimers({ now: 1483228800000 })
 
             // Set up the server with a mock service, returning predefined recommendations
             service = stubInterface<CodeWhispererServiceBase>()
             service.generateSuggestions.returns(
-                Promise.resolve({
-                    suggestions: EXPECTED_SUGGESTION,
-                    responseContext: EXPECTED_RESPONSE_CONTEXT,
-                })
+                Promise.resolve({ suggestions: EXPECTED_SUGGESTION, responseContext: EXPECTED_RESPONSE_CONTEXT })
             )
 
             server = CodewhispererServerFactory(_auth => service)
@@ -1299,10 +1263,7 @@ describe('CodeWhisperer Server', () => {
                 { itemId: 'cwspr-item-id-3', content: recommendation },
             ]
             service.generateSuggestions.returns(
-                Promise.resolve({
-                    suggestions: EXPECTED_SUGGESTIONS,
-                    responseContext: EXPECTED_RESPONSE_CONTEXT,
-                })
+                Promise.resolve({ suggestions: EXPECTED_SUGGESTIONS, responseContext: EXPECTED_RESPONSE_CONTEXT })
             )
 
             await features.doInlineCompletionWithReferences(
@@ -1374,11 +1335,7 @@ describe('CodeWhisperer Server', () => {
                     codewhispererSupplementalContextLength: undefined,
                     codewhispererCustomizationArn: undefined,
                 },
-                errorData: {
-                    reason: 'TestError',
-                    errorCode: undefined,
-                    httpStatusCode: undefined,
-                },
+                errorData: { reason: 'TestError', errorCode: undefined, httpStatusCode: undefined },
             }
             sinon.assert.calledOnceWithExactly(features.telemetry.emitMetric, expectedServiceInvocationMetric)
         })
@@ -1416,11 +1373,7 @@ describe('CodeWhisperer Server', () => {
                     codewhispererSupplementalContextLength: undefined,
                     codewhispererCustomizationArn: undefined,
                 },
-                errorData: {
-                    reason: 'UnknownError',
-                    errorCode: undefined,
-                    httpStatusCode: undefined,
-                },
+                errorData: { reason: 'UnknownError', errorCode: undefined, httpStatusCode: undefined },
             }
             sinon.assert.calledOnceWithExactly(features.telemetry.emitMetric, expectedServiceInvocationMetric)
         })
@@ -1470,11 +1423,7 @@ describe('CodeWhisperer Server', () => {
                     codewhispererSupplementalContextLength: undefined,
                     codewhispererCustomizationArn: undefined,
                 },
-                errorData: {
-                    reason: 'TestAWSError',
-                    errorCode: 'TestErrorStatusCode',
-                    httpStatusCode: 500,
-                },
+                errorData: { reason: 'TestAWSError', errorCode: 'TestErrorStatusCode', httpStatusCode: 500 },
             }
             sinon.assert.calledOnceWithExactly(features.telemetry.emitMetric, expectedServiceInvocationMetric)
         })
@@ -1507,10 +1456,7 @@ describe('CodeWhisperer Server', () => {
         })
 
         it('should not emit Perceived Latency metric when firstCompletionDisplayLatency is absent', async () => {
-            const sessionResultDataWithoutLatency = {
-                ...sessionResultData,
-                firstCompletionDisplayLatency: undefined,
-            }
+            const sessionResultDataWithoutLatency = { ...sessionResultData, firstCompletionDisplayLatency: undefined }
             await features.doInlineCompletionWithReferences(
                 {
                     textDocument: { uri: SOME_FILE.uri },
@@ -1530,11 +1476,7 @@ describe('CodeWhisperer Server', () => {
 
         describe('Connection metadata credentialStartUrl field', () => {
             it('should attach credentialStartUrl field if available in credentialsProvider', async () => {
-                features.credentialsProvider.getConnectionMetadata.returns({
-                    sso: {
-                        startUrl: 'http://teststarturl',
-                    },
-                })
+                features.credentialsProvider.getConnectionMetadata.returns({ sso: { startUrl: 'http://teststarturl' } })
 
                 await features.doInlineCompletionWithReferences(
                     {
@@ -1578,13 +1520,7 @@ describe('CodeWhisperer Server', () => {
             it('should enqueue a code diff entry when session results are returned with accepted completion', async () => {
                 const sessionResultData = {
                     sessionId: 'some-random-session-uuid-0',
-                    completionSessionResult: {
-                        'cwspr-item-id': {
-                            seen: true,
-                            accepted: true,
-                            discarded: false,
-                        },
-                    },
+                    completionSessionResult: { 'cwspr-item-id': { seen: true, accepted: true, discarded: false } },
                 }
                 codeDiffTrackerSpy = sinon.spy(CodeDiffTracker.prototype, 'enqueue')
 
@@ -1616,13 +1552,7 @@ describe('CodeWhisperer Server', () => {
                 const startTime = new Date()
                 const sessionResultData = {
                     sessionId: 'some-random-session-uuid-0',
-                    completionSessionResult: {
-                        'cwspr-item-id': {
-                            seen: true,
-                            accepted: true,
-                            discarded: false,
-                        },
-                    },
+                    completionSessionResult: { 'cwspr-item-id': { seen: true, accepted: true, discarded: false } },
                 }
                 telemetryServiceSpy = sinon.spy(TelemetryService.prototype, 'emitUserModificationEvent')
 
@@ -1665,16 +1595,11 @@ describe('CodeWhisperer Server', () => {
         let clock: sinon.SinonFakeTimers
 
         beforeEach(async () => {
-            clock = sinon.useFakeTimers({
-                now: 1483228800000,
-            })
+            clock = sinon.useFakeTimers({ now: 1483228800000 })
             // Set up the server with a mock service, returning predefined recommendations
             service = stubInterface<CodeWhispererServiceBase>()
             service.generateSuggestions.returns(
-                Promise.resolve({
-                    suggestions: EXPECTED_SUGGESTION,
-                    responseContext: EXPECTED_RESPONSE_CONTEXT,
-                })
+                Promise.resolve({ suggestions: EXPECTED_SUGGESTION, responseContext: EXPECTED_RESPONSE_CONTEXT })
             )
 
             server = CodewhispererServerFactory(_auth => service)
@@ -1787,11 +1712,7 @@ describe('CodeWhisperer Server', () => {
             }
             assert(activeSession)
             sinon.assert.match(
-                {
-                    id: activeSession.id,
-                    state: activeSession.state,
-                    suggestions: activeSession.suggestions,
-                },
+                { id: activeSession.id, state: activeSession.state, suggestions: activeSession.suggestions },
                 expectedSessionData
             )
         })
@@ -1852,10 +1773,7 @@ describe('CodeWhisperer Server', () => {
 
         it('should close new session on new request when service returns empty list', async () => {
             service.generateSuggestions.returns(
-                Promise.resolve({
-                    suggestions: [],
-                    responseContext: EXPECTED_RESPONSE_CONTEXT,
-                })
+                Promise.resolve({ suggestions: [], responseContext: EXPECTED_RESPONSE_CONTEXT })
             )
 
             const activeSession = sessionManager.getCurrentSession()
@@ -1921,10 +1839,7 @@ describe('CodeWhisperer Server', () => {
                 { itemId: 'cwspr-item-id', content: HELLO_WORLD_IN_CSHARP_WITHOUT_NEWLINE },
             ]
             service.generateSuggestions.returns(
-                Promise.resolve({
-                    suggestions: EXPECTED_SUGGESTION,
-                    responseContext: EXPECTED_RESPONSE_CONTEXT,
-                })
+                Promise.resolve({ suggestions: EXPECTED_SUGGESTION, responseContext: EXPECTED_RESPONSE_CONTEXT })
             )
 
             const result = await features.doInlineCompletionWithReferences(
