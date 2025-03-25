@@ -10,6 +10,7 @@ export interface StartTransformRequest extends ExecuteCommandParams {
     SolutionConfigPaths: string[]
     ProjectMetadata: TransformProjectMetadata[]
     TransformNetStandardProjects: boolean
+    PackageReferences: PackageReferenceMetadata[]
 }
 
 export interface StartTransformResponse {
@@ -76,6 +77,7 @@ export interface RequirementJson {
     SolutionPath: string
     Projects: Project[]
     TransformNetStandardProjects: boolean
+    PackageReferences: PackageReferenceMetadata[]
 }
 
 export interface ExternalReference {
@@ -120,4 +122,12 @@ export interface References {
     isThirdPartyPackage: boolean
     netCompatibleRelativePath?: string
     netCompatibleVersion?: string
+}
+
+export interface PackageReferenceMetadata {
+    Id: string
+    Versions: string[]
+    IsPrivatePackage: boolean
+    NetCompatiblePackageDirectory?: string
+    NetCompatiblePackageVersion?: string
 }

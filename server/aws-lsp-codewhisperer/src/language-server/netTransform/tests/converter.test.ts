@@ -54,10 +54,12 @@ const sampleUserInputRequest: StartTransformRequest = {
             ExternalReferences: [],
             ProjectTargetFramework: '',
             SourceCodeFilePaths: [],
+            ThirdPartyPackages: [],
         },
     ],
     TransformNetStandardProjects: false,
     command: '',
+    PackageReferences: [],
 }
 
 function safeSet(obj: any, path: string[], value: any): void {

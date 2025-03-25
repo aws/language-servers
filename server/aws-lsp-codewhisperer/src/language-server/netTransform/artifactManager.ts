@@ -10,6 +10,7 @@ const referencesFolderName = 'references'
 const zipFileName = 'artifact.zip'
 const sourceCodeFolderName = 'sourceCode'
 const packagesFolderName = 'packages'
+const thirdPartyUpgradeFolderName = 'thirdPartyUpgrade'
 
 export class ArtifactManager {
     private workspace: Workspace
@@ -20,26 +21,55 @@ export class ArtifactManager {
         this.logging = logging
         this.workspacePath = workspacePath
     }
+
     async createZip(request: StartTransformRequest): Promise<string> {
+        this.logging.log('Starting createZip process...')
+
+        this.logging.log('Creating requirement.json...')
         await this.createRequirementJson(request)
+
+        this.logging.log('Copying solution config files...')
         await this.copySolutionConfigFiles(request)
+
+        this.logging.log('Copying .NET compatible packages...')
+        await this.copyNetCompatiblePackages(request)
+
+        this.logging.log('Removing duplicate NuGet packages folder...')
         await this.removeDuplicateNugetPackagesFolder(request)
-        return await this.zipArtifact()
+
+        this.logging.log('Creating final zip file...')
+        const zipPath = await this.zipArtifact()
+
+        this.logging.log(`Zip creation completed. Path: ${zipPath}`)
+        return zipPath
     }
+
     async removeDir(dir: string) {
         if (await this.workspace.fs.exists(dir)) {
             await this.workspace.fs.rm(dir, { recursive: true, force: true })
         }
     }
+
     cleanup() {
         try {
             const artifactFolder = path.join(this.workspacePath, artifactFolderName)
             const zipFile = path.join(this.workspacePath, zipFileName)
-            fs.rmSync(artifactFolder, { recursive: true, force: true })
-            fs.unlinkSync(zipFile)
-            fs.rmSync(this.workspacePath, { recursive: true, force: true })
+            const packagesFolder = path.join(this.workspacePath, packagesFolderName)
+
+            if (fs.existsSync(artifactFolder)) {
+                fs.rmSync(artifactFolder, { recursive: true, force: true })
+            }
+            if (fs.existsSync(zipFile)) {
+                fs.unlinkSync(zipFile)
+            }
+            if (fs.existsSync(packagesFolder)) {
+                fs.rmSync(packagesFolder, { recursive: true, force: true })
+            }
+            if (fs.existsSync(this.workspacePath)) {
+                fs.rmSync(this.workspacePath, { recursive: true, force: true })
+            }
         } catch (error) {
-            this.logging.log('Failed to cleanup:' + error)
+            this.logging.log('Failed to cleanup: ' + error)
         }
     }
 
@@ -139,11 +169,21 @@ export class ArtifactManager {
             })
         })
         this.logging.log('Total project references: ' + projects.length)
+
+        const packageReferences =
+            request.PackageReferences?.map(pkg => ({
+                ...pkg,
+                NetCompatiblePackageDirectory: pkg.NetCompatiblePackageDirectory
+                    ? path.join(thirdPartyUpgradeFolderName, pkg.Id)
+                    : undefined,
+            })) || []
+
         return {
             EntryPath: this.normalizeSourceFileRelativePath(request.SolutionRootPath, request.SelectedProjectPath),
             SolutionPath: this.normalizeSourceFileRelativePath(request.SolutionRootPath, request.SolutionFilePath),
             Projects: projects,
             TransformNetStandardProjects: request.TransformNetStandardProjects,
+            PackageReferences: packageReferences,
         } as RequirementJson
     }
 
@@ -243,5 +283,75 @@ export class ArtifactManager {
             this.logging.log('Failed to calculate hashcode: ' + filePath + error)
             return ''
         }
+    }
+
+    private async copyNetCompatiblePackages(request: StartTransformRequest) {
+        this.logging.log('Starting copyNetCompatiblePackages...')
+
+        if (!request.PackageReferences) {
+            this.logging.log('No package references found.')
+            return
+        }
+
+        this.logging.log(`Found ${request.PackageReferences.length} package references to process`)
+
+        for (const pkg of request.PackageReferences) {
+            const packageDir = pkg.NetCompatiblePackageDirectory
+            this.logging.log(`Processing package ${pkg.Id} with directory: ${packageDir}`)
+
+            if (packageDir && fs.existsSync(packageDir)) {
+                try {
+                    const targetBasePath = path.join(
+                        this.workspacePath,
+                        artifactFolderName,
+                        thirdPartyUpgradeFolderName,
+                        pkg.Id
+                    )
+
+                    this.logging.log(`Reading files from directory: ${packageDir}`)
+                    const files = this.getAllFiles(packageDir)
+                    this.logging.log(`Found ${files.length} files to copy for package ${pkg.Id}`)
+
+                    files.forEach(filePath => {
+                        const relativePath = path.relative(packageDir, filePath)
+                        const targetPath = path.join(targetBasePath, relativePath)
+
+                        this.logging.log(`Copying file from ${filePath} to ${targetPath}`)
+                        this.copyFile(filePath, targetPath)
+                    })
+
+                    const newPath = path.join(thirdPartyUpgradeFolderName, pkg.Id)
+                    this.logging.log(
+                        `Updating package reference path from ${pkg.NetCompatiblePackageDirectory} to ${newPath}`
+                    )
+                    pkg.NetCompatiblePackageDirectory = newPath
+
+                    this.logging.log(`Successfully processed package ${pkg.Id}`)
+                } catch (error) {
+                    this.logging.log(`Failed to copy .NET compatible package for ${pkg.Id}: ${error}`)
+                }
+            } else {
+                this.logging.log(`Skipping package ${pkg.Id} - directory not found or invalid: ${packageDir}`)
+            }
+        }
+    }
+
+    private getAllFiles(dirPath: string, arrayOfFiles: string[] = []): string[] {
+        this.logging.log(`Scanning directory: ${dirPath}`)
+        const files = fs.readdirSync(dirPath)
+        this.logging.log(`Found ${files.length} entries in directory`)
+
+        files.forEach(file => {
+            const filePath = path.join(dirPath, file)
+            if (fs.statSync(filePath).isDirectory()) {
+                this.logging.log(`Found subdirectory: ${filePath}`)
+                arrayOfFiles = this.getAllFiles(filePath, arrayOfFiles)
+            } else {
+                this.logging.log(`Found file: ${filePath}`)
+                arrayOfFiles.push(filePath)
+            }
+        })
+
+        return arrayOfFiles
     }
 }
