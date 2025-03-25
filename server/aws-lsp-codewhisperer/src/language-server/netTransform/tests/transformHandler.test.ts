@@ -28,6 +28,8 @@ import sinon = require('sinon')
 import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../../../constants'
 import { Service } from 'aws-sdk'
 import { ServiceConfigurationOptions } from 'aws-sdk/lib/service'
+import { Readable } from 'stream'
+import { ArtifactManager } from '../artifactManager'
 
 const mocked$Response = {
     $response: {
@@ -62,9 +64,9 @@ describe('Test Transform handler ', () => {
     })
 
     describe('test upload artifact', () => {
-        it('call upload method correctly', async () => {
-            const putStub = sinon.stub(got, 'put').resolves({ statusCode: 'Success' })
-            const readFileSyncStub = sinon.stub(fs, 'readFileSync').returns('text file content')
+        it('call upload method correctly with stream', async () => {
+            const putStub = sinon.stub(got, 'put').resolves({ statusCode: 200 })
+            const createReadStreamStub = sinon.stub(fs, 'createReadStream').returns(new Readable() as fs.ReadStream)
             await transformHandler.uploadArtifactToS3Async(
                 payloadFileName,
                 {
@@ -75,10 +77,38 @@ describe('Test Transform handler ', () => {
                 },
                 'dummy-256'
             )
-            simon.assert.callCount(putStub, 1)
-            simon.assert.callCount(readFileSyncStub, 1)
+            sinon.assert.calledOnce(putStub)
+            sinon.assert.calledOnce(createReadStreamStub)
+
             putStub.restore()
-            readFileSyncStub.restore()
+            createReadStreamStub.restore()
+        })
+
+        it('handles upload failure correctly', async () => {
+            const putStub = sinon.stub(got, 'put').rejects(new Error('Upload failed'))
+            const createReadStreamStub = sinon.stub(fs, 'createReadStream').returns(new Readable() as fs.ReadStream)
+
+            try {
+                await transformHandler.uploadArtifactToS3Async(
+                    payloadFileName,
+                    {
+                        uploadId: testUploadId,
+                        uploadUrl: 'dummy-upload-url',
+                        kmsKeyArn: 'ResourceArn',
+                        ...mocked$Response,
+                    },
+                    'dummy-256'
+                )
+                assert.fail('Should have thrown an error')
+            } catch (error) {
+                expect((error as Error).message).to.include('Upload failed')
+                expect((error as Error).message).to.include(
+                    'please see https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/troubleshooting-code-transformation.html'
+                )
+            } finally {
+                putStub.restore()
+                createReadStreamStub.restore()
+            }
         })
     })
 
@@ -93,30 +123,36 @@ describe('Test Transform handler ', () => {
             })
         })
 
-        it('returns upload id correctly', async () => {
-            const readFileSyncStub = sinon.stub(fs, 'readFileSync').returns('text file content')
-            const uploadStub = sinon.stub(transformHandler, 'uploadArtifactToS3Async')
+        it('returns upload id correctly with streaming', async () => {
+            const createReadStreamStub = sinon.stub(fs, 'createReadStream').returns(new Readable() as fs.ReadStream)
+            const uploadStub = sinon.stub(transformHandler, 'uploadArtifactToS3Async').resolves()
+            const getSha256AsyncStub = sinon.stub(ArtifactManager, 'getSha256Async').resolves('dummy-sha256')
             const res = await transformHandler.uploadPayloadAsync(payloadFileName)
-            simon.assert.callCount(readFileSyncStub, 1)
-            simon.assert.callCount(uploadStub, 1)
-            assert.equal(res, testUploadId)
+
+            sinon.assert.calledOnce(uploadStub)
+            expect(res).to.equal(testUploadId)
+
             uploadStub.restore()
-            readFileSyncStub.restore()
+            createReadStreamStub.restore()
+            getSha256AsyncStub.restore()
         })
 
         it('should throw error if uploadArtifactToS3Async fails', async () => {
             const mockError = new Error('Error in uploadArtifactToS3 call')
-            const readFileSyncStub = sinon.stub(fs, 'readFileSync').returns('text file content')
+            const createReadStreamStub = sinon.stub(fs, 'createReadStream').returns(new Readable() as fs.ReadStream)
+            const getSha256AsyncStub = sinon.stub(ArtifactManager, 'getSha256Async').resolves('dummy-sha256')
             sinon.stub(transformHandler, 'uploadArtifactToS3Async').rejects(mockError)
 
             // Call the method to be tested
             try {
                 await transformHandler.uploadPayloadAsync(payloadFileName)
+                assert.fail('Should have thrown an error')
             } catch (error) {
                 // Assertions
                 expect((error as Error).message).to.equal(mockError.message)
-                sinon.assert.calledOnce(readFileSyncStub)
-                readFileSyncStub.restore()
+            } finally {
+                createReadStreamStub.restore()
+                getSha256AsyncStub.restore()
             }
         })
         /*
