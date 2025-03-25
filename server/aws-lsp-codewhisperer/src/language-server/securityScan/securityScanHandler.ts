@@ -7,6 +7,7 @@ import {
 import got from 'got'
 import { md5 } from 'js-md5'
 import * as path from 'path'
+import * as ScanConstants from './constants'
 
 import {
     ArtifactMap,
@@ -49,10 +50,17 @@ export class SecurityScanHandler {
         this.tokenSource.cancel()
     }
 
-    async createCodeResourcePresignedUrlHandler(zipContent: Buffer) {
+    async createCodeResourcePresignedUrlHandler(zipContent: Buffer, scanName: string) {
+        const uploadIntent = ScanConstants.projectScanUploadIntent
         const request: CreateUploadUrlRequest = {
             contentMd5: this.getMd5(zipContent),
             artifactType: 'SourceCode',
+            uploadIntent: uploadIntent,
+            uploadContext: {
+                codeAnalysisUploadContext: {
+                    codeScanName: scanName,
+                },
+            },
         }
         try {
             this.logging.log('Prepare for uploading src context...')
@@ -77,7 +85,7 @@ export class SecurityScanHandler {
         const encryptionContext = `{"uploadId":"${resp.uploadId}"}`
         const md5Content = this.getMd5(zipBuffer)
         const headersObj =
-            resp.kmsKeyArn !== '' || resp.kmsKeyArn !== undefined
+            resp.kmsKeyArn !== '' && resp.kmsKeyArn !== undefined
                 ? {
                       'Content-MD5': md5Content,
                       'x-amz-server-side-encryption': 'aws:kms',
@@ -93,17 +101,19 @@ export class SecurityScanHandler {
                   }
         const response = await got.put(resp.uploadUrl, {
             body: zipBuffer,
-            headers: headersObj,
+            headers: resp?.requestHeaders ?? headersObj,
         })
         this.logging.log(`StatusCode: ${response.statusCode}`)
     }
 
-    async createScanJob(artifactMap: ArtifactMap, languageName: string) {
+    async createScanJob(artifactMap: ArtifactMap, languageName: string, scanName: string) {
         const req: StartCodeAnalysisRequest = {
             artifacts: artifactMap,
             programmingLanguage: {
                 languageName,
             },
+            scope: ScanConstants.projectCodeAnalysisScope,
+            codeScanName: scanName,
         }
         this.logging.log(`Creating scan job...`)
         try {
@@ -120,7 +130,7 @@ export class SecurityScanHandler {
         let status = 'Pending'
         let timer = 0
         const codeScanJobPollingIntervalSeconds = 1
-        const codeScanJobTimeoutSeconds = 50
+        const codeScanJobTimeoutSeconds = ScanConstants.standardScanTimeoutMs
         // eslint-disable-next-line no-constant-condition
         while (true) {
             const req: GetCodeAnalysisRequest = {

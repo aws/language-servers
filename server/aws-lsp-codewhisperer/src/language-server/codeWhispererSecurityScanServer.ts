@@ -20,6 +20,7 @@ import { getErrorMessage, parseJson } from './utils'
 import { getUserAgent } from './utilities/telemetryUtils'
 import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../constants'
 import { SDKInitializator } from '@aws/language-server-runtimes/server-interface'
+import { v4 as uuidv4 } from 'uuid'
 import { AmazonQTokenServiceManager } from './amazonQServiceManager/AmazonQTokenServiceManager'
 
 const RunSecurityScanCommand = 'aws/codewhisperer/runSecurityScan'
@@ -34,6 +35,9 @@ export const SecurityScanServerToken =
         const diagnosticsProvider = new SecurityScanDiagnosticsProvider(lsp, logging)
 
         const runSecurityScan = async (params: SecurityScanRequestParams, token: CancellationToken) => {
+            /**
+             * Only project scans are supported at this time
+             */
             logging.log(`Starting security scan`)
             await diagnosticsProvider.resetDiagnostics()
             let jobStatus: string
@@ -113,8 +117,12 @@ export const SecurityScanServerToken =
                  */
                 const uploadStartTime = performance.now()
                 let artifactMap: ArtifactMap = {}
+                const scanName = uuidv4()
                 try {
-                    artifactMap = await scanHandler.createCodeResourcePresignedUrlHandler(truncation.zipFileBuffer)
+                    artifactMap = await scanHandler.createCodeResourcePresignedUrlHandler(
+                        truncation.zipFileBuffer,
+                        scanName
+                    )
                 } catch (error) {
                     logging.log(`Error: Failed to upload code artifacts ${error}`)
                     throw error
@@ -127,7 +135,11 @@ export const SecurityScanServerToken =
                  * Step 3:  Create scan job
                  */
                 serviceInvocationStartTime = performance.now()
-                const scanJob = await scanHandler.createScanJob(artifactMap, document.languageId.toLowerCase())
+                const scanJob = await scanHandler.createScanJob(
+                    artifactMap,
+                    document.languageId.toLowerCase(),
+                    scanName
+                )
                 logging.log(`Created security scan job id: ${scanJob.jobId}`)
                 securityScanTelemetryEntry.codewhispererCodeScanJobId = scanJob.jobId
                 scanHandler.throwIfCancelled(token)
