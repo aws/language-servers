@@ -329,7 +329,7 @@ export class JavaProjectAnalyzer {
                 for (const plugin of plugins) {
                     if (plugin.artifactId[0] === 'maven-compiler-plugin') {
                         const config = plugin.configuration?.[0]
-                        if (config.annotationProcessors) {
+                        if (config?.annotationProcessors) {
                             processors.push(...config.annotationProcessors[0].processor)
                         }
                     }
