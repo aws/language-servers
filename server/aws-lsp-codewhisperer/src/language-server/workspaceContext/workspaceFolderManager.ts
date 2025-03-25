@@ -156,6 +156,147 @@ export class WorkspaceFolderManager {
         return workspaceDetails.workspaceId
     }
 
+    async processNewWorkspaceFolders(
+        folders: WorkspaceFolder[],
+        options: {
+            initialize?: boolean
+            didChangeWorkspaceFoldersAddition?: boolean
+        }
+    ) {
+        let foldersMetadata: FileMetadata[] = []
+        if (options.didChangeWorkspaceFoldersAddition) {
+            foldersMetadata = await this.artifactManager.addWorkspaceFolders(folders)
+        } else if (options.initialize) {
+            foldersMetadata = await this.artifactManager.createLanguageArtifacts()
+        }
+        this.logging.log(`Length of file metadata for new workspace folders: ${JSON.stringify(foldersMetadata.length)}`)
+
+        const fileMetadataMap: Map<string, FileMetadata[]> = new Map<string, FileMetadata[]>()
+        foldersMetadata.forEach((fileMetadata: FileMetadata) => {
+            let metadata = fileMetadataMap.get(fileMetadata.workspaceFolder.uri)
+            if (!metadata) {
+                metadata = []
+                fileMetadataMap.set(fileMetadata.workspaceFolder.uri, metadata)
+            }
+            metadata.push(fileMetadata)
+        })
+
+        folders.forEach(folder => {
+            const workspaceDetails = this.getWorkspaces().get(folder.uri)
+            if (workspaceDetails) {
+                workspaceDetails.requiresS3Upload = true
+            }
+        })
+        await this.uploadWithTimeout(fileMetadataMap)
+
+        for (const folder of folders) {
+            this.handleNewWorkspace(folder.uri).catch(e => {
+                this.logging.warn(`Error processing new workspace: ${e}`)
+            })
+        }
+    }
+
+    async uploadToS3(fileMetadata: FileMetadata): Promise<string | undefined> {
+        let relativePath = fileMetadata.relativePath.replace(fileMetadata.workspaceFolder.name, '')
+        relativePath = relativePath.startsWith('/') ? relativePath.slice(1) : relativePath
+        const workspaceId = this.getWorkspaces().get(fileMetadata.workspaceFolder.uri)?.workspaceId ?? ''
+        if (!workspaceId) {
+            this.logging.warn(`Workspace ID is not found for ${fileMetadata.workspaceFolder.uri}`)
+            return
+        }
+
+        let s3Url: string | undefined
+        try {
+            const sha256 = await getSha256Async(fileMetadata.content)
+            const request: CreateUploadUrlRequest = {
+                artifactType: 'SourceCode',
+                contentChecksumType: 'SHA_256',
+                contentChecksum: sha256,
+                uploadIntent: 'WORKSPACE_CONTEXT',
+                uploadContext: {
+                    workspaceContextUploadContext: {
+                        workspaceId: workspaceId,
+                        relativePath: relativePath,
+                        programmingLanguage: {
+                            languageName: fileMetadata.language,
+                        },
+                    },
+                },
+            }
+            const response = await this.cwsprClient.createUploadUrl(request)
+            s3Url = response.uploadUrl
+            // Override upload id to be workspace id
+            await uploadArtifactToS3(
+                Buffer.isBuffer(fileMetadata.content) ? fileMetadata.content : Buffer.from(fileMetadata.content),
+                { ...response, uploadId: workspaceId }
+            )
+        } catch (e: any) {
+            this.logging.warn(`Error uploading file to S3: ${e.message}`)
+        }
+        return s3Url
+    }
+
+    async clearAllWorkspaceResources() {
+        for (const workspace of this.monitorIntervals.keys()) {
+            this.stopMonitoring(workspace)
+        }
+
+        for (const { webSocketClient, workspaceId } of this.workspaceMap.values()) {
+            if (webSocketClient) {
+                webSocketClient.destroyClient()
+            }
+
+            if (workspaceId) {
+                await this.deleteWorkspace(workspaceId)
+            }
+        }
+
+        this.workspaceMap.clear()
+    }
+
+    /**
+     * The function sends a removed workspace folders notification to remote LSP, removes workspace entry
+     * from map and close the websocket connection
+     * @param workspaceFolder
+     */
+    async processWorkspaceFoldersDeletion(workspaceFolders: WorkspaceFolder[]) {
+        for (const folder of workspaceFolders) {
+            const workspaceDetails = this.workspaceMap.get(folder.uri)
+            const websocketClient = workspaceDetails?.webSocketClient
+
+            const languagesMap = this.artifactManager.getLanguagesForWorkspaceFolder(folder)
+            const programmingLanguages = languagesMap ? Array.from(languagesMap.keys()) : []
+
+            if (websocketClient) {
+                for (const language of programmingLanguages) {
+                    websocketClient.send(
+                        JSON.stringify({
+                            method: 'workspace/didChangeWorkspaceFolders',
+                            params: {
+                                workspaceFoldersChangeEvent: {
+                                    added: [],
+                                    removed: [
+                                        {
+                                            uri: '/',
+                                            name: folder.name,
+                                        },
+                                    ],
+                                },
+                                workspaceChangeMetadata: {
+                                    workspaceId: this.getWorkspaces().get(folder.uri)?.workspaceId ?? '',
+                                    programmingLanguage: language,
+                                },
+                            },
+                        })
+                    )
+                }
+                websocketClient.disconnect()
+            }
+            this.removeWorkspaceEntry(folder.uri)
+        }
+        await this.artifactManager.removeWorkspaceFolders(workspaceFolders)
+    }
+
     private async createNewWorkspace(workspace: WorkspaceRoot) {
         const createWorkspaceResponse = await this.createWorkspace(workspace)
         if (!createWorkspaceResponse) {
@@ -373,113 +514,12 @@ export class WorkspaceFolderManager {
         this.removeWorkspaceEntry(workspace)
     }
 
-    async clearAllWorkspaceResources() {
-        for (const workspace of this.monitorIntervals.keys()) {
-            this.stopMonitoring(workspace)
-        }
-
-        for (const { webSocketClient, workspaceId } of this.workspaceMap.values()) {
-            if (webSocketClient) {
-                webSocketClient.destroyClient()
-            }
-
-            if (workspaceId) {
-                await this.deleteWorkspace(workspaceId)
-            }
-        }
-
-        this.workspaceMap.clear()
-    }
-
-    /**
-     * The function sends a removed workspace folders notification to remote LSP, removes workspace entry
-     * from map and close the websocket connection
-     * @param workspaceFolder
-     */
-    async processWorkspaceFoldersDeletion(workspaceFolders: WorkspaceFolder[]) {
-        for (const folder of workspaceFolders) {
-            const workspaceDetails = this.workspaceMap.get(folder.uri)
-            const websocketClient = workspaceDetails?.webSocketClient
-
-            const languagesMap = this.artifactManager.getLanguagesForWorkspaceFolder(folder)
-            const programmingLanguages = languagesMap ? Array.from(languagesMap.keys()) : []
-
-            if (websocketClient) {
-                for (const language of programmingLanguages) {
-                    websocketClient.send(
-                        JSON.stringify({
-                            method: 'workspace/didChangeWorkspaceFolders',
-                            params: {
-                                workspaceFoldersChangeEvent: {
-                                    added: [],
-                                    removed: [
-                                        {
-                                            uri: '/',
-                                            name: folder.name,
-                                        },
-                                    ],
-                                },
-                                workspaceChangeMetadata: {
-                                    workspaceId: this.getWorkspaces().get(folder.uri)?.workspaceId ?? '',
-                                    programmingLanguage: language,
-                                },
-                            },
-                        })
-                    )
-                }
-                websocketClient.disconnect()
-            }
-            this.removeWorkspaceEntry(folder.uri)
-        }
-        await this.artifactManager.removeWorkspaceFolders(workspaceFolders)
-    }
-
     private processMessagesInQueue(workspaceRoot: WorkspaceRoot) {
         const workspaceDetails = this.workspaceMap.get(workspaceRoot)
         while (workspaceDetails?.messageQueue && workspaceDetails.messageQueue.length > 0) {
             const message = workspaceDetails.messageQueue.shift()
             workspaceDetails.webSocketClient?.send(message)
         }
-    }
-
-    async uploadToS3(fileMetadata: FileMetadata): Promise<string | undefined> {
-        let relativePath = fileMetadata.relativePath.replace(fileMetadata.workspaceFolder.name, '')
-        relativePath = relativePath.startsWith('/') ? relativePath.slice(1) : relativePath
-        const workspaceId = this.getWorkspaces().get(fileMetadata.workspaceFolder.uri)?.workspaceId ?? ''
-        if (!workspaceId) {
-            this.logging.warn(`Workspace ID is not found for ${fileMetadata.workspaceFolder.uri}`)
-            return
-        }
-
-        let s3Url: string | undefined
-        try {
-            const sha256 = await getSha256Async(fileMetadata.content)
-            const request: CreateUploadUrlRequest = {
-                artifactType: 'SourceCode',
-                contentChecksumType: 'SHA_256',
-                contentChecksum: sha256,
-                uploadIntent: 'WORKSPACE_CONTEXT',
-                uploadContext: {
-                    workspaceContextUploadContext: {
-                        workspaceId: workspaceId,
-                        relativePath: relativePath,
-                        programmingLanguage: {
-                            languageName: fileMetadata.language,
-                        },
-                    },
-                },
-            }
-            const response = await this.cwsprClient.createUploadUrl(request)
-            s3Url = response.uploadUrl
-            // Override upload id to be workspace id
-            await uploadArtifactToS3(
-                Buffer.isBuffer(fileMetadata.content) ? fileMetadata.content : Buffer.from(fileMetadata.content),
-                { ...response, uploadId: workspaceId }
-            )
-        } catch (e: any) {
-            this.logging.warn(`Error uploading file to S3: ${e.message}`)
-        }
-        return s3Url
     }
 
     /**
@@ -527,46 +567,6 @@ export class WorkspaceFolderManager {
             })
         } else {
             workspaceDetails?.messageQueue?.push(...inMemoryQueueEvents)
-        }
-    }
-
-    async processNewWorkspaceFolders(
-        folders: WorkspaceFolder[],
-        options: {
-            initialize?: boolean
-            didChangeWorkspaceFoldersAddition?: boolean
-        }
-    ) {
-        let foldersMetadata: FileMetadata[] = []
-        if (options.didChangeWorkspaceFoldersAddition) {
-            foldersMetadata = await this.artifactManager.addWorkspaceFolders(folders)
-        } else if (options.initialize) {
-            foldersMetadata = await this.artifactManager.createLanguageArtifacts()
-        }
-        this.logging.log(`Length of file metadata for new workspace folders: ${JSON.stringify(foldersMetadata.length)}`)
-
-        const fileMetadataMap: Map<string, FileMetadata[]> = new Map<string, FileMetadata[]>()
-        foldersMetadata.forEach((fileMetadata: FileMetadata) => {
-            let metadata = fileMetadataMap.get(fileMetadata.workspaceFolder.uri)
-            if (!metadata) {
-                metadata = []
-                fileMetadataMap.set(fileMetadata.workspaceFolder.uri, metadata)
-            }
-            metadata.push(fileMetadata)
-        })
-
-        folders.forEach(folder => {
-            const workspaceDetails = this.getWorkspaces().get(folder.uri)
-            if (workspaceDetails) {
-                workspaceDetails.requiresS3Upload = true
-            }
-        })
-        await this.uploadWithTimeout(fileMetadataMap)
-
-        for (const folder of folders) {
-            this.handleNewWorkspace(folder.uri).catch(e => {
-                this.logging.warn(`Error processing new workspace: ${e}`)
-            })
         }
     }
 
