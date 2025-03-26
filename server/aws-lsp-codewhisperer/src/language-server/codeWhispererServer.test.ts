@@ -243,7 +243,13 @@ describe('CodeWhisperer Server', () => {
 
         it('should include extra context in recommendation request when extraContext is configured', async () => {
             const extraContext = 'Additional context for test'
-            features.lsp.workspace.getConfiguration.returns(Promise.resolve({ extraContext }))
+            features.lsp.workspace.getConfiguration.returns(
+                Promise.resolve({
+                    inlineSuggestions: {
+                        extraContext,
+                    },
+                })
+            )
 
             await features.openDocument(SOME_FILE).doChangeConfiguration()
 
