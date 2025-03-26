@@ -29,7 +29,7 @@
     },
     "dependencies": {
         "@aws/language-server-runtimes": "^0.2.48",
-        "@aws/lsp-core": "^0.0.2"
+        "@aws/lsp-core": "*"
     },
     "peerDependencies": {
         "antlr4-c3": ">=3.4 < 4",

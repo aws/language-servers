@@ -14,7 +14,7 @@
         "webpack": "webpack"
     },
     "dependencies": {
-        "@aws/hello-world-lsp": "^0.0.1",
+        "@aws/hello-world-lsp": "*",
         "@aws/language-server-runtimes": "^0.2.48"
     },
     "devDependencies": {

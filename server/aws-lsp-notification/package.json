@@ -20,7 +20,7 @@
     },
     "dependencies": {
         "@aws/language-server-runtimes": "^0.2.48",
-        "@aws/lsp-core": "0.0.2",
+        "@aws/lsp-core": "*",
         "vscode-languageserver": "^9.0.1"
     },
     "devDependencies": {

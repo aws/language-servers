@@ -7,6 +7,6 @@
         "compile": "tsc --build"
     },
     "dependencies": {
-        "@aws/lsp-buildspec": "^0.0.1"
+        "@aws/lsp-buildspec": "*"
     }
 }

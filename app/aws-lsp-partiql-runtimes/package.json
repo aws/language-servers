@@ -12,7 +12,7 @@
     },
     "dependencies": {
         "@aws/language-server-runtimes": "^0.2.48",
-        "@aws/lsp-partiql": "^0.0.5"
+        "@aws/lsp-partiql": "*"
     },
     "devDependencies": {
         "ts-loader": "^9.4.4",

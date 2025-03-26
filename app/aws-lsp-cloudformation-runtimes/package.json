@@ -7,6 +7,6 @@
         "compile": "tsc --build"
     },
     "dependencies": {
-        "@aws/lsp-cloudformation": "^0.0.1"
+        "@aws/lsp-cloudformation": "*"
     }
 }
