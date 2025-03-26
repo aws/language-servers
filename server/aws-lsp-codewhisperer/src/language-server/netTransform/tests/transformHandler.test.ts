@@ -322,7 +322,7 @@ describe('Test Transform handler ', () => {
         })
     })
 
-    describe('extractAllEntriesTo', () => {
+    describe('Test extract all tntries to a path', () => {
         let sandbox: sinon.SinonSandbox
         let mkdirStub: sinon.SinonStub
         let writeFileStub: sinon.SinonStub
@@ -401,8 +401,9 @@ describe('Test Transform handler ', () => {
             }
 
             await transformHandler.extractAllEntriesTo(pathContainingArchive, zipEntries)
-
-            expect(mockedLogging.log.args.flat()).to.include('ENOENT error was ignored for entry: file1.txt')
+            expect(mockedLogging.log.args.flat()).to.include(
+                'File not found(ENOENT) error was ignored for file path : file1.txt'
+            )
         })
 
         it('should throw non-ENOENT errors', async () => {
