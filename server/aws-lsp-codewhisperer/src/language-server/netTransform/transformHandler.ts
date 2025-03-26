@@ -400,7 +400,7 @@ export class TransformHandler {
                 }
             } catch (extractError: any) {
                 if (extractError instanceof Error && 'code' in extractError && extractError.code === 'ENOENT') {
-                    this.logging.log(`ENOENT error was ignored for entry: ${entry.entryName}`)
+                    this.logging.log(`File not found(ENOENT) error was ignored for file path : ${entry.entryName}`)
                 } else {
                     throw extractError
                 }
@@ -418,7 +418,6 @@ export class TransformHandler {
             pathContainingArchive = path.dirname(pathToArchive)
             const zip = new AdmZip(pathToArchive)
             const zipEntries = zip.getEntries()
-
             await this.extractAllEntriesTo(pathContainingArchive, zipEntries)
             return pathContainingArchive
         } catch (error) {
