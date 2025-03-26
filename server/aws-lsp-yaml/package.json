@@ -1,6 +1,6 @@
 {
     "name": "@aws/lsp-yaml",
-    "version": "0.1.1",
+    "version": "0.1.2",
     "description": "YAML Language Server",
     "main": "out/index.js",
     "repository": {
