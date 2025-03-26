@@ -1,5 +1,6 @@
 export * from './language-server/codeWhispererSecurityScanServer'
 export * from './language-server/codeWhispererServer'
 export * from './language-server/qChatServer'
+export * as QAgenticChatServer from './language-server/agenticChat/qAgenticChatServer'
 export * from './language-server/proxy-server'
 export * from './language-server/netTransformServer'
