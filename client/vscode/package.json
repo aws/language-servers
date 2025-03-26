@@ -235,7 +235,7 @@
                     "type": "string",
                     "description": "The selected Q customization"
                 },
-                "aws.q.extraContext": {
+                "aws.q.inlineSuggestions.extraContext": {
                     "scope": "resource",
                     "type": "string",
                     "description": "Extra context for Q Inline Suggestions"
