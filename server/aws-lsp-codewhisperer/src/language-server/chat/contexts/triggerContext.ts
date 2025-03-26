@@ -17,7 +17,7 @@ export class QChatTriggerContext {
 
     constructor(workspace: Features['workspace'], logger: Features['logging']) {
         this.#workspace = workspace
-        this.#documentContextExtractor = new DocumentContextExtractor({ logger })
+        this.#documentContextExtractor = new DocumentContextExtractor({ logger, workspace })
     }
 
     async getNewTriggerContext(params: ChatParams): Promise<TriggerContext> {
