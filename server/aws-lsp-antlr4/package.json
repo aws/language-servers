@@ -1,6 +1,6 @@
 {
     "name": "@aws/lsp-antlr4",
-    "version": "0.1.1",
+    "version": "0.1.2",
     "description": "ANTLR4 language server",
     "main": "out/index.js",
     "repository": {
