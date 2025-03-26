@@ -241,7 +241,7 @@ describe('CodeWhisperer Server', () => {
             sinon.assert.notCalled(service.generateSuggestions)
         })
 
-        it.only('should include extra context in recommendation request when extraContext is configured', async () => {
+        it('should include extra context in recommendation request when extraContext is configured', async () => {
             const extraContext = 'Additional context for test'
             features.lsp.workspace.getConfiguration.returns(Promise.resolve({ extraContext }))
 
