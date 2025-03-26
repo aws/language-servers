@@ -10,9 +10,15 @@
         "webpack": "webpack"
     },
     "dependencies": {
-        "@aws/language-server-runtimes": "^0.2.40",
+        "@aws/language-server-runtimes": "^0.2.48",
         "@aws/lsp-codewhisperer": "*",
-        "copyfiles": "^2.4.1"
+        "copyfiles": "^2.4.1",
+        "crypto-browserify": "^3.12.1",
+        "https-browserify": "^1.0.0",
+        "os-browserify": "^0.3.0",
+        "path-browserify": "^1.0.1",
+        "stream-browserify": "^3.0.0",
+        "stream-http": "^3.2.0"
     },
     "devDependencies": {
         "node-loader": "^2.1.0",

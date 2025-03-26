@@ -4,8 +4,6 @@ import {
     CredentialsType,
     Logging,
     Telemetry,
-    Workspace,
-    SDKInitializator,
 } from '@aws/language-server-runtimes/server-interface'
 import { CodeWhispererSession } from './session/sessionManager'
 import {
@@ -18,7 +16,6 @@ import {
     ChatMessageInteractionType,
     CodeCoverageEvent,
     TelemetryEvent,
-    ChatUserModificationEvent,
     ChatAddMessageEvent,
     UserIntent,
 } from '../client/token/codewhispererbearertokenclient'
@@ -32,13 +29,15 @@ import {
 } from './telemetry/types'
 import { CodewhispererLanguage, getRuntimeLanguage } from './languageDetection'
 import { CONVERSATION_ID_METRIC_KEY } from './chat/telemetry/chatTelemetryController'
+import { BaseAmazonQServiceManager } from './amazonQServiceManager/BaseAmazonQServiceManager'
 
-export class TelemetryService extends CodeWhispererServiceToken {
+export class TelemetryService {
+    // Using Base service manager here to support fallback cases such as in codeWhispererServer
+    private serviceManager: BaseAmazonQServiceManager
     private userContext: UserContext | undefined
     private optOutPreference!: OptOutPreference
     private enableTelemetryEventsToDestination: boolean
     private telemetry: Telemetry
-    private credentialsType: CredentialsType
     private credentialsProvider: CredentialsProvider
     private logging: Logging
 
@@ -55,18 +54,13 @@ export class TelemetryService extends CodeWhispererServiceToken {
     }
 
     constructor(
+        serviceManager: BaseAmazonQServiceManager,
         credentialsProvider: CredentialsProvider,
-        credentialsType: CredentialsType,
         telemetry: Telemetry,
-        logging: Logging,
-        workspace: Workspace,
-        awsQRegion: string,
-        awsQEndpointUrl: string,
-        sdkInitializator: SDKInitializator
+        logging: Logging
     ) {
-        super(credentialsProvider, workspace, awsQRegion, awsQEndpointUrl, sdkInitializator)
+        this.serviceManager = serviceManager
         this.credentialsProvider = credentialsProvider
-        this.credentialsType = credentialsType
         this.telemetry = telemetry
         this.logging = logging
         this.enableTelemetryEventsToDestination = true
@@ -82,6 +76,22 @@ export class TelemetryService extends CodeWhispererServiceToken {
 
     public updateEnableTelemetryEventsToDestination(enableTelemetryEventsToDestination: boolean): void {
         this.enableTelemetryEventsToDestination = enableTelemetryEventsToDestination
+    }
+
+    private getCredentialsType(): CredentialsType {
+        return this.serviceManager.getCodewhispererService().getCredentialsType()
+    }
+
+    private getService(): CodeWhispererServiceToken {
+        const service = this.serviceManager.getCodewhispererService() as CodeWhispererServiceToken
+
+        if (!service.sendTelemetryEvent) {
+            throw new Error(
+                `Service of type: ${service.getCredentialsType()} returned by service manager is not compatible with TelemetryService`
+            )
+        }
+
+        return service
     }
 
     private getSuggestionState(session: CodeWhispererSession): SuggestionState {
@@ -106,7 +116,7 @@ export class TelemetryService extends CodeWhispererServiceToken {
         const ssoConnectionType = getSsoConnectionType(this.credentialsProvider)
 
         return (
-            this.credentialsType === 'bearer' &&
+            this.getCredentialsType() === 'bearer' &&
             ((ssoConnectionType === 'builderId' && this.optOutPreference === 'OPTIN') ||
                 ssoConnectionType === 'identityCenter')
         )
@@ -124,20 +134,20 @@ export class TelemetryService extends CodeWhispererServiceToken {
     }
 
     private async invokeSendTelemetryEvent(event: TelemetryEvent) {
-        if (!this.shouldSendTelemetry()) {
-            return
-        }
-        const request: SendTelemetryEventRequest = {
-            telemetryEvent: event,
-        }
-        if (this.userContext !== undefined) {
-            request.userContext = this.userContext
-        }
-        if (this.optOutPreference !== undefined) {
-            request.optOutPreference = this.optOutPreference
-        }
         try {
-            await this.sendTelemetryEvent(request)
+            if (!this.shouldSendTelemetry()) {
+                return
+            }
+            const request: SendTelemetryEventRequest = {
+                telemetryEvent: event,
+            }
+            if (this.userContext !== undefined) {
+                request.userContext = this.userContext
+            }
+            if (this.optOutPreference !== undefined) {
+                request.optOutPreference = this.optOutPreference
+            }
+            await this.getService().sendTelemetryEvent(request)
         } catch (error) {
             this.logSendTelemetryEventFailure(error)
         }

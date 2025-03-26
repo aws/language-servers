@@ -1,5 +1,5 @@
 import * as assert from 'assert'
-import { sanitizeFilename } from './text'
+import { sanitizeFilename, undefinedIfEmpty } from './text'
 
 describe('sanitizeFilename', function () {
     const cases: { input: string; output: string; case: string; replaceString?: string }[] = [
@@ -16,4 +16,20 @@ describe('sanitizeFilename', function () {
             assert.strictEqual(sanitizeFilename(testCase.input, testCase.replaceString), testCase.output)
         })
     }
+})
+
+describe('undefinedIfEmpty', function () {
+    const cases: { input: string | undefined; output: string | undefined; case: string }[] = [
+        { input: undefined, output: undefined, case: 'return undefined if input is undefined' },
+        { input: '', output: undefined, case: 'return undefined if input is empty string' },
+        { input: '   ', output: undefined, case: 'return undefined if input is blank' },
+        { input: 'foo', output: 'foo', case: 'return str if input is not empty' },
+        { input: ' foo ', output: ' foo ', case: 'return original str without trim' },
+    ]
+
+    cases.forEach(testCases => {
+        it(testCases.case, function () {
+            assert.strictEqual(undefinedIfEmpty(testCases.input), testCases.output)
+        })
+    })
 })

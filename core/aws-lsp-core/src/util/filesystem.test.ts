@@ -2,7 +2,7 @@
 // https://github.com/aws/aws-toolkit-vscode/blob/24840fda8559a3e3ace3517ad9844db76680dc50/packages/core/src/test/shared/filesystemUtilities.test.ts
 
 import * as assert from 'assert'
-import { getFileDistance } from './filesystemUtilities'
+import { getFileDistance } from './filesystem'
 
 describe('filesystemUtilities', function () {
     describe('getFileDistance', function () {

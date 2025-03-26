@@ -6,6 +6,8 @@ import {
     getSsoConnectionType,
     getUnmodifiedAcceptedTokens,
     getEndPositionForAcceptedSuggestion,
+    safeGet,
+    isStringOrNull,
 } from './utils'
 import { expect } from 'chai'
 import { BUILDER_ID_START_URL } from './constants'
@@ -18,6 +20,7 @@ describe('getBearerTokenFromProvider', () => {
             getCredentials: sinon.stub().returns({ token: mockToken }),
             getConnectionMetadata: sinon.stub(),
             getConnectionType: sinon.stub(),
+            onCredentialsDeleted: sinon.stub(),
         }
         assert.strictEqual(getBearerTokenFromProvider(mockCredentialsProvider), mockToken)
     })
@@ -28,6 +31,7 @@ describe('getBearerTokenFromProvider', () => {
             getCredentials: sinon.stub().returns({ token: mockToken }),
             getConnectionMetadata: sinon.stub(),
             getConnectionType: sinon.stub(),
+            onCredentialsDeleted: sinon.stub(),
         }
         assert.throws(
             () => getBearerTokenFromProvider(mockCredentialsProvider),
@@ -42,6 +46,7 @@ describe('getBearerTokenFromProvider', () => {
             getCredentials: sinon.stub().returns({ token: '' }),
             getConnectionMetadata: sinon.stub(),
             getConnectionType: sinon.stub(),
+            onCredentialsDeleted: sinon.stub(),
         }
         assert.throws(
             () => getBearerTokenFromProvider(mockCredentialsProvider),
@@ -58,6 +63,7 @@ describe('getSsoConnectionType', () => {
         getCredentials: sinon.stub().returns({ token: mockToken }),
         getConnectionMetadata: sinon.stub(),
         getConnectionType: sinon.stub(),
+        onCredentialsDeleted: sinon.stub(),
     }
     it('should return ssoConnectionType as builderId', () => {
         const mockCredentialsProvider: CredentialsProvider = {
@@ -69,6 +75,7 @@ describe('getSsoConnectionType', () => {
                 },
             }),
             getConnectionType: sinon.stub(),
+            onCredentialsDeleted: sinon.stub(),
         }
         const ssoConnectionType = getSsoConnectionType(mockCredentialsProvider)
         expect(ssoConnectionType).to.equal('builderId')
@@ -84,6 +91,7 @@ describe('getSsoConnectionType', () => {
                 },
             }),
             getConnectionType: sinon.stub(),
+            onCredentialsDeleted: sinon.stub(),
         }
         const ssoConnectionType = getSsoConnectionType(mockCredentialsProvider)
         expect(ssoConnectionType).to.equal('identityCenter')
@@ -102,6 +110,7 @@ describe('getSsoConnectionType', () => {
                 sso: undefined,
             }),
             getConnectionType: sinon.stub(),
+            onCredentialsDeleted: sinon.stub(),
         }
         const ssoConnectionType = getSsoConnectionType(mockCredentialsProvider)
         expect(ssoConnectionType).to.equal('none')
@@ -117,6 +126,7 @@ describe('getSsoConnectionType', () => {
                 },
             }),
             getConnectionType: sinon.stub(),
+            onCredentialsDeleted: sinon.stub(),
         }
         const ssoConnectionType = getSsoConnectionType(mockCredentialsProvider)
         expect(ssoConnectionType).to.equal('none')
@@ -132,6 +142,7 @@ describe('getSsoConnectionType', () => {
                 },
             }),
             getConnectionType: sinon.stub(),
+            onCredentialsDeleted: sinon.stub(),
         }
         const ssoConnectionType = getSsoConnectionType(mockCredentialsProvider)
         expect(ssoConnectionType).to.equal('none')
@@ -194,5 +205,38 @@ describe('getEndPositionForAcceptedSuggestion', () => {
         const result = getEndPositionForAcceptedSuggestion(content, startPosition)
 
         assert.deepStrictEqual(result, { line: 8, character: 0 })
+    })
+})
+
+describe('safeGet', () => {
+    const getStringOrUndefined = (defined: boolean) => {
+        return defined ? 'some-string' : undefined
+    }
+
+    it('does not throw if argument is defined', () => {
+        assert.doesNotThrow(() => safeGet(getStringOrUndefined(true)))
+    })
+
+    it('throws when argument is undefined', () => {
+        assert.throws(() => safeGet(getStringOrUndefined(false)))
+    })
+})
+
+describe('isStringOrNull', () => {
+    const testCases = [
+        { input: 0, expected: false },
+        { input: false, expected: false },
+        { input: [], expected: false },
+        { input: {}, expected: false },
+        { input: undefined, expected: false },
+        { input: 'some-string', expected: true },
+        { input: '', expected: true },
+        { input: null, expected: true },
+    ]
+
+    testCases.forEach(testCase => {
+        it(`should return: ${testCase.expected}, when passed: ${JSON.stringify(testCase.input)}`, () => {
+            assert(isStringOrNull(testCase.input) === testCase.expected)
+        })
     })
 })

@@ -3,6 +3,7 @@ import {
     InlineCompletionListWithReferences,
     CancellationToken,
     InlineCompletionTriggerKind,
+    InitializeParams,
 } from '@aws/language-server-runtimes/server-interface'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import * as assert from 'assert'
@@ -182,6 +183,7 @@ describe('Telemetry', () => {
 
             // Return no specific configuration for CodeWhisperer
             features.lsp.workspace.getConfiguration.returns(Promise.resolve({}))
+            features.lsp.getClientInitializeParams.returns({} as InitializeParams)
 
             // Return credentialsStartUrl value
             features.credentialsProvider.getConnectionMetadata.returns({

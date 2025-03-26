@@ -1,15 +1,9 @@
-import {
-    BearerCredentials,
-    CredentialsProvider,
-    Position,
-    Workspace,
-} from '@aws/language-server-runtimes/server-interface'
+import { BearerCredentials, CredentialsProvider, Position } from '@aws/language-server-runtimes/server-interface'
 import { AWSError } from 'aws-sdk'
 import { distance } from 'fastest-levenshtein'
 import { Suggestion } from './codeWhispererService'
 import { CodewhispererCompletionType } from './telemetry/types'
 import { BUILDER_ID_START_URL, MISSING_BEARER_TOKEN_ERROR } from './constants'
-import { ServerInfo } from '@aws/language-server-runtimes/server-interface/runtime'
 export type SsoConnectionType = 'builderId' | 'identityCenter' | 'none'
 
 export function isAwsError(error: unknown): error is AWSError {
@@ -34,6 +28,10 @@ export function isObject(value: unknown): value is { [key: number | string | sym
 
 export function isNullish(value: unknown): value is null | undefined {
     return value === null || value === undefined
+}
+
+export function isBool(value: unknown): value is boolean {
+    return typeof value === 'boolean'
 }
 
 export function getCompletionType(suggestion: Suggestion): CodewhispererCompletionType {
@@ -128,4 +126,16 @@ export function getEndPositionForAcceptedSuggestion(content: string, startPositi
         }
     }
     return endPosition
+}
+
+export function safeGet<T, E extends Error>(object: T | undefined, customError?: E): T {
+    if (object === undefined) {
+        throw customError ?? new Error(`Expected object: "${String(object)} to be defined, but found undefined`)
+    }
+
+    return object
+}
+
+export function isStringOrNull(object: any): object is string | null {
+    return typeof object === 'string' || object === null
 }

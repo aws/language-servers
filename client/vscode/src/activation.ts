@@ -20,9 +20,10 @@ import {
 import { registerInlineCompletion } from './inlineCompletionActivation'
 import { registerLogCommand, registerTransformCommand } from './sampleCommandActivation'
 import { randomUUID } from 'crypto'
-import { registerCustomizations } from './customizationActivation'
 import { registerIdentity } from './identityActivation'
 import { registerNotification } from './notificationActivation'
+import { registerQProfileSelection } from './selectQProfileActivation'
+import { registerAwsQSection } from './awsQSectionActivation'
 
 export async function activateDocumentsLanguageServer(extensionContext: ExtensionContext) {
     /**
@@ -142,6 +143,7 @@ export async function activateDocumentsLanguageServer(extensionContext: Extensio
             { scheme: 'untitled', language: 'csharp' },
         ],
         initializationOptions: {
+            logLevel: 'debug',
             aws: {
                 clientInfo: {
                     name: env.appName,
@@ -153,6 +155,9 @@ export async function activateDocumentsLanguageServer(extensionContext: Extensio
                     clientId: randomUUID(),
                 },
                 awsClientCapabilities: {
+                    q: {
+                        developerProfiles: process.env.ENABLE_AMAZON_Q_PROFILES === 'true',
+                    },
                     window: {
                         notifications: true,
                     },
@@ -195,9 +200,9 @@ export async function activateDocumentsLanguageServer(extensionContext: Extensio
         registerChat(client, extensionContext.extensionUri, enableEncryptionInit ? encryptionKey : undefined)
     }
 
-    const enableCustomizations = process.env.ENABLE_CUSTOMIZATIONS === 'true'
-    if (enableCustomizations) {
-        registerCustomizations(client)
+    const enableAwsQSection = process.env.ENABLE_AWS_Q_SECTION === 'true'
+    if (enableAwsQSection) {
+        registerAwsQSection(client)
     }
 
     const enableIdentity = process.env.ENABLE_IDENTITY === 'true'
@@ -208,6 +213,11 @@ export async function activateDocumentsLanguageServer(extensionContext: Extensio
     const enableNotification = process.env.ENABLE_NOTIFICATION === 'true'
     if (enableNotification) {
         await registerNotification(client)
+    }
+
+    const enableAmazonQProfiles = process.env.ENABLE_AMAZON_Q_PROFILES === 'true'
+    if (enableAmazonQProfiles) {
+        await registerQProfileSelection(client)
     }
 
     return client
