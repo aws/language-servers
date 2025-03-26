@@ -53,7 +53,9 @@ export class ArtifactManager {
         )
         if (fs.existsSync(packagesFolder)) {
             fs.rmSync(packagesFolder, { recursive: true, force: true })
-            this.logging.log(`Removed packages folder ${packagesFolder} from source code directory`)
+            this.logging.log(
+                `Removed packages folder ${packagesFolder} from source code directory to be uploaded because it is a duplicate of references folder from artifacts`
+            )
         }
     }
 
@@ -141,7 +143,6 @@ export class ArtifactManager {
     static async getSha256Async(fileName: string): Promise<string> {
         const hasher = crypto.createHash('sha256')
         const stream = fs.createReadStream(fileName)
-
         for await (const chunk of stream) {
             hasher.update(chunk)
         }
