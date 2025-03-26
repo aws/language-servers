@@ -16,6 +16,7 @@ import {
     SDKInitializator,
     ResponseError,
     LSPErrorCodes,
+    DidChangeConfigurationParams,
 } from '@aws/language-server-runtimes/server-interface'
 import { AWSError } from 'aws-sdk'
 import { autoTrigger, triggerType } from './auto-trigger/autoTrigger'
@@ -34,7 +35,7 @@ import { CodePercentageTracker } from './telemetry/codePercentage'
 import { CodeWhispererPerceivedLatencyEvent, CodeWhispererServiceInvocationEvent } from './telemetry/types'
 import { getCompletionType, getEndPositionForAcceptedSuggestion, isAwsError, safeGet } from './utils'
 import { getUserAgent, makeUserContextObject } from './utilities/telemetryUtils'
-import { Q_CONFIGURATION_SECTION } from './configuration/qConfigurationServer'
+import { Q_CONFIGURATION_SECTION, Q_CONFIGURATION_VSC } from './configuration/qConfigurationServer'
 import { fetchSupplementalContext } from './utilities/supplementalContextUtil/supplementalContextUtil'
 import { textUtils } from '@aws/lsp-core'
 import { TelemetryService } from './telemetryService'
@@ -642,12 +643,13 @@ export const CodewhispererServerFactory =
             await emitUserTriggerDecisionTelemetry(telemetry, telemetryService, session, timeSinceLastUserModification)
         }
 
-        const updateConfiguration = async () => {
+        const updateConfiguration = async (params?: DidChangeConfigurationParams) => {
             try {
                 // Currently can't hook AmazonQTokenServiceManager.handleDidChangeConfiguration to lsp listenre directly
                 // as it will override listeners from each consuming Server.
                 // TODO: refactor configuration listener in Server and AmazonQTokenServiceManager in runtimes.
-                await amazonQServiceManager.handleDidChangeConfiguration()
+                const ideCategory = telemetryService.getUserContext()?.ideCategory
+                await amazonQServiceManager.handleDidChangeConfiguration(ideCategory, params)
 
                 const qConfig = await lsp.workspace.getConfiguration(Q_CONFIGURATION_SECTION)
                 if (qConfig) {
@@ -739,7 +741,7 @@ export const CodewhispererServerFactory =
         lsp.extensions.onInlineCompletionWithReferences(onInlineCompletionHandler)
         lsp.extensions.onLogInlineCompletionSessionResults(onLogInlineCompletionSessionResultsHandler)
         lsp.onInitialized(onInitializedHandler)
-        lsp.didChangeConfiguration(updateConfiguration)
+        lsp.didChangeConfiguration(params => updateConfiguration(params))
 
         lsp.onDidChangeTextDocument(async p => {
             const textDocument = await workspace.getTextDocument(p.textDocument.uri)

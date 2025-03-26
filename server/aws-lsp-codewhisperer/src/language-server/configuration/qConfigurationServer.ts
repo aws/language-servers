@@ -24,6 +24,7 @@ const Q_DEVELOPER_PROFILES = 'developerProfiles'
 export const Q_CUSTOMIZATIONS_CONFIGURATION_SECTION = `${Q_CONFIGURATION_SECTION}.${Q_CUSTOMIZATIONS}`
 export const Q_DEVELOPER_PROFILES_CONFIGURATION_SECTION = `${Q_CONFIGURATION_SECTION}.${Q_DEVELOPER_PROFILES}`
 
+export const Q_CONFIGURATION_VSC = 'amazonQ'
 export const QConfigurationServerToken =
     (): Server =>
     ({ credentialsProvider, lsp, logging, runtime, workspace, sdkInitializator }) => {

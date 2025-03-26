@@ -13,6 +13,7 @@ import {
     CredentialsType,
     InitializeParams,
     CancellationTokenSource,
+    DidChangeConfigurationParams,
 } from '@aws/language-server-runtimes/server-interface'
 import {
     DEFAULT_AWS_Q_ENDPOINT_URL,
@@ -34,7 +35,7 @@ import {
     AmazonQServiceProfileUpdateCancelled,
 } from './errors'
 import { BaseAmazonQServiceManager } from './BaseAmazonQServiceManager'
-import { Q_CONFIGURATION_SECTION } from '../configuration/qConfigurationServer'
+import { Q_CONFIGURATION_SECTION, Q_CONFIGURATION_VSC } from '../configuration/qConfigurationServer'
 import { textUtils } from '@aws/lsp-core'
 import { CodeWhispererStreaming } from '@amzn/codewhisperer-streaming'
 import { ConfiguredRetryStrategy } from '@aws-sdk/util-retry'
@@ -281,8 +282,33 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
         this.logServiceState('Unknown Connection state')
     }
 
-    public async handleDidChangeConfiguration() {
+    public async handleDidChangeConfiguration(ideCategory?: string, params?: DidChangeConfigurationParams) {
         try {
+            if (ideCategory === 'VSCODE') {
+                const vscConfig = await this.features.lsp.workspace.getConfiguration(Q_CONFIGURATION_VSC)
+                if (!vscConfig) {
+                    this.log(`VS Code configuration not found`)
+                    return
+                }
+                const optOutTelemetryPreference = vscConfig['shareContentWithAWS'] === true ? 'OPTOUT' : 'OPTIN'
+                this.log(`Read configuration optOutTelemetryPreference=${optOutTelemetryPreference}`)
+                this.configurationCache.set('optOutTelemetryPreference', optOutTelemetryPreference)
+                const includeSuggestionsWithCodeReferences = vscConfig['showCodeWithReferences'] === true
+                this.log(
+                    `Read сonfiguration includeSuggestionsWithCodeReferences=${includeSuggestionsWithCodeReferences}`
+                )
+                this.configurationCache.set(
+                    'includeSuggestionsWithCodeReferences',
+                    includeSuggestionsWithCodeReferences
+                )
+
+                const customizationArn = textUtils.undefinedIfEmpty(params?.settings['customization'])
+                if (customizationArn) {
+                    this.log(`Read configuration customizationArn=${customizationArn}`)
+                    this.configurationCache.set('customizationArn', customizationArn)
+                }
+                return
+            }
             const qConfig = await this.features.lsp.workspace.getConfiguration(Q_CONFIGURATION_SECTION)
             if (qConfig) {
                 // aws.q.customizationArn - selected customization
