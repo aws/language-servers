@@ -24,3 +24,18 @@ or
 ```bash
 node ./out/iam-standalone.js --stdio
 ```
+
+## Development and Testing Web Worker Implementation
+
+For development and testing purposes, you can use the `start` script (after bundling with the `package` script) to run a development server that helps validate the web worker bundled implementation and basic language server communication:
+
+```
+npm run start
+```
+This command starts a webpack development server (default: http://127.0.0.1:8080) that serves a basic setup to test:
+
+- Web worker bundling and server initialization at runtime
+
+- Basic language client/server communication
+
+The development server uses `webpack-dev-server` configuration from `webpack.config.js` to serve both the main webpage and the web worker bundle, allowing real-time testing of the language server implementation in a browser environment.
