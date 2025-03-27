@@ -1,6 +1,8 @@
 import { WebSocket } from 'ws'
 import { BearerCredentials, CredentialsProvider, Logging } from '@aws/language-server-runtimes/server-interface'
 
+export type WebSocketReadyState = 'CONNECTING' | 'OPEN' | 'CLOSING' | 'CLOSED'
+
 export class WebSocketClient {
     private ws: WebSocket | null = null
     private logging: Logging
@@ -19,19 +21,13 @@ export class WebSocketClient {
 
     private connect(): void {
         try {
-            // TODO, this is temporary code to pass websocket messages through proxy until MDE SSO is ready
-            const customLookup = (hostname: string, options: any, callback: any) => {
-                // Always return 127.0.0.1 regardless of the hostname
-                callback(null, '127.0.0.1', 4) // 4 for IPv4
-            }
             const creds = this.credentialsProvider.getCredentials('bearer') as BearerCredentials
             if (!creds?.token) {
                 throw new Error('Authorization failed, bearer token is not set')
             }
 
             this.ws = new WebSocket(this.url, {
-                lookup: customLookup,
-                // headers: { Authorization: `Bearer ${creds.token}` },
+                headers: { Authorization: `Bearer ${creds.token}` },
             })
 
             this.attachEventListeners()
@@ -110,6 +106,22 @@ export class WebSocketClient {
 
     public isConnected(): boolean {
         return this.ws?.readyState === WebSocket.OPEN
+    }
+    public getWebsocketReadyState(): WebSocketReadyState {
+        if (!this.ws) return 'CLOSED'
+
+        switch (this.ws.readyState) {
+            case WebSocket.CONNECTING:
+                return 'CONNECTING'
+            case WebSocket.OPEN:
+                return 'OPEN'
+            case WebSocket.CLOSING:
+                return 'CLOSING'
+            case WebSocket.CLOSED:
+                return 'CLOSED'
+            default:
+                return 'CLOSED'
+        }
     }
 
     // https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API/Writing_WebSocket_client_applications#sending_data_to_the_server

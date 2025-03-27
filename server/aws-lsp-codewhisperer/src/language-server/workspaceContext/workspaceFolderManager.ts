@@ -304,16 +304,19 @@ export class WorkspaceFolderManager {
     }
 
     private async createNewWorkspace(workspace: WorkspaceRoot) {
-        const createWorkspaceResponse = await this.createWorkspace(workspace)
-        if (!createWorkspaceResponse) {
+        const createWorkspaceResult = await this.createWorkspace(workspace)
+        const workspaceDetails = createWorkspaceResult.response
+        if (!workspaceDetails) {
             this.logging.warn(`Failed to create workspace for ${workspace}`)
-            return
+            return createWorkspaceResult
         }
 
         this.updateWorkspaceEntry(workspace, {
-            remoteWorkspaceState: createWorkspaceResponse.workspace.workspaceStatus,
-            workspaceId: createWorkspaceResponse.workspace.workspaceId,
+            remoteWorkspaceState: workspaceDetails.workspace.workspaceStatus,
+            workspaceId: workspaceDetails.workspace.workspaceId,
         })
+
+        return createWorkspaceResult
     }
 
     private async establishConnection(workspace: WorkspaceRoot) {
@@ -327,8 +330,21 @@ export class WorkspaceFolderManager {
             throw new Error('No environment ID found for ready workspace')
         }
         // TODO, Change this to the PROD URL when MDE is ready
-        const websocketUrl = `ws://${metadata.environmentId}--8081.localhost:8080/ws`
+        const websocketUrl = `wss://${metadata.environmentId}--8081.wc.gamma-us-west-2.codewhisperer.ai.aws.dev/ws`
         this.logging.log(`Establishing connection to ${websocketUrl}`)
+
+        if (existingState?.webSocketClient) {
+            const websocketConnectionState = existingState.webSocketClient.getWebsocketReadyState()
+            if (websocketConnectionState === 'OPEN') {
+                this.logging.log(`Active connection already exists for ${workspace}`)
+                return
+            }
+            // If the client exists but isn't connected, it might be in the process of connecting
+            if (websocketConnectionState === 'CONNECTING') {
+                this.logging.log(`Connection attempt already in progress for ${workspace}`)
+                return
+            }
+        }
 
         const webSocketClient = new WebSocketClient(websocketUrl, this.logging, this.credentialsProvider)
         this.updateWorkspaceEntry(workspace, {
@@ -357,18 +373,28 @@ export class WorkspaceFolderManager {
             return
         }
 
-        if (metadata && metadata.workspaceStatus !== 'CREATED') {
+        if (metadata) {
             // Workspace exists remotely, add to map with current state
             this.updateWorkspaceEntry(workspace, {
                 workspaceId: metadata.workspaceId,
                 remoteWorkspaceState: metadata.workspaceStatus,
-                messageQueue: queueEvents ?? undefined,
+                messageQueue: queueEvents ?? [],
             })
         } else {
-            // Create new workspace if it doesn't exist
-            await this.createNewWorkspace(workspace)
+            // Create new workspace
+            const createWorkspaceResult = await this.createNewWorkspace(workspace)
+            if (createWorkspaceResult.error && createWorkspaceResult.error.retryable) {
+                this.logging.log(`Workspace creation failed with retryable error, starting monitor`)
+                this.updateWorkspaceEntry(workspace, {
+                    remoteWorkspaceState: 'CREATION_PENDING',
+                    messageQueue: queueEvents ?? [],
+                })
+            }
         }
-        this.startWorkspaceStatusMonitor(workspace)
+
+        this.startWorkspaceStatusMonitor(workspace).catch(error => {
+            this.logging.error(`Error starting workspace monitor for ${workspace}: ${error}`)
+        })
     }
 
     private async waitForInitialConnection(workspace: WorkspaceRoot): Promise<boolean> {
@@ -380,6 +406,7 @@ export class WorkspaceFolderManager {
                 try {
                     const workspaceState = this.workspaceMap.get(workspace)
                     if (!workspaceState) {
+                        this.logging.log(`No workspace state for ${workspace}, stopping monitoring`)
                         clearInterval(intervalId)
                         return resolve(false)
                     }
@@ -394,6 +421,7 @@ export class WorkspaceFolderManager {
                     }
 
                     if (!metadata) {
+                        // Continue polling by exiting only this iteration
                         return
                     }
 
@@ -414,7 +442,12 @@ export class WorkspaceFolderManager {
                             // Continue polling
                             break
                         case 'CREATED':
-                            await this.createNewWorkspace(workspace)
+                            const createWorkspaceResult = await this.createNewWorkspace(workspace)
+                            // If createWorkspace call returns a retyrable error, next interval will retry
+                            // If the call returns non-retryable error, we will re-throw the error and it will stop the interval
+                            if (createWorkspaceResult.error && !createWorkspaceResult.error.retryable) {
+                                throw createWorkspaceResult.error.originalError
+                            }
                             break
                         default:
                             this.logging.warn(`Unknown workspace status: ${metadata.workspaceStatus}`)
@@ -427,7 +460,7 @@ export class WorkspaceFolderManager {
                         clearInterval(intervalId)
                         return resolve(false)
                     }
-                } catch (error) {
+                } catch (error: any) {
                     this.logging.error(`Error during initial connection for workspace ${workspace}: ${error}`)
                     clearInterval(intervalId)
                     return resolve(false)
@@ -479,7 +512,7 @@ export class WorkspaceFolderManager {
                         // Do nothing while pending
                         break
                     case 'CREATED':
-                        await this.createNewWorkspace(workspace)
+                        await this.handleWorkspaceCreatedState(workspace)
                         break
                     default:
                         this.logging.warn(`Unknown workspace status: ${metadata.workspaceStatus}`)
@@ -490,6 +523,94 @@ export class WorkspaceFolderManager {
         }, this.CONTINUOUS_MONITOR_INTERVAL)
 
         this.monitorIntervals.set(workspace, intervalId)
+    }
+
+    /**
+     * Handles the workspace creation flow when a remote workspace is in CREATED state.
+     * Attempts to create the workspace and schedules a quick connection check on success.
+     * If the initial creation fails with a retryable error, attempts one retry before
+     * falling back to the regular polling cycle.
+     *
+     * The flow is:
+     * 1. Attempt initial workspace creation
+     * 2. On success: Schedule a quick check to establish connection
+     * 3. On retryable error: Attempt one immediate retry
+     * 4. On retry success: Schedule a quick check
+     * 5. On retry failure: Wait for next regular polling cycle
+     *
+     * @param workspace - The workspace to re-create
+     */
+    private async handleWorkspaceCreatedState(workspace: WorkspaceRoot): Promise<void> {
+        // If remote state is CREATED, call create API to create a new workspace
+        const initialResult = await this.createNewWorkspace(workspace)
+
+        // If creation succeeds, schedule a single connection attempt to happen in 30 seconds
+        if (initialResult.response) {
+            this.logging.log(`Workspace ${workspace} created successfully, scheduling quick check for connection`)
+            this.scheduleQuickCheck(workspace)
+            return
+        }
+
+        // If creation fails with a non-retryable error, don't do anything
+        // Continuous monitor will evaluate the status again in 5 minutes
+        if (!initialResult.error?.retryable) {
+            return
+        }
+
+        this.logging.log(`Retryable error for workspace ${workspace}, attempting one retry: ${initialResult.error}`)
+        const retryResult = await this.createNewWorkspace(workspace)
+
+        if (retryResult.error) {
+            this.logging.log(
+                `Retry failed for workspace ${workspace}: ${retryResult.error}, will wait for next polling cycle`
+            )
+            return
+        }
+
+        this.logging.log(`Retry succeeded for workspace ${workspace}, scheduling quick check`)
+        this.scheduleQuickCheck(workspace)
+    }
+
+    /**
+     * Schedules a one-time check after workspace creation to establish connection as soon as possible.
+     * This avoids waiting for the regular 5-minute polling interval when we know the workspace
+     * should be ready soon. Default check delay is 30 seconds after successful workspace creation.
+     *
+     * @param workspace - The workspace to check
+     * @param delayMs - Optional delay in milliseconds before the check (defaults to 30000ms)
+     */
+    private scheduleQuickCheck(workspace: WorkspaceRoot, delayMs: number = 30000) {
+        this.logging.log(`Scheduling quick check for workspace ${workspace} in ${delayMs}ms`)
+        setTimeout(async () => {
+            try {
+                const workspaceState = this.workspaceMap.get(workspace)
+                if (!workspaceState) {
+                    this.logging.log(`No workspace state found during quick check`)
+                    return
+                }
+
+                const { metadata, optOut } = await this.listWorkspaceMetadata(workspace)
+
+                if (optOut) {
+                    this.logging.log(`Workspace ${workspace} is opted out during quick check`)
+                    return
+                }
+
+                if (!metadata) {
+                    this.logging.log(`No metadata available during quick check`)
+                    return
+                }
+
+                if (metadata.workspaceStatus === 'READY') {
+                    this.logging.log(`Quick check found workspace ${workspace} is ready, attempting connection`)
+                    await this.establishConnection(workspace)
+                } else {
+                    this.logging.log(`Quick check found workspace ${workspace} state is ${metadata.workspaceStatus}`)
+                }
+            } catch (error) {
+                this.logging.error(`Error during quick check for workspace ${workspace}: ${error}`)
+            }
+        }, delayMs)
     }
 
     private stopMonitoring(workspace: WorkspaceRoot) {
@@ -662,9 +783,17 @@ export class WorkspaceFolderManager {
                 workspaceRoot: workspaceRoot,
             })
             this.logging.log(`CreateWorkspace response for ${workspaceRoot}: ${JSON.stringify(response)}`)
+            return { response, error: null }
         } catch (e: any) {
-            this.logging.warn(`Error while creating workspace (${workspaceRoot}): ${e.message}`)
+            this.logging.warn(
+                `Error while creating workspace (${workspaceRoot}): ${e.message}. Error is ${e.retryable ? '' : 'not'} retryable}`
+            )
+            const error = {
+                message: e.message,
+                retryable: e.retryable ?? false,
+                originalError: e,
+            }
+            return { response: null, error }
         }
-        return response
     }
 }
