@@ -10,6 +10,6 @@
         "compile": "tsc --build"
     },
     "dependencies": {
-        "@aws/lsp-s3": "^0.0.1"
+        "@aws/lsp-s3": "*"
     }
 }
