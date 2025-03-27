@@ -47,11 +47,10 @@ export const uploadArtifactToS3 = async (content: Buffer, resp: CreateUploadUrlR
             'x-amz-server-side-encryption-context': Buffer.from(encryptionContext, 'utf8').toString('base64'),
         })
     }
-    const response = await got.put(resp.uploadUrl, {
+    await got.put(resp.uploadUrl, {
         body: content,
         headers: headersObj,
     })
-    console.log(`StatusCode: ${response.statusCode}`)
 }
 
 export const isDirectory = (path: string): boolean => {
