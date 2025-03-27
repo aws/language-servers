@@ -2,7 +2,12 @@
     "extends": "../../tsconfig.packages.json",
     "compilerOptions": {
         "rootDir": "./src",
-        "outDir": "./out"
+        "outDir": "./out",
+        "esModuleInterop": true,
+        "allowJs": true,
+        "checkJs": true,
+        "module": "ESNext",
+        "target": "ES2022"
     },
     "include": ["src"]
 }

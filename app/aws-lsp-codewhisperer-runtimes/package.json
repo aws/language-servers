@@ -4,10 +4,11 @@
     "description": "CodeWhisperer Language Server Runtimes",
     "main": "out/index.js",
     "scripts": {
-        "clean": "rm -rf out/ bin/ tsconfig.tsbuildinfo",
+        "clean": "rm -rf out/ bin/ node_modules/ build/ dist/ tsconfig.tsbuildinfo .tsbuildinfo",
         "compile": "tsc --build",
-        "package": "npm run compile && npm run webpack",
-        "webpack": "webpack"
+        "package": "npm run compile && NODE_OPTIONS=--max_old_space_size=8172 npm run webpack",
+        "webpack": "webpack",
+        "start": "NODE_OPTIONS=--max_old_space_size=8172 webpack serve"
     },
     "dependencies": {
         "@aws/language-server-runtimes": "^0.2.48",
@@ -17,10 +18,15 @@
         "https-browserify": "^1.0.0",
         "os-browserify": "^0.3.0",
         "path-browserify": "^1.0.1",
+        "process": "^0.11.10",
         "stream-browserify": "^3.0.0",
-        "stream-http": "^3.2.0"
+        "stream-http": "^3.2.0",
+        "vscode-languageserver": "^9.0.1",
+        "webpack-dev-server": "^5.2.0"
     },
     "devDependencies": {
+        "html-loader": "^5.1.0",
+        "html-webpack-plugin": "^5.6.3",
         "node-loader": "^2.1.0",
         "ts-loader": "^9.4.4",
         "webpack": "^5.94.0",
