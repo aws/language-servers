@@ -6,14 +6,15 @@
     "scripts": {
         "clean": "rm -rf out/ bin/ node_modules/ build/ dist/ tsconfig.tsbuildinfo .tsbuildinfo",
         "compile": "tsc --build",
-        "package": "npm run compile && NODE_OPTIONS=--max_old_space_size=8172 npm run webpack",
+        "package": "npm run compile && cross-env NODE_OPTIONS=--max_old_space_size=8172 npm run webpack",
         "webpack": "webpack",
-        "start": "NODE_OPTIONS=--max_old_space_size=8172 webpack serve"
+        "start": "cross-env NODE_OPTIONS=--max_old_space_size=8172 webpack serve"
     },
     "dependencies": {
         "@aws/language-server-runtimes": "^0.2.48",
         "@aws/lsp-codewhisperer": "*",
         "copyfiles": "^2.4.1",
+        "cross-env": "^7.0.3",
         "crypto-browserify": "^3.12.1",
         "https-browserify": "^1.0.0",
         "os-browserify": "^0.3.0",
