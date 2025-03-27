@@ -15,7 +15,8 @@ export const CodeWhispererServerTokenProxy = CodewhispererServerFactory(
             awsQEndpointUrl,
             sdkInitializator
         )
-    }
+    },
+    'token'
 )
 
 export const CodeWhispererServerIAMProxy = CodewhispererServerFactory(
@@ -27,7 +28,8 @@ export const CodeWhispererServerIAMProxy = CodewhispererServerFactory(
             awsQEndpointUrl,
             sdkInitializator
         )
-    }
+    },
+    'iam'
 )
 
 export const CodeWhispererSecurityScanServerTokenProxy = SecurityScanServerToken()
