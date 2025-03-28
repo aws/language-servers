@@ -125,7 +125,7 @@ describe('makeUserContextObject', () => {
                         name: 'test-custom-client-name',
                         version: '1.2.3',
                         extension: {
-                            name: 'AmazonQ-For-VSCode',
+                            name: 'AWS IDE Extensions for VSCode',
                             version: '2.2.2',
                         },
                         clientId: 'test-client-id',
@@ -178,7 +178,7 @@ describe('makeUserContextObject', () => {
 
     it('should handle all possible client name values to define ideCategory', () => {
         const clientNames = [
-            'AmazonQ-For-VSCode',
+            'AWS IDE Extensions for VSCode',
             'Amazon-Q-For-JetBrains',
             'AmazonQ-For-Eclipse',
             'AWS-Toolkit-For-VisualStudio',
@@ -190,7 +190,7 @@ describe('makeUserContextObject', () => {
 
             const result = makeUserContextObject(mockInitializeParams, 'linux', 'TestProduct')
             switch (clientName) {
-                case 'AmazonQ-For-VSCode':
+                case 'AWS IDE Extensions for VSCode':
                     assert.strictEqual(result?.ideCategory, 'VSCODE')
                     break
                 case 'Amazon-Q-For-JetBrains':

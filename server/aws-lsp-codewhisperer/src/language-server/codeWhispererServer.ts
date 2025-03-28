@@ -421,6 +421,10 @@ export const CodewhispererServerFactory =
                         customizationArn: textUtils.undefinedIfEmpty(codeWhispererService.customizationArn),
                     })
 
+                    if (extraContext) {
+                        requestContext.fileContext.leftFileContent = extraContext + '\n' + requestContext.fileContext.leftFileContent
+                    }
+
                     return codeWhispererService
                         .generateSuggestions({
                             ...requestContext,

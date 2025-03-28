@@ -30,7 +30,6 @@ import {
 import { CodewhispererLanguage, getRuntimeLanguage } from './languageDetection'
 import { CONVERSATION_ID_METRIC_KEY } from './chat/telemetry/chatTelemetryController'
 import { BaseAmazonQServiceManager } from './amazonQServiceManager/BaseAmazonQServiceManager'
-// import { User } from 'aws-sdk/clients/budgets'
 
 export class TelemetryService {
     // Using Base service manager here to support fallback cases such as in codeWhispererServer
