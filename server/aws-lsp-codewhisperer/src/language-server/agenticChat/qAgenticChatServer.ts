@@ -41,8 +41,8 @@ export const QAgenticChatServer =
         })
 
         const updateConfigurationHandler = async () => {
-            await amazonQServiceManager.handleDidChangeConfiguration()
-            await chatController.updateConfiguration()
+            const amazonQConfig = await amazonQServiceManager.handleDidChangeConfiguration()
+            chatController.updateConfiguration(amazonQConfig)
         }
 
         lsp.onInitialized(async () => {

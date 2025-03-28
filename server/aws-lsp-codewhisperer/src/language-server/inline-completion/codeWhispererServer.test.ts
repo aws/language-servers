@@ -43,7 +43,7 @@ import {
 } from '../../shared/testUtils'
 import { CodeDiffTracker } from './codeDiffTracker'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
-import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
+import { initFallbackServiceManager } from '../../shared/amazonQServiceManager/factories'
 
 describe('CodeWhisperer Server', () => {
     const sandbox = sinon.createSandbox()
@@ -92,10 +92,13 @@ describe('CodeWhisperer Server', () => {
                 })
             )
 
-            server = CodewhispererServerFactory(_auth => service)
-
             // Initialize the features, but don't start server yet
             features = new TestFeatures()
+
+            server = CodewhispererServerFactory(() => initFallbackServiceManager(features, service))
+
+            //@ts-ignore
+            features.logging = console
             features.lsp.getClientInitializeParams.returns({} as InitializeParams)
 
             // Return no specific configuration for CodeWhisperer
@@ -528,16 +531,13 @@ describe('CodeWhisperer Server', () => {
                     })
                 )
 
-                const test_server = CodewhispererServerFactory(_auth => test_service)
-
-                // @ts-ignore
-                sinon.stub(AmazonQTokenServiceManager, 'getInstance').returns({
-                    getCodewhispererService: () => test_service,
-                    handleDidChangeConfiguration: () => Promise.resolve(),
-                })
-
                 // Initialize the features, but don't start server yet
                 const test_features = new TestFeatures()
+
+                const test_server = CodewhispererServerFactory(() =>
+                    initFallbackServiceManager(test_features, test_service)
+                )
+
                 features.lsp.getClientInitializeParams.returns({} as InitializeParams)
 
                 test_features.credentialsProvider.hasCredentials.returns(true)
@@ -636,10 +636,11 @@ describe('CodeWhisperer Server', () => {
                     responseContext: EXPECTED_RESPONSE_CONTEXT,
                 })
             )
-            server = CodewhispererServerFactory(_auth => service)
 
             // Initialize the features, but don't start server yet
             features = new TestFeatures()
+            server = CodewhispererServerFactory(() => initFallbackServiceManager(features, service))
+
             features.lsp.getClientInitializeParams.returns({} as InitializeParams)
         })
 
@@ -975,10 +976,10 @@ describe('CodeWhisperer Server', () => {
                 })
             )
 
-            server = CodewhispererServerFactory(_auth => service)
-
             // Initialize the features, but don't start server yet
             features = new TestFeatures()
+            server = CodewhispererServerFactory(() => initFallbackServiceManager(features, service))
+
             features.lsp.getClientInitializeParams.returns({} as InitializeParams)
 
             // Return no specific configuration for CodeWhisperer
@@ -1110,11 +1111,10 @@ describe('CodeWhisperer Server', () => {
         beforeEach(async () => {
             // Set up the server with a mock service, returning predefined recommendations
             service = stubInterface<CodeWhispererServiceBase>()
-
-            server = CodewhispererServerFactory(_auth => service)
-
             // Initialize the features, but don't start server yet
             features = new TestFeatures()
+            server = CodewhispererServerFactory(() => initFallbackServiceManager(features, service))
+
             features.lsp.getClientInitializeParams.returns({} as InitializeParams)
 
             // Start the server and open a document
@@ -1222,11 +1222,10 @@ describe('CodeWhisperer Server', () => {
                     responseContext: EXPECTED_RESPONSE_CONTEXT,
                 })
             )
-
-            server = CodewhispererServerFactory(_auth => service)
-
             // Initialize the features, but don't start server yet
             features = new TestFeatures()
+            server = CodewhispererServerFactory(() => initFallbackServiceManager(features, service))
+
             features.lsp.getClientInitializeParams.returns({} as InitializeParams)
             // Return no specific configuration for CodeWhisperer
             features.lsp.workspace.getConfiguration.returns(Promise.resolve({}))
@@ -1663,10 +1662,10 @@ describe('CodeWhisperer Server', () => {
                 })
             )
 
-            server = CodewhispererServerFactory(_auth => service)
-
             // Initialize the features, but don't start server yet
             features = new TestFeatures()
+            server = CodewhispererServerFactory(() => initFallbackServiceManager(features, service))
+
             features.lsp.getClientInitializeParams.returns({} as InitializeParams)
             // Return no specific configuration for CodeWhisperer
             features.lsp.workspace.getConfiguration.returns(Promise.resolve({}))
