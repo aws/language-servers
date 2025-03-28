@@ -247,7 +247,8 @@ export const CodewhispererServerFactory =
             awsQRegion: string,
             awsQEndpointUrl: string,
             sdkInitializator: SDKInitializator
-        ) => CodeWhispererServiceBase
+        ) => CodeWhispererServiceBase,
+        serviceType?: 'token' | 'iam'
     ): Server =>
     ({ credentialsProvider, lsp, workspace, telemetry, logging, runtime, sdkInitializator }) => {
         let lastUserModificationTime: number
@@ -269,7 +270,6 @@ export const CodewhispererServerFactory =
         // AmazonQTokenServiceManager and TelemetryService are initialized in `onInitialized` handler to make sure Language Server connection is started
         let amazonQServiceManager: BaseAmazonQServiceManager
         let telemetryService: TelemetryService
-        const serviceType = fallbackCodeWhispererService.constructor.name
 
         lsp.addInitializer((params: InitializeParams) => {
             // TODO: Review configuration options expected in other features
@@ -688,7 +688,8 @@ export const CodewhispererServerFactory =
         }
 
         const onInitializedHandler = async () => {
-            if (serviceType === 'CodeWhispererServiceToken') {
+            if (serviceType === 'token') {
+                logging.log('Initialized Completion server with token service type')
                 amazonQServiceManager = AmazonQTokenServiceManager.getInstance({
                     lsp,
                     logging,
@@ -699,6 +700,7 @@ export const CodewhispererServerFactory =
                 })
             } else {
                 // Fallback to default passed service factory for IAM credentials type
+                logging.log('Initialized Completion server with default service type')
                 amazonQServiceManager = {
                     handleDidChangeConfiguration: async () => {},
                     getCodewhispererService: () => {
