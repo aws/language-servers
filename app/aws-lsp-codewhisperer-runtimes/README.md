@@ -39,3 +39,20 @@ This command starts a webpack development server (default: http://127.0.0.1:8080
 - Basic language client/server communication
 
 The development server uses `webpack-dev-server` configuration from `webpack.config.js` to serve both the main webpage and the web worker bundle, allowing real-time testing of the language server implementation in a browser environment.
+
+### End-to-End Testing
+This package includes end-to-end testing capabilities using WebdriverIO to validate the web worker implementation at runtime. To run the tests:
+```bash
+npm run test
+```
+This command performs the following steps:
+1. Bundles the package using webpack (via `npm run package`)
+2. Starts the development server (via `npm run start`)
+3. Runs WebdriverIO tests that:
+    - Launches a headless Chrome browser
+    - Connects to the development server (http://localhost:8080)
+    - Validates the web worker initialization by checking for any runtime console errors
+4. Stops the development server (via `npm run stop`), this command executes `kill-dev-server.sh` which safely terminates any process running on port 8080. This script is essential for cleanup after testing and supports both Unix-based systems (Linux/macOS) and Windows environments.
+
+
+Tests configs are set in `wdio.conf.ts`, the test is implemented in `test/e2e` folder. Max timeout is 5 minutes (300000ms) to allow for the devhost to load the webpage with the bundled webworker which requires some time.

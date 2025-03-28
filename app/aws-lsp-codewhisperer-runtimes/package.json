@@ -8,13 +8,16 @@
         "compile": "tsc --build",
         "package": "npm run compile && cross-env NODE_OPTIONS=--max_old_space_size=8172 npm run webpack",
         "webpack": "webpack",
-        "start": "cross-env NODE_OPTIONS=--max_old_space_size=8172 webpack serve"
+        "start": "cross-env NODE_OPTIONS=--max_old_space_size=8172 webpack serve",
+        "stop": "chmod +x scripts/kill-dev-server.sh; sh scripts/kill-dev-server.sh 8080",
+        "test": "npm run package && npm run start & cross-env NODE_OPTIONS=--max_old_space_size=8172 npx wdio run wdio.conf.js; npm run stop"
     },
     "dependencies": {
         "@aws/language-server-runtimes": "^0.2.48",
         "@aws/lsp-codewhisperer": "*",
         "copyfiles": "^2.4.1",
         "cross-env": "^7.0.3",
+        "cross-spawn": "^7.0.6",
         "crypto-browserify": "^3.12.1",
         "https-browserify": "^1.0.0",
         "os-browserify": "^0.3.0",
@@ -23,9 +26,14 @@
         "stream-browserify": "^3.0.0",
         "stream-http": "^3.2.0",
         "vscode-languageserver": "^9.0.1",
+        "wdio": "^6.0.1",
         "webpack-dev-server": "^5.2.0"
     },
     "devDependencies": {
+        "@wdio/cli": "^9.12.1",
+        "@wdio/local-runner": "^9.12.1",
+        "@wdio/mocha-framework": "^9.12.1",
+        "@wdio/spec-reporter": "^9.11.0",
         "html-loader": "^5.1.0",
         "html-webpack-plugin": "^5.6.3",
         "node-loader": "^2.1.0",
