@@ -10,10 +10,7 @@
         "webpack": "webpack",
         "start": "cross-env NODE_OPTIONS=--max_old_space_size=8172 node scripts/dev-server.js start",
         "stop-dev-server": "node scripts/dev-server.js stop",
-        "test": "npm run package && npm run test:platform",
-        "test:platform": "node -e \"require('child_process').spawn(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['run', process.platform === 'win32' ? 'test:windows' : 'test:unix'], { stdio: 'inherit' })\"",
-        "test:windows": "npm run start && timeout /t 5 && cross-env NODE_OPTIONS=--max_old_space_size=8172 npx wdio run wdio.conf.js && npm run stop-dev-server",
-        "test:unix": "npm run start & sleep 5 && cross-env NODE_OPTIONS=--max_old_space_size=8172 npx wdio run wdio.conf.js; npm run stop-dev-server"
+        "test": "npm run package && node scripts/test-runner.js"
     },
     "dependencies": {
         "@aws/language-server-runtimes": "^0.2.48",
