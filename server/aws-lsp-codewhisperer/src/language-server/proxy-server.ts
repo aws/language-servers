@@ -1,36 +1,15 @@
 import { SecurityScanServerToken } from './codeWhispererSecurityScanServer'
 import { CodewhispererServerFactory } from './codeWhispererServer'
-import { CodeWhispererServiceIAM, CodeWhispererServiceToken } from './codeWhispererService'
+import { CodeWhispererServiceToken } from './codeWhispererService'
 import { QNetTransformServerToken } from './netTransformServer'
 import { QChatServer } from './qChatServer'
 import { QAgenticChatServer } from './agenticChat/qAgenticChatServer'
 import { QConfigurationServerToken } from './configuration/qConfigurationServer'
+import { initBaseServiceManager } from './amazonQServiceManager/factories'
 
-export const CodeWhispererServerTokenProxy = CodewhispererServerFactory(
-    (credentialsProvider, workspace, awsQRegion, awsQEndpointUrl, sdkInitializator) => {
-        return new CodeWhispererServiceToken(
-            credentialsProvider,
-            workspace,
-            awsQRegion,
-            awsQEndpointUrl,
-            sdkInitializator
-        )
-    },
-    'token'
-)
+export const CodeWhispererServerTokenProxy = CodewhispererServerFactory(initBaseServiceManager('bearer'))
 
-export const CodeWhispererServerIAMProxy = CodewhispererServerFactory(
-    (credentialsProvider, workspace, awsQRegion, awsQEndpointUrl, sdkInitializator) => {
-        return new CodeWhispererServiceIAM(
-            credentialsProvider,
-            workspace,
-            awsQRegion,
-            awsQEndpointUrl,
-            sdkInitializator
-        )
-    },
-    'iam'
-)
+export const CodeWhispererServerIAMProxy = CodewhispererServerFactory(initBaseServiceManager('iam'))
 
 export const CodeWhispererSecurityScanServerTokenProxy = SecurityScanServerToken()
 
