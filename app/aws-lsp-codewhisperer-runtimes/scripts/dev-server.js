@@ -1,4 +1,4 @@
-const { spawn, exec } = require('child_process')
+const spawn = require('cross-spawn')
 const fs = require('fs')
 const path = require('path')
 
@@ -13,21 +13,37 @@ function startDevServer() {
         return
     }
 
-    const isWindows = process.platform === 'win32'
-    const npxCmd = isWindows ? 'npx.cmd' : 'npx'
-    const serverProcess = spawn(npxCmd, ['webpack', 'serve'], {
-        stdio: 'inherit',
-    })
+    try {
+        const serverProcess = spawn('npx', ['webpack', 'serve'], {
+            stdio: 'inherit',
+            shell: true,
+        })
 
-    console.log(`Dev server started on port ${serverPort} (PID: ${serverProcess.pid})`)
+        console.log(`Dev server started on port ${serverPort} (PID: ${serverProcess.pid})`)
 
-    fs.writeFileSync(PID_FILE, serverProcess.pid.toString())
+        fs.writeFileSync(PID_FILE, serverProcess.pid.toString())
 
-    serverProcess.on('exit', () => {
+        serverProcess.on('error', err => {
+            console.error('Failed to start server:', err)
+            if (fs.existsSync(PID_FILE)) {
+                fs.unlinkSync(PID_FILE)
+            }
+        })
+
+        serverProcess.on('exit', code => {
+            if (fs.existsSync(PID_FILE)) {
+                fs.unlinkSync(PID_FILE)
+            }
+            if (code !== 0) {
+                console.log(`Server process exited with code ${code}`)
+            }
+        })
+    } catch (error) {
+        console.error('Failed to spawn server process:', error)
         if (fs.existsSync(PID_FILE)) {
             fs.unlinkSync(PID_FILE)
         }
-    })
+    }
 }
 
 function stopDevServer() {
@@ -47,12 +63,15 @@ function stopDevServer() {
     console.log(`Stopping dev server (PID: ${pid})...`)
 
     if (process.platform === 'win32') {
-        exec(`taskkill /PID ${pid} /F`, error => {
-            if (error) {
-                console.error(`Error stopping server: ${error}`)
-            } else {
+        spawn('taskkill', ['/PID', pid], {
+            stdio: 'inherit',
+            shell: true,
+        }).on('exit', code => {
+            if (code === 0) {
                 console.log('Dev server stopped.')
                 fs.unlinkSync(PID_FILE)
+            } else {
+                console.error(`Error stopping server: exit code ${code}`)
             }
         })
     } else {
