@@ -100,11 +100,11 @@ const webworkerConfig = {
             },
         ],
     },
-    plugins: [
-        new webpack.ProvidePlugin({
-            process: 'process/browser',
-        }),
-    ],
+    // plugins: [
+    //     new webpack.ProvidePlugin({
+    //         process: 'process/browser',
+    //     }),
+    // ],
 }
 
 // bundles main web page (running webworker) and serves it on localhost
