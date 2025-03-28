@@ -7,6 +7,7 @@ import {
     AuthFollowUpClickedParams,
     CopyCodeToClipboardParams,
     ErrorParams,
+    ErrorResult,
     InsertToCursorPositionParams,
     SendToPromptParams,
     TriggerType,
@@ -59,7 +60,7 @@ export interface OutboundChatApi {
     infoLinkClick(params: InfoLinkClickParams): void
     uiReady(): void
     disclaimerAcknowledged(): void
-    onOpenTab(result: OpenTabResult): void
+    onOpenTab(result: OpenTabResult | ErrorResult): void
 }
 
 export class Messager {
@@ -155,7 +156,7 @@ export class Messager {
         this.chatApi.telemetry({ ...params, name: ERROR_MESSAGE_TELEMETRY_EVENT })
     }
 
-    onOpenTab = (tabId: string): void => {
-        this.chatApi.onOpenTab({ tabId })
+    onOpenTab = (result: OpenTabResult | ErrorResult): void => {
+        this.chatApi.onOpenTab(result)
     }
 }

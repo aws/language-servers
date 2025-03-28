@@ -116,11 +116,23 @@ describe('MynahUI', () => {
         it('should create a new tab if tabId not passed', () => {
             createTabStub.resetHistory()
 
-            inboundChatApi.openTab()
+            inboundChatApi.openTab({})
 
             sinon.assert.calledOnceWithExactly(createTabStub, true, false)
             sinon.assert.notCalled(selectTabSpy)
             sinon.assert.calledOnce(onOpenTabSpy)
+        })
+
+        it('should call onOpenTab if a new tab if tabId not passed and tab not created', () => {
+            createTabStub.resetHistory()
+            updateStoreSpy.restore()
+            sinon.stub(mynahUi, 'updateStore').returns(undefined)
+
+            inboundChatApi.openTab({})
+
+            sinon.assert.calledOnceWithExactly(createTabStub, true, false)
+            sinon.assert.notCalled(selectTabSpy)
+            sinon.assert.calledOnceWithMatch(onOpenTabSpy, { type: 'InvalidRequest' })
         })
 
         it('should open existing tab if tabId passed and tabId not selected', () => {
@@ -129,11 +141,11 @@ describe('MynahUI', () => {
             getSelectedTabIdStub.returns('1')
             const tabId = '2'
 
-            inboundChatApi.openTab(tabId)
+            inboundChatApi.openTab({ tabId })
 
             sinon.assert.notCalled(createTabStub)
             sinon.assert.calledOnceWithExactly(selectTabSpy, tabId)
-            sinon.assert.calledOnceWithExactly(onOpenTabSpy, tabId)
+            sinon.assert.calledOnceWithExactly(onOpenTabSpy, { tabId })
         })
 
         it('should not open existing tab if tabId passed but tabId already selected', () => {
@@ -142,11 +154,11 @@ describe('MynahUI', () => {
             const tabId = '1'
             getSelectedTabIdStub.returns(tabId)
 
-            inboundChatApi.openTab(tabId)
+            inboundChatApi.openTab({ tabId })
 
             sinon.assert.notCalled(createTabStub)
             sinon.assert.notCalled(selectTabSpy)
-            sinon.assert.calledOnceWithExactly(onOpenTabSpy, tabId)
+            sinon.assert.calledOnceWithExactly(onOpenTabSpy, { tabId })
         })
     })
 

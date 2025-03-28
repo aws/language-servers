@@ -1,7 +1,11 @@
-import { commands, window } from 'vscode'
+import { compactDecrypt } from 'jose'
+import { ProgressLocation, commands, window } from 'vscode'
 import {
     AwsResponseError,
     GetSsoTokenParams,
+    GetSsoTokenProgress,
+    GetSsoTokenProgressToken,
+    GetSsoTokenProgressType,
     getSsoTokenRequestType,
     GetSsoTokenResult,
     IamIdentityCenterSsoTokenSource,
@@ -17,11 +21,56 @@ import {
     updateProfileRequestType,
 } from '@aws/language-server-runtimes/protocol'
 
-import { CancellationTokenSource, LanguageClient } from 'vscode-languageclient/node'
+import {
+    CancellationTokenSource,
+    LanguageClient,
+    MessageActionItem,
+    ShowMessageRequest,
+    ShowMessageRequestParams,
+} from 'vscode-languageclient/node'
+import { encryptionKey } from './credentialsActivation'
 
 export async function registerIdentity(client: LanguageClient): Promise<void> {
     client.onNotification(ssoTokenChangedRequestType.method, ssoTokenChangedHandler)
     client.onTelemetry(e => window.showInformationMessage(`Telemetry: ${JSON.stringify(e)}`))
+
+    client.onRequest<MessageActionItem | null, Error>(
+        ShowMessageRequest.method,
+        async (params: ShowMessageRequestParams) => {
+            const actions = params.actions?.map(a => a.title) ?? []
+            const response = await window.showInformationMessage(params.message, { modal: true }, ...actions)
+            return params.actions?.find(a => a.title === response) ?? null
+        }
+    )
+
+    let promise: Promise<void> | undefined
+    let resolver: () => void = () => {}
+    client.onProgress(GetSsoTokenProgressType, GetSsoTokenProgressToken, async (partialResult: GetSsoTokenProgress) => {
+        const decryptedKey = await compactDecrypt(partialResult as unknown as string, encryptionKey)
+        const val: GetSsoTokenProgress = JSON.parse(decryptedKey.plaintext.toString())
+
+        if (val.state === 'InProgress') {
+            if (promise) {
+                resolver()
+            }
+            promise = new Promise<void>(resolve => {
+                resolver = resolve
+            })
+        } else {
+            resolver()
+            promise = undefined
+            return
+        }
+
+        window.withProgress(
+            {
+                cancellable: true,
+                location: ProgressLocation.Notification,
+                title: val.message,
+            },
+            () => promise!
+        )
+    })
 
     commands.registerCommand('aws.aws-lsp-identity.test', execTestCommand.bind(null, client))
 }
@@ -88,6 +137,10 @@ async function execTestCommand(client: LanguageClient): Promise<void> {
                     kind: SsoTokenSourceKind.IamIdentityCenter,
                     profileName: 'eclipse-q-profile',
                 } satisfies IamIdentityCenterSsoTokenSource,
+                options: {
+                    // authorizationFlow: 'Pkce',
+                    authorizationFlow: 'DeviceCode',
+                },
             } satisfies GetSsoTokenParams,
             cancellationTokenSource.token
         )

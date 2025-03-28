@@ -17,7 +17,7 @@ export class QChatTriggerContext {
 
     constructor(workspace: Features['workspace'], logger: Features['logging']) {
         this.#workspace = workspace
-        this.#documentContextExtractor = new DocumentContextExtractor({ logger })
+        this.#documentContextExtractor = new DocumentContextExtractor({ logger, workspace })
     }
 
     async getNewTriggerContext(params: ChatParams): Promise<TriggerContext> {
@@ -32,7 +32,8 @@ export class QChatTriggerContext {
     getChatParamsFromTrigger(
         params: ChatParams,
         triggerContext: TriggerContext,
-        customizationArn?: string
+        customizationArn?: string,
+        profileArn?: string
     ): SendMessageCommandInput {
         const { prompt } = params
 
@@ -60,6 +61,7 @@ export class QChatTriggerContext {
                 },
                 customizationArn,
             },
+            profileArn,
         }
 
         return data

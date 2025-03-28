@@ -1,41 +1,31 @@
-import { CancellationToken, SsoSession } from '@aws/language-server-runtimes/server-interface'
+import { SsoSession } from '@aws/language-server-runtimes/server-interface'
 import { SSOToken } from '@smithy/shared-ini-file-loader'
 import {
+    SsoFlowParams,
     getSsoOidc,
     throwOnInvalidClientRegistration,
     throwOnInvalidSsoSession,
     UpdateSsoTokenFromCreateToken,
 } from '../utils'
-import { SsoClientRegistration } from '../cache'
 import { createHash, randomBytes } from 'crypto'
 import { normalizeSettingList } from '../../language-server/profiles/profileService'
 import { AuthorizationServer } from './authorizationServer'
-import { Observability } from '@aws/lsp-core'
 
-export type ShowUrl = (url: URL) => void
-
-export async function authorizationCodePkceFlow(
-    clientName: string,
-    clientRegistration: SsoClientRegistration,
-    ssoSession: SsoSession,
-    showUrl: ShowUrl,
-    token: CancellationToken,
-    observability: Observability
-): Promise<SSOToken> {
-    throwOnInvalidClientRegistration(clientRegistration)
-    throwOnInvalidSsoSession(ssoSession)
+export async function authorizationCodePkceFlow(params: SsoFlowParams): Promise<SSOToken> {
+    throwOnInvalidClientRegistration(params.clientRegistration)
+    throwOnInvalidSsoSession(params.ssoSession)
 
     const codeVerifier = randomBytes(32).toString('base64url')
     const codeChallenge = createHash('sha256').update(codeVerifier).digest().toString('base64url')
 
-    using authServer = await AuthorizationServer.start(clientName, observability, undefined, token)
+    using authServer = await AuthorizationServer.start(params.clientName, params.observability, undefined, params.token)
 
     // Create OIDC API Authorize URL and call showDocument back to destination
-    const authorizeUrl = new URL(`https://oidc.${ssoSession.settings.sso_region}.amazonaws.com/authorize`)
+    const authorizeUrl = new URL(`https://oidc.${params.ssoSession.settings.sso_region}.amazonaws.com/authorize`)
     authorizeUrl.search = new URLSearchParams({
         response_type: 'code',
-        client_id: clientRegistration.clientId,
-        scopes: formatScopes(ssoSession),
+        client_id: params.clientRegistration.clientId,
+        scopes: formatScopes(params.ssoSession),
         redirect_uri: authServer.redirectUri,
         state: authServer.csrfState,
         code_challenge: codeChallenge,
@@ -43,28 +33,28 @@ export async function authorizationCodePkceFlow(
     }).toString()
 
     // Wait for user in browser flow
-    observability.logging.log(`Requesting ${clientName} to open SSO OIDC authorization login website.`)
-    showUrl(authorizeUrl)
+    params.observability.logging.log(`Requesting ${params.clientName} to open SSO OIDC authorization login website.`)
+    params.handlers.showUrl(authorizeUrl)
 
-    observability.logging.log('Waiting for authorization code...')
+    params.observability.logging.log('Waiting for authorization code...')
     const authorizationCode = await authServer.authorizationCode()
-    observability.logging.log('Authorization code returned.')
+    params.observability.logging.log('Authorization code returned.')
 
     // If success, call CreateToken
-    using oidc = getSsoOidc(ssoSession.settings.sso_region)
+    using oidc = getSsoOidc(params.ssoSession.settings.sso_region)
 
-    observability.logging.log('Calling SSO OIDC to create SSO token.')
+    params.observability.logging.log('Calling SSO OIDC to create SSO token.')
     const result = await oidc.createToken({
-        clientId: clientRegistration.clientId,
-        clientSecret: clientRegistration.clientSecret,
+        clientId: params.clientRegistration.clientId,
+        clientSecret: params.clientRegistration.clientSecret,
         grantType: 'authorization_code',
         redirectUri: authServer.redirectUri,
         codeVerifier,
         code: authorizationCode,
     })
 
-    observability.logging.log('Storing and returning created SSO token.')
-    return UpdateSsoTokenFromCreateToken(result, clientRegistration, ssoSession)
+    params.observability.logging.log('Storing and returning created SSO token.')
+    return UpdateSsoTokenFromCreateToken(result, params.clientRegistration, params.ssoSession)
 }
 
 function formatScopes(ssoSession: SsoSession): string {

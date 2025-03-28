@@ -37,7 +37,11 @@ export class CodeDiffTracker<T extends AcceptedSuggestionEntry = AcceptedSuggest
     #interval?: NodeJS.Timeout
     #workspace: Features['workspace']
     #logging: Features['logging']
-    #recordMetric: (entry: T, codeModificationPercentage: number, unmodifiedAcceptedCharacterCount: number) => void
+    #recordMetric: (
+        entry: T,
+        codeModificationPercentage: number,
+        unmodifiedAcceptedCharacterCount: number
+    ) => Promise<void>
     #flushInterval: number
     #timeElapsedThreshold: number
     #maxQueueSize: number
@@ -60,7 +64,11 @@ export class CodeDiffTracker<T extends AcceptedSuggestionEntry = AcceptedSuggest
     constructor(
         workspace: Features['workspace'],
         logging: Features['logging'],
-        recordMetric: (entry: T, codeModificationPercentage: number, unmodifiedAcceptedCharacterCount: number) => void,
+        recordMetric: (
+            entry: T,
+            codeModificationPercentage: number,
+            unmodifiedAcceptedCharacterCount: number
+        ) => Promise<void>,
         options?: CodeDiffTrackerOptions
     ) {
         this.#eventQueue = []
@@ -133,7 +141,7 @@ export class CodeDiffTracker<T extends AcceptedSuggestionEntry = AcceptedSuggest
                     suggestion.originalString,
                     currString
                 )
-                this.#recordMetric(suggestion, percentage, unmodifiedAcceptedCharacterCount)
+                await this.#recordMetric(suggestion, percentage, unmodifiedAcceptedCharacterCount)
             }
         } catch (e) {
             this.#logging.log(`Exception Thrown from CodeDiffTracker: ${e}`)

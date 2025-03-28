@@ -2,7 +2,7 @@
 // https://github.com/aws/aws-toolkit-vscode/blob/9d8ddbd85f4533e539a58e76f7c46883d8e50a79/packages/core/src/codewhisperer/util/supplementalContext/codeParsingUtil.ts
 
 import * as path from 'path'
-import { normalize } from '../pathUtils'
+import { pathUtils } from '@aws/lsp-core'
 import { TextDocument } from '@aws/language-server-runtimes/server-interface'
 
 export interface utgLanguageConfig {
@@ -39,7 +39,7 @@ export function isTestFile(
         fileContent?: string
     }
 ): boolean {
-    const normalizedFilePath = normalize(filePath)
+    const normalizedFilePath = pathUtils.normalize(filePath)
     const pathContainsTest =
         normalizedFilePath.includes('tests/') ||
         normalizedFilePath.includes('test/') ||

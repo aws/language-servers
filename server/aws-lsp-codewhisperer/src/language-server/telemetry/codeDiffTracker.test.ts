@@ -7,6 +7,7 @@ import assert = require('assert')
 describe('codeDiffTracker', () => {
     let codeDiffTracker: CodeDiffTracker
     let mockRecordMetric: sinon.SinonStub
+    let testFeatures: TestFeatures
     const flushInterval = 1000
     const timeElapsedThreshold = 5000
     const maxQueueSize = 3
@@ -16,8 +17,8 @@ describe('codeDiffTracker', () => {
             now: 0,
             shouldAdvanceTime: false,
         })
-        const testFeatures = new TestFeatures()
-        mockRecordMetric = sinon.stub()
+        testFeatures = new TestFeatures()
+        mockRecordMetric = sinon.stub().rejects(true)
         codeDiffTracker = new CodeDiffTracker(testFeatures.workspace, testFeatures.logging, mockRecordMetric, {
             flushInterval,
             timeElapsedThreshold,
@@ -27,6 +28,7 @@ describe('codeDiffTracker', () => {
     })
 
     afterEach(() => {
+        testFeatures.dispose()
         sinon.clock.restore()
         sinon.restore()
     })
@@ -135,5 +137,55 @@ describe('codeDiffTracker', () => {
         await sinon.clock.tickAsync(timeElapsedThreshold)
 
         assert.strictEqual(mockRecordMetric.callCount, maxQueueSize)
+    })
+
+    it('shutdown should catch exceptions in report handler', async () => {
+        const mockRecordMetric = sinon.stub().rejects('Record metric rejection')
+        const codeDiffTracker = new CodeDiffTracker(testFeatures.workspace, testFeatures.logging, mockRecordMetric, {
+            flushInterval,
+            timeElapsedThreshold,
+            maxQueueSize,
+        })
+
+        const mockEntry = {
+            startPosition: {
+                line: 0,
+                character: 0,
+            },
+            endPosition: {
+                line: 20,
+                character: 0,
+            },
+            fileUrl: 'test.cs',
+            // fake timer starts at 0
+            time: -timeElapsedThreshold,
+            originalString: "console.log('test console')",
+        }
+
+        // use negative time so we don't have to move the timer which would cause the interval to run
+        codeDiffTracker.enqueue(mockEntry)
+
+        codeDiffTracker.enqueue({
+            startPosition: {
+                line: 0,
+                character: 0,
+            },
+            endPosition: {
+                line: 20,
+                character: 0,
+            },
+            fileUrl: 'test.cs',
+            // fake timer starts at 0
+            time: -timeElapsedThreshold + 100,
+            originalString: "console.log('test console')",
+        })
+
+        await codeDiffTracker.shutdown()
+        sinon.assert.calledOnce(mockRecordMetric)
+        sinon.assert.calledWith(mockRecordMetric, mockEntry, sinon.match.number)
+
+        assert(
+            testFeatures.logging.log.calledWithMatch('Exception Thrown from CodeDiffTracker: Record metric rejection')
+        )
     })
 })
