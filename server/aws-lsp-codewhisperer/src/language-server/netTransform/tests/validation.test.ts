@@ -16,6 +16,7 @@ const sampleStartTransformRequest: StartTransformRequest = {
     ProjectMetadata: [],
     TransformNetStandardProjects: false,
     command: '',
+    PackageReferences: [],
 }
 const mockedLogging = stubInterface<Logging>()
 
@@ -54,6 +55,7 @@ describe('Test validation functionality', () => {
             ProjectLanguage: '',
             ProjectType: 'AspNetCoreMvc',
             ExternalReferences: [],
+            ThirdPartyPackages: [],
         }
         mockStartTransformationRequest.ProjectMetadata.push(mockProjectMeta)
 
@@ -70,6 +72,7 @@ describe('Test validation functionality', () => {
             ProjectLanguage: '',
             ProjectType: 'not supported',
             ExternalReferences: [],
+            ThirdPartyPackages: [],
         }
         mockStartTransformationRequest.ProjectMetadata = []
         mockStartTransformationRequest.ProjectMetadata.push(mockProjectMeta)
@@ -87,6 +90,7 @@ describe('Test validation functionality', () => {
             ProjectLanguage: '',
             ProjectType: 'AspNetCoreMvc',
             ExternalReferences: [],
+            ThirdPartyPackages: [],
         }
         mockStartTransformationRequest.ProjectMetadata = []
         mockStartTransformationRequest.ProjectMetadata.push(mockProjectMeta)
