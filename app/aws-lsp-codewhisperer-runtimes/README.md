@@ -40,8 +40,8 @@ This command starts a webpack development server (default: http://127.0.0.1:8080
 
 The development server uses `webpack-dev-server` configuration from `webpack.config.js` to serve both the main webpage and the web worker bundle, allowing real-time testing of the language server implementation in a browser environment.
 
-### End-to-End Testing
-This package includes end-to-end testing capabilities using WebdriverIO to validate the web worker implementation at runtime. To run the tests:
+### Testing
+Testing is done using WebdriverIO to validate the web worker implementation at runtime. To run the tests:
 ```bash
 npm run test
 ```
@@ -52,7 +52,15 @@ This command performs the following steps:
     - Launches a headless Chrome browser
     - Connects to the development server (http://localhost:8080)
     - Validates the web worker initialization by checking for any runtime console errors
-4. Stops the development server (via `npm run stop`), this command executes `kill-dev-server.sh` which safely terminates any process running on port 8080. This script is essential for cleanup after testing and supports both Unix-based systems (Linux/macOS) and Windows environments.
+4. Stops the development server (via `npm run stop-dev-server`), which safely terminates any process running on port 8080.
 
+#### Cross-Platform Server Management
+The server is managed via scripts/dev-server.js, which ensures:
+- The development server starts in the background.
+- The process ID (PID) is stored for reliable termination.
+- A clean shutdown is executed on both Unix-based systems (Linux/macOS) and Windows.
 
-Tests configs are set in `wdio.conf.ts`, the test is implemented in `test/e2e` folder. Max timeout is 5 minutes (300000ms) to allow for the devhost to load the webpage with the bundled webworker which requires some time.
+#### Tests configuration
+- Test settings are defined in `wdio.conf.ts`
+- The actual test implementation is in the `test/e2e` folder
+- Max timeout is 5 minutes (300000ms) to allow for the devhost to load the webpage with the bundled webworker which requires some time.

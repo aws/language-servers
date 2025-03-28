@@ -8,9 +8,9 @@
         "compile": "tsc --build",
         "package": "npm run compile && cross-env NODE_OPTIONS=--max_old_space_size=8172 npm run webpack",
         "webpack": "webpack",
-        "start": "cross-env NODE_OPTIONS=--max_old_space_size=8172 webpack serve",
-        "stop": "chmod +x scripts/kill-dev-server.sh; sh scripts/kill-dev-server.sh 8080",
-        "test": "npm run package && npm run start & cross-env NODE_OPTIONS=--max_old_space_size=8172 npx wdio run wdio.conf.js; npm run stop"
+        "start": "cross-env NODE_OPTIONS=--max_old_space_size=8172 node scripts/dev-server.js start",
+        "stop-dev-server": "node scripts/dev-server.js stop",
+        "test": "npm run package && npm run start & cross-env NODE_OPTIONS=--max_old_space_size=8172 npx wdio run wdio.conf.js; npm run stop-dev-server"
     },
     "dependencies": {
         "@aws/language-server-runtimes": "^0.2.48",
