@@ -14,13 +14,6 @@ import {
     InitializeParams,
     CancellationTokenSource,
 } from '@aws/language-server-runtimes/server-interface'
-import {
-    DEFAULT_AWS_Q_ENDPOINT_URL,
-    DEFAULT_AWS_Q_REGION,
-    AWS_Q_ENDPOINTS,
-    AWS_Q_REGION_ENV_VAR,
-    AWS_Q_ENDPOINT_URL_ENV_VAR,
-} from '../../constants'
 import { CodeWhispererServiceToken } from '../codeWhispererService'
 import {
     AmazonQError,
@@ -35,7 +28,6 @@ import {
 } from './errors'
 import { BaseAmazonQServiceManager } from './BaseAmazonQServiceManager'
 import { Q_CONFIGURATION_SECTION } from '../configuration/qConfigurationServer'
-import { textUtils } from '@aws/lsp-core'
 import { CodeWhispererStreaming } from '@amzn/codewhisperer-streaming'
 import { ConfiguredRetryStrategy } from '@aws-sdk/util-retry'
 import {
@@ -45,6 +37,12 @@ import {
 } from './qDeveloperProfiles'
 import { getUserAgent } from '../utilities/telemetryUtils'
 import { getBearerTokenFromProvider, isStringOrNull } from '../utils'
+import {
+    getAWSQRelatedWorkspaceConfigs,
+    getAWSQRegionAndEndpoint,
+    AWSQConfigurationCache,
+    AWSQWorkspaceConfigs,
+} from './configurationUtils'
 
 export interface Features {
     lsp: Lsp
@@ -87,7 +85,7 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
     private logging!: Logging
     private cachedCodewhispererService?: CodeWhispererServiceToken
     private enableDeveloperProfileSupport?: boolean
-    private configurationCache = new Map()
+    private configurationCache = new AWSQConfigurationCache()
     private activeIdcProfile?: AmazonQDeveloperProfile
     private connectionType?: SsoConnectionType
     private profileChangeTokenSource: CancellationTokenSource | undefined
@@ -283,17 +281,14 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
 
     public async handleDidChangeConfiguration() {
         try {
-            const qConfig = await this.features.lsp.workspace.getConfiguration(Q_CONFIGURATION_SECTION)
-            if (qConfig) {
-                // aws.q.customizationArn - selected customization
-                const customizationArn = textUtils.undefinedIfEmpty(qConfig.customization)
-                this.log(`Read configuration customizationArn=${customizationArn}`)
-                this.configurationCache.set('customizationArn', customizationArn)
+            const { qConfig, codeWhispererConfig } = await getAWSQRelatedWorkspaceConfigs(
+                this.features.lsp,
+                this.features.logging,
+                this.configurationCache
+            )
 
-                // aws.q.optOutTelemetry - telemetry optout option
-                const optOutTelemetryPreference = qConfig['optOutTelemetry'] === true ? 'OPTOUT' : 'OPTIN'
-                this.log(`Read configuration optOutTelemetryPreference=${optOutTelemetryPreference}`)
-                this.configurationCache.set('optOutTelemetryPreference', optOutTelemetryPreference)
+            if (qConfig) {
+                const { customizationArn } = qConfig
 
                 if (this.cachedCodewhispererService) {
                     this.log(`Using customization=${customizationArn}`)
@@ -301,24 +296,8 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
                 }
             }
 
-            const codeWhispererConfig = await this.features.lsp.workspace.getConfiguration('aws.codeWhisperer')
             if (codeWhispererConfig) {
-                // aws.codeWhisperer.includeSuggestionsWithCodeReferences - return suggestions with code references
-                const includeSuggestionsWithCodeReferences =
-                    codeWhispererConfig['includeSuggestionsWithCodeReferences'] === true
-                this.log(
-                    `Read сonfiguration includeSuggestionsWithCodeReferences=${includeSuggestionsWithCodeReferences}`
-                )
-                this.configurationCache.set(
-                    'includeSuggestionsWithCodeReferences',
-                    includeSuggestionsWithCodeReferences
-                )
-
-                // aws.codeWhisperershareCodeWhispererContentWithAWS - share content with AWS
-                const shareCodeWhispererContentWithAWS =
-                    codeWhispererConfig['shareCodeWhispererContentWithAWS'] === true
-                this.log(`Read configuration shareCodeWhispererContentWithAWS=${shareCodeWhispererContentWithAWS}`)
-                this.configurationCache.set('shareCodeWhispererContentWithAWS', shareCodeWhispererContentWithAWS)
+                const { shareCodeWhispererContentWithAWS } = codeWhispererConfig
 
                 if (this.cachedCodewhispererService) {
                     this.log(
@@ -329,8 +308,12 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
                 }
             }
         } catch (error) {
-            this.log(`Error in GetConfiguration: ${error}`)
+            this.log(`Unexpected error in getAWSQRelatedWorkspaceConfigs: ${error}`)
         }
+    }
+
+    public getConfiguration(): Readonly<AWSQWorkspaceConfigs> {
+        return this.configurationCache.getAggregateConfig()
     }
 
     private cancelActiveProfileChangeToken() {
@@ -502,54 +485,31 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
         this.cachedCodewhispererService?.abortInflightRequests()
         this.cachedCodewhispererService = undefined
         this.activeIdcProfile = undefined
+        this.region = undefined
+        this.endpoint = undefined
+        this.configurationCache.reset()
     }
 
-    private createCodewhispererServiceInstances(connectionType: 'builderId' | 'identityCenter', region?: string) {
+    private createCodewhispererServiceInstances(
+        connectionType: 'builderId' | 'identityCenter',
+        clientOrProfileRegion?: string
+    ) {
         this.logServiceState('Initializing CodewhispererService')
-        let awsQRegion: string
-        let awsQEndpoint: string | undefined
 
-        if (region) {
-            this.log(
-                `Selecting region (found: ${region}) provided by ${connectionType === 'builderId' ? 'client' : 'profile'}`
-            )
-            awsQRegion = region
-            // @ts-ignore
-            awsQEndpoint = AWS_Q_ENDPOINTS[awsQRegion]
-        } else {
-            const runtimeRegion = this.features.runtime.getConfiguration(AWS_Q_REGION_ENV_VAR)
-
-            if (runtimeRegion) {
-                this.log(`Selecting region (found: ${runtimeRegion}) provided by runtime`)
-                awsQRegion = runtimeRegion
-                // prettier-ignore
-                awsQEndpoint = // @ts-ignore
-                    this.features.runtime.getConfiguration(AWS_Q_ENDPOINT_URL_ENV_VAR) ?? AWS_Q_ENDPOINTS[awsQRegion]
-            } else {
-                this.log('Region not provided by caller or runtime, falling back to default region and endpoint')
-                awsQRegion = DEFAULT_AWS_Q_REGION
-                awsQEndpoint = DEFAULT_AWS_Q_ENDPOINT_URL
-            }
-        }
-
-        if (!awsQEndpoint) {
-            this.log(
-                `Unable to determine endpoint (found: ${awsQEndpoint}) for region: ${awsQRegion}, falling back to default region and endpoint`
-            )
-            awsQRegion = DEFAULT_AWS_Q_REGION
-            awsQEndpoint = DEFAULT_AWS_Q_ENDPOINT_URL
-        }
+        const { region, endpoint } = getAWSQRegionAndEndpoint(
+            this.features.runtime,
+            this.features.logging,
+            clientOrProfileRegion
+        )
 
         // Cache active region and endpoint selection
         this.connectionType = connectionType
-        this.region = awsQRegion
-        this.endpoint = awsQEndpoint
+        this.region = region
+        this.endpoint = endpoint
 
-        this.cachedCodewhispererService = this.serviceFactory(awsQRegion, awsQEndpoint)
+        this.cachedCodewhispererService = this.serviceFactory(region, endpoint)
 
-        this.log(
-            `CodeWhispererToken service for connection type ${connectionType} was initialized, region=${awsQRegion}`
-        )
+        this.log(`CodeWhispererToken service for connection type ${connectionType} was initialized, region=${region}`)
         this.logServiceState('CodewhispererService Initialization finished')
     }
 
@@ -572,10 +532,12 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
         service.updateClientConfig({
             customUserAgent: customUserAgent,
         })
-        service.customizationArn = textUtils.undefinedIfEmpty(this.configurationCache.get('customizationArn'))
+        service.customizationArn = this.configurationCache.getConfigProperty('qConfig', 'customizationArn')
         service.profileArn = this.activeIdcProfile?.arn
-        service.shareCodeWhispererContentWithAWS =
-            this.configurationCache.get('shareCodeWhispererContentWithAWS') === true
+        service.shareCodeWhispererContentWithAWS = this.configurationCache.getConfigProperty(
+            'codeWhispererConfig',
+            'shareCodeWhispererContentWithAWS'
+        )
 
         this.log('Configured CodeWhispererServiceToken instance settings:')
         this.log(

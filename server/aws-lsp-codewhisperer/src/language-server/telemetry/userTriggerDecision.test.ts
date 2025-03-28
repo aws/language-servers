@@ -13,6 +13,7 @@ import { CodewhispererServerFactory } from '../codeWhispererServer'
 import { CodeWhispererServiceBase, ResponseContext, Suggestion } from '../codeWhispererService'
 import { CodeWhispererSession, SessionManager } from '../session/sessionManager'
 import { TelemetryService } from '../telemetryService'
+import { initFallbackServiceManager } from '../amazonQServiceManager/factories'
 
 describe('Telemetry', () => {
     const sandbox = sinon.createSandbox()
@@ -175,10 +176,9 @@ describe('Telemetry', () => {
             service = stubInterface<CodeWhispererServiceBase>()
             setServiceResponse(DEFAULT_SUGGESTIONS, EXPECTED_RESPONSE_CONTEXT)
 
-            server = CodewhispererServerFactory(_auth => service)
-
             // Initialize the features, but don't start server yet
             features = new TestFeatures()
+            server = CodewhispererServerFactory(() => initFallbackServiceManager(features, service))
 
             // Return no specific configuration for CodeWhisperer
             features.lsp.workspace.getConfiguration.returns(Promise.resolve({}))
