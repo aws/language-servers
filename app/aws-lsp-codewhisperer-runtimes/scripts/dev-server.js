@@ -13,8 +13,9 @@ function startDevServer() {
         return
     }
 
-    const serverProcess = spawn('npx', ['webpack', 'serve'], {
-        shell: true,
+    const isWindows = process.platform === 'win32'
+    const npxCmd = isWindows ? 'npx.cmd' : 'npx'
+    const serverProcess = spawn(npxCmd, ['webpack', 'serve'], {
         stdio: 'inherit',
     })
 
