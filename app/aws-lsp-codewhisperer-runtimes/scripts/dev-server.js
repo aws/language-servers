@@ -17,6 +17,7 @@ function startDevServer() {
         const serverProcess = spawn('npx', ['webpack', 'serve'], {
             stdio: 'inherit',
             detached: false,
+            shell: true,
         })
 
         console.log(`Dev server started on port ${serverPort} (PID: ${serverProcess.pid})`)
@@ -38,6 +39,7 @@ function startDevServer() {
         })
 
         serverProcess.on('exit', code => {
+            console.log(`[Dev Server] Exited with code ${code}`)
             if (fs.existsSync(PID_FILE)) {
                 fs.unlinkSync(PID_FILE)
             }
@@ -71,7 +73,7 @@ function stopDevServer() {
     console.log(`Stopping dev server (PID: ${pid})...`)
 
     if (process.platform === 'win32') {
-        spawn('taskkill', ['/PID', pid], {
+        spawn('taskkill', ['/PID', pid, '/F', '/T'], {
             stdio: 'inherit',
             shell: true,
         }).on('exit', code => {
