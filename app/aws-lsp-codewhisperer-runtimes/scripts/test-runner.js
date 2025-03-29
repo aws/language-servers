@@ -1,4 +1,5 @@
 const spawn = require('cross-spawn')
+const net = require('net')
 
 async function runTests() {
     // Start the dev server
@@ -8,7 +9,7 @@ async function runTests() {
     await new Promise(resolve => setTimeout(resolve, 2000))
     console.log('After await new Promise(reso..')
     isPortInUse(8080)
-        .then(inUse => console.log(`Port in use: ${inUse}`))
+        .then(inUse => console.log(`Port in use: ${inUse} should be used after calling start script`))
         .catch(err => console.error(err))
 
     // Run the tests
@@ -22,7 +23,7 @@ async function runTests() {
     const cleanup = async () => {
         console.log('Inside cleanup')
         isPortInUse(8080)
-            .then(inUse => console.log(`Port in use: ${inUse}`))
+            .then(inUse => console.log(`Port in use: ${inUse} inside cleanup should be used`))
             .catch(err => console.error(err))
         console.log('Cleaning up processes...')
         if (testProcess && !testProcess.killed) {
@@ -72,37 +73,34 @@ async function runTests() {
 }
 
 async function isPortInUse(port) {
-    if (process.platform === 'win32') {
-        return new Promise((resolve, reject) => {
-            const netstat = spawn('cmd', ['/c', 'netstat -ano | findstr :' + port], {
-                shell: true,
-            })
+    return new Promise(resolve => {
+        const server = net.createServer()
 
-            let output = ''
-
-            netstat.stdout.on('data', data => {
-                output += data.toString()
-            })
-
-            netstat.stderr.on('data', data => {
-                console.error('Error:', data.toString())
-            })
-
-            netstat.on('close', code => {
-                resolve(output.length > 0)
-            })
-
-            netstat.on('error', err => {
-                reject(err)
-            })
+        server.once('error', err => {
+            if (err.code === 'EADDRINUSE') {
+                console.log(`Port ${port} is in use.`)
+                resolve(true) // Port is in use
+            } else {
+                console.error('Error checking port:', err)
+                resolve(false) // Some other error
+            }
         })
-    }
-    return false
+
+        server.once('listening', () => {
+            server.close()
+            resolve(false) // Port is not in use
+        })
+
+        server.listen(port)
+    })
 }
 
 runTests()
     .then(code => {
         isPortInUse(8080)
+            .then(inUse => console.log(`Port in use: ${inUse} should not be by now (runTests closure)`))
+            .catch(err => console.error(err))
+
         process.exit(code)
     })
     .catch(err => {

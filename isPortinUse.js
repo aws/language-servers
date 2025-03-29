@@ -1,34 +1,28 @@
-const { spawn } = require('child_process')
+const net = require('net')
 
 async function isPortInUse(port) {
-    if (process.platform === 'win32') {
-        return new Promise((resolve, reject) => {
-            const netstat = spawn('cmd', ['/c', 'netstat -ano | findstr :' + port], {
-                shell: true,
-            })
+    return new Promise(resolve => {
+        const server = net.createServer()
 
-            let output = ''
-
-            netstat.stdout.on('data', data => {
-                output += data.toString()
-            })
-
-            netstat.stderr.on('data', data => {
-                console.error('Error:', data.toString())
-            })
-
-            netstat.on('close', code => {
-                resolve(output.length > 0)
-            })
-
-            netstat.on('error', err => {
-                reject(err)
-            })
+        server.once('error', err => {
+            if (err.code === 'EADDRINUSE') {
+                console.log(`Port ${port} is in use.`)
+                resolve(true) // Port is in use
+            } else {
+                console.error('Error checking port:', err)
+                resolve(false) // Some other error
+            }
         })
-    }
-    return false
+
+        server.once('listening', () => {
+            server.close()
+            resolve(false) // Port is not in use
+        })
+
+        server.listen(port)
+    })
 }
 
 isPortInUse(8080)
-    .then(inUse => console.log(`Port in use: ${inUse}`))
+    .then(inUse => console.log(`Port in use: ${inUse} should not be by now (end)`))
     .catch(err => console.error(err))
