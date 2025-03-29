@@ -38,6 +38,24 @@ function startDevServer() {
             }
         })
 
+        // Add SIGINT handler for the main process
+        process.on('SIGINT', () => {
+            if (fs.existsSync(PID_FILE)) {
+                fs.unlinkSync(PID_FILE)
+            }
+            serverProcess.kill()
+            process.exit(0)
+        })
+
+        // Add SIGTERM handler
+        process.on('SIGTERM', () => {
+            if (fs.existsSync(PID_FILE)) {
+                fs.unlinkSync(PID_FILE)
+            }
+            serverProcess.kill()
+            process.exit(0)
+        })
+
         serverProcess.on('exit', code => {
             console.log(`[Dev Server] Exited with code ${code}`)
             if (fs.existsSync(PID_FILE)) {
