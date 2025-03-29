@@ -16,12 +16,19 @@ function startDevServer() {
     try {
         const serverProcess = spawn('npx', ['webpack', 'serve'], {
             stdio: 'inherit',
-            shell: true,
+            detached: false,
         })
 
         console.log(`Dev server started on port ${serverPort} (PID: ${serverProcess.pid})`)
 
+        serverProcess.stdout?.on('data', data => console.log(`[Server Output]: ${data.toString()}`))
+        serverProcess.stderr?.on('data', data => console.error(`[Server Error]: ${data.toString()}`))
+
+        console.log(`before writing file`)
+        console.log(`Checking if PID file exists before writing: ${fs.existsSync(PID_FILE)}`)
         fs.writeFileSync(PID_FILE, serverProcess.pid.toString())
+        console.log(`after writing file`)
+        console.log(`Checking if PID file exists after writing: ${fs.existsSync(PID_FILE)}`)
 
         serverProcess.on('error', err => {
             console.error('Failed to start server:', err)
@@ -47,6 +54,7 @@ function startDevServer() {
 }
 
 function stopDevServer() {
+    console.log('Attempting to stop dev server...')
     if (!fs.existsSync(PID_FILE)) {
         console.log('No running server found.')
         return
