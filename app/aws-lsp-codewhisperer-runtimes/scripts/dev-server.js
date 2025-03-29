@@ -94,6 +94,7 @@ function stopDevServer() {
         spawn('taskkill', ['/PID', pid, '/F', '/T'], {
             stdio: 'inherit',
             shell: true,
+            detached: false,
         }).on('exit', code => {
             if (code === 0) {
                 console.log('Dev server stopped.')

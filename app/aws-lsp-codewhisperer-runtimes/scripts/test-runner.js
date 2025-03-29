@@ -17,12 +17,17 @@ async function runTests() {
     const cleanup = () => {
         console.log('Cleaning up processes...')
         if (devServer && !devServer.killed) {
+            console.log('Killing dev server...')
             devServer.kill()
         }
         if (testProcess && !testProcess.killed) {
+            console.log('Killing test process...')
             testProcess.kill()
         }
-        spawn('npm', ['run', 'stop-dev-server'], { stdio: 'inherit' })
+        spawn('node', ['scripts/dev-server.js', 'stop'], {
+            stdio: 'inherit',
+        })
+        console.log('Clenaup complete')
     }
 
     // Handle main process termination signals
