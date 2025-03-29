@@ -1,0 +1,125 @@
+const spawn = require('cross-spawn')
+const fs = require('fs')
+const path = require('path')
+
+const PID_FILE = path.join(__dirname, 'dev-server.pid')
+const serverPort = 8080
+
+function startDevServer() {
+    if (fs.existsSync(PID_FILE)) {
+        console.log(
+            'Server is already running (found temporary file dev-server.pid with server process id). Use `npm run stop` to stop it.'
+        )
+        return
+    }
+
+    try {
+        const serverProcess = spawn('npx', ['webpack', 'serve'], {
+            stdio: 'inherit',
+            detached: false,
+            shell: true,
+        })
+
+        console.log(`Dev server started on port ${serverPort} (PID: ${serverProcess.pid})`)
+
+        serverProcess.stdout?.on('data', data => console.log(`[Server Output]: ${data.toString()}`))
+        serverProcess.stderr?.on('data', data => console.error(`[Server Error]: ${data.toString()}`))
+
+        console.log(`before writing file`)
+        console.log(`Checking if PID file exists before writing: ${fs.existsSync(PID_FILE)}`)
+        fs.writeFileSync(PID_FILE, serverProcess.pid.toString())
+        console.log(`after writing file`)
+        console.log(`Checking if PID file exists after writing: ${fs.existsSync(PID_FILE)}`)
+
+        serverProcess.on('error', err => {
+            console.error('Failed to start server:', err)
+            if (fs.existsSync(PID_FILE)) {
+                fs.unlinkSync(PID_FILE)
+            }
+        })
+
+        // Add SIGINT handler for the main process
+        process.on('SIGINT', () => {
+            if (fs.existsSync(PID_FILE)) {
+                fs.unlinkSync(PID_FILE)
+            }
+            serverProcess.kill()
+            process.exit(0)
+        })
+
+        // Add SIGTERM handler
+        process.on('SIGTERM', () => {
+            if (fs.existsSync(PID_FILE)) {
+                fs.unlinkSync(PID_FILE)
+            }
+            serverProcess.kill()
+            process.exit(0)
+        })
+
+        serverProcess.on('exit', code => {
+            console.log(`[Dev Server] Exited with code ${code}`)
+            if (fs.existsSync(PID_FILE)) {
+                fs.unlinkSync(PID_FILE)
+            }
+            if (code !== 0) {
+                console.log(`Server process exited with code ${code}`)
+            }
+        })
+    } catch (error) {
+        console.error('Failed to spawn server process:', error)
+        if (fs.existsSync(PID_FILE)) {
+            fs.unlinkSync(PID_FILE)
+        }
+    }
+}
+
+function stopDevServer() {
+    console.log('Attempting to stop dev server...')
+    if (!fs.existsSync(PID_FILE)) {
+        console.log('No running server found.')
+        return
+    }
+
+    const pid = parseInt(fs.readFileSync(PID_FILE, 'utf8'), 10)
+
+    if (isNaN(pid)) {
+        console.error('Invalid PID file. Deleting it.')
+        fs.unlinkSync(PID_FILE)
+        return
+    }
+
+    console.log(`Stopping dev server (PID: ${pid})...`)
+
+    if (process.platform === 'win32') {
+        spawn('taskkill', ['/PID', pid, '/F', '/T'], {
+            stdio: 'inherit',
+            shell: true,
+            detached: false,
+        }).on('exit', code => {
+            if (code === 0) {
+                console.log('Dev server stopped.')
+                fs.unlinkSync(PID_FILE)
+            } else {
+                console.error(`Error stopping server: exit code ${code}`)
+            }
+        })
+    } else {
+        try {
+            process.kill(pid)
+            console.log('Dev server stopped.')
+            fs.unlinkSync(PID_FILE)
+        } catch (error) {
+            console.error(`Failed to stop server: ${error.message}`)
+        }
+    }
+}
+
+// CLI handling
+const command = process.argv[2]
+if (command === 'start') {
+    startDevServer()
+} else if (command === 'stop') {
+    stopDevServer()
+} else {
+    console.log('Usage: node scripts/dev-server.js [start|stop]')
+}
