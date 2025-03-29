@@ -6,6 +6,8 @@ async function runTests() {
 
     // Give the server a moment to start
     await new Promise(resolve => setTimeout(resolve, 2000))
+    console.log('After await new Promise(reso..')
+    isPortInUse(8080)
 
     // Run the tests
     const testProcess = spawn('npx', ['wdio', 'run', 'wdio.conf.js'], {
@@ -16,6 +18,8 @@ async function runTests() {
     // Handle cleanup for both processes
     // Handle cleanup
     const cleanup = async () => {
+        console.log('Inside cleanup')
+        isPortInUse(8080)
         console.log('Cleaning up processes...')
         if (testProcess && !testProcess.killed) {
             console.log('Killing test process...')
@@ -63,8 +67,23 @@ async function runTests() {
     })
 }
 
+async function isPortInUse(port) {
+    if (process.platform === 'win32') {
+        try {
+            console.log('Inside win32')
+            const { stdout } = await exec(`netstat -ano | findstr :${port}`)
+            return stdout.length > 0
+        } catch (err) {
+            console.log(err)
+            return false
+        }
+    }
+    return false
+}
+
 runTests()
     .then(code => {
+        isPortInUse(8080)
         process.exit(code)
     })
     .catch(err => {
