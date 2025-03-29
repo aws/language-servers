@@ -31,6 +31,7 @@
         "package": "npm run compile && npm run package --workspaces --if-present"
     },
     "dependencies": {
+        "cross-spawn": "^7.0.6",
         "typescript": "^5.5.3"
     },
     "devDependencies": {
