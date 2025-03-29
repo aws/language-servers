@@ -22,13 +22,7 @@ function startDevServer() {
 
         console.log(`Dev server started on port ${serverPort} (PID: ${serverProcess.pid})`)
 
-        serverProcess.stdout?.on('data', data => console.log(`[Server Output]: ${data.toString()}`))
-        serverProcess.stderr?.on('data', data => console.error(`[Server Error]: ${data.toString()}`))
-
-        console.log(`before writing file`)
-        console.log(`Checking if PID file exists before writing: ${fs.existsSync(PID_FILE)}`)
         fs.writeFileSync(PID_FILE, serverProcess.pid.toString())
-        console.log(`after writing file`)
         console.log(`Checking if PID file exists after writing: ${fs.existsSync(PID_FILE)}`)
 
         serverProcess.on('error', err => {

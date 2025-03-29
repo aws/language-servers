@@ -24,9 +24,7 @@ async function runTests() {
             console.log('Killing test process...')
             testProcess.kill()
         }
-        spawn('node', ['scripts/dev-server.js', 'stop'], {
-            stdio: 'inherit',
-        })
+        spawn('npm', ['run', 'stop-dev-server'], { stdio: 'inherit' })
         console.log('Clenaup complete')
     }
 
@@ -50,7 +48,6 @@ async function runTests() {
         }
     })
 
-    console.log('before stop-dev-server command')
     return new Promise((resolve, reject) => {
         testProcess.on('exit', code => {
             cleanup()
