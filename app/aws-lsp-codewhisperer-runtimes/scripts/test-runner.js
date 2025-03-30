@@ -20,30 +20,39 @@ async function runTests() {
             if (!stopServerCalled) {
                 stopServerCalled = true
                 spawn('npm', ['run', 'stop-dev-server'], { stdio: 'inherit' })
+                return true
             }
+            return false
         }
 
         testProcess.on('exit', async code => {
             console.log(`Test process exited with code ${code}`)
-            stopServer()
+            if (stopServer()) {
+                console.log('Stopping devserver on exit..')
+            }
             resolve(code)
         })
 
         testProcess.on('close', async code => {
             console.log(`Test process closed with code ${code}`)
-            stopServer()
+            if (stopServer()) {
+                console.log('Stopping devserver on close..')
+            }
             resolve(code)
         })
 
         testProcess.on('error', err => {
             console.error('Test process encountered an error:', err)
-            stopServer()
+            if (stopServer()) {
+                console.log('Stopping devserver on error..')
+            }
             resolve(1)
         })
 
         setTimeout(() => {
-            // Stop the dev server after killing the test process
-            stopServer()
+            if (stopServer()) {
+                console.log('Stopping devserver on timeout..')
+            }
         }, 240000) // 240 seconds
     })
 }
