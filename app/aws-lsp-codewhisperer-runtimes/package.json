@@ -10,7 +10,7 @@
         "webpack": "webpack",
         "start": "cross-env DEBUG=1 NODE_OPTIONS=--max_old_space_size=8172 node scripts/dev-server.js start",
         "stop-dev-server": "node scripts/dev-server.js stop",
-        "test": "npm run package && node scripts/test-runner.js"
+        "test": "npm run package && node scripts/test-runner.js; npm run stop-dev-server"
     },
     "dependencies": {
         "@aws/language-server-runtimes": "^0.2.48",

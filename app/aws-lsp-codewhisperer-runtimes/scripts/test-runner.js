@@ -30,12 +30,6 @@ async function runTests() {
             console.log('Killing test process...')
             testProcess.kill()
         }
-
-        // Wait for stop-dev-server to complete
-        await new Promise(resolve => {
-            const stopServer = spawn('node', ['dev-server.js', 'stop'], { stdio: 'inherit' })
-            stopServer.on('exit', resolve)
-        })
     }
 
     // Handle main process termination signals
