@@ -14,11 +14,37 @@ async function runTests() {
     })
 
     return new Promise(resolve => {
+        let stopServerCalled = false
+
+        const stopServer = () => {
+            if (!stopServerCalled) {
+                stopServerCalled = true
+                spawn('npm', ['run', 'stop-dev-server'], { stdio: 'inherit' })
+            }
+        }
+
         testProcess.on('exit', async code => {
-            // Stop the dev server
-            spawn('npm', ['run', 'stop-dev-server'], { stdio: 'inherit' })
+            console.log(`Test process exited with code ${code}`)
+            stopServer()
             resolve(code)
         })
+
+        testProcess.on('close', async code => {
+            console.log(`Test process closed with code ${code}`)
+            stopServer()
+            resolve(code)
+        })
+
+        testProcess.on('error', err => {
+            console.error('Test process encountered an error:', err)
+            stopServer()
+            resolve(1)
+        })
+
+        setTimeout(() => {
+            // Stop the dev server after killing the test process
+            stopServer()
+        }, 240000) // 240 seconds
     })
 }
 
