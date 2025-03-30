@@ -25,7 +25,7 @@
         "compile:servers": "npm run compile --workspace=server --if-present",
         "compile:rest": "npm run compile --workspace app --workspace client --workspace chat-client --if-present",
         "watch": "tsc --build --watch",
-        "test": "npm run compile && npm run test --workspaces --if-present; node isPortinUse.js",
+        "test": "npm run compile && npm run test --workspaces --if-present",
         "test-integ": "npm run compile && npm run test-integ --workspaces --if-present",
         "test-unit": "npm run compile && npm run test-unit --workspaces --if-present",
         "package": "npm run compile && npm run package --workspaces --if-present"
