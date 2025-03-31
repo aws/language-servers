@@ -13,6 +13,9 @@ const baseConfig = {
     },
     resolve: {
         extensions: ['.ts', '.tsx', '.js', '.node'],
+        fallback: {
+            'osx-temperature-sensor': false,
+        },
     },
     module: {
         rules: [
@@ -25,7 +28,14 @@ const baseConfig = {
                 test: /\.node$/,
                 loader: 'node-loader',
                 options: {
-                    name: '[name].[ext]', // Preserves original path and filename
+                    name: 'native/[name]-[hash].[ext]',
+                },
+            },
+            {
+                test: /\.wasm$/,
+                type: 'asset/resource',
+                generator: {
+                    filename: 'wasm/[name]-[hash][ext]',
                 },
             },
         ],

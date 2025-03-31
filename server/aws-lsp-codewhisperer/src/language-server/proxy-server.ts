@@ -4,6 +4,7 @@ import { CodeWhispererServiceIAM, CodeWhispererServiceToken } from './codeWhispe
 import { QNetTransformServerToken } from './netTransformServer'
 import { QChatServer } from './qChatServer'
 import { QConfigurationServerToken } from './configuration/qConfigurationServer'
+import { LocalProjectContextServer } from './localProjectContextServer'
 
 export const CodeWhispererServerTokenProxy = CodewhispererServerFactory(
     (credentialsProvider, workspace, awsQRegion, awsQEndpointUrl, sdkInitializator) => {
@@ -46,3 +47,5 @@ export const QNetTransformServerTokenProxy = QNetTransformServerToken(
 export const QChatServerProxy = QChatServer()
 
 export const QConfigurationServerTokenProxy = QConfigurationServerToken()
+
+export const QLocalProjectContextServerTokenProxy = LocalProjectContextServer()
