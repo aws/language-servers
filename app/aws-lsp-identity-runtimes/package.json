@@ -8,6 +8,6 @@
     },
     "dependencies": {
         "@aws/language-server-runtimes": "^0.2.48",
-        "@aws/lsp-identity": "^0.0.1"
+        "@aws/lsp-identity": "*"
     }
 }
