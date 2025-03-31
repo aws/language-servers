@@ -67,7 +67,7 @@ describe('FsRead Tool', () => {
     })
 
     it('throws error if path does not exist', async () => {
-        const filePath = path.join(testFolder.folderPath, 'no_such_file.txt')
+        const filePath = path.join(testFolder.path, 'no_such_file.txt')
         const fsRead = new FsRead(features, { path: filePath })
 
         await assert.rejects(

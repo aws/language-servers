@@ -13,7 +13,7 @@ import * as os from 'os'
  *      testFolder = await TestFolder.create()
  *      ...
  * }
- *
+ * // Only necessary if test state should not bleed through.
  * afterEach(async () => {
  *      ...
  *      await testFolder.clear()
@@ -27,28 +27,33 @@ import * as os from 'os'
  * })
  */
 export class TestFolder {
-    private constructor(public readonly folderPath: string) {}
+    private constructor(public readonly path: string) {}
 
     async write(fileName: string, content: string): Promise<string> {
-        const filePath = path.join(this.folderPath, fileName)
+        const filePath = path.join(this.path, fileName)
         await fs.writeFile(filePath, content)
         return filePath
     }
 
     static async create() {
-        const tempDir = path.join(os.type() === 'Darwin' ? '/tmp' : os.tmpdir(), 'aws-language-servers')
+        const tempDir = path.join(
+            os.type() === 'Darwin' ? '/tmp' : os.tmpdir(),
+            'aws-language-servers',
+            'test',
+            crypto.randomUUID()
+        )
         await fs.mkdir(tempDir, { recursive: true })
         return new TestFolder(tempDir)
     }
 
     async delete() {
-        fs.rm(this.folderPath, { recursive: true, force: true })
+        fs.rm(this.path, { recursive: true, force: true })
     }
 
     async clear() {
-        const files = await fs.readdir(this.folderPath)
+        const files = await fs.readdir(this.path)
         for (const f of files) {
-            await fs.rm(path.join(this.folderPath, f), { recursive: true, force: true })
+            await fs.rm(path.join(this.path, f), { recursive: true, force: true })
         }
     }
 }
