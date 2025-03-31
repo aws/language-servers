@@ -2,10 +2,10 @@ import * as assert from 'assert'
 import { FsRead } from './fsRead'
 import * as path from 'path'
 import * as fs from 'fs/promises'
-import * as os from 'os'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import { Workspace } from '@aws/language-server-runtimes/server-interface'
 import { StubbedInstance } from 'ts-sinon'
+import { TestFolder } from '@aws/lsp-core'
 
 describe('FsRead Tool', () => {
     let features: TestFeatures
@@ -38,7 +38,7 @@ describe('FsRead Tool', () => {
     })
 
     it('throws if path is empty', async () => {
-        const fsRead = new FsRead(features, { path: '', homePath: os.homedir() })
+        const fsRead = new FsRead(features, { path: '' })
         await assert.rejects(fsRead.validate(), /Path cannot be empty/i, 'Expected an error about empty path')
     })
 
@@ -46,7 +46,7 @@ describe('FsRead Tool', () => {
         const fileContent = 'Line 1\nLine 2\nLine 3'
         const filePath = await testFolder.write('fullFile.txt', fileContent)
 
-        const fsRead = new FsRead(features, { path: filePath, homePath: os.homedir() })
+        const fsRead = new FsRead(features, { path: filePath })
         await fsRead.validate()
         const result = await fsRead.invoke(process.stdout)
 
@@ -58,7 +58,7 @@ describe('FsRead Tool', () => {
         const fileContent = 'A\nB\nC\nD\nE\nF'
         const filePath = await testFolder.write('partialFile.txt', fileContent)
 
-        const fsRead = new FsRead(features, { path: filePath, readRange: [2, 4], homePath: os.homedir() })
+        const fsRead = new FsRead(features, { path: filePath, readRange: [2, 4] })
         await fsRead.validate()
         const result = await fsRead.invoke(process.stdout)
 
@@ -68,7 +68,7 @@ describe('FsRead Tool', () => {
 
     it('throws error if path does not exist', async () => {
         const filePath = path.join(testFolder.folderPath, 'no_such_file.txt')
-        const fsRead = new FsRead(features, { path: filePath, homePath: os.homedir() })
+        const fsRead = new FsRead(features, { path: filePath })
 
         await assert.rejects(
             fsRead.validate(),
@@ -82,7 +82,7 @@ describe('FsRead Tool', () => {
 
         const filePath = await testFolder.write('bigFile.txt', bigContent)
 
-        const fsRead = new FsRead(features, { homePath: os.homedir(), path: filePath })
+        const fsRead = new FsRead(features, { path: filePath })
         await fsRead.validate()
 
         await assert.rejects(
@@ -94,7 +94,7 @@ describe('FsRead Tool', () => {
 
     it('invalid line range', async () => {
         const filePath = await testFolder.write('rangeTest.txt', '1\n2\n3')
-        const fsRead = new FsRead(features, { path: filePath, readRange: [3, 2], homePath: os.homedir() })
+        const fsRead = new FsRead(features, { path: filePath, readRange: [3, 2] })
 
         await fsRead.validate()
         const result = await fsRead.invoke(process.stdout)
@@ -102,31 +102,3 @@ describe('FsRead Tool', () => {
         assert.strictEqual(result.output.content, '')
     })
 })
-
-// TODO: move this a test utility file.
-class TestFolder {
-    private constructor(public readonly folderPath: string) {}
-
-    async write(fileName: string, content: string): Promise<string> {
-        const filePath = path.join(this.folderPath, fileName)
-        await fs.writeFile(filePath, content)
-        return filePath
-    }
-
-    static async create() {
-        const tempDir = path.join(os.type() === 'Darwin' ? '/tmp' : os.tmpdir(), 'aws-language-servers')
-        await fs.mkdir(tempDir, { recursive: true })
-        return new TestFolder(tempDir)
-    }
-
-    async delete() {
-        fs.rm(this.folderPath, { recursive: true, force: true })
-    }
-
-    async clear() {
-        const files = await fs.readdir(this.folderPath)
-        for (const f of files) {
-            await fs.rm(path.join(this.folderPath, f), { recursive: true, force: true })
-        }
-    }
-}

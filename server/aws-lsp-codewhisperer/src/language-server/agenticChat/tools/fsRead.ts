@@ -2,27 +2,25 @@
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
-import { InvokeOutput, maxToolResponseSize, OutputKind, sanitizePath } from './toolShared'
+import { InvokeOutput, maxToolResponseSize, OutputKind } from './toolShared'
 import { Writable } from 'stream'
 import * as path from 'path'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
+import { sanitize } from '@aws/lsp-core/out/util/path'
 
 export interface FsReadParams {
     path: string
-    homePath: string
     readRange?: number[]
 }
 
 export class FsRead {
     private fsPath: string
-    private readonly homePath: string
     private readonly readRange?: number[]
     private readonly logging: Features['logging']
     private readonly workspace: Features['workspace']
 
     constructor(features: Pick<Features, 'workspace' | 'logging'>, params: FsReadParams) {
         this.fsPath = params.path
-        this.homePath = params.homePath
         this.readRange = params.readRange
         this.logging = features.logging
         this.workspace = features.workspace
@@ -34,7 +32,7 @@ export class FsRead {
             throw new Error('Path cannot be empty.')
         }
 
-        const sanitized = sanitizePath(this.fsPath, this.homePath)
+        const sanitized = sanitize(this.fsPath)
         this.fsPath = sanitized
 
         let fileExists: boolean
