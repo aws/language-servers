@@ -3,6 +3,7 @@ import { CodewhispererServerFactory } from './codeWhispererServer'
 import { CodeWhispererServiceIAM, CodeWhispererServiceToken } from './codeWhispererService'
 import { QNetTransformServerToken } from './netTransformServer'
 import { QChatServer } from './qChatServer'
+import { QAgenticChatServer } from './agenticChat/qAgenticChatServer'
 import { QConfigurationServerToken } from './configuration/qConfigurationServer'
 
 export const CodeWhispererServerTokenProxy = CodewhispererServerFactory(
@@ -14,7 +15,8 @@ export const CodeWhispererServerTokenProxy = CodewhispererServerFactory(
             awsQEndpointUrl,
             sdkInitializator
         )
-    }
+    },
+    'token'
 )
 
 export const CodeWhispererServerIAMProxy = CodewhispererServerFactory(
@@ -26,7 +28,8 @@ export const CodeWhispererServerIAMProxy = CodewhispererServerFactory(
             awsQEndpointUrl,
             sdkInitializator
         )
-    }
+    },
+    'iam'
 )
 
 export const CodeWhispererSecurityScanServerTokenProxy = SecurityScanServerToken()
@@ -44,5 +47,7 @@ export const QNetTransformServerTokenProxy = QNetTransformServerToken(
 )
 
 export const QChatServerProxy = QChatServer()
+
+export const QAgenticChatServerProxy = QAgenticChatServer()
 
 export const QConfigurationServerTokenProxy = QConfigurationServerToken()
