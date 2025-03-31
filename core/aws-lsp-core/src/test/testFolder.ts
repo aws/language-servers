@@ -1,6 +1,7 @@
 import * as path from 'path'
-import * as fs from 'fs/promises'
+import * as fs from 'fs'
 import * as os from 'os'
+import * as crypto from 'crypto'
 
 /**
  * Interface for working with temporary files.
@@ -31,7 +32,7 @@ export class TestFolder {
 
     async write(fileName: string, content: string): Promise<string> {
         const filePath = path.join(this.path, fileName)
-        await fs.writeFile(filePath, content)
+        fs.writeFileSync(filePath, content)
         return filePath
     }
 
@@ -40,20 +41,20 @@ export class TestFolder {
             os.type() === 'Darwin' ? '/tmp' : os.tmpdir(),
             'aws-language-servers',
             'test',
-            crypto.randomUUID()
+            crypto.randomBytes(4).toString('hex')
         )
-        await fs.mkdir(tempDir, { recursive: true })
+        await fs.promises.mkdir(tempDir, { recursive: true })
         return new TestFolder(tempDir)
     }
 
     async delete() {
-        fs.rm(this.path, { recursive: true, force: true })
+        fs.rmSync(this.path, { recursive: true, force: true })
     }
 
     async clear() {
-        const files = await fs.readdir(this.path)
+        const files = await fs.readdirSync(this.path)
         for (const f of files) {
-            await fs.rm(path.join(this.path, f), { recursive: true, force: true })
+            await fs.rmSync(path.join(this.path, f), { recursive: true, force: true })
         }
     }
 }
