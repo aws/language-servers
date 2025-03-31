@@ -25,7 +25,7 @@ describe('FsWrite Tool', function () {
     before(async function () {
         features = new TestFeatures()
         features.workspace = {
-            // @ts-ignore writing a file does not require all fs features implemented
+            // @ts-ignore writing a file does not require all of fs to be implemented
             fs: {
                 writeFile: fs.writeFile,
                 readFile: (path, options?) =>

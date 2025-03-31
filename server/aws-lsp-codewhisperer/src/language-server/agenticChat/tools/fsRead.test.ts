@@ -14,7 +14,7 @@ describe('FsRead Tool', () => {
     before(async () => {
         features = new TestFeatures()
         features.workspace = {
-            // @ts-ignore reading a file should use readOnly fs operations
+            // @ts-ignore reading a file does not require all of fs to be implemented.
             fs: {
                 readFile: (path, options?) =>
                     fs.readFile(path, { encoding: (options?.encoding || 'utf-8') as BufferEncoding }),
