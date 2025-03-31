@@ -228,6 +228,7 @@ const mergeSuggestionsWithRightContext = (
             insertText: insertText,
             range,
             references: references?.length ? references : undefined,
+            mostRelevantMissingImports: suggestion.mostRelevantMissingImports,
         }
     })
 }
