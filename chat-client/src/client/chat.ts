@@ -21,7 +21,9 @@ import {
 } from '@aws/chat-client-ui-types'
 import {
     CHAT_REQUEST_METHOD,
+    CONTEXT_COMMAND_NOTIFICATION_METHOD,
     ChatParams,
+    ContextCommandParams,
     FEEDBACK_NOTIFICATION_METHOD,
     FOLLOW_UP_CLICK_NOTIFICATION_METHOD,
     FeedbackParams,
@@ -93,14 +95,16 @@ export const createChat = (
             case ERROR_MESSAGE:
                 mynahApi.showError((message as ErrorMessage).params)
                 break
+            case CONTEXT_COMMAND_NOTIFICATION_METHOD:
+                mynahApi.sendContextCommand(message.params as ContextCommandParams)
+                break
             case CHAT_OPTIONS: {
                 const params = (message as ChatOptionsMessage).params
                 const chatConfig: ChatClientConfig = params?.quickActions?.quickActionsCommandGroups
                     ? {
                           quickActionCommands: params.quickActions.quickActionsCommandGroups,
-                          disclaimerAcknowledged: config?.disclaimerAcknowledged ?? false,
                       }
-                    : { disclaimerAcknowledged: config?.disclaimerAcknowledged ?? false }
+                    : {}
 
                 tabFactory.updateDefaultTabData(chatConfig)
 

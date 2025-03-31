@@ -14,6 +14,7 @@ import {
 } from '@aws/chat-client-ui-types'
 import {
     ChatResult,
+    ContextCommandParams,
     FeedbackParams,
     FollowUpClickParams,
     InfoLinkClickParams,
@@ -33,7 +34,10 @@ export interface InboundChatApi {
     sendGenericCommand(params: GenericCommandParams): void
     showError(params: ErrorParams): void
     openTab(params: OpenTabParams): void
+    sendContextCommand(params: ContextCommandParams): void
 }
+
+type ContextCommandGroups = MynahUIDataModel['contextCommands']
 
 export const handleChatPrompt = (
     mynahUi: MynahUI,
@@ -93,6 +97,7 @@ export const createMynahUi = (
 ): [MynahUI, InboundChatApi] => {
     const initialTabId = TabFactory.generateUniqueId()
     let disclaimerCardActive = !disclaimerAcknowledged
+    let contextCommandGroups: ContextCommandGroups | undefined
 
     const mynahUi = new MynahUI({
         onCodeInsertToCursorPosition(
@@ -149,12 +154,13 @@ export const createMynahUi = (
             messager.onTabAdd(initialTabId)
         },
         onTabAdd: (tabId: string) => {
-            messager.onTabAdd(tabId)
             const defaultTabConfig: Partial<MynahUIDataModel> = {
                 quickActionCommands: tabFactory.getDefaultTabData().quickActionCommands,
+                contextCommands: contextCommandGroups,
                 ...(disclaimerCardActive ? { promptInputStickyCard: disclaimerCard } : {}),
             }
             mynahUi.updateStore(tabId, defaultTabConfig)
+            messager.onTabAdd(tabId)
         },
         onTabRemove: (tabId: string) => {
             messager.onTabRemove(tabId)
@@ -423,12 +429,23 @@ ${params.message}`,
         }
     }
 
+    const sendContextCommand = (params: ContextCommandParams) => {
+        contextCommandGroups = params.contextCommandGroups
+
+        Object.keys(mynahUi.getAllTabs()).forEach(tabId => {
+            mynahUi.updateStore(tabId, {
+                contextCommands: contextCommandGroups,
+            })
+        })
+    }
+
     const api = {
         addChatResponse: addChatResponse,
         sendToPrompt: sendToPrompt,
         sendGenericCommand: sendGenericCommand,
         showError: showError,
         openTab: openTab,
+        sendContextCommand: sendContextCommand,
     }
 
     return [mynahUi, api]

@@ -17,6 +17,7 @@ import {
     InlineChatParams,
     InlineChatResult,
     inlineChatRequestType,
+    contextCommandsNotificationType,
 } from '@aws/language-server-runtimes/protocol'
 import { v4 as uuidv4 } from 'uuid'
 import { Uri, ViewColumn, Webview, WebviewPanel, commands, window } from 'vscode'
@@ -54,6 +55,13 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri, 
 
     languageClient.onTelemetry(e => {
         languageClient.info(`[VSCode Client] Received telemetry event from server ${JSON.stringify(e)}`)
+    })
+
+    languageClient.onNotification(contextCommandsNotificationType, params => {
+        panel.webview.postMessage({
+            command: contextCommandsNotificationType.method,
+            params: params,
+        })
     })
 
     panel.webview.onDidReceiveMessage(async message => {
