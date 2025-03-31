@@ -28,16 +28,14 @@ export function getAWSQRegionAndEndpoint(runtime: Runtime, logging: Logging, reg
     if (region) {
         logging.log(`Selecting region (found: ${region}) provided by caller`)
         awsQRegion = region
-        // @ts-ignore
-        awsQEndpoint = AWS_Q_ENDPOINTS[awsQRegion]
+        awsQEndpoint = AWS_Q_ENDPOINTS.get(awsQRegion)
     } else {
         const runtimeRegion = runtime.getConfiguration(AWS_Q_REGION_ENV_VAR)
 
         if (runtimeRegion) {
             logging.log(`Selecting region (found: ${runtimeRegion}) provided by runtime`)
             awsQRegion = runtimeRegion
-            // @ts-ignore
-            awsQEndpoint = runtime.getConfiguration(AWS_Q_ENDPOINT_URL_ENV_VAR) ?? AWS_Q_ENDPOINTS[awsQRegion]
+            awsQEndpoint = runtime.getConfiguration(AWS_Q_ENDPOINT_URL_ENV_VAR) ?? AWS_Q_ENDPOINTS.get(awsQRegion)
         } else {
             logging.log('Region not provided by caller or runtime, falling back to default region and endpoint')
             awsQRegion = DEFAULT_AWS_Q_REGION
