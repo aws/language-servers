@@ -9,7 +9,7 @@ import {
     DEFAULT_AWS_Q_REGION,
 } from '../constants'
 
-export interface AWSQRegionAndEndpoint {
+export interface AmazonQRegionAndEndpoint {
     region: string
     endpoint: string
 }
@@ -21,50 +21,56 @@ export interface AWSQRegionAndEndpoint {
  *
  * @returns region and endpoint for Q connection
  */
-export function getAWSQRegionAndEndpoint(runtime: Runtime, logging: Logging, region?: string): AWSQRegionAndEndpoint {
-    let awsQRegion: string
-    let awsQEndpoint: string | undefined
+export function getAmazonQRegionAndEndpoint(
+    runtime: Runtime,
+    logging: Logging,
+    region?: string
+): AmazonQRegionAndEndpoint {
+    let amazonQRegion: string
+    let amazonQEndpoint: string | undefined
 
     if (region) {
         logging.log(`Selecting region (found: ${region}) provided by caller`)
-        awsQRegion = region
-        awsQEndpoint = AWS_Q_ENDPOINTS.get(awsQRegion)
+        amazonQRegion = region
+        amazonQEndpoint = AWS_Q_ENDPOINTS.get(amazonQRegion)
     } else {
         const runtimeRegion = runtime.getConfiguration(AWS_Q_REGION_ENV_VAR)
 
         if (runtimeRegion) {
             logging.log(`Selecting region (found: ${runtimeRegion}) provided by runtime`)
-            awsQRegion = runtimeRegion
-            awsQEndpoint = runtime.getConfiguration(AWS_Q_ENDPOINT_URL_ENV_VAR) ?? AWS_Q_ENDPOINTS.get(awsQRegion)
+            amazonQRegion = runtimeRegion
+            amazonQEndpoint = runtime.getConfiguration(AWS_Q_ENDPOINT_URL_ENV_VAR) ?? AWS_Q_ENDPOINTS.get(amazonQRegion)
         } else {
-            logging.log('Region not provided by caller or runtime, falling back to default region and endpoint')
-            awsQRegion = DEFAULT_AWS_Q_REGION
-            awsQEndpoint = DEFAULT_AWS_Q_ENDPOINT_URL
+            logging.log(
+                `Region not provided by caller or runtime, falling back to default region (${DEFAULT_AWS_Q_REGION}) and endpoint`
+            )
+            amazonQRegion = DEFAULT_AWS_Q_REGION
+            amazonQEndpoint = DEFAULT_AWS_Q_ENDPOINT_URL
         }
     }
 
-    if (!awsQEndpoint) {
+    if (!amazonQEndpoint) {
         logging.log(
-            `Unable to determine endpoint (found: ${awsQEndpoint}) for region: ${awsQRegion}, falling back to default region and endpoint`
+            `Unable to determine endpoint (found: ${amazonQEndpoint}) for region: ${amazonQRegion}, falling back to default region (${DEFAULT_AWS_Q_REGION}) and endpoint`
         )
-        awsQRegion = DEFAULT_AWS_Q_REGION
-        awsQEndpoint = DEFAULT_AWS_Q_ENDPOINT_URL
+        amazonQRegion = DEFAULT_AWS_Q_REGION
+        amazonQEndpoint = DEFAULT_AWS_Q_ENDPOINT_URL
     }
 
     return {
-        region: awsQRegion,
-        endpoint: awsQEndpoint,
+        region: amazonQRegion,
+        endpoint: amazonQEndpoint,
     }
 }
 
-interface QInlineSuggestions {
+interface QInlineSuggestionsConfig {
     extraContext: string | undefined // aws.q.inlineSuggestions.extraContext
 }
 
 interface QConfigSection {
     customizationArn: string | undefined // aws.q.customizationArn - selected customization
     optOutTelemetryPreference: 'OPTOUT' | 'OPTIN' // aws.q.optOutTelemetry - telemetry optout option
-    inlineSuggestions: QInlineSuggestions
+    inlineSuggestions: QInlineSuggestionsConfig
 }
 
 interface CodeWhispererConfigSection {
@@ -83,7 +89,7 @@ export const CODE_WHISPERER_CONFIGURATION_SECTION = 'aws.codeWhisperer'
  *
  * and consolidates them into one configuration.
  */
-export async function getAWSQRelatedWorkspaceConfigs(
+export async function getAmazonQRelatedWorkspaceConfigs(
     lsp: Lsp,
     logging: Logging
 ): Promise<Readonly<Partial<AmazonQWorkspaceConfig>>> {
@@ -137,7 +143,7 @@ export async function getAWSQRelatedWorkspaceConfigs(
     }
 }
 
-export const defaultAWSQWorkspaceConfigFactory = (): AmazonQWorkspaceConfig => {
+export const defaultAmazonQWorkspaceConfigFactory = (): AmazonQWorkspaceConfig => {
     return {
         customizationArn: undefined,
         optOutTelemetryPreference: 'OPTIN',
@@ -153,7 +159,7 @@ export class AmazonQConfigurationCache {
     private _cachedConfig: AmazonQWorkspaceConfig
 
     constructor() {
-        this._cachedConfig = defaultAWSQWorkspaceConfigFactory()
+        this._cachedConfig = defaultAmazonQWorkspaceConfigFactory()
     }
 
     setProperty<K extends keyof AmazonQWorkspaceConfig>(key: K, newProperty: AmazonQWorkspaceConfig[K]) {

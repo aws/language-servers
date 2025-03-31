@@ -3,13 +3,13 @@ import {
     AmazonQConfigurationCache,
     AmazonQWorkspaceConfig,
     CODE_WHISPERER_CONFIGURATION_SECTION,
-    defaultAWSQWorkspaceConfigFactory,
-    getAWSQRelatedWorkspaceConfigs,
+    defaultAmazonQWorkspaceConfigFactory,
+    getAmazonQRelatedWorkspaceConfigs,
 } from './configurationUtils'
 import { Q_CONFIGURATION_SECTION } from '../../language-server/configuration/qConfigurationServer'
 import { deepStrictEqual, notDeepStrictEqual } from 'assert'
 
-describe('getAWSQRelatedWorkspaceConfigs', () => {
+describe('getAmazonQRelatedWorkspaceConfigs', () => {
     let features: TestFeatures
     let cache: AmazonQConfigurationCache
 
@@ -45,13 +45,13 @@ describe('getAWSQRelatedWorkspaceConfigs', () => {
             shareCodeWhispererContentWithAWS: MOCKED_AWS_CODEWHISPERER_SECTION.shareCodeWhispererContentWithAWS,
         }
 
-        const amazonQConfig = await getAWSQRelatedWorkspaceConfigs(features.lsp, features.logging)
+        const amazonQConfig = await getAmazonQRelatedWorkspaceConfigs(features.lsp, features.logging)
 
         deepStrictEqual(amazonQConfig, EXPECTED_CONFIG)
     })
 
     it('empty strings returned by q section are set to undefined', async () => {
-        const firstResult = await getAWSQRelatedWorkspaceConfigs(features.lsp, features.logging)
+        const firstResult = await getAmazonQRelatedWorkspaceConfigs(features.lsp, features.logging)
         deepStrictEqual(firstResult.customizationArn, MOCKED_AWS_Q_SECTION.customization)
         deepStrictEqual(
             firstResult.inlineSuggestions?.extraContext,
@@ -61,14 +61,14 @@ describe('getAWSQRelatedWorkspaceConfigs', () => {
         features.lsp.workspace.getConfiguration
             .withArgs(Q_CONFIGURATION_SECTION)
             .resolves({ customization: '', inlineSuggestions: { extraContext: '' } })
-        const secondResult = await getAWSQRelatedWorkspaceConfigs(features.lsp, features.logging)
+        const secondResult = await getAmazonQRelatedWorkspaceConfigs(features.lsp, features.logging)
 
         deepStrictEqual(secondResult.customizationArn, undefined)
         deepStrictEqual(secondResult.inlineSuggestions?.extraContext, undefined)
     })
 })
 
-describe('AWSQConfigurationCache', () => {
+describe('AmazonQConfigurationCache', () => {
     let cache: AmazonQConfigurationCache
 
     let mockedQConfig: AmazonQWorkspaceConfig
@@ -88,7 +88,7 @@ describe('AWSQConfigurationCache', () => {
     })
 
     it('initializes with the default configuration', () => {
-        deepStrictEqual(cache.getConfig(), defaultAWSQWorkspaceConfigFactory())
+        deepStrictEqual(cache.getConfig(), defaultAmazonQWorkspaceConfigFactory())
     })
 
     it('mutating the object used by setConfig does not alter the cached config ', () => {

@@ -38,8 +38,8 @@ import {
 
 import { getBearerTokenFromProvider, isStringOrNull } from '../utils'
 import {
-    getAWSQRelatedWorkspaceConfigs,
-    getAWSQRegionAndEndpoint,
+    getAmazonQRelatedWorkspaceConfigs,
+    getAmazonQRegionAndEndpoint,
     AmazonQConfigurationCache,
     AmazonQWorkspaceConfig,
 } from './configurationUtils'
@@ -283,7 +283,7 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
 
     public async handleDidChangeConfiguration() {
         try {
-            const amazonQConfig = await getAWSQRelatedWorkspaceConfigs(this.features.lsp, this.features.logging)
+            const amazonQConfig = await getAmazonQRelatedWorkspaceConfigs(this.features.lsp, this.features.logging)
 
             if (this.cachedCodewhispererService) {
                 const { customizationArn, shareCodeWhispererContentWithAWS } = amazonQConfig
@@ -301,7 +301,7 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
 
             this.configurationCache.updateConfig(amazonQConfig)
         } catch (error) {
-            this.log(`Unexpected error in getAWSQRelatedWorkspaceConfigs: ${error}`)
+            this.log(`Unexpected error in getAmazonQRelatedWorkspaceConfigs: ${error}`)
         }
 
         return this.configurationCache.getConfig()
@@ -490,7 +490,7 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
     ) {
         this.logServiceState('Initializing CodewhispererService')
 
-        const { region, endpoint } = getAWSQRegionAndEndpoint(
+        const { region, endpoint } = getAmazonQRegionAndEndpoint(
             this.features.runtime,
             this.features.logging,
             clientOrProfileRegion

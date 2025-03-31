@@ -3,8 +3,8 @@ import { BaseAmazonQServiceManager } from './BaseAmazonQServiceManager'
 import {
     AmazonQConfigurationCache,
     AmazonQWorkspaceConfig,
-    getAWSQRegionAndEndpoint,
-    getAWSQRelatedWorkspaceConfigs,
+    getAmazonQRegionAndEndpoint,
+    getAmazonQRelatedWorkspaceConfigs,
 } from './configurationUtils'
 import { CodeWhispererServiceBase, CodeWhispererServiceIAM } from '../codeWhispererService'
 
@@ -13,7 +13,7 @@ const initTokenServiceManager = (features: Features) => {
 }
 
 export const initFallbackServiceManager = (features: Features, serviceOverride?: CodeWhispererServiceBase) => {
-    const { region, endpoint } = getAWSQRegionAndEndpoint(features.runtime, features.logging)
+    const { region, endpoint } = getAmazonQRegionAndEndpoint(features.runtime, features.logging)
     const codeWhisperService =
         serviceOverride ??
         new CodeWhispererServiceIAM(
@@ -29,7 +29,7 @@ export const initFallbackServiceManager = (features: Features, serviceOverride?:
     return {
         handleDidChangeConfiguration: async (): Promise<Readonly<AmazonQWorkspaceConfig>> => {
             try {
-                const amazonQConfig = await getAWSQRelatedWorkspaceConfigs(features.lsp, features.logging)
+                const amazonQConfig = await getAmazonQRelatedWorkspaceConfigs(features.lsp, features.logging)
 
                 codeWhisperService.customizationArn = amazonQConfig.customizationArn
 
