@@ -22,11 +22,21 @@ import {
     OpenTabParams,
     SourceLinkClickParams,
 } from '@aws/language-server-runtimes-types'
-import { ChatItem, ChatItemType, ChatPrompt, MynahUI, MynahUIDataModel, NotificationType } from '@aws/mynah-ui'
+import {
+    ChatItem,
+    ChatItemType,
+    ChatPrompt,
+    MynahUI,
+    MynahUIDataModel,
+    NotificationType,
+    MynahUIProps,
+} from '@aws/mynah-ui'
 import { VoteParams } from '../contracts/telemetry'
 import { Messager } from './messager'
 import { TabFactory } from './tabs/tabFactory'
 import { disclaimerAcknowledgeButtonId, disclaimerCard } from './texts/disclaimer'
+import { ChatClientAdapter } from '../contracts/chatClientAdapter'
+import { withAdapter } from './withAdapter'
 
 export interface InboundChatApi {
     addChatResponse(params: ChatResult, tabId: string, isPartialResult: boolean): void
@@ -93,13 +103,14 @@ export const handleChatPrompt = (
 export const createMynahUi = (
     messager: Messager,
     tabFactory: TabFactory,
-    disclaimerAcknowledged: boolean
+    disclaimerAcknowledged: boolean,
+    customChatClientAdapter?: ChatClientAdapter
 ): [MynahUI, InboundChatApi] => {
     const initialTabId = TabFactory.generateUniqueId()
     let disclaimerCardActive = !disclaimerAcknowledged
     let contextCommandGroups: ContextCommandGroups | undefined
 
-    const mynahUi = new MynahUI({
+    let mynahUiProps: MynahUIProps = {
         onCodeInsertToCursorPosition(
             tabId,
             messageId,
@@ -266,6 +277,18 @@ export const createMynahUi = (
                 })
             }
         },
+
+        // Noop not-implemented handlers
+        onCustomFormAction: undefined,
+        onFormTextualItemKeyPress: undefined,
+        onQuickCommandGroupActionClick: undefined,
+        onContextSelected: undefined,
+        onChatItemEngagement: undefined,
+        onShowMoreWebResultsClick: undefined,
+        onFormLinkClick: undefined,
+        onFormModifierEnterPress: undefined,
+        onTabBarButtonClick: undefined,
+
         tabs: {
             [initialTabId]: {
                 isSelected: true,
@@ -279,7 +302,16 @@ export const createMynahUi = (
             maxTabs: 10,
             texts: uiComponentsTexts,
         },
-    })
+    }
+
+    const mynahUiRef = { mynahUI: undefined as MynahUI | undefined }
+    if (customChatClientAdapter) {
+        // Attach routing to custom adapter top of default message handlers
+        mynahUiProps = withAdapter(mynahUiProps, mynahUiRef, customChatClientAdapter)
+    }
+
+    const mynahUi = new MynahUI(mynahUiProps)
+    mynahUiRef.mynahUI = mynahUi
 
     const getTabStore = (tabId = mynahUi.getSelectedTabId()) => {
         return tabId ? mynahUi.getAllTabs()[tabId]?.store : undefined

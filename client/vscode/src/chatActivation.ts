@@ -67,6 +67,10 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri, 
     panel.webview.onDidReceiveMessage(async message => {
         languageClient.info(`[VSCode Client]  Received ${JSON.stringify(message)} from chat`)
 
+        if (tryHandleFeatureEvent(message, panel)) {
+            return
+        }
+
         switch (message.command) {
             case COPY_TO_CLIPBOARD:
                 languageClient.info('[VSCode Client] Copy to clipboard event received')
@@ -228,15 +232,39 @@ function generateCss() {
 
 function generateJS(webView: Webview, extensionUri: Uri): string {
     const assetsPath = Uri.joinPath(extensionUri)
-    const chatUri = Uri.joinPath(assetsPath, 'build', 'amazonq-ui.js')
+    const chatUri = Uri.joinPath(assetsPath, 'build', 'amazonq-chat-client.js')
 
-    const entrypoint = webView.asWebviewUri(chatUri)
+    const chatEntrypoint = webView.asWebviewUri(chatUri)
 
     return `
-    <script type="text/javascript" src="${entrypoint.toString()}" defer onload="init()"></script>
+    <script type="text/javascript" src="${chatEntrypoint.toString()}" defer onload="init()"></script>
     <script type="text/javascript">
         const init = () => {
-            amazonQChat.createChat(acquireVsCodeApi(), {disclaimerAcknowledged: false});
+            // Will be part of Extension and not chat client
+            const vscodeApi = acquireVsCodeApi()
+            const connector = amazonQChat.createConnectorAdapter(vscodeApi.postMessage)
+            amazonQChat.createChat(vscodeApi,
+                {
+                    disclaimerAcknowledged: false,
+                    // Registering all commands supported in chat-client/src/ui/quickActions/handler.ts
+                    // TODO: should we register and pass /help and /clear to connector as well?
+                    quickActionCommands: [
+                        {
+                            groupName: 'Legacy Commands Handlers',
+                            commands: [
+                                { command: '/dev' },
+                                { command: '/transform' },
+                                { command: '/review' },
+                                { command: '/test' },
+                                { command: '/doc' },
+                                { command: '/help' },
+                                { command: '/clear' },
+                            ]
+                        }
+                    ]
+                },
+                // connectorsConfig,
+                connector);
         }
     </script>
     `
@@ -257,6 +285,94 @@ function getCommandTriggerType(data: any): string {
     // data is undefined when commands triggered from keybinding or command palette. Currently no
     // way to differentiate keybinding and command palette, so both interactions are recorded as keybinding
     return data === undefined ? 'hotkeys' : 'contextMenu'
+}
+
+// Routing for integration with legacy connectors
+function tryHandleFeatureEvent(msg: any, panel: WebviewPanel): boolean {
+    if (!msg.tabType) {
+        return false
+    }
+
+    switch (msg.tabType) {
+        case 'gumby':
+            handleGumbyEvent(msg, panel)
+            break
+        default:
+            break
+    }
+
+    return true
+}
+
+function handleGumbyEvent(msg: any, panel: WebviewPanel) {
+    const sender = 'gumbyChat'
+    switch (msg.command) {
+        case 'transform':
+            handleGumbyTransform(msg, sender, panel)
+            break
+        case 'form-action-click':
+            handleGumbyActionClick(msg, sender, panel)
+            break
+        case 'new-tab-was-created':
+        case 'tab-was-removed':
+        case 'auth-follow-up-was-clicked':
+        case 'chat-prompt':
+        case 'response-body-link-click':
+            break
+    }
+}
+
+function handleGumbyActionClick(msg: any, sender: string, panel: WebviewPanel) {
+    if (msg.action === 'gumbyStartTransformation') {
+        handleGumbyClear(msg, sender, panel)
+        handleGumbyTransform(msg, sender, panel)
+    }
+}
+
+function handleGumbyClear(msg: any, sender: string, panel: WebviewPanel) {
+    panel.webview.postMessage({
+        command: 'aws.awsq.clearchat',
+        sender: sender,
+        tabID: msg.tabID,
+        type: 'sendCommandMessage',
+    })
+}
+
+function handleGumbyTransform(msg: any, sender: string, panel: WebviewPanel) {
+    panel.webview.postMessage({
+        buttons: [],
+        inProgress: true,
+        messageType: 'answer-part',
+        status: 'info',
+        sender: sender,
+        tabID: msg.tabID,
+        type: 'asyncEventProgressMessage',
+    })
+    panel.webview.postMessage({
+        buttons: [],
+        inProgress: true,
+        messageType: 'answer-part',
+        message: 'I am checking for open projects that are eligible for transformation...',
+        status: 'info',
+        sender: sender,
+        tabID: msg.tabID,
+        type: 'asyncEventProgressMessage',
+    })
+    panel.webview.postMessage({
+        buttons: [
+            {
+                id: 'gumbyStartTransformation',
+                keepCardAfterClick: false,
+                text: 'Start a new transformation',
+            },
+        ],
+        messageType: 'ai-prompt',
+        message: "Sorry, I couldn't find a project that I can upgrade...",
+        status: 'info',
+        sender: sender,
+        tabID: msg.tabID,
+        type: 'chatMessage',
+    })
 }
 
 function registerGenericCommand(commandName: string, genericCommand: string, panel: WebviewPanel) {

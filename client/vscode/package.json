@@ -322,17 +322,23 @@
     "scripts": {
         "vscode:prepublish": "npm run compile",
         "compile": "tsc -b && npm run compile:chat-client",
-        "compile:chat-client": "npm run compile --prefix ../../chat-client && shx cp -R ../../chat-client/build ."
+        "compile:chat-client": "npm run compile --prefix ../../chat-client && shx cp -R ../../chat-client/build .",
+        "package": "npm run compile && webpack"
     },
     "devDependencies": {
         "@aws-sdk/credential-providers": "^3.731.1",
         "@aws-sdk/types": "^3.734.0",
         "@aws/chat-client-ui-types": "^0.1.12",
         "@aws/language-server-runtimes": "^0.2.53",
+        "@aws/mynah-ui": "^4.21.3",
+        "@aws/chat-client": "*",
         "@types/uuid": "^9.0.8",
         "@types/vscode": "^1.98.0",
         "jose": "^5.2.4",
         "typescript": "^5.5.3",
-        "vscode-languageclient": "^9.0.1"
+        "vscode-languageclient": "^9.0.1",
+        "ts-loader": "^9.4.4",
+        "webpack": "^5.94.0",
+        "webpack-cli": "^6.0.1"
     }
 }
