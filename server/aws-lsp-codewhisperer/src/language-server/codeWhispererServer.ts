@@ -198,6 +198,7 @@ const emitAggregatedUserTriggerDecisionTelemetry = (
 const mergeSuggestionsWithRightContext = (
     rightFileContext: string,
     suggestions: Suggestion[],
+    includeImportsWithCodeReferences: boolean,
     range?: Range
 ): InlineCompletionItemWithReferences[] => {
     return suggestions.map(suggestion => {
@@ -228,7 +229,9 @@ const mergeSuggestionsWithRightContext = (
             insertText: insertText,
             range,
             references: references?.length ? references : undefined,
-            mostRelevantMissingImports: suggestion.mostRelevantMissingImports,
+            mostRelevantMissingImports: includeImportsWithCodeReferences
+                ? suggestion.mostRelevantMissingImports
+                : undefined,
         }
     })
 }
@@ -288,6 +291,7 @@ export const CodewhispererServerFactory =
         // right before returning and is only guaranteed to be consistent within
         // the context of a single response.
         let includeSuggestionsWithCodeReferences = false
+        let includeImportsWithCodeReferences = false
 
         // CodePercentage and codeDiff tracker have a dependency on TelemetryService, so initialization is also delayed to `onInitialized` handler
         let codePercentageTracker: CodePercentageTracker
@@ -305,6 +309,8 @@ export const CodewhispererServerFactory =
                 sessionManager.discardSession(currentSession)
             }
             const codeWhispererService = amazonQServiceManager.getCodewhispererService()
+            includeSuggestionsWithCodeReferences = codeWhispererService.includeSuggestionsWithCodeReferences
+            includeImportsWithCodeReferences = codeWhispererService.includeImportsWithCodeReferences
 
             // prettier-ignore
             return workspace.getTextDocument(params.textDocument.uri).then(async textDocument => {
@@ -533,6 +539,7 @@ export const CodewhispererServerFactory =
             const suggestionsWithRightContext = mergeSuggestionsWithRightContext(
                 session.requestContext.fileContext.rightFileContent,
                 filteredSuggestions,
+                includeImportsWithCodeReferences,
                 selectionRange
             ).filter(suggestion => {
                 // Discard suggestions that have empty string insertText after right context merge and can't be displayed anymore

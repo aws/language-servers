@@ -302,6 +302,11 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
                     includeSuggestionsWithCodeReferences
                 )
 
+                const includeImportsWithCodeReferences =
+                    vscConfig['importRecommendationForInlineCodeSuggestions'] === true
+                this.log(`Read сonfiguration includeImportsWithCodeReferences=${includeImportsWithCodeReferences}`)
+                this.configurationCache.set('includeImportsWithCodeReferences', includeImportsWithCodeReferences)
+
                 const customizationArn = textUtils.undefinedIfEmpty(params?.settings['customization'])
                 if (customizationArn) {
                     this.log(`Read configuration customizationArn=${customizationArn}`)
@@ -602,6 +607,11 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
         service.profileArn = this.activeIdcProfile?.arn
         service.shareCodeWhispererContentWithAWS =
             this.configurationCache.get('shareCodeWhispererContentWithAWS') === true
+
+        service.includeSuggestionsWithCodeReferences =
+            this.configurationCache.get('includeSuggestionsWithCodeReferences') === true
+        service.includeImportsWithCodeReferences =
+            this.configurationCache.get('includeImportsWithCodeReferences') === true
 
         this.log('Configured CodeWhispererServiceToken instance settings:')
         this.log(

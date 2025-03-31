@@ -52,6 +52,8 @@ export abstract class CodeWhispererServiceBase {
     protected readonly codeWhispererRegion
     protected readonly codeWhispererEndpoint
     public shareCodeWhispererContentWithAWS = false
+    public includeSuggestionsWithCodeReferences = false
+    public includeImportsWithCodeReferences = false
     public customizationArn?: string
     public profileArn?: string
     abstract client: CodeWhispererSigv4Client | CodeWhispererTokenClient
