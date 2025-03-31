@@ -4,6 +4,8 @@ import * as path from 'path'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 import { sanitize } from '@aws/lsp-core/out/util/path'
 
+// Port of https://github.com/aws/aws-toolkit-vscode/blob/10bb1c7dc45f128df14d749d95905c0e9b808096/packages/core/src/codewhispererChat/tools/fsWrite.ts#L42
+
 interface BaseParams {
     path: string
 }
@@ -107,8 +109,6 @@ export class FsWrite {
 
     private async handleCreate(params: CreateParams, sanitizedPath: string): Promise<void> {
         const content = this.getCreateCommandText(params)
-
-        const fileExists = await this.workspace.fs.exists(sanitizedPath)
 
         await this.workspace.fs.writeFile(sanitizedPath, content)
     }

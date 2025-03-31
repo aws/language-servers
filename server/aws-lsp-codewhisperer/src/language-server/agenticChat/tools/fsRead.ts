@@ -8,6 +8,8 @@ import * as path from 'path'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 import { sanitize } from '@aws/lsp-core/out/util/path'
 
+// Port of https://github.com/aws/aws-toolkit-vscode/blob/10bb1c7dc45f128df14d749d95905c0e9b808096/packages/core/src/codewhispererChat/tools/fsRead.ts#L17
+
 export interface FsReadParams {
     path: string
     readRange?: number[]
