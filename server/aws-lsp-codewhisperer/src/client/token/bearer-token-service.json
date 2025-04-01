@@ -116,28 +116,14 @@
                 "method": "POST",
                 "requestUri": "/"
             },
-            "input": {
-                "shape": "CreateWorkspaceRequest"
-            },
-            "output": {
-                "shape": "CreateWorkspaceResponse"
-            },
+            "input": { "shape": "CreateWorkspaceRequest" },
+            "output": { "shape": "CreateWorkspaceResponse" },
             "errors": [
-                {
-                    "shape": "ThrottlingException"
-                },
-                {
-                    "shape": "ConflictException"
-                },
-                {
-                    "shape": "InternalServerException"
-                },
-                {
-                    "shape": "ValidationException"
-                },
-                {
-                    "shape": "AccessDeniedException"
-                }
+                { "shape": "ThrottlingException" },
+                { "shape": "ConflictException" },
+                { "shape": "InternalServerException" },
+                { "shape": "ValidationException" },
+                { "shape": "AccessDeniedException" }
             ],
             "documentation": "<p>Create a workspace based on a workspace root</p>"
         },
@@ -178,25 +164,13 @@
                 "method": "POST",
                 "requestUri": "/"
             },
-            "input": {
-                "shape": "DeleteWorkspaceRequest"
-            },
-            "output": {
-                "shape": "DeleteWorkspaceResponse"
-            },
+            "input": { "shape": "DeleteWorkspaceRequest" },
+            "output": { "shape": "DeleteWorkspaceResponse" },
             "errors": [
-                {
-                    "shape": "ThrottlingException"
-                },
-                {
-                    "shape": "InternalServerException"
-                },
-                {
-                    "shape": "ValidationException"
-                },
-                {
-                    "shape": "AccessDeniedException"
-                }
+                { "shape": "ThrottlingException" },
+                { "shape": "InternalServerException" },
+                { "shape": "ValidationException" },
+                { "shape": "AccessDeniedException" }
             ],
             "documentation": "<p>Delete a workspace based on a workspaceId</p>"
         },
@@ -446,25 +420,13 @@
                 "method": "POST",
                 "requestUri": "/"
             },
-            "input": {
-                "shape": "ListAvailableProfilesRequest"
-            },
-            "output": {
-                "shape": "ListAvailableProfilesResponse"
-            },
+            "input": { "shape": "ListAvailableProfilesRequest" },
+            "output": { "shape": "ListAvailableProfilesResponse" },
             "errors": [
-                {
-                    "shape": "ThrottlingException"
-                },
-                {
-                    "shape": "InternalServerException"
-                },
-                {
-                    "shape": "ValidationException"
-                },
-                {
-                    "shape": "AccessDeniedException"
-                }
+                { "shape": "ThrottlingException" },
+                { "shape": "InternalServerException" },
+                { "shape": "ValidationException" },
+                { "shape": "AccessDeniedException" }
             ]
         },
         "ListCodeAnalysisFindings": {
@@ -532,25 +494,13 @@
                 "method": "POST",
                 "requestUri": "/"
             },
-            "input": {
-                "shape": "ListWorkspaceMetadataRequest"
-            },
-            "output": {
-                "shape": "ListWorkspaceMetadataResponse"
-            },
+            "input": { "shape": "ListWorkspaceMetadataRequest" },
+            "output": { "shape": "ListWorkspaceMetadataResponse" },
             "errors": [
-                {
-                    "shape": "ThrottlingException"
-                },
-                {
-                    "shape": "InternalServerException"
-                },
-                {
-                    "shape": "ValidationException"
-                },
-                {
-                    "shape": "AccessDeniedException"
-                }
+                { "shape": "ThrottlingException" },
+                { "shape": "InternalServerException" },
+                { "shape": "ValidationException" },
+                { "shape": "AccessDeniedException" }
             ],
             "documentation": "<p>List workspace metadata based on a workspace root</p>"
         },
@@ -806,52 +756,6 @@
                 }
             ],
             "documentation": "<p>API to stop code transformation status.</p>"
-        },
-        "CreateWorkspace": {
-            "name": "CreateWorkspace",
-            "http": {
-                "method": "POST",
-                "requestUri": "/"
-            },
-            "input": { "shape": "CreateWorkspaceRequest" },
-            "output": { "shape": "CreateWorkspaceResponse" },
-            "errors": [
-                { "shape": "ThrottlingException" },
-                { "shape": "ConflictException" },
-                { "shape": "InternalServerException" },
-                { "shape": "ValidationException" },
-                { "shape": "AccessDeniedException" }
-            ]
-        },
-        "ListWorkspaceMetadata": {
-            "name": "ListWorkspaceMetadata",
-            "http": {
-                "method": "POST",
-                "requestUri": "/"
-            },
-            "input": { "shape": "ListWorkspaceMetadataRequest" },
-            "output": { "shape": "ListWorkspaceMetadataResponse" },
-            "errors": [
-                { "shape": "ThrottlingException" },
-                { "shape": "InternalServerException" },
-                { "shape": "ValidationException" },
-                { "shape": "AccessDeniedException" }
-            ]
-        },
-        "DeleteWorkspace": {
-            "name": "DeleteWorkspace",
-            "http": {
-                "method": "POST",
-                "requestUri": "/"
-            },
-            "input": { "shape": "DeleteWorkspaceRequest" },
-            "output": { "shape": "DeleteWorkspaceResponse" },
-            "errors": [
-                { "shape": "ThrottlingException" },
-                { "shape": "InternalServerException" },
-                { "shape": "ValidationException" },
-                { "shape": "AccessDeniedException" }
-            ]
         }
     },
     "shapes": {
@@ -876,9 +780,7 @@
         },
         "ActiveFunctionalityList": {
             "type": "list",
-            "member": {
-                "shape": "FunctionalityName"
-            },
+            "member": { "shape": "FunctionalityName" },
             "max": 10,
             "min": 0
         },
@@ -922,9 +824,7 @@
         },
         "AdditionalContentList": {
             "type": "list",
-            "member": {
-                "shape": "AdditionalContentEntry"
-            },
+            "member": { "shape": "AdditionalContentEntry" },
             "documentation": "<p>A list of additional content entries, limited to 20 items</p>",
             "max": 20,
             "min": 0
@@ -980,25 +880,15 @@
             "type": "structure",
             "required": ["tenantId", "applicationArn", "tenantUrl", "applicationType"],
             "members": {
-                "tenantId": {
-                    "shape": "TenantId"
-                },
-                "applicationArn": {
-                    "shape": "ResourceArn"
-                },
-                "tenantUrl": {
-                    "shape": "Url"
-                },
-                "applicationType": {
-                    "shape": "FunctionalityName"
-                }
+                "tenantId": { "shape": "TenantId" },
+                "applicationArn": { "shape": "ResourceArn" },
+                "tenantUrl": { "shape": "Url" },
+                "applicationType": { "shape": "FunctionalityName" }
             }
         },
         "ApplicationPropertiesList": {
             "type": "list",
-            "member": {
-                "shape": "ApplicationProperties"
-            }
+            "member": { "shape": "ApplicationProperties" }
         },
         "ArtifactId": {
             "type": "string",
@@ -1071,12 +961,8 @@
             "type": "structure",
             "required": ["toggle"],
             "members": {
-                "s3Uri": {
-                    "shape": "S3Uri"
-                },
-                "toggle": {
-                    "shape": "OptInFeatureToggle"
-                }
+                "s3Uri": { "shape": "S3Uri" },
+                "toggle": { "shape": "OptInFeatureToggle" }
             }
         },
         "ChatAddMessageEvent": {
@@ -1721,26 +1607,21 @@
             "type": "structure",
             "required": ["workspaceRoot"],
             "members": {
-                "workspaceRoot": {
-                    "shape": "CreateWorkspaceRequestWorkspaceRootString"
-                },
-                "profileArn": {
-                    "shape": "ProfileArn"
-                }
+                "workspaceRoot": { "shape": "CreateWorkspaceRequestWorkspaceRootString" },
+                "profileArn": { "shape": "ProfileArn" }
             }
         },
         "CreateWorkspaceRequestWorkspaceRootString": {
             "type": "string",
             "max": 1024,
-            "min": 1
+            "min": 1,
+            "sensitive": true
         },
         "CreateWorkspaceResponse": {
             "type": "structure",
             "required": ["workspace"],
             "members": {
-                "workspace": {
-                    "shape": "WorkspaceMetadata"
-                }
+                "workspace": { "shape": "WorkspaceMetadata" }
             }
         },
         "CursorState": {
@@ -1795,21 +1676,15 @@
             "type": "structure",
             "required": ["toggle"],
             "members": {
-                "toggle": {
-                    "shape": "OptInFeatureToggle"
-                }
+                "toggle": { "shape": "OptInFeatureToggle" }
             }
         },
         "DeleteTaskAssistConversationRequest": {
             "type": "structure",
             "required": ["conversationId"],
             "members": {
-                "conversationId": {
-                    "shape": "ConversationId"
-                },
-                "profileArn": {
-                    "shape": "ProfileArn"
-                }
+                "conversationId": { "shape": "ConversationId" },
+                "profileArn": { "shape": "ProfileArn" }
             },
             "documentation": "<p>Structure to represent bootstrap conversation request.</p>"
         },
@@ -1827,12 +1702,8 @@
             "type": "structure",
             "required": ["workspaceId"],
             "members": {
-                "workspaceId": {
-                    "shape": "UUID"
-                },
-                "profileArn": {
-                    "shape": "ProfileArn"
-                }
+                "workspaceId": { "shape": "UUID" },
+                "profileArn": { "shape": "ProfileArn" }
             }
         },
         "DeleteWorkspaceResponse": {
@@ -2407,36 +2278,16 @@
             "type": "structure",
             "required": ["fileContext"],
             "members": {
-                "fileContext": {
-                    "shape": "FileContext"
-                },
-                "maxResults": {
-                    "shape": "GenerateCompletionsRequestMaxResultsInteger"
-                },
-                "nextToken": {
-                    "shape": "GenerateCompletionsRequestNextTokenString"
-                },
-                "referenceTrackerConfiguration": {
-                    "shape": "ReferenceTrackerConfiguration"
-                },
-                "supplementalContexts": {
-                    "shape": "SupplementalContextList"
-                },
-                "customizationArn": {
-                    "shape": "CustomizationArn"
-                },
-                "optOutPreference": {
-                    "shape": "OptOutPreference"
-                },
-                "userContext": {
-                    "shape": "UserContext"
-                },
-                "profileArn": {
-                    "shape": "ProfileArn"
-                },
-                "workspaceId": {
-                    "shape": "UUID"
-                }
+                "fileContext": { "shape": "FileContext" },
+                "maxResults": { "shape": "GenerateCompletionsRequestMaxResultsInteger" },
+                "nextToken": { "shape": "GenerateCompletionsRequestNextTokenString" },
+                "referenceTrackerConfiguration": { "shape": "ReferenceTrackerConfiguration" },
+                "supplementalContexts": { "shape": "SupplementalContextList" },
+                "customizationArn": { "shape": "CustomizationArn" },
+                "optOutPreference": { "shape": "OptOutPreference" },
+                "userContext": { "shape": "UserContext" },
+                "profileArn": { "shape": "ProfileArn" },
+                "workspaceId": { "shape": "UUID" }
             }
         },
         "GenerateCompletionsRequestMaxResultsInteger": {
@@ -2896,35 +2747,24 @@
             "type": "structure",
             "required": ["workspaceRoot"],
             "members": {
-                "workspaceRoot": {
-                    "shape": "ListWorkspaceMetadataRequestWorkspaceRootString"
-                },
-                "nextToken": {
-                    "shape": "String"
-                },
-                "maxResults": {
-                    "shape": "Integer"
-                },
-                "profileArn": {
-                    "shape": "ProfileArn"
-                }
+                "workspaceRoot": { "shape": "ListWorkspaceMetadataRequestWorkspaceRootString" },
+                "nextToken": { "shape": "String" },
+                "maxResults": { "shape": "Integer" },
+                "profileArn": { "shape": "ProfileArn" }
             }
         },
         "ListWorkspaceMetadataRequestWorkspaceRootString": {
             "type": "string",
             "max": 1024,
-            "min": 1
+            "min": 1,
+            "sensitive": true
         },
         "ListWorkspaceMetadataResponse": {
             "type": "structure",
             "required": ["workspaces"],
             "members": {
-                "workspaces": {
-                    "shape": "WorkspaceList"
-                },
-                "nextToken": {
-                    "shape": "String"
-                }
+                "workspaces": { "shape": "WorkspaceList" },
+                "nextToken": { "shape": "String" }
             }
         },
         "Long": {
@@ -3003,21 +2843,11 @@
         "OptInFeatures": {
             "type": "structure",
             "members": {
-                "promptLogging": {
-                    "shape": "PromptLogging"
-                },
-                "byUserAnalytics": {
-                    "shape": "ByUserAnalytics"
-                },
-                "dashboardAnalytics": {
-                    "shape": "DashboardAnalytics"
-                },
-                "notifications": {
-                    "shape": "Notifications"
-                },
-                "workspaceContext": {
-                    "shape": "WorkspaceContext"
-                }
+                "promptLogging": { "shape": "PromptLogging" },
+                "byUserAnalytics": { "shape": "ByUserAnalytics" },
+                "dashboardAnalytics": { "shape": "DashboardAnalytics" },
+                "notifications": { "shape": "Notifications" },
+                "workspaceContext": { "shape": "WorkspaceContext" }
             }
         },
         "OptOutPreference": {
@@ -3465,15 +3295,9 @@
             "type": "structure",
             "required": ["instanceArn", "oidcClientId"],
             "members": {
-                "instanceArn": {
-                    "shape": "ResourceArn"
-                },
-                "oidcClientId": {
-                    "shape": "String"
-                },
-                "ssoRegion": {
-                    "shape": "SSORegion"
-                }
+                "instanceArn": { "shape": "ResourceArn" },
+                "oidcClientId": { "shape": "String" },
+                "ssoRegion": { "shape": "SSORegion" }
             }
         },
         "SSORegion": {
@@ -5206,45 +5030,42 @@
             "type": "structure",
             "required": ["toggle"],
             "members": {
-                "toggle": {
-                    "shape": "OptInFeatureToggle"
-                }
+                "toggle": { "shape": "OptInFeatureToggle" }
             }
         },
         "WorkspaceContextUploadContext": {
             "type": "structure",
             "required": ["workspaceId", "relativePath", "programmingLanguage"],
             "members": {
-                "workspaceId": {
-                    "shape": "UUID"
-                },
-                "relativePath": {
-                    "shape": "SensitiveString"
-                },
-                "programmingLanguage": {
-                    "shape": "ProgrammingLanguage"
-                }
+                "workspaceId": { "shape": "UUID" },
+                "relativePath": { "shape": "SensitiveString" },
+                "programmingLanguage": { "shape": "ProgrammingLanguage" }
             }
+        },
+        "WorkspaceFolderList": {
+            "type": "list",
+            "member": { "shape": "WorkspaceFolderListMemberString" },
+            "max": 100,
+            "min": 0
+        },
+        "WorkspaceFolderListMemberString": {
+            "type": "string",
+            "max": 4096,
+            "min": 1,
+            "sensitive": true
         },
         "WorkspaceList": {
             "type": "list",
-            "member": {
-                "shape": "WorkspaceMetadata"
-            }
+            "member": { "shape": "WorkspaceMetadata" }
         },
         "WorkspaceMetadata": {
             "type": "structure",
             "required": ["workspaceId", "workspaceStatus"],
             "members": {
-                "workspaceId": {
-                    "shape": "UUID"
-                },
-                "workspaceStatus": {
-                    "shape": "WorkspaceStatus"
-                },
-                "environmentId": {
-                    "shape": "SensitiveString"
-                }
+                "workspaceId": { "shape": "UUID" },
+                "workspaceStatus": { "shape": "WorkspaceStatus" },
+                "envrionmentAddress": { "shape": "SensitiveString" },
+                "environmentId": { "shape": "SensitiveString" }
             }
         },
         "WorkspaceState": {
@@ -5277,84 +5098,6 @@
             },
             "max": 100,
             "min": 0
-        },
-        "CreateWorkspaceRequest": {
-            "type": "structure",
-            "required": ["workspaceRoot"],
-            "members": {
-                "workspaceRoot": { "shape": "CreateWorkspaceRequestWorkspaceRootString" }
-            }
-        },
-        "CreateWorkspaceRequestWorkspaceRootString": {
-            "type": "string",
-            "max": 1024,
-            "min": 1
-        },
-        "CreateWorkspaceResponse": {
-            "type": "structure",
-            "required": ["workspace"],
-            "members": {
-                "workspace": { "shape": "WorkspaceMetadata" }
-            }
-        },
-        "WorkspaceMetadata": {
-            "type": "structure",
-            "required": ["workspaceId", "workspaceStatus"],
-            "members": {
-                "workspaceId": { "shape": "UUID" },
-                "workspaceStatus": { "shape": "WorkspaceStatus" },
-                "environmentId": { "shape": "SensitiveString" }
-            }
-        },
-        "WorkspaceStatus": {
-            "type": "string",
-            "enum": ["CREATED", "PENDING", "READY", "CONNECTED", "DELETING"]
-        },
-        "ListWorkspaceMetadataRequest": {
-            "type": "structure",
-            "required": ["workspaceRoot"],
-            "members": {
-                "workspaceRoot": { "shape": "ListWorkspaceMetadataRequestWorkspaceRootString" },
-                "nextToken": { "shape": "String" },
-                "maxResults": { "shape": "Integer" }
-            }
-        },
-        "ListWorkspaceMetadataRequestWorkspaceRootString": {
-            "type": "string",
-            "max": 1024,
-            "min": 1
-        },
-        "ListWorkspaceMetadataResponse": {
-            "type": "structure",
-            "required": ["workspaces"],
-            "members": {
-                "workspaces": { "shape": "WorkspaceList" },
-                "nextToken": { "shape": "String" }
-            }
-        },
-        "WorkspaceList": {
-            "type": "list",
-            "member": { "shape": "WorkspaceMetadata" }
-        },
-        "WorkspaceContextUploadContext": {
-            "type": "structure",
-            "required": ["workspaceId", "relativePath", "programmingLanguage"],
-            "members": {
-                "workspaceId": { "shape": "UUID" },
-                "relativePath": { "shape": "SensitiveString" },
-                "programmingLanguage": { "shape": "ProgrammingLanguage" }
-            }
-        },
-        "DeleteWorkspaceRequest": {
-            "type": "structure",
-            "required": ["workspaceId"],
-            "members": {
-                "workspaceId": { "shape": "UUID" }
-            }
-        },
-        "DeleteWorkspaceResponse": {
-            "type": "structure",
-            "members": {}
         }
     }
 }
