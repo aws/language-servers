@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import { AppendParams, CreateParams, FsWrite, InsertParams, StrReplaceParams } from './fsWrite'
-import { TestFolder } from '@aws/lsp-core'
+import { testFolder } from '@aws/lsp-core'
 import * as path from 'path'
 import * as assert from 'assert'
 import * as fs from 'fs/promises'
@@ -13,7 +13,7 @@ import { Workspace } from '@aws/language-server-runtimes/server-interface'
 import { StubbedInstance } from 'ts-sinon'
 
 describe('FsWrite Tool', function () {
-    let testFolder: TestFolder
+    let tempFolder: testFolder.TestFolder
     let features: TestFeatures
     const expectedOutput: InvokeOutput = {
         output: {
@@ -43,16 +43,16 @@ describe('FsWrite Tool', function () {
                         .catch(() => false),
             } as Workspace['fs'],
         } as StubbedInstance<Workspace>
-        testFolder = await TestFolder.create()
+        tempFolder = await testFolder.TestFolder.create()
     })
 
     after(async function () {
-        await testFolder.delete()
+        await tempFolder.delete()
     })
 
     describe('handleCreate', function () {
         it('creates a new file with fileText content', async function () {
-            const filePath = path.join(testFolder.path, 'file1.txt')
+            const filePath = path.join(tempFolder.path, 'file1.txt')
             const fileExists = await features.workspace.fs.exists(filePath)
             assert.ok(!fileExists)
 
@@ -71,7 +71,7 @@ describe('FsWrite Tool', function () {
         })
 
         it('replaces existing file with fileText content', async function () {
-            const filePath = path.join(testFolder.path, 'file1.txt')
+            const filePath = path.join(tempFolder.path, 'file1.txt')
             const fileExists = await features.workspace.fs.exists(filePath)
             assert.ok(fileExists)
 
@@ -90,7 +90,7 @@ describe('FsWrite Tool', function () {
         })
 
         it('uses newStr when fileText is not provided', async function () {
-            const filePath = path.join(testFolder.path, 'file2.txt')
+            const filePath = path.join(tempFolder.path, 'file2.txt')
 
             const params: CreateParams = {
                 command: 'create',
@@ -107,7 +107,7 @@ describe('FsWrite Tool', function () {
         })
 
         it('creates an empty file when no content is provided', async function () {
-            const filePath = path.join(testFolder.path, 'file3.txt')
+            const filePath = path.join(tempFolder.path, 'file3.txt')
 
             const params: CreateParams = {
                 command: 'create',
@@ -125,11 +125,11 @@ describe('FsWrite Tool', function () {
 
     describe('handleStrReplace', async function () {
         before(async function () {
-            testFolder = await TestFolder.create()
+            tempFolder = await testFolder.TestFolder.create()
         })
 
         it('replaces a single occurrence of a string', async function () {
-            const filePath = path.join(testFolder.path, 'file1.txt')
+            const filePath = path.join(tempFolder.path, 'file1.txt')
             await fs.writeFile(filePath, 'Hello World')
 
             const params: StrReplaceParams = {
@@ -148,7 +148,7 @@ describe('FsWrite Tool', function () {
         })
 
         it('throws error when no matches are found', async function () {
-            const filePath = path.join(testFolder.path, 'file1.txt')
+            const filePath = path.join(tempFolder.path, 'file1.txt')
 
             const params: StrReplaceParams = {
                 command: 'strReplace',
@@ -162,7 +162,7 @@ describe('FsWrite Tool', function () {
         })
 
         it('throws error when multiple matches are found', async function () {
-            const filePath = path.join(testFolder.path, 'file2.txt')
+            const filePath = path.join(tempFolder.path, 'file2.txt')
             await fs.writeFile(filePath, 'Hello Hello World')
 
             const params: StrReplaceParams = {
@@ -180,7 +180,7 @@ describe('FsWrite Tool', function () {
         })
 
         it('handles regular expression special characters correctly', async function () {
-            const filePath = path.join(testFolder.path, 'file3.txt')
+            const filePath = path.join(tempFolder.path, 'file3.txt')
             await fs.writeFile(filePath, 'Text with special chars: .*+?^${}()|[]\\')
 
             const params: StrReplaceParams = {
@@ -199,7 +199,7 @@ describe('FsWrite Tool', function () {
         })
 
         it('preserves whitespace and newlines during replacement', async function () {
-            const filePath = path.join(testFolder.path, 'file4.txt')
+            const filePath = path.join(tempFolder.path, 'file4.txt')
             await fs.writeFile(filePath, 'Line 1\n  Indented line\nLine 3')
 
             const params: StrReplaceParams = {
@@ -220,11 +220,11 @@ describe('FsWrite Tool', function () {
 
     describe('handleInsert', function () {
         before(async function () {
-            testFolder = await TestFolder.create()
+            tempFolder = await testFolder.TestFolder.create()
         })
 
         it('inserts text after the specified line number', async function () {
-            const filePath = path.join(testFolder.path, 'file1.txt')
+            const filePath = path.join(tempFolder.path, 'file1.txt')
             await fs.writeFile(filePath, 'Line 1\nLine 2\nLine 3\nLine 4')
 
             const params: InsertParams = {
@@ -243,7 +243,7 @@ describe('FsWrite Tool', function () {
         })
 
         it('inserts text at the beginning when line number is 0', async function () {
-            const filePath = path.join(testFolder.path, 'file1.txt')
+            const filePath = path.join(tempFolder.path, 'file1.txt')
             const params: InsertParams = {
                 command: 'insert',
                 path: filePath,
@@ -260,7 +260,7 @@ describe('FsWrite Tool', function () {
         })
 
         it('inserts text at the end when line number exceeds file length', async function () {
-            const filePath = path.join(testFolder.path, 'file1.txt')
+            const filePath = path.join(tempFolder.path, 'file1.txt')
             const params: InsertParams = {
                 command: 'insert',
                 path: filePath,
@@ -277,7 +277,7 @@ describe('FsWrite Tool', function () {
         })
 
         it('handles insertion into an empty file', async function () {
-            const filePath = path.join(testFolder.path, 'file2.txt')
+            const filePath = path.join(tempFolder.path, 'file2.txt')
             await fs.writeFile(filePath, '')
 
             const params: InsertParams = {
@@ -296,7 +296,7 @@ describe('FsWrite Tool', function () {
         })
 
         it('handles negative line numbers by inserting at the beginning', async function () {
-            const filePath = path.join(testFolder.path, 'file2.txt')
+            const filePath = path.join(tempFolder.path, 'file2.txt')
 
             const params: InsertParams = {
                 command: 'insert',
@@ -314,7 +314,7 @@ describe('FsWrite Tool', function () {
         })
 
         it('throws error when file does not exist', async function () {
-            const filePath = path.join(testFolder.path, 'nonexistent.txt')
+            const filePath = path.join(tempFolder.path, 'nonexistent.txt')
 
             const params: InsertParams = {
                 command: 'insert',
@@ -330,7 +330,7 @@ describe('FsWrite Tool', function () {
 
     describe('handleAppend', function () {
         it('appends text to the end of a file', async function () {
-            const filePath = path.join(testFolder.path, 'file1.txt')
+            const filePath = path.join(tempFolder.path, 'file1.txt')
             await fs.writeFile(filePath, 'Line 1\nLine 2\nLine 3\n')
 
             const params: AppendParams = {
@@ -349,7 +349,7 @@ describe('FsWrite Tool', function () {
         })
 
         it('adds a newline before appending if file does not end with one', async function () {
-            const filePath = path.join(testFolder.path, 'file2.txt')
+            const filePath = path.join(tempFolder.path, 'file2.txt')
             await fs.writeFile(filePath, 'Line 1\nLine 2\nLine 3')
 
             const params: AppendParams = {
@@ -368,7 +368,7 @@ describe('FsWrite Tool', function () {
         })
 
         it('appends to an empty file', async function () {
-            const filePath = path.join(testFolder.path, 'file3.txt')
+            const filePath = path.join(tempFolder.path, 'file3.txt')
             await fs.writeFile(filePath, '')
 
             const params: AppendParams = {
@@ -386,7 +386,7 @@ describe('FsWrite Tool', function () {
         })
 
         it('appends multiple lines correctly', async function () {
-            const filePath = path.join(testFolder.path, 'file3.txt')
+            const filePath = path.join(tempFolder.path, 'file3.txt')
 
             const params: AppendParams = {
                 command: 'append',
@@ -403,7 +403,7 @@ describe('FsWrite Tool', function () {
         })
 
         it('handles appending empty string', async function () {
-            const filePath = path.join(testFolder.path, 'file3.txt')
+            const filePath = path.join(tempFolder.path, 'file3.txt')
 
             const params: AppendParams = {
                 command: 'append',
@@ -420,7 +420,7 @@ describe('FsWrite Tool', function () {
         })
 
         it('throws error when file does not exist', async function () {
-            const filePath = path.join(testFolder.path, 'nonexistent.txt')
+            const filePath = path.join(tempFolder.path, 'nonexistent.txt')
 
             const params: AppendParams = {
                 command: 'append',

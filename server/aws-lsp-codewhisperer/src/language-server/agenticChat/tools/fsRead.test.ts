@@ -4,12 +4,12 @@ import * as path from 'path'
 import * as fs from 'fs/promises'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import { Workspace } from '@aws/language-server-runtimes/server-interface'
+import { testFolder } from '@aws/lsp-core'
 import { StubbedInstance } from 'ts-sinon'
-import { TestFolder } from '@aws/lsp-core'
 
 describe('FsRead Tool', () => {
     let features: TestFeatures
-    let testFolder: TestFolder
+    let tempFolder: testFolder.TestFolder
 
     const stdout = new WritableStream({
         write(chunk) {
@@ -32,15 +32,15 @@ describe('FsRead Tool', () => {
                         .catch(() => false),
             } as Workspace['fs'],
         } as StubbedInstance<Workspace>
-        testFolder = await TestFolder.create()
+        tempFolder = await testFolder.TestFolder.create()
     })
 
     after(async () => {
-        testFolder.delete()
+        tempFolder.delete()
     })
 
     afterEach(async () => {
-        testFolder.clear()
+        tempFolder.clear()
     })
 
     it('throws if path is empty', async () => {
@@ -50,7 +50,7 @@ describe('FsRead Tool', () => {
 
     it('reads entire file', async () => {
         const fileContent = 'Line 1\nLine 2\nLine 3'
-        const filePath = await testFolder.write('fullFile.txt', fileContent)
+        const filePath = await tempFolder.write('fullFile.txt', fileContent)
 
         const fsRead = new FsRead(features, { path: filePath })
         await fsRead.validate()
@@ -62,7 +62,7 @@ describe('FsRead Tool', () => {
 
     it('reads partial lines of a file', async () => {
         const fileContent = 'A\nB\nC\nD\nE\nF'
-        const filePath = await testFolder.write('partialFile.txt', fileContent)
+        const filePath = await tempFolder.write('partialFile.txt', fileContent)
 
         const fsRead = new FsRead(features, { path: filePath, readRange: [2, 4] })
         await fsRead.validate()
@@ -73,7 +73,7 @@ describe('FsRead Tool', () => {
     })
 
     it('throws error if path does not exist', async () => {
-        const filePath = path.join(testFolder.path, 'no_such_file.txt')
+        const filePath = path.join(tempFolder.path, 'no_such_file.txt')
         const fsRead = new FsRead(features, { path: filePath })
 
         await assert.rejects(
@@ -86,7 +86,7 @@ describe('FsRead Tool', () => {
     it('throws error if content exceeds 30KB', async function () {
         const bigContent = 'x'.repeat(35_000)
 
-        const filePath = await testFolder.write('bigFile.txt', bigContent)
+        const filePath = await tempFolder.write('bigFile.txt', bigContent)
 
         const fsRead = new FsRead(features, { path: filePath })
         await fsRead.validate()
@@ -99,7 +99,7 @@ describe('FsRead Tool', () => {
     })
 
     it('invalid line range', async () => {
-        const filePath = await testFolder.write('rangeTest.txt', '1\n2\n3')
+        const filePath = await tempFolder.write('rangeTest.txt', '1\n2\n3')
         const fsRead = new FsRead(features, { path: filePath, readRange: [3, 2] })
 
         await fsRead.validate()
