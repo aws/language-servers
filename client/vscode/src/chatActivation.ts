@@ -156,9 +156,7 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri, 
     })
 
     commands.registerCommand('aws.sample-vscode-ext-amazonq.sendInlineChat', data => {
-        const triggerType = getCommandTriggerType(data)
-        const selection = getSelectedText()
-        console.log('selection and triggerType for inline-chat', triggerType, selection)
+        // TODO: to add implementation of sendInlineChat
     })
 
     commands.registerCommand('aws.sample-vscode-ext-amazonq.openTab', data => {
