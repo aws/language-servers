@@ -7,7 +7,7 @@ import * as nodeUrl from 'url'
 import { BM25Document, BM25Okapi } from './rankBm25'
 import { crossFileContextConfig } from '../../models/constants'
 import { isTestFile } from './codeParsingUtil'
-import { getFileDistance } from '../filesystemUtilities'
+import { fileSystemUtils } from '@aws/lsp-core'
 import { CodeWhispererSupplementalContext, CodeWhispererSupplementalContextItem } from '../../models/model'
 import {
     CancellationToken,
@@ -259,7 +259,7 @@ export async function getCrossFileCandidates(document: TextDocument, workspace: 
             return {
                 file: candidate,
                 // PORT_TODO: port and test getFileDistance to work with LSP's URIs
-                fileDistance: getFileDistance(targetFile, candidate.uri),
+                fileDistance: fileSystemUtils.getFileDistance(targetFile, candidate.uri),
             }
         })
         .sort((file1: FileDistance, file2: FileDistance) => {

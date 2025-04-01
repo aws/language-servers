@@ -45,7 +45,12 @@ const PollTransformForPlanCommand = 'aws/qNetTransform/pollTransformForPlan'
 const GetTransformPlanCommand = 'aws/qNetTransform/getTransformPlan'
 const CancelTransformCommand = 'aws/qNetTransform/cancelTransform'
 const DownloadArtifactsCommand = 'aws/qNetTransform/downloadArtifacts'
-import { DEFAULT_AWS_Q_REGION, DEFAULT_AWS_Q_ENDPOINT_URL } from '../constants'
+import {
+    DEFAULT_AWS_Q_REGION,
+    DEFAULT_AWS_Q_ENDPOINT_URL,
+    AWS_Q_REGION_ENV_VAR,
+    AWS_Q_ENDPOINT_URL_ENV_VAR,
+} from '../constants'
 import { SDKInitializator } from '@aws/language-server-runtimes/server-interface'
 
 /**
@@ -67,8 +72,8 @@ export const QNetTransformServerToken =
         const codewhispererclient = service(
             credentialsProvider,
             workspace,
-            runtime.getConfiguration('AWS_Q_REGION') ?? DEFAULT_AWS_Q_REGION,
-            runtime.getConfiguration('AWS_Q_ENDPOINT_URL') ?? DEFAULT_AWS_Q_ENDPOINT_URL,
+            runtime.getConfiguration(AWS_Q_REGION_ENV_VAR) ?? DEFAULT_AWS_Q_REGION,
+            runtime.getConfiguration(AWS_Q_ENDPOINT_URL_ENV_VAR) ?? DEFAULT_AWS_Q_ENDPOINT_URL,
             sdkInitializator
         )
         const transformHandler = new TransformHandler(codewhispererclient, workspace, logging, runtime)
@@ -126,8 +131,8 @@ export const QNetTransformServerToken =
                         const cwStreamingClientInstance = new StreamingClient()
                         const cwStreamingClient = await cwStreamingClientInstance.getStreamingClient(
                             credentialsProvider,
-                            runtime.getConfiguration('AWS_Q_REGION') ?? DEFAULT_AWS_Q_REGION,
-                            runtime.getConfiguration('AWS_Q_ENDPOINT_URL') ?? DEFAULT_AWS_Q_ENDPOINT_URL,
+                            runtime.getConfiguration(AWS_Q_REGION_ENV_VAR) ?? DEFAULT_AWS_Q_REGION,
+                            runtime.getConfiguration(AWS_Q_ENDPOINT_URL_ENV_VAR) ?? DEFAULT_AWS_Q_ENDPOINT_URL,
                             sdkInitializator,
                             customCWClientConfig
                         )
