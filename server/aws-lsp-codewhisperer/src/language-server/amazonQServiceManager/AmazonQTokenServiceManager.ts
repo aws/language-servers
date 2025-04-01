@@ -234,7 +234,7 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
         // Connection type hasn't change.
 
         if (newConnectionType === this.connectionType) {
-            this.log('Connection type did not change.')
+            this.logging.debug(`Connection type did not change: ${this.connectionType}`)
 
             return
         }
