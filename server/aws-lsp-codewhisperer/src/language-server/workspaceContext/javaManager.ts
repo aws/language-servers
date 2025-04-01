@@ -1,11 +1,37 @@
 import * as fs from 'fs/promises'
 import * as path from 'path'
 import * as xml2js from 'xml2js'
-import { glob } from 'glob'
+import glob = require('fast-glob')
 import { create } from 'xmlbuilder2'
 import { FileMetadata } from './artifactManager'
 import { URI } from 'vscode-uri'
 import { WorkspaceFolder } from '@aws/language-server-runtimes/protocol'
+
+const IGNORE_PATTERNS = [
+    // Package management and git
+    '**/node_modules/**',
+    '**/.git/**',
+    // Build outputs
+    '**/dist/**',
+    '**/build/**',
+    '**/out/**',
+    // Test directories
+    '**/test/**',
+    '**/tests/**',
+    '**/coverage/**',
+    // Hidden directories and files
+    '**/.*/**',
+    '**/.*',
+    // Logs and temporary files
+    '**/logs/**',
+    '**/tmp/**',
+    // Environment and configuration
+    '**/env/**',
+    '**/venv/**',
+    '**/bin/**',
+    // Framework specific
+    '**/target/**', // Maven/Gradle builds
+]
 
 interface SourcePath {
     path: string
@@ -146,6 +172,7 @@ export class JavaProjectAnalyzer {
 
     private async findSourceDirectories(buildSystem: BuildSystem): Promise<SourcePath[]> {
         const directories: SourcePath[] = []
+        const seenPaths = new Set<string>()
 
         // Add default source directory based on build system
         const defaultSource =
@@ -156,6 +183,7 @@ export class JavaProjectAnalyzer {
                 path: defaultSource,
                 isOptional: false,
             })
+            seenPaths.add(defaultSource)
         }
 
         // Add generated sources
@@ -168,46 +196,146 @@ export class JavaProjectAnalyzer {
                 isOptional: true,
                 isGenerated: true,
             })
+            seenPaths.add(generatedDir)
         }
 
         // For Maven, parse pom.xml for additional source directories
         if (buildSystem === 'maven') {
             const additionalSources = await this.parseMavenSourceDirectories()
-            directories.push(...additionalSources)
+            for (const source of additionalSources) {
+                if (!seenPaths.has(source.path)) {
+                    directories.push(source)
+                    seenPaths.add(source.path)
+                }
+            }
         }
 
         // For Gradle, parse build.gradle for additional source directories
         if (buildSystem === 'gradle') {
             const additionalSources = await this.parseGradleSourceDirectories()
-            directories.push(...additionalSources)
+            for (const source of additionalSources) {
+                if (!seenPaths.has(source.path)) {
+                    directories.push(source)
+                    seenPaths.add(source.path)
+                }
+            }
+        }
+
+        // Always scan for potential source directories as a fallback
+        // This will help catch non-standard source locations
+        const potentialSources = await this.findPotentialSourceDirectories()
+        for (const source of potentialSources) {
+            if (!seenPaths.has(source.path)) {
+                directories.push(source)
+                seenPaths.add(source.path)
+            }
         }
 
         return directories
     }
 
+    private async findPotentialSourceDirectories(): Promise<SourcePath[]> {
+        const potentialSources: SourcePath[] = []
+        const seenPaths = new Set<string>()
+
+        const patterns = [
+            'src/**/*.java',
+            'source/**/*.java',
+            'java/**/*.java',
+            'main/**/*.java',
+            'app/**/*.java',
+            'test/**/*.java',
+        ]
+
+        for (const pattern of patterns) {
+            const javaFiles = await glob(pattern, {
+                cwd: this.workspacePath,
+                ignore: IGNORE_PATTERNS,
+            })
+
+            for (const file of javaFiles) {
+                // Find the directory containing the first package directory (usually 'com', 'org', etc.)
+                const fullPath = path.dirname(file)
+                const pathParts = fullPath.split(path.sep)
+
+                // Find index of first package directory (com, org, etc.)
+                const packageStartIndex = pathParts.findIndex(
+                    part => part === 'com' || part === 'org' || part === 'net' || part === 'java'
+                )
+
+                if (packageStartIndex > 0) {
+                    // The source root is the directory containing the package root
+                    const sourceDir = path.join(...pathParts.slice(0, packageStartIndex))
+
+                    if (!seenPaths.has(sourceDir)) {
+                        seenPaths.add(sourceDir)
+
+                        const isTest =
+                            sourceDir.toLowerCase().includes('test') || sourceDir.toLowerCase().includes('tst')
+                        const isGenerated = sourceDir.toLowerCase().includes('generated')
+
+                        potentialSources.push({
+                            path: sourceDir,
+                            isOptional: isGenerated || isTest,
+                            isGenerated,
+                        })
+                    }
+                }
+            }
+        }
+
+        // Validate directories
+        const validatedSources: SourcePath[] = []
+        for (const source of potentialSources) {
+            const hasJavaFiles = await this.hasJavaFiles(source.path)
+            if (hasJavaFiles) {
+                validatedSources.push(source)
+            }
+        }
+
+        return validatedSources
+    }
+
+    private async hasJavaFiles(directory: string): Promise<boolean> {
+        const javaFiles = await glob('**/*.java', {
+            cwd: path.join(this.workspacePath, directory),
+        })
+        return javaFiles.length > 0
+    }
+
     private async findTestDirectories(buildSystem: BuildSystem): Promise<SourcePath[]> {
         const directories: SourcePath[] = []
 
-        // Add default test directory based on build system
-        const defaultTest =
-            buildSystem === 'maven' ? this.defaultMavenStructure.tests : this.defaultGradleStructure.tests
+        // Define default test paths based on build system
+        let defaultTestPath: string
+        let generatedTestPath: string
 
-        if (await this.fileExists(defaultTest)) {
+        switch (buildSystem) {
+            case 'maven':
+                defaultTestPath = this.defaultMavenStructure.tests
+                generatedTestPath = this.defaultMavenStructure.generatedTest
+                break
+            case 'gradle':
+                defaultTestPath = this.defaultGradleStructure.tests
+                generatedTestPath = this.defaultGradleStructure.generatedTest
+                break
+            default:
+                defaultTestPath = 'test'
+                generatedTestPath = 'generated-test'
+        }
+
+        // Check main test directory
+        if (await this.fileExists(defaultTestPath)) {
             directories.push({
-                path: defaultTest,
+                path: defaultTestPath,
                 isOptional: false,
             })
         }
 
-        // Add generated test sources
-        const generatedTestDir =
-            buildSystem === 'maven'
-                ? this.defaultMavenStructure.generatedTest
-                : this.defaultGradleStructure.generatedTest
-
-        if (await this.fileExists(generatedTestDir)) {
+        // Check generated test sources
+        if (await this.fileExists(generatedTestPath)) {
             directories.push({
-                path: generatedTestDir,
+                path: generatedTestPath,
                 isOptional: true,
                 isGenerated: true,
             })
@@ -219,14 +347,21 @@ export class JavaProjectAnalyzer {
     private async findResourceDirectories(buildSystem: BuildSystem): Promise<SourcePath[]> {
         const directories: SourcePath[] = []
 
-        const defaultResources =
-            buildSystem === 'maven' ? this.defaultMavenStructure.resources : this.defaultGradleStructure.resources
+        const resourcePaths = {
+            maven: this.defaultMavenStructure.resources,
+            gradle: this.defaultGradleStructure.resources,
+            unknown: ['resources', 'src/resources', 'conf'],
+        }
 
-        if (await this.fileExists(defaultResources)) {
-            directories.push({
-                path: defaultResources,
-                isOptional: true,
-            })
+        const paths = resourcePaths[buildSystem] || resourcePaths.unknown
+
+        for (const resourcePath of paths) {
+            if (await this.fileExists(resourcePath)) {
+                directories.push({
+                    path: resourcePath,
+                    isOptional: true,
+                })
+            }
         }
 
         return directories
@@ -277,6 +412,7 @@ export class JavaProjectAnalyzer {
     }
 
     private async analyzeDependencies(buildSystem: BuildSystem): Promise<LibraryArtifact[]> {
+        console.log('Analyzing Java dependencies')
         const dependencies: LibraryArtifact[] = []
 
         if (buildSystem === 'maven') {
@@ -310,7 +446,7 @@ export class JavaProjectAnalyzer {
                 })
             }
         }
-
+        console.log('Finished analyzing Java dependencies')
         return dependencies
     }
 
@@ -341,11 +477,29 @@ export class JavaProjectAnalyzer {
     }
 
     private getOutputDirectory(buildSystem: BuildSystem): string {
-        return buildSystem === 'maven' ? 'target/classes' : 'build/classes/java/main'
+        switch (buildSystem) {
+            case 'maven':
+                return 'target/classes'
+            case 'gradle':
+                return 'build/classes/java/main'
+            case 'unknown':
+                return 'bin' // Common default for basic Java projects
+            default:
+                return 'out' // Fallback directory
+        }
     }
 
     private getTestOutputDirectory(buildSystem: BuildSystem): string {
-        return buildSystem === 'maven' ? 'target/test-classes' : 'build/classes/java/test'
+        switch (buildSystem) {
+            case 'maven':
+                return 'target/test-classes'
+            case 'gradle':
+                return 'build/classes/java/test'
+            case 'unknown':
+                return 'bin/test' // Common default for basic Java projects
+            default:
+                return 'out/test' // Fallback directory
+        }
     }
 
     private async fileExists(relativePath: string): Promise<boolean> {
@@ -464,11 +618,7 @@ export class EclipseConfigGenerator {
 
         // Add source folders
         for (const src of structure.sourceDirectories) {
-            const entry = classpath
-                .ele('classpathentry')
-                .att('kind', 'src')
-                .att('path', this.normalizePath(src.path))
-                .att('output', structure.outputDirectory)
+            const entry = classpath.ele('classpathentry').att('kind', 'src').att('path', this.normalizePath(src.path))
 
             if (src.isOptional) {
                 this.addAttribute(entry, ClasspathAttribute.OPTIONAL)
@@ -712,13 +862,15 @@ export class EclipseConfigGenerator {
 
     private async initializeProjectFiles(): Promise<void> {
         try {
+            console.log(`Initializing project files for workspace: ${this.workspacePath}`)
             const eclipseFiles = ['.project', '.classpath']
 
             for (const fileName of eclipseFiles) {
                 const pattern = path.join(this.workspacePath, '**', fileName)
                 const files = await glob(pattern, {
-                    ignore: ['**/node_modules/**', '**/target/**', '**/build/**', '**/.git/**'],
-                    nodir: true,
+                    ignore: IGNORE_PATTERNS,
+                    onlyFiles: true,
+                    followSymbolicLinks: false,
                     dot: true,
                 })
 
@@ -744,6 +896,7 @@ export class EclipseConfigGenerator {
                 }
 
                 this.projectFiles.set(fileName, fileMetadataArray)
+                console.log(`Finished initializing project files for workspace: ${this.workspacePath}`)
             }
         } catch (error) {
             console.error('Error initializing project files:', error)
