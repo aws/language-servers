@@ -2,7 +2,7 @@ import { Logging, Workspace } from '@aws/language-server-runtimes/server-interfa
 import * as archiver from 'archiver'
 import * as crypto from 'crypto'
 import * as fs from 'fs'
-import { CodeFile, Project, References, RequirementJson, StartTransformRequest } from './models'
+import { CodeFile, ExternalReference, Project, References, RequirementJson, StartTransformRequest } from './models'
 import path = require('path')
 const requriementJsonFileName = 'requirement.json'
 const artifactFolderName = 'artifact'
@@ -10,7 +10,7 @@ const referencesFolderName = 'references'
 const zipFileName = 'artifact.zip'
 const sourceCodeFolderName = 'sourceCode'
 const packagesFolderName = 'packages'
-const thirdPartyUpgradeFolderName = 'thirdPartyUpgrade'
+const thirdPartyPackageFolderName = 'thirdpartypackages'
 
 export class ArtifactManager {
     private workspace: Workspace
@@ -30,9 +30,6 @@ export class ArtifactManager {
 
         this.logging.log('Copying solution config files...')
         await this.copySolutionConfigFiles(request)
-
-        this.logging.log('Copying .NET compatible packages...')
-        await this.copyNetCompatiblePackages(request)
 
         this.logging.log('Removing duplicate NuGet packages folder...')
         await this.removeDuplicateNugetPackagesFolder(request)
@@ -139,24 +136,13 @@ export class ArtifactManager {
                         reference.AssemblyFullPath,
                         this.getWorkspaceReferencePathFromRelativePath(relativePath)
                     )
-                    var thirdPartyPackage = project.ThirdPartyPackages.find(
-                        p => p.FrameworkRelativePath == reference.RelativePath
-                    )
-                    if (thirdPartyPackage) {
-                        this.copyFile(
-                            thirdPartyPackage.CoreCompatibleRelativePath,
-                            this.getWorkspaceReferencePathFromRelativePath(thirdPartyPackage.CoreCompatibleRelativePath)
-                        )
-                    }
-                    references.push({
+                    let artifactReference: References = {
                         includedInArtifact: reference.IncludedInArtifact,
                         relativePath: relativePath,
-                        isThirdPartyPackage: thirdPartyPackage ? true : false,
-                        netCompatibleRelativePath: thirdPartyPackage
-                            ? thirdPartyPackage.CoreCompatibleRelativePath
-                            : undefined,
-                        netCompatibleVersion: thirdPartyPackage ? thirdPartyPackage.CoreCompatbileVersion : undefined,
-                    })
+                        isThirdPartyPackage: false,
+                    }
+                    this.processPrivatePackages(request, reference, artifactReference)
+                    references.push(artifactReference)
                 } catch (error) {
                     this.logging.log('Failed to process file: ' + error + reference.AssemblyFullPath)
                 }
@@ -170,21 +156,42 @@ export class ArtifactManager {
         })
         this.logging.log('Total project references: ' + projects.length)
 
-        const packageReferences =
-            request.PackageReferences?.map(pkg => ({
-                ...pkg,
-                NetCompatiblePackageDirectory: pkg.NetCompatiblePackageDirectory
-                    ? path.join(thirdPartyUpgradeFolderName, pkg.Id)
-                    : undefined,
-            })) || []
-
         return {
             EntryPath: this.normalizeSourceFileRelativePath(request.SolutionRootPath, request.SelectedProjectPath),
             SolutionPath: this.normalizeSourceFileRelativePath(request.SolutionRootPath, request.SolutionFilePath),
             Projects: projects,
             TransformNetStandardProjects: request.TransformNetStandardProjects,
-            PackageReferences: packageReferences,
         } as RequirementJson
+    }
+
+    private processPrivatePackages(
+        request: StartTransformRequest,
+        reference: ExternalReference,
+        artifactReference: References
+    ) {
+        var thirdPartyPackage = request.PackageReferences.find(
+            p => p.IsPrivatePackage && reference.RelativePath.includes(p.Id)
+        )
+        if (
+            thirdPartyPackage &&
+            thirdPartyPackage.NetCompatibleAssemblyRelativePath &&
+            thirdPartyPackage.NetCompatibleAssemblyPath
+        ) {
+            const privatePackageRelativePath = path
+                .join(
+                    referencesFolderName,
+                    thirdPartyPackageFolderName,
+                    thirdPartyPackage.NetCompatibleAssemblyRelativePath
+                )
+                .toLowerCase()
+            this.copyFile(
+                thirdPartyPackage.NetCompatibleAssemblyPath,
+                this.getWorkspaceReferencePathFromRelativePath(privatePackageRelativePath)
+            )
+            artifactReference.isThirdPartyPackage = true
+            artifactReference.netCompatibleRelativePath = privatePackageRelativePath
+            artifactReference.netCompatibleVersion = thirdPartyPackage.NetCompatiblePackageVersion
+        }
     }
 
     async zipArtifact(): Promise<string> {
@@ -283,75 +290,5 @@ export class ArtifactManager {
             this.logging.log('Failed to calculate hashcode: ' + filePath + error)
             return ''
         }
-    }
-
-    private async copyNetCompatiblePackages(request: StartTransformRequest) {
-        this.logging.log('Starting copyNetCompatiblePackages...')
-
-        if (!request.PackageReferences) {
-            this.logging.log('No package references found.')
-            return
-        }
-
-        this.logging.log(`Found ${request.PackageReferences.length} package references to process`)
-
-        for (const pkg of request.PackageReferences) {
-            const packageDir = pkg.NetCompatiblePackageDirectory
-            this.logging.log(`Processing package ${pkg.Id} with directory: ${packageDir}`)
-
-            if (packageDir && fs.existsSync(packageDir)) {
-                try {
-                    const targetBasePath = path.join(
-                        this.workspacePath,
-                        artifactFolderName,
-                        thirdPartyUpgradeFolderName,
-                        pkg.Id
-                    )
-
-                    this.logging.log(`Reading files from directory: ${packageDir}`)
-                    const files = this.getAllFiles(packageDir)
-                    this.logging.log(`Found ${files.length} files to copy for package ${pkg.Id}`)
-
-                    files.forEach(filePath => {
-                        const relativePath = path.relative(packageDir, filePath)
-                        const targetPath = path.join(targetBasePath, relativePath)
-
-                        this.logging.log(`Copying file from ${filePath} to ${targetPath}`)
-                        this.copyFile(filePath, targetPath)
-                    })
-
-                    const newPath = path.join(thirdPartyUpgradeFolderName, pkg.Id)
-                    this.logging.log(
-                        `Updating package reference path from ${pkg.NetCompatiblePackageDirectory} to ${newPath}`
-                    )
-                    pkg.NetCompatiblePackageDirectory = newPath
-
-                    this.logging.log(`Successfully processed package ${pkg.Id}`)
-                } catch (error) {
-                    this.logging.log(`Failed to copy .NET compatible package for ${pkg.Id}: ${error}`)
-                }
-            } else {
-                this.logging.log(`Skipping package ${pkg.Id} - directory not found or invalid: ${packageDir}`)
-            }
-        }
-    }
-
-    private getAllFiles(dirPath: string, arrayOfFiles: string[] = []): string[] {
-        this.logging.log(`Scanning directory: ${dirPath}`)
-        const files = fs.readdirSync(dirPath)
-        this.logging.log(`Found ${files.length} entries in directory`)
-
-        files.forEach(file => {
-            const filePath = path.join(dirPath, file)
-            if (fs.statSync(filePath).isDirectory()) {
-                this.logging.log(`Found subdirectory: ${filePath}`)
-                arrayOfFiles = this.getAllFiles(filePath, arrayOfFiles)
-            } else {
-                this.logging.log(`Found file: ${filePath}`)
-                arrayOfFiles.push(filePath)
-            }
-        })
-
-        return arrayOfFiles
     }
 }

@@ -77,7 +77,6 @@ export interface RequirementJson {
     SolutionPath: string
     Projects: Project[]
     TransformNetStandardProjects: boolean
-    PackageReferences: PackageReferenceMetadata[]
 }
 
 export interface ExternalReference {
@@ -85,12 +84,6 @@ export interface ExternalReference {
     RelativePath: string
     AssemblyFullPath: string
     IncludedInArtifact: boolean
-}
-
-export interface ThirdPartyPackage {
-    FrameworkRelativePath: string
-    CoreCompatibleRelativePath: string
-    CoreCompatbileVersion: string
 }
 
 export interface TransformProjectMetadata {
@@ -101,7 +94,6 @@ export interface TransformProjectMetadata {
     ProjectLanguage: string
     ProjectType: string
     ExternalReferences: ExternalReference[]
-    ThirdPartyPackages: ThirdPartyPackage[]
 }
 
 export interface Project {
@@ -128,6 +120,7 @@ export interface PackageReferenceMetadata {
     Id: string
     Versions: string[]
     IsPrivatePackage: boolean
-    NetCompatiblePackageDirectory?: string
     NetCompatiblePackageVersion?: string
+    NetCompatibleAssemblyPath?: string
+    NetCompatibleAssemblyRelativePath?: string
 }

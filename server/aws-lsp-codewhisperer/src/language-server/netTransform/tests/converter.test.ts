@@ -54,7 +54,6 @@ const sampleUserInputRequest: StartTransformRequest = {
             ExternalReferences: [],
             ProjectTargetFramework: '',
             SourceCodeFilePaths: [],
-            ThirdPartyPackages: [],
         },
     ],
     TransformNetStandardProjects: false,
