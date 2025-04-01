@@ -21,7 +21,7 @@ export class FsRead {
     private readonly logging: Features['logging']
     private readonly workspace: Features['workspace']
 
-    constructor(features: Pick<Features, 'workspace' | 'logging'>, params: FsReadParams) {
+    constructor(features: Pick<Features, 'workspace' | 'logging'> & Partial<Features>, params: FsReadParams) {
         this.fsPath = params.path
         this.readRange = params.readRange
         this.logging = features.logging

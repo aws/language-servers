@@ -41,7 +41,7 @@ export class FsWrite {
     private readonly workspace: Features['workspace']
 
     constructor(
-        features: Pick<Features, 'workspace' | 'logging'>,
+        features: Pick<Features, 'workspace' | 'logging'> & Partial<Features>,
         readonly params: FsWriteParams
     ) {
         this.fsPath = params.path
