@@ -310,4 +310,11 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     async deleteWorkspace(request: CodeWhispererTokenClient.DeleteWorkspaceRequest) {
         return this.client.deleteWorkspace(request).promise()
     }
+
+    /*
+     * @description get the list of feature evaluations
+     */
+    async listFeatureEvaluations(request: CodeWhispererTokenClient.ListFeatureEvaluationsRequest) {
+        return this.client.listFeatureEvaluations(request).promise()
+    }
 }
