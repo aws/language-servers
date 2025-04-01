@@ -6,9 +6,9 @@ export const FsToolsServer: Server = ({ workspace, logging, agent }) => {
     const fsReadTool = new FsRead({ workspace, logging })
     const fsWriteTool = new FsWrite({ workspace, logging })
 
-    agent.addTool(fsReadTool.getSpec(), fsReadTool.invoke)
+    agent.addTool(fsReadTool.getSpec(), (input: FsReadParams) => fsReadTool.invoke(input))
 
-    agent.addTool(fsWriteTool.getSpec(), fsWriteTool.invoke)
+    agent.addTool(fsWriteTool.getSpec(), (input: FsWriteParams) => fsWriteTool.invoke(input))
 
     return () => {}
 }
