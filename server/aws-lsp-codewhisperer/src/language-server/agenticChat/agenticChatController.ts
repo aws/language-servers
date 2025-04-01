@@ -25,6 +25,7 @@ import {
     TabAddParams,
     TabRemoveParams,
     TabChangeParams,
+    InlineChatParams,
 } from '@aws/language-server-runtimes/server-interface'
 import { v4 as uuid } from 'uuid'
 import {
@@ -213,6 +214,10 @@ export class AgenticChatController implements ChatHandlers {
                 err instanceof Error ? err.message : 'Unknown error occured during response stream'
             )
         }
+    }
+
+    async onInlineChatPrompt(params: InlineChatParams) {
+        return {}
     }
 
     async onCodeInsertToCursorPosition(params: InsertToCursorPositionParams) {

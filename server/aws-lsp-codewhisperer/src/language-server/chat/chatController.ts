@@ -218,7 +218,7 @@ export class ChatController implements ChatHandlers {
         params: InlineChatParams,
         token: CancellationToken
     ): Promise<ChatResult | ResponseError<ChatResult>> {
-        // TODO: This metric needs to be removed, just added for now to be able to create a ChatEventParser object
+        // TODO: This metric needs to be removed later, just added for now to be able to create a ChatEventParser object
         const metric = new Metric<AddMessageEvent>({
             cwsprChatConversationType: 'Chat',
         })
@@ -272,7 +272,7 @@ export class ChatController implements ChatHandlers {
             )
             return new ResponseError<ChatResult>(
                 LSPErrorCodes.RequestFailed,
-                err instanceof Error ? err.message : 'Unknown error occured during inline chat response stream'
+                err instanceof Error ? err.message : 'Unknown error occurred during inline chat response stream'
             )
         }
     }
@@ -459,10 +459,7 @@ export class ChatController implements ChatHandlers {
     }
 
     async #getInlineChatTriggerContext(params: InlineChatParams) {
-        let triggerContext: TriggerContext
-        triggerContext = await this.#triggerContext.getNewTriggerContextForInlineChat(params)
-        // TODO: check what to replace it with
-        // triggerContext.triggerType = this.#telemetryController.getCurrentTrigger(params.tabId) ?? 'click'
+        let triggerContext: TriggerContext = await this.#triggerContext.getNewTriggerContextForInlineChat(params)
         return triggerContext
     }
 
