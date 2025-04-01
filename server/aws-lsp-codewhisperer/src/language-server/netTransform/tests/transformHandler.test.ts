@@ -14,7 +14,7 @@ import * as fs from 'fs'
 import got from 'got'
 import { StubbedInstance, default as simon, stubInterface } from 'ts-sinon'
 import { StreamingClient, createStreamingClient } from '../../../client/streamingClient/codewhispererStreamingClient'
-import { CodeWhispererServiceToken } from '../../codeWhispererService'
+import { CodeWhispererServiceToken } from '../../../shared/codeWhispererService'
 import {
     CancelTransformRequest,
     CancellationJobStatus,
@@ -25,7 +25,7 @@ import {
 import { TransformHandler } from '../transformHandler'
 import { EXAMPLE_REQUEST } from './mockData'
 import sinon = require('sinon')
-import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../../../constants'
+import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../../../shared/constants'
 import { Service } from 'aws-sdk'
 import { ServiceConfigurationOptions } from 'aws-sdk/lib/service'
 

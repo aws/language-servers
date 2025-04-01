@@ -8,10 +8,10 @@ import {
     ServerConfigurationProvider,
 } from './qConfigurationServer'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
-import { CodeWhispererServiceToken } from '../codeWhispererService'
+import { CodeWhispererServiceToken } from '../../shared/codeWhispererService'
 import { InitializeParams, Server } from '@aws/language-server-runtimes/server-interface'
-import { AmazonQTokenServiceManager } from '../amazonQServiceManager/AmazonQTokenServiceManager'
-import { setCredentialsForAmazonQTokenServiceManagerFactory } from '../testUtils'
+import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
+import { setCredentialsForAmazonQTokenServiceManagerFactory } from '../../shared/testUtils'
 
 const getInitializeParams = (developerProfiles = true): InitializeParams => {
     return {

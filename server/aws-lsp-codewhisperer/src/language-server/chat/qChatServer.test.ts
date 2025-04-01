@@ -1,17 +1,12 @@
-/**
- * Copied from ../qChatServer.test.ts for the purpose of developing a divergent implementation.
- * Will be deleted or merged.
- */
-
 import { Server } from '@aws/language-server-runtimes/server-interface'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import sinon from 'ts-sinon'
-import { AgenticChatController } from './agenticChatController'
-import { ChatSessionManagementService } from '../chat/chatSessionManagementService'
-import { QAgenticChatServer } from './qAgenticChatServer'
+import { ChatController } from './chatController'
+import { ChatSessionManagementService } from './chatSessionManagementService'
+import { QChatServer } from './qChatServer'
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 
-describe('QAgenticChatServer', () => {
+describe('QChatServer', () => {
     const mockTabId = 'mockTabId'
     let disposeStub: sinon.SinonStub
     let withAmazonQServiceManagerSpy: sinon.SinonSpy
@@ -42,7 +37,7 @@ describe('QAgenticChatServer', () => {
         chatSessionManagementService = ChatSessionManagementService.getInstance()
         withAmazonQServiceManagerSpy = sinon.spy(chatSessionManagementService, 'withAmazonQServiceManager')
 
-        const chatServerFactory: Server = QAgenticChatServer()
+        const chatServerFactory: Server = QChatServer()
 
         disposeServer = chatServerFactory(testFeatures)
 
@@ -67,7 +62,7 @@ describe('QAgenticChatServer', () => {
     })
 
     it('calls the corresponding controller when tabAdd notification is received', () => {
-        const tabAddStub = sinon.stub(AgenticChatController.prototype, 'onTabAdd')
+        const tabAddStub = sinon.stub(ChatController.prototype, 'onTabAdd')
 
         testFeatures.chat.onTabAdd.firstCall.firstArg({ tabId: mockTabId })
 
@@ -75,7 +70,7 @@ describe('QAgenticChatServer', () => {
     })
 
     it('calls the corresponding controller when tabRemove notification is received', () => {
-        const tabRemoveStub = sinon.stub(AgenticChatController.prototype, 'onTabRemove')
+        const tabRemoveStub = sinon.stub(ChatController.prototype, 'onTabRemove')
 
         testFeatures.chat.onTabRemove.firstCall.firstArg({ tabId: mockTabId })
 
@@ -83,7 +78,7 @@ describe('QAgenticChatServer', () => {
     })
 
     it('calls the corresponding controller when endChat request is received', () => {
-        const endChatStub = sinon.stub(AgenticChatController.prototype, 'onEndChat')
+        const endChatStub = sinon.stub(ChatController.prototype, 'onEndChat')
 
         testFeatures.chat.onEndChat.firstCall.firstArg({ tabId: mockTabId })
 
@@ -91,7 +86,7 @@ describe('QAgenticChatServer', () => {
     })
 
     it('calls the corresponding controller when chatPrompt request is received', () => {
-        const chatPromptStub = sinon.stub(AgenticChatController.prototype, 'onChatPrompt')
+        const chatPromptStub = sinon.stub(ChatController.prototype, 'onChatPrompt')
 
         testFeatures.chat.onChatPrompt.firstCall.firstArg({ tabId: mockTabId, prompt: { prompt: 'Hello' } }, {})
 
