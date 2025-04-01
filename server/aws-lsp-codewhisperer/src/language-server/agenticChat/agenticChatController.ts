@@ -12,6 +12,7 @@ import {
     TextDocumentEdit,
     TextEdit,
     chatRequestType,
+    InlineChatParams,
 } from '@aws/language-server-runtimes/protocol'
 import {
     CancellationToken,
@@ -25,7 +26,6 @@ import {
     TabAddParams,
     TabRemoveParams,
     TabChangeParams,
-    InlineChatParams,
 } from '@aws/language-server-runtimes/server-interface'
 import { v4 as uuid } from 'uuid'
 import {
@@ -216,7 +216,10 @@ export class AgenticChatController implements ChatHandlers {
         }
     }
 
-    async onInlineChatPrompt(params: InlineChatParams): Promise<ChatResult | ResponseError<ChatResult>> {
+    async onInlineChatPrompt(
+        params: InlineChatParams,
+        token: CancellationToken
+    ): Promise<ChatResult | ResponseError<ChatResult>> {
         return {}
     }
 
