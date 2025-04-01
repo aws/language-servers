@@ -400,7 +400,7 @@ export class TransformHandler {
                 }
             } catch (extractError: any) {
                 if (extractError instanceof Error && 'code' in extractError && extractError.code === 'ENOENT') {
-                    this.logging.log(`File not found(ENOENT) error was ignored for file path : ${entry.entryName}`)
+                    this.logging.log(`Attempted to extract a file that does not exist : ${entry.entryName}`)
                 } else {
                     throw extractError
                 }

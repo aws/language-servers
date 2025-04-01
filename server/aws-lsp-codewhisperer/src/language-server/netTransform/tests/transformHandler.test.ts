@@ -402,7 +402,7 @@ describe('Test Transform handler ', () => {
 
             await transformHandler.extractAllEntriesTo(pathContainingArchive, zipEntries)
             expect(mockedLogging.log.args.flat()).to.include(
-                'File not found(ENOENT) error was ignored for file path : file1.txt'
+                'Attempted to extract a file that does not exist : file1.txt'
             )
         })
 
