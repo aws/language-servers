@@ -216,7 +216,7 @@ export class AgenticChatController implements ChatHandlers {
         }
     }
 
-    async onInlineChatPrompt(params: InlineChatParams) {
+    async onInlineChatPrompt(params: InlineChatParams): Promise<ChatResult | ResponseError<ChatResult>> {
         return {}
     }
 
