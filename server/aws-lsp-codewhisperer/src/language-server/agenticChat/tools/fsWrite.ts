@@ -43,6 +43,7 @@ export class FsWrite {
     }
 
     public async invoke(params: FsWriteParams): Promise<InvokeOutput> {
+        await this.validate(params)
         const sanitizedPath = sanitize(params.path)
 
         switch (params.command) {
@@ -162,7 +163,7 @@ export class FsWrite {
         return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
     }
 
-    public static getSpec() {
+    public getSpec() {
         return {
             name: 'fsWrite',
             description:

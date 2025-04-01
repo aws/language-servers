@@ -45,6 +45,7 @@ export class FsRead {
     }
 
     public async invoke(params: FsReadParams): Promise<InvokeOutput> {
+        await this.validate(params)
         try {
             const fileContents = await this.readFile(params.path)
             this.logging.info(`Read file: ${params.path}, size: ${fileContents.length}`)
@@ -115,7 +116,7 @@ export class FsRead {
         }
     }
 
-    public static getSpec() {
+    public getSpec() {
         return {
             name: 'fsRead',
             description:
