@@ -1,6 +1,4 @@
 import { InvokeOutput, OutputKind } from './toolShared'
-import { Writable } from 'stream'
-import * as path from 'path'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 import { sanitize } from '@aws/lsp-core/out/util/path'
 
@@ -49,7 +47,7 @@ export class FsWrite {
         this.workspace = features.workspace
     }
 
-    public async invoke(_updates: Writable): Promise<InvokeOutput> {
+    public async invoke(_updates: WritableStream): Promise<InvokeOutput> {
         const sanitizedPath = sanitize(this.params.path)
 
         switch (this.params.command) {
@@ -75,10 +73,10 @@ export class FsWrite {
         }
     }
 
-    public queueDescription(updates: Writable): void {
-        const fileName = path.basename(this.fsPath)
-        updates.write(`Writing to: [${fileName}](${this.params.path})`)
-        updates.end()
+    public async queueDescription(updates: WritableStream): Promise<void> {
+        const writer = updates.getWriter()
+        await writer.write(`Writing to: (${this.params.path})`)
+        await writer.close()
     }
 
     public async validate(): Promise<void> {

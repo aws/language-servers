@@ -3,8 +3,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import { InvokeOutput, maxToolResponseSize, OutputKind } from './toolShared'
-import { Writable } from 'stream'
-import * as path from 'path'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 import { sanitize } from '@aws/lsp-core/out/util/path'
 
@@ -50,27 +48,27 @@ export class FsRead {
         this.logging.log(`Validation succeeded for path: ${this.fsPath}`)
     }
 
-    public queueDescription(updates: Writable): void {
-        const fileName = path.basename(this.fsPath)
-        updates.write(`Reading file: [${fileName}](${this.fsPath}), `)
+    public async queueDescription(updates: WritableStream): Promise<void> {
+        const writer = updates.getWriter()
+        await writer.write(`Reading file: (${this.fsPath}), `)
 
         const [start, end] = this.readRange ?? []
 
         if (start && end) {
-            updates.write(`from line ${start} to ${end}`)
+            await writer.write(`from line ${start} to ${end}`)
         } else if (start) {
             if (start > 0) {
-                updates.write(`from line ${start} to end of file`)
+                await writer.write(`from line ${start} to end of file`)
             } else {
-                updates.write(`${start} line from the end of file to end of file`)
+                await writer.write(`${start} line from the end of file to end of file`)
             }
         } else {
-            updates.write('all lines')
+            await writer.write('all lines')
         }
-        updates.end()
+        await writer.close()
     }
 
-    public async invoke(_updates: Writable): Promise<InvokeOutput> {
+    public async invoke(_updates: WritableStream): Promise<InvokeOutput> {
         try {
             const fileContents = await this.readFile(this.fsPath)
             this.logging.info(`Read file: ${this.fsPath}, size: ${fileContents.length}`)
