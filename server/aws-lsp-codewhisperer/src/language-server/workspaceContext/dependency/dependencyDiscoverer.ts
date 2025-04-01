@@ -2,18 +2,11 @@ import * as path from 'path'
 import * as fs from 'fs'
 import { Logging, Workspace, WorkspaceFolder } from '@aws/language-server-runtimes/server-interface'
 import { URI } from 'vscode-uri'
-import * as xml2js from 'xml2js'
 import { DependencyHandlerFactory } from './dependencyHandler/LanguageDependencyHandlerFactory'
-import {
-    BaseDependencyInfo,
-    Dependency,
-    LanguageDependencyHandler,
-} from './dependencyHandler/LanguageDependencyHandler'
-import { CodewhispererLanguage, supportedWorkspaceContextLanguages } from '../../languageDetection'
-import { ArtifactManager, FileMetadata } from '../artifactManager'
+import { BaseDependencyInfo, LanguageDependencyHandler } from './dependencyHandler/LanguageDependencyHandler'
+import { supportedWorkspaceContextLanguages } from '../../languageDetection'
+import { ArtifactManager } from '../artifactManager'
 import { WorkspaceFolderManager } from '../workspaceFolderManager'
-
-const excludePatterns = [/^\./, /^node_modules$/, /^dist$/, /^build$/, /^test$/, /^bin$/, /^out$/, /^logs$/, /^env$/]
 
 export class DependencyDiscoverer {
     private workspace: Workspace
@@ -62,18 +55,29 @@ export class DependencyDiscoverer {
     }
 
     private shouldExcludeDirectory(dir: string): boolean {
-        return excludePatterns.some(pattern => pattern.test(dir))
+        const EXCLUDE_PATTERNS = [
+            /^\./,
+            /^node_modules$/,
+            /^dist$/,
+            /^build$/,
+            /^test$/,
+            /^bin$/,
+            /^out$/,
+            /^logs$/,
+            /^env$/,
+        ]
+
+        return EXCLUDE_PATTERNS.some(pattern => pattern.test(dir))
     }
 
     async searchDependencies(): Promise<void> {
         if (this.initialized) {
             return
         }
+        this.logging.log('Starting dependency search across workspace folders')
         this.initialized = true
-        this.logging.log(`number of workspace folders: ${this.workspaceFolders.length}`)
         for (const workspaceFolder of this.workspaceFolders) {
             const workspaceFolderPath = URI.parse(workspaceFolder.uri).path
-            this.logging.log(`Start to search dependencies under: ${workspaceFolderPath}`)
             const queue: { dir: string; depth: number }[] = [{ dir: workspaceFolderPath, depth: 0 }]
 
             while (queue.length > 0) {
@@ -92,14 +96,30 @@ export class DependencyDiscoverer {
                 }
 
                 try {
+                    // Check if currentDir is a symlink first
+                    const dirStats = await fs.promises.lstat(currentDir)
+                    if (dirStats.isSymbolicLink()) {
+                        this.logging.log(`Skipping symlink directory: ${currentDir}`)
+                        continue
+                    }
+
                     // Add sub directories to queue for later processing
                     const items = fs.readdirSync(currentDir)
                     for (const item of items) {
                         const itemPath = path.join(currentDir, item)
-                        // Skip node_modules and hidden directories
-                        if (!fs.statSync(itemPath).isDirectory() || this.shouldExcludeDirectory(item)) {
+                        const stats = await fs.promises.lstat(itemPath) // Use lstat instead of stat to detect symlinks
+
+                        // Skip if it's a symlink
+                        if (stats.isSymbolicLink()) {
+                            this.logging.log(`Skipping symlink: ${itemPath}`)
                             continue
                         }
+
+                        // Skip if it's not a directory or matches exclude patterns
+                        if (!stats.isDirectory() || this.shouldExcludeDirectory(item)) {
+                            continue
+                        }
+
                         queue.push({ dir: itemPath, depth: depth + 1 })
                     }
                 } catch (error: any) {
@@ -108,11 +128,14 @@ export class DependencyDiscoverer {
             }
         }
 
-        this.dependencyHandlerRegistry.forEach(async dependencyHandler => {
+        for (const dependencyHandler of this.dependencyHandlerRegistry) {
+            this.logging.log(`Initializing dependency map for ${dependencyHandler.language}`)
             dependencyHandler.initiateDependencyMap()
             dependencyHandler.setupWatchers()
+            this.logging.info(`Zipping dependency map for ${dependencyHandler.language}`)
             await dependencyHandler.zipDependencyMap()
-        })
+        }
+        this.logging.log('Dependency search completed successfully')
     }
 
     cleanup(): void {
@@ -134,9 +157,5 @@ export class DependencyDiscoverer {
         this.dependencyHandlerRegistry.forEach(dependencyHandler => {
             dependencyHandler.dispose()
         })
-    }
-
-    private log(...messages: string[]) {
-        this.logging.log(messages.join(' '))
     }
 }

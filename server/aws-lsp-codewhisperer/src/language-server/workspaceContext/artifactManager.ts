@@ -3,10 +3,10 @@ import * as fs from 'fs'
 import path = require('path')
 import { CodewhispererLanguage, getCodeWhispererLanguageIdFromPath } from '../languageDetection'
 import { URI } from 'vscode-uri'
-import * as walk from 'ignore-walk'
 import JSZip = require('jszip')
 import { EclipseConfigGenerator, JavaProjectAnalyzer } from './javaManager'
 import { isDirectory } from './util'
+import glob = require('fast-glob')
 
 export interface FileMetadata {
     filePath: string
@@ -25,6 +25,31 @@ export const SUPPORTED_WORKSPACE_CONTEXT_LANGUAGES: CodewhispererLanguage[] = [
     'java',
 ]
 const ARTIFACT_FOLDER_NAME = 'workspaceContextArtifacts'
+const IGNORE_PATTERNS = [
+    // Package management and git
+    '**/node_modules/**',
+    '**/.git/**',
+    // Build outputs
+    '**/dist/**',
+    '**/build/**',
+    '**/out/**',
+    // Test directories
+    '**/test/**',
+    '**/tests/**',
+    '**/coverage/**',
+    // Hidden directories and files
+    '**/.*/**',
+    '**/.*',
+    // Logs and temporary files
+    '**/logs/**',
+    '**/tmp/**',
+    // Environment and configuration
+    '**/env/**',
+    '**/venv/**',
+    '**/bin/**',
+    // Framework specific
+    '**/target/**', // Maven/Gradle builds
+]
 
 export class ArtifactManager {
     private workspace: Workspace
@@ -159,12 +184,15 @@ export class ArtifactManager {
         }
 
         if (isDirectory(filePath)) {
-            const files = await walk({
-                path: filePath,
-                ignoreFiles: ['.gitignore'],
-                follow: false,
-                includeEmpty: false,
+            const files = await glob(['**/*'], {
+                cwd: filePath,
+                dot: false,
+                ignore: IGNORE_PATTERNS,
+                followSymbolicLinks: false,
+                absolute: false,
+                onlyFiles: true,
             })
+
             for (const relativePath of files) {
                 const fullPath = path.join(filePath, relativePath)
                 try {
@@ -379,12 +407,16 @@ export class ArtifactManager {
     ): Promise<Map<CodewhispererLanguage, FileMetadata[]>> {
         const filesByLanguage = new Map<CodewhispererLanguage, FileMetadata[]>()
 
-        const files = await walk({
-            path: directoryPath,
-            ignoreFiles: ['.gitignore'],
-            follow: false,
-            includeEmpty: false,
+        this.log(`Processing directory for source code`)
+        const files = await glob(['**/*'], {
+            cwd: directoryPath,
+            dot: false,
+            ignore: IGNORE_PATTERNS,
+            followSymbolicLinks: false,
+            absolute: false,
+            onlyFiles: true,
         })
+        this.log(`Number of source files found before filtering: ${files.length}`)
 
         for (const relativePath of files) {
             const fullPath = path.join(directoryPath, relativePath)
@@ -539,7 +571,7 @@ export class ArtifactManager {
             this.filesByWorkspaceFolderAndLanguage.set(workspaceKey, new Map<CodewhispererLanguage, FileMetadata[]>())
         }
 
-        const workspaceMap = this.filesByWorkspaceFolderAndLanguage.get(workspaceFolder)!
+        const workspaceMap = this.filesByWorkspaceFolderAndLanguage.get(workspaceKey)!
         for (const [language, files] of filesByLanguage.entries()) {
             if (!workspaceMap.has(language)) {
                 workspaceMap.set(language, [])
@@ -560,7 +592,10 @@ export class ArtifactManager {
             // Genrate java .classpath and .project files
             const processedFiles =
                 language === 'java' ? await this.processJavaProjectConfig(workspaceFolder, files) : files
+
+            this.log(`Processing ${processedFiles.length} files for language ${language}`)
             const zipMetadata = await this.createZipForLanguage(workspaceFolder, language, processedFiles, relativePath)
+            this.log(`Created zip for language ${language}`)
             if (zipMetadata) {
                 zipFileMetadata.push(zipMetadata)
             }
