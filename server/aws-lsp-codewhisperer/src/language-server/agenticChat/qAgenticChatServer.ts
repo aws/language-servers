@@ -7,11 +7,11 @@ import { InitializeParams, Server } from '@aws/language-server-runtimes/server-i
 import { AgenticChatController } from './agenticChatController'
 import { ChatSessionManagementService } from '../chat/chatSessionManagementService'
 import { CLEAR_QUICK_ACTION, HELP_QUICK_ACTION } from '../chat/quickActions'
-import { TelemetryService } from '../telemetryService'
-import { makeUserContextObject } from '../utilities/telemetryUtils'
-import { AmazonQTokenServiceManager } from '../amazonQServiceManager/AmazonQTokenServiceManager'
-import { AmazonQServiceInitializationError } from '../amazonQServiceManager/errors'
-import { safeGet } from '../utils'
+import { TelemetryService } from '../../shared/telemetry/telemetryService'
+import { makeUserContextObject } from '../../shared/telemetryUtils'
+import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
+import { safeGet } from '../../shared/utils'
+import { AmazonQServiceInitializationError } from '../../shared/amazonQServiceManager/errors'
 
 export const QAgenticChatServer =
     // prettier-ignore
@@ -53,17 +53,17 @@ export const QAgenticChatServer =
                 .withAmazonQServiceManager(amazonQServiceManager)
 
             telemetryService = new TelemetryService(
-                    amazonQServiceManager,
-                    credentialsProvider,
-                    telemetry,
-                    logging,
-                )
+                amazonQServiceManager,
+                credentialsProvider,
+                telemetry,
+                logging,
+            )
 
-            const clientParams = safeGet(lsp.getClientInitializeParams(),new AmazonQServiceInitializationError(
-                    'TelemetryService initialized before LSP connection was initialized.'))
-            
+            const clientParams = safeGet(lsp.getClientInitializeParams(), new AmazonQServiceInitializationError(
+                'TelemetryService initialized before LSP connection was initialized.'))
+
             telemetryService.updateUserContext(makeUserContextObject(clientParams, runtime.platform, 'CHAT'))
-        
+
             chatController = new AgenticChatController(chatSessionManagementService, features, telemetryService)
 
             await updateConfigurationHandler()

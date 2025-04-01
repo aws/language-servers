@@ -12,6 +12,7 @@ import {
     TextDocumentEdit,
     TextEdit,
     chatRequestType,
+    InlineChatParams,
 } from '@aws/language-server-runtimes/protocol'
 import {
     CancellationToken,
@@ -32,22 +33,25 @@ import {
     ChatInteractionType,
     ChatTelemetryEventName,
     CombinedConversationEvent,
-} from '../telemetry/types'
+} from '../../shared/telemetry/types'
 import { Features, LspHandlers, Result } from '../types'
 import { ChatEventParser, ChatResultWithMetadata } from '../chat/chatEventParser'
 import { createAuthFollowUpResult, getAuthFollowUpType, getDefaultChatResponse } from '../chat/utils'
 import { ChatSessionManagementService } from '../chat/chatSessionManagementService'
 import { ChatTelemetryController } from '../chat/telemetry/chatTelemetryController'
 import { QuickAction } from '../chat/quickActions'
-import { Metric } from '../telemetry/metric'
-import { getErrorMessage, isAwsError, isNullish, isObject } from '../utils'
+import { Metric } from '../../shared/telemetry/metric'
+import { getErrorMessage, isAwsError, isNullish, isObject } from '../../shared/utils'
 import { QChatTriggerContext, TriggerContext } from '../chat/contexts/triggerContext'
 import { HELP_MESSAGE } from '../chat/constants'
 import { Q_CONFIGURATION_SECTION } from '../configuration/qConfigurationServer'
 import { textUtils } from '@aws/lsp-core'
-import { TelemetryService } from '../telemetryService'
-import { AmazonQServicePendingProfileError, AmazonQServicePendingSigninError } from '../amazonQServiceManager/errors'
-import { AmazonQTokenServiceManager } from '../amazonQServiceManager/AmazonQTokenServiceManager'
+import { TelemetryService } from '../../shared/telemetry/telemetryService'
+import {
+    AmazonQServicePendingProfileError,
+    AmazonQServicePendingSigninError,
+} from '../../shared/amazonQServiceManager/errors'
+import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 
 type ChatHandlers = Omit<LspHandlers<Chat>, 'openTab' | 'sendChatUpdate' | 'onFileClicked'>
 
@@ -213,6 +217,13 @@ export class AgenticChatController implements ChatHandlers {
                 err instanceof Error ? err.message : 'Unknown error occured during response stream'
             )
         }
+    }
+
+    async onInlineChatPrompt(
+        params: InlineChatParams,
+        token: CancellationToken
+    ): Promise<ChatResult | ResponseError<ChatResult>> {
+        return {}
     }
 
     async onCodeInsertToCursorPosition(params: InsertToCursorPositionParams) {

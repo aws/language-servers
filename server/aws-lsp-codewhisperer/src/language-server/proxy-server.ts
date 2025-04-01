@@ -1,9 +1,9 @@
-import { SecurityScanServerToken } from './codeWhispererSecurityScanServer'
-import { CodewhispererServerFactory } from './codeWhispererServer'
-import { CodeWhispererServiceIAM, CodeWhispererServiceToken } from './codeWhispererService'
-import { QNetTransformServerToken } from './netTransformServer'
-import { QChatServer } from './qChatServer'
 import { QAgenticChatServer } from './agenticChat/qAgenticChatServer'
+import { SecurityScanServerToken } from './securityScan/codeWhispererSecurityScanServer'
+import { CodewhispererServerFactory } from './inline-completion/codeWhispererServer'
+import { CodeWhispererServiceIAM, CodeWhispererServiceToken } from '../shared/codeWhispererService'
+import { QNetTransformServerToken } from './netTransform/netTransformServer'
+import { QChatServer } from './chat/qChatServer'
 import { QConfigurationServerToken } from './configuration/qConfigurationServer'
 
 export const CodeWhispererServerTokenProxy = CodewhispererServerFactory(
