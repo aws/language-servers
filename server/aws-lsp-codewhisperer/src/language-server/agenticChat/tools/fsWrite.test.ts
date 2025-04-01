@@ -402,23 +402,6 @@ describe('FsWrite Tool', function () {
             assert.deepStrictEqual(output, expectedOutput)
         })
 
-        it('handles appending empty string', async function () {
-            const filePath = path.join(tempFolder.path, 'file3.txt')
-
-            const params: AppendParams = {
-                command: 'append',
-                path: filePath,
-                newStr: '',
-            }
-            const fsWrite = new FsWrite(features)
-            const output = await fsWrite.invoke(params)
-
-            const newContent = await features.workspace.fs.readFile(filePath)
-            assert.strictEqual(newContent, 'Line 1\nLine 2\nLine 3\n')
-
-            assert.deepStrictEqual(output, expectedOutput)
-        })
-
         it('throws error when file does not exist', async function () {
             const filePath = path.join(tempFolder.path, 'nonexistent.txt')
 

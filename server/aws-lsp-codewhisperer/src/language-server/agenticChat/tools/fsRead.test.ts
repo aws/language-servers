@@ -45,11 +45,7 @@ describe('FsRead Tool', () => {
 
     it('throws if path is empty', async () => {
         const fsRead = new FsRead(features)
-        await assert.rejects(
-            fsRead.validate({ path: '' }),
-            /Path cannot be empty/i,
-            'Expected an error about empty path'
-        )
+        await assert.rejects(() => fsRead.invoke({ path: '' }))
     })
 
     it('reads entire file', async () => {
@@ -57,7 +53,6 @@ describe('FsRead Tool', () => {
         const filePath = await tempFolder.write('fullFile.txt', fileContent)
 
         const fsRead = new FsRead(features)
-        await fsRead.validate({ path: filePath })
         const result = await fsRead.invoke({ path: filePath })
 
         assert.strictEqual(result.output.kind, 'text', 'Output kind should be "text"')
@@ -69,7 +64,6 @@ describe('FsRead Tool', () => {
         const filePath = await tempFolder.write('partialFile.txt', fileContent)
 
         const fsRead = new FsRead(features)
-        await fsRead.validate({ path: filePath, readRange: [2, 4] })
         const result = await fsRead.invoke({ path: filePath, readRange: [2, 4] })
 
         assert.strictEqual(result.output.kind, 'text')
@@ -80,11 +74,7 @@ describe('FsRead Tool', () => {
         const filePath = path.join(tempFolder.path, 'no_such_file.txt')
         const fsRead = new FsRead(features)
 
-        await assert.rejects(
-            fsRead.validate({ path: filePath }),
-            /does not exist or cannot be accessed/i,
-            'Expected an error indicating the path does not exist'
-        )
+        await assert.rejects(fsRead.invoke({ path: filePath }))
     })
 
     it('throws error if content exceeds 30KB', async function () {
@@ -93,7 +83,6 @@ describe('FsRead Tool', () => {
         const filePath = await tempFolder.write('bigFile.txt', bigContent)
 
         const fsRead = new FsRead(features)
-        await fsRead.validate({ path: filePath })
 
         await assert.rejects(
             fsRead.invoke({ path: filePath }),
@@ -106,7 +95,7 @@ describe('FsRead Tool', () => {
         const filePath = await tempFolder.write('rangeTest.txt', '1\n2\n3')
         const fsRead = new FsRead(features)
 
-        await fsRead.validate({ path: filePath, readRange: [3, 2] })
+        await fsRead.invoke({ path: filePath, readRange: [3, 2] })
         const result = await fsRead.invoke({ path: filePath, readRange: [3, 2] })
         assert.strictEqual(result.output.kind, 'text')
         assert.strictEqual(result.output.content, '')

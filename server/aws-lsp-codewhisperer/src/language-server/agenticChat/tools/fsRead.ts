@@ -2,9 +2,9 @@
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
+import { sanitize } from '@aws/lsp-core/out/util/path'
 import { InvokeOutput, maxToolResponseSize } from './toolShared'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
-import { sanitize } from '@aws/lsp-core/out/util/path'
 
 // Port of https://github.com/aws/aws-toolkit-vscode/blob/10bb1c7dc45f128df14d749d95905c0e9b808096/packages/core/src/codewhispererChat/tools/fsRead.ts#L17
 
@@ -22,38 +22,11 @@ export class FsRead {
         this.workspace = features.workspace
     }
 
-    public async validate(params: FsReadParams): Promise<void> {
-        this.logging.log(`Validating fsPath: ${params.path}`)
-        if (!params.path || params.path.trim().length === 0) {
-            throw new Error('Path cannot be empty.')
-        }
-
-        const sanitized = sanitize(params.path)
-        params.path = sanitized
-
-        let fileExists: boolean
-        try {
-            fileExists = await this.workspace.fs.exists(params.path)
-            if (!fileExists) {
-                throw new Error(`Path: "${params.path}" does not exist or cannot be accessed.`)
-            }
-        } catch (err) {
-            throw new Error(`Path: "${params.path}" does not exist or cannot be accessed. (${err})`)
-        }
-
-        this.logging.log(`Validation succeeded for path: ${params.path}`)
-    }
-
     public async invoke(params: FsReadParams): Promise<InvokeOutput> {
-        await this.validate(params)
-        try {
-            const fileContents = await this.readFile(params.path)
-            this.logging.info(`Read file: ${params.path}, size: ${fileContents.length}`)
-            return this.handleFileRange(params, fileContents)
-        } catch (error: any) {
-            this.logging.error(`Failed to read "${params.path}": ${error.message || error}`)
-            throw new Error(`Failed to read "${params.path}": ${error.message || error}`)
-        }
+        const path = sanitize(params.path)
+        const fileContents = await this.readFile(path)
+        this.logging.info(`Read file: ${path}, size: ${fileContents.length}`)
+        return this.handleFileRange(params, fileContents)
     }
 
     private async readFile(filePath: string): Promise<string> {
