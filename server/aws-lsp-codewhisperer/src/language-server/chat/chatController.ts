@@ -3,6 +3,7 @@ import {
     ApplyWorkspaceEditParams,
     ErrorCodes,
     FeedbackParams,
+    InlineChatParams,
     InsertToCursorPositionParams,
     TextDocumentEdit,
     TextEdit,
@@ -208,6 +209,13 @@ export class ChatController implements ChatHandlers {
                 err instanceof Error ? err.message : 'Unknown error occured during response stream'
             )
         }
+    }
+
+    async onInlineChatPrompt(
+        params: InlineChatParams,
+        token: CancellationToken
+    ): Promise<ChatResult | ResponseError<ChatResult>> {
+        return {}
     }
 
     async onCodeInsertToCursorPosition(params: InsertToCursorPositionParams) {
