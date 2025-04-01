@@ -309,8 +309,8 @@ export const CodewhispererServerFactory =
                 sessionManager.discardSession(currentSession)
             }
             const codeWhispererService = amazonQServiceManager.getCodewhispererService()
-            includeSuggestionsWithCodeReferences = codeWhispererService.includeSuggestionsWithCodeReferences
-            includeImportsWithCodeReferences = codeWhispererService.includeImportsWithCodeReferences
+            includeSuggestionsWithCodeReferences = codeWhispererService.includeSuggestionsWithCodeReferences === true
+            includeImportsWithCodeReferences = codeWhispererService.includeImportsWithCodeReferences === true
 
             // prettier-ignore
             return workspace.getTextDocument(params.textDocument.uri).then(async textDocument => {
