@@ -12,6 +12,7 @@ import {
     TextDocumentEdit,
     TextEdit,
     chatRequestType,
+    InlineChatParams,
 } from '@aws/language-server-runtimes/protocol'
 import {
     CancellationToken,
@@ -213,6 +214,13 @@ export class AgenticChatController implements ChatHandlers {
                 err instanceof Error ? err.message : 'Unknown error occured during response stream'
             )
         }
+    }
+
+    async onInlineChatPrompt(
+        params: InlineChatParams,
+        token: CancellationToken
+    ): Promise<ChatResult | ResponseError<ChatResult>> {
+        return {}
     }
 
     async onCodeInsertToCursorPosition(params: InsertToCursorPositionParams) {
