@@ -56,10 +56,10 @@ export const QChatServer =
 
             const clientParams = safeGet(lsp.getClientInitializeParams(),new AmazonQServiceInitializationError(
                     'TelemetryService initialized before LSP connection was initialized.'))
-            
+
             telemetryService.updateUserContext(makeUserContextObject(clientParams, runtime.platform, 'CHAT'))
-        
-            chatController = new ChatController(chatSessionManagementService, features, telemetryService)
+
+            chatController = new ChatController(chatSessionManagementService, features, telemetryService, amazonQServiceManager)
 
             await updateConfigurationHandler()
         })
@@ -91,6 +91,11 @@ export const QChatServer =
         chat.onChatPrompt((...params) => {
             logging.log('Received chat prompt')
             return chatController.onChatPrompt(...params)
+        })
+
+        chat.onInlineChatPrompt((...params) => {
+            logging.log('Received inline chat prompt')
+            return chatController.onInlineChatPrompt(...params)
         })
 
         chat.onQuickAction((...params) => {

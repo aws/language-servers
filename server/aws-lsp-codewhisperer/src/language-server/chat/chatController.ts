@@ -12,6 +12,7 @@ import {
     CancellationToken,
     Chat,
     ChatParams,
+    InlineChatParams,
     ChatResult,
     EndChatParams,
     LSPErrorCodes,
@@ -53,17 +54,20 @@ export class ChatController implements ChatHandlers {
     #triggerContext: QChatTriggerContext
     #customizationArn?: string
     #telemetryService: TelemetryService
+    #amazonQServiceManager?: AmazonQTokenServiceManager
 
     constructor(
         chatSessionManagementService: ChatSessionManagementService,
         features: Features,
-        telemetryService: TelemetryService
+        telemetryService: TelemetryService,
+        amazonQServiceManager?: AmazonQTokenServiceManager
     ) {
         this.#features = features
         this.#chatSessionManagementService = chatSessionManagementService
         this.#triggerContext = new QChatTriggerContext(features.workspace, features.logging)
         this.#telemetryController = new ChatTelemetryController(features, telemetryService)
         this.#telemetryService = telemetryService
+        this.#amazonQServiceManager = amazonQServiceManager
     }
 
     dispose() {
@@ -206,6 +210,69 @@ export class ChatController implements ChatHandlers {
             return new ResponseError<ChatResult>(
                 LSPErrorCodes.RequestFailed,
                 err instanceof Error ? err.message : 'Unknown error occured during response stream'
+            )
+        }
+    }
+
+    async onInlineChatPrompt(
+        params: InlineChatParams,
+        token: CancellationToken
+    ): Promise<ChatResult | ResponseError<ChatResult>> {
+        // TODO: This metric needs to be removed, just added for now to be able to create a ChatEventParser object
+        const metric = new Metric<AddMessageEvent>({
+            cwsprChatConversationType: 'Chat',
+        })
+        const triggerContext = await this.#getInlineChatTriggerContext(params)
+
+        let response: SendMessageCommandOutput
+        let requestInput: SendMessageCommandInput
+
+        try {
+            const profileArn = AmazonQTokenServiceManager.getInstance(this.#features).getActiveProfileArn()
+            requestInput = this.#triggerContext.getInlineChatParamsFromTrigger(
+                params,
+                triggerContext,
+                this.#customizationArn,
+                profileArn
+            )
+
+            if (!this.#amazonQServiceManager) {
+                throw new Error('amazonQServiceManager is not initialized')
+            }
+
+            const client = this.#amazonQServiceManager.getStreamingClient()
+            response = await client.sendMessage(requestInput)
+            this.#log('Response for inline chat', JSON.stringify(response.$metadata), JSON.stringify(response))
+        } catch (err) {
+            if (err instanceof AmazonQServicePendingSigninError || err instanceof AmazonQServicePendingProfileError) {
+                this.#log(`Q Inline Chat SSO Connection error: ${getErrorMessage(err)}`)
+                return new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, err.message)
+            }
+            this.#log(`Q api request error ${err instanceof Error ? err.message : 'unknown'}`)
+            return new ResponseError<ChatResult>(
+                LSPErrorCodes.RequestFailed,
+                err instanceof Error ? err.message : 'Unknown request error'
+            )
+        }
+
+        try {
+            const result = await this.#processSendMessageResponseForInlineChat(
+                response,
+                metric,
+                params.partialResultToken
+            )
+
+            return result.success
+                ? result.data.chatResult
+                : new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, result.error)
+        } catch (err) {
+            this.#log(
+                'Error encountered during inline chat response streaming:',
+                err instanceof Error ? err.message : 'unknown'
+            )
+            return new ResponseError<ChatResult>(
+                LSPErrorCodes.RequestFailed,
+                err instanceof Error ? err.message : 'Unknown error occured during inline chat response stream'
             )
         }
     }
@@ -391,6 +458,14 @@ export class ChatController implements ChatHandlers {
         }
     }
 
+    async #getInlineChatTriggerContext(params: InlineChatParams) {
+        let triggerContext: TriggerContext
+        triggerContext = await this.#triggerContext.getNewTriggerContextForInlineChat(params)
+        // TODO: check what to replace it with
+        // triggerContext.triggerType = this.#telemetryController.getCurrentTrigger(params.tabId) ?? 'click'
+        return triggerContext
+    }
+
     async #getTriggerContext(params: ChatParams, metric: Metric<CombinedConversationEvent>) {
         const lastMessageTrigger = this.#telemetryController.getLastMessageTrigger(params.tabId)
 
@@ -450,6 +525,30 @@ export class ChatController implements ChatHandlers {
             cwsprChatSourceLinkCount: chatEventParser.totalEvents.supplementaryWebLinksEvent,
             cwsprChatResponseLength: chatEventParser.body?.length ?? 0,
         })
+
+        return chatEventParser.getResult()
+    }
+
+    async #processSendMessageResponseForInlineChat(
+        response: SendMessageCommandOutput,
+        metric: Metric<AddMessageEvent>,
+        partialResultToken?: string | number
+    ): Promise<Result<ChatResultWithMetadata, string>> {
+        const requestId = response.$metadata.requestId!
+        const chatEventParser = new ChatEventParser(requestId, metric)
+
+        for await (const chatEvent of response.sendMessageResponse!) {
+            const result = chatEventParser.processPartialEvent(chatEvent)
+
+            // terminate early when there is an error
+            if (!result.success) {
+                return result
+            }
+
+            if (!isNullish(partialResultToken)) {
+                await this.#features.lsp.sendProgress(chatRequestType, partialResultToken, result.data.chatResult)
+            }
+        }
 
         return chatEventParser.getResult()
     }

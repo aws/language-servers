@@ -1,6 +1,6 @@
 import { TriggerType } from '@aws/chat-client-ui-types'
 import { ChatTriggerType, SendMessageCommandInput, UserIntent } from '@amzn/codewhisperer-streaming'
-import { ChatParams, CursorState } from '@aws/language-server-runtimes/server-interface'
+import { ChatParams, CursorState, InlineChatParams } from '@aws/language-server-runtimes/server-interface'
 import { Features } from '../../types'
 import { DocumentContext, DocumentContextExtractor } from './documentContext'
 
@@ -27,6 +27,53 @@ export class QChatTriggerContext {
             ...documentContext,
             userIntent: this.#guessIntentFromPrompt(params.prompt.prompt),
         }
+    }
+
+    async getNewTriggerContextForInlineChat(params: InlineChatParams): Promise<TriggerContext> {
+        const documentContext: DocumentContext | undefined = await this.extractDocumentContext(params)
+
+        return {
+            ...documentContext,
+            userIntent: this.#guessIntentFromPrompt(params.prompt.prompt),
+        }
+    }
+
+    getInlineChatParamsFromTrigger(
+        params: InlineChatParams,
+        triggerContext: TriggerContext,
+        customizationArn?: string,
+        profileArn?: string
+    ): SendMessageCommandInput {
+        const { prompt } = params
+
+        const data: SendMessageCommandInput = {
+            conversationState: {
+                chatTriggerType: ChatTriggerType.INLINE_CHAT,
+                currentMessage: {
+                    userInputMessage: {
+                        content: prompt.escapedPrompt ?? prompt.prompt,
+                        userInputMessageContext:
+                            triggerContext.cursorState && triggerContext.relativeFilePath
+                                ? {
+                                      editorState: {
+                                          cursorState: triggerContext.cursorState,
+                                          document: {
+                                              text: triggerContext.text,
+                                              programmingLanguage: triggerContext.programmingLanguage,
+                                              relativeFilePath: triggerContext.relativeFilePath,
+                                          },
+                                      },
+                                  }
+                                : undefined,
+                        userIntent: triggerContext.userIntent,
+                    },
+                },
+                customizationArn,
+            },
+            profileArn,
+        }
+
+        return data
     }
 
     getChatParamsFromTrigger(
@@ -69,7 +116,7 @@ export class QChatTriggerContext {
 
     // public for testing
     async extractDocumentContext(
-        input: Pick<ChatParams, 'cursorState' | 'textDocument'>
+        input: Pick<ChatParams | InlineChatParams, 'cursorState' | 'textDocument'>
     ): Promise<DocumentContext | undefined> {
         const { textDocument: textDocumentIdentifier, cursorState } = input
 
