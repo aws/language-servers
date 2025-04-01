@@ -1,4 +1,4 @@
-import { InvokeOutput, OutputKind } from './toolShared'
+import { InvokeOutput } from './toolShared'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 import { sanitize } from '@aws/lsp-core/out/util/path'
 
@@ -62,7 +62,7 @@ export class FsWrite {
 
         return {
             output: {
-                kind: OutputKind.Text,
+                kind: 'text',
                 content: '',
             },
         }

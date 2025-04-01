@@ -7,7 +7,7 @@ import { testFolder } from '@aws/lsp-core'
 import * as path from 'path'
 import * as assert from 'assert'
 import * as fs from 'fs/promises'
-import { InvokeOutput, OutputKind } from './toolShared'
+import { InvokeOutput } from './toolShared'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import { Workspace } from '@aws/language-server-runtimes/server-interface'
 import { StubbedInstance } from 'ts-sinon'
@@ -17,7 +17,7 @@ describe('FsWrite Tool', function () {
     let features: TestFeatures
     const expectedOutput: InvokeOutput = {
         output: {
-            kind: OutputKind.Text,
+            kind: 'text',
             content: '',
         },
     }

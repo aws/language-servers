@@ -2,7 +2,7 @@
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
-import { InvokeOutput, maxToolResponseSize, OutputKind } from './toolShared'
+import { InvokeOutput, maxToolResponseSize } from './toolShared'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 import { sanitize } from '@aws/lsp-core/out/util/path'
 
@@ -109,7 +109,7 @@ export class FsRead {
     private createOutput(content: string): InvokeOutput {
         return {
             output: {
-                kind: OutputKind.Text,
+                kind: 'text',
                 content: content,
             },
         }
