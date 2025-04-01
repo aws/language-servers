@@ -58,7 +58,7 @@ describe('FsRead Tool', () => {
 
         const fsRead = new FsRead(features)
         await fsRead.validate({ path: filePath })
-        const result = await fsRead.invoke(stdout, { path: filePath })
+        const result = await fsRead.invoke({ path: filePath })
 
         assert.strictEqual(result.output.kind, 'text', 'Output kind should be "text"')
         assert.strictEqual(result.output.content, fileContent, 'File content should match exactly')
@@ -70,7 +70,7 @@ describe('FsRead Tool', () => {
 
         const fsRead = new FsRead(features)
         await fsRead.validate({ path: filePath, readRange: [2, 4] })
-        const result = await fsRead.invoke(stdout, { path: filePath, readRange: [2, 4] })
+        const result = await fsRead.invoke({ path: filePath, readRange: [2, 4] })
 
         assert.strictEqual(result.output.kind, 'text')
         assert.strictEqual(result.output.content, 'B\nC\nD')
@@ -96,7 +96,7 @@ describe('FsRead Tool', () => {
         await fsRead.validate({ path: filePath })
 
         await assert.rejects(
-            fsRead.invoke(stdout, { path: filePath }),
+            fsRead.invoke({ path: filePath }),
             /This tool only supports reading \d+ bytes at a time/i,
             'Expected a size-limit error'
         )
@@ -107,7 +107,7 @@ describe('FsRead Tool', () => {
         const fsRead = new FsRead(features)
 
         await fsRead.validate({ path: filePath, readRange: [3, 2] })
-        const result = await fsRead.invoke(stdout, { path: filePath, readRange: [3, 2] })
+        const result = await fsRead.invoke({ path: filePath, readRange: [3, 2] })
         assert.strictEqual(result.output.kind, 'text')
         assert.strictEqual(result.output.content, '')
     })
