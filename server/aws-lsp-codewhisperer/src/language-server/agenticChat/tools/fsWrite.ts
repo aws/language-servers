@@ -68,12 +68,6 @@ export class FsWrite {
         }
     }
 
-    public async queueDescription(updates: WritableStream, params: FsWriteParams): Promise<void> {
-        const writer = updates.getWriter()
-        await writer.write(`Writing to: (${params.path})`)
-        await writer.close()
-    }
-
     public async validate(params: FsWriteParams): Promise<void> {
         switch (params.command) {
             case 'create':
