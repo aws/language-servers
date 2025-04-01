@@ -61,8 +61,8 @@ describe('FsWrite Tool', function () {
                 fileText: 'Hello World',
                 path: filePath,
             }
-            const fsWrite = new FsWrite(features, params)
-            const output = await fsWrite.invoke(stdout)
+            const fsWrite = new FsWrite(features)
+            const output = await fsWrite.invoke(stdout, params)
 
             const content = await features.workspace.fs.readFile(filePath)
             assert.strictEqual(content, 'Hello World')
@@ -80,8 +80,8 @@ describe('FsWrite Tool', function () {
                 fileText: 'Goodbye',
                 path: filePath,
             }
-            const fsWrite = new FsWrite(features, params)
-            const output = await fsWrite.invoke(stdout)
+            const fsWrite = new FsWrite(features)
+            const output = await fsWrite.invoke(stdout, params)
 
             const content = await features.workspace.fs.readFile(filePath)
             assert.strictEqual(content, 'Goodbye')
@@ -97,8 +97,8 @@ describe('FsWrite Tool', function () {
                 newStr: 'Hello World',
                 path: filePath,
             }
-            const fsWrite = new FsWrite(features, params)
-            const output = await fsWrite.invoke(stdout)
+            const fsWrite = new FsWrite(features)
+            const output = await fsWrite.invoke(stdout, params)
 
             const content = await features.workspace.fs.readFile(filePath)
             assert.strictEqual(content, 'Hello World')
@@ -113,8 +113,8 @@ describe('FsWrite Tool', function () {
                 command: 'create',
                 path: filePath,
             }
-            const fsWrite = new FsWrite(features, params)
-            const output = await fsWrite.invoke(stdout)
+            const fsWrite = new FsWrite(features)
+            const output = await fsWrite.invoke(stdout, params)
 
             const content = await features.workspace.fs.readFile(filePath)
             assert.strictEqual(content, '')
@@ -138,8 +138,8 @@ describe('FsWrite Tool', function () {
                 oldStr: 'Hello',
                 newStr: 'Goodbye',
             }
-            const fsWrite = new FsWrite(features, params)
-            const output = await fsWrite.invoke(stdout)
+            const fsWrite = new FsWrite(features)
+            const output = await fsWrite.invoke(stdout, params)
 
             const content = await features.workspace.fs.readFile(filePath)
             assert.strictEqual(content, 'Goodbye World')
@@ -157,8 +157,8 @@ describe('FsWrite Tool', function () {
                 newStr: 'Goodbye',
             }
 
-            const fsWrite = new FsWrite(features, params)
-            await assert.rejects(() => fsWrite.invoke(stdout), /No occurrences of "Invalid" were found/)
+            const fsWrite = new FsWrite(features)
+            await assert.rejects(() => fsWrite.invoke(stdout, params), /No occurrences of "Invalid" were found/)
         })
 
         it('throws error when multiple matches are found', async function () {
@@ -172,9 +172,9 @@ describe('FsWrite Tool', function () {
                 newStr: 'Goodbye',
             }
 
-            const fsWrite = new FsWrite(features, params)
+            const fsWrite = new FsWrite(features)
             await assert.rejects(
-                () => fsWrite.invoke(stdout),
+                () => fsWrite.invoke(stdout, params),
                 /2 occurrences of oldStr were found when only 1 is expected/
             )
         })
@@ -189,8 +189,8 @@ describe('FsWrite Tool', function () {
                 oldStr: '.*+?^${}()|[]\\',
                 newStr: 'REPLACED',
             }
-            const fsWrite = new FsWrite(features, params)
-            const output = await fsWrite.invoke(stdout)
+            const fsWrite = new FsWrite(features)
+            const output = await fsWrite.invoke(stdout, params)
 
             const content = await features.workspace.fs.readFile(filePath)
             assert.strictEqual(content, 'Text with special chars: REPLACED')
@@ -208,8 +208,8 @@ describe('FsWrite Tool', function () {
                 oldStr: '  Indented line\n',
                 newStr: '    Double indented\n',
             }
-            const fsWrite = new FsWrite(features, params)
-            const output = await fsWrite.invoke(stdout)
+            const fsWrite = new FsWrite(features)
+            const output = await fsWrite.invoke(stdout, params)
 
             const content = await features.workspace.fs.readFile(filePath)
             assert.strictEqual(content, 'Line 1\n    Double indented\nLine 3')
@@ -233,8 +233,8 @@ describe('FsWrite Tool', function () {
                 insertLine: 2,
                 newStr: 'New Line',
             }
-            const fsWrite = new FsWrite(features, params)
-            const output = await fsWrite.invoke(stdout)
+            const fsWrite = new FsWrite(features)
+            const output = await fsWrite.invoke(stdout, params)
 
             const newContent = await features.workspace.fs.readFile(filePath)
             assert.strictEqual(newContent, 'Line 1\nLine 2\nNew Line\nLine 3\nLine 4')
@@ -250,8 +250,8 @@ describe('FsWrite Tool', function () {
                 insertLine: 0,
                 newStr: 'New First Line',
             }
-            const fsWrite = new FsWrite(features, params)
-            const output = await fsWrite.invoke(stdout)
+            const fsWrite = new FsWrite(features)
+            const output = await fsWrite.invoke(stdout, params)
 
             const newContent = await features.workspace.fs.readFile(filePath)
             assert.strictEqual(newContent, 'New First Line\nLine 1\nLine 2\nNew Line\nLine 3\nLine 4')
@@ -267,8 +267,8 @@ describe('FsWrite Tool', function () {
                 insertLine: 10,
                 newStr: 'New Last Line',
             }
-            const fsWrite = new FsWrite(features, params)
-            const output = await fsWrite.invoke(stdout)
+            const fsWrite = new FsWrite(features)
+            const output = await fsWrite.invoke(stdout, params)
 
             const newContent = await features.workspace.fs.readFile(filePath)
             assert.strictEqual(newContent, 'New First Line\nLine 1\nLine 2\nNew Line\nLine 3\nLine 4\nNew Last Line')
@@ -286,8 +286,8 @@ describe('FsWrite Tool', function () {
                 insertLine: 0,
                 newStr: 'First Line',
             }
-            const fsWrite = new FsWrite(features, params)
-            const output = await fsWrite.invoke(stdout)
+            const fsWrite = new FsWrite(features)
+            const output = await fsWrite.invoke(stdout, params)
 
             const newContent = await features.workspace.fs.readFile(filePath)
             assert.strictEqual(newContent, 'First Line\n')
@@ -304,8 +304,8 @@ describe('FsWrite Tool', function () {
                 insertLine: -1,
                 newStr: 'New First Line',
             }
-            const fsWrite = new FsWrite(features, params)
-            const output = await fsWrite.invoke(stdout)
+            const fsWrite = new FsWrite(features)
+            const output = await fsWrite.invoke(stdout, params)
 
             const newContent = await features.workspace.fs.readFile(filePath)
             assert.strictEqual(newContent, 'New First Line\nFirst Line\n')
@@ -323,8 +323,8 @@ describe('FsWrite Tool', function () {
                 newStr: 'New Line',
             }
 
-            const fsWrite = new FsWrite(features, params)
-            await assert.rejects(() => fsWrite.invoke(stdout), /no such file or directory/)
+            const fsWrite = new FsWrite(features)
+            await assert.rejects(() => fsWrite.invoke(stdout, params), /no such file or directory/)
         })
     })
 
@@ -339,8 +339,8 @@ describe('FsWrite Tool', function () {
                 newStr: 'Line 4',
             }
 
-            const fsWrite = new FsWrite(features, params)
-            const output = await fsWrite.invoke(stdout)
+            const fsWrite = new FsWrite(features)
+            const output = await fsWrite.invoke(stdout, params)
 
             const newContent = await features.workspace.fs.readFile(filePath)
             assert.strictEqual(newContent, 'Line 1\nLine 2\nLine 3\nLine 4')
@@ -358,8 +358,8 @@ describe('FsWrite Tool', function () {
                 newStr: 'Line 4',
             }
 
-            const fsWrite = new FsWrite(features, params)
-            const output = await fsWrite.invoke(stdout)
+            const fsWrite = new FsWrite(features)
+            const output = await fsWrite.invoke(stdout, params)
 
             const newContent = await features.workspace.fs.readFile(filePath)
             assert.strictEqual(newContent, 'Line 1\nLine 2\nLine 3\nLine 4')
@@ -376,8 +376,8 @@ describe('FsWrite Tool', function () {
                 path: filePath,
                 newStr: 'Line 1',
             }
-            const fsWrite = new FsWrite(features, params)
-            const output = await fsWrite.invoke(stdout)
+            const fsWrite = new FsWrite(features)
+            const output = await fsWrite.invoke(stdout, params)
 
             const newContent = await features.workspace.fs.readFile(filePath)
             assert.strictEqual(newContent, 'Line 1')
@@ -393,8 +393,8 @@ describe('FsWrite Tool', function () {
                 path: filePath,
                 newStr: 'Line 2\nLine 3',
             }
-            const fsWrite = new FsWrite(features, params)
-            const output = await fsWrite.invoke(stdout)
+            const fsWrite = new FsWrite(features)
+            const output = await fsWrite.invoke(stdout, params)
 
             const newContent = await features.workspace.fs.readFile(filePath)
             assert.strictEqual(newContent, 'Line 1\nLine 2\nLine 3')
@@ -410,8 +410,8 @@ describe('FsWrite Tool', function () {
                 path: filePath,
                 newStr: '',
             }
-            const fsWrite = new FsWrite(features, params)
-            const output = await fsWrite.invoke(stdout)
+            const fsWrite = new FsWrite(features)
+            const output = await fsWrite.invoke(stdout, params)
 
             const newContent = await features.workspace.fs.readFile(filePath)
             assert.strictEqual(newContent, 'Line 1\nLine 2\nLine 3\n')
@@ -428,8 +428,8 @@ describe('FsWrite Tool', function () {
                 newStr: 'New Line',
             }
 
-            const fsWrite = new FsWrite(features, params)
-            await assert.rejects(() => fsWrite.invoke(stdout), /no such file or directory/)
+            const fsWrite = new FsWrite(features)
+            await assert.rejects(() => fsWrite.invoke(stdout, params), /no such file or directory/)
         })
     })
 })

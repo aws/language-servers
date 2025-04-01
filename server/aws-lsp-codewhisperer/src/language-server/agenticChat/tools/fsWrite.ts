@@ -34,34 +34,29 @@ export interface AppendParams extends BaseParams {
 export type FsWriteParams = CreateParams | StrReplaceParams | InsertParams | AppendParams
 
 export class FsWrite {
-    private fsPath: string
     private readonly logging: Features['logging']
     private readonly workspace: Features['workspace']
 
-    constructor(
-        features: Pick<Features, 'workspace' | 'logging'> & Partial<Features>,
-        readonly params: FsWriteParams
-    ) {
-        this.fsPath = params.path
+    constructor(features: Pick<Features, 'workspace' | 'logging'> & Partial<Features>) {
         this.logging = features.logging
         this.workspace = features.workspace
     }
 
-    public async invoke(_updates: WritableStream): Promise<InvokeOutput> {
-        const sanitizedPath = sanitize(this.params.path)
+    public async invoke(_updates: WritableStream, params: FsWriteParams): Promise<InvokeOutput> {
+        const sanitizedPath = sanitize(params.path)
 
-        switch (this.params.command) {
+        switch (params.command) {
             case 'create':
-                await this.handleCreate(this.params, sanitizedPath)
+                await this.handleCreate(params, sanitizedPath)
                 break
             case 'strReplace':
-                await this.handleStrReplace(this.params, sanitizedPath)
+                await this.handleStrReplace(params, sanitizedPath)
                 break
             case 'insert':
-                await this.handleInsert(this.params, sanitizedPath)
+                await this.handleInsert(params, sanitizedPath)
                 break
             case 'append':
-                await this.handleAppend(this.params, sanitizedPath)
+                await this.handleAppend(params, sanitizedPath)
                 break
         }
 
@@ -73,32 +68,32 @@ export class FsWrite {
         }
     }
 
-    public async queueDescription(updates: WritableStream): Promise<void> {
+    public async queueDescription(updates: WritableStream, params: FsWriteParams): Promise<void> {
         const writer = updates.getWriter()
-        await writer.write(`Writing to: (${this.params.path})`)
+        await writer.write(`Writing to: (${params.path})`)
         await writer.close()
     }
 
-    public async validate(): Promise<void> {
-        switch (this.params.command) {
+    public async validate(params: FsWriteParams): Promise<void> {
+        switch (params.command) {
             case 'create':
-                if (!this.params.path) {
+                if (!params.path) {
                     throw new Error('Path must not be empty')
                 }
                 break
             case 'strReplace':
             case 'insert': {
-                const fileExists = await this.workspace.fs.exists(this.params.path)
+                const fileExists = await this.workspace.fs.exists(params.path)
                 if (!fileExists) {
                     throw new Error('The provided path must exist in order to replace or insert contents into it')
                 }
                 break
             }
             case 'append':
-                if (!this.params.path) {
+                if (!params.path) {
                     throw new Error('Path must not be empty')
                 }
-                if (!this.params.newStr) {
+                if (!params.newStr) {
                     throw new Error('Content to append must not be empty')
                 }
                 break
