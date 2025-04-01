@@ -169,6 +169,9 @@ export class ArtifactManager {
         reference: ExternalReference,
         artifactReference: References
     ) {
+        if (!request.PackageReferences) {
+            return
+        }
         var thirdPartyPackage = request.PackageReferences.find(
             p => p.IsPrivatePackage && reference.RelativePath.includes(p.Id)
         )
