@@ -1,6 +1,6 @@
 import { TriggerType } from '@aws/chat-client-ui-types'
 import { ChatTriggerType, SendMessageCommandInput, UserIntent } from '@amzn/codewhisperer-streaming'
-import { ChatParams, CursorState } from '@aws/language-server-runtimes/server-interface'
+import { ChatParams, CursorState, InlineChatParams } from '@aws/language-server-runtimes/server-interface'
 import { Features } from '../../types'
 import { DocumentContext, DocumentContextExtractor } from './documentContext'
 
@@ -20,7 +20,7 @@ export class QChatTriggerContext {
         this.#documentContextExtractor = new DocumentContextExtractor({ logger, workspace })
     }
 
-    async getNewTriggerContext(params: ChatParams): Promise<TriggerContext> {
+    async getNewTriggerContext(params: ChatParams | InlineChatParams): Promise<TriggerContext> {
         const documentContext: DocumentContext | undefined = await this.extractDocumentContext(params)
 
         return {
@@ -30,8 +30,9 @@ export class QChatTriggerContext {
     }
 
     getChatParamsFromTrigger(
-        params: ChatParams,
+        params: ChatParams | InlineChatParams,
         triggerContext: TriggerContext,
+        chatTriggerType: ChatTriggerType,
         customizationArn?: string,
         profileArn?: string
     ): SendMessageCommandInput {
@@ -39,7 +40,7 @@ export class QChatTriggerContext {
 
         const data: SendMessageCommandInput = {
             conversationState: {
-                chatTriggerType: ChatTriggerType.MANUAL,
+                chatTriggerType: chatTriggerType,
                 currentMessage: {
                     userInputMessage: {
                         content: prompt.escapedPrompt ?? prompt.prompt,
@@ -69,7 +70,7 @@ export class QChatTriggerContext {
 
     // public for testing
     async extractDocumentContext(
-        input: Pick<ChatParams, 'cursorState' | 'textDocument'>
+        input: Pick<ChatParams | InlineChatParams, 'cursorState' | 'textDocument'>
     ): Promise<DocumentContext | undefined> {
         const { textDocument: textDocumentIdentifier, cursorState } = input
 

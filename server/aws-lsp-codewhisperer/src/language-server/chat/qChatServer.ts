@@ -59,7 +59,7 @@ export const QChatServer =
 
             telemetryService.updateUserContext(makeUserContextObject(clientParams, runtime.platform, 'CHAT'))
 
-            chatController = new ChatController(chatSessionManagementService, features, telemetryService)
+            chatController = new ChatController(chatSessionManagementService, features, telemetryService, amazonQServiceManager)
 
             await updateConfigurationHandler()
         })
@@ -91,6 +91,11 @@ export const QChatServer =
         chat.onChatPrompt((...params) => {
             logging.log('Received chat prompt')
             return chatController.onChatPrompt(...params)
+        })
+
+        chat.onInlineChatPrompt((...params) => {
+            logging.log('Received inline chat prompt')
+            return chatController.onInlineChatPrompt(...params)
         })
 
         chat.onQuickAction((...params) => {
