@@ -54,7 +54,10 @@ import {
 } from '../../shared/amazonQServiceManager/errors'
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 
-type ChatHandlers = Omit<LspHandlers<Chat>, 'openTab' | 'sendChatUpdate' | 'onFileClicked'>
+type ChatHandlers = Omit<
+    LspHandlers<Chat>,
+    'openTab' | 'sendChatUpdate' | 'onFileClicked' | 'onInlineChatPrompt' | 'sendContextCommands' | 'onCreatePrompt'
+>
 
 export class AgenticChatController implements ChatHandlers {
     #features: Features
