@@ -44,4 +44,11 @@ const worker = new Worker(
 
 // Start Language Client
 const client = new LanguageClient(worker)
-// await client.start()
+client
+    .start()
+    .then(() => {
+        console.log('Language Client started')
+    })
+    .catch(err => {
+        console.error('Error starting Language Client:', err)
+    })
