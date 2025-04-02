@@ -20,65 +20,19 @@ export class QChatTriggerContext {
         this.#documentContextExtractor = new DocumentContextExtractor({ logger, workspace })
     }
 
-    async getNewTriggerContext(params: ChatParams): Promise<TriggerContext> {
+    async getNewTriggerContext(params: ChatParams | InlineChatParams): Promise<TriggerContext> {
         const documentContext: DocumentContext | undefined = await this.extractDocumentContext(params)
 
         return {
             ...documentContext,
             userIntent: this.#guessIntentFromPrompt(params.prompt.prompt),
         }
-    }
-
-    async getNewTriggerContextForInlineChat(params: InlineChatParams): Promise<TriggerContext> {
-        const documentContext: DocumentContext | undefined = await this.extractDocumentContext(params)
-
-        return {
-            ...documentContext,
-            userIntent: this.#guessIntentFromPrompt(params.prompt.prompt),
-        }
-    }
-
-    getInlineChatParamsFromTrigger(
-        params: InlineChatParams,
-        triggerContext: TriggerContext,
-        customizationArn?: string,
-        profileArn?: string
-    ): SendMessageCommandInput {
-        const { prompt } = params
-
-        const data: SendMessageCommandInput = {
-            conversationState: {
-                chatTriggerType: ChatTriggerType.INLINE_CHAT,
-                currentMessage: {
-                    userInputMessage: {
-                        content: prompt.escapedPrompt ?? prompt.prompt,
-                        userInputMessageContext:
-                            triggerContext.cursorState && triggerContext.relativeFilePath
-                                ? {
-                                      editorState: {
-                                          cursorState: triggerContext.cursorState,
-                                          document: {
-                                              text: triggerContext.text,
-                                              programmingLanguage: triggerContext.programmingLanguage,
-                                              relativeFilePath: triggerContext.relativeFilePath,
-                                          },
-                                      },
-                                  }
-                                : undefined,
-                        userIntent: triggerContext.userIntent,
-                    },
-                },
-                customizationArn,
-            },
-            profileArn,
-        }
-
-        return data
     }
 
     getChatParamsFromTrigger(
-        params: ChatParams,
+        params: ChatParams | InlineChatParams,
         triggerContext: TriggerContext,
+        chatTriggerType: ChatTriggerType,
         customizationArn?: string,
         profileArn?: string
     ): SendMessageCommandInput {
@@ -86,7 +40,7 @@ export class QChatTriggerContext {
 
         const data: SendMessageCommandInput = {
             conversationState: {
-                chatTriggerType: ChatTriggerType.MANUAL,
+                chatTriggerType: chatTriggerType,
                 currentMessage: {
                     userInputMessage: {
                         content: prompt.escapedPrompt ?? prompt.prompt,

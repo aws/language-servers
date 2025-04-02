@@ -1,4 +1,4 @@
-import { SendMessageCommandInput, SendMessageCommandOutput } from '@amzn/codewhisperer-streaming'
+import { ChatTriggerType, SendMessageCommandInput, SendMessageCommandOutput } from '@amzn/codewhisperer-streaming'
 import {
     ApplyWorkspaceEditParams,
     ErrorCodes,
@@ -21,6 +21,7 @@ import {
     TabAddParams,
     TabRemoveParams,
     TabChangeParams,
+    InlineChatResult,
 } from '@aws/language-server-runtimes/server-interface'
 import { v4 as uuid } from 'uuid'
 import {
@@ -115,6 +116,7 @@ export class ChatController implements ChatHandlers {
             requestInput = this.#triggerContext.getChatParamsFromTrigger(
                 params,
                 triggerContext,
+                ChatTriggerType.MANUAL,
                 this.#customizationArn,
                 profileArn
             )
@@ -220,7 +222,7 @@ export class ChatController implements ChatHandlers {
     async onInlineChatPrompt(
         params: InlineChatParams,
         token: CancellationToken
-    ): Promise<ChatResult | ResponseError<ChatResult>> {
+    ): Promise<InlineChatResult | ResponseError<InlineChatResult>> {
         // TODO: This metric needs to be removed later, just added for now to be able to create a ChatEventParser object
         const metric = new Metric<AddMessageEvent>({
             cwsprChatConversationType: 'Chat',
@@ -232,9 +234,10 @@ export class ChatController implements ChatHandlers {
 
         try {
             const profileArn = AmazonQTokenServiceManager.getInstance(this.#features).getActiveProfileArn()
-            requestInput = this.#triggerContext.getInlineChatParamsFromTrigger(
+            requestInput = this.#triggerContext.getChatParamsFromTrigger(
                 params,
                 triggerContext,
+                ChatTriggerType.INLINE_CHAT,
                 this.#customizationArn,
                 profileArn
             )
@@ -266,7 +269,10 @@ export class ChatController implements ChatHandlers {
             )
 
             return result.success
-                ? result.data.chatResult
+                ? {
+                      ...result.data.chatResult,
+                      requestId: response.$metadata.requestId,
+                  }
                 : new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, result.error)
         } catch (err) {
             this.#log(
@@ -462,7 +468,7 @@ export class ChatController implements ChatHandlers {
     }
 
     async #getInlineChatTriggerContext(params: InlineChatParams) {
-        let triggerContext: TriggerContext = await this.#triggerContext.getNewTriggerContextForInlineChat(params)
+        let triggerContext: TriggerContext = await this.#triggerContext.getNewTriggerContext(params)
         return triggerContext
     }
 
