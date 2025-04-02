@@ -203,12 +203,16 @@ export const WorkspaceContextServer =
                 const isLoggedIn = isLoggedInUsingBearerToken(credentialsProvider)
                 if (isLoggedIn && !isWorkflowInitialized) {
                     isWorkflowInitialized = true
-                    logging.log(`Workflow initialized`)
+                    logging.log(`Workspace context Workflow initialized`)
+                    workspaceFolderManager
+                        .processNewWorkspaceFolders(workspaceFolders, {
+                            initialize: true,
+                        })
+                        .catch(error => {
+                            logging.error(`Error in processNewWorkspaceFolders: ${error}`)
+                        })
                     artifactManager.updateWorkspaceFolders(workspaceFolders)
                     await dependencyDiscoverer.searchDependencies()
-                    await workspaceFolderManager.processNewWorkspaceFolders(workspaceFolders, {
-                        initialize: true,
-                    })
                 } else if (!isLoggedIn) {
                     if (isWorkflowInitialized) {
                         // If user is not logged in but the workflow is marked as initialized, it means user was logged in and is now logged out
@@ -238,6 +242,7 @@ export const WorkspaceContextServer =
             }
             const result = workspaceFolderManager.getWorkspaceDetailsWithId(event.textDocument.uri, workspaceFolders)
             if (!result) {
+                logging.log(`No workspace found for ${event.textDocument.uri} discarding the save event`)
                 return
             }
             const { workspaceDetails, workspaceRoot } = result
@@ -292,8 +297,6 @@ export const WorkspaceContextServer =
                 } else {
                     filesMetadata = [await artifactManager.processNewFile(workspaceRoot, file.uri)]
                 }
-
-                logging.log(`Files metadata created: ${JSON.stringify(filesMetadata)}`)
 
                 for (const fileMetadata of filesMetadata) {
                     const s3Url = await workspaceFolderManager.uploadToS3(fileMetadata)
@@ -399,8 +402,6 @@ export const WorkspaceContextServer =
                     filesMetadata = [await artifactManager.processNewFile(workspaceRoot, file.newUri)]
                 }
 
-                logging.log(`Files metadata renamed: ${JSON.stringify(filesMetadata)}`)
-
                 for (const fileMetadata of filesMetadata) {
                     const s3Url = await workspaceFolderManager.uploadToS3(fileMetadata)
                     if (!s3Url) {
@@ -438,7 +439,7 @@ export const WorkspaceContextServer =
                 return
             }
             const workspaceFolder = workspaceFolderManager.getWorkspaceFolder(params.moduleName)
-            dependencyDiscoverer.handleDependencyUpdateFromLSP(
+            await dependencyDiscoverer.handleDependencyUpdateFromLSP(
                 JSON.parse(JSON.stringify(params))['programmingLanguage'],
                 params.paths,
                 workspaceFolder

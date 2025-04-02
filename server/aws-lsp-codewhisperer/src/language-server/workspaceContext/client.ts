@@ -94,9 +94,8 @@ export class WebSocketClient {
     }
 
     private flushMessageQueue(): void {
-        this.logging.log(`Flushing message queue of length ${this.messageQueue.length}, ${this.url}`)
+        this.logging.log(`Flushing ${this.messageQueue.length} queued events through websocket`)
         while (this.messageQueue.length > 0) {
-            this.logging.log(`Flushing ${this.messageQueue.length} queued events through websocket`)
             const message = this.messageQueue.shift()
             if (message) {
                 this.send(message)
@@ -132,7 +131,7 @@ export class WebSocketClient {
             this.ws.send(message)
         } else {
             this.messageQueue.push(message)
-            this.logging.warn('Message queued until connection is ready')
+            this.logging.warn(`Message queued until connection is ready, queue size: ${this.messageQueue.length}`)
         }
     }
 

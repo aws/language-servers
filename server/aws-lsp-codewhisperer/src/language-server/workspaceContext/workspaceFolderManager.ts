@@ -35,8 +35,8 @@ export class WorkspaceFolderManager {
     private static instance: WorkspaceFolderManager | undefined
     private workspaceFolders: WorkspaceFolder[]
     private credentialsProvider: CredentialsProvider
-    private readonly INITIAL_CHECK_INTERVAL = 5 * 1000 // 5 seconds
-    private readonly INITIAL_TIMEOUT = 5 * 60 * 1000 // 5 minutes
+    private readonly INITIAL_CHECK_INTERVAL = 40 * 1000 // 30 seconds
+    private readonly INITIAL_TIMEOUT = 2 * 60 * 1000 // 2 minutes
     private readonly CONTINUOUS_MONITOR_INTERVAL = 5 * 60 * 1000 // 5 minutes
     private monitorIntervals: Map<string, NodeJS.Timeout> = new Map()
 

@@ -9,11 +9,8 @@ import { ArtifactManager } from '../artifactManager'
 import { WorkspaceFolderManager } from '../workspaceFolderManager'
 
 export class DependencyDiscoverer {
-    private workspace: Workspace
     private logging: Logging
     private workspaceFolders: WorkspaceFolder[]
-    private artifactManager: ArtifactManager
-    private workspaceFolderManager: WorkspaceFolderManager
     private dependencyHandlerRegistry: LanguageDependencyHandler<BaseDependencyInfo>[] = []
     private initialized: boolean = false
 
@@ -24,11 +21,8 @@ export class DependencyDiscoverer {
         artifactManager: ArtifactManager,
         workspaceFolderManager: WorkspaceFolderManager
     ) {
-        this.workspace = workspace
         this.workspaceFolders = workspaceFolders
         this.logging = logging
-        this.artifactManager = artifactManager
-        this.workspaceFolderManager = workspaceFolderManager
 
         let jstsHandlerCreated = false
         supportedWorkspaceContextLanguages.forEach(language => {
