@@ -49,7 +49,10 @@ import {
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
 
-type ChatHandlers = Omit<LspHandlers<Chat>, 'openTab' | 'sendChatUpdate' | 'onFileClicked'>
+type ChatHandlers = Omit<
+    LspHandlers<Chat>,
+    'openTab' | 'sendChatUpdate' | 'onFileClicked' | 'onInlineChatPrompt' | 'sendContextCommands' | 'onCreatePrompt'
+>
 
 export class ChatController implements ChatHandlers {
     #features: Features
