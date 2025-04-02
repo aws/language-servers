@@ -177,6 +177,6 @@ export class FsWrite {
                 },
                 required: ['command', 'path'],
             },
-        }
+        } as const
     }
 }

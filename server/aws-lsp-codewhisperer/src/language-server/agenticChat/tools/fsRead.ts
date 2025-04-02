@@ -112,6 +112,6 @@ export class FsRead {
                 },
                 required: ['path'],
             },
-        }
+        } as const
     }
 }
