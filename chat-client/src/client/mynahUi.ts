@@ -34,7 +34,7 @@ export interface InboundChatApi {
     sendGenericCommand(params: GenericCommandParams): void
     showError(params: ErrorParams): void
     openTab(params: OpenTabParams): void
-    sendContextCommand(params: ContextCommandParams): void
+    sendContextCommands(params: ContextCommandParams): void
 }
 
 type ContextCommandGroups = MynahUIDataModel['contextCommands']
@@ -429,7 +429,7 @@ ${params.message}`,
         }
     }
 
-    const sendContextCommand = (params: ContextCommandParams) => {
+    const sendContextCommands = (params: ContextCommandParams) => {
         contextCommandGroups = params.contextCommandGroups
 
         Object.keys(mynahUi.getAllTabs()).forEach(tabId => {
@@ -445,7 +445,7 @@ ${params.message}`,
         sendGenericCommand: sendGenericCommand,
         showError: showError,
         openTab: openTab,
-        sendContextCommand: sendContextCommand,
+        sendContextCommands: sendContextCommands,
     }
 
     return [mynahUi, api]

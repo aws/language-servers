@@ -96,7 +96,7 @@ export const createChat = (
                 mynahApi.showError((message as ErrorMessage).params)
                 break
             case CONTEXT_COMMAND_NOTIFICATION_METHOD:
-                mynahApi.sendContextCommand(message.params as ContextCommandParams)
+                mynahApi.sendContextCommands(message.params as ContextCommandParams)
                 break
             case CHAT_OPTIONS: {
                 const params = (message as ChatOptionsMessage).params
