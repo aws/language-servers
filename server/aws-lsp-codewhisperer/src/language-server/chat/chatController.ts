@@ -468,8 +468,7 @@ export class ChatController implements ChatHandlers {
     }
 
     async #getInlineChatTriggerContext(params: InlineChatParams) {
-        let triggerContext: TriggerContext = await this.#triggerContext.getNewTriggerContext(params)
-        return triggerContext
+        return this.#triggerContext.getNewTriggerContext(params)
     }
 
     async #getTriggerContext(params: ChatParams, metric: Metric<CombinedConversationEvent>) {
