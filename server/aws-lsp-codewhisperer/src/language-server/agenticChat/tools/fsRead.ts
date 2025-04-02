@@ -95,7 +95,7 @@ export class FsRead {
             description:
                 'A tool for reading a file. \n* This tool returns the contents of a file, and the optional `readRange` determines what range of lines will be read from the specified file.',
             inputSchema: {
-                type: 'object' as 'object',
+                type: 'object',
                 parameters: {
                     path: {
                         description: 'Absolute path to a file, e.g. `/repo/file.py`.',
