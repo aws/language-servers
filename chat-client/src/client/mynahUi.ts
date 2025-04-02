@@ -306,10 +306,41 @@ export const createMynahUi = (
 
     const addChatResponse = (chatResult: ChatResult, tabId: string, isPartialResult: boolean) => {
         const { type, ...chatResultWithoutType } = chatResult
+        let header = undefined
+
+        if (chatResult.contextList !== undefined) {
+            header = {
+                fileList: {
+                    fileTreeTitle: '',
+                    filePaths: chatResult.contextList.filePaths?.map(file => file),
+                    rootFolderTitle: 'Context',
+                    flatList: true,
+                    collapsed: true,
+                    hideFileCount: true,
+                    details: Object.fromEntries(
+                        Object.entries(chatResult.contextList.details || {}).map(([filePath, fileDetails]) => [
+                            filePath,
+                            {
+                                label:
+                                    fileDetails.lineRanges
+                                        ?.map(range =>
+                                            range.first === -1 || range.second === -1
+                                                ? ''
+                                                : `line ${range.first} - ${range.second}`
+                                        )
+                                        .join(', ') || '',
+                                description: filePath,
+                                clickable: true,
+                            },
+                        ])
+                    ),
+                },
+            }
+        }
 
         if (isPartialResult) {
             // type for MynahUI differs from ChatResult types so we ignore it
-            mynahUi.updateLastChatAnswer(tabId, { ...chatResultWithoutType })
+            mynahUi.updateLastChatAnswer(tabId, { ...chatResultWithoutType, header: header })
             return
         }
 
@@ -345,6 +376,7 @@ export const createMynahUi = (
             : {}
 
         mynahUi.updateLastChatAnswer(tabId, {
+            header: header,
             body: chatResult.body,
             messageId: chatResult.messageId,
             followUp: followUps,

@@ -207,7 +207,7 @@ describe('Chat', () => {
         })
         window.dispatchEvent(chatEvent)
 
-        assert.calledOnceWithExactly(updateLastChatAnswerStub, tabId, { body })
+        assert.calledOnceWithExactly(updateLastChatAnswerStub, tabId, { body, header: undefined })
         assert.notCalled(endMessageStreamStub)
         assert.notCalled(updateStoreStub)
     })
