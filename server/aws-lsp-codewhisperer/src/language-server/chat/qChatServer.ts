@@ -1,25 +1,20 @@
-/**
- * Copied from ../qChatServer.ts for the purpose of developing a divergent implementation.
- * Will be deleted or merged.
- */
-
 import { InitializeParams, Server } from '@aws/language-server-runtimes/server-interface'
-import { AgenticChatController } from './agenticChatController'
-import { ChatSessionManagementService } from '../chat/chatSessionManagementService'
-import { CLEAR_QUICK_ACTION, HELP_QUICK_ACTION } from '../chat/quickActions'
+import { ChatController } from './chatController'
+import { ChatSessionManagementService } from './chatSessionManagementService'
+import { CLEAR_QUICK_ACTION, HELP_QUICK_ACTION } from './quickActions'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import { makeUserContextObject } from '../../shared/telemetryUtils'
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
-import { safeGet } from '../../shared/utils'
 import { AmazonQServiceInitializationError } from '../../shared/amazonQServiceManager/errors'
+import { safeGet } from '../../shared/utils'
 
-export const QAgenticChatServer =
+export const QChatServer =
     // prettier-ignore
     (): Server => features => {
         const { chat, credentialsProvider, telemetry, logging, lsp, runtime } = features
 
         let amazonQServiceManager: AmazonQTokenServiceManager
-        let chatController: AgenticChatController
+        let chatController: ChatController
         let chatSessionManagementService: ChatSessionManagementService
         let telemetryService: TelemetryService;
 
@@ -64,7 +59,7 @@ export const QAgenticChatServer =
 
             telemetryService.updateUserContext(makeUserContextObject(clientParams, runtime.platform, 'CHAT'))
 
-            chatController = new AgenticChatController(chatSessionManagementService, features, telemetryService)
+            chatController = new ChatController(chatSessionManagementService, features, telemetryService, amazonQServiceManager)
 
             await updateConfigurationHandler()
         })
@@ -96,6 +91,11 @@ export const QAgenticChatServer =
         chat.onChatPrompt((...params) => {
             logging.log('Received chat prompt')
             return chatController.onChatPrompt(...params)
+        })
+
+        chat.onInlineChatPrompt((...params) => {
+            logging.log('Received inline chat prompt')
+            return chatController.onInlineChatPrompt(...params)
         })
 
         chat.onQuickAction((...params) => {

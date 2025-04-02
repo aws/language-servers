@@ -44,4 +44,4 @@ const worker = new Worker(
 
 // Start Language Client
 const client = new LanguageClient(worker)
-await client.start()
+// await client.start()

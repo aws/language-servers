@@ -1,6 +1,6 @@
 import type * as ServerInterface from '@aws/language-server-runtimes/server-interface'
 import type * as ChatClientType from '@aws/chat-client-ui-types'
-import { isObject } from '../../utils'
+import { isObject } from '../../../shared/utils'
 
 export enum ChatUIEventName {
     EnterFocusChat = 'enterFocus',
