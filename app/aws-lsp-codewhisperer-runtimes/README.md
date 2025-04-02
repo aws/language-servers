@@ -60,6 +60,8 @@ The server is managed via scripts/dev-server.js, which ensures:
 - The process ID (PID) is stored for reliable termination.
 - A clean shutdown is executed on both Unix-based systems (Linux/macOS) and Windows.
 
+**NOTE**: Tests are currently disabled for Windows as we currently face issues with automatically shutting down devserver and cleaning resources after tests are executed.
+
 #### Tests configuration
 - Test settings are defined in `wdio.conf.ts`
 - The actual test implementation is in the `test/e2e` folder
