@@ -11,7 +11,7 @@
         "start": "cross-env NODE_OPTIONS=--max_old_space_size=8172 webpack serve"
     },
     "dependencies": {
-        "@aws/language-server-runtimes": "^0.2.50",
+        "@aws/language-server-runtimes": "^0.2.52",
         "@aws/lsp-codewhisperer": "*",
         "copyfiles": "^2.4.1",
         "cross-env": "^7.0.3",
