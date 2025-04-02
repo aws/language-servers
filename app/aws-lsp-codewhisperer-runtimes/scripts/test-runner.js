@@ -56,5 +56,10 @@ async function runTests() {
         }, 240000) // 240 seconds
     })
 }
-
-runTests().then(code => process.exit(code))
+if (process.platform !== 'win32') {
+    runTests().then(code => process.exit(code))
+} else {
+    console.log(
+        'Webworker browser runtime tests are currently enabled only for unix, with windows OS they are disabled as we currently face issues with automatically shutting down devserver and cleaning resources after tests are executed.'
+    )
+}

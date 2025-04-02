@@ -10,7 +10,7 @@
         "webpack": "webpack",
         "start": "cross-env NODE_OPTIONS=--max_old_space_size=8172 node scripts/dev-server.js start",
         "stop-dev-server": "node scripts/dev-server.js stop",
-        "test": "npm run package && node scripts/test-runner.js"
+        "test": "node scripts/test-runner.js"
     },
     "dependencies": {
         "@aws/language-server-runtimes": "^0.2.50",
@@ -30,7 +30,7 @@
         "webpack-dev-server": "^5.2.0"
     },
     "devDependencies": {
-        "@wdio/cli": "^9.12.1",
+        "@wdio/cli": "^9.12.2",
         "@wdio/local-runner": "^9.12.1",
         "@wdio/mocha-framework": "^9.12.1",
         "@wdio/spec-reporter": "^9.11.0",
