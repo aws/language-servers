@@ -23,21 +23,10 @@ export class ArtifactManager {
     }
 
     async createZip(request: StartTransformRequest): Promise<string> {
-        this.logging.log('Starting createZip process...')
-
-        this.logging.log('Creating requirement.json...')
         await this.createRequirementJson(request)
-
-        this.logging.log('Copying solution config files...')
         await this.copySolutionConfigFiles(request)
-
-        this.logging.log('Removing duplicate NuGet packages folder...')
         await this.removeDuplicateNugetPackagesFolder(request)
-
-        this.logging.log('Creating final zip file...')
         const zipPath = await this.zipArtifact()
-
-        this.logging.log(`Zip creation completed. Path: ${zipPath}`)
         return zipPath
     }
 
