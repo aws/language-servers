@@ -24,7 +24,7 @@ import {
 } from '../constants'
 import * as qDeveloperProfilesFetcherModule from './qDeveloperProfiles'
 import { setCredentialsForAmazonQTokenServiceManagerFactory } from '../testUtils'
-import { CodeWhispererStreaming } from '@amzn/codewhisperer-streaming'
+import { StreamingClientService } from '../streamingClientService'
 
 export const mockedProfiles: qDeveloperProfilesFetcherModule.AmazonQDeveloperProfile[] = [
     {
@@ -235,7 +235,7 @@ describe('AmazonQTokenServiceManager', () => {
             assert.strictEqual(amazonQTokenServiceManager.getState(), 'INITIALIZED')
             assert.strictEqual(amazonQTokenServiceManager.getConnectionType(), 'builderId')
 
-            assert(streamingClient instanceof CodeWhispererStreaming)
+            assert(streamingClient instanceof StreamingClientService)
             assert(codewhispererServiceStub.generateSuggestions.calledOnce)
         })
 
@@ -255,8 +255,11 @@ describe('AmazonQTokenServiceManager', () => {
             assert(codewhispererStubFactory.calledOnceWithExactly(testRegion, testEndpoint))
 
             const streamingClient = amazonQTokenServiceManager.getStreamingClient()
-            assert.strictEqual(await streamingClient.config.region(), testRegion)
-            assert.strictEqual((await streamingClient.config.endpoint()).hostname, 'some-endpoint-in-some-region')
+            assert.strictEqual(await streamingClient.client.config.region(), testRegion)
+            assert.strictEqual(
+                (await streamingClient.client.config.endpoint()).hostname,
+                'some-endpoint-in-some-region'
+            )
         })
 
         it('should initialize service with region set by runtime if not set by client', async () => {
@@ -267,8 +270,11 @@ describe('AmazonQTokenServiceManager', () => {
             assert(codewhispererStubFactory.calledOnceWithExactly('eu-central-1', TEST_ENDPOINT_EU_CENTRAL_1))
 
             const streamingClient = amazonQTokenServiceManager.getStreamingClient()
-            assert.strictEqual(await streamingClient.config.region(), 'eu-central-1')
-            assert.strictEqual((await streamingClient.config.endpoint()).hostname, 'amazon-q-in-eu-central-1-endpoint')
+            assert.strictEqual(await streamingClient.client.config.region(), 'eu-central-1')
+            assert.strictEqual(
+                (await streamingClient.client.config.endpoint()).hostname,
+                'amazon-q-in-eu-central-1-endpoint'
+            )
         })
 
         it('should initialize service with default region if not set by client and runtime', async () => {
@@ -277,9 +283,9 @@ describe('AmazonQTokenServiceManager', () => {
 
             assert(codewhispererStubFactory.calledOnceWithExactly(DEFAULT_AWS_Q_REGION, DEFAULT_AWS_Q_ENDPOINT_URL))
 
-            assert.strictEqual(await streamingClient.config.region(), DEFAULT_AWS_Q_REGION)
+            assert.strictEqual(await streamingClient.client.config.region(), DEFAULT_AWS_Q_REGION)
             assert.strictEqual(
-                (await streamingClient.config.endpoint()).hostname,
+                (await streamingClient.client.config.endpoint()).hostname,
                 'codewhisperer.us-east-1.amazonaws.com'
             )
         })
@@ -302,7 +308,7 @@ describe('AmazonQTokenServiceManager', () => {
                 assert.strictEqual(amazonQTokenServiceManager.getConnectionType(), 'identityCenter')
                 assert(codewhispererServiceStub.generateSuggestions.calledOnce)
 
-                assert(streamingClient instanceof CodeWhispererStreaming)
+                assert(streamingClient instanceof StreamingClientService)
             })
         })
 
@@ -346,8 +352,8 @@ describe('AmazonQTokenServiceManager', () => {
                 assert.strictEqual(amazonQTokenServiceManager.getConnectionType(), 'identityCenter')
                 assert(codewhispererStubFactory.calledOnceWithExactly('us-east-1', TEST_ENDPOINT_US_EAST_1))
 
-                assert(streamingClient instanceof CodeWhispererStreaming)
-                assert.strictEqual(await streamingClient.config.region(), 'us-east-1')
+                assert(streamingClient instanceof StreamingClientService)
+                assert.strictEqual(await streamingClient.client.config.region(), 'us-east-1')
             })
 
             it('handles Profile configuration request for valid profile & cancels the old in-flight update request', async () => {
@@ -422,8 +428,8 @@ describe('AmazonQTokenServiceManager', () => {
                 assert.strictEqual(amazonQTokenServiceManager.getActiveProfileArn(), 'profile-iad')
 
                 assert(codewhispererStubFactory.calledOnceWithExactly('us-east-1', TEST_ENDPOINT_US_EAST_1))
-                assert(streamingClient1 instanceof CodeWhispererStreaming)
-                assert.strictEqual(await streamingClient1.config.region(), 'us-east-1')
+                assert(streamingClient1 instanceof StreamingClientService)
+                assert.strictEqual(await streamingClient1.client.config.region(), 'us-east-1')
 
                 // Profile change
 
@@ -446,9 +452,9 @@ describe('AmazonQTokenServiceManager', () => {
                 // CodeWhisperer Service was not recreated
                 assert(codewhispererStubFactory.calledOnceWithExactly('us-east-1', TEST_ENDPOINT_US_EAST_1))
 
-                assert(streamingClient2 instanceof CodeWhispererStreaming)
-                assert.notStrictEqual(streamingClient1, streamingClient2)
-                assert.strictEqual(await streamingClient2.config.region(), 'us-east-1')
+                assert(streamingClient2 instanceof StreamingClientService)
+                assert.strictEqual(streamingClient1, streamingClient2)
+                assert.strictEqual(await streamingClient2.client.config.region(), 'us-east-1')
             })
 
             it('handles Profile configuration change to valid profile in different region', async () => {
@@ -476,8 +482,8 @@ describe('AmazonQTokenServiceManager', () => {
                 assert.strictEqual(amazonQTokenServiceManager.getActiveProfileArn(), 'profile-iad')
                 assert(codewhispererStubFactory.calledOnceWithExactly('us-east-1', TEST_ENDPOINT_US_EAST_1))
 
-                assert(streamingClient1 instanceof CodeWhispererStreaming)
-                assert.strictEqual(await streamingClient1.config.region(), 'us-east-1')
+                assert(streamingClient1 instanceof StreamingClientService)
+                assert.strictEqual(await streamingClient1.client.config.region(), 'us-east-1')
 
                 // Profile change
 
@@ -505,9 +511,9 @@ describe('AmazonQTokenServiceManager', () => {
                 ])
 
                 // Streaming Client was recreated
-                assert(streamingClient2 instanceof CodeWhispererStreaming)
+                assert(streamingClient2 instanceof StreamingClientService)
                 assert.notStrictEqual(streamingClient1, streamingClient2)
-                assert.strictEqual(await streamingClient2.config.region(), 'eu-central-1')
+                assert.strictEqual(await streamingClient2.client.config.region(), 'eu-central-1')
             })
 
             it('handles Profile configuration change from valid to invalid profile', async () => {
@@ -535,8 +541,8 @@ describe('AmazonQTokenServiceManager', () => {
                 assert.strictEqual(amazonQTokenServiceManager.getActiveProfileArn(), 'profile-iad')
                 assert(codewhispererStubFactory.calledOnceWithExactly('us-east-1', TEST_ENDPOINT_US_EAST_1))
 
-                assert(streamingClient instanceof CodeWhispererStreaming)
-                assert.strictEqual(await streamingClient.config.region(), 'us-east-1')
+                assert(streamingClient instanceof StreamingClientService)
+                assert.strictEqual(await streamingClient.client.config.region(), 'us-east-1')
 
                 // Profile change to invalid profile
 
@@ -660,8 +666,8 @@ describe('AmazonQTokenServiceManager', () => {
                     TEST_ENDPOINT_EU_CENTRAL_1,
                 ])
 
-                assert(streamingClient instanceof CodeWhispererStreaming)
-                assert.strictEqual(await streamingClient.config.region(), 'eu-central-1')
+                assert(streamingClient instanceof StreamingClientService)
+                assert.strictEqual(await streamingClient.client.config.region(), 'eu-central-1')
             })
 
             it('prevents service usage while profile change is inflight when profile was set before', async () => {
@@ -695,8 +701,8 @@ describe('AmazonQTokenServiceManager', () => {
                 assert.strictEqual(amazonQTokenServiceManager.getActiveProfileArn(), 'profile-iad')
                 assert.deepStrictEqual(codewhispererStubFactory.lastCall.args, ['us-east-1', TEST_ENDPOINT_US_EAST_1])
 
-                assert(streamingClient instanceof CodeWhispererStreaming)
-                assert.strictEqual(await streamingClient.config.region(), 'us-east-1')
+                assert(streamingClient instanceof StreamingClientService)
+                assert.strictEqual(await streamingClient.client.config.region(), 'us-east-1')
 
                 // Updaing profile
                 const pendingProfileUpdate = features.doUpdateConfiguration(
@@ -919,8 +925,8 @@ describe('AmazonQTokenServiceManager', () => {
                 assert.strictEqual(amazonQTokenServiceManager.getConnectionType(), 'builderId')
                 assert.strictEqual(amazonQTokenServiceManager.getActiveProfileArn(), undefined)
 
-                assert(streamingClient instanceof CodeWhispererStreaming)
-                assert.strictEqual(await streamingClient.config.region(), 'us-east-1')
+                assert(streamingClient instanceof StreamingClientService)
+                assert.strictEqual(await streamingClient.client.config.region(), 'us-east-1')
 
                 setCredentials('identityCenter')
                 let service2 = amazonQTokenServiceManager.getCodewhispererService()
@@ -933,8 +939,8 @@ describe('AmazonQTokenServiceManager', () => {
                 assert(codewhispererStubFactory.calledTwice)
                 assert(codewhispererStubFactory.calledWithExactly(DEFAULT_AWS_Q_REGION, DEFAULT_AWS_Q_ENDPOINT_URL))
 
-                assert(streamingClient2 instanceof CodeWhispererStreaming)
-                assert.strictEqual(await streamingClient2.config.region(), DEFAULT_AWS_Q_REGION)
+                assert(streamingClient2 instanceof StreamingClientService)
+                assert.strictEqual(await streamingClient2.client.config.region(), DEFAULT_AWS_Q_REGION)
             })
 
             it('should initialize service to PENDING_Q_PROFILE state when profile support is enabled', async () => {
@@ -949,8 +955,8 @@ describe('AmazonQTokenServiceManager', () => {
                 assert.strictEqual(amazonQTokenServiceManager.getConnectionType(), 'builderId')
                 assert.strictEqual(amazonQTokenServiceManager.getActiveProfileArn(), undefined)
 
-                assert(streamingClient instanceof CodeWhispererStreaming)
-                assert.strictEqual(await streamingClient.config.region(), 'us-east-1')
+                assert(streamingClient instanceof StreamingClientService)
+                assert.strictEqual(await streamingClient.client.config.region(), 'us-east-1')
 
                 setCredentials('identityCenter')
 
@@ -982,8 +988,8 @@ describe('AmazonQTokenServiceManager', () => {
                 assert.strictEqual(amazonQTokenServiceManager.getConnectionType(), 'identityCenter')
                 assert.strictEqual(amazonQTokenServiceManager.getActiveProfileArn(), undefined)
 
-                assert(streamingClient instanceof CodeWhispererStreaming)
-                assert.strictEqual(await streamingClient.config.region(), 'us-east-1')
+                assert(streamingClient instanceof StreamingClientService)
+                assert.strictEqual(await streamingClient.client.config.region(), 'us-east-1')
 
                 setCredentials('builderId')
                 let service2 = amazonQTokenServiceManager.getCodewhispererService()
@@ -996,8 +1002,8 @@ describe('AmazonQTokenServiceManager', () => {
                 assert(codewhispererStubFactory.calledTwice)
                 assert(codewhispererStubFactory.calledWithExactly(DEFAULT_AWS_Q_REGION, DEFAULT_AWS_Q_ENDPOINT_URL))
 
-                assert(streamingClient2 instanceof CodeWhispererStreaming)
-                assert.strictEqual(await streamingClient2.config.region(), 'us-east-1')
+                assert(streamingClient2 instanceof StreamingClientService)
+                assert.strictEqual(await streamingClient2.client.config.region(), 'us-east-1')
             })
         })
 

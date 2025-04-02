@@ -45,7 +45,6 @@ import {
     AmazonQServicePendingProfileError,
     AmazonQServicePendingSigninError,
 } from '../../shared/amazonQServiceManager/errors'
-import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
 
 type ChatHandlers = Omit<LspHandlers<Chat>, 'openTab' | 'sendChatUpdate' | 'onFileClicked'>
@@ -108,13 +107,7 @@ export class ChatController implements ChatHandlers {
         const conversationIdentifier = session?.conversationId ?? 'New conversation'
         try {
             this.#log('Request for conversation id:', conversationIdentifier)
-            const profileArn = AmazonQTokenServiceManager.getInstance(this.#features).getActiveProfileArn()
-            requestInput = this.#triggerContext.getChatParamsFromTrigger(
-                params,
-                triggerContext,
-                this.#customizationArn,
-                profileArn
-            )
+            requestInput = this.#triggerContext.getChatParamsFromTrigger(params, triggerContext, this.#customizationArn)
 
             metric.recordStart()
             response = await session.sendMessage(requestInput)
