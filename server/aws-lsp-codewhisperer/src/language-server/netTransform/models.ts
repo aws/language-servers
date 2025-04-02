@@ -10,7 +10,7 @@ export interface StartTransformRequest extends ExecuteCommandParams {
     SolutionConfigPaths: string[]
     ProjectMetadata: TransformProjectMetadata[]
     TransformNetStandardProjects: boolean
-    PackageReferences: PackageReferenceMetadata[]
+    PackageReferences?: PackageReferenceMetadata[]
 }
 
 export interface StartTransformResponse {

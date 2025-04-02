@@ -153,7 +153,7 @@ export class ArtifactManager {
         } as RequirementJson
     }
 
-    private processPrivatePackages(
+    processPrivatePackages(
         request: StartTransformRequest,
         reference: ExternalReference,
         artifactReference: References
