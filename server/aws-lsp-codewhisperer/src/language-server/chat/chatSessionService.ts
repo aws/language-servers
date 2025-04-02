@@ -38,9 +38,7 @@ export class ChatSessionService {
 
         const client = this.#amazonQServiceManager.getStreamingClient()
 
-        const response = await client.sendMessage(request, {
-            abortSignal: this.#abortController?.signal,
-        })
+        const response = await client.sendMessage(request, this.#abortController)
 
         return response
     }

@@ -36,17 +36,14 @@ import {
 import { BaseAmazonQServiceManager } from './BaseAmazonQServiceManager'
 import { Q_CONFIGURATION_SECTION } from '../../language-server/configuration/qConfigurationServer'
 import { textUtils } from '@aws/lsp-core'
-import { CodeWhispererStreaming } from '@amzn/codewhisperer-streaming'
-import { ConfiguredRetryStrategy } from '@aws-sdk/util-retry'
 import {
     AmazonQDeveloperProfile,
     getListAllAvailableProfilesHandler,
     signalsAWSQDeveloperProfilesEnabled,
 } from './qDeveloperProfiles'
-
-import { getBearerTokenFromProvider, isStringOrNull } from '../utils'
-
+import { isStringOrNull } from '../utils'
 import { getUserAgent } from '../telemetryUtils'
+import { StreamingClientService } from '../streamingClientService'
 
 export interface Features {
     lsp: Lsp
@@ -88,6 +85,7 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
     private features!: Features
     private logging!: Logging
     private cachedCodewhispererService?: CodeWhispererServiceToken
+    private cachedStreamingClient?: StreamingClientService
     private enableDeveloperProfileSupport?: boolean
     private configurationCache = new Map()
     private activeIdcProfile?: AmazonQDeveloperProfile
@@ -446,6 +444,10 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
                 this.cachedCodewhispererService.profileArn = newProfile.arn
             }
 
+            if (this.cachedStreamingClient) {
+                this.cachedStreamingClient.profileArn = newProfile.arn
+            }
+
             return
         }
 
@@ -487,7 +489,7 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
         throw new AmazonQServiceNotInitializedError()
     }
 
-    public getStreamingClient(): CodeWhispererStreaming {
+    public getStreamingClient() {
         this.log('Getting instance of CodeWhispererStreaming client')
 
         // Trigger checks in token service
@@ -497,12 +499,18 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
             throw new AmazonQServiceNotInitializedError()
         }
 
-        return this.streamingClientFactory(this.region, this.endpoint)
+        if (!this.cachedStreamingClient) {
+            this.cachedStreamingClient = this.streamingClientFactory(this.region, this.endpoint)
+        }
+
+        return this.cachedStreamingClient
     }
 
     private resetCodewhispererService() {
         this.cachedCodewhispererService?.abortInflightRequests()
         this.cachedCodewhispererService = undefined
+        this.cachedStreamingClient?.abortInflightRequests()
+        this.cachedStreamingClient = undefined
         this.activeIdcProfile = undefined
     }
 
@@ -548,11 +556,14 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
         this.endpoint = awsQEndpoint
 
         this.cachedCodewhispererService = this.serviceFactory(awsQRegion, awsQEndpoint)
-
         this.log(
             `CodeWhispererToken service for connection type ${connectionType} was initialized, region=${awsQRegion}`
         )
-        this.logServiceState('CodewhispererService Initialization finished')
+
+        this.cachedStreamingClient = this.streamingClientFactory(awsQRegion, awsQEndpoint)
+        this.log(`StreamingClient service for connection type ${connectionType} was initialized, region=${region}`)
+
+        this.logServiceState('CodewhispererService and StreamingClient Initialization finished')
     }
 
     private getCustomUserAgent() {
@@ -587,20 +598,17 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
         return service
     }
 
-    private streamingClientFactory(region: string, endpoint: string): CodeWhispererStreaming {
-        const token = getBearerTokenFromProvider(this.features.credentialsProvider)
-
-        // TODO: Follow-up with creating CodeWhispererStreaming client which supports inplace access to CredentialsProvider instead of caching static value.
-        // Without this, we need more complex mechanism for managing token change state when caching streaming client.
-        const streamingClient = this.features.sdkInitializator(CodeWhispererStreaming, {
+    private streamingClientFactory(region: string, endpoint: string): StreamingClientService {
+        const streamingClient = new StreamingClientService(
+            this.features.credentialsProvider,
+            this.features.sdkInitializator,
             region,
             endpoint,
-            token: { token: token },
-            retryStrategy: new ConfiguredRetryStrategy(0, (attempt: number) => 500 + attempt ** 10),
-            customUserAgent: this.getCustomUserAgent(),
-        })
-        this.logging.debug(`Created streaming client instance region=${region}, endpoint=${endpoint}`)
+            this.getCustomUserAgent()
+        )
+        streamingClient.profileArn = this.activeIdcProfile?.arn
 
+        this.logging.debug(`Created streaming client instance region=${region}, endpoint=${endpoint}`)
         return streamingClient
     }
 
