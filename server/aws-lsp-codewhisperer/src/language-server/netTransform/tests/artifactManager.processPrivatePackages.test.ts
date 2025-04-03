@@ -20,7 +20,7 @@ describe('ArtifactManager - processPrivatePackages', () => {
         artifactManager = new ArtifactManager(workspace, mockedLogging, '')
 
         // Mock internal methods that might be called
-        artifactManager.copyFile = (source: string, destination: string) => {
+        artifactManager.copyFile = async (source: string, destination: string) => {
             // Mock implementation if needed
         }
         artifactManager.getWorkspaceReferencePathFromRelativePath = (relativePath: string) => {
@@ -43,7 +43,7 @@ describe('ArtifactManager - processPrivatePackages', () => {
         }
     })
 
-    it('should do nothing when PackageReferences is undefined', () => {
+    it('should do nothing when PackageReferences is undefined', async () => {
         sampleStartTransformRequest.PackageReferences = undefined
         artifactManager.processPrivatePackages(
             sampleStartTransformRequest,
@@ -55,11 +55,11 @@ describe('ArtifactManager - processPrivatePackages', () => {
         expect(sampleArtifactReference.netCompatibleVersion).to.equal(undefined)
     })
 
-    it('should process private package when all conditions are met', () => {
-        // Spy on the copyFile method
+    it('should process private package when all conditions are met', async () => {
         let copyFileCalled = false
-        artifactManager.copyFile = (source: string, destination: string) => {
+        artifactManager.copyFile = async (source: string, destination: string): Promise<void> => {
             copyFileCalled = true
+            return Promise.resolve()
         }
 
         const privatePackage: PackageReferenceMetadata = {
@@ -74,7 +74,7 @@ describe('ArtifactManager - processPrivatePackages', () => {
         sampleStartTransformRequest.PackageReferences = [privatePackage]
         sampleExternalReference.RelativePath = 'some/path/test-package/more/path'
 
-        artifactManager.processPrivatePackages(
+        await artifactManager.processPrivatePackages(
             sampleStartTransformRequest,
             sampleExternalReference,
             sampleArtifactReference
@@ -88,10 +88,11 @@ describe('ArtifactManager - processPrivatePackages', () => {
         expect(sampleArtifactReference.netCompatibleVersion).to.equal('2.0.0')
     })
 
-    it('should not process when package is not private', () => {
+    it('should not process when package is not private', async () => {
         let copyFileCalled = false
-        artifactManager.copyFile = (source: string, destination: string) => {
+        artifactManager.copyFile = async (source: string, destination: string): Promise<void> => {
             copyFileCalled = true
+            return Promise.resolve()
         }
 
         const nonPrivatePackage = {
@@ -118,10 +119,11 @@ describe('ArtifactManager - processPrivatePackages', () => {
         expect(sampleArtifactReference.netCompatibleVersion).to.equal(undefined)
     })
 
-    it('should not process when package ID is not in reference path', () => {
+    it('should not process when package ID is not in reference path', async () => {
         let copyFileCalled = false
-        artifactManager.copyFile = (source: string, destination: string) => {
+        artifactManager.copyFile = async (source: string, destination: string): Promise<void> => {
             copyFileCalled = true
+            return Promise.resolve()
         }
 
         const privatePackage = {
@@ -148,10 +150,11 @@ describe('ArtifactManager - processPrivatePackages', () => {
         expect(sampleArtifactReference.netCompatibleVersion).to.equal(undefined)
     })
 
-    it('should not process when NetCompatibleAssemblyRelativePath is missing', () => {
+    it('should not process when NetCompatibleAssemblyRelativePath is missing', async () => {
         let copyFileCalled = false
-        artifactManager.copyFile = (source: string, destination: string) => {
+        artifactManager.copyFile = async (source: string, destination: string): Promise<void> => {
             copyFileCalled = true
+            return Promise.resolve()
         }
 
         const privatePackage = {

@@ -23,7 +23,8 @@ export class ArtifactManager {
     }
 
     async createZip(request: StartTransformRequest): Promise<string> {
-        await this.createRequirementJson(request)
+        const requirementJson = await this.createRequirementJsonContent(request)
+        await this.writeRequirementJsonAsync(this.getRequirementJsonPath(), JSON.stringify(requirementJson))
         await this.copySolutionConfigFiles(request)
         await this.removeDuplicateNugetPackagesFolder(request)
         const zipPath = await this.zipArtifact()
@@ -74,38 +75,32 @@ export class ArtifactManager {
         }
     }
 
-    async createRequirementJson(request: StartTransformRequest) {
-        const fileContent = await this.createRequirementJsonContent(request)
-        const dir = this.getRequirementJsonPath()
-        await this.writeRequirmentJsonAsync(dir, JSON.stringify(fileContent))
-        this.logging.log('Generated requirement.json at: ' + dir)
-    }
-
     async copySolutionConfigFiles(request: StartTransformRequest) {
         if (request.SolutionConfigPaths && request.SolutionConfigPaths.length > 0) {
             for (const configFilePath of request.SolutionConfigPaths) {
-                this.copySourceFile(request.SolutionRootPath, configFilePath)
+                await this.copySourceFile(request.SolutionRootPath, configFilePath)
             }
         }
     }
 
-    copySourceFile(solutionRootPath: string, filePath: string): void {
+    async copySourceFile(solutionRootPath: string, filePath: string): Promise<void> {
         const relativePath = this.normalizeSourceFileRelativePath(solutionRootPath, filePath)
-        this.copyFile(filePath, this.getWorkspaceCodePathFromRelativePath(relativePath))
+        await this.copyFile(filePath, this.getWorkspaceCodePathFromRelativePath(relativePath))
     }
 
     async createRequirementJsonContent(request: StartTransformRequest): Promise<RequirementJson> {
-        var projects: Project[] = []
-        await request.ProjectMetadata.forEach(async project => {
-            const sourceCodeFilePaths = project.SourceCodeFilePaths.filter(filePath => filePath)
-            var codeFiles: CodeFile[] = []
-            var references: References[] = []
+        const projects: Project[] = []
 
-            await sourceCodeFilePaths.forEach(async filePath => {
+        for (const project of request.ProjectMetadata) {
+            const sourceCodeFilePaths = project.SourceCodeFilePaths.filter(filePath => filePath)
+            const codeFiles: CodeFile[] = []
+            const references: References[] = []
+
+            for (const filePath of sourceCodeFilePaths) {
                 try {
-                    this.copySourceFile(request.SolutionRootPath, filePath)
-                    var contentHash = await this.calculateMD5Sync(filePath)
-                    var relativePath = this.normalizeSourceFileRelativePath(request.SolutionRootPath, filePath)
+                    await this.copySourceFile(request.SolutionRootPath, filePath)
+                    const contentHash = await this.calculateMD5Async(filePath)
+                    const relativePath = this.normalizeSourceFileRelativePath(request.SolutionRootPath, filePath)
                     codeFiles.push({
                         contentMd5Hash: contentHash,
                         relativePath: relativePath,
@@ -113,15 +108,15 @@ export class ArtifactManager {
                 } catch (error) {
                     this.logging.log('Failed to process file: ' + error + filePath)
                 }
-            })
+            }
 
-            project.ExternalReferences.forEach(reference => {
+            for (const reference of project.ExternalReferences) {
                 try {
                     const relativePath = this.normalizeReferenceFileRelativePath(
                         reference.RelativePath,
                         reference.IncludedInArtifact
                     )
-                    this.copyFile(
+                    await this.copyFile(
                         reference.AssemblyFullPath,
                         this.getWorkspaceReferencePathFromRelativePath(relativePath)
                     )
@@ -130,19 +125,19 @@ export class ArtifactManager {
                         relativePath: relativePath,
                         isThirdPartyPackage: false,
                     }
-                    this.processPrivatePackages(request, reference, artifactReference)
+                    await this.processPrivatePackages(request, reference, artifactReference)
                     references.push(artifactReference)
                 } catch (error) {
                     this.logging.log('Failed to process file: ' + error + reference.AssemblyFullPath)
                 }
-            })
+            }
             projects.push({
                 projectFilePath: this.normalizeSourceFileRelativePath(request.SolutionRootPath, project.ProjectPath),
                 projectTarget: project.ProjectTargetFramework,
                 codeFiles: codeFiles,
                 references: references,
             })
-        })
+        }
         this.logging.log('Total project references: ' + projects.length)
 
         return {
@@ -150,14 +145,14 @@ export class ArtifactManager {
             SolutionPath: this.normalizeSourceFileRelativePath(request.SolutionRootPath, request.SolutionFilePath),
             Projects: projects,
             TransformNetStandardProjects: request.TransformNetStandardProjects,
-        } as RequirementJson
+        }
     }
 
-    processPrivatePackages(
+    async processPrivatePackages(
         request: StartTransformRequest,
         reference: ExternalReference,
         artifactReference: References
-    ) {
+    ): Promise<void> {
         if (!request.PackageReferences) {
             return
         }
@@ -176,7 +171,7 @@ export class ArtifactManager {
                     thirdPartyPackage.NetCompatibleAssemblyRelativePath
                 )
                 .toLowerCase()
-            this.copyFile(
+            await this.copyFile(
                 thirdPartyPackage.NetCompatibleAssemblyPath,
                 this.getWorkspaceReferencePathFromRelativePath(privatePackageRelativePath)
             )
@@ -198,9 +193,12 @@ export class ArtifactManager {
         return zipPath
     }
 
-    static getSha256(fileName: string) {
+    static async getSha256Async(fileName: string): Promise<string> {
         const hasher = crypto.createHash('sha256')
-        hasher.update(fs.readFileSync(fileName))
+        const stream = fs.createReadStream(fileName)
+        for await (const chunk of stream) {
+            hasher.update(chunk)
+        }
         return hasher.digest('base64')
     }
 
@@ -248,7 +246,7 @@ export class ArtifactManager {
         })
     }
 
-    async writeRequirmentJsonAsync(dir: string, fileContent: string) {
+    async writeRequirementJsonAsync(dir: string, fileContent: string) {
         const fileName = path.join(dir, requriementJsonFileName)
         fs.writeFileSync(fileName, fileContent)
     }
@@ -259,24 +257,33 @@ export class ArtifactManager {
         }
     }
 
-    copyFile(sourceFilePath: string, destFilePath: string) {
+    async copyFile(sourceFilePath: string, destFilePath: string): Promise<void> {
         const dir = path.dirname(destFilePath)
         this.createFolderIfNotExist(dir)
-        try {
-            fs.copyFileSync(sourceFilePath, destFilePath)
-        } catch (err) {
-            if (!fs.existsSync(dir) && dir.includes(packagesFolderName)) {
-                //Packages folder has been deleted to avoid duplicates in artifacts.zip
-                return
-            }
-            this.logging.log(`Failed to copy from ${sourceFilePath} and error is ${err}`)
+        if (!fs.existsSync(dir) && dir.includes(packagesFolderName)) {
+            //Packages folder has been deleted to avoid duplicates in artifacts.zip
+            return
         }
+
+        return new Promise<void>((resolve, reject) => {
+            fs.copyFile(sourceFilePath, destFilePath, err => {
+                if (err) {
+                    this.logging.log(`Failed to copy from ${sourceFilePath} and error is ${err}`)
+                    reject(err)
+                } else {
+                    resolve()
+                }
+            })
+        })
     }
 
-    calculateMD5Sync(filePath: string): string {
+    async calculateMD5Async(filePath: string): Promise<string> {
         try {
-            const data = fs.readFileSync(filePath)
-            const hash = crypto.createHash('md5').update(data)
+            const hash = crypto.createHash('md5')
+            const stream = fs.createReadStream(filePath)
+            for await (const chunk of stream) {
+                hash.update(chunk)
+            }
             return hash.digest('hex')
         } catch (error) {
             this.logging.log('Failed to calculate hashcode: ' + filePath + error)

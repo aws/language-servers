@@ -119,7 +119,7 @@ export class TransformHandler {
     }
 
     async uploadPayloadAsync(payloadFileName: string): Promise<string> {
-        const sha256 = ArtifactManager.getSha256(payloadFileName)
+        const sha256 = await ArtifactManager.getSha256Async(payloadFileName)
         let response: CreateUploadUrlResponse
         try {
             response = await this.client.codeModernizerCreateUploadUrl({
@@ -147,16 +147,17 @@ export class TransformHandler {
         try {
             return await artifactManager.createZip(request)
         } catch (e: any) {
-            this.logging.log('cause:' + e)
+            this.logging.log('Error creating zip: ' + e)
+            throw e
         }
-        return ''
     }
 
     async uploadArtifactToS3Async(fileName: string, resp: CreateUploadUrlResponse, sha256: string) {
         const headersObj = this.getHeadersObj(sha256, resp.kmsKeyArn)
         try {
+            const fileStream = fs.createReadStream(fileName)
             const response = await got.put(resp.uploadUrl, {
-                body: fs.readFileSync(fileName),
+                body: fileStream,
                 headers: headersObj,
             })
 
@@ -461,10 +462,9 @@ export class TransformHandler {
                 suggestion =
                     'Please close Visual Studio, delete the directories where build artifacts are generated (e.g. bin and obj), and try running the transformation again.'
             }
-            this.logging.log(
-                `Transformation job for job ${request.TransformationJobId} is ${status} due to "${reason}". 
-                ${suggestion}`
-            )
+            this.logging
+                .log(`Transformation job for job ${request.TransformationJobId} is ${status} due to "${reason}". 
+                ${suggestion}`)
         }
     }
 }
