@@ -1,5 +1,5 @@
 import { Logging, Lsp, Runtime } from '@aws/language-server-runtimes/server-interface'
-import { Q_CONFIGURATION_SECTION } from '../../language-server/configuration/qConfigurationServer'
+import { Q_CONFIGURATION_SECTION } from '../constants'
 import { textUtils } from '@aws/lsp-core'
 import {
     AWS_Q_ENDPOINT_URL_ENV_VAR,
@@ -68,7 +68,7 @@ interface QInlineSuggestionsConfig {
 }
 
 interface QConfigSection {
-    customizationArn: string | undefined // aws.q.customizationArn - selected customization
+    customizationArn: string | undefined // aws.q.customization - selected customization
     optOutTelemetryPreference: 'OPTOUT' | 'OPTIN' // aws.q.optOutTelemetry - telemetry optout option
     inlineSuggestions: QInlineSuggestionsConfig
 }
@@ -172,9 +172,7 @@ export class AmazonQConfigurationCache {
     }
 
     updateConfig(newConfig: Readonly<Partial<AmazonQWorkspaceConfig>>) {
-        Object.entries(newConfig).forEach(([key, value]) => {
-            this.setProperty(key as keyof AmazonQWorkspaceConfig, value)
-        })
+        Object.assign(this._cachedConfig, newConfig)
     }
 
     getConfig(): Readonly<AmazonQWorkspaceConfig> {

@@ -24,15 +24,15 @@ import { CodePercentageTracker } from './codePercentage'
 import { CodeWhispererPerceivedLatencyEvent, CodeWhispererServiceInvocationEvent } from '../../shared/telemetry/types'
 import { getCompletionType, getEndPositionForAcceptedSuggestion, isAwsError, safeGet } from '../../shared/utils'
 import { makeUserContextObject } from '../../shared/telemetryUtils'
-import { Q_CONFIGURATION_SECTION } from '../configuration/qConfigurationServer'
 import { fetchSupplementalContext } from '../../shared/supplementalContextUtil/supplementalContextUtil'
 import { textUtils } from '@aws/lsp-core'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import { AcceptedSuggestionEntry, CodeDiffTracker } from './codeDiffTracker'
 import { AmazonQError, AmazonQServiceInitializationError } from '../../shared/amazonQServiceManager/errors'
-import { BaseAmazonQServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
-import { Features } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
-import { initBaseIAMServiceManager, initBaseTokenServiceManager } from '../../shared/amazonQServiceManager/factories'
+import { AmazonQBaseServiceManager, Features } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
+import { initBaseTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
+import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
+import { initBaseIAMServiceManager } from '../../shared/amazonQServiceManager/AmazonQIAMServiceManager'
 
 const EMPTY_RESULT = { sessionId: '', items: [] }
 export const CONTEXT_CHARACTERS_LIMIT = 10240
@@ -224,7 +224,7 @@ interface AcceptedInlineSuggestionEntry extends AcceptedSuggestionEntry {
 }
 
 export const CodewhispererServerFactory =
-    (serviceManager: (features: Features) => BaseAmazonQServiceManager): Server =>
+    (serviceManager: (features: Features) => AmazonQBaseServiceManager): Server =>
     ({ credentialsProvider, lsp, workspace, telemetry, logging, runtime, sdkInitializator }) => {
         let lastUserModificationTime: number
         let timeSinceLastUserModification: number = 0
@@ -232,7 +232,7 @@ export const CodewhispererServerFactory =
         const sessionManager = SessionManager.getInstance()
 
         // AmazonQTokenServiceManager and TelemetryService are initialized in `onInitialized` handler to make sure Language Server connection is started
-        let amazonQServiceManager: BaseAmazonQServiceManager
+        let amazonQServiceManager: AmazonQBaseServiceManager
         let telemetryService: TelemetryService
 
         lsp.addInitializer((params: InitializeParams) => {
@@ -563,23 +563,21 @@ export const CodewhispererServerFactory =
             await emitUserTriggerDecisionTelemetry(telemetry, telemetryService, session, timeSinceLastUserModification)
         }
 
-        const updateConfiguration = async () => {
-            try {
-                const { customizationArn, optOutTelemetryPreference } =
-                    await amazonQServiceManager.handleDidChangeConfiguration()
+        const updateConfiguration = (updatedConfig: AmazonQWorkspaceConfig) => {
+            logging.debug('Updating configuration of inline complete server.')
 
-                codePercentageTracker.customizationArn = customizationArn
-                /*
-                    The flag enableTelemetryEventsToDestination is set to true temporarily. It's value will be determined through destination
-                    configuration post all events migration to STE. It'll be replaced by qConfig['enableTelemetryEventsToDestination'] === true
-                */
-                // const enableTelemetryEventsToDestination = true
-                // telemetryService.updateEnableTelemetryEventsToDestination(enableTelemetryEvetsToDestination)
-                telemetryService.updateOptOutPreference(optOutTelemetryPreference)
-                logging.log(`TelemetryService OptOutPreference update to ${optOutTelemetryPreference}`)
-            } catch (error) {
-                logging.log(`Error in GetConfiguration: ${error}`)
-            }
+            const { customizationArn, optOutTelemetryPreference } = updatedConfig
+
+            codePercentageTracker.customizationArn = customizationArn
+            logging.debug(`CodePercentageTracker customizationArn updated to ${customizationArn}`)
+            /*
+                The flag enableTelemetryEventsToDestination is set to true temporarily. It's value will be determined through destination
+                configuration post all events migration to STE. It'll be replaced by qConfig['enableTelemetryEventsToDestination'] === true
+            */
+            // const enableTelemetryEventsToDestination = true
+            // telemetryService.updateEnableTelemetryEventsToDestination(enableTelemetryEventsToDestination)
+            telemetryService.updateOptOutPreference(optOutTelemetryPreference)
+            logging.debug(`TelemetryService OptOutPreference updated to ${optOutTelemetryPreference}`)
         }
 
         const onInitializedHandler = async () => {
@@ -620,13 +618,18 @@ export const CodewhispererServerFactory =
                 }
             )
 
-            await updateConfiguration()
+            /*
+                NOTE: Only the code whisperer server should trigger the handleDidChangeConfiguration method on initialized.
+
+                TODO: consider refactoring such responsibilities to common service manager config/initialisation server
+            */
+            await amazonQServiceManager.handleDidChangeConfiguration()
+            await amazonQServiceManager.addDidChangeConfigurationListener(updateConfiguration)
         }
 
         lsp.extensions.onInlineCompletionWithReferences(onInlineCompletionHandler)
         lsp.extensions.onLogInlineCompletionSessionResults(onLogInlineCompletionSessionResultsHandler)
         lsp.onInitialized(onInitializedHandler)
-        lsp.didChangeConfiguration(updateConfiguration)
 
         lsp.onDidChangeTextDocument(async p => {
             const textDocument = await workspace.getTextDocument(p.textDocument.uri)
