@@ -39,6 +39,13 @@ export interface InboundChatApi {
 
 type ContextCommandGroups = MynahUIDataModel['contextCommands']
 
+const ContextPrompt = {
+    CreateItemId: 'create-saved-prompt',
+    CancelButtonId: 'cancel-create-prompt',
+    SubmitButtonId: 'submit-create-prompt',
+    PromptNameFieldId: 'prompt-name',
+} as const
+
 export const handleChatPrompt = (
     mynahUi: MynahUI,
     tabId: string,
@@ -267,12 +274,12 @@ export const createMynahUi = (
             }
         },
         onContextSelected: (contextItem, tabId) => {
-            if (contextItem.id === 'create-saved-prompt') {
+            if (contextItem.id === ContextPrompt.CreateItemId) {
                 mynahUi.showCustomForm(
                     tabId,
                     [
                         {
-                            id: 'prompt-name',
+                            id: ContextPrompt.PromptNameFieldId,
                             type: 'textinput',
                             mandatory: true,
                             autoFocus: true,
@@ -282,8 +289,8 @@ export const createMynahUi = (
                         },
                     ],
                     [
-                        { id: 'cancel-create-prompt', text: 'Cancel', status: 'clear' },
-                        { id: 'submit-create-prompt', text: 'Create', status: 'main' },
+                        { id: ContextPrompt.CancelButtonId, text: 'Cancel', status: 'clear' },
+                        { id: ContextPrompt.SubmitButtonId, text: 'Create', status: 'main' },
                     ],
                     `Create a saved prompt`
                 )
@@ -292,14 +299,14 @@ export const createMynahUi = (
             return true
         },
         onCustomFormAction: (tabId, action) => {
-            if (action.id === 'submit-create-prompt') {
-                messager.onCreatePrompt(action.formItemValues?.['prompt-name'] ?? '')
+            if (action.id === ContextPrompt.SubmitButtonId) {
+                messager.onCreatePrompt(action.formItemValues![ContextPrompt.PromptNameFieldId])
             }
         },
         onFormTextualItemKeyPress: (event: KeyboardEvent, formData: Record<string, string>, itemId: string) => {
-            if (itemId === 'prompt-name' && event.key === 'Enter') {
+            if (itemId === ContextPrompt.PromptNameFieldId && event.key === 'Enter') {
                 event.preventDefault()
-                messager.onCreatePrompt(formData?.['prompt-name'])
+                messager.onCreatePrompt(formData[ContextPrompt.PromptNameFieldId])
                 return true
             }
             return false
