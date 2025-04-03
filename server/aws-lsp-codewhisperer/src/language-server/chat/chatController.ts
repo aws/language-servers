@@ -1,11 +1,10 @@
-import { SendMessageCommandInput, SendMessageCommandOutput } from '@amzn/codewhisperer-streaming'
+import { ChatTriggerType, SendMessageCommandInput, SendMessageCommandOutput } from '@amzn/codewhisperer-streaming'
 import {
     ApplyWorkspaceEditParams,
     ErrorCodes,
     FeedbackParams,
+    InlineChatParams,
     InsertToCursorPositionParams,
-    OpenTabParams,
-    OpenTabResult,
     TextDocumentEdit,
     TextEdit,
     chatRequestType,
@@ -22,6 +21,7 @@ import {
     TabAddParams,
     TabRemoveParams,
     TabChangeParams,
+    InlineChatResult,
 } from '@aws/language-server-runtimes/server-interface'
 import { v4 as uuid } from 'uuid'
 import {
@@ -29,22 +29,31 @@ import {
     ChatInteractionType,
     ChatTelemetryEventName,
     CombinedConversationEvent,
-} from '../telemetry/types'
+} from '../../shared/telemetry/types'
 import { Features, LspHandlers, Result } from '../types'
 import { ChatEventParser, ChatResultWithMetadata } from './chatEventParser'
 import { createAuthFollowUpResult, getAuthFollowUpType, getDefaultChatResponse } from './utils'
 import { ChatSessionManagementService } from './chatSessionManagementService'
 import { ChatTelemetryController } from './telemetry/chatTelemetryController'
 import { QuickAction } from './quickActions'
-import { getErrorMessage, isAwsError, isNullish, isObject } from '../utils'
-import { Metric } from '../telemetry/metric'
+import { getErrorMessage, isAwsError, isNullish, isObject } from '../../shared/utils'
+import { Metric } from '../../shared/telemetry/metric'
 import { QChatTriggerContext, TriggerContext } from './contexts/triggerContext'
 import { HELP_MESSAGE } from './constants'
 import { Q_CONFIGURATION_SECTION } from '../configuration/qConfigurationServer'
 import { textUtils } from '@aws/lsp-core'
-import { TelemetryService } from '../telemetryService'
+import {
+    AmazonQServicePendingProfileError,
+    AmazonQServicePendingSigninError,
+} from '../../shared/amazonQServiceManager/errors'
+import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
+import { TelemetryService } from '../../shared/telemetry/telemetryService'
+import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
 
-type ChatHandlers = Omit<LspHandlers<Chat>, 'openTab'>
+type ChatHandlers = Omit<
+    LspHandlers<Chat>,
+    'openTab' | 'sendChatUpdate' | 'onFileClicked' | 'onInlineChatPrompt' | 'sendContextCommands' | 'onCreatePrompt'
+>
 
 export class ChatController implements ChatHandlers {
     #features: Features
@@ -53,17 +62,20 @@ export class ChatController implements ChatHandlers {
     #triggerContext: QChatTriggerContext
     #customizationArn?: string
     #telemetryService: TelemetryService
+    #amazonQServiceManager?: AmazonQTokenServiceManager
 
     constructor(
         chatSessionManagementService: ChatSessionManagementService,
         features: Features,
-        telemetryService: TelemetryService
+        telemetryService: TelemetryService,
+        amazonQServiceManager?: AmazonQTokenServiceManager
     ) {
         this.#features = features
         this.#chatSessionManagementService = chatSessionManagementService
         this.#triggerContext = new QChatTriggerContext(features.workspace, features.logging)
         this.#telemetryController = new ChatTelemetryController(features, telemetryService)
         this.#telemetryService = telemetryService
+        this.#amazonQServiceManager = amazonQServiceManager
     }
 
     dispose() {
@@ -104,7 +116,14 @@ export class ChatController implements ChatHandlers {
         const conversationIdentifier = session?.conversationId ?? 'New conversation'
         try {
             this.#log('Request for conversation id:', conversationIdentifier)
-            requestInput = this.#triggerContext.getChatParamsFromTrigger(params, triggerContext, this.#customizationArn)
+            const profileArn = AmazonQTokenServiceManager.getInstance(this.#features).getActiveProfileArn()
+            requestInput = this.#triggerContext.getChatParamsFromTrigger(
+                params,
+                triggerContext,
+                ChatTriggerType.MANUAL,
+                this.#customizationArn,
+                profileArn
+            )
 
             metric.recordStart()
             response = await session.sendMessage(requestInput)
@@ -113,6 +132,24 @@ export class ChatController implements ChatHandlers {
             if (isAwsError(err) || (isObject(err) && 'statusCode' in err && typeof err.statusCode === 'number')) {
                 metric.setDimension('cwsprChatRepsonseCode', err.statusCode ?? 400)
                 this.#telemetryController.emitMessageResponseError(params.tabId, metric.metric)
+            }
+
+            if (err instanceof AmazonQServicePendingSigninError) {
+                this.#log(`Q Chat SSO Connection error: ${getErrorMessage(err)}`)
+
+                return createAuthFollowUpResult('full-auth')
+            }
+
+            if (err instanceof AmazonQServicePendingProfileError) {
+                this.#log(`Q Chat SSO Connection error: ${getErrorMessage(err)}`)
+
+                const followUpResult = createAuthFollowUpResult('use-supported-auth')
+                // Access first element in array
+                if (followUpResult.followUp?.options) {
+                    followUpResult.followUp.options[0].pillText = 'Select Q Developer Profile'
+                }
+
+                return followUpResult
             }
 
             const authFollowType = getAuthFollowUpType(err)
@@ -182,6 +219,73 @@ export class ChatController implements ChatHandlers {
             return new ResponseError<ChatResult>(
                 LSPErrorCodes.RequestFailed,
                 err instanceof Error ? err.message : 'Unknown error occured during response stream'
+            )
+        }
+    }
+
+    async onInlineChatPrompt(
+        params: InlineChatParams,
+        token: CancellationToken
+    ): Promise<InlineChatResult | ResponseError<InlineChatResult>> {
+        // TODO: This metric needs to be removed later, just added for now to be able to create a ChatEventParser object
+        const metric = new Metric<AddMessageEvent>({
+            cwsprChatConversationType: 'Chat',
+        })
+        const triggerContext = await this.#getInlineChatTriggerContext(params)
+
+        let response: SendMessageCommandOutput
+        let requestInput: SendMessageCommandInput
+
+        try {
+            const profileArn = AmazonQTokenServiceManager.getInstance(this.#features).getActiveProfileArn()
+            requestInput = this.#triggerContext.getChatParamsFromTrigger(
+                params,
+                triggerContext,
+                ChatTriggerType.INLINE_CHAT,
+                this.#customizationArn,
+                profileArn
+            )
+
+            if (!this.#amazonQServiceManager) {
+                throw new Error('amazonQServiceManager is not initialized')
+            }
+
+            const client = this.#amazonQServiceManager.getStreamingClient()
+            response = await client.sendMessage(requestInput)
+            this.#log('Response for inline chat', JSON.stringify(response.$metadata), JSON.stringify(response))
+        } catch (err) {
+            if (err instanceof AmazonQServicePendingSigninError || err instanceof AmazonQServicePendingProfileError) {
+                this.#log(`Q Inline Chat SSO Connection error: ${getErrorMessage(err)}`)
+                return new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, err.message)
+            }
+            this.#log(`Q api request error ${err instanceof Error ? err.message : 'unknown'}`)
+            return new ResponseError<ChatResult>(
+                LSPErrorCodes.RequestFailed,
+                err instanceof Error ? err.message : 'Unknown request error'
+            )
+        }
+
+        try {
+            const result = await this.#processSendMessageResponseForInlineChat(
+                response,
+                metric,
+                params.partialResultToken
+            )
+
+            return result.success
+                ? {
+                      ...result.data.chatResult,
+                      requestId: response.$metadata.requestId,
+                  }
+                : new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, result.error)
+        } catch (err) {
+            this.#log(
+                'Error encountered during inline chat response streaming:',
+                err instanceof Error ? err.message : 'unknown'
+            )
+            return new ResponseError<ChatResult>(
+                LSPErrorCodes.RequestFailed,
+                err instanceof Error ? err.message : 'Unknown error occurred during inline chat response stream'
             )
         }
     }
@@ -367,6 +471,11 @@ export class ChatController implements ChatHandlers {
         }
     }
 
+    async #getInlineChatTriggerContext(params: InlineChatParams) {
+        let triggerContext: TriggerContext = await this.#triggerContext.getNewTriggerContext(params)
+        return triggerContext
+    }
+
     async #getTriggerContext(params: ChatParams, metric: Metric<CombinedConversationEvent>) {
         const lastMessageTrigger = this.#telemetryController.getLastMessageTrigger(params.tabId)
 
@@ -430,24 +539,42 @@ export class ChatController implements ChatHandlers {
         return chatEventParser.getResult()
     }
 
-    updateConfiguration = async () => {
-        try {
-            const qConfig = await this.#features.lsp.workspace.getConfiguration(Q_CONFIGURATION_SECTION)
-            if (qConfig) {
-                this.#customizationArn = textUtils.undefinedIfEmpty(qConfig.customization)
-                this.#log(`Chat configuration updated to use ${this.#customizationArn}`)
-                /*
-                    The flag enableTelemetryEventsToDestination is set to true temporarily. It's value will be determined through destination
-                    configuration post all events migration to STE. It'll be replaced by qConfig['enableTelemetryEventsToDestination'] === true
-                */
-                // const enableTelemetryEventsToDestination = true
-                // this.#telemetryService.updateEnableTelemetryEventsToDestination(enableTelemetryEventsToDestination)
-                const optOutTelemetryPreference = qConfig['optOutTelemetry'] === true ? 'OPTOUT' : 'OPTIN'
-                this.#telemetryService.updateOptOutPreference(optOutTelemetryPreference)
+    async #processSendMessageResponseForInlineChat(
+        response: SendMessageCommandOutput,
+        metric: Metric<AddMessageEvent>,
+        partialResultToken?: string | number
+    ): Promise<Result<ChatResultWithMetadata, string>> {
+        const requestId = response.$metadata.requestId!
+        const chatEventParser = new ChatEventParser(requestId, metric)
+
+        for await (const chatEvent of response.sendMessageResponse!) {
+            const result = chatEventParser.processPartialEvent(chatEvent)
+
+            // terminate early when there is an error
+            if (!result.success) {
+                return result
             }
-        } catch (error) {
-            this.#log(`Error in GetConfiguration: ${error}`)
+
+            if (!isNullish(partialResultToken)) {
+                await this.#features.lsp.sendProgress(chatRequestType, partialResultToken, result.data.chatResult)
+            }
         }
+
+        return chatEventParser.getResult()
+    }
+
+    updateConfiguration = (newConfig: AmazonQWorkspaceConfig) => {
+        this.#customizationArn = newConfig.customizationArn
+        this.#log(`Chat configuration updated to use ${this.#customizationArn}`)
+        /*
+            The flag enableTelemetryEventsToDestination is set to true temporarily. It's value will be determined through destination
+            configuration post all events migration to STE. It'll be replaced by qConfig['enableTelemetryEventsToDestination'] === true
+        */
+        // const enableTelemetryEventsToDestination = true
+        // this.#telemetryService.updateEnableTelemetryEventsToDestination(enableTelemetryEventsToDestination)
+        const updatedOptOutPreference = newConfig.optOutTelemetryPreference
+        this.#telemetryService.updateOptOutPreference(updatedOptOutPreference)
+        this.#log(`Chat configuration telemetry preference to ${updatedOptOutPreference}`)
     }
 
     #log(...messages: string[]) {

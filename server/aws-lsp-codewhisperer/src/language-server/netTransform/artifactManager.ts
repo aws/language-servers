@@ -2,7 +2,7 @@ import { Logging, Workspace } from '@aws/language-server-runtimes/server-interfa
 import * as archiver from 'archiver'
 import * as crypto from 'crypto'
 import * as fs from 'fs'
-import { CodeFile, Project, References, RequirementJson, StartTransformRequest } from './models'
+import { CodeFile, ExternalReference, Project, References, RequirementJson, StartTransformRequest } from './models'
 import path = require('path')
 const requriementJsonFileName = 'requirement.json'
 const artifactFolderName = 'artifact'
@@ -10,6 +10,7 @@ const referencesFolderName = 'references'
 const zipFileName = 'artifact.zip'
 const sourceCodeFolderName = 'sourceCode'
 const packagesFolderName = 'packages'
+const thirdPartyPackageFolderName = 'thirdpartypackages'
 
 export class ArtifactManager {
     private workspace: Workspace
@@ -20,27 +21,42 @@ export class ArtifactManager {
         this.logging = logging
         this.workspacePath = workspacePath
     }
+
     async createZip(request: StartTransformRequest): Promise<string> {
         const requirementJson = await this.createRequirementJsonContent(request)
         await this.writeRequirmentJsonAsync(this.getRequirementJsonPath(), JSON.stringify(requirementJson))
         await this.copySolutionConfigFiles(request)
         await this.removeDuplicateNugetPackagesFolder(request)
-        return await this.zipArtifact()
+        const zipPath = await this.zipArtifact()
+        return zipPath
     }
+
     async removeDir(dir: string) {
         if (await this.workspace.fs.exists(dir)) {
             await this.workspace.fs.rm(dir, { recursive: true, force: true })
         }
     }
+
     cleanup() {
         try {
             const artifactFolder = path.join(this.workspacePath, artifactFolderName)
             const zipFile = path.join(this.workspacePath, zipFileName)
-            fs.rmSync(artifactFolder, { recursive: true, force: true })
-            fs.unlinkSync(zipFile)
-            fs.rmSync(this.workspacePath, { recursive: true, force: true })
+            const packagesFolder = path.join(this.workspacePath, packagesFolderName)
+
+            if (fs.existsSync(artifactFolder)) {
+                fs.rmSync(artifactFolder, { recursive: true, force: true })
+            }
+            if (fs.existsSync(zipFile)) {
+                fs.unlinkSync(zipFile)
+            }
+            if (fs.existsSync(packagesFolder)) {
+                fs.rmSync(packagesFolder, { recursive: true, force: true })
+            }
+            if (fs.existsSync(this.workspacePath)) {
+                fs.rmSync(this.workspacePath, { recursive: true, force: true })
+            }
         } catch (error) {
-            this.logging.log('Failed to cleanup:' + error)
+            this.logging.log('Failed to cleanup: ' + error)
         }
     }
 
@@ -104,10 +120,13 @@ export class ArtifactManager {
                         reference.AssemblyFullPath,
                         this.getWorkspaceReferencePathFromRelativePath(relativePath)
                     )
-                    references.push({
+                    let artifactReference: References = {
                         includedInArtifact: reference.IncludedInArtifact,
                         relativePath: relativePath,
-                    })
+                        isThirdPartyPackage: false,
+                    }
+                    this.processPrivatePackages(request, reference, artifactReference)
+                    references.push(artifactReference)
                 } catch (error) {
                     this.logging.log('Failed to process file: ' + error + reference.AssemblyFullPath)
                 }
@@ -120,11 +139,45 @@ export class ArtifactManager {
             })
         }
         this.logging.log('Total project references: ' + projects.length)
+
         return {
             EntryPath: this.normalizeSourceFileRelativePath(request.SolutionRootPath, request.SelectedProjectPath),
             SolutionPath: this.normalizeSourceFileRelativePath(request.SolutionRootPath, request.SolutionFilePath),
             Projects: projects,
             TransformNetStandardProjects: request.TransformNetStandardProjects,
+        }
+    }
+
+    processPrivatePackages(
+        request: StartTransformRequest,
+        reference: ExternalReference,
+        artifactReference: References
+    ) {
+        if (!request.PackageReferences) {
+            return
+        }
+        var thirdPartyPackage = request.PackageReferences.find(
+            p => p.IsPrivatePackage && reference.RelativePath.includes(p.Id)
+        )
+        if (
+            thirdPartyPackage &&
+            thirdPartyPackage.NetCompatibleAssemblyRelativePath &&
+            thirdPartyPackage.NetCompatibleAssemblyPath
+        ) {
+            const privatePackageRelativePath = path
+                .join(
+                    referencesFolderName,
+                    thirdPartyPackageFolderName,
+                    thirdPartyPackage.NetCompatibleAssemblyRelativePath
+                )
+                .toLowerCase()
+            this.copyFile(
+                thirdPartyPackage.NetCompatibleAssemblyPath,
+                this.getWorkspaceReferencePathFromRelativePath(privatePackageRelativePath)
+            )
+            artifactReference.isThirdPartyPackage = true
+            artifactReference.netCompatibleRelativePath = privatePackageRelativePath
+            artifactReference.netCompatibleVersion = thirdPartyPackage.NetCompatiblePackageVersion
         }
     }
 

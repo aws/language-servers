@@ -78,6 +78,11 @@
                 "category": "Test Amazon Q Extension"
             },
             {
+                "command": "aws.sample-vscode-ext-amazonq.sendInlineChat",
+                "title": "Send request to inline chat",
+                "category": "Test Amazon Q Extension"
+            },
+            {
                 "command": "aws.sample-vscode-ext-amazonq.openTab",
                 "title": "Open tab",
                 "category": "Test Amazon Q Extension"
@@ -96,6 +101,24 @@
                 "command": "aws.sample-vscode-ext-amazonq.getCustomizations",
                 "title": "Get customizations",
                 "category": "Test Amazon Q Extension"
+            },
+            {
+                "command": "aws.sample-vscode-ext-amazonq.updateProfileIad",
+                "title": "Update Amazon Q IDC Profile IAD",
+                "category": "Test Amazon Q Extension"
+            },
+            {
+                "command": "aws.sample-vscode-ext-amazonq.updateProfileFra",
+                "title": "Update Amazon Q IDC Profile FRA",
+                "category": "Test Amazon Q Extension"
+            },
+            {
+                "command": "aws.sample-vscode-ext-amazonq.updateProfileInvalid",
+                "title": "Update Amazon Q IDC Profile (Invalid)"
+            },
+            {
+                "command": "aws.sample-vscode-ext-amazonq.updateProfileNull",
+                "title": "Send Amazon Q IDC Null Profile (reset)"
             },
             {
                 "command": "aws.sample-vscode-ext-amazonq.getDeveloperProfiles",
@@ -216,6 +239,26 @@
                     "scope": "resource",
                     "type": "string",
                     "description": "The selected Q customization"
+                },
+                "aws.q.inlineSuggestions.extraContext": {
+                    "scope": "resource",
+                    "type": "string",
+                    "description": "Extra context for Q Inline Suggestions"
+                },
+                "aws.q.optOutTelemetry": {
+                    "scope": "resource",
+                    "type": "boolean",
+                    "description": "Opt Out from Q Telemetry (optOutTelemetry)"
+                },
+                "aws.codeWhisperer.includeSuggestionsWithCodeReferences": {
+                    "scope": "resource",
+                    "type": "boolean",
+                    "description": "Incluse suggestions with Code References"
+                },
+                "aws.codeWhisperer.shareCodeWhispererContentWithAWS": {
+                    "scope": "resource",
+                    "type": "boolean",
+                    "description": "Share CodeWhisperer content with AWS"
                 }
             }
         },
@@ -284,8 +327,8 @@
     "devDependencies": {
         "@aws-sdk/credential-providers": "^3.731.1",
         "@aws-sdk/types": "^3.734.0",
-        "@aws/chat-client-ui-types": "^0.1.5",
-        "@aws/language-server-runtimes": "^0.2.40",
+        "@aws/chat-client-ui-types": "^0.1.12",
+        "@aws/language-server-runtimes": "^0.2.53",
         "@types/uuid": "^9.0.8",
         "@types/vscode": "^1.98.0",
         "jose": "^5.2.4",

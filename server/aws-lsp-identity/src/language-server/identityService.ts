@@ -65,11 +65,22 @@ export class IdentityService {
             ssoSession = await this.getSsoSession(params.source)
             throwOnInvalidSsoSession(ssoSession)
 
-            let ssoToken = await this.ssoCache.getSsoToken(this.clientName, ssoSession)
+            let err: unknown
+            let ssoToken = await this.ssoCache.getSsoToken(this.clientName, ssoSession).catch(e => {
+                err = e
+                return undefined
+            })
 
             if (!ssoToken) {
-                // If no cached token and cannot start the login process, give up
+                // If we could not get the cached token and cannot start the login process, give up
                 if (!options.loginOnInvalidToken) {
+                    if (err) {
+                        this.observability.logging.log(
+                            'Error when attempting to retrieve SSO token and loginOnInvalidToken = false, returning no token.'
+                        )
+                        throw err
+                    }
+
                     this.observability.logging.log(
                         'SSO token not found an loginOnInvalidToken = false, returning no token.'
                     )

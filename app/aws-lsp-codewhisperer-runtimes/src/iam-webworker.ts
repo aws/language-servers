@@ -1,6 +1,6 @@
 import { webworker } from '@aws/language-server-runtimes/runtimes/webworker'
 import { RuntimeProps } from '@aws/language-server-runtimes/runtimes/runtime'
-import { CodeWhispererServerIAM } from '@aws/lsp-codewhisperer/out/language-server/codeWhispererServer'
+import { CodeWhispererServerIAM } from '@aws/lsp-codewhisperer/out/language-server/inline-completion/codeWhispererServer'
 
 const props: RuntimeProps = {
     version: '1.0.0',

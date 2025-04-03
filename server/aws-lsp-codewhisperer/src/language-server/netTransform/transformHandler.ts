@@ -9,7 +9,7 @@ import {
     StopTransformationRequest,
     TransformationJob,
 } from '../../client/token/codewhispererbearertokenclient'
-import { CodeWhispererServiceToken } from '../codeWhispererService'
+import { CodeWhispererServiceToken } from '../../shared/codeWhispererService'
 import { ArtifactManager } from './artifactManager'
 import { getCWStartTransformRequest, getCWStartTransformResponse } from './converter'
 import {
@@ -374,6 +374,7 @@ export class TransformHandler {
                 }
             }
             const saveToWorkspace = path.join(saveToDir, workspaceFolderName)
+            this.logging.log(`Identified path of directory to save artifacts is ${saveToDir}`)
             const pathContainingArchive = await this.archivePathGenerator(exportId, buffer, saveToWorkspace)
             this.logging.log('PathContainingArchive :' + pathContainingArchive)
             return {
@@ -387,16 +388,43 @@ export class TransformHandler {
         }
     }
 
+    async extractAllEntriesTo(pathContainingArchive: string, zipEntries: AdmZip.IZipEntry[]) {
+        for (const entry of zipEntries) {
+            try {
+                const entryPath = path.join(pathContainingArchive, entry.entryName)
+                if (entry.isDirectory) {
+                    await fs.promises.mkdir(entryPath, { recursive: true })
+                } else {
+                    const parentDir = path.dirname(entryPath)
+                    await fs.promises.mkdir(parentDir, { recursive: true })
+                    await fs.promises.writeFile(entryPath, entry.getData())
+                }
+            } catch (extractError: any) {
+                if (extractError instanceof Error && 'code' in extractError && extractError.code === 'ENOENT') {
+                    this.logging.log(`Attempted to extract a file that does not exist : ${entry.entryName}`)
+                } else {
+                    throw extractError
+                }
+            }
+        }
+    }
+
     async archivePathGenerator(exportId: string, buffer: Uint8Array[], saveToDir: string) {
-        const tempDir = path.join(saveToDir, exportId)
-        const pathToArchive = path.join(tempDir, 'ExportResultsArchive.zip')
-        await this.directoryExists(tempDir)
-        await fs.writeFileSync(pathToArchive, Buffer.concat(buffer))
-        let pathContainingArchive = ''
-        pathContainingArchive = path.dirname(pathToArchive)
-        const zip = new AdmZip(pathToArchive)
-        zip.extractAllTo(pathContainingArchive)
-        return pathContainingArchive
+        try {
+            const tempDir = path.join(saveToDir, exportId)
+            const pathToArchive = path.join(tempDir, 'ExportResultsArchive.zip')
+            await this.directoryExists(tempDir)
+            await fs.writeFileSync(pathToArchive, Buffer.concat(buffer))
+            let pathContainingArchive = ''
+            pathContainingArchive = path.dirname(pathToArchive)
+            const zip = new AdmZip(pathToArchive)
+            const zipEntries = zip.getEntries()
+            await this.extractAllEntriesTo(pathContainingArchive, zipEntries)
+            return pathContainingArchive
+        } catch (error) {
+            this.logging.log(`error received ${JSON.stringify(error)}`)
+            return ''
+        }
     }
 
     async directoryExists(directoryPath: any) {
@@ -404,6 +432,7 @@ export class TransformHandler {
             await fs.accessSync(directoryPath)
         } catch (error) {
             // Directory doesn't exist, create it
+            this.logging.log(`Directory doesn't exist, creating it ${directoryPath}`)
             await fs.mkdirSync(directoryPath, { recursive: true })
         }
     }

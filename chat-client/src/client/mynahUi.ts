@@ -14,6 +14,7 @@ import {
 } from '@aws/chat-client-ui-types'
 import {
     ChatResult,
+    ContextCommandParams,
     FeedbackParams,
     FollowUpClickParams,
     InfoLinkClickParams,
@@ -33,7 +34,10 @@ export interface InboundChatApi {
     sendGenericCommand(params: GenericCommandParams): void
     showError(params: ErrorParams): void
     openTab(params: OpenTabParams): void
+    sendContextCommands(params: ContextCommandParams): void
 }
+
+type ContextCommandGroups = MynahUIDataModel['contextCommands']
 
 export const handleChatPrompt = (
     mynahUi: MynahUI,
@@ -93,6 +97,7 @@ export const createMynahUi = (
 ): [MynahUI, InboundChatApi] => {
     const initialTabId = TabFactory.generateUniqueId()
     let disclaimerCardActive = !disclaimerAcknowledged
+    let contextCommandGroups: ContextCommandGroups | undefined
 
     const mynahUi = new MynahUI({
         onCodeInsertToCursorPosition(
@@ -149,12 +154,13 @@ export const createMynahUi = (
             messager.onTabAdd(initialTabId)
         },
         onTabAdd: (tabId: string) => {
-            messager.onTabAdd(tabId)
             const defaultTabConfig: Partial<MynahUIDataModel> = {
                 quickActionCommands: tabFactory.getDefaultTabData().quickActionCommands,
+                contextCommands: contextCommandGroups,
                 ...(disclaimerCardActive ? { promptInputStickyCard: disclaimerCard } : {}),
             }
             mynahUi.updateStore(tabId, defaultTabConfig)
+            messager.onTabAdd(tabId)
         },
         onTabRemove: (tabId: string) => {
             messager.onTabRemove(tabId)
@@ -299,8 +305,42 @@ export const createMynahUi = (
     }
 
     const addChatResponse = (chatResult: ChatResult, tabId: string, isPartialResult: boolean) => {
+        const { type, ...chatResultWithoutType } = chatResult
+        let header = undefined
+
+        if (chatResult.contextList !== undefined) {
+            header = {
+                fileList: {
+                    fileTreeTitle: '',
+                    filePaths: chatResult.contextList.filePaths?.map(file => file),
+                    rootFolderTitle: 'Context',
+                    flatList: true,
+                    collapsed: true,
+                    hideFileCount: true,
+                    details: Object.fromEntries(
+                        Object.entries(chatResult.contextList.details || {}).map(([filePath, fileDetails]) => [
+                            filePath,
+                            {
+                                label:
+                                    fileDetails.lineRanges
+                                        ?.map(range =>
+                                            range.first === -1 || range.second === -1
+                                                ? ''
+                                                : `line ${range.first} - ${range.second}`
+                                        )
+                                        .join(', ') || '',
+                                description: filePath,
+                                clickable: true,
+                            },
+                        ])
+                    ),
+                },
+            }
+        }
+
         if (isPartialResult) {
-            mynahUi.updateLastChatAnswer(tabId, { ...chatResult })
+            // type for MynahUI differs from ChatResult types so we ignore it
+            mynahUi.updateLastChatAnswer(tabId, { ...chatResultWithoutType, header: header })
             return
         }
 
@@ -319,7 +359,7 @@ export const createMynahUi = (
         if (chatResult.body === '' && isValidAuthFollowUp) {
             mynahUi.addChatItem(tabId, {
                 type: ChatItemType.SYSTEM_PROMPT,
-                ...chatResult,
+                ...chatResultWithoutType, // type for MynahUI differs from ChatResult types so we ignore it
             })
 
             // TODO, prompt should be disabled until user is authenticated
@@ -336,6 +376,7 @@ export const createMynahUi = (
             : {}
 
         mynahUi.updateLastChatAnswer(tabId, {
+            header: header,
             body: chatResult.body,
             messageId: chatResult.messageId,
             followUp: followUps,
@@ -420,12 +461,23 @@ ${params.message}`,
         }
     }
 
+    const sendContextCommands = (params: ContextCommandParams) => {
+        contextCommandGroups = params.contextCommandGroups
+
+        Object.keys(mynahUi.getAllTabs()).forEach(tabId => {
+            mynahUi.updateStore(tabId, {
+                contextCommands: contextCommandGroups,
+            })
+        })
+    }
+
     const api = {
         addChatResponse: addChatResponse,
         sendToPrompt: sendToPrompt,
         sendGenericCommand: sendGenericCommand,
         showError: showError,
         openTab: openTab,
+        sendContextCommands: sendContextCommands,
     }
 
     return [mynahUi, api]

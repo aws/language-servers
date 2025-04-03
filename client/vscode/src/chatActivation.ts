@@ -14,11 +14,16 @@ import {
     QuickActionResult,
     QuickActionParams,
     insertToCursorPositionNotificationType,
+    InlineChatParams,
+    InlineChatResult,
+    inlineChatRequestType,
+    contextCommandsNotificationType,
 } from '@aws/language-server-runtimes/protocol'
 import { v4 as uuidv4 } from 'uuid'
 import { Uri, ViewColumn, Webview, WebviewPanel, commands, window } from 'vscode'
 import { Disposable, LanguageClient, Position, State, TextDocumentIdentifier } from 'vscode-languageclient/node'
 import * as jose from 'jose'
+import * as vscode from 'vscode'
 
 export function registerChat(languageClient: LanguageClient, extensionUri: Uri, encryptionKey?: Buffer) {
     const panel = window.createWebviewPanel(
@@ -50,6 +55,13 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri, 
 
     languageClient.onTelemetry(e => {
         languageClient.info(`[VSCode Client] Received telemetry event from server ${JSON.stringify(e)}`)
+    })
+
+    languageClient.onNotification(contextCommandsNotificationType, params => {
+        panel.webview.postMessage({
+            command: contextCommandsNotificationType.method,
+            params: params,
+        })
     })
 
     panel.webview.onDidReceiveMessage(async message => {
@@ -153,6 +165,25 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri, 
             command: 'sendToPrompt',
             params: { selection: selection, triggerType },
         })
+    })
+
+    commands.registerCommand('aws.sample-vscode-ext-amazonq.sendInlineChat', async () => {
+        const params = getCurrentEditorParams()
+        languageClient.info(`Logging request for inline chat ${JSON.stringify(params)}`)
+        if (!params) {
+            languageClient.warn(`Invalid request params for inline chat`)
+            return
+        }
+        try {
+            const inlineChatRequest = await encryptRequest<InlineChatParams>(params, encryptionKey)
+            const response = await languageClient.sendRequest(inlineChatRequestType, inlineChatRequest)
+            const result: InlineChatResult = response as InlineChatResult
+            const decryptedMessage =
+                typeof result === 'string' && encryptionKey ? await decodeRequest(result, encryptionKey) : result
+            languageClient.info(`Logging response for inline chat ${JSON.stringify(decryptedMessage)}`)
+        } catch (e) {
+            languageClient.info(`Logging error for inline chat ${JSON.stringify(e)}`)
+        }
     })
 
     commands.registerCommand('aws.sample-vscode-ext-amazonq.openTab', data => {
@@ -309,4 +340,37 @@ async function handleCompleteResult<T>(
         tabId: tabId,
     })
     disposable.dispose()
+}
+
+function getCurrentEditorParams(): InlineChatParams | undefined {
+    // Get the active text editor
+    const editor = vscode.window.activeTextEditor
+    if (!editor) {
+        return undefined
+    }
+
+    // Get cursor position
+    const position = editor.selection.active
+
+    // Get document URI
+    const documentUri = editor.document.uri.toString()
+
+    const params: InlineChatParams = {
+        prompt: {
+            prompt: 'Add a function to print Hello World',
+        },
+        cursorState: [
+            {
+                position: {
+                    line: position.line,
+                    character: position.character,
+                },
+            },
+        ],
+        textDocument: {
+            uri: documentUri,
+        },
+    }
+
+    return params
 }

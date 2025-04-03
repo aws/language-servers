@@ -1,19 +1,14 @@
-export const EXAMPLE_REQUEST = {
+import { StartTransformRequest } from '../models'
+
+export const EXAMPLE_REQUEST: StartTransformRequest = {
+    SolutionFilePath: 'D:\\TestProjects-master\\TestProjects-master\\netcoreapp3.1\\CoreMVC\CoreMVC.sln',
+    SolutionConfigPaths: [],
+    TransformNetStandardProjects: true,
     SolutionRootPath: 'D:\\TestProjects-master\\TestProjects-master\\netcoreapp3.1\\CoreMVC',
     TargetFramework: 'net8.0',
     ProgramLanguage: 'csharp',
     SelectedProjectPath:
         'D:\\TestProjects-master\\TestProjects-master\\netcoreapp3.1\\CoreMVC\\CoreMVC\\CoreMVC.csproj',
-    SourceCodeFilePaths: [
-        'D:\\TestProjects-master\\TestProjects-master\\netcoreapp3.1\\CoreMVC\\CoreMVC\\appsettings.Development.json',
-        'D:\\TestProjects-master\\TestProjects-master\\netcoreapp3.1\\CoreMVC\\CoreMVC\\appsettings.json',
-        'D:\\TestProjects-master\\TestProjects-master\\netcoreapp3.1\\CoreMVC\\CoreMVC\\CoreMVC.csproj',
-        'D:\\TestProjects-master\\TestProjects-master\\netcoreapp3.1\\CoreMVC\\CoreMVC\\Program.cs',
-        'D:\\TestProjects-master\\TestProjects-master\\netcoreapp3.1\\CoreMVC\\CoreMVC\\Startup.cs',
-        'D:\\TestProjects-master\\TestProjects-master\\netcoreapp3.1\\CoreMVC\\CoreMVC.sln',
-        'D:\\TestProjects-master\\TestProjects-master\\netcoreapp3.1\\CoreMVC\\PortSolutionResult.json',
-        'D:\\TestProjects-master\\TestProjects-master\\netcoreapp3.1\\CoreMVC\\PortSolutionResult.txt',
-    ],
     ProjectMetadata: [
         {
             Name: 'CoreMVC',
@@ -29,9 +24,19 @@ export const EXAMPLE_REQUEST = {
                         'references\\packages\\microsoft.aspnetcore.app.ref\\3.1.10\\ref\\netcoreapp3.1\\Microsoft.Extensions.Http.dll',
                     AssemblyFullPath:
                         'C:\\.nuget\\packages\\microsoft.aspnetcore.app.ref\\3.1.10\\ref\\netcoreapp3.1\\Microsoft.Extensions.Http.dll',
-                    TargetFrameworkId: '',
                     IncludedInArtifact: true,
                 },
+            ],
+            ProjectTargetFramework: 'net8.0',
+            SourceCodeFilePaths: [
+                'D:\\TestProjects-master\\TestProjects-master\\netcoreapp3.1\\CoreMVC\\CoreMVC\\appsettings.Development.json',
+                'D:\\TestProjects-master\\TestProjects-master\\netcoreapp3.1\\CoreMVC\\CoreMVC\\appsettings.json',
+                'D:\\TestProjects-master\\TestProjects-master\\netcoreapp3.1\\CoreMVC\\CoreMVC\\CoreMVC.csproj',
+                'D:\\TestProjects-master\\TestProjects-master\\netcoreapp3.1\\CoreMVC\\CoreMVC\\Program.cs',
+                'D:\\TestProjects-master\\TestProjects-master\\netcoreapp3.1\\CoreMVC\\CoreMVC\\Startup.cs',
+                'D:\\TestProjects-master\\TestProjects-master\\netcoreapp3.1\\CoreMVC\\CoreMVC.sln',
+                'D:\\TestProjects-master\\TestProjects-master\\netcoreapp3.1\\CoreMVC\\PortSolutionResult.json',
+                'D:\\TestProjects-master\\TestProjects-master\\netcoreapp3.1\\CoreMVC\\PortSolutionResult.txt',
             ],
         },
         {
@@ -47,7 +52,6 @@ export const EXAMPLE_REQUEST = {
                         'references\\Reference Assemblies\\Microsoft\\Framework\\.NETFramework\\v4.0\\System.Drawing.dll',
                     AssemblyFullPath:
                         'C:\\Program Files (x86)\\Reference Assemblies\\Microsoft\\Framework\\.NETFramework\\v4.0\\System.Drawing.dll',
-                    TargetFrameworkId: 'netframework4.0',
                     IncludedInArtifact: false,
                 },
                 {
@@ -57,10 +61,11 @@ export const EXAMPLE_REQUEST = {
                         'references\\Reference Assemblies\\Microsoft\\Framework\\.NETFramework\\v4.0\\System.Web.dll',
                     AssemblyFullPath:
                         'C:\\Program Files (x86)\\Reference Assemblies\\Microsoft\\Framework\\.NETFramework\\v4.0\\System.Web.dll',
-                    TargetFrameworkId: 'netframework4.0',
                     IncludedInArtifact: false,
                 },
             ],
+            ProjectTargetFramework: 'net8.0',
+            SourceCodeFilePaths: [],
         },
     ],
     command: 'aws/qNetTransform/startTransform',

@@ -30,9 +30,11 @@ describe('Chat', () => {
     let clientApi: { postMessage: sinon.SinonStub }
 
     before(() => {
-        // Mock global ResizeObserver for test environment
+        // Mock global observers for test environment
         // @ts-ignore
         global.ResizeObserver = null
+        // @ts-ignore
+        global.IntersectionObserver = null
     })
 
     beforeEach(() => {
@@ -205,7 +207,7 @@ describe('Chat', () => {
         })
         window.dispatchEvent(chatEvent)
 
-        assert.calledOnceWithExactly(updateLastChatAnswerStub, tabId, { body })
+        assert.calledOnceWithExactly(updateLastChatAnswerStub, tabId, { body, header: undefined })
         assert.notCalled(endMessageStreamStub)
         assert.notCalled(updateStoreStub)
     })

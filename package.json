@@ -43,7 +43,7 @@
         "eslint": "^8.42.0",
         "eslint-plugin-import": "^2.29.1",
         "eslint-plugin-unused-imports": "^4.1.4",
-        "husky": "^9.1.1",
+        "husky": "^9.1.7",
         "node-loader": "^2.1.0",
         "prettier": "^3.3.3",
         "pretty-quick": "^4.0.0",
