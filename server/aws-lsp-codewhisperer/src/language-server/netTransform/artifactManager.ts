@@ -24,7 +24,7 @@ export class ArtifactManager {
 
     async createZip(request: StartTransformRequest): Promise<string> {
         const requirementJson = await this.createRequirementJsonContent(request)
-        await this.writeRequirmentJsonAsync(this.getRequirementJsonPath(), JSON.stringify(requirementJson))
+        await this.writeRequirementJsonAsync(this.getRequirementJsonPath(), JSON.stringify(requirementJson))
         await this.copySolutionConfigFiles(request)
         await this.removeDuplicateNugetPackagesFolder(request)
         const zipPath = await this.zipArtifact()
@@ -125,7 +125,7 @@ export class ArtifactManager {
                         relativePath: relativePath,
                         isThirdPartyPackage: false,
                     }
-                    this.processPrivatePackages(request, reference, artifactReference)
+                    await this.processPrivatePackages(request, reference, artifactReference)
                     references.push(artifactReference)
                 } catch (error) {
                     this.logging.log('Failed to process file: ' + error + reference.AssemblyFullPath)
@@ -148,11 +148,11 @@ export class ArtifactManager {
         }
     }
 
-    processPrivatePackages(
+    async processPrivatePackages(
         request: StartTransformRequest,
         reference: ExternalReference,
         artifactReference: References
-    ) {
+    ): Promise<void> {
         if (!request.PackageReferences) {
             return
         }
@@ -171,7 +171,7 @@ export class ArtifactManager {
                     thirdPartyPackage.NetCompatibleAssemblyRelativePath
                 )
                 .toLowerCase()
-            this.copyFile(
+            await this.copyFile(
                 thirdPartyPackage.NetCompatibleAssemblyPath,
                 this.getWorkspaceReferencePathFromRelativePath(privatePackageRelativePath)
             )
@@ -246,7 +246,7 @@ export class ArtifactManager {
         })
     }
 
-    async writeRequirmentJsonAsync(dir: string, fileContent: string) {
+    async writeRequirementJsonAsync(dir: string, fileContent: string) {
         const fileName = path.join(dir, requriementJsonFileName)
         fs.writeFileSync(fileName, fileContent)
     }
