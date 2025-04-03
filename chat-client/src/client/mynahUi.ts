@@ -266,6 +266,44 @@ export const createMynahUi = (
                 })
             }
         },
+        onContextSelected: (contextItem, tabId) => {
+            if (contextItem.id === 'create-saved-prompt') {
+                mynahUi.showCustomForm(
+                    tabId,
+                    [
+                        {
+                            id: 'prompt-name',
+                            type: 'textinput',
+                            mandatory: true,
+                            autoFocus: true,
+                            title: 'Prompt name',
+                            placeholder: 'Enter prompt name',
+                            description: "Use this prompt by typing '@' followed by the prompt name.",
+                        },
+                    ],
+                    [
+                        { id: 'cancel-create-prompt', text: 'Cancel', status: 'clear' },
+                        { id: 'submit-create-prompt', text: 'Create', status: 'main' },
+                    ],
+                    `Create a saved prompt`
+                )
+                return false
+            }
+            return true
+        },
+        onCustomFormAction: (tabId, action) => {
+            if (action.id === 'submit-create-prompt') {
+                messager.onCreatePrompt(action.formItemValues?.['prompt-name'] ?? '')
+            }
+        },
+        onFormTextualItemKeyPress: (event: KeyboardEvent, formData: Record<string, string>, itemId: string) => {
+            if (itemId === 'prompt-name' && event.key === 'Enter') {
+                event.preventDefault()
+                messager.onCreatePrompt(formData?.['prompt-name'])
+                return true
+            }
+            return false
+        },
         tabs: {
             [initialTabId]: {
                 isSelected: true,
