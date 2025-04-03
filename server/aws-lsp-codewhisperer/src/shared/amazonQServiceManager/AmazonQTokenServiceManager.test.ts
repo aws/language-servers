@@ -63,9 +63,8 @@ describe('AmazonQTokenServiceManager', () => {
 
     beforeEach(() => {
         // Override endpoints for testing
-        AWS_Q_ENDPOINTS['us-east-1'] = TEST_ENDPOINT_US_EAST_1
-        // @ts-ignore
-        AWS_Q_ENDPOINTS['eu-central-1'] = TEST_ENDPOINT_EU_CENTRAL_1
+        AWS_Q_ENDPOINTS.set('us-east-1', TEST_ENDPOINT_US_EAST_1)
+        AWS_Q_ENDPOINTS.set('eu-central-1', TEST_ENDPOINT_EU_CENTRAL_1)
 
         sinon
             .stub(qDeveloperProfilesFetcherModule, 'getListAllAvailableProfilesHandler')
@@ -220,8 +219,7 @@ describe('AmazonQTokenServiceManager', () => {
 
             setCredentials('builderId')
 
-            // @ts-ignore
-            AWS_Q_ENDPOINTS[testRegion] = testEndpoint
+            AWS_Q_ENDPOINTS.set(testRegion, testEndpoint)
 
             features.lsp.getClientInitializeParams.reset()
         })

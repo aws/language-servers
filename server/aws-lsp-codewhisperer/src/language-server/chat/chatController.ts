@@ -48,6 +48,7 @@ import {
 } from '../../shared/amazonQServiceManager/errors'
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
+import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -562,24 +563,18 @@ export class ChatController implements ChatHandlers {
         return chatEventParser.getResult()
     }
 
-    updateConfiguration = async () => {
-        try {
-            const qConfig = await this.#features.lsp.workspace.getConfiguration(Q_CONFIGURATION_SECTION)
-            if (qConfig) {
-                this.#customizationArn = textUtils.undefinedIfEmpty(qConfig.customization)
-                this.#log(`Chat configuration updated to use ${this.#customizationArn}`)
-                /*
-                    The flag enableTelemetryEventsToDestination is set to true temporarily. It's value will be determined through destination
-                    configuration post all events migration to STE. It'll be replaced by qConfig['enableTelemetryEventsToDestination'] === true
-                */
-                // const enableTelemetryEventsToDestination = true
-                // this.#telemetryService.updateEnableTelemetryEventsToDestination(enableTelemetryEventsToDestination)
-                const optOutTelemetryPreference = qConfig['optOutTelemetry'] === true ? 'OPTOUT' : 'OPTIN'
-                this.#telemetryService.updateOptOutPreference(optOutTelemetryPreference)
-            }
-        } catch (error) {
-            this.#log(`Error in GetConfiguration: ${error}`)
-        }
+    updateConfiguration = (newConfig: AmazonQWorkspaceConfig) => {
+        this.#customizationArn = newConfig.customizationArn
+        this.#log(`Chat configuration updated to use ${this.#customizationArn}`)
+        /*
+            The flag enableTelemetryEventsToDestination is set to true temporarily. It's value will be determined through destination
+            configuration post all events migration to STE. It'll be replaced by qConfig['enableTelemetryEventsToDestination'] === true
+        */
+        // const enableTelemetryEventsToDestination = true
+        // this.#telemetryService.updateEnableTelemetryEventsToDestination(enableTelemetryEventsToDestination)
+        const updatedOptOutPreference = newConfig.optOutTelemetryPreference
+        this.#telemetryService.updateOptOutPreference(updatedOptOutPreference)
+        this.#log(`Chat configuration telemetry preference to ${updatedOptOutPreference}`)
     }
 
     #log(...messages: string[]) {
