@@ -340,7 +340,12 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
         this.handleSsoConnectionChange()
 
         if (this.connectionType === 'none') {
-            throw new AmazonQServicePendingSigninError()
+            if (newProfileArn !== null) {
+                throw new AmazonQServicePendingSigninError()
+            }
+
+            this.logServiceState('Received null profile while not connected, ignoring request')
+            return
         }
 
         if (this.connectionType !== 'identityCenter') {
