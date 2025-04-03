@@ -40,8 +40,6 @@ import { getErrorMessage, isAwsError, isNullish, isObject } from '../../shared/u
 import { Metric } from '../../shared/telemetry/metric'
 import { QChatTriggerContext, TriggerContext } from './contexts/triggerContext'
 import { HELP_MESSAGE } from './constants'
-import { Q_CONFIGURATION_SECTION } from '../configuration/qConfigurationServer'
-import { textUtils } from '@aws/lsp-core'
 import {
     AmazonQServicePendingProfileError,
     AmazonQServicePendingSigninError,
@@ -565,7 +563,7 @@ export class ChatController implements ChatHandlers {
 
     updateConfiguration = (newConfig: AmazonQWorkspaceConfig) => {
         this.#customizationArn = newConfig.customizationArn
-        this.#log(`Chat configuration updated to use ${this.#customizationArn}`)
+        this.#log(`Chat configuration updated customizationArn to ${this.#customizationArn}`)
         /*
             The flag enableTelemetryEventsToDestination is set to true temporarily. It's value will be determined through destination
             configuration post all events migration to STE. It'll be replaced by qConfig['enableTelemetryEventsToDestination'] === true

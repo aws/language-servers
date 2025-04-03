@@ -1,12 +1,6 @@
 import {
-    Logging,
     UpdateConfigurationParams,
     ResponseError,
-    Lsp,
-    CredentialsProvider,
-    SDKInitializator,
-    Runtime,
-    Workspace,
     LSPErrorCodes,
     SsoConnectionType,
     CancellationToken,
@@ -26,8 +20,8 @@ import {
     AmazonQServicePendingSigninError,
     AmazonQServiceProfileUpdateCancelled,
 } from './errors'
-import { BaseAmazonQServiceManager } from './BaseAmazonQServiceManager'
-import { Q_CONFIGURATION_SECTION } from '../../language-server/configuration/qConfigurationServer'
+import { AmazonQBaseServiceManager, BaseAmazonQServiceManager, Features } from './BaseAmazonQServiceManager'
+import { Q_CONFIGURATION_SECTION } from '../constants'
 import { CodeWhispererStreaming } from '@amzn/codewhisperer-streaming'
 import { ConfiguredRetryStrategy } from '@aws-sdk/util-retry'
 import {
@@ -37,23 +31,8 @@ import {
 } from './qDeveloperProfiles'
 
 import { getBearerTokenFromProvider, isStringOrNull } from '../utils'
-import {
-    getAmazonQRelatedWorkspaceConfigs,
-    getAmazonQRegionAndEndpoint,
-    AmazonQConfigurationCache,
-    AmazonQWorkspaceConfig,
-} from './configurationUtils'
-
+import { getAmazonQRegionAndEndpoint } from './configurationUtils'
 import { getUserAgent } from '../telemetryUtils'
-
-export interface Features {
-    lsp: Lsp
-    logging: Logging
-    runtime: Runtime
-    credentialsProvider: CredentialsProvider
-    sdkInitializator: SDKInitializator
-    workspace: Workspace
-}
 
 /**
  * AmazonQTokenServiceManager manages state and provides centralized access to
@@ -81,13 +60,9 @@ export interface Features {
  * const AmazonQServiceManager = AmazonQTokenServiceManager.getInstance(features);
  * const codewhispererService = AmazonQServiceManager.getCodewhispererService();
  */
-export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
+export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<CodeWhispererServiceToken> {
     private static instance: AmazonQTokenServiceManager | null = null
-    private features!: Features
-    private logging!: Logging
-    private cachedCodewhispererService?: CodeWhispererServiceToken
     private enableDeveloperProfileSupport?: boolean
-    private configurationCache = new AmazonQConfigurationCache()
     private activeIdcProfile?: AmazonQDeveloperProfile
     private connectionType?: SsoConnectionType
     private profileChangeTokenSource: CancellationTokenSource | undefined
@@ -104,26 +79,19 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
     private state: 'PENDING_CONNECTION' | 'PENDING_Q_PROFILE' | 'PENDING_Q_PROFILE_UPDATE' | 'INITIALIZED' =
         'PENDING_CONNECTION'
 
-    private constructor() {}
+    private constructor(features: Features) {
+        super(features)
+    }
 
     public static getInstance(features: Features): AmazonQTokenServiceManager {
         if (!AmazonQTokenServiceManager.instance) {
-            AmazonQTokenServiceManager.instance = new AmazonQTokenServiceManager()
-            AmazonQTokenServiceManager.instance.initialize(features)
+            AmazonQTokenServiceManager.instance = new AmazonQTokenServiceManager(features)
+            AmazonQTokenServiceManager.instance.initialize()
         }
         return AmazonQTokenServiceManager.instance
     }
 
-    private initialize(features: Features): void {
-        if (!features || !features.logging || !features.lsp) {
-            throw new AmazonQServiceInitializationError(
-                'Service features not initialized. Please ensure proper initialization.'
-            )
-        }
-
-        this.features = features
-        this.logging = features.logging
-
+    private initialize(): void {
         if (!this.features.lsp.getClientInitializeParams()) {
             this.log('AmazonQTokenServiceManager initialized before LSP connection was initialized.')
             throw new AmazonQServiceInitializationError(
@@ -133,7 +101,6 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
 
         // Bind methods that are passed by reference to some handlers to maintain proper scope.
         this.serviceFactory = this.serviceFactory.bind(this)
-        this.handleDidChangeConfiguration = this.handleDidChangeConfiguration.bind(this)
 
         this.log('Reading enableDeveloperProfileSupport setting from AWSInitializationOptions')
         if (this.features.lsp.getClientInitializeParams()?.initializationOptions?.aws) {
@@ -167,11 +134,6 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
     }
 
     private setupConfigurationListeners(): void {
-        // TODO: refactor how handleDidChangeConfiguration can be hooked to lsp Feature.
-        // Currently can't do this, as it overrides handler set by Server, using ServiceManager.
-        // this.features.lsp.onInitialized(this.handleDidChangeConfiguration)
-        // this.features.lsp.didChangeConfiguration(this.handleDidChangeConfiguration)
-
         this.features.lsp.workspace.onUpdateConfiguration(
             async (params: UpdateConfigurationParams, _token: CancellationToken) => {
                 try {
@@ -279,36 +241,6 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
         }
 
         this.logServiceState('Unknown Connection state')
-    }
-
-    public async handleDidChangeConfiguration() {
-        try {
-            const amazonQConfig = await getAmazonQRelatedWorkspaceConfigs(this.features.lsp, this.features.logging)
-
-            if (this.cachedCodewhispererService) {
-                const { customizationArn, shareCodeWhispererContentWithAWS } = amazonQConfig
-                this.log(`Using customization=${customizationArn}`)
-                this.cachedCodewhispererService.customizationArn = customizationArn
-
-                if (shareCodeWhispererContentWithAWS !== undefined) {
-                    this.log(
-                        'Update shareCodeWhispererContentWithAWS setting on cachedCodewhispererService to ' +
-                            shareCodeWhispererContentWithAWS
-                    )
-                    this.cachedCodewhispererService.shareCodeWhispererContentWithAWS = shareCodeWhispererContentWithAWS
-                }
-            }
-
-            this.configurationCache.updateConfig(amazonQConfig)
-        } catch (error) {
-            this.log(`Unexpected error in getAmazonQRelatedWorkspaceConfigs: ${error}`)
-        }
-
-        return this.configurationCache.getConfig()
-    }
-
-    public getConfiguration(): Readonly<AmazonQWorkspaceConfig> {
-        return this.configurationCache.getConfig()
     }
 
     private cancelActiveProfileChangeToken() {
@@ -608,4 +540,8 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
     public getEnableDeveloperProfileSupport(): boolean {
         return this.enableDeveloperProfileSupport === undefined ? false : this.enableDeveloperProfileSupport
     }
+}
+
+export const initBaseTokenServiceManager = (features: Features): AmazonQBaseServiceManager => {
+    return AmazonQTokenServiceManager.getInstance(features)
 }
