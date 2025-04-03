@@ -104,9 +104,6 @@ const webworkerConfig = {
         new webpack.ProvidePlugin({
             process: 'process/browser',
         }),
-        new webpack.DefinePlugin({
-            'process.platform': JSON.stringify('browser'),
-        }),
     ],
 }
 
