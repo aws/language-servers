@@ -28,6 +28,8 @@ import sinon = require('sinon')
 import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../../../shared/constants'
 import { Service } from 'aws-sdk'
 import { ServiceConfigurationOptions } from 'aws-sdk/lib/service'
+import path = require('path')
+import { IZipEntry } from 'adm-zip'
 
 const mocked$Response = {
     $response: {
@@ -317,6 +319,182 @@ describe('Test Transform handler ', () => {
                     'ProgressUpdateName 1 for PlanStep 1'
                 )
             }
+        })
+    })
+
+    describe('Test extract all tntries to a path', () => {
+        let sandbox: sinon.SinonSandbox
+        let mkdirStub: sinon.SinonStub
+        let writeFileStub: sinon.SinonStub
+
+        beforeEach(() => {
+            sandbox = sinon.createSandbox()
+
+            sandbox.stub(path, 'join').callsFake((...args) => args.join('/'))
+            sandbox.stub(path, 'dirname').callsFake(p => p.split('/').slice(0, -1).join('/'))
+            mkdirStub = sinon.stub(fs.promises, 'mkdir')
+            writeFileStub = sinon.stub(fs.promises, 'writeFile')
+        })
+
+        afterEach(() => {
+            sandbox.restore()
+            if (mkdirStub?.restore) {
+                mkdirStub.restore()
+            }
+            if (writeFileStub?.restore) {
+                writeFileStub.restore()
+            }
+        })
+
+        function createMockZipEntry(entryName: string, isDirectory: boolean, content?: string): IZipEntry {
+            return {
+                entryName,
+                isDirectory,
+                getData: content ? () => Buffer.from(content) : () => Buffer.from(''),
+                header: {} as any,
+                attr: 0,
+                getCompressedData: () => Buffer.from(''),
+                name: entryName,
+                rawEntryName: Buffer.from(entryName),
+                extra: Buffer.from(''),
+                comment: '',
+                getCompressedDataAsync: function (callback: (data: Buffer) => void): void {
+                    throw new Error('Function not implemented.')
+                },
+                setData: function (value: string | Buffer): void {
+                    throw new Error('Function not implemented.')
+                },
+                getDataAsync: function (callback: (data: Buffer, err: string) => void): void {
+                    throw new Error('Function not implemented.')
+                },
+                packHeader: function (): Buffer {
+                    throw new Error('Function not implemented.')
+                },
+                toString: function (): string {
+                    throw new Error('Function not implemented.')
+                },
+            }
+        }
+
+        it('should create directories and extract files successfully', async () => {
+            const pathContainingArchive = '/test/path'
+            const zipEntries = [
+                createMockZipEntry('dir1/', true),
+                createMockZipEntry('dir1/file1.txt', false, 'content1'),
+                createMockZipEntry('file2.txt', false, 'content2'),
+            ]
+
+            await transformHandler.extractAllEntriesTo(pathContainingArchive, zipEntries)
+
+            sinon.assert.calledThrice(mkdirStub)
+            sinon.assert.calledTwice(writeFileStub)
+        })
+
+        it('should handle ENOENT errors gracefully', async () => {
+            const pathContainingArchive = '/test/path'
+            const enoentError = new Error('ENOENT') as NodeJS.ErrnoException
+            enoentError.code = 'ENOENT'
+
+            const zipEntries = [createMockZipEntry('file1.txt', false)]
+            zipEntries[0].getData = () => {
+                throw enoentError
+            }
+
+            await transformHandler.extractAllEntriesTo(pathContainingArchive, zipEntries)
+            expect(mockedLogging.log.args.flat()).to.include(
+                'Attempted to extract a file that does not exist : file1.txt'
+            )
+        })
+
+        it('should throw non-ENOENT errors', async () => {
+            const pathContainingArchive = '/test/path'
+            const otherError = new Error('Some other error')
+
+            const zipEntries = [createMockZipEntry('file1.txt', false)]
+            zipEntries[0].getData = () => {
+                throw otherError
+            }
+
+            return transformHandler
+                .extractAllEntriesTo(pathContainingArchive, zipEntries)
+                .then(() => {
+                    expect.fail('Expected "Some other error" to be thrown, but no error was thrown.')
+                })
+                .catch(error => {
+                    expect(error.message).to.equal('Some other error')
+                })
+        })
+
+        it('should handle nested directory structures', async () => {
+            const pathContainingArchive = '/test/path'
+            const zipEntries = [
+                createMockZipEntry('dir1/', true),
+                createMockZipEntry('dir1/dir2/', true),
+                createMockZipEntry('dir1/dir2/file1.txt', false, 'content1'),
+            ]
+
+            await transformHandler.extractAllEntriesTo(pathContainingArchive, zipEntries)
+
+            sinon.assert.calledThrice(mkdirStub)
+            sinon.assert.calledOnce(writeFileStub)
+            sinon.assert.calledWith(writeFileStub, '/test/path/dir1/dir2/file1.txt')
+        })
+
+        it('should handle empty entry list', async () => {
+            const pathContainingArchive = '/test/path'
+            const zipEntries: IZipEntry[] = []
+
+            await transformHandler.extractAllEntriesTo(pathContainingArchive, zipEntries)
+
+            sinon.assert.notCalled(mkdirStub)
+            sinon.assert.notCalled(writeFileStub)
+        })
+
+        it('should handle files without directories', async () => {
+            const pathContainingArchive = '/test/path'
+            const zipEntries = [
+                createMockZipEntry('file1.txt', false, 'content1'),
+                createMockZipEntry('file2.txt', false, 'content2'),
+            ]
+
+            await transformHandler.extractAllEntriesTo(pathContainingArchive, zipEntries)
+
+            sinon.assert.calledTwice(mkdirStub)
+            sinon.assert.calledTwice(writeFileStub)
+        })
+
+        it('should handle mixed content with files and directories', async () => {
+            const pathContainingArchive = '/test/path'
+            const zipEntries = [
+                createMockZipEntry('dir1/', true),
+                createMockZipEntry('file1.txt', false, 'content1'),
+                createMockZipEntry('dir1/file2.txt', false, 'content2'),
+            ]
+
+            await transformHandler.extractAllEntriesTo(pathContainingArchive, zipEntries)
+
+            sinon.assert.calledThrice(mkdirStub)
+            sinon.assert.calledTwice(writeFileStub)
+            sinon.assert.calledWith(mkdirStub, '/test/path/dir1')
+        })
+
+        it('should handle invalid entry paths', async () => {
+            const pathContainingArchive = '/test/path'
+            const invalidError = new Error('Invalid path') as NodeJS.ErrnoException
+            invalidError.code = 'EINVAL'
+
+            const zipEntries = [createMockZipEntry('invalid/../../file.txt', false, 'content')]
+
+            ;(fs.promises.mkdir as sinon.SinonStub).rejects(invalidError)
+
+            return transformHandler
+                .extractAllEntriesTo(pathContainingArchive, zipEntries)
+                .then(() => {
+                    expect.fail('Expected "Invalid path" to be thrown, but no error was thrown.')
+                })
+                .catch(error => {
+                    expect(error.message).to.equal('Invalid path')
+                })
         })
     })
 })
