@@ -17,6 +17,7 @@ export const withAdapter = (
         throw new Error('Custom ChatEventHandler is not defined')
     }
 
+    // Add default routing logic for event handlers with tabId as first argument.
     const addDefaultRouting = (eventName: HandlerMethodName, defaultReturnValue?: any) => {
         // @ts-ignore
         return (...params) => {
@@ -143,6 +144,8 @@ export const withAdapter = (
             defaultEventHandler.onFocusStateChanged?.(focusState)
         },
     }
+
+    console.log('Set Chat events routing with custom client adapter')
 
     return eventHandlerWithAdapter
 }
