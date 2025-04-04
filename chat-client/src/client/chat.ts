@@ -97,8 +97,6 @@ export const createChat = (
      * @param event - The message event containing data from the IDE
      */
     const handleInboundMessage = (event: MessageEvent): void => {
-        console.log('Received message from IDE: ', event.data)
-
         if (event.data === undefined) {
             return
         }

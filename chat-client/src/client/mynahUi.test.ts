@@ -4,7 +4,9 @@ import { assert } from 'sinon'
 import { createMynahUi, InboundChatApi, handleChatPrompt, DEFAULT_HELP_PROMPT } from './mynahUi'
 import { Messager, OutboundChatApi } from './messager'
 import { TabFactory } from './tabs/tabFactory'
-import { ChatItemType, MynahUI } from '@aws/mynah-ui'
+import { ChatItemType, MynahUI, MynahUIProps } from '@aws/mynah-ui'
+import { ChatEventHandler, ChatClientAdapter } from '../contracts/chatClientAdapter'
+import { withAdapter } from './withAdapter'
 
 describe('MynahUI', () => {
     let messager: Messager
@@ -237,5 +239,36 @@ describe('MynahUI', () => {
                 promptInputDisabledState: true,
             })
         })
+    })
+})
+
+describe('withAdapter', () => {
+    let messager: Messager
+    let mynahUi: MynahUI
+    let mynahUIRef: { mynahUI: MynahUI | undefined }
+    let chatClientAdapter: ChatClientAdapter
+
+    beforeEach(() => {
+        // Set up chat client adapter
+        chatClientAdapter = {
+            createChatEventHandler: newMynahUIRef => {
+                mynahUIRef = newMynahUIRef
+
+                return {}
+            },
+            isSupportedTab: sinon.stub().callsFake(tabId => tabId === 'supported-tab'),
+            isSupportedQuickAction: sinon.stub().callsFake(command => command === '/supported-command'),
+            handleMessageReceive: sinon.stub(),
+            handleQuickAction: sinon.stub(),
+        }
+
+        messager = new Messager({} as OutboundChatApi)
+        const tabFactory = new TabFactory({})
+        const mynahUiResult = createMynahUi(messager, tabFactory, true, chatClientAdapter)
+        mynahUi = mynahUiResult[0]
+    })
+
+    it('should instantiate and inject mynahUIRef to Adapter', () => {
+        assert.match(mynahUIRef.mynahUI, mynahUi)
     })
 })

@@ -35,7 +35,7 @@ import { VoteParams } from '../contracts/telemetry'
 import { Messager } from './messager'
 import { TabFactory } from './tabs/tabFactory'
 import { disclaimerAcknowledgeButtonId, disclaimerCard } from './texts/disclaimer'
-import { ChatClientAdapter } from '../contracts/chatClientAdapter'
+import { ChatClientAdapter, ChatEventHandler } from '../contracts/chatClientAdapter'
 import { withAdapter } from './withAdapter'
 
 export interface InboundChatApi {
@@ -110,7 +110,7 @@ export const createMynahUi = (
     let disclaimerCardActive = !disclaimerAcknowledged
     let contextCommandGroups: ContextCommandGroups | undefined
 
-    let mynahUiProps: MynahUIProps = {
+    let chatEventHandlers: ChatEventHandler = {
         onCodeInsertToCursorPosition(
             tabId,
             messageId,
@@ -279,6 +279,10 @@ export const createMynahUi = (
         },
 
         // Noop not-implemented handlers
+        onBeforeTabRemove: undefined,
+        onFileActionClick: undefined,
+        onStopChatResponse: undefined,
+        onFileClick: undefined,
         onCustomFormAction: undefined,
         onFormTextualItemKeyPress: undefined,
         onQuickCommandGroupActionClick: undefined,
@@ -288,7 +292,9 @@ export const createMynahUi = (
         onFormLinkClick: undefined,
         onFormModifierEnterPress: undefined,
         onTabBarButtonClick: undefined,
+    }
 
+    let mynahUiProps: MynahUIProps = {
         tabs: {
             [initialTabId]: {
                 isSelected: true,
@@ -307,10 +313,13 @@ export const createMynahUi = (
     const mynahUiRef = { mynahUI: undefined as MynahUI | undefined }
     if (customChatClientAdapter) {
         // Attach routing to custom adapter top of default message handlers
-        mynahUiProps = withAdapter(mynahUiProps, mynahUiRef, customChatClientAdapter)
+        chatEventHandlers = withAdapter(chatEventHandlers, mynahUiRef, customChatClientAdapter)
     }
 
-    const mynahUi = new MynahUI(mynahUiProps)
+    const mynahUi = new MynahUI({
+        ...mynahUiProps,
+        ...chatEventHandlers,
+    })
     mynahUiRef.mynahUI = mynahUi
 
     const getTabStore = (tabId = mynahUi.getSelectedTabId()) => {

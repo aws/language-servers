@@ -1,170 +1,41 @@
-import {
-    ChatItemAction,
-    ChatPrompt,
-    CodeSelectionType,
-    Engagement,
-    FeedbackPayload,
-    MynahUI,
-    QuickActionCommand,
-    ReferenceTrackerInformation,
-    RelevancyVoteType,
-} from '@aws/mynah-ui'
+import { ChatPrompt, MynahUI, MynahUIProps } from '@aws/mynah-ui'
 
-export interface ChatPayload {
-    chatMessage: string
-    chatCommand?: string
-}
-
-/**
- * Interface for the Connector class that handles communication between the Chat Client and extension
- */
-export interface ChatEventHandler {
-    /**
-     * ======== Tab Management ========
-     */
-
-    onTabAdd?(tabId: string): void
-
-    onTabChange?(tabId: string): void
-
-    onBeforeTabRemove?(tabId: string): boolean
-
-    onTabRemove?(tabId: string): void
-
-    /**
-     * ======== Chat Interaction ========
-     */
-
-    onChatPrompt?(tabId: string, payload: ChatPayload): void
-
-    onStopChatResponse?(tabId: string): void
-
-    /**
-     * ======== Link Handling ========
-     */
-
-    onLinkClick?(tabId: string, messageId: string, link: string): void
-
-    onSourceLinkClick?(tabId: string, messageId: string, link: string): void
-
-    onResponseBodyLinkClick?(tabId: string, messageId: string, link: string): void
-
-    onInfoLinkClick?(tabId: string, link: string): void
-
-    /**
-     * ======== Code Interaction ========
-     */
-
-    onCodeInsertToCursorPosition?(
-        tabId: string,
-        messageId: string,
-        code?: string,
-        type?: CodeSelectionType,
-        referenceTrackerInformation?: ReferenceTrackerInformation[],
-        eventId?: string,
-        codeBlockIndex?: number,
-        totalCodeBlocks?: number,
-        userIntent?: string,
-        codeBlockLanguage?: string
-    ): void
-
-    onCopyCodeToClipboard?(
-        tabId: string,
-        messageId: string,
-        code?: string,
-        type?: CodeSelectionType,
-        referenceTrackerInformation?: ReferenceTrackerInformation[],
-        eventId?: string,
-        codeBlockIndex?: number,
-        totalCodeBlocks?: number,
-        userIntent?: string,
-        codeBlockLanguage?: string
-    ): void
-
-    onCodeBlockActionClicked?(
-        tabId: string,
-        messageId: string,
-        actionId: string,
-        data?: string,
-        code?: string,
-        type?: CodeSelectionType,
-        referenceTrackerInformation?: ReferenceTrackerInformation[],
-        eventId?: string,
-        codeBlockIndex?: number,
-        totalCodeBlocks?: number
-    ): void
-
-    /**
-     * ======== File Operations ========
-     */
-
-    onFileClick?(tabId: string, filePath: string, deleted: boolean, messageId?: string): void
-
-    onFileActionClick?(tabId: string, messageId: string, filePath: string, actionName: string): void
-
-    /**
-     * ======== User Feedback ========
-     */
-
-    onVote?(tabId: string, messageId: string, vote: RelevancyVoteType): void
-
-    onSendFeedback?(tabId: string, feedbackPayload: FeedbackPayload): void
-
-    /**
-     * ======== UI Interaction ========
-     */
-
-    onFollowUpClicked?(tabId: string, messageId: string, followUp: any): void
-
-    onInBodyButtonClicked?(
-        tabId: string,
-        messageId: string,
-        action: {
-            id: string
-            text?: string
-            formItemValues?: Record<string, string>
-        },
-        eventId?: string
-    ): void
-
-    onCustomFormAction?(tabId: string, formId: string | undefined, action: any): void
-
-    onFormTextualItemKeyPress?(
-        event: KeyboardEvent,
-        formData: Record<string, string>,
-        itemId: string,
-        tabId: string,
-        eventId?: string
-    ): boolean
-
-    onQuickCommandGroupActionClick?(tabId: string, action: { id: string }): void
-
-    onContextSelected?(contextItem: QuickActionCommand, tabId: string): boolean
-
-    onChatItemEngagement?(tabId: string, messageId: string, engagement: Engagement): void
-
-    onShowMoreWebResultsClick?(tabId: string, messageId: string): void
-
-    onChatPromptProgressActionButtonClicked?(tabId: string, action: { id: string }): void
-
-    onTabbedContentTabChange?(tabId: string, messageId: string, contentTabId: string): void
-
-    onFormLinkClick?(link: string, mouseEvent?: MouseEvent): void
-
-    onFormModifierEnterPress?(formData: Record<string, string>, tabId: string): void
-
-    onTabBarButtonClick?(tabId: string, buttonId: string): void
-
-    /**
-     * ======== Application State ========
-     */
-
-    onUiReady(): void
-
-    onResetStore(): void
-
-    onFocusStateChanged?(focusState: boolean): void
-}
+export interface ChatEventHandler
+    extends Pick<
+        MynahUIProps,
+        | 'onTabAdd'
+        | 'onTabChange'
+        | 'onBeforeTabRemove'
+        | 'onTabRemove'
+        | 'onChatPrompt'
+        | 'onStopChatResponse'
+        | 'onLinkClick'
+        | 'onSourceLinkClick'
+        | 'onInfoLinkClick'
+        | 'onCodeInsertToCursorPosition'
+        | 'onCopyCodeToClipboard'
+        | 'onCodeBlockActionClicked'
+        | 'onFileClick'
+        | 'onFileActionClick'
+        | 'onVote'
+        | 'onSendFeedback'
+        | 'onFollowUpClicked'
+        | 'onInBodyButtonClicked'
+        | 'onCustomFormAction'
+        | 'onFormTextualItemKeyPress'
+        | 'onQuickCommandGroupActionClick'
+        | 'onContextSelected'
+        | 'onChatItemEngagement'
+        | 'onShowMoreWebResultsClick'
+        | 'onChatPromptProgressActionButtonClicked'
+        | 'onTabbedContentTabChange'
+        | 'onFormLinkClick'
+        | 'onFormModifierEnterPress'
+        | 'onTabBarButtonClick'
+        | 'onFocusStateChanged'
+        | 'onResetStore'
+        | 'onReady'
+    > {}
 
 /**
  * ChatClientAdapter serves as an integration point between the Chat Client and Host application.

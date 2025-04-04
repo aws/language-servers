@@ -1,67 +1,69 @@
 import { MynahUI, MynahUIProps } from '@aws/mynah-ui'
-import { ChatClientAdapter } from '../contracts/chatClientAdapter'
+import { ChatClientAdapter, ChatEventHandler } from '../contracts/chatClientAdapter'
+import { disclaimerAcknowledgeButtonId } from './texts/disclaimer'
+
+type HandlerMethodName = keyof ChatEventHandler
+type HandlerParameters<T extends HandlerMethodName> = Parameters<NonNullable<ChatEventHandler[T]>>
 
 export const withAdapter = (
-    mynahUiProps: MynahUIProps,
+    defaultEventHandler: ChatEventHandler,
     mynahUIRef: { mynahUI: MynahUI | undefined },
     chatClientAdapter: ChatClientAdapter
 ): MynahUIProps => {
-    const customEventHandler = chatClientAdapter.createChatEventHandler(mynahUIRef)
+    // Inject reference to MynahUI object into external event handler.
+    // This allows custom controllers to maintain drive Chat UI with custom, feature-specific logic.
+    const customEventHandler: ChatEventHandler = chatClientAdapter.createChatEventHandler(mynahUIRef)
     if (!customEventHandler) {
         throw new Error('Custom ChatEventHandler is not defined')
     }
 
-    const mynahUiPropsWithAdapter: MynahUIProps = {
-        ...mynahUiProps,
+    const addDefaultRouting = (eventName: HandlerMethodName, defaultReturnValue?: any) => {
+        // @ts-ignore
+        return (...params) => {
+            // tabId is always the first argument
+            const tabId = params[0]
+            if (chatClientAdapter.isSupportedTab(tabId)) {
+                // @ts-ignore
+                return customEventHandler[eventName]?.(...params) ?? defaultReturnValue
+            }
+
+            // @ts-ignore
+            return defaultEventHandler[eventName]?.(...params) ?? defaultEventHandler
+        }
+    }
+
+    const eventHandlerWithAdapter: ChatEventHandler = {
+        onTabAdd: addDefaultRouting('onTabAdd'),
+        onTabChange: addDefaultRouting('onTabChange'),
+        onBeforeTabRemove: addDefaultRouting('onBeforeTabRemove', true),
+        onTabRemove: addDefaultRouting('onTabRemove'),
+        onStopChatResponse: addDefaultRouting('onStopChatResponse'),
+        onLinkClick: addDefaultRouting('onLinkClick'),
+        onSourceLinkClick: addDefaultRouting('onSourceLinkClick'),
+        onInfoLinkClick: addDefaultRouting('onInfoLinkClick'),
+        onCodeInsertToCursorPosition: addDefaultRouting('onCodeInsertToCursorPosition'),
+        onCopyCodeToClipboard: addDefaultRouting('onCopyCodeToClipboard'),
+        onCodeBlockActionClicked: addDefaultRouting('onCodeBlockActionClicked'),
+        onFileClick: addDefaultRouting('onFileClick'),
+        onFileActionClick: addDefaultRouting('onFileActionClick'),
+        onVote: addDefaultRouting('onVote'),
+        onSendFeedback: addDefaultRouting('onSendFeedback'),
+        onFollowUpClicked: addDefaultRouting('onFollowUpClicked'),
+        onCustomFormAction: addDefaultRouting('onCustomFormAction'),
+        onQuickCommandGroupActionClick: addDefaultRouting('onQuickCommandGroupActionClick'),
+        onChatItemEngagement: addDefaultRouting('onChatItemEngagement'),
+        onShowMoreWebResultsClick: addDefaultRouting('onShowMoreWebResultsClick'),
+        onChatPromptProgressActionButtonClicked: addDefaultRouting('onChatPromptProgressActionButtonClicked'),
+        onTabbedContentTabChange: addDefaultRouting('onTabbedContentTabChange'),
+        onTabBarButtonClick: addDefaultRouting('onTabBarButtonClick'),
 
         /**
-         * ======== Tab Management ========
-         */
-
-        onTabAdd(tabId) {
-            if (chatClientAdapter.isSupportedTab(tabId)) {
-                customEventHandler.onTabAdd?.(tabId)
-                return
-            }
-
-            mynahUiProps.onTabAdd?.(tabId)
-        },
-
-        onTabChange(tabId) {
-            if (chatClientAdapter.isSupportedTab(tabId)) {
-                customEventHandler.onTabChange?.(tabId)
-                return
-            }
-
-            mynahUiProps.onTabChange?.(tabId)
-        },
-
-        onBeforeTabRemove(tabId, eventId) {
-            if (chatClientAdapter.isSupportedTab(tabId)) {
-                return customEventHandler.onBeforeTabRemove?.(tabId) ?? true
-            }
-
-            return mynahUiProps.onBeforeTabRemove?.(tabId, eventId) ?? true
-        },
-
-        onTabRemove(tabId) {
-            if (chatClientAdapter.isSupportedTab(tabId)) {
-                customEventHandler.onTabRemove?.(tabId)
-                return
-            }
-
-            mynahUiProps.onTabRemove?.(tabId)
-        },
-
-        /**
-         * ======== Chat Interaction ========
+         * Handler with special routing logic
          */
 
         onChatPrompt(tabId, prompt, eventId) {
             if (chatClientAdapter.isSupportedTab(tabId)) {
-                customEventHandler.onChatPrompt?.(tabId, {
-                    chatMessage: prompt.prompt ?? '',
-                })
+                customEventHandler.onChatPrompt?.(tabId, prompt, eventId)
                 return
             }
 
@@ -70,378 +72,77 @@ export const withAdapter = (
                 return
             }
 
-            mynahUiProps.onChatPrompt?.(tabId, prompt, eventId)
-        },
-
-        onStopChatResponse(tabId, eventId) {
-            if (chatClientAdapter.isSupportedTab(tabId)) {
-                customEventHandler.onStopChatResponse?.(tabId)
-                return
-            }
-
-            mynahUiProps.onStopChatResponse?.(tabId, eventId)
-        },
-
-        /**
-         * ======== Link Handling ========
-         */
-
-        onLinkClick(tabId, messageId, link, mouseEvent, eventId) {
-            if (chatClientAdapter.isSupportedTab(tabId)) {
-                mouseEvent?.preventDefault()
-                mouseEvent?.stopPropagation()
-                mouseEvent?.stopImmediatePropagation()
-                customEventHandler.onLinkClick?.(tabId, messageId, link)
-                return
-            }
-
-            mynahUiProps.onLinkClick?.(tabId, messageId, link, mouseEvent, eventId)
-        },
-
-        onSourceLinkClick(tabId, messageId, link, mouseEvent, eventId) {
-            if (chatClientAdapter.isSupportedTab(tabId)) {
-                mouseEvent?.preventDefault()
-                mouseEvent?.stopPropagation()
-                mouseEvent?.stopImmediatePropagation()
-                customEventHandler.onSourceLinkClick?.(tabId, messageId, link)
-                return
-            }
-
-            mynahUiProps.onSourceLinkClick?.(tabId, messageId, link, mouseEvent, eventId)
-        },
-
-        onInfoLinkClick(tabId, link, mouseEvent, eventId) {
-            if (chatClientAdapter.isSupportedTab(tabId)) {
-                mouseEvent?.preventDefault()
-                mouseEvent?.stopPropagation()
-                mouseEvent?.stopImmediatePropagation()
-                customEventHandler.onInfoLinkClick?.(tabId, link)
-                return
-            }
-
-            mynahUiProps.onInfoLinkClick?.(tabId, link, mouseEvent, eventId)
-        },
-
-        /**
-         * ======== Code Interaction ========
-         */
-
-        onCodeInsertToCursorPosition(
-            tabId,
-            messageId,
-            code,
-            type,
-            referenceTrackerInformation,
-            eventId,
-            codeBlockIndex,
-            totalCodeBlocks
-        ) {
-            if (chatClientAdapter.isSupportedTab(tabId)) {
-                customEventHandler.onCodeInsertToCursorPosition?.(
-                    tabId,
-                    messageId,
-                    code,
-                    type,
-                    referenceTrackerInformation,
-                    eventId,
-                    codeBlockIndex,
-                    totalCodeBlocks
-                )
-                return
-            }
-
-            mynahUiProps.onCodeInsertToCursorPosition?.(
-                tabId,
-                messageId,
-                code,
-                type,
-                referenceTrackerInformation,
-                eventId,
-                codeBlockIndex,
-                totalCodeBlocks
-            )
-        },
-
-        onCopyCodeToClipboard(
-            tabId,
-            messageId,
-            code,
-            type,
-            referenceTrackerInformation,
-            eventId,
-            codeBlockIndex,
-            totalCodeBlocks
-        ) {
-            if (chatClientAdapter.isSupportedTab(tabId)) {
-                // Custom IDE logic https://github.com/aws/aws-toolkit-vscode/blob/master/packages/core/src/amazonq/webview/ui/connector.ts#L442-L483
-                customEventHandler.onCopyCodeToClipboard?.(
-                    tabId,
-                    messageId,
-                    code,
-                    type,
-                    referenceTrackerInformation,
-                    eventId,
-                    codeBlockIndex,
-                    totalCodeBlocks
-                )
-                return
-            }
-
-            mynahUiProps.onCopyCodeToClipboard?.(
-                tabId,
-                messageId,
-                code,
-                type,
-                referenceTrackerInformation,
-                eventId,
-                codeBlockIndex,
-                totalCodeBlocks
-            )
-        },
-
-        onCodeBlockActionClicked(
-            tabId,
-            messageId,
-            actionId,
-            data,
-            code,
-            type,
-            referenceTrackerInformation,
-            eventId,
-            codeBlockIndex,
-            totalCodeBlocks
-        ) {
-            if (chatClientAdapter.isSupportedTab(tabId)) {
-                // TODO: IDE Connector need to be hooked to handle this event https://github.com/aws/aws-toolkit-vscode/blob/master/packages/core/src/amazonq/webview/ui/main.ts#L836-L867
-                customEventHandler.onCodeBlockActionClicked?.(
-                    tabId,
-                    messageId,
-                    actionId,
-                    data,
-                    code,
-                    type,
-                    referenceTrackerInformation,
-                    eventId,
-                    codeBlockIndex,
-                    totalCodeBlocks
-                )
-                return
-            }
-
-            mynahUiProps.onCodeBlockActionClicked?.(
-                tabId,
-                messageId,
-                actionId,
-                data,
-                code,
-                type,
-                referenceTrackerInformation,
-                eventId,
-                codeBlockIndex,
-                totalCodeBlocks
-            )
-        },
-
-        /**
-         * ======== File Operations ========
-         */
-
-        onFileClick(tabId, filePath, deleted, messageId, eventId) {
-            if (chatClientAdapter.isSupportedTab(tabId)) {
-                customEventHandler.onFileClick?.(tabId, filePath, deleted, messageId)
-                return
-            }
-
-            mynahUiProps.onFileClick?.(tabId, filePath, deleted, messageId, eventId)
-        },
-
-        onFileActionClick(tabId, messageId, filePath, actionName, eventId) {
-            if (chatClientAdapter.isSupportedTab(tabId)) {
-                customEventHandler.onFileActionClick?.(tabId, messageId, filePath, actionName)
-                return
-            }
-
-            mynahUiProps.onFileActionClick?.(tabId, messageId, filePath, actionName, eventId)
-        },
-
-        /**
-         * ======== User Feedback ========
-         */
-
-        onVote(tabId, messageId, vote, eventId) {
-            if (chatClientAdapter.isSupportedTab(tabId)) {
-                // Equals to onChatItemVoted in VSCode https://github.com/aws/aws-toolkit-vscode/blob/master/packages/core/src/amazonq/webview/ui/main.ts#L717
-                customEventHandler.onVote?.(tabId, messageId, vote)
-                return
-            }
-
-            mynahUiProps.onVote?.(tabId, messageId, vote, eventId)
-        },
-
-        onSendFeedback(tabId, feedbackPayload, eventId) {
-            if (chatClientAdapter.isSupportedTab(tabId)) {
-                // Renamed sendFeedback in VSCode https://github.com/aws/aws-toolkit-vscode/blob/master/packages/core/src/amazonq/webview/ui/connector.ts#L619
-                customEventHandler.onSendFeedback?.(tabId, feedbackPayload)
-                return
-            }
-
-            mynahUiProps.onSendFeedback?.(tabId, feedbackPayload, eventId)
-        },
-
-        /**
-         * ======== UI Interaction ========
-         */
-
-        onFollowUpClicked(tabId, messageId, followUp, eventId) {
-            if (chatClientAdapter.isSupportedTab(tabId)) {
-                customEventHandler.onFollowUpClicked?.(tabId, messageId, followUp)
-                return
-            }
-
-            mynahUiProps.onFollowUpClicked?.(tabId, messageId, followUp, eventId)
+            defaultEventHandler.onChatPrompt?.(tabId, prompt, eventId)
         },
 
         onInBodyButtonClicked(tabId, messageId, action, eventId) {
-            // Delegating whole event to host handler
-            // Check if this logic is sufficient for routing VSCode https://github.com/aws/aws-toolkit-vscode/blob/master/packages/core/src/amazonq/webview/ui/main.ts#L718-L775
+            // Chat client already handles disclaimerAcknowledge action by default and sends message to IDE
+            // https://github.com/aws/language-servers/blob/996a422665f95656a481a766c8facfd7636ba2ba/chat-client/src/client/chat.ts#L173-L175
+
+            if (action.id === disclaimerAcknowledgeButtonId) {
+                defaultEventHandler.onInBodyButtonClicked?.(tabId, messageId, action, eventId)
+                return
+            }
+
             if (chatClientAdapter.isSupportedTab(tabId)) {
                 customEventHandler.onInBodyButtonClicked?.(tabId, messageId, action, eventId)
                 return
             }
 
-            // TODO: Check if we always need to check default logic in mynahUi.ts first for Disclaimer
-            // https://github.com/aws/language-servers/blob/81474b1a25ca80d0f2e3147d6ce080511ac7b2ea/chat-client/src/client/mynahUi.ts#L249-L260
-            mynahUiProps.onInBodyButtonClicked?.(tabId, messageId, action, eventId)
+            defaultEventHandler.onInBodyButtonClicked?.(tabId, messageId, action, eventId)
         },
 
-        onCustomFormAction(tabId, action, eventId) {
-            if (chatClientAdapter.isSupportedTab(tabId)) {
-                customEventHandler.onCustomFormAction?.(tabId, undefined, action)
-                return
-            }
-
-            mynahUiProps.onCustomFormAction?.(tabId, action, eventId)
-        },
-
+        // onFormTextualItemKeyPress has different API than rest on handlers in MynahUI
         onFormTextualItemKeyPress(event, formData, itemId, tabId, eventId) {
             if (chatClientAdapter.isSupportedTab(tabId)) {
-                // TODO: Check if logic should be made default in chat-client https://github.com/aws/aws-toolkit-vscode/blob/master/packages/core/src/amazonq/webview/ui/apps/cwChatConnector.ts#L163-L184
-                return customEventHandler.onFormTextualItemKeyPress?.(event, formData, itemId, tabId) ?? false
+                // Follow-up: Check if logic should be moved and be default in chat-client https://github.com/aws/aws-toolkit-vscode/blob/master/packages/core/src/amazonq/webview/ui/apps/cwChatConnector.ts#L163-L184
+                return customEventHandler.onFormTextualItemKeyPress?.(event, formData, itemId, tabId, eventId) ?? false
             }
 
-            return mynahUiProps.onFormTextualItemKeyPress?.(event, formData, itemId, tabId, eventId) ?? false
-        },
-
-        onQuickCommandGroupActionClick(tabId, action, eventId) {
-            if (chatClientAdapter.isSupportedTab(tabId)) {
-                customEventHandler.onQuickCommandGroupActionClick?.(tabId, action)
-                return
-            }
-
-            mynahUiProps.onQuickCommandGroupActionClick?.(tabId, action, eventId)
-        },
-
-        onContextSelected(contextItem, tabId, eventId) {
-            if (chatClientAdapter.isSupportedTab(tabId)) {
-                return customEventHandler.onContextSelected?.(contextItem, tabId) ?? false
-            }
-
-            return mynahUiProps.onContextSelected?.(contextItem, tabId, eventId) ?? false
-        },
-
-        onChatItemEngagement(tabId, messageId, engagement) {
-            if (chatClientAdapter.isSupportedTab(tabId)) {
-                customEventHandler.onChatItemEngagement?.(tabId, messageId, engagement)
-                return
-            }
-
-            mynahUiProps.onChatItemEngagement?.(tabId, messageId, engagement)
-        },
-
-        onShowMoreWebResultsClick(tabId, messageId, eventId) {
-            if (chatClientAdapter.isSupportedTab(tabId)) {
-                customEventHandler.onShowMoreWebResultsClick?.(tabId, messageId)
-                return
-            }
-
-            mynahUiProps.onShowMoreWebResultsClick?.(tabId, messageId, eventId)
-        },
-
-        onChatPromptProgressActionButtonClicked(tabId, action, eventId) {
-            if (chatClientAdapter.isSupportedTab(tabId)) {
-                customEventHandler.onChatPromptProgressActionButtonClicked?.(tabId, action)
-                return
-            }
-
-            mynahUiProps.onChatPromptProgressActionButtonClicked?.(tabId, action, eventId)
-        },
-
-        onTabbedContentTabChange(tabId, messageId, contentTabId, eventId) {
-            if (chatClientAdapter.isSupportedTab(tabId)) {
-                // Implement custom handler if needed
-                customEventHandler.onTabbedContentTabChange?.(tabId, messageId, contentTabId)
-                return
-            }
-
-            mynahUiProps.onTabbedContentTabChange?.(tabId, messageId, contentTabId, eventId)
-        },
-
-        onFormLinkClick(link, mouseEvent, eventId) {
-            // Always delegate onFormLinkClick to adapter, if handled exists
-            if (customEventHandler.onFormLinkClick) {
-                customEventHandler.onFormLinkClick(link, mouseEvent)
-                return
-            }
-
-            mynahUiProps.onFormLinkClick?.(link, mouseEvent, eventId)
+            return defaultEventHandler.onFormTextualItemKeyPress?.(event, formData, itemId, tabId, eventId) ?? false
         },
 
         onFormModifierEnterPress(formData, tabId, eventId) {
             if (chatClientAdapter.isSupportedTab(tabId)) {
-                // Implement custom handler if needed
-                customEventHandler.onFormModifierEnterPress?.(formData, tabId)
-                return
+                return customEventHandler.onFormModifierEnterPress?.(formData, tabId, eventId)
             }
 
-            mynahUiProps.onFormModifierEnterPress?.(formData, tabId, eventId)
+            return defaultEventHandler.onFormModifierEnterPress?.(formData, tabId, eventId)
         },
 
-        onTabBarButtonClick(tabId, buttonId, eventId) {
+        onContextSelected(contextItem, tabId, eventId) {
             if (chatClientAdapter.isSupportedTab(tabId)) {
-                // Implement custom handler if needed
-                customEventHandler.onTabBarButtonClick?.(tabId, buttonId)
+                return customEventHandler.onContextSelected?.(contextItem, tabId, eventId) ?? false
+            }
+
+            return defaultEventHandler.onContextSelected?.(contextItem, tabId, eventId) ?? false
+        },
+
+        onFormLinkClick(link, mouseEvent, eventId) {
+            // Always delegate onFormLinkClick to adapter, if handled exists, since it's not tied to specific tabId
+            if (customEventHandler.onFormLinkClick) {
+                customEventHandler.onFormLinkClick(link, mouseEvent, eventId)
                 return
             }
 
-            mynahUiProps.onTabBarButtonClick?.(tabId, buttonId, eventId)
+            defaultEventHandler.onFormLinkClick?.(link, mouseEvent, eventId)
         },
-
-        /**
-         * ======== Application State ========
-         */
 
         onReady() {
-            // Rename from uiReady in VSCode client https://github.com/aws/aws-toolkit-vscode/blob/master/packages/core/src/amazonq/webview/ui/connector.ts#L511-L523
-            // Do not calling original handler, since it has bindings to PostMessage that breaks integration.
-            // customEventHandler.onUiReady()
-            mynahUiProps.onReady?.()
+            customEventHandler.onReady?.()
+            defaultEventHandler.onReady?.()
         },
 
         onResetStore(tabId) {
-            // Always delegate to original handler as this is a global event
-            mynahUiProps.onResetStore?.(tabId)
+            customEventHandler.onResetStore?.(tabId)
+            defaultEventHandler.onResetStore?.(tabId)
         },
 
         onFocusStateChanged(focusState) {
-            if (chatClientAdapter.isSupportedTab(mynahUIRef.mynahUI?.getSelectedTabId() || '')) {
-                // TODO: Check if it's needed, it is not handled in https://github.com/aws/aws-toolkit-vscode/blob/master/packages/core/src/amazonq/webview/ui/main.ts
-                customEventHandler.onFocusStateChanged?.(focusState)
-                return
-            }
-
-            mynahUiProps.onFocusStateChanged?.(focusState)
+            customEventHandler.onFocusStateChanged?.(focusState)
+            defaultEventHandler.onFocusStateChanged?.(focusState)
         },
     }
 
-    return mynahUiPropsWithAdapter
+    return eventHandlerWithAdapter
 }
