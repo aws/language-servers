@@ -16,7 +16,6 @@ export interface FileMetadata {
     lastModified: number
     content: string | Buffer
     workspaceFolder: WorkspaceFolder
-    isDependency?: boolean
 }
 
 export const SUPPORTED_WORKSPACE_CONTEXT_LANGUAGES: CodewhispererLanguage[] = [
@@ -174,7 +173,6 @@ export class ArtifactManager {
     async getFileMetadata(
         currentWorkspace: WorkspaceFolder,
         filePath: string,
-        isDependency?: boolean,
         languageOverride?: CodewhispererLanguage,
         filePathInZipOverride?: string
     ): Promise<FileMetadata[]> {
@@ -202,8 +200,7 @@ export class ArtifactManager {
                         fullPath,
                         path.join(filePathInZipOverride !== undefined ? filePathInZipOverride : '', relativePath),
                         language,
-                        currentWorkspace,
-                        isDependency || false
+                        currentWorkspace
                     )
                     fileMetadataList.push(fileMetadata)
                 } catch (error) {
@@ -222,8 +219,7 @@ export class ArtifactManager {
                 fileUri.path,
                 relativePath,
                 language,
-                currentWorkspace,
-                isDependency || false
+                currentWorkspace
             )
             fileMetadataList.push(fileMetadata)
         }
@@ -245,8 +241,7 @@ export class ArtifactManager {
             fileUri.path,
             path.relative(workspaceUri.path, fileUri.path),
             language,
-            currentWorkspace,
-            false
+            currentWorkspace
         )
 
         // Find existing workspace folder or use current one
@@ -385,7 +380,6 @@ export class ArtifactManager {
             lastModified: stats.mtimeMs,
             content: zipBuffer,
             workspaceFolder: workspaceFolder,
-            isDependency: true,
         }
     }
 
@@ -437,8 +431,7 @@ export class ArtifactManager {
                     fullPath,
                     path.join(baseRelativePath, relativePath),
                     language,
-                    workspaceFolder,
-                    false
+                    workspaceFolder
                 )
 
                 if (!filesByLanguage.has(language)) {
@@ -460,8 +453,7 @@ export class ArtifactManager {
         filePath: string,
         relativePath: string,
         language: CodewhispererLanguage,
-        workspaceFolder: WorkspaceFolder,
-        isDependency: boolean
+        workspaceFolder: WorkspaceFolder
     ): Promise<FileMetadata> {
         const fileContent = this.workspace.fs.readFileSync(filePath)
         return {
@@ -472,7 +464,6 @@ export class ArtifactManager {
             language,
             relativePath,
             workspaceFolder,
-            isDependency,
         }
     }
 

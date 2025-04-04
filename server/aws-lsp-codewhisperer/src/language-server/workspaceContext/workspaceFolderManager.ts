@@ -199,23 +199,22 @@ export class WorkspaceFolderManager {
         }
     ) {
         let sourceCodeMetadata: FileMetadata[] = []
-        let dependenciesMetadata: FileMetadata[] = []
 
         if (options.didChangeWorkspaceFoldersAddition) {
             sourceCodeMetadata = await this.artifactManager.addWorkspaceFolders(folders)
         } else if (options.initialize) {
             sourceCodeMetadata = await this.artifactManager.createLanguageArtifacts()
-            dependenciesMetadata = await this.dependencyDiscoverer.searchDependencies()
-            this.logging.log(`Length of dependency metadata: ${JSON.stringify(dependenciesMetadata.length)}`)
+            //  Kick off dependency discovery but don't wait
+            this.dependencyDiscoverer.searchDependencies().catch(e => {
+                this.logging.warn(`Error processing dependency discovery: ${e}`)
+            })
         }
         this.logging.log(
             `Length of file metadata for new workspace folders: ${JSON.stringify(sourceCodeMetadata.length)}`
         )
 
-        const allMetadata = [...sourceCodeMetadata, ...dependenciesMetadata]
-
         const fileMetadataMap: Map<string, FileMetadata[]> = new Map<string, FileMetadata[]>()
-        allMetadata.forEach((fileMetadata: FileMetadata) => {
+        sourceCodeMetadata.forEach((fileMetadata: FileMetadata) => {
             let metadata = fileMetadataMap.get(fileMetadata.workspaceFolder.uri)
             if (!metadata) {
                 metadata = []
@@ -247,6 +246,7 @@ export class WorkspaceFolderManager {
                 if (!s3Url) {
                     continue
                 }
+                this.notifyDependencyChange(zip, s3Url)
             } catch (error) {
                 this.logging.error(`Error processing dependency zip ${zip.filePath}: ${error}`)
             }
@@ -315,11 +315,6 @@ export class WorkspaceFolderManager {
                 Buffer.isBuffer(fileMetadata.content) ? fileMetadata.content : Buffer.from(fileMetadata.content),
                 { ...response, uploadId: workspaceId }
             )
-
-            // If uploaded file is a dependency, notify dependency change to the websocket connection
-            if (fileMetadata.isDependency) {
-                this.notifyDependencyChange(fileMetadata, s3Url)
-            }
         } catch (e: any) {
             this.logging.warn(`Error uploading file to S3: ${e.message}`)
         }

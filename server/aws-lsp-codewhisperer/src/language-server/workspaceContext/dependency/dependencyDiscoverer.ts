@@ -61,14 +61,12 @@ export class DependencyDiscoverer {
         return EXCLUDE_PATTERNS.some(pattern => pattern.test(dir))
     }
 
-    async searchDependencies(): Promise<FileMetadata[]> {
+    async searchDependencies(): Promise<void> {
         if (this.initialized) {
-            return []
+            return
         }
         this.logging.log('Starting dependency search across workspace folders')
         this.initialized = true
-
-        const dependencyMetadata: FileMetadata[] = []
 
         for (const workspaceFolder of this.workspaceFolders) {
             const workspaceFolderPath = URI.parse(workspaceFolder.uri).path
@@ -127,18 +125,9 @@ export class DependencyDiscoverer {
             dependencyHandler.initiateDependencyMap()
             dependencyHandler.setupWatchers()
             this.logging.info(`Zipping dependency map for ${dependencyHandler.language}`)
-            const zippedDependencies = await dependencyHandler.zipDependencyMap()
-            dependencyMetadata.push(...zippedDependencies)
+            await dependencyHandler.zipDependencyMap()
         }
         this.logging.log('Dependency search completed successfully')
-        return dependencyMetadata
-    }
-
-    cleanup(): void {
-        this.logging.log('Cleaning up dependency discoverer')
-        this.dependencyHandlerRegistry.forEach(dependencyHandler => {
-            dependencyHandler.dispose()
-        })
     }
 
     async handleDependencyUpdateFromLSP(language: string, paths: string[], workspaceRoot?: WorkspaceFolder) {
@@ -150,7 +139,8 @@ export class DependencyDiscoverer {
         }
     }
 
-    dispose(): void {
+    public dispose(): void {
+        this.initialized = false
         this.dependencyHandlerRegistry.forEach(dependencyHandler => {
             dependencyHandler.dispose()
         })

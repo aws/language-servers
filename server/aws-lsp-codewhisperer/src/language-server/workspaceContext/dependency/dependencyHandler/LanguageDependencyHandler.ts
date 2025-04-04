@@ -109,19 +109,15 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
             this.emitDependencyChange(workspaceFolder, zips)
         }
     }
-    async zipDependencyMap(): Promise<FileMetadata[]> {
-        const allFileMetadata: FileMetadata[] = []
-
+    async zipDependencyMap(): Promise<void> {
         // Process each workspace folder sequentially
         for (const [workspaceFolder, correspondingDependencyMap] of this.dependencyMap) {
             const chunkZipFileMetadata = await this.generateFileMetadata(
                 [...correspondingDependencyMap.values()],
                 workspaceFolder
             )
-            allFileMetadata.push(...chunkZipFileMetadata)
+            this.emitDependencyChange(workspaceFolder, chunkZipFileMetadata)
         }
-
-        return allFileMetadata
     }
 
     private async generateFileMetadata(
@@ -181,7 +177,6 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
                     const fileMetadata = await this.artifactManager.getFileMetadata(
                         workspaceFolder,
                         dependency.path,
-                        true,
                         this.language,
                         path.basename(dependency.path)
                     )

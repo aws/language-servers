@@ -140,7 +140,7 @@ export const WorkspaceContextServer =
                     isWorkflowInitialized = false
                     await workspaceFolderManager.clearAllWorkspaceResources()
                     artifactManager.cleanup()
-                    dependencyDiscoverer.cleanup()
+                    dependencyDiscoverer.dispose()
                 }
             } catch (error) {
                 logging.error(`Error in GetConfiguration: ${error}`)
@@ -214,7 +214,7 @@ export const WorkspaceContextServer =
                         // In this case, clear the resources and stop the monitoring
                         await workspaceFolderManager.clearAllWorkspaceResources()
                         artifactManager.cleanup()
-                        dependencyDiscoverer.cleanup()
+                        dependencyDiscoverer.dispose()
                     }
                     isWorkflowInitialized = false
                 }
@@ -445,6 +445,6 @@ export const WorkspaceContextServer =
 
         return () => {
             artifactManager.cleanup()
-            dependencyDiscoverer.cleanup()
+            dependencyDiscoverer.dispose()
         }
     }
