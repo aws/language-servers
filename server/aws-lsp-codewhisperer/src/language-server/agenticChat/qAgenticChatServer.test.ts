@@ -3,13 +3,14 @@
  * Will be deleted or merged.
  */
 
-import { Server } from '@aws/language-server-runtimes/server-interface'
+import { CancellationToken, Server } from '@aws/language-server-runtimes/server-interface'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import sinon from 'ts-sinon'
 import { AgenticChatController } from './agenticChatController'
 import { ChatSessionManagementService } from '../chat/chatSessionManagementService'
 import { QAgenticChatServer } from './qAgenticChatServer'
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
+import { ChatController } from '../chat/chatController'
 
 describe('QAgenticChatServer', () => {
     const mockTabId = 'mockTabId'
@@ -96,5 +97,23 @@ describe('QAgenticChatServer', () => {
         testFeatures.chat.onChatPrompt.firstCall.firstArg({ tabId: mockTabId, prompt: { prompt: 'Hello' } }, {})
 
         sinon.assert.calledOnce(chatPromptStub)
+    })
+
+    it('calls the corresponding controller when inlineChatPrompt request is received', () => {
+        const inlineChatPromptStub = sinon.stub(AgenticChatController.prototype, 'onInlineChatPrompt')
+        const mockCancellationToken: CancellationToken = {
+            isCancellationRequested: false,
+            onCancellationRequested: () => ({ dispose: () => {} }),
+        }
+        testFeatures.chat.onInlineChatPrompt.firstCall.firstArg({ prompt: { prompt: 'Hello' } }, mockCancellationToken)
+
+        sinon.assert.calledOnce(inlineChatPromptStub)
+        sinon.assert.calledWith(
+            inlineChatPromptStub,
+            {
+                prompt: { prompt: 'Hello' },
+            },
+            mockCancellationToken
+        )
     })
 })

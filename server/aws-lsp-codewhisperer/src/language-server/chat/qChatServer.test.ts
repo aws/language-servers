@@ -1,4 +1,4 @@
-import { Server } from '@aws/language-server-runtimes/server-interface'
+import { CancellationToken, Server } from '@aws/language-server-runtimes/server-interface'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import sinon from 'ts-sinon'
 import { ChatController } from './chatController'
@@ -91,5 +91,23 @@ describe('QChatServer', () => {
         testFeatures.chat.onChatPrompt.firstCall.firstArg({ tabId: mockTabId, prompt: { prompt: 'Hello' } }, {})
 
         sinon.assert.calledOnce(chatPromptStub)
+    })
+
+    it('calls the corresponding controller when inlineChatPrompt request is received', () => {
+        const inlineChatPromptStub = sinon.stub(ChatController.prototype, 'onInlineChatPrompt')
+        const mockCancellationToken: CancellationToken = {
+            isCancellationRequested: false,
+            onCancellationRequested: () => ({ dispose: () => {} }),
+        }
+        testFeatures.chat.onInlineChatPrompt.firstCall.firstArg({ prompt: { prompt: 'Hello' } }, mockCancellationToken)
+
+        sinon.assert.calledOnce(inlineChatPromptStub)
+        sinon.assert.calledWith(
+            inlineChatPromptStub,
+            {
+                prompt: { prompt: 'Hello' },
+            },
+            mockCancellationToken
+        )
     })
 })

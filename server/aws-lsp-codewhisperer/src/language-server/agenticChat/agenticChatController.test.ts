@@ -15,6 +15,7 @@ import {
     Position,
     InsertToCursorPositionParams,
     TextDocumentEdit,
+    InlineChatResult,
 } from '@aws/language-server-runtimes/server-interface'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import * as assert from 'assert'
@@ -65,6 +66,16 @@ describe('AgenticChatController', () => {
         codeReference: undefined,
         followUp: undefined,
         relatedContent: undefined,
+    }
+
+    const expectedCompleteInlineChatResult: InlineChatResult = {
+        messageId: mockMessageId,
+        body: 'Hello World!',
+        canBeVoted: true,
+        codeReference: undefined,
+        followUp: undefined,
+        relatedContent: undefined,
+        requestId: mockMessageId,
     }
 
     const mockCancellationToken = {
@@ -157,7 +168,12 @@ describe('AgenticChatController', () => {
         }
 
         telemetryService = new TelemetryService(amazonQServiceManager, mockCredentialsProvider, telemetry, logging)
-        chatController = new AgenticChatController(chatSessionManagementService, testFeatures, telemetryService)
+        chatController = new AgenticChatController(
+            chatSessionManagementService,
+            testFeatures,
+            telemetryService,
+            amazonQServiceManager
+        )
     })
 
     afterEach(() => {
@@ -463,6 +479,232 @@ describe('AgenticChatController', () => {
                 await chatController.onChatPrompt(
                     {
                         tabId: mockTabId,
+                        prompt: { prompt: 'Hello' },
+                        textDocument: { uri: 'file:///test.ts' },
+                        cursorState: [mockCursorState],
+                    },
+                    mockCancellationToken
+                )
+
+                const calledRequestInput: SendMessageCommandInput = sendMessageStub.firstCall.firstArg
+
+                assert.deepStrictEqual(
+                    calledRequestInput.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext
+                        ?.editorState,
+                    {
+                        cursorState: [],
+                        document: {
+                            programmingLanguage: 'typescript',
+                            relativeFilePath: 'file:///test.ts',
+                            text: undefined,
+                        },
+                    }
+                )
+            })
+        })
+    })
+
+    describe('onInlineChatPrompt', () => {
+        it('read all the response streams and return compiled results', async () => {
+            const chatResultPromise = chatController.onInlineChatPrompt(
+                { prompt: { prompt: 'Hello' } },
+                mockCancellationToken
+            )
+
+            const chatResult = await chatResultPromise
+
+            sinon.assert.callCount(testFeatures.lsp.sendProgress, 0)
+            assert.deepStrictEqual(chatResult, expectedCompleteInlineChatResult)
+        })
+
+        it('read all the response streams and send progress as partial result is received', async () => {
+            const chatResultPromise = chatController.onInlineChatPrompt(
+                { prompt: { prompt: 'Hello' }, partialResultToken: 1 },
+                mockCancellationToken
+            )
+
+            const chatResult = await chatResultPromise
+
+            sinon.assert.callCount(testFeatures.lsp.sendProgress, mockChatResponseList.length)
+            assert.deepStrictEqual(chatResult, expectedCompleteInlineChatResult)
+        })
+
+        it('can use 0 as progress token', async () => {
+            const chatResultPromise = chatController.onInlineChatPrompt(
+                { prompt: { prompt: 'Hello' }, partialResultToken: 0 },
+                mockCancellationToken
+            )
+
+            const chatResult = await chatResultPromise
+
+            sinon.assert.callCount(testFeatures.lsp.sendProgress, mockChatResponseList.length)
+            assert.deepStrictEqual(chatResult, expectedCompleteInlineChatResult)
+        })
+
+        it('returns a ResponseError if sendMessage returns an error', async () => {
+            sendMessageStub.callsFake(() => {
+                throw new Error('Error')
+            })
+
+            const chatResult = await chatController.onInlineChatPrompt(
+                { prompt: { prompt: 'Hello' } },
+                mockCancellationToken
+            )
+
+            assert.ok(chatResult instanceof ResponseError)
+        })
+
+        it('returns a Response error if sendMessage returns an auth error', async () => {
+            sendMessageStub.callsFake(() => {
+                throw new Error('Error')
+            })
+
+            const chatResultPromise = chatController.onInlineChatPrompt(
+                { prompt: { prompt: 'Hello' }, partialResultToken: 1 },
+                mockCancellationToken
+            )
+
+            const chatResult = await chatResultPromise
+
+            sinon.assert.callCount(testFeatures.lsp.sendProgress, 0)
+            assert.ok(chatResult instanceof ResponseError)
+        })
+
+        it('returns a ResponseError if response streams return an error event', async () => {
+            sendMessageStub.callsFake(() => {
+                return Promise.resolve({
+                    $metadata: {
+                        requestId: mockMessageId,
+                    },
+                    sendMessageResponse: createIterableResponse([
+                        // ["Hello ", "World"]
+                        ...mockChatResponseList.slice(1, 3),
+                        { error: { message: 'some error' } },
+                        // ["!"]
+                        ...mockChatResponseList.slice(3),
+                    ]),
+                })
+            })
+
+            const chatResult = await chatController.onInlineChatPrompt(
+                { prompt: { prompt: 'Hello' } },
+                mockCancellationToken
+            )
+
+            assert.deepStrictEqual(chatResult, new ResponseError(LSPErrorCodes.RequestFailed, 'some error'))
+        })
+
+        it('returns a ResponseError if response streams return an invalid state event', async () => {
+            sendMessageStub.callsFake(() => {
+                return Promise.resolve({
+                    $metadata: {
+                        requestId: mockMessageId,
+                    },
+                    sendMessageResponse: createIterableResponse([
+                        // ["Hello ", "World"]
+                        ...mockChatResponseList.slice(1, 3),
+                        { invalidStateEvent: { message: 'invalid state' } },
+                        // ["!"]
+                        ...mockChatResponseList.slice(3),
+                    ]),
+                })
+            })
+
+            const chatResult = await chatController.onInlineChatPrompt(
+                { prompt: { prompt: 'Hello' } },
+                mockCancellationToken
+            )
+
+            assert.deepStrictEqual(chatResult, new ResponseError(LSPErrorCodes.RequestFailed, 'invalid state'))
+        })
+
+        describe('#extractDocumentContext', () => {
+            const typescriptDocument = TextDocument.create('file:///test.ts', 'typescript', 1, 'test')
+            let extractDocumentContextStub: sinon.SinonStub
+
+            const mockCursorState = {
+                range: {
+                    start: {
+                        line: 1,
+                        character: 1,
+                    },
+                    end: {
+                        line: 1,
+                        character: 1,
+                    },
+                },
+            }
+
+            beforeEach(() => {
+                extractDocumentContextStub = sinon.stub(DocumentContextExtractor.prototype, 'extractDocumentContext')
+                testFeatures.openDocument(typescriptDocument)
+            })
+
+            afterEach(() => {
+                extractDocumentContextStub.restore()
+            })
+
+            it('leaves editor state as undefined if cursorState is not passed', async () => {
+                const documentContextObject = {
+                    programmingLanguage: 'typescript',
+                    cursorState: undefined,
+                    relativeFilePath: 'file:///test.ts',
+                }
+                extractDocumentContextStub.resolves(documentContextObject)
+
+                await chatController.onInlineChatPrompt(
+                    {
+                        prompt: { prompt: 'Hello' },
+                        textDocument: { uri: 'file:///test.ts' },
+                        cursorState: undefined,
+                    },
+                    mockCancellationToken
+                )
+
+                const calledRequestInput: SendMessageCommandInput = sendMessageStub.firstCall.firstArg
+
+                assert.strictEqual(
+                    calledRequestInput.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext
+                        ?.editorState,
+                    undefined
+                )
+            })
+
+            it('leaves editor state as undefined if relative file path is undefined', async () => {
+                const documentContextObject = {
+                    programmingLanguage: 'typescript',
+                    cursorState: [],
+                    relativeFilePath: undefined,
+                }
+                extractDocumentContextStub.resolves(documentContextObject)
+
+                await chatController.onInlineChatPrompt(
+                    {
+                        prompt: { prompt: 'Hello' },
+                        cursorState: [mockCursorState],
+                    },
+                    mockCancellationToken
+                )
+
+                const calledRequestInput: SendMessageCommandInput = sendMessageStub.firstCall.firstArg
+
+                assert.strictEqual(
+                    calledRequestInput.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext
+                        ?.editorState,
+                    undefined
+                )
+            })
+
+            it('parses editor state context and includes as requestInput if both cursor state and text document are found', async () => {
+                const documentContextObject = {
+                    programmingLanguage: 'typescript',
+                    cursorState: [],
+                    relativeFilePath: typescriptDocument.uri,
+                }
+                extractDocumentContextStub.resolves(documentContextObject)
+
+                await chatController.onInlineChatPrompt(
+                    {
                         prompt: { prompt: 'Hello' },
                         textDocument: { uri: 'file:///test.ts' },
                         cursorState: [mockCursorState],
