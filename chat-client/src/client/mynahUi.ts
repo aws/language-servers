@@ -49,6 +49,13 @@ export interface InboundChatApi {
 
 type ContextCommandGroups = MynahUIDataModel['contextCommands']
 
+const ContextPrompt = {
+    CreateItemId: 'create-saved-prompt',
+    CancelButtonId: 'cancel-create-prompt',
+    SubmitButtonId: 'submit-create-prompt',
+    PromptNameFieldId: 'prompt-name',
+} as const
+
 export const handleChatPrompt = (
     mynahUi: MynahUI,
     tabId: string,
@@ -278,15 +285,51 @@ export const createMynahUi = (
             }
         },
 
+        onContextSelected: (contextItem, tabId) => {
+            if (contextItem.id === ContextPrompt.CreateItemId) {
+                mynahUi.showCustomForm(
+                    tabId,
+                    [
+                        {
+                            id: ContextPrompt.PromptNameFieldId,
+                            type: 'textinput',
+                            mandatory: true,
+                            autoFocus: true,
+                            title: 'Prompt name',
+                            placeholder: 'Enter prompt name',
+                            description: "Use this prompt by typing '@' followed by the prompt name.",
+                        },
+                    ],
+                    [
+                        { id: ContextPrompt.CancelButtonId, text: 'Cancel', status: 'clear' },
+                        { id: ContextPrompt.SubmitButtonId, text: 'Create', status: 'main' },
+                    ],
+                    `Create a saved prompt`
+                )
+                return false
+            }
+            return true
+        },
+        onCustomFormAction: (tabId, action) => {
+            if (action.id === ContextPrompt.SubmitButtonId) {
+                messager.onCreatePrompt(action.formItemValues![ContextPrompt.PromptNameFieldId])
+            }
+        },
+        onFormTextualItemKeyPress: (event: KeyboardEvent, formData: Record<string, string>, itemId: string) => {
+            if (itemId === ContextPrompt.PromptNameFieldId && event.key === 'Enter') {
+                event.preventDefault()
+                messager.onCreatePrompt(formData[ContextPrompt.PromptNameFieldId])
+                return true
+            }
+            return false
+        },
+
         // Noop not-implemented handlers
         onBeforeTabRemove: undefined,
         onFileActionClick: undefined,
         onStopChatResponse: undefined,
         onFileClick: undefined,
-        onCustomFormAction: undefined,
-        onFormTextualItemKeyPress: undefined,
         onQuickCommandGroupActionClick: undefined,
-        onContextSelected: undefined,
         onChatItemEngagement: undefined,
         onShowMoreWebResultsClick: undefined,
         onFormLinkClick: undefined,

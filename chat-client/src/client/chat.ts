@@ -32,8 +32,10 @@ import {
 import {
     CHAT_REQUEST_METHOD,
     CONTEXT_COMMAND_NOTIFICATION_METHOD,
+    CREATE_PROMPT_NOTIFICATION_METHOD,
     ChatParams,
     ContextCommandParams,
+    CreatePromptParams,
     FEEDBACK_NOTIFICATION_METHOD,
     FOLLOW_UP_CLICK_NOTIFICATION_METHOD,
     FeedbackParams,
@@ -218,6 +220,9 @@ export const createChat = (
                     },
                 })
             }
+        },
+        createPrompt: (params: CreatePromptParams) => {
+            sendMessageToClient({ command: CREATE_PROMPT_NOTIFICATION_METHOD, params })
         },
     }
 
