@@ -317,7 +317,25 @@
                     ".vue"
                 ]
             }
-        ]
+        ],
+        "viewsContainers": {
+            "activitybar": [
+                {
+                    "id": "amazonq",
+                    "title": "Amazon Q Chat Container",
+                    "icon": "resources/amazonq-logo.svg"
+                }
+            ]
+        },
+        "views": {
+            "amazonq": [
+                {
+                    "type": "webview",
+                    "id": "amazonq.chat",
+                    "name": "Amazon Q Chat"
+                }
+            ]
+        }
     },
     "scripts": {
         "vscode:prepublish": "npm run compile",

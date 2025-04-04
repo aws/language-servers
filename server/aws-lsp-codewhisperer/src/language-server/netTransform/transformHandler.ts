@@ -119,7 +119,7 @@ export class TransformHandler {
     }
 
     async uploadPayloadAsync(payloadFileName: string): Promise<string> {
-        const sha256 = ArtifactManager.getSha256(payloadFileName)
+        const sha256 = await ArtifactManager.getSha256Async(payloadFileName)
         let response: CreateUploadUrlResponse
         try {
             response = await this.client.codeModernizerCreateUploadUrl({
@@ -147,16 +147,17 @@ export class TransformHandler {
         try {
             return await artifactManager.createZip(request)
         } catch (e: any) {
-            this.logging.log('cause:' + e)
+            this.logging.log('Error creating zip: ' + e)
+            throw e
         }
-        return ''
     }
 
     async uploadArtifactToS3Async(fileName: string, resp: CreateUploadUrlResponse, sha256: string) {
         const headersObj = this.getHeadersObj(sha256, resp.kmsKeyArn)
         try {
+            const fileStream = fs.createReadStream(fileName)
             const response = await got.put(resp.uploadUrl, {
-                body: fs.readFileSync(fileName),
+                body: fileStream,
                 headers: headersObj,
             })
 
@@ -373,6 +374,7 @@ export class TransformHandler {
                 }
             }
             const saveToWorkspace = path.join(saveToDir, workspaceFolderName)
+            this.logging.log(`Identified path of directory to save artifacts is ${saveToDir}`)
             const pathContainingArchive = await this.archivePathGenerator(exportId, buffer, saveToWorkspace)
             this.logging.log('PathContainingArchive :' + pathContainingArchive)
             return {
@@ -386,16 +388,43 @@ export class TransformHandler {
         }
     }
 
+    async extractAllEntriesTo(pathContainingArchive: string, zipEntries: AdmZip.IZipEntry[]) {
+        for (const entry of zipEntries) {
+            try {
+                const entryPath = path.join(pathContainingArchive, entry.entryName)
+                if (entry.isDirectory) {
+                    await fs.promises.mkdir(entryPath, { recursive: true })
+                } else {
+                    const parentDir = path.dirname(entryPath)
+                    await fs.promises.mkdir(parentDir, { recursive: true })
+                    await fs.promises.writeFile(entryPath, entry.getData())
+                }
+            } catch (extractError: any) {
+                if (extractError instanceof Error && 'code' in extractError && extractError.code === 'ENOENT') {
+                    this.logging.log(`Attempted to extract a file that does not exist : ${entry.entryName}`)
+                } else {
+                    throw extractError
+                }
+            }
+        }
+    }
+
     async archivePathGenerator(exportId: string, buffer: Uint8Array[], saveToDir: string) {
-        const tempDir = path.join(saveToDir, exportId)
-        const pathToArchive = path.join(tempDir, 'ExportResultsArchive.zip')
-        await this.directoryExists(tempDir)
-        await fs.writeFileSync(pathToArchive, Buffer.concat(buffer))
-        let pathContainingArchive = ''
-        pathContainingArchive = path.dirname(pathToArchive)
-        const zip = new AdmZip(pathToArchive)
-        zip.extractAllTo(pathContainingArchive)
-        return pathContainingArchive
+        try {
+            const tempDir = path.join(saveToDir, exportId)
+            const pathToArchive = path.join(tempDir, 'ExportResultsArchive.zip')
+            await this.directoryExists(tempDir)
+            await fs.writeFileSync(pathToArchive, Buffer.concat(buffer))
+            let pathContainingArchive = ''
+            pathContainingArchive = path.dirname(pathToArchive)
+            const zip = new AdmZip(pathToArchive)
+            const zipEntries = zip.getEntries()
+            await this.extractAllEntriesTo(pathContainingArchive, zipEntries)
+            return pathContainingArchive
+        } catch (error) {
+            this.logging.log(`error received ${JSON.stringify(error)}`)
+            return ''
+        }
     }
 
     async directoryExists(directoryPath: any) {
@@ -403,6 +432,7 @@ export class TransformHandler {
             await fs.accessSync(directoryPath)
         } catch (error) {
             // Directory doesn't exist, create it
+            this.logging.log(`Directory doesn't exist, creating it ${directoryPath}`)
             await fs.mkdirSync(directoryPath, { recursive: true })
         }
     }
@@ -432,10 +462,9 @@ export class TransformHandler {
                 suggestion =
                     'Please close Visual Studio, delete the directories where build artifacts are generated (e.g. bin and obj), and try running the transformation again.'
             }
-            this.logging.log(
-                `Transformation job for job ${request.TransformationJobId} is ${status} due to "${reason}". 
-                ${suggestion}`
-            )
+            this.logging
+                .log(`Transformation job for job ${request.TransformationJobId} is ${status} due to "${reason}". 
+                ${suggestion}`)
         }
     }
 }

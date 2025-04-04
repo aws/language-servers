@@ -1,10 +1,10 @@
-import { QAgenticChatServer } from './agenticChat/qAgenticChatServer'
-import { SecurityScanServerToken } from './securityScan/codeWhispererSecurityScanServer'
-import { CodewhispererServerFactory } from './inline-completion/codeWhispererServer'
-import { CodeWhispererServiceToken } from '../shared/codeWhispererService'
-import { QNetTransformServerToken } from './netTransform/netTransformServer'
-import { QChatServer } from './chat/qChatServer'
-import { QConfigurationServerToken } from './configuration/qConfigurationServer'
+import { QAgenticChatServer } from '../language-server/agenticChat/qAgenticChatServer'
+import { SecurityScanServerToken } from '../language-server/securityScan/codeWhispererSecurityScanServer'
+import { CodewhispererServerFactory } from '../language-server/inline-completion/codeWhispererServer'
+import { CodeWhispererServiceToken } from './codeWhispererService'
+import { QNetTransformServerToken } from '../language-server/netTransform/netTransformServer'
+import { QChatServer } from '../language-server/chat/qChatServer'
+import { QConfigurationServerToken } from '../language-server/configuration/qConfigurationServer'
 import { initBaseIAMServiceManager, initBaseTokenServiceManager } from '../shared/amazonQServiceManager/factories'
 
 export const CodeWhispererServerTokenProxy = CodewhispererServerFactory(initBaseTokenServiceManager)

@@ -16,6 +16,7 @@ const sampleStartTransformRequest: StartTransformRequest = {
     ProjectMetadata: [],
     TransformNetStandardProjects: false,
     command: '',
+    PackageReferences: [],
 }
 const mockedLogging = stubInterface<Logging>()
 
