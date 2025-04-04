@@ -92,5 +92,17 @@ const params: InitializeParams = {
 }
 ```
 
-### Extra context for Q Inline Suggestions
+### Supported workspace configurations
+
+The server supports the following [workspace configurations](https://github.com/aws/language-servers/blob/996a422665f95656a481a766c8facfd7636ba2ba/server/aws-lsp-codewhisperer/src/shared/amazonQServiceManager/configurationUtils.ts#L81):
+
+- `aws.q.customization` (type: `string | undefined`, default: `undefined`)
+- `aws.q.optOutTelemetry` (type: `OPTOUT | OPTIN`, default: `OPTIN`)
+- `aws.q.inlineSuggestions.extraContext` (type: `string | undefined`, default: `undefined`)
+- `aws.codeWhisperer.includeSuggestionsWithCodeReferences`: (type: `boolean`, default: `false`)
+- `aws.codeWhisperer.shareCodeWhispererContentWithAWS`: (type: `boolean`, default: `false`)
+
+The client can signal updates to the workspace configuration with the `DidChangeConfiguration` notification.
+
+#### Extra context for Q Inline Suggestions
 In cases when the client runs in a specific environment that requires customized suggestions, the server supports a `aws.q.inlineSuggestions.extraContext` workspace configuration. This extra context will be passed to the left file content of the request in the beginning of the file.
