@@ -14,16 +14,11 @@ import {
     QuickActionResult,
     QuickActionParams,
     insertToCursorPositionNotificationType,
-    InlineChatParams,
-    InlineChatResult,
-    inlineChatRequestType,
-    contextCommandsNotificationType,
 } from '@aws/language-server-runtimes/protocol'
 import { v4 as uuidv4 } from 'uuid'
 import { Uri, ViewColumn, Webview, WebviewPanel, commands, window } from 'vscode'
 import { Disposable, LanguageClient, Position, State, TextDocumentIdentifier } from 'vscode-languageclient/node'
 import * as jose from 'jose'
-import * as vscode from 'vscode'
 
 export function registerChat(languageClient: LanguageClient, extensionUri: Uri, encryptionKey?: Buffer) {
     const panel = window.createWebviewPanel(
@@ -57,19 +52,8 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri, 
         languageClient.info(`[VSCode Client] Received telemetry event from server ${JSON.stringify(e)}`)
     })
 
-    languageClient.onNotification(contextCommandsNotificationType, params => {
-        panel.webview.postMessage({
-            command: contextCommandsNotificationType.method,
-            params: params,
-        })
-    })
-
     panel.webview.onDidReceiveMessage(async message => {
         languageClient.info(`[VSCode Client]  Received ${JSON.stringify(message)} from chat`)
-
-        if (tryHandleFeatureEvent(message, panel)) {
-            return
-        }
 
         switch (message.command) {
             case COPY_TO_CLIPBOARD:
@@ -171,25 +155,6 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri, 
         })
     })
 
-    commands.registerCommand('aws.sample-vscode-ext-amazonq.sendInlineChat', async () => {
-        const params = getCurrentEditorParams()
-        languageClient.info(`Logging request for inline chat ${JSON.stringify(params)}`)
-        if (!params) {
-            languageClient.warn(`Invalid request params for inline chat`)
-            return
-        }
-        try {
-            const inlineChatRequest = await encryptRequest<InlineChatParams>(params, encryptionKey)
-            const response = await languageClient.sendRequest(inlineChatRequestType, inlineChatRequest)
-            const result: InlineChatResult = response as InlineChatResult
-            const decryptedMessage =
-                typeof result === 'string' && encryptionKey ? await decodeRequest(result, encryptionKey) : result
-            languageClient.info(`Logging response for inline chat ${JSON.stringify(decryptedMessage)}`)
-        } catch (e) {
-            languageClient.info(`Logging error for inline chat ${JSON.stringify(e)}`)
-        }
-    })
-
     commands.registerCommand('aws.sample-vscode-ext-amazonq.openTab', data => {
         panel.webview.postMessage({
             command: 'aws/chat/openTab',
@@ -232,39 +197,15 @@ function generateCss() {
 
 function generateJS(webView: Webview, extensionUri: Uri): string {
     const assetsPath = Uri.joinPath(extensionUri)
-    const chatUri = Uri.joinPath(assetsPath, 'build', 'amazonq-chat-client.js')
+    const chatUri = Uri.joinPath(assetsPath, 'build', 'amazonq-ui.js')
 
-    const chatEntrypoint = webView.asWebviewUri(chatUri)
+    const entrypoint = webView.asWebviewUri(chatUri)
 
     return `
-    <script type="text/javascript" src="${chatEntrypoint.toString()}" defer onload="init()"></script>
+    <script type="text/javascript" src="${entrypoint.toString()}" defer onload="init()"></script>
     <script type="text/javascript">
         const init = () => {
-            // Will be part of Extension and not chat client
-            const vscodeApi = acquireVsCodeApi()
-            const connector = amazonQChat.createConnectorAdapter(vscodeApi.postMessage)
-            amazonQChat.createChat(vscodeApi,
-                {
-                    disclaimerAcknowledged: false,
-                    // Registering all commands supported in chat-client/src/ui/quickActions/handler.ts
-                    // TODO: should we register and pass /help and /clear to connector as well?
-                    quickActionCommands: [
-                        {
-                            groupName: 'Legacy Commands Handlers',
-                            commands: [
-                                { command: '/dev' },
-                                { command: '/transform' },
-                                { command: '/review' },
-                                { command: '/test' },
-                                { command: '/doc' },
-                                { command: '/help' },
-                                { command: '/clear' },
-                            ]
-                        }
-                    ]
-                },
-                // connectorsConfig,
-                connector);
+            amazonQChat.createChat(acquireVsCodeApi(), {disclaimerAcknowledged: false});
         }
     </script>
     `
@@ -285,94 +226,6 @@ function getCommandTriggerType(data: any): string {
     // data is undefined when commands triggered from keybinding or command palette. Currently no
     // way to differentiate keybinding and command palette, so both interactions are recorded as keybinding
     return data === undefined ? 'hotkeys' : 'contextMenu'
-}
-
-// Routing for integration with legacy connectors
-function tryHandleFeatureEvent(msg: any, panel: WebviewPanel): boolean {
-    if (!msg.tabType) {
-        return false
-    }
-
-    switch (msg.tabType) {
-        case 'gumby':
-            handleGumbyEvent(msg, panel)
-            break
-        default:
-            break
-    }
-
-    return true
-}
-
-function handleGumbyEvent(msg: any, panel: WebviewPanel) {
-    const sender = 'gumbyChat'
-    switch (msg.command) {
-        case 'transform':
-            handleGumbyTransform(msg, sender, panel)
-            break
-        case 'form-action-click':
-            handleGumbyActionClick(msg, sender, panel)
-            break
-        case 'new-tab-was-created':
-        case 'tab-was-removed':
-        case 'auth-follow-up-was-clicked':
-        case 'chat-prompt':
-        case 'response-body-link-click':
-            break
-    }
-}
-
-function handleGumbyActionClick(msg: any, sender: string, panel: WebviewPanel) {
-    if (msg.action === 'gumbyStartTransformation') {
-        handleGumbyClear(msg, sender, panel)
-        handleGumbyTransform(msg, sender, panel)
-    }
-}
-
-function handleGumbyClear(msg: any, sender: string, panel: WebviewPanel) {
-    panel.webview.postMessage({
-        command: 'aws.awsq.clearchat',
-        sender: sender,
-        tabID: msg.tabID,
-        type: 'sendCommandMessage',
-    })
-}
-
-function handleGumbyTransform(msg: any, sender: string, panel: WebviewPanel) {
-    panel.webview.postMessage({
-        buttons: [],
-        inProgress: true,
-        messageType: 'answer-part',
-        status: 'info',
-        sender: sender,
-        tabID: msg.tabID,
-        type: 'asyncEventProgressMessage',
-    })
-    panel.webview.postMessage({
-        buttons: [],
-        inProgress: true,
-        messageType: 'answer-part',
-        message: 'I am checking for open projects that are eligible for transformation...',
-        status: 'info',
-        sender: sender,
-        tabID: msg.tabID,
-        type: 'asyncEventProgressMessage',
-    })
-    panel.webview.postMessage({
-        buttons: [
-            {
-                id: 'gumbyStartTransformation',
-                keepCardAfterClick: false,
-                text: 'Start a new transformation',
-            },
-        ],
-        messageType: 'ai-prompt',
-        message: "Sorry, I couldn't find a project that I can upgrade...",
-        status: 'info',
-        sender: sender,
-        tabID: msg.tabID,
-        type: 'chatMessage',
-    })
 }
 
 function registerGenericCommand(commandName: string, genericCommand: string, panel: WebviewPanel) {
@@ -456,37 +309,4 @@ async function handleCompleteResult<T>(
         tabId: tabId,
     })
     disposable.dispose()
-}
-
-function getCurrentEditorParams(): InlineChatParams | undefined {
-    // Get the active text editor
-    const editor = vscode.window.activeTextEditor
-    if (!editor) {
-        return undefined
-    }
-
-    // Get cursor position
-    const position = editor.selection.active
-
-    // Get document URI
-    const documentUri = editor.document.uri.toString()
-
-    const params: InlineChatParams = {
-        prompt: {
-            prompt: 'Add a function to print Hello World',
-        },
-        cursorState: [
-            {
-                position: {
-                    line: position.line,
-                    character: position.character,
-                },
-            },
-        ],
-        textDocument: {
-            uri: documentUri,
-        },
-    }
-
-    return params
 }
