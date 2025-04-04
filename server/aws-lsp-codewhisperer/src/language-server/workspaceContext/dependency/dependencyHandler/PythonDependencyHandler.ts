@@ -30,7 +30,13 @@ export class PythonDependencyHandler extends LanguageDependencyHandler<PythonDep
         const vscCodeSettingsJsonPath = path.join(currentDir, '.vscode', 'settings.json')
         if (fs.existsSync(vscCodeSettingsJsonPath) && fs.statSync(vscCodeSettingsJsonPath).isFile()) {
             console.log(`Found .vscode/settings.json in ${currentDir}`)
-            const settingsContent = JSON.parse(fs.readFileSync(vscCodeSettingsJsonPath, 'utf-8'))
+            let settingsContent
+            try {
+                settingsContent = JSON.parse(fs.readFileSync(vscCodeSettingsJsonPath, 'utf-8'))
+            } catch (error) {
+                this.logging.log(`Can't parse settings.json, skipping`)
+                return false
+            }
             // Get and resolve paths from both settings
             const analysisPaths = (settingsContent['python.analysis.extraPaths'] || []).map((rawPath: string) =>
                 this.resolvePath(rawPath, currentDir)
@@ -66,7 +72,11 @@ export class PythonDependencyHandler extends LanguageDependencyHandler<PythonDep
         this.pythonDependencyInfos.forEach(pythonDependencyInfo => {
             try {
                 let generatedDependencyMap: Map<string, Dependency> = this.generateDependencyMap(pythonDependencyInfo)
-                this.compareAndUpdateDependencyMap(pythonDependencyInfo.workspaceFolder, generatedDependencyMap)
+                this.compareAndUpdateDependencyMap(pythonDependencyInfo.workspaceFolder, generatedDependencyMap).catch(
+                    error => {
+                        this.logging.log(`Error processing Python dependencies: ${error}`)
+                    }
+                )
                 // Log found dependencies
                 this.logging.log(
                     `Total python dependencies found: ${generatedDependencyMap.size} under ${pythonDependencyInfo.pkgDir}`
@@ -102,7 +112,7 @@ export class PythonDependencyHandler extends LanguageDependencyHandler<PythonDep
                                 updatedDependencyMap,
                                 true
                             )
-                            await this.uploadZipsAndNotifyWeboscket(zips, pythonDependencyInfo.workspaceFolder)
+                            this.emitDependencyChange(pythonDependencyInfo.workspaceFolder, zips)
                         }
                     })
                     this.dependencyWatchers.set(sitePackagesPath, watcher)

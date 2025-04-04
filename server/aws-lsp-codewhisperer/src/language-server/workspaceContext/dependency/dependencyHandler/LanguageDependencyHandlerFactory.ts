@@ -5,7 +5,6 @@ import { BaseDependencyInfo, LanguageDependencyHandler } from './LanguageDepende
 import { Logging, Workspace, WorkspaceFolder } from '@aws/language-server-runtimes/server-interface'
 import { CodewhispererLanguage } from '../../../languageDetection'
 import { ArtifactManager } from '../../artifactManager'
-import { WorkspaceFolderManager } from '../../workspaceFolderManager'
 
 export class DependencyHandlerFactory {
     static createHandler(
@@ -13,8 +12,7 @@ export class DependencyHandlerFactory {
         workspace: Workspace,
         logging: Logging,
         workspaceFolders: WorkspaceFolder[],
-        artifactManager: ArtifactManager,
-        workspaceFolderManager: WorkspaceFolderManager
+        artifactManager: ArtifactManager
     ): LanguageDependencyHandler<BaseDependencyInfo> | null {
         switch (language.toLowerCase()) {
             case 'python':
@@ -24,7 +22,6 @@ export class DependencyHandlerFactory {
                     logging,
                     workspaceFolders,
                     artifactManager,
-                    workspaceFolderManager,
                     'site-packages'
                 )
             case 'javascript':
@@ -35,7 +32,6 @@ export class DependencyHandlerFactory {
                     logging,
                     workspaceFolders,
                     artifactManager,
-                    workspaceFolderManager,
                     'node_modules'
                 )
             case 'java':
@@ -45,7 +41,6 @@ export class DependencyHandlerFactory {
                     logging,
                     workspaceFolders,
                     artifactManager,
-                    workspaceFolderManager,
                     'dependencies'
                 )
             default:

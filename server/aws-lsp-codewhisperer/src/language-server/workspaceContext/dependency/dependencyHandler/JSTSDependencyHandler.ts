@@ -78,13 +78,19 @@ export class JSTSDependencyHandler extends LanguageDependencyHandler<JSTSDepende
         let packageJsonPath = jstsDependencyInfo.packageJsonPath
         let nodeModulesPath = jstsDependencyInfo.nodeModulesPath
         // Read and parse package.json
-        const packageJsonContent = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'))
+        let packageJsonContent
+        let allDependencies = {}
+        try {
+            packageJsonContent = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'))
 
-        // Combine all types of dependencies
-        const allDependencies = {
-            ...(packageJsonContent.dependencies || {}),
-            ...(packageJsonContent.devDependencies || {}),
-            ...(packageJsonContent.peerDependencies || {}),
+            // Combine all types of dependencies
+            allDependencies = {
+                ...(packageJsonContent.dependencies || {}),
+                ...(packageJsonContent.devDependencies || {}),
+                ...(packageJsonContent.peerDependencies || {}),
+            }
+        } catch (e) {
+            this.logging.log(`Can't parse package.json skipping `)
         }
 
         // process each dependency
@@ -97,8 +103,12 @@ export class JSTSDependencyHandler extends LanguageDependencyHandler<JSTSDepende
                 let actualVersion: string = typeof declaredVersion === 'string' ? declaredVersion : 'unknown'
 
                 if (fs.existsSync(depPackageJsonPath)) {
-                    const depPackageJson = JSON.parse(fs.readFileSync(depPackageJsonPath, 'utf-8'))
-                    actualVersion = depPackageJson.version
+                    try {
+                        const depPackageJson = JSON.parse(fs.readFileSync(depPackageJsonPath, 'utf-8'))
+                        actualVersion = depPackageJson.version
+                    } catch (e) {
+                        this.logging.log(`Can't parse ${depPackageJsonPath}, skipping`)
+                    }
                 }
 
                 dependencyMap.set(name, {
@@ -125,14 +135,18 @@ export class JSTSDependencyHandler extends LanguageDependencyHandler<JSTSDepende
                 if (!dependencyMap.has(item)) {
                     const depPackageJsonPath = path.join(itemPath, 'package.json')
                     if (fs.existsSync(depPackageJsonPath)) {
-                        const depPackageJson = JSON.parse(fs.readFileSync(depPackageJsonPath, 'utf-8'))
-                        dependencyMap.set(item, {
-                            name: item,
-                            version: depPackageJson.version || 'unknown',
-                            path: itemPath,
-                            size: this.getDirectorySize(itemPath),
-                            zipped: false,
-                        })
+                        try {
+                            const depPackageJson = JSON.parse(fs.readFileSync(depPackageJsonPath, 'utf-8'))
+                            dependencyMap.set(item, {
+                                name: item,
+                                version: depPackageJson.version || 'unknown',
+                                path: itemPath,
+                                size: this.getDirectorySize(itemPath),
+                                zipped: false,
+                            })
+                        } catch (e) {
+                            this.logging.log(`Can't parse ${depPackageJsonPath}, skipping`)
+                        }
                     }
                 }
             }
@@ -158,7 +172,7 @@ export class JSTSDependencyHandler extends LanguageDependencyHandler<JSTSDepende
                             updatedDependencyMap,
                             true
                         )
-                        await this.uploadZipsAndNotifyWeboscket(zips, jstsDependencyInfo.workspaceFolder)
+                        this.emitDependencyChange(jstsDependencyInfo.workspaceFolder, zips)
                     }
                 })
                 this.dependencyWatchers.set(packageJsonPath, watcher)

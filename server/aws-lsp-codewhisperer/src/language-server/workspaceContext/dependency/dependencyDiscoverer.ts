@@ -5,21 +5,19 @@ import { URI } from 'vscode-uri'
 import { DependencyHandlerFactory } from './dependencyHandler/LanguageDependencyHandlerFactory'
 import { BaseDependencyInfo, LanguageDependencyHandler } from './dependencyHandler/LanguageDependencyHandler'
 import { supportedWorkspaceContextLanguages } from '../../languageDetection'
-import { ArtifactManager } from '../artifactManager'
-import { WorkspaceFolderManager } from '../workspaceFolderManager'
+import { ArtifactManager, FileMetadata } from '../artifactManager'
 
 export class DependencyDiscoverer {
     private logging: Logging
     private workspaceFolders: WorkspaceFolder[]
-    private dependencyHandlerRegistry: LanguageDependencyHandler<BaseDependencyInfo>[] = []
+    public dependencyHandlerRegistry: LanguageDependencyHandler<BaseDependencyInfo>[] = []
     private initialized: boolean = false
 
     constructor(
         workspace: Workspace,
         logging: Logging,
         workspaceFolders: WorkspaceFolder[],
-        artifactManager: ArtifactManager,
-        workspaceFolderManager: WorkspaceFolderManager
+        artifactManager: ArtifactManager
     ) {
         this.workspaceFolders = workspaceFolders
         this.logging = logging
@@ -31,8 +29,7 @@ export class DependencyDiscoverer {
                 workspace,
                 logging,
                 workspaceFolders,
-                artifactManager,
-                workspaceFolderManager
+                artifactManager
             )
             if (handler) {
                 // Share handler for javascript and typescript
@@ -64,12 +61,15 @@ export class DependencyDiscoverer {
         return EXCLUDE_PATTERNS.some(pattern => pattern.test(dir))
     }
 
-    async searchDependencies(): Promise<void> {
+    async searchDependencies(): Promise<FileMetadata[]> {
         if (this.initialized) {
-            return
+            return []
         }
         this.logging.log('Starting dependency search across workspace folders')
         this.initialized = true
+
+        const dependencyMetadata: FileMetadata[] = []
+
         for (const workspaceFolder of this.workspaceFolders) {
             const workspaceFolderPath = URI.parse(workspaceFolder.uri).path
             const queue: { dir: string; depth: number }[] = [{ dir: workspaceFolderPath, depth: 0 }]
@@ -127,12 +127,15 @@ export class DependencyDiscoverer {
             dependencyHandler.initiateDependencyMap()
             dependencyHandler.setupWatchers()
             this.logging.info(`Zipping dependency map for ${dependencyHandler.language}`)
-            await dependencyHandler.zipDependencyMap()
+            const zippedDependencies = await dependencyHandler.zipDependencyMap()
+            dependencyMetadata.push(...zippedDependencies)
         }
         this.logging.log('Dependency search completed successfully')
+        return dependencyMetadata
     }
 
     cleanup(): void {
+        this.logging.log('Cleaning up dependency discoverer')
         this.dependencyHandlerRegistry.forEach(dependencyHandler => {
             dependencyHandler.dispose()
         })

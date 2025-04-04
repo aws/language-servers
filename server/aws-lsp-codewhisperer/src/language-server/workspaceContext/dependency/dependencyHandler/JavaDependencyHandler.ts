@@ -4,9 +4,6 @@ import * as fs from 'fs'
 import * as xml2js from 'xml2js'
 import { FileMetadata } from '../../artifactManager'
 import { WorkspaceFolder } from '@aws/language-server-runtimes/server-interface'
-import walk = require('ignore-walk')
-import { CodewhispererLanguage } from '../../../languageDetection'
-import { escape } from 'querystring'
 
 export interface JavaDependencyInfo extends BaseDependencyInfo {
     dotClasspathPath: string
@@ -54,7 +51,11 @@ export class JavaDependencyHandler extends LanguageDependencyHandler<JavaDepende
         for (const javaDependencyInfo of this.javaDependencyInfos) {
             try {
                 let generatedDependencyMap: Map<string, Dependency> = this.generateDependencyMap(javaDependencyInfo)
-                this.compareAndUpdateDependencyMap(javaDependencyInfo.workspaceFolder, generatedDependencyMap)
+                this.compareAndUpdateDependencyMap(javaDependencyInfo.workspaceFolder, generatedDependencyMap).catch(
+                    error => {
+                        this.logging.log(`Error processing Java dependencies: ${error}`)
+                    }
+                )
                 // Log found dependencies
                 this.logging.log(
                     `Total java dependencies found:  ${generatedDependencyMap.size} under ${javaDependencyInfo.pkgDir}`
@@ -83,7 +84,7 @@ export class JavaDependencyHandler extends LanguageDependencyHandler<JavaDepende
                             updatedDependencyMap,
                             true
                         )
-                        await this.uploadZipsAndNotifyWeboscket(zips, javaDependencyInfo.workspaceFolder)
+                        this.emitDependencyChange(javaDependencyInfo.workspaceFolder, zips)
                     }
                 })
                 this.dependencyWatchers.set(dotClasspathPath, watcher)

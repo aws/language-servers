@@ -59,20 +59,16 @@ export const WorkspaceContextServer =
             } else {
                 logging.error(`WORKSPACE FOLDERS IS NOT SET`)
             }
+
             artifactManager = new ArtifactManager(workspace, logging, workspaceFolders)
+            dependencyDiscoverer = new DependencyDiscoverer(workspace, logging, workspaceFolders, artifactManager)
             workspaceFolderManager = WorkspaceFolderManager.createInstance(
                 cwsprClient,
                 logging,
                 artifactManager,
+                dependencyDiscoverer,
                 workspaceFolders,
                 credentialsProvider
-            )
-            dependencyDiscoverer = new DependencyDiscoverer(
-                workspace,
-                logging,
-                workspaceFolders,
-                artifactManager,
-                workspaceFolderManager
             )
 
             return {
@@ -203,7 +199,8 @@ export const WorkspaceContextServer =
                 const isLoggedIn = isLoggedInUsingBearerToken(credentialsProvider)
                 if (isLoggedIn && !isWorkflowInitialized) {
                     isWorkflowInitialized = true
-                    logging.log(`Workspace context Workflow initialized`)
+                    logging.log(`Workspace context workflow initialized`)
+                    artifactManager.updateWorkspaceFolders(workspaceFolders)
                     workspaceFolderManager
                         .processNewWorkspaceFolders(workspaceFolders, {
                             initialize: true,
@@ -211,8 +208,6 @@ export const WorkspaceContextServer =
                         .catch(error => {
                             logging.error(`Error in processNewWorkspaceFolders: ${error}`)
                         })
-                    artifactManager.updateWorkspaceFolders(workspaceFolders)
-                    await dependencyDiscoverer.searchDependencies()
                 } else if (!isLoggedIn) {
                     if (isWorkflowInitialized) {
                         // If user is not logged in but the workflow is marked as initialized, it means user was logged in and is now logged out
@@ -440,7 +435,7 @@ export const WorkspaceContextServer =
             }
             const workspaceFolder = workspaceFolderManager.getWorkspaceFolder(params.moduleName)
             await dependencyDiscoverer.handleDependencyUpdateFromLSP(
-                JSON.parse(JSON.stringify(params))['programmingLanguage'],
+                JSON.parse(JSON.stringify(params))['programmingLanguage'], //todo, this needs to be changed to runtimeLanguage
                 params.paths,
                 workspaceFolder
             )

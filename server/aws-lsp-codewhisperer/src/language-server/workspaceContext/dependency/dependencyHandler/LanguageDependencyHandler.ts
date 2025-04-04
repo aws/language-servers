@@ -3,8 +3,7 @@ import { CodewhispererLanguage } from '../../../languageDetection'
 import * as fs from 'fs'
 import { ArtifactManager, FileMetadata } from '../../artifactManager'
 import path = require('path')
-import { WorkspaceFolderManager } from '../../workspaceFolderManager'
-import { cleanUrl } from '../../util'
+import { EventEmitter } from 'events'
 
 export interface Dependency {
     name: string
@@ -29,8 +28,8 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
     protected dependencyMap = new Map<WorkspaceFolder, Map<string, Dependency>>()
     protected dependencyWatchers: Map<string, fs.FSWatcher> = new Map<string, fs.FSWatcher>()
     protected artifactManager: ArtifactManager
-    protected workspaceFolderManager: WorkspaceFolderManager
     protected dependenciesFolderName: string
+    protected eventEmitter: EventEmitter
 
     constructor(
         language: CodewhispererLanguage,
@@ -38,7 +37,6 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
         logging: Logging,
         workspaceFolders: WorkspaceFolder[],
         artifactManager: ArtifactManager,
-        workspaceFolderManager: WorkspaceFolderManager,
         dependenciesFolderName: string
     ) {
         this.language = language
@@ -46,7 +44,6 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
         this.logging = logging
         this.workspaceFolders = workspaceFolders
         this.artifactManager = artifactManager
-        this.workspaceFolderManager = workspaceFolderManager
         this.dependenciesFolderName = dependenciesFolderName
         // For each language, the dependency handler initializes dependency map per workspaceSpace folder
         // regardless of knowing whether the workspaceFolder has the language
@@ -54,6 +51,8 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
         this.workspaceFolders.forEach(workSpaceFolder =>
             this.dependencyMap.set(workSpaceFolder, new Map<string, Dependency>())
         )
+
+        this.eventEmitter = new EventEmitter()
     }
 
     /*
@@ -83,6 +82,15 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
         dependencyMap: Map<string, Dependency>
     ): void
 
+    public onDependencyChange(callback: (workspaceFolder: WorkspaceFolder, zips: FileMetadata[]) => void): void {
+        this.eventEmitter.on('dependencyChange', callback)
+    }
+
+    protected emitDependencyChange(workspaceFolder: WorkspaceFolder, zips: FileMetadata[]): void {
+        this.logging.log(`Emitting dependency change event for ${workspaceFolder.name}`)
+        this.eventEmitter.emit('dependencyChange', workspaceFolder, zips)
+    }
+
     /**
      * Update dependency map based on didChangeDependencyPaths LSP. Javascript and Typescript will not use LSP so no need to implement this method
      * @param paths
@@ -97,46 +105,23 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
         })
 
         if (workspaceFolder) {
-            let zips: FileMetadata[] = await this.compareAndUpdateDependencyMap(workspaceFolder, dependencyMap, true)
-            await this.uploadZipsAndNotifyWeboscket(zips, workspaceFolder)
+            const zips: FileMetadata[] = await this.compareAndUpdateDependencyMap(workspaceFolder, dependencyMap, true)
+            this.emitDependencyChange(workspaceFolder, zips)
         }
     }
+    async zipDependencyMap(): Promise<FileMetadata[]> {
+        const allFileMetadata: FileMetadata[] = []
 
-    async zipDependencyMap(): Promise<void> {
         // Process each workspace folder sequentially
         for (const [workspaceFolder, correspondingDependencyMap] of this.dependencyMap) {
             const chunkZipFileMetadata = await this.generateFileMetadata(
                 [...correspondingDependencyMap.values()],
                 workspaceFolder
             )
-            await this.uploadZipsAndNotifyWeboscket(chunkZipFileMetadata, workspaceFolder)
+            allFileMetadata.push(...chunkZipFileMetadata)
         }
-    }
 
-    private generateWebSocketRequest(workspaceFolder: WorkspaceFolder, s3Url: string) {
-        let workspaceDetails = this.workspaceFolderManager.getWorkspaceDetailsByWorkspaceFolder(workspaceFolder)
-        if (!workspaceDetails) {
-            return
-        }
-        const message = JSON.stringify({
-            method: 'didChangeDependencyPaths',
-            params: {
-                event: { paths: [] },
-                workspaceChangeMetadata: {
-                    workspaceId: workspaceDetails.workspaceId,
-                    s3Path: cleanUrl(s3Url),
-                    programmingLanguage: this.language,
-                },
-            },
-        })
-        if (!workspaceDetails.webSocketClient) {
-            this.logging.log(`Websocket client is not connected yet: ${workspaceFolder.uri}`)
-            this.logging.log(`Queue Websocket request ${message} for workspace: ${workspaceFolder.uri}`)
-            workspaceDetails.messageQueue?.push(message)
-        } else {
-            this.logging.log(`Send Websocket request ${message} for workspace: ${workspaceFolder.uri}`)
-            workspaceDetails.webSocketClient.send(message)
-        }
+        return allFileMetadata
     }
 
     private async generateFileMetadata(
@@ -196,6 +181,7 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
                     const fileMetadata = await this.artifactManager.getFileMetadata(
                         workspaceFolder,
                         dependency.path,
+                        true,
                         this.language,
                         path.basename(dependency.path)
                     )
@@ -311,7 +297,11 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
         }
     }
 
-    private async cleanupZipFiles(zipFileMetadata: FileMetadata[]): Promise<void> {
+    protected isDependencyZipped(dependencyName: string, workspaceFolder: WorkspaceFolder): boolean | undefined {
+        return this.dependencyMap.get(workspaceFolder)?.get(dependencyName)?.zipped
+    }
+
+    public async cleanupZipFiles(zipFileMetadata: FileMetadata[]): Promise<void> {
         for (const zip of zipFileMetadata) {
             try {
                 if (fs.existsSync(zip.filePath)) {
@@ -323,40 +313,5 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
                 this.logging.log(`Error deleting zip file ${zip.filePath}: ${error}`)
             }
         }
-    }
-
-    protected async uploadZipsAndNotifyWeboscket(
-        zips: FileMetadata[],
-        workspaceFolder: WorkspaceFolder
-    ): Promise<void> {
-        const workspaceStateCheck = setInterval(async () => {
-            const workspaceId = this.workspaceFolderManager.getWorkspaceId(workspaceFolder)
-            if (workspaceId) {
-                clearInterval(workspaceStateCheck)
-
-                // Upload zip and notify websocket
-                try {
-                    for (const zip of zips) {
-                        let s3Url = await this.workspaceFolderManager.uploadToS3(zip)
-                        if (!s3Url) {
-                            return
-                        }
-                        this.logging.log(`Uploaded dependency zip: ${zip.filePath}`)
-                        this.generateWebSocketRequest(zip.workspaceFolder, s3Url)
-                    }
-                } finally {
-                    // Clean up zip files after processing
-                    await this.cleanupZipFiles(zips)
-                }
-            } else {
-                this.logging.log(
-                    `Workspace Id is not ready for ${workspaceFolder.uri}. Waiting to upload dependencies...`
-                )
-            }
-        }, 5000)
-    }
-
-    protected isDependencyZipped(dependencyName: string, workspaceFolder: WorkspaceFolder): boolean | undefined {
-        return this.dependencyMap.get(workspaceFolder)?.get(dependencyName)?.zipped
     }
 }

@@ -16,6 +16,7 @@ import {
     isLoggedInUsingBearerToken,
     uploadArtifactToS3,
 } from './util'
+import { DependencyDiscoverer } from './dependency/dependencyDiscoverer'
 
 interface WorkspaceState {
     remoteWorkspaceState: WorkspaceStatus
@@ -31,11 +32,12 @@ export class WorkspaceFolderManager {
     private cwsprClient: CodeWhispererServiceToken
     private logging: Logging
     private artifactManager: ArtifactManager
+    private dependencyDiscoverer: DependencyDiscoverer
     private workspaceMap: Map<WorkspaceRoot, WorkspaceState>
     private static instance: WorkspaceFolderManager | undefined
     private workspaceFolders: WorkspaceFolder[]
     private credentialsProvider: CredentialsProvider
-    private readonly INITIAL_CHECK_INTERVAL = 40 * 1000 // 30 seconds
+    private readonly INITIAL_CHECK_INTERVAL = 40 * 1000 // 40 seconds
     private readonly INITIAL_TIMEOUT = 2 * 60 * 1000 // 2 minutes
     private readonly CONTINUOUS_MONITOR_INTERVAL = 5 * 60 * 1000 // 5 minutes
     private monitorIntervals: Map<string, NodeJS.Timeout> = new Map()
@@ -44,6 +46,7 @@ export class WorkspaceFolderManager {
         cwsprClient: CodeWhispererServiceToken,
         logging: Logging,
         artifactManager: ArtifactManager,
+        dependencyDiscoverer: DependencyDiscoverer,
         workspaceFolders: WorkspaceFolder[],
         credentialsProvider: CredentialsProvider
     ): WorkspaceFolderManager {
@@ -52,6 +55,7 @@ export class WorkspaceFolderManager {
                 cwsprClient,
                 logging,
                 artifactManager,
+                dependencyDiscoverer,
                 workspaceFolders,
                 credentialsProvider
             )
@@ -67,15 +71,33 @@ export class WorkspaceFolderManager {
         cwsprClient: CodeWhispererServiceToken,
         logging: Logging,
         artifactManager: ArtifactManager,
+        dependencyDiscoverer: DependencyDiscoverer,
         workspaceFolders: WorkspaceFolder[],
         credentialsProvider: CredentialsProvider
     ) {
         this.cwsprClient = cwsprClient
         this.logging = logging
         this.artifactManager = artifactManager
+        this.dependencyDiscoverer = dependencyDiscoverer
         this.workspaceMap = new Map<WorkspaceRoot, WorkspaceState>()
         this.workspaceFolders = workspaceFolders
         this.credentialsProvider = credentialsProvider
+
+        this.dependencyDiscoverer.dependencyHandlerRegistry.forEach(handler => {
+            handler.onDependencyChange(async (workspaceFolder, zips) => {
+                try {
+                    this.logging.log(`Dependency change detected in ${workspaceFolder.uri}`)
+
+                    // Process the dependencies
+                    await this.handleDependencyChanges(zips)
+
+                    // Clean up only after successful processing
+                    await handler.cleanupZipFiles(zips)
+                } catch (error) {
+                    this.logging.error(`Error handling dependency change: ${error}`)
+                }
+            })
+        })
     }
 
     /**
@@ -126,9 +148,16 @@ export class WorkspaceFolderManager {
         }
 
         const workspaceDetails = this.getWorkspaces().get(workspaceRoot.uri)
-        if (!workspaceDetails || !workspaceDetails.workspaceId) {
-            this.logging.log(`Workspace folder ${workspaceRoot.uri} is under processing`)
+        if (!workspaceDetails) {
+            this.logging.log(`Workspace folder ${workspaceRoot.uri} is not found in workspace map`)
             return null
+        }
+
+        if (!workspaceDetails.workspaceId) {
+            this.logging.log(
+                `Workspace folder ${workspaceRoot.uri} is under processing and doesn't have workspaceId yet`
+            )
+            return { workspaceDetails, workspaceRoot }
         }
 
         return { workspaceDetails, workspaceRoot }
@@ -169,16 +198,24 @@ export class WorkspaceFolderManager {
             didChangeWorkspaceFoldersAddition?: boolean
         }
     ) {
-        let foldersMetadata: FileMetadata[] = []
+        let sourceCodeMetadata: FileMetadata[] = []
+        let dependenciesMetadata: FileMetadata[] = []
+
         if (options.didChangeWorkspaceFoldersAddition) {
-            foldersMetadata = await this.artifactManager.addWorkspaceFolders(folders)
+            sourceCodeMetadata = await this.artifactManager.addWorkspaceFolders(folders)
         } else if (options.initialize) {
-            foldersMetadata = await this.artifactManager.createLanguageArtifacts()
+            sourceCodeMetadata = await this.artifactManager.createLanguageArtifacts()
+            dependenciesMetadata = await this.dependencyDiscoverer.searchDependencies()
+            this.logging.log(`Length of dependency metadata: ${JSON.stringify(dependenciesMetadata.length)}`)
         }
-        this.logging.log(`Length of file metadata for new workspace folders: ${JSON.stringify(foldersMetadata.length)}`)
+        this.logging.log(
+            `Length of file metadata for new workspace folders: ${JSON.stringify(sourceCodeMetadata.length)}`
+        )
+
+        const allMetadata = [...sourceCodeMetadata, ...dependenciesMetadata]
 
         const fileMetadataMap: Map<string, FileMetadata[]> = new Map<string, FileMetadata[]>()
-        foldersMetadata.forEach((fileMetadata: FileMetadata) => {
+        allMetadata.forEach((fileMetadata: FileMetadata) => {
             let metadata = fileMetadataMap.get(fileMetadata.workspaceFolder.uri)
             if (!metadata) {
                 metadata = []
@@ -202,12 +239,54 @@ export class WorkspaceFolderManager {
         }
     }
 
+    private async handleDependencyChanges(zips: FileMetadata[]): Promise<void> {
+        this.logging.log(`Processing ${zips.length} dependency changes`)
+        for (const zip of zips) {
+            try {
+                const s3Url = await this.uploadToS3(zip)
+                if (!s3Url) {
+                    continue
+                }
+            } catch (error) {
+                this.logging.error(`Error processing dependency zip ${zip.filePath}: ${error}`)
+            }
+        }
+    }
+
+    private notifyDependencyChange(fileMetadata: FileMetadata, s3Url: string) {
+        const workspaceDetails = this.getWorkspaces().get(fileMetadata.workspaceFolder.uri)
+
+        if (!workspaceDetails) {
+            return
+        }
+
+        const message = JSON.stringify({
+            method: 'didChangeDependencyPaths',
+            params: {
+                event: { paths: [] },
+                workspaceChangeMetadata: {
+                    workspaceId: workspaceDetails.workspaceId,
+                    s3Path: cleanUrl(s3Url),
+                    programmingLanguage: fileMetadata.language,
+                },
+            },
+        })
+
+        if (!workspaceDetails.webSocketClient) {
+            this.logging.log(`Websocket client is not connected yet: ${fileMetadata.workspaceFolder.uri}`)
+            this.logging.log(`Queue Websocket request ${message}}`)
+            workspaceDetails.messageQueue?.push(message)
+        } else {
+            workspaceDetails.webSocketClient.send(message)
+        }
+    }
+
     async uploadToS3(fileMetadata: FileMetadata): Promise<string | undefined> {
         let relativePath = fileMetadata.relativePath.replace(fileMetadata.workspaceFolder.name, '')
         relativePath = relativePath.startsWith('/') ? relativePath.slice(1) : relativePath
         const workspaceId = this.getWorkspaces().get(fileMetadata.workspaceFolder.uri)?.workspaceId ?? ''
         if (!workspaceId) {
-            this.logging.warn(`Workspace ID is not found for ${fileMetadata.workspaceFolder.uri}`)
+            this.logging.warn(`Workspace ID is not found for ${fileMetadata.workspaceFolder.uri}`) // probably will need to queue s3 uploads here
             return
         }
 
@@ -236,6 +315,11 @@ export class WorkspaceFolderManager {
                 Buffer.isBuffer(fileMetadata.content) ? fileMetadata.content : Buffer.from(fileMetadata.content),
                 { ...response, uploadId: workspaceId }
             )
+
+            // If uploaded file is a dependency, notify dependency change to the websocket connection
+            if (fileMetadata.isDependency) {
+                this.notifyDependencyChange(fileMetadata, s3Url)
+            }
         } catch (e: any) {
             this.logging.warn(`Error uploading file to S3: ${e.message}`)
         }
@@ -574,12 +658,12 @@ export class WorkspaceFolderManager {
     /**
      * Schedules a one-time check after workspace creation to establish connection as soon as possible.
      * This avoids waiting for the regular 5-minute polling interval when we know the workspace
-     * should be ready soon. Default check delay is 30 seconds after successful workspace creation.
+     * should be ready soon. Default check delay is 40 seconds after successful workspace creation.
      *
      * @param workspace - The workspace to check
-     * @param delayMs - Optional delay in milliseconds before the check (defaults to 30000ms)
+     * @param delayMs - Optional delay in milliseconds before the check (defaults to 40 seconds)
      */
-    private scheduleQuickCheck(workspace: WorkspaceRoot, delayMs: number = 30000) {
+    private scheduleQuickCheck(workspace: WorkspaceRoot, delayMs: number = this.INITIAL_CHECK_INTERVAL) {
         this.logging.log(`Scheduling quick check for workspace ${workspace} in ${delayMs}ms`)
         setTimeout(async () => {
             try {
@@ -764,9 +848,12 @@ export class WorkspaceFolderManager {
             const response = await this.cwsprClient.listWorkspaceMetadata({
                 workspaceRoot: workspaceRoot,
             })
-            this.logging.log(`ListWorkspaceMetadata response for ${workspaceRoot}: ${JSON.stringify(response)}`)
+            this.logging.log(
+                `ListWorkspaceMetadata response for ${workspaceRoot}: ${JSON.stringify(response)} address: ${response.workspaces[0].envrionmentAddress}`
+            )
             metadata = response && response.workspaces.length ? response.workspaces[0] : null
         } catch (e: any) {
+            // TODO, need a better way of understanding opt out, currently AccessDeniedException that happens due to expired token leads to opt out being marked true
             this.logging.warn(`Error while fetching workspace (${workspaceRoot}) metadata: ${e?.message}, ${e?.__type}`)
             if (e?.__type?.includes('AccessDeniedException')) {
                 this.logging.warn(`Access denied while fetching workspace (${workspaceRoot}) metadata.`)
