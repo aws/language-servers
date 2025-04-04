@@ -139,8 +139,6 @@ export const WorkspaceContextServer =
                 if (!isOptedIn) {
                     isWorkflowInitialized = false
                     await workspaceFolderManager.clearAllWorkspaceResources()
-                    artifactManager.cleanup()
-                    dependencyDiscoverer.dispose()
                 }
             } catch (error) {
                 logging.error(`Error in GetConfiguration: ${error}`)
@@ -213,8 +211,6 @@ export const WorkspaceContextServer =
                         // If user is not logged in but the workflow is marked as initialized, it means user was logged in and is now logged out
                         // In this case, clear the resources and stop the monitoring
                         await workspaceFolderManager.clearAllWorkspaceResources()
-                        artifactManager.cleanup()
-                        dependencyDiscoverer.dispose()
                     }
                     isWorkflowInitialized = false
                 }

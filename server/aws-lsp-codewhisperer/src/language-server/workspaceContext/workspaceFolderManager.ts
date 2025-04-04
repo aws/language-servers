@@ -337,6 +337,8 @@ export class WorkspaceFolderManager {
         }
 
         this.workspaceMap.clear()
+        this.artifactManager.cleanup()
+        this.dependencyDiscoverer.dispose()
     }
 
     /**
