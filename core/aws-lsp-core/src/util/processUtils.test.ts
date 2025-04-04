@@ -165,11 +165,10 @@ describe('ChildProcess', async function () {
     })
 
     afterEach(async function () {
-        await tempFolder.clear()
+        await tempFolder.delete()
     })
 
     after(async function () {
-        await tempFolder.delete()
         ChildProcessTracker.getInstance(testFeatures.logging).clear()
     })
 
