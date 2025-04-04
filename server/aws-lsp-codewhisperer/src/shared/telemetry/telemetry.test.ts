@@ -11,7 +11,7 @@ import { TextDocument } from 'vscode-languageserver-textdocument'
 import { CodewhispererServerFactory } from '../../language-server/inline-completion/codeWhispererServer'
 import { CodeWhispererServiceBase, ResponseContext, Suggestion } from '../codeWhispererService'
 import { TelemetryService } from './telemetryService'
-import { initFallbackServiceManager } from '../amazonQServiceManager/factories'
+import { initBaseTestServiceManager, TestAmazonQServiceManager } from '../amazonQServiceManager/testUtils'
 
 describe('CodeWhisperer Server', () => {
     const HELLO_WORLD_IN_CSHARP = `
@@ -55,7 +55,7 @@ class HelloWorld
 
             // Initialize the features, but don't start server yet
             features = new TestFeatures()
-            server = CodewhispererServerFactory(() => initFallbackServiceManager(features, service))
+            server = CodewhispererServerFactory(() => initBaseTestServiceManager(features, service))
 
             // Return no specific configuration for CodeWhisperer
             features.lsp.workspace.getConfiguration.returns(Promise.resolve({}))
@@ -70,6 +70,7 @@ class HelloWorld
         afterEach(() => {
             clock.restore()
             features.dispose()
+            TestAmazonQServiceManager.resetInstance()
         })
 
         it('should emit Code Percentage telemetry event every 5 minutes', async () => {

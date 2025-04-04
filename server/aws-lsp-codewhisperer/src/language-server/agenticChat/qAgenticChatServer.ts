@@ -12,6 +12,7 @@ import { makeUserContextObject } from '../../shared/telemetryUtils'
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 import { safeGet } from '../../shared/utils'
 import { AmazonQServiceInitializationError } from '../../shared/amazonQServiceManager/errors'
+import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
 
 export const QAgenticChatServer =
     // prettier-ignore
@@ -40,9 +41,9 @@ export const QAgenticChatServer =
             }
         })
 
-        const updateConfigurationHandler = async () => {
-            const amazonQConfig = await amazonQServiceManager.handleDidChangeConfiguration()
-            chatController.updateConfiguration(amazonQConfig)
+        const updateConfigurationHandler = (updatedConfig: AmazonQWorkspaceConfig) => {
+            logging.debug('Updating configuration of agentic chat server')
+            chatController.updateConfiguration(updatedConfig)
         }
 
         lsp.onInitialized(async () => {
@@ -66,9 +67,8 @@ export const QAgenticChatServer =
 
             chatController = new AgenticChatController(chatSessionManagementService, features, telemetryService, amazonQServiceManager)
 
-            await updateConfigurationHandler()
+            await amazonQServiceManager.addDidChangeConfigurationListener(updateConfigurationHandler)
         })
-        lsp.didChangeConfiguration(updateConfigurationHandler)
 
         chat.onTabAdd(params => {
             logging.log(`Adding tab: ${params.tabId}`)

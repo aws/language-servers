@@ -29,11 +29,11 @@ import {
 } from './types'
 import { CodewhispererLanguage, getRuntimeLanguage } from '../languageDetection'
 import { CONVERSATION_ID_METRIC_KEY } from '../../language-server/chat/telemetry/chatTelemetryController'
-import { BaseAmazonQServiceManager } from '../amazonQServiceManager/BaseAmazonQServiceManager'
+import { AmazonQBaseServiceManager } from '../amazonQServiceManager/BaseAmazonQServiceManager'
 
 export class TelemetryService {
     // Using Base service manager here to support fallback cases such as in codeWhispererServer
-    private serviceManager: BaseAmazonQServiceManager
+    private serviceManager: AmazonQBaseServiceManager
     private userContext: UserContext | undefined
     private optOutPreference!: OptOutPreference
     private enableTelemetryEventsToDestination: boolean
@@ -54,7 +54,7 @@ export class TelemetryService {
     }
 
     constructor(
-        serviceManager: BaseAmazonQServiceManager,
+        serviceManager: AmazonQBaseServiceManager,
         credentialsProvider: CredentialsProvider,
         telemetry: Telemetry,
         logging: Logging

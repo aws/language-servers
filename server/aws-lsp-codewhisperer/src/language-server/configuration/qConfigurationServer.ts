@@ -15,9 +15,8 @@ import {
 } from '../../shared/amazonQServiceManager/qDeveloperProfiles'
 import { Customizations } from '../../client/token/codewhispererbearertokenclient'
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
+import { Q_CONFIGURATION_SECTION } from '../../shared/constants'
 
-// The configuration section that the server will register and listen to
-export const Q_CONFIGURATION_SECTION = 'aws.q'
 const Q_CUSTOMIZATIONS = 'customizations'
 const Q_DEVELOPER_PROFILES = 'developerProfiles'
 
