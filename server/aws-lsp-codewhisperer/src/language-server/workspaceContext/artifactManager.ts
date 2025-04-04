@@ -86,7 +86,7 @@ export class ArtifactManager {
                 zipFileMetadata.push(...fileMetadata)
             }
             const totalTime = performance.now() - startTime
-            this.log(`Total execution time: ${totalTime.toFixed(2)}ms`)
+            this.log(`Creating workspace source code artifacts took: ${totalTime.toFixed(2)}ms`)
 
             return zipFileMetadata
         } catch (error) {
@@ -275,35 +275,41 @@ export class ArtifactManager {
         return zippedMetadata
     }
 
-    determineLanguagesForDeletedPath(fileUri: string, workspaceRoot: WorkspaceFolder): CodewhispererLanguage[] {
-        // Try to determine if it's a file by checking its language
+    handleDeletedPathAndGetLanguages(fileUri: string, workspaceRoot: WorkspaceFolder): CodewhispererLanguage[] {
         const fileLanguage = getCodeWhispererLanguageIdFromPath(fileUri)
-        // TODO, this will likely return wrong result in the case that user has a folder named with an extension e.g: folder.py
+        const programmingLanguages = new Set<CodewhispererLanguage>()
+
+        // Add the file language if we can determine it, but don't return early
         if (fileLanguage) {
-            return [fileLanguage]
+            programmingLanguages.add(fileLanguage)
         }
 
-        // If we can't determine the language directly, check previously associated languages
         const languagesMap = this.getLanguagesForWorkspaceFolder(workspaceRoot)
         if (!languagesMap) {
-            return []
+            return Array.from(programmingLanguages)
         }
 
         const deletedFilePath = URI.parse(fileUri).fsPath
-        const programmingLanguages: CodewhispererLanguage[] = []
 
+        // Check and update the language maps
         for (const [language, files] of languagesMap.entries()) {
-            const hasFilesInDeletedPath = files.some(path => {
-                const knownFilePath = path.filePath
-                return knownFilePath.startsWith(deletedFilePath) || knownFilePath === deletedFilePath
-            })
+            const affectedFiles = files.filter(
+                file => file.filePath.startsWith(deletedFilePath) || file.filePath === deletedFilePath
+            )
 
-            if (hasFilesInDeletedPath) {
-                programmingLanguages.push(language)
+            if (affectedFiles.length > 0) {
+                programmingLanguages.add(language)
+
+                // Update the map by removing affected files
+                const remainingFiles = files.filter(file => !affectedFiles.includes(file))
+                if (remainingFiles.length === 0) {
+                    languagesMap.delete(language)
+                } else {
+                    languagesMap.set(language, remainingFiles)
+                }
             }
         }
-
-        return programmingLanguages
+        return Array.from(programmingLanguages)
     }
 
     cleanup(preserveDependencies: boolean = false) {

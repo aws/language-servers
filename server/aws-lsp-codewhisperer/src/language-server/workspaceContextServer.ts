@@ -334,7 +334,7 @@ export const WorkspaceContextServer =
                 }
                 const { workspaceDetails, workspaceRoot } = result
 
-                const programmingLanguages = artifactManager.determineLanguagesForDeletedPath(file.uri, workspaceRoot)
+                const programmingLanguages = artifactManager.handleDeletedPathAndGetLanguages(file.uri, workspaceRoot)
                 if (programmingLanguages.length === 0) {
                     logging.log(`No programming languages determined for: ${file.uri}`)
                     continue
