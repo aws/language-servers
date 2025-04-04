@@ -284,7 +284,6 @@ export const createMynahUi = (
                 })
             }
         },
-
         onContextSelected: (contextItem, tabId) => {
             if (contextItem.id === ContextPrompt.CreateItemId) {
                 mynahUi.showCustomForm(

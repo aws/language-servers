@@ -244,7 +244,6 @@ describe('MynahUI', () => {
 })
 
 describe('withAdapter', () => {
-    let messager: Messager
     let mynahUi: MynahUI
     let mynahUIRef: { mynahUI: MynahUI | undefined }
     let chatClientAdapter: ChatClientAdapter
@@ -263,9 +262,14 @@ describe('withAdapter', () => {
             handleQuickAction: sinon.stub(),
         }
 
-        messager = new Messager({} as OutboundChatApi)
+        // @ts-ignore
+        const messager: Partial<Messager> = new Messager({
+            uiReady: sinon.stub(),
+            tabAdded: sinon.stub(),
+            telemetry: sinon.stub(),
+        } as OutboundChatApi)
         const tabFactory = new TabFactory({})
-        const mynahUiResult = createMynahUi(messager, tabFactory, true, chatClientAdapter)
+        const mynahUiResult = createMynahUi(messager as Messager, tabFactory, true, chatClientAdapter)
         mynahUi = mynahUiResult[0]
     })
 
