@@ -1,16 +1,19 @@
 {
     "compilerOptions": {
-        "module": "UMD",
-        "target": "ES2021",
+        "module": "CommonJS",
+        "target": "ES2022",
         "moduleResolution": "node",
-        "lib": ["ES2021"],
         "rootDir": "./src",
         "outDir": "./out",
         "declaration": true,
         "sourceMap": true,
         "skipLibCheck": true,
         "forceConsistentCasingInFileNames": true,
-        "strict": true
+        "strict": true,
+        "composite": true,
+        "noImplicitOverride": true,
+        "lib": ["dom", "ES2021"],
+        "resolveJsonModule": true
     },
     "include": ["src", "test"],
     "exclude": ["node_modules"]

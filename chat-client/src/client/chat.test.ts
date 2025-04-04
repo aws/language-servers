@@ -22,6 +22,7 @@ import {
 } from '../contracts/telemetry'
 import { MynahUI } from '@aws/mynah-ui'
 import { TabFactory } from './tabs/tabFactory'
+import { ChatClientAdapter } from '../contracts/chatClientAdapter'
 
 describe('Chat', () => {
     const sandbox = sinon.createSandbox()
@@ -132,7 +133,7 @@ describe('Chat', () => {
         })
     })
 
-    it('publishes tab changed event, when UI tab is changed ', () => {
+    it('publishes tab changed event, when UI tab is changed', () => {
         const tabId = mynahUi.updateStore('', {})
         mynahUi.updateStore('', {})
         clientApi.postMessage.resetHistory()
@@ -168,7 +169,7 @@ describe('Chat', () => {
         })
     })
 
-    it('complete chat response triggers ui events ', () => {
+    it('complete chat response triggers ui events', () => {
         const endMessageStreamStub = sandbox.stub(mynahUi, 'endMessageStream')
         const updateLastChatAnswerStub = sandbox.stub(mynahUi, 'updateLastChatAnswer')
         const updateStoreStub = sandbox.stub(mynahUi, 'updateStore')
@@ -191,7 +192,7 @@ describe('Chat', () => {
         })
     })
 
-    it('partial chat response triggers ui events ', () => {
+    it('partial chat response triggers ui events', () => {
         const endMessageStreamStub = sandbox.stub(mynahUi, 'endMessageStream')
         const updateLastChatAnswerStub = sandbox.stub(mynahUi, 'updateLastChatAnswer')
         const updateStoreStub = sandbox.stub(mynahUi, 'updateStore')
@@ -217,4 +218,31 @@ describe('Chat', () => {
         event.data = params
         return event
     }
+
+    describe('with client adapter', () => {
+        it('should route inbound message to client adapter', () => {
+            const handleMessageReceiveStub = sandbox.stub()
+            const createChatEventHandlerStub = sandbox.stub().returns({})
+            const clientAdapter: Partial<ChatClientAdapter> = {
+                createChatEventHandler: createChatEventHandlerStub,
+                handleMessageReceive: handleMessageReceiveStub,
+                isSupportedTab: () => false,
+            }
+            mynahUi = createChat(clientApi, {}, clientAdapter as ChatClientAdapter)
+
+            const tabId = '123'
+            const body = 'some response'
+
+            const chatEvent = createInboundEvent({
+                command: CHAT_REQUEST_METHOD,
+                tabId,
+                params: { body },
+                sender: 'ide-extension',
+            })
+            window.dispatchEvent(chatEvent)
+
+            assert.calledOnce(handleMessageReceiveStub)
+            assert.match(handleMessageReceiveStub.getCall(0).args[0].data, JSON.stringify(chatEvent.data))
+        })
+    })
 })

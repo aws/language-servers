@@ -1,4 +1,4 @@
-import { ChatItemType, MynahUIDataModel } from '@aws/mynah-ui'
+import { ChatItemType, MynahUIDataModel, QuickActionCommandGroup } from '@aws/mynah-ui'
 import { disclaimerCard } from '../texts/disclaimer'
 
 export type DefaultTabData = MynahUIDataModel
@@ -11,11 +11,14 @@ export class TabFactory {
         return `000${firstPart.toString(36)}`.slice(-3) + `000${secondPart.toString(36)}`.slice(-3)
     }
 
-    constructor(private defaultTabData: DefaultTabData) {}
+    constructor(
+        private defaultTabData: DefaultTabData,
+        private quickActionCommands?: QuickActionCommandGroup[]
+    ) {}
 
     public createTab(needWelcomeMessages: boolean, disclaimerCardActive: boolean): MynahUIDataModel {
         const tabData: MynahUIDataModel = {
-            ...this.defaultTabData,
+            ...this.getDefaultTabData(),
             chatItems: needWelcomeMessages
                 ? [
                       {
@@ -35,12 +38,15 @@ export class TabFactory {
         return tabData
     }
 
-    public updateDefaultTabData(defaultTabData: DefaultTabData) {
-        this.defaultTabData = { ...this.defaultTabData, ...defaultTabData }
+    public updateQuickActionCommands(quickActionCommands: QuickActionCommandGroup[]) {
+        this.quickActionCommands = [...(this.quickActionCommands ?? []), ...quickActionCommands]
     }
 
     public getDefaultTabData(): DefaultTabData {
-        return this.defaultTabData
+        return {
+            ...this.defaultTabData,
+            ...(this.quickActionCommands ? { quickActionCommands: this.quickActionCommands } : {}),
+        }
     }
 
     private getWelcomeBlock() {
