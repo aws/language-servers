@@ -1,11 +1,10 @@
 // Port from VSC https://github.com/aws/aws-toolkit-vscode/blob/093d5bcbce777c88cf18c76b52738610263d1fc0/packages/core/src/codewhispererChat/tools/executeBash.ts#L134
 
-import { Writable } from 'stream'
 import { InvokeOutput } from './toolShared'
 import { split } from 'shlex'
-import { getUserHomeDir, sanitize } from '@aws/lsp-core/out/util/path'
 import { Logging } from '@aws/language-server-runtimes/server-interface'
 import { processUtils } from '@aws/lsp-core'
+import { getUserHomeDir, sanitize } from '@aws/lsp-core/out/util/path'
 
 export enum CommandCategory {
     ReadOnly,
@@ -129,23 +128,14 @@ export interface CommandValidation {
 }
 
 export class ExecuteBash {
-    private readonly command: string
-    private readonly workingDirectory?: string
+    constructor(private readonly logger: Logging) {}
 
-    constructor(
-        private readonly logger: Logging,
-        params: ExecuteBashParams
-    ) {
-        this.command = params.command
-        this.workingDirectory = params.cwd ? sanitize(params.cwd) : getUserHomeDir()
-    }
-
-    public async validate(logging: Logging): Promise<void> {
-        if (!this.command.trim()) {
+    public async validate(logging: Logging, command: string): Promise<void> {
+        if (!command.trim()) {
             throw new Error('Bash command cannot be empty.')
         }
 
-        const args = split(this.command)
+        const args = split(command)
         if (!args || args.length === 0) {
             throw new Error('No command found.')
         }
@@ -153,13 +143,13 @@ export class ExecuteBash {
         try {
             await ExecuteBash.whichCommand(logging, args[0])
         } catch {
-            throw new Error(`Command "${args[0]}" not found on PATH.`)
+            throw new Error(`Command '${args[0]}' not found on PATH.`)
         }
     }
 
-    public requiresAcceptance(): CommandValidation {
+    public requiresAcceptance(command: string): CommandValidation {
         try {
-            const args = split(this.command)
+            const args = split(command)
             if (!args || args.length === 0) {
                 return { requiresAcceptance: true }
             }
@@ -217,11 +207,13 @@ export class ExecuteBash {
         }
     }
 
-    public async invoke(updates?: Writable): Promise<InvokeOutput> {
-        this.logger.info(`Invoking bash command: "${this.command}" in cwd: "${this.workingDirectory}"`)
+    public async invoke(params: ExecuteBashParams, updates?: WritableStream): Promise<InvokeOutput> {
+        await this.validate(this.logger, params.command)
+        const cwd = params.cwd ? sanitize(params.cwd) : getUserHomeDir()
+        this.logger.info(`Invoking bash command: '${params.command}' in cwd: '${cwd}'`)
 
         return new Promise(async (resolve, reject) => {
-            this.logger.debug(`Spawning process with command: bash -c "${this.command}" (cwd=${this.workingDirectory})`)
+            this.logger.debug(`Spawning process with command: bash -c '${params.command}' (cwd=${cwd})`)
 
             const stdoutBuffer: string[] = []
             const stderrBuffer: string[] = []
@@ -230,7 +222,7 @@ export class ExecuteBash {
             let firstStderrChunk = true
             const childProcessOptions: processUtils.ChildProcessOptions = {
                 spawnOptions: {
-                    cwd: this.workingDirectory,
+                    cwd: cwd,
                     stdio: ['pipe', 'pipe', 'pipe'],
                 },
                 collect: false,
@@ -248,7 +240,7 @@ export class ExecuteBash {
             const childProcess = new processUtils.ChildProcess(
                 this.logger,
                 'bash',
-                ['-c', this.command],
+                ['-c', params.command],
                 childProcessOptions
             )
 
@@ -279,15 +271,16 @@ export class ExecuteBash {
                     },
                 })
             } catch (err: any) {
-                this.logger.error(`Failed to execute bash command '${this.command}': ${err.message}`)
+                this.logger.error(`Failed to execute bash command '${params.command}': ${err.message}`)
                 reject(new Error(`Failed to execute command: ${err.message}`))
             }
         })
     }
 
-    private static handleChunk(chunk: string, buffer: string[], updates?: Writable) {
+    private static handleChunk(chunk: string, buffer: string[], updates?: WritableStream) {
         try {
-            updates?.write(chunk)
+            const writer = updates?.getWriter()
+            void writer?.write(chunk)
             const lines = chunk.split(/\r?\n/)
             for (const line of lines) {
                 buffer.push(line)
@@ -316,19 +309,41 @@ export class ExecuteBash {
         const result = await cp.run()
 
         if (result.exitCode !== 0) {
-            throw new Error(`Command "${cmd}" not found on PATH.`)
+            throw new Error(`Command '${cmd}' not found on PATH.`)
         }
 
         const output = result.stdout.trim()
         if (!output) {
-            throw new Error(`Command "${cmd}" found but 'which' returned empty output.`)
+            throw new Error(`Command '${cmd}' found but 'which' returned empty output.`)
         }
         return output
     }
 
-    public queueDescription(updates: Writable): void {
-        updates.write(`I will run the following shell command:\n`)
-        updates.write('```bash\n' + this.command + '\n```')
-        updates.end()
+    public queueDescription(command: string): string {
+        const description = ''
+        description.concat(`I will run the following shell command:\n`)
+        description.concat('```bash\n' + command + '\n```')
+        return description
+    }
+
+    public getSpec() {
+        return {
+            name: 'executeBash',
+            description: 'Execute the specified bash command.',
+            inputSchema: {
+                type: 'object',
+                properties: {
+                    command: {
+                        type: 'string',
+                        description: 'Bash command to execute',
+                    },
+                    cwd: {
+                        type: 'string',
+                        description: 'Parameter to set the current working directory for the bash command.',
+                    },
+                },
+                required: ['command', 'cwd'],
+            },
+        } as const
     }
 }

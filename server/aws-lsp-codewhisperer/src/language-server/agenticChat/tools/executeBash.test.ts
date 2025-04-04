@@ -36,28 +36,28 @@ describe('ExecuteBash Tool', () => {
             error: undefined,
             signal: undefined,
         })
-        const execBash = new ExecuteBash(logging, { command: 'ls' })
-        await execBash.validate(logging)
+        const execBash = new ExecuteBash(logging)
+        await execBash.validate(logging, 'ls')
     })
 
     it('fail validation if the command is empty', async () => {
-        const execBash = new ExecuteBash(logging, { command: '   ' })
+        const execBash = new ExecuteBash(logging)
         await assert.rejects(
-            execBash.validate(logging),
+            execBash.validate(logging, '   '),
             /Bash command cannot be empty/i,
             'Expected an error for empty command'
         )
     })
 
     it('set requiresAcceptance=true if the command has dangerous patterns', () => {
-        const execBash = new ExecuteBash(logging, { command: 'ls && rm -rf /' })
-        const validation = execBash.requiresAcceptance()
+        const execBash = new ExecuteBash(logging)
+        const validation = execBash.requiresAcceptance('ls && rm -rf /')
         assert.equal(validation.requiresAcceptance, true, 'Should require acceptance for dangerous pattern')
     })
 
     it('set requiresAcceptance=false if it is a read-only command', () => {
-        const execBash = new ExecuteBash(logging, { command: 'cat file.txt' })
-        const validation = execBash.requiresAcceptance()
+        const execBash = new ExecuteBash(logging)
+        const validation = execBash.requiresAcceptance('cat file.txt')
         assert.equal(validation.requiresAcceptance, false, 'Read-only command should not require acceptance')
     })
 
@@ -70,9 +70,9 @@ describe('ExecuteBash Tool', () => {
             signal: undefined,
         })
 
-        const execBash = new ExecuteBash(logging, { command: 'noSuchCmd' })
+        const execBash = new ExecuteBash(logging)
         await assert.rejects(
-            execBash.validate(logging),
+            execBash.validate(logging, 'noSuchCmd'),
             /not found on PATH/i,
             'Expected not found error from whichCommand'
         )
@@ -87,8 +87,8 @@ describe('ExecuteBash Tool', () => {
             signal: undefined,
         })
 
-        const execBash = new ExecuteBash(logging, { command: 'noSuchCmd' })
-        await execBash.validate(logging)
+        const execBash = new ExecuteBash(logging)
+        await execBash.validate(logging, 'noSuchCmd')
     })
 
     it('stub invoke() call', async () => {
@@ -103,7 +103,7 @@ describe('ExecuteBash Tool', () => {
             },
         })
 
-        const execBash = new ExecuteBash(logging, { command: 'ls' })
+        const execBash = new ExecuteBash(logging)
 
         const dummyWritable = { write: () => {} } as any
         const result = await execBash.invoke(dummyWritable)
