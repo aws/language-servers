@@ -47,6 +47,12 @@ export class TestFolder {
         return new TestFolder(tempDir)
     }
 
+    async createNested(name: string) {
+        const tempDir = path.join(this.path, name)
+        await fs.promises.mkdir(tempDir, { recursive: true })
+        return new TestFolder(tempDir)
+    }
+
     async delete() {
         fs.rmSync(this.path, { recursive: true, force: true })
     }

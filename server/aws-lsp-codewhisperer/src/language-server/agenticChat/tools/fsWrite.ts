@@ -137,16 +137,17 @@ export class FsWrite {
     }
 
     public getSpec() {
+        const commands = ['create', 'strReplace', 'insert', 'append']
         return {
             name: 'fsWrite',
             description:
                 'A tool for creating and editing a file.\n * The `create` command will override the file at `path` if it already exists as a file, and otherwise create a new file\n * The `append` command will add content to the end of an existing file, automatically adding a newline if the file does not end with one. The file must exist.\n Notes for using the `strReplace` command:\n * The `oldStr` parameter should match EXACTLY one or more consecutive lines from the original file. Be mindful of whitespaces!\n * If the `oldStr` parameter is not unique in the file, the replacement will not be performed. Make sure to include enough context in `oldStr` to make it unique\n * The `newStr` parameter should contain the edited lines that should replace the `oldStr`. The `insert` command will insert `newStr` after `insertLine` and place it on its own line.',
             inputSchema: {
                 type: 'object',
-                parameters: {
+                properties: {
                     command: {
                         type: 'string',
-                        enum: ['create', 'strReplace', 'insert', 'append'],
+                        enum: commands,
                         description:
                             'The commands to run. Allowed options are: `create`, `strReplace`, `insert`, `append`.',
                     },
@@ -158,7 +159,7 @@ export class FsWrite {
                     insertLine: {
                         description:
                             'Required parameter of `insert` command. The `newStr` will be inserted AFTER the line `insertLine` of `path`.',
-                        type: 'integer',
+                        type: 'number',
                     },
                     newStr: {
                         description:
