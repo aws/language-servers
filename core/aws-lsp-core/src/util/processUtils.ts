@@ -277,6 +277,7 @@ export class ChildProcess {
 
         return new Promise<ChildProcessResult>((resolve, reject) => {
             const errorHandler = (error: Error, force = options.useForceStop) => {
+                console.log('error is:', error)
                 this.#processErrors.push(error)
                 if (!this.stopped) {
                     this.stop(force)

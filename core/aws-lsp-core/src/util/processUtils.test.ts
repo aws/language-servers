@@ -1,3 +1,4 @@
+import * as mockfs from 'mock-fs'
 import * as assert from 'assert'
 import * as os from 'os'
 import * as path from 'path'
@@ -17,6 +18,9 @@ describe('ChildProcess', async function () {
     let tempFolder: TestFolder
     let testFeatures: TestFeatures
 
+    before(async function () {
+        mockfs.restore()
+    })
     beforeEach(async function () {
         tempFolder = await TestFolder.create()
         testFeatures = new TestFeatures()
@@ -78,7 +82,7 @@ describe('ChildProcess', async function () {
         } // END Windows only tests
 
         if (process.platform !== 'win32') {
-            it.skip('runs and captures stdout - unix', async function () {
+            it('runs and captures stdout - unix', async function () {
                 const scriptFile = await writeShellFile(tempFolder, 'test-script.sh')
 
                 const childProcess = new ChildProcess(testFeatures.logging, scriptFile)
