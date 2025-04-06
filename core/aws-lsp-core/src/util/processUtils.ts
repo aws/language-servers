@@ -69,24 +69,18 @@ export class ChildProcessTracker {
     }
     #processByPid: Map<number, ChildProcess> = new Map<number, ChildProcess>()
     #pids: PollingSet<number>
-    #getUsage: (pid: number) => ProcessStats
 
-    private constructor(
-        private logging: Logging,
-        getUsage?: (pid: number) => ProcessStats
-    ) {
+    private constructor(private logging: Logging) {
         this.#pids = new PollingSet(ChildProcessTracker.pollingInterval, () => this.monitor())
-        this.#getUsage = getUsage ?? this._getUsage.bind(this)
     }
 
-    public static getInstance(logging: Logging, getUsage?: (pid: number) => ProcessStats) {
-        // Override existing tracker's dependencies with new ones.
+    public static getInstance(logging: Logging) {
+        // Overwrite logging if it exists
         if (this.#instance) {
             this.#instance.logging = logging
-            this.#instance.#getUsage = getUsage ?? this.#instance.#getUsage
             return this.#instance
         }
-        return new this(logging, getUsage)
+        return (this.#instance ??= new this(logging))
     }
 
     private cleanUp() {
@@ -110,14 +104,18 @@ export class ChildProcessTracker {
             this.logging.warn(`Missing process with id ${pid}`)
             return
         }
-        const stats = this.#getUsage(pid)
+        const stats = this.getUsage(pid)
         if (stats) {
-            if (stats.memory > ChildProcessTracker.thresholds.memory) {
-                this.logging.warn(`Process ${pid} exceeded memory threshold: ${stats.memory}`)
-            }
-            if (stats.cpu > ChildProcessTracker.thresholds.cpu) {
-                this.logging.warn(`Process ${pid} exceeded cpu threshold: ${stats.cpu}`)
-            }
+            this.logIfExceeds(pid, stats)
+        }
+    }
+
+    public logIfExceeds(pid: number, stats: ProcessStats) {
+        if (stats.memory > ChildProcessTracker.thresholds.memory) {
+            this.logging.warn(`Process ${pid} exceeded memory threshold: ${stats.memory}`)
+        }
+        if (stats.cpu > ChildProcessTracker.thresholds.cpu) {
+            this.logging.warn(`Process ${pid} exceeded cpu threshold: ${stats.cpu}`)
         }
     }
 
@@ -148,7 +146,7 @@ export class ChildProcessTracker {
         this.#processByPid.clear()
     }
 
-    private _getUsage(pid: number): ProcessStats {
+    private getUsage(pid: number): ProcessStats {
         try {
             return process.platform === 'win32' ? getWindowsUsage() : getUnixUsage()
         } catch (e) {

@@ -4,7 +4,7 @@ import * as os from 'os'
 import * as path from 'path'
 import * as sinon from 'sinon'
 import { chmod } from 'fs/promises'
-import { ChildProcess, ChildProcessResult, ChildProcessTracker, eof, ProcessStats } from './processUtils'
+import { ChildProcess, ChildProcessResult, ChildProcessTracker, eof } from './processUtils'
 import { waitUntil } from './timeoutUtils'
 import { TestFolder } from '../test/testFolder'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
@@ -145,17 +145,23 @@ describe('ChildProcess', async function () {
                 if (isWindows) {
                     command = await tempFolder.write(
                         filename,
-                        ['@echo %1', '@echo %2', '@echo "%3"', 'SLEEP 20', 'exit 1'].join(os.EOL)
+                        ['@echo %1', '@echo %2', '@echo "%3"', 'SLEEP 1', 'exit 1'].join(os.EOL)
                     )
                 } else {
                     command = await writeShellFile(
                         tempFolder,
                         filename,
-                        ['echo $1', 'echo $2', 'echo "$3"', 'sleep 20', 'exit 1'].join(os.EOL)
+                        ['echo $1', 'echo $2', 'echo "$3"', 'sleep 1', 'exit 1'].join(os.EOL)
                     )
                 }
 
                 childProcess = new ChildProcess(testFeatures.logging, command, ['1', '2'], { collect: false })
+            })
+
+            afterEach(async function () {
+                if (childProcess) {
+                    childProcess.stop(true)
+                }
             })
 
             it('can report errors', async function () {
@@ -333,7 +339,7 @@ function startSleepProcess(logger: Logging): RunningProcess {
     // Windows timeout does not support anything less than 1 second.
     const childProcess =
         process.platform === 'win32'
-            ? new ChildProcess(logger, 'powershell', ['-Command', 'Start-Sleep -Milliseconds 50'], {
+            ? new ChildProcess(logger, 'timeout', ['/t', '1'], {
                   spawnOptions: { shell: true, windowsHide: true },
               })
             : new ChildProcess(logger, 'sleep', ['50'])
@@ -346,7 +352,6 @@ describe('ChildProcessTracker', function () {
     let clock: sinon.SinonFakeTimers
     let logging: Features['logging']
     let warnings: string[]
-    let usageMock: sinon.SinonStub
 
     async function stopAndWait(runningProcess: RunningProcess): Promise<void> {
         runningProcess.childProcess.stop(true)
@@ -370,8 +375,7 @@ describe('ChildProcessTracker', function () {
         }
 
         clock = sinon.useFakeTimers({ shouldClearNativeTimers: true })
-        usageMock = sinon.stub()
-        tracker = ChildProcessTracker.getInstance(logging, usageMock)
+        tracker = ChildProcessTracker.getInstance(logging)
     })
 
     afterEach(function () {
@@ -427,61 +431,30 @@ describe('ChildProcessTracker', function () {
     })
 
     it('logs a warning message when system usage exceeds threshold', async function () {
-        const runningProcess = startSleepProcess(logging)
-        tracker.add(runningProcess.childProcess)
-
-        const highCpu: ProcessStats = {
+        tracker.logIfExceeds(1, {
             cpu: ChildProcessTracker.thresholds.cpu + 1,
             memory: 0,
-        }
-        const highMemory: ProcessStats = {
-            cpu: 0,
-            memory: ChildProcessTracker.thresholds.memory + 1,
-        }
-        usageMock.returns(highCpu)
-        await clock.tickAsync(ChildProcessTracker.pollingInterval)
+        })
         assert.strictEqual(warnings.length, 1)
         assert.ok(warnings[0].includes('exceeded cpu threshold'))
 
-        usageMock.returns(highMemory)
-        await clock.tickAsync(ChildProcessTracker.pollingInterval)
-        assert.strictEqual(warnings.length, 2)
-        assert.ok(warnings[1].includes('exceeded memory threshold'))
-
-        await stopAndWait(runningProcess)
-    })
-
-    it('includes pid in logs', async function () {
-        const runningProcess = startSleepProcess(logging)
-        tracker.add(runningProcess.childProcess)
-
-        usageMock.returns({
-            cpu: ChildProcessTracker.thresholds.cpu + 1,
-            memory: 0,
+        tracker.logIfExceeds(2, {
+            cpu: 0,
+            memory: ChildProcessTracker.thresholds.memory + 1,
         })
 
-        await clock.tickAsync(ChildProcessTracker.pollingInterval)
-        assert.strictEqual(warnings.length, 1)
-        assert.ok(warnings[0].includes(runningProcess.childProcess.pid().toString()))
-
-        await stopAndWait(runningProcess)
+        assert.strictEqual(warnings.length, 2)
+        assert.ok(warnings[1].includes('exceeded memory threshold'))
     })
 
     it('does not log for processes within threshold', async function () {
-        const runningProcess = startSleepProcess(logging)
-
-        usageMock.returns({
+        tracker.logIfExceeds(1, {
             cpu: ChildProcessTracker.thresholds.cpu - 1,
             memory: ChildProcessTracker.thresholds.memory - 1,
         })
-
-        await clock.tickAsync(ChildProcessTracker.pollingInterval)
-
         assert.throws(() => {
             assert.strictEqual(warnings.length, 1)
-            assert.ok(warnings[0].includes(runningProcess.childProcess.pid().toString()))
+            assert.ok(warnings[0].includes('1'))
         })
-
-        await stopAndWait(runningProcess)
     })
 })
