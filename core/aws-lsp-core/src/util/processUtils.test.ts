@@ -12,16 +12,14 @@ import { Logging } from '@aws/language-server-runtimes/server-interface'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 
 const defaultBatchFileContent = '@echo hi'
-const defaultCmdFileContent = '@echo OFF${os.EOL}echo hi'
+const defaultCmdFileContent = `@echo OFF${os.EOL}echo hi`
 
 describe('ChildProcess', async function () {
     let tempFolder: TestFolder
     let testFeatures: TestFeatures
 
-    before(async function () {
-        mockfs.restore()
-    })
     beforeEach(async function () {
+        mockfs.restore()
         tempFolder = await TestFolder.create()
         testFeatures = new TestFeatures()
     })
@@ -42,7 +40,7 @@ describe('ChildProcess', async function () {
         }
 
         if (process.platform === 'win32') {
-            it.skip('starts and captures stdout - windows', async function () {
+            it('starts and captures stdout - windows', async function () {
                 const batchFile = await tempFolder.write('test-script.bat', defaultBatchFileContent)
 
                 const childProcess = new ChildProcess(testFeatures.logging, batchFile)
@@ -112,7 +110,7 @@ describe('ChildProcess', async function () {
             })
         } // END Linux only tests
 
-        it.skip('runs scripts containing a space in the filename and folder', async function () {
+        it('runs scripts containing a space in the filename and folder', async function () {
             const subfolder = await tempFolder.createNested('sub folder')
 
             let command: string
@@ -160,7 +158,7 @@ describe('ChildProcess', async function () {
                 childProcess = new ChildProcess(testFeatures.logging, command, ['1', '2'], { collect: false })
             })
 
-            it.skip('can report errors', async function () {
+            it('can report errors', async function () {
                 const result = childProcess.run({
                     rejectOnError: true,
                     useForceStop: true,
@@ -179,7 +177,7 @@ describe('ChildProcess', async function () {
                 }
             })
 
-            it.skip('can reject on errors if `rejectOnError` is set', async function () {
+            it('can reject on errors if `rejectOnError` is set', async function () {
                 return await assert.rejects(
                     async () =>
                         await childProcess.run({
@@ -191,7 +189,7 @@ describe('ChildProcess', async function () {
                 )
             })
 
-            it.skip('kills the process if an error is reported', async function () {
+            it('kills the process if an error is reported', async function () {
                 const result = await childProcess.run({
                     waitForStreams: false,
                     onStdout: (_text, context) => {
@@ -201,7 +199,7 @@ describe('ChildProcess', async function () {
                 assert.notStrictEqual(result.exitCode, 1)
             })
 
-            it.skip('can merge with base options', async function () {
+            it('can merge with base options', async function () {
                 const result = await childProcess.run({
                     collect: true,
                     waitForStreams: false,
@@ -216,7 +214,7 @@ describe('ChildProcess', async function () {
                 assert.ok(result.error?.message.includes('Got 4'))
             })
 
-            it.skip('respects timeout parameter', async function () {
+            it('respects timeout parameter', async function () {
                 await childProcess.run({
                     waitForStreams: false,
                     spawnOptions: {
@@ -230,7 +228,7 @@ describe('ChildProcess', async function () {
 
     describe('stop()', async function () {
         if (process.platform === 'win32') {
-            it.skip('detects running processes and successfully stops a running process - Windows', async function () {
+            it('detects running processes and successfully stops a running process - Windows', async function () {
                 const batchFile = await writeBatchFileWithDelays(tempFolder, 'test-script.bat')
 
                 const childProcess = new ChildProcess(testFeatures.logging, batchFile)
@@ -247,7 +245,7 @@ describe('ChildProcess', async function () {
                 assert.strictEqual(childProcess.stopped, true)
             })
 
-            it.skip('can stop() previously stopped processes - Windows', async function () {
+            it('can stop() previously stopped processes - Windows', async function () {
                 const batchFile = await writeBatchFileWithDelays(tempFolder, 'test-script.bat')
 
                 const childProcess = new ChildProcess(testFeatures.logging, batchFile)
@@ -265,7 +263,7 @@ describe('ChildProcess', async function () {
         } // END Windows-only tests
 
         if (process.platform !== 'win32') {
-            it.skip('detects running processes and successfully stops a running process - Unix', async function () {
+            it('detects running processes and successfully stops a running process - Unix', async function () {
                 const scriptFile = await writeShellFileWithDelays(tempFolder, 'test-script.sh')
 
                 const childProcess = new ChildProcess(testFeatures.logging, 'sh', [scriptFile])
@@ -278,7 +276,7 @@ describe('ChildProcess', async function () {
                 assert.strictEqual(childProcess.stopped, true)
             })
 
-            it.skip('can stop() previously stopped processes - Unix', async function () {
+            it('can stop() previously stopped processes - Unix', async function () {
                 const scriptFile = await writeShellFileWithDelays(tempFolder, 'test-script.sh')
 
                 const childProcess = new ChildProcess(testFeatures.logging, scriptFile)
@@ -292,7 +290,7 @@ describe('ChildProcess', async function () {
                 assert.doesNotThrow(() => childProcess.stop())
             })
 
-            it.skip('can send input - Unix', async function () {
+            it('can send input - Unix', async function () {
                 const childProcess = new ChildProcess(testFeatures.logging, 'cat')
                 const result = childProcess.run()
                 await childProcess.send('foo')
@@ -355,6 +353,10 @@ describe('ChildProcessTracker', function () {
         await waitForResult
     }
 
+    beforeEach(function () {
+        mockfs.restore()
+    })
+
     before(function () {
         warnings = []
         logging = {
@@ -366,8 +368,8 @@ describe('ChildProcessTracker', function () {
         }
 
         clock = sinon.useFakeTimers({ shouldClearNativeTimers: true })
-        tracker = ChildProcessTracker.getInstance(logging)
-        usageMock = sinon.stub(ChildProcessTracker.prototype, 'getUsage')
+        usageMock = sinon.stub()
+        tracker = ChildProcessTracker.getInstance(logging, usageMock)
     })
 
     afterEach(function () {
@@ -377,7 +379,6 @@ describe('ChildProcessTracker', function () {
 
     after(function () {
         clock.restore()
-        usageMock.restore()
     })
 
     it(`removes stopped processes every ${ChildProcessTracker.pollingInterval / 1000} seconds`, async function () {
@@ -423,7 +424,7 @@ describe('ChildProcessTracker', function () {
         assert.strictEqual(tracker.size, 0, 'expected tracker to be empty')
     })
 
-    it.skip('logs a warning message when system usage exceeds threshold', async function () {
+    it('logs a warning message when system usage exceeds threshold', async function () {
         const runningProcess = startSleepProcess(logging)
         tracker.add(runningProcess.childProcess)
 
@@ -448,7 +449,7 @@ describe('ChildProcessTracker', function () {
         await stopAndWait(runningProcess)
     })
 
-    it.skip('includes pid in logs', async function () {
+    it('includes pid in logs', async function () {
         const runningProcess = startSleepProcess(logging)
         tracker.add(runningProcess.childProcess)
 

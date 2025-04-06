@@ -1,7 +1,7 @@
 // Ported from VSC: https://github.com/aws/aws-toolkit-vscode/blob/91859e29b26ef1c58cbd957d81e1a0deb01a7880/packages/core/src/shared/utilities/processUtils.ts#L1
 // Does not support Timeout Object since that is VSC specific.
 
-import * as proc from 'child_process' // eslint-disable-line no-restricted-imports
+import * as proc from 'child_process'
 import * as crossSpawn from 'cross-spawn'
 import { Logging } from '@aws/language-server-runtimes/server-interface'
 import { PollingSet } from './pollingSet'
@@ -69,13 +69,24 @@ export class ChildProcessTracker {
     }
     #processByPid: Map<number, ChildProcess> = new Map<number, ChildProcess>()
     #pids: PollingSet<number>
+    #getUsage: (pid: number) => ProcessStats
 
-    private constructor(private readonly logging: Logging) {
+    private constructor(
+        private logging: Logging,
+        getUsage?: (pid: number) => ProcessStats
+    ) {
         this.#pids = new PollingSet(ChildProcessTracker.pollingInterval, () => this.monitor())
+        this.#getUsage = getUsage ?? this._getUsage.bind(this)
     }
 
-    public static getInstance(logging: Logging) {
-        return (this.#instance ??= new this(logging))
+    public static getInstance(logging: Logging, getUsage?: (pid: number) => ProcessStats) {
+        // Override existing tracker's dependencies with new ones.
+        if (this.#instance) {
+            this.#instance.logging = logging
+            this.#instance.#getUsage = getUsage ?? this.#instance.#getUsage
+            return this.#instance
+        }
+        return new this(logging, getUsage)
     }
 
     private cleanUp() {
@@ -99,7 +110,7 @@ export class ChildProcessTracker {
             this.logging.warn(`Missing process with id ${pid}`)
             return
         }
-        const stats = this.getUsage(pid)
+        const stats = this.#getUsage(pid)
         if (stats) {
             if (stats.memory > ChildProcessTracker.thresholds.memory) {
                 this.logging.warn(`Process ${pid} exceeded memory threshold: ${stats.memory}`)
@@ -137,7 +148,7 @@ export class ChildProcessTracker {
         this.#processByPid.clear()
     }
 
-    public getUsage(pid: number): ProcessStats {
+    private _getUsage(pid: number): ProcessStats {
         try {
             return process.platform === 'win32' ? getWindowsUsage() : getUnixUsage()
         } catch (e) {
@@ -277,7 +288,6 @@ export class ChildProcess {
 
         return new Promise<ChildProcessResult>((resolve, reject) => {
             const errorHandler = (error: Error, force = options.useForceStop) => {
-                console.log('error is:', error)
                 this.#processErrors.push(error)
                 if (!this.stopped) {
                     this.stop(force)
