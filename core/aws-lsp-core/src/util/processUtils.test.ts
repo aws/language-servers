@@ -334,7 +334,9 @@ function getSleepCmd() {
 }
 
 function startSleepProcess(logger: Logging, timeout: number = 90): RunningProcess {
-    const childProcess = new ChildProcess(logger, getSleepCmd(), [timeout.toString()])
+    const childProcess = new ChildProcess(logger, getSleepCmd(), [timeout.toString()], {
+        spawnOptions: { shell: true },
+    })
     const result = childProcess.run().catch(() => assert.fail('sleep command threw an error'))
     return { childProcess, result }
 }
