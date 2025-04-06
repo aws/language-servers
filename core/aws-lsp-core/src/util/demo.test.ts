@@ -1,9 +1,20 @@
+import mock = require('mock-fs')
 import * as fs from 'fs'
 import * as assert from 'assert'
 import * as cp from 'child_process'
 
 describe('demo', function () {
-    const temporaryDir = '/tmp/myTestDirectory'
+    let temporaryDir: string
+
+    before(function () {
+        temporaryDir = '/tmp/myTestDirectory'
+    })
+
+    // This is needed unless fs is mocked and its very hard to tell that its mocked.
+    // It does not work in the before loop.
+    // beforeEach(function () {
+    //     mock.restore()
+    // })
 
     it('test', async function () {
         // Create temporary dir and assert it exists.
@@ -25,5 +36,6 @@ describe('demo', function () {
         assert.strictEqual(r, 0, 'did not exit with 0')
         assert.ok(fs.existsSync(temporaryDir), 'does not exist after the test')
         fs.rmdirSync(temporaryDir, { recursive: true })
+        assert.ok(!fs.existsSync(temporaryDir), 'exists after removing the test')
     })
 })
