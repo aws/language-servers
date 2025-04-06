@@ -339,7 +339,7 @@ function startSleepProcess(logger: Logging): RunningProcess {
     // Windows timeout does not support anything less than 1 second.
     const childProcess =
         process.platform === 'win32'
-            ? new ChildProcess(logger, 'timeout', ['/t', '1'], {
+            ? new ChildProcess(logger, 'cmd', ['/c', 'timeout /t 1 /nobreak'], {
                   spawnOptions: { shell: true, windowsHide: true },
               })
             : new ChildProcess(logger, 'sleep', ['50'])
@@ -356,16 +356,20 @@ describe('ChildProcessTracker', function () {
     async function stopAndWait(runningProcess: RunningProcess): Promise<void> {
         runningProcess.childProcess.stop(true)
         const waitForResult = runningProcess.result
-        await clock.tickAsync(2000)
+        // Smaller intervals provides better results on Windows.
+        await clock.tickAsync(500)
+        await clock.tickAsync(500)
+        await clock.tickAsync(500)
+        await clock.tickAsync(500)
         await waitForResult
     }
 
     beforeEach(function () {
         mockfs.restore()
+        warnings = []
     })
 
     before(function () {
-        warnings = []
         logging = {
             warn: m => warnings.push(m),
             error: _ => {},
@@ -378,9 +382,9 @@ describe('ChildProcessTracker', function () {
         tracker = ChildProcessTracker.getInstance(logging)
     })
 
-    afterEach(function () {
+    afterEach(async function () {
         tracker.clear()
-        warnings = []
+        await clock.tickAsync(100)
     })
 
     after(function () {
@@ -397,7 +401,7 @@ describe('ChildProcessTracker', function () {
         assert.strictEqual(tracker.has(runningProcess.childProcess), true, 'process was mistakenly removed')
         await stopAndWait(runningProcess)
 
-        await clock.tickAsync(ChildProcessTracker.pollingInterval)
+        await clock.tickAsync(ChildProcessTracker.pollingInterval + 100)
         assert.strictEqual(tracker.has(runningProcess.childProcess), false, 'process was not removed after stopping')
     })
 
