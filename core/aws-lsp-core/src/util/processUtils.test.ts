@@ -329,14 +329,14 @@ interface RunningProcess {
     result: Promise<ChildProcessResult>
 }
 
-function getSleepCmd() {
-    return process.platform === 'win32' ? 'timeout' : 'sleep'
-}
-
-function startSleepProcess(logger: Logging, timeout: number = 90): RunningProcess {
-    const childProcess = new ChildProcess(logger, getSleepCmd(), [timeout.toString()], {
-        spawnOptions: { shell: true },
-    })
+function startSleepProcess(logger: Logging): RunningProcess {
+    // Windows timeout does not support anything less than 1 second.
+    const childProcess =
+        process.platform === 'win32'
+            ? new ChildProcess(logger, 'powershell', ['-Command', 'Start-Sleep -Milliseconds 50'], {
+                  spawnOptions: { shell: true, windowsHide: true },
+              })
+            : new ChildProcess(logger, 'sleep', ['50'])
     const result = childProcess.run().catch(() => assert.fail('sleep command threw an error'))
     return { childProcess, result }
 }
@@ -351,7 +351,7 @@ describe('ChildProcessTracker', function () {
     async function stopAndWait(runningProcess: RunningProcess): Promise<void> {
         runningProcess.childProcess.stop(true)
         const waitForResult = runningProcess.result
-        await clock.tickAsync(1000)
+        await clock.tickAsync(2000)
         await waitForResult
     }
 
