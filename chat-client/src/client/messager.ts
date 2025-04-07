@@ -14,6 +14,7 @@ import {
 } from '@aws/chat-client-ui-types'
 import {
     ChatParams,
+    CreatePromptParams,
     FeedbackParams,
     FollowUpClickParams,
     InfoLinkClickParams,
@@ -61,6 +62,7 @@ export interface OutboundChatApi {
     uiReady(): void
     disclaimerAcknowledged(): void
     onOpenTab(result: OpenTabResult | ErrorResult): void
+    createPrompt(params: CreatePromptParams): void
 }
 
 export class Messager {
@@ -158,5 +160,9 @@ export class Messager {
 
     onOpenTab = (result: OpenTabResult | ErrorResult): void => {
         this.chatApi.onOpenTab(result)
+    }
+
+    onCreatePrompt = (promptName: string): void => {
+        this.chatApi.createPrompt({ promptName })
     }
 }

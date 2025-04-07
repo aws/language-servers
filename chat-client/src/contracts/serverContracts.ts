@@ -21,6 +21,8 @@ import {
     QUICK_ACTION_REQUEST_METHOD,
     OpenTabResult,
     OPEN_TAB_REQUEST_METHOD,
+    CreatePromptParams,
+    CREATE_PROMPT_NOTIFICATION_METHOD,
 } from '@aws/language-server-runtimes-types'
 
 export const TELEMETRY = 'telemetry/event'
@@ -39,6 +41,7 @@ export type ServerMessageCommand =
     | typeof INFO_LINK_CLICK_NOTIFICATION_METHOD
     | typeof QUICK_ACTION_REQUEST_METHOD
     | typeof OPEN_TAB_REQUEST_METHOD
+    | typeof CREATE_PROMPT_NOTIFICATION_METHOD
 
 export interface Message {
     command: ServerMessageCommand
@@ -65,3 +68,4 @@ export type ServerMessageParams =
     | SourceLinkClickParams
     | FollowUpClickParams
     | OpenTabResult
+    | CreatePromptParams

@@ -305,6 +305,26 @@ describe('AmazonQTokenServiceManager', () => {
         })
 
         describe('Developer Profiles Support is enabled', () => {
+            it('should not throw when receiving null profile arn in PENDING_CONNECTION state', async () => {
+                setupServiceManager(true)
+                assert.strictEqual(amazonQTokenServiceManager.getState(), 'PENDING_CONNECTION')
+
+                await assert.doesNotReject(
+                    features.doUpdateConfiguration(
+                        {
+                            section: 'aws.q',
+                            settings: {
+                                profileArn: null,
+                            },
+                        },
+                        {} as CancellationToken
+                    )
+                )
+
+                assert.strictEqual(amazonQTokenServiceManager.getActiveProfileArn(), undefined)
+                assert.strictEqual(amazonQTokenServiceManager.getState(), 'PENDING_CONNECTION')
+            })
+
             it('should initialize to PENDING_Q_PROFILE state when IdentityCenter Connection is set', async () => {
                 setupServiceManager(true)
                 assert.strictEqual(amazonQTokenServiceManager.getState(), 'PENDING_CONNECTION')
