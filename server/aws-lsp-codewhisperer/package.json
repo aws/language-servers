@@ -71,6 +71,7 @@
         "endOfLine": "lf"
     },
     "bundleDependencies": [
-        "@amzn/codewhisperer-streaming"
+        "@amzn/codewhisperer-streaming",
+        "@amzn/amazon-q-developer-streaming-client"
     ]
 }
