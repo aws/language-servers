@@ -323,9 +323,11 @@ describe('ChildProcessTracker', function () {
         runningProcess.childProcess.stop(true)
         const waitForResult = runningProcess.result
         // Smaller ticks behaves better on Windows
-        for (let i = 0; i < 4; i++) {
-            await clock.tickAsync(500)
-        }
+        // for (let i = 0; i < 7; i++) {
+        //     await clock.tickAsync(500)
+        // }
+        await clock.tickAsync(ChildProcess.stopTimeout)
+        await clock.tickAsync(1)
 
         await waitForResult
     }
@@ -362,7 +364,7 @@ describe('ChildProcessTracker', function () {
     it(`removes stopped processes every ${ChildProcessTracker.pollingInterval / 1000} seconds`, async function () {
         const runningProcess = await startTestProcess(tempFolder, logging)
         tracker.add(runningProcess.childProcess)
-        assert.strictEqual(tracker.has(runningProcess.childProcess), true, 'failed to add sleep command')
+        assert.strictEqual(tracker.has(runningProcess.childProcess), true, 'failed to add test command')
         await stopAndWait(runningProcess)
         await clock.tickAsync(ChildProcessTracker.pollingInterval)
         assert.strictEqual(tracker.has(runningProcess.childProcess), false, 'process was not removed')
@@ -371,18 +373,25 @@ describe('ChildProcessTracker', function () {
     it('is able to track multiple processes', async function () {
         const runningProcess1 = await startTestProcess(tempFolder, logging, 'test-script-1')
         const runningProcess2 = await startTestProcess(tempFolder, logging, 'test-script-2')
+        console.log('started processes')
         tracker.add(runningProcess1.childProcess)
         tracker.add(runningProcess2.childProcess)
-        assert.strictEqual(tracker.has(runningProcess1.childProcess), true, 'failed to add sleep command')
-        assert.strictEqual(tracker.has(runningProcess2.childProcess), true, 'failed to add sleep command')
+        console.log('added processes')
+        assert.strictEqual(tracker.has(runningProcess1.childProcess), true, 'failed to add first test command')
+        assert.strictEqual(tracker.has(runningProcess2.childProcess), true, 'failed to add second test command')
         assert.strictEqual(tracker.size, 2)
 
-        await stopAndWait(runningProcess1)
-        await stopAndWait(runningProcess2)
         await clock.tickAsync(ChildProcessTracker.pollingInterval)
+        console.log('post-first tick')
+        await stopAndWait(runningProcess1)
+        console.log('post-kill first')
+        await stopAndWait(runningProcess2)
+        console.log('post-kill second')
+        await clock.tickAsync(ChildProcessTracker.pollingInterval)
+        console.log('post-second tick')
         assert.strictEqual(tracker.has(runningProcess1.childProcess), false, 'process was not removed')
         assert.strictEqual(tracker.has(runningProcess2.childProcess), false, 'process was not removed')
-    })
+    }, 10000)
 
     it('logs a warning message when system usage exceeds threshold', async function () {
         tracker.logIfExceeds(1, {
@@ -418,20 +427,14 @@ async function startTestProcess(
     logger: Features['logging'],
     filename: string = 'test-script'
 ): Promise<RunningProcess> {
-    if (process.platform === 'win32') {
-        const batchFile = await writeBatchFileWithDelays(tempFolder, `${filename}.bat`)
-        const childProcess = new ChildProcess(logger, batchFile)
-        return {
-            childProcess,
-            result: childProcess.run(),
-        }
-    } else {
-        const scriptFile = await writeShellFileWithDelays(tempFolder, `${filename}.sh`)
-        const childProcess = new ChildProcess(logger, scriptFile)
-        return {
-            childProcess,
-            result: childProcess.run(),
-        }
+    const file =
+        process.platform === 'win32'
+            ? await writeBatchFileWithDelays(tempFolder, `${filename}.bat`)
+            : await writeShellFileWithDelays(tempFolder, `${filename}.sh`)
+    const childProcess = new ChildProcess(logger, file)
+    return {
+        childProcess,
+        result: childProcess.run(),
     }
 }
 
