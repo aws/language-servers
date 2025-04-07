@@ -1,4 +1,5 @@
-import mock = require('mock-fs')
+// Needed for fix.
+// import mock = require('mock-fs')
 import * as fs from 'fs'
 import * as assert from 'assert'
 import * as cp from 'child_process'
