@@ -212,6 +212,59 @@ describe('Chat', () => {
         assert.notCalled(updateStoreStub)
     })
 
+    it('partial chat response with header triggers ui events', () => {
+        const endMessageStreamStub = sandbox.stub(mynahUi, 'endMessageStream')
+        const updateLastChatAnswerStub = sandbox.stub(mynahUi, 'updateLastChatAnswer')
+        const updateStoreStub = sandbox.stub(mynahUi, 'updateStore')
+
+        const tabId = '123'
+        const body = 'some response'
+
+        const contextList = {
+            filePaths: ['file1', 'file2'],
+            details: {
+                file1: {
+                    lineRanges: [{ first: 1, second: 2 }],
+                },
+            },
+        }
+        const params = { body, contextList }
+
+        const mockHeader = {
+            fileList: {
+                fileTreeTitle: '',
+                filePaths: ['file1', 'file2'],
+                rootFolderTitle: 'Context',
+                flatList: true,
+                collapsed: true,
+                hideFileCount: true,
+                details: {
+                    file1: {
+                        label: 'line 1 - 2',
+                        description: 'file1',
+                        clickable: true,
+                    },
+                },
+            },
+        }
+
+        const chatEvent = createInboundEvent({
+            command: CHAT_REQUEST_METHOD,
+            tabId,
+            params,
+            isPartialResult: true,
+        })
+
+        window.dispatchEvent(chatEvent)
+
+        assert.calledOnceWithExactly(updateLastChatAnswerStub, tabId, {
+            ...params,
+            header: mockHeader,
+        })
+        assert.notCalled(endMessageStreamStub)
+        assert.notCalled(updateStoreStub)
+    })
+
     function createInboundEvent(params: any) {
         const event = new CustomEvent('message') as any
         event.data = params
