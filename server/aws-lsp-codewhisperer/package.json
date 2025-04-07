@@ -27,6 +27,7 @@
         "postinstall": "node ./script/install_transitive_dep.js"
     },
     "dependencies": {
+        "@amzn/amazon-q-developer-streaming-client": "file:../../core/q-developer-streaming-client/amzn-amazon-q-developer-streaming-client-1.0.0.tgz",
         "@amzn/codewhisperer-streaming": "file:../../core/codewhisperer-streaming/amzn-codewhisperer-streaming-1.0.0.tgz",
         "@aws-sdk/util-retry": "^3.374.0",
         "@aws/chat-client-ui-types": "^0.1.12",
