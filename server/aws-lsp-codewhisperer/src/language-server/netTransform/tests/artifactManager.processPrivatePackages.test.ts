@@ -150,33 +150,34 @@ describe('ArtifactManager - processPrivatePackages', () => {
         expect(sampleArtifactReference.netCompatibleVersion).to.equal(undefined)
     })
 
-    it('should not process when NetCompatibleAssemblyRelativePath is missing', async () => {
+    it('should mark as third party package but not copy when paths are null', async () => {
         let copyFileCalled = false
         artifactManager.copyFile = async (source: string, destination: string): Promise<void> => {
             copyFileCalled = true
             return Promise.resolve()
         }
 
-        const privatePackage = {
+        const privatePackage: PackageReferenceMetadata = {
             Id: 'test-package',
-            IsPrivatePackage: true,
-            NetCompatibleAssemblyPath: 'full/path/to/assembly',
-            NetCompatiblePackageVersion: '1.0.0',
             Versions: [],
+            IsPrivatePackage: true,
+            NetCompatibleAssemblyRelativePath: undefined,
+            NetCompatibleAssemblyPath: undefined,
+            NetCompatiblePackageVersion: undefined,
         }
 
         sampleStartTransformRequest.PackageReferences = [privatePackage]
         sampleExternalReference.RelativePath = 'some/path/test-package/more/path'
 
-        artifactManager.processPrivatePackages(
+        await artifactManager.processPrivatePackages(
             sampleStartTransformRequest,
             sampleExternalReference,
             sampleArtifactReference
         )
 
         expect(copyFileCalled).to.be.false
-        expect(sampleArtifactReference.isThirdPartyPackage).to.equal(false)
-        expect(sampleArtifactReference.netCompatibleRelativePath).to.equal(undefined)
-        expect(sampleArtifactReference.netCompatibleVersion).to.equal(undefined)
+        expect(sampleArtifactReference.isThirdPartyPackage).to.equal(true)
+        expect(sampleArtifactReference.netCompatibleRelativePath).to.be.undefined
+        expect(sampleArtifactReference.netCompatibleVersion).to.be.undefined
     })
 })

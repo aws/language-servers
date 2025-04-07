@@ -159,25 +159,27 @@ export class ArtifactManager {
         var thirdPartyPackage = request.PackageReferences.find(
             p => p.IsPrivatePackage && reference.RelativePath.includes(p.Id)
         )
-        if (
-            thirdPartyPackage &&
-            thirdPartyPackage.NetCompatibleAssemblyRelativePath &&
-            thirdPartyPackage.NetCompatibleAssemblyPath
-        ) {
-            const privatePackageRelativePath = path
-                .join(
-                    referencesFolderName,
-                    thirdPartyPackageFolderName,
-                    thirdPartyPackage.NetCompatibleAssemblyRelativePath
-                )
-                .toLowerCase()
-            await this.copyFile(
-                thirdPartyPackage.NetCompatibleAssemblyPath,
-                this.getWorkspaceReferencePathFromRelativePath(privatePackageRelativePath)
-            )
+        if (thirdPartyPackage) {
             artifactReference.isThirdPartyPackage = true
-            artifactReference.netCompatibleRelativePath = privatePackageRelativePath
-            artifactReference.netCompatibleVersion = thirdPartyPackage.NetCompatiblePackageVersion
+
+            if (thirdPartyPackage.NetCompatibleAssemblyRelativePath && thirdPartyPackage.NetCompatibleAssemblyPath) {
+                const privatePackageRelativePath = path
+                    .join(
+                        referencesFolderName,
+                        thirdPartyPackageFolderName,
+                        thirdPartyPackage.NetCompatibleAssemblyRelativePath
+                    )
+                    .toLowerCase()
+                await this.copyFile(
+                    thirdPartyPackage.NetCompatibleAssemblyPath,
+                    this.getWorkspaceReferencePathFromRelativePath(privatePackageRelativePath)
+                )
+                artifactReference.netCompatibleRelativePath = privatePackageRelativePath
+            }
+
+            if (thirdPartyPackage.NetCompatiblePackageVersion) {
+                artifactReference.netCompatibleVersion = thirdPartyPackage.NetCompatiblePackageVersion
+            }
         }
     }
 
