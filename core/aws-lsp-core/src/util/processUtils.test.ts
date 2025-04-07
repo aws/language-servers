@@ -351,10 +351,12 @@ describe('ChildProcessTracker', function () {
 
     afterEach(async function () {
         tracker.clear()
+        await tempFolder.clear()
     })
 
-    after(function () {
+    after(async function () {
         clock.restore()
+        await tempFolder.delete()
     })
 
     it(`removes stopped processes every ${ChildProcessTracker.pollingInterval / 1000} seconds`, async function () {
@@ -367,8 +369,8 @@ describe('ChildProcessTracker', function () {
     })
 
     it('multiple processes from same command are tracked seperately', async function () {
-        const runningProcess1 = await startTestProcess(tempFolder, logging)
-        const runningProcess2 = await startTestProcess(tempFolder, logging)
+        const runningProcess1 = await startTestProcess(tempFolder, logging, 'firstProcess')
+        const runningProcess2 = await startTestProcess(tempFolder, logging, 'secondProcess')
         tracker.add(runningProcess1.childProcess)
         tracker.add(runningProcess2.childProcess)
 
@@ -380,14 +382,14 @@ describe('ChildProcessTracker', function () {
         await stopAndWait(runningProcess2)
         await clock.tickAsync(ChildProcessTracker.pollingInterval)
         assert.strictEqual(
-            tracker.has(runningProcess2.childProcess),
-            false,
-            'second process was not removed after stopping it'
-        )
-        assert.strictEqual(
             tracker.has(runningProcess1.childProcess),
             false,
             'first process was not removed after stopping it'
+        )
+        assert.strictEqual(
+            tracker.has(runningProcess2.childProcess),
+            false,
+            'second process was not removed after stopping it'
         )
 
         assert.strictEqual(tracker.size, 0, 'expected tracker to be empty')
@@ -422,16 +424,20 @@ describe('ChildProcessTracker', function () {
     })
 })
 
-async function startTestProcess(tempFolder: TestFolder, logger: Features['logging']): Promise<RunningProcess> {
+async function startTestProcess(
+    tempFolder: TestFolder,
+    logger: Features['logging'],
+    filename: string = 'test-script'
+): Promise<RunningProcess> {
     if (process.platform === 'win32') {
-        const batchFile = await writeBatchFileWithDelays(tempFolder, 'test-script.bat')
+        const batchFile = await writeBatchFileWithDelays(tempFolder, `${filename}.bat`)
         const childProcess = new ChildProcess(logger, batchFile)
         return {
             childProcess,
             result: childProcess.run(),
         }
     } else {
-        const scriptFile = await writeShellFileWithDelays(tempFolder, 'test-script.sh')
+        const scriptFile = await writeShellFileWithDelays(tempFolder, `${filename}.sh`)
         const childProcess = new ChildProcess(logger, scriptFile)
         return {
             childProcess,
