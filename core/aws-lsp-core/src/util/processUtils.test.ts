@@ -368,6 +368,22 @@ describe('ChildProcessTracker', function () {
         assert.strictEqual(tracker.has(runningProcess.childProcess), false, 'process was not removed')
     })
 
+    it('is able to track multiple processes', async function () {
+        const runningProcess1 = await startTestProcess(tempFolder, logging, 'test-script-1')
+        const runningProcess2 = await startTestProcess(tempFolder, logging, 'test-script-2')
+        tracker.add(runningProcess1.childProcess)
+        tracker.add(runningProcess2.childProcess)
+        assert.strictEqual(tracker.has(runningProcess1.childProcess), true, 'failed to add sleep command')
+        assert.strictEqual(tracker.has(runningProcess2.childProcess), true, 'failed to add sleep command')
+        assert.strictEqual(tracker.size, 2)
+
+        await stopAndWait(runningProcess1)
+        await stopAndWait(runningProcess2)
+        await clock.tickAsync(ChildProcessTracker.pollingInterval)
+        assert.strictEqual(tracker.has(runningProcess1.childProcess), false, 'process was not removed')
+        assert.strictEqual(tracker.has(runningProcess2.childProcess), false, 'process was not removed')
+    })
+
     it('logs a warning message when system usage exceeds threshold', async function () {
         tracker.logIfExceeds(1, {
             cpu: ChildProcessTracker.thresholds.cpu + 1,
