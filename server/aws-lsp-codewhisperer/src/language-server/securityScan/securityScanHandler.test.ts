@@ -5,9 +5,11 @@ import got from 'got'
 import * as Sinon from 'sinon'
 import { StubbedInstance, default as simon, stubInterface } from 'ts-sinon'
 import { StartCodeAnalysisRequest } from '../../client/token/codewhispererbearertokenclient'
-import { CodeWhispererServiceToken } from '../codeWhispererService'
+import { CodeWhispererServiceToken } from '../../shared/codeWhispererService'
 import { SecurityScanHandler } from './securityScanHandler'
 import { RawCodeScanIssue } from './types'
+import * as ScanConstants from './constants'
+import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 
 const mockCodeScanFindings = JSON.stringify([
     {
@@ -54,9 +56,11 @@ describe('securityScanHandler', () => {
     const mockedLogging = stubInterface<Logging>()
     beforeEach(async () => {
         // Set up the server with a mock service
+        const serviceManager = stubInterface<AmazonQTokenServiceManager>()
         client = stubInterface<CodeWhispererServiceToken>()
+        serviceManager.getCodewhispererService.returns(client)
         workspace = stubInterface<Workspace>()
-        securityScanhandler = new SecurityScanHandler(client, workspace, mockedLogging)
+        securityScanhandler = new SecurityScanHandler(serviceManager, workspace, mockedLogging)
     })
 
     describe('Test createCodeResourcePresignedUrlHandler', () => {
@@ -74,7 +78,10 @@ describe('securityScanHandler', () => {
 
         it('returns correct source code', async () => {
             const expectedSourceCode = 'dummy-upload-id'
-            const res = await securityScanhandler.createCodeResourcePresignedUrlHandler(Buffer.from('dummy-data'))
+            const res = await securityScanhandler.createCodeResourcePresignedUrlHandler(
+                Buffer.from('dummy-data'),
+                'dummy-scan-name'
+            )
             simon.assert.callCount(putStub, 1)
             assert.equal(res.SourceCode, expectedSourceCode)
         })
@@ -96,8 +103,10 @@ describe('securityScanHandler', () => {
             const requestParams: StartCodeAnalysisRequest = {
                 artifacts: { SourceCode: 'dummy-upload-id' },
                 programmingLanguage: { languageName: 'csharp' },
+                scope: ScanConstants.projectCodeAnalysisScope,
+                codeScanName: 'dummy-scan-name',
             }
-            const res = await securityScanhandler.createScanJob(artifactMap, 'csharp')
+            const res = await securityScanhandler.createScanJob(artifactMap, 'csharp', 'dummy-scan-name')
             simon.assert.calledOnceWithExactly(client.startCodeAnalysis, requestParams)
             assert.equal(res.jobId, 'dummy-job-id')
             assert.equal(res.status, 'Pending')

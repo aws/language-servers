@@ -1,9 +1,11 @@
 import { EditorState, TextDocument as CwsprTextDocument } from '@amzn/codewhisperer-streaming'
 import { CursorState } from '@aws/language-server-runtimes/server-interface'
 import { Range, TextDocument } from 'vscode-languageserver-textdocument'
-import { getLanguageId } from '../../languageDetection'
+import { getLanguageId } from '../../../shared/languageDetection'
 import { Features } from '../../types'
 import { getExtendedCodeBlockRange, getSelectionWithinExtendedRange } from './utils'
+import path = require('path')
+import { URI } from 'vscode-uri'
 
 export type DocumentContext = CwsprTextDocument & {
     cursorState?: EditorState['cursorState']
@@ -13,6 +15,7 @@ export type DocumentContext = CwsprTextDocument & {
 
 export interface DocumentContextExtractorConfig {
     logger?: Features['logging']
+    workspace?: Features['workspace']
     characterLimits?: number
 }
 
@@ -21,9 +24,11 @@ export class DocumentContextExtractor {
 
     #characterLimits: number
     #logger?: Features['logging']
+    #workspace?: Features['workspace']
 
     constructor(config?: DocumentContextExtractorConfig) {
         this.#logger = config?.logger
+        this.#workspace = config?.workspace
         this.#characterLimits = config?.characterLimits ?? DocumentContextExtractor.DEFAULT_CHARACTER_LIMIT
     }
 
@@ -44,15 +49,26 @@ export class DocumentContextExtractor {
 
         const rangeWithinCodeBlock = getSelectionWithinExtendedRange(targetRange, codeBlockRange)
 
+        const relativePath = this.getRelativePath(document)
+
         const languageId = getLanguageId(document)
 
         return {
             cursorState: rangeWithinCodeBlock ? { range: rangeWithinCodeBlock } : undefined,
             text: document.getText(codeBlockRange),
             programmingLanguage: languageId ? { languageName: languageId } : undefined,
-            relativeFilePath: document.uri,
+            relativeFilePath: relativePath,
             hasCodeSnippet: Boolean(rangeWithinCodeBlock),
             totalEditorCharacters: document.getText().length,
         }
+    }
+
+    private getRelativePath(document: TextDocument): string {
+        const documentUri = URI.parse(document.uri)
+        const workspaceFolder = this.#workspace?.getWorkspaceFolder?.(document.uri)
+        const workspaceUri = workspaceFolder?.uri
+        const workspaceRoot = workspaceUri ? URI.parse(workspaceUri).fsPath : process.cwd()
+        const absolutePath = documentUri.fsPath
+        return path.relative(workspaceRoot, absolutePath)
     }
 }

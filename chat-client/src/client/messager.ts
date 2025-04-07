@@ -3,6 +3,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+/**
+ * @fileoverview
+ * The Messager class serves as a communication bridge between the MynahUI chat interface
+ * and the host application (e.g., IDE extension). It translates UI events into standardized
+ * messages, handles telemetry collection, and provides a clean abstraction layer for sending
+ * different types of messages through the OutboundChatApi.
+ */
+
 import {
     AuthFollowUpClickedParams,
     CopyCodeToClipboardParams,
@@ -14,6 +22,7 @@ import {
 } from '@aws/chat-client-ui-types'
 import {
     ChatParams,
+    CreatePromptParams,
     FeedbackParams,
     FollowUpClickParams,
     InfoLinkClickParams,
@@ -43,6 +52,10 @@ import {
     VoteParams,
 } from '../contracts/telemetry'
 
+/**
+ * OutboundChatApi defines the interface for sending messages from the chat client
+ * to the host application. It provides methods for all supported outbound events.
+ */
 export interface OutboundChatApi {
     sendChatPrompt(params: ChatParams): void
     sendQuickActionCommand(params: QuickActionParams): void
@@ -61,6 +74,7 @@ export interface OutboundChatApi {
     uiReady(): void
     disclaimerAcknowledged(): void
     onOpenTab(result: OpenTabResult | ErrorResult): void
+    createPrompt(params: CreatePromptParams): void
 }
 
 export class Messager {
@@ -158,5 +172,9 @@ export class Messager {
 
     onOpenTab = (result: OpenTabResult | ErrorResult): void => {
         this.chatApi.onOpenTab(result)
+    }
+
+    onCreatePrompt = (promptName: string): void => {
+        this.chatApi.createPrompt({ promptName })
     }
 }

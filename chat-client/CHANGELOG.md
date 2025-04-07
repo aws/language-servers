@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.1.3](https://github.com/aws/language-servers/compare/chat-client/v0.1.2...chat-client/v0.1.3) (2025-04-07)
+
+
+### Features
+
+* add context transparency feature ([#903](https://github.com/aws/language-servers/issues/903)) ([9432ffb](https://github.com/aws/language-servers/commit/9432ffb8586e4f8181c4f14944b0d3d32aff3e78))
+* context data selection support in chat-client ([#902](https://github.com/aws/language-servers/issues/902)) ([a22dea5](https://github.com/aws/language-servers/commit/a22dea51c0039f198a403e88f774ad7769b15d29))
+* support create prompt form in chat-client ([#910](https://github.com/aws/language-servers/issues/910)) ([a1f0310](https://github.com/aws/language-servers/commit/a1f0310eff33700cff9551c7d3c84356e4246856))
+
 ## [0.1.2](https://github.com/aws/language-servers/compare/chat-client/v0.1.1...chat-client/v0.1.2) (2025-03-18)
 
 

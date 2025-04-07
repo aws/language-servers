@@ -59,6 +59,7 @@ const sampleUserInputRequest: StartTransformRequest = {
     TransformNetStandardProjects: false,
     EnableRazorViewTransform: false,
     command: '',
+    PackageReferences: [],
 }
 
 function safeSet(obj: any, path: string[], value: any): void {

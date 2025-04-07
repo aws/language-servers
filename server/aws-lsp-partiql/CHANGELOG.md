@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.0.7](https://github.com/aws/language-servers/compare/lsp-partiql/v0.0.6...lsp-partiql/v0.0.7) (2025-04-07)
+
+
+### Features
+
+* context data selection support in chat-client ([#902](https://github.com/aws/language-servers/issues/902)) ([a22dea5](https://github.com/aws/language-servers/commit/a22dea51c0039f198a403e88f774ad7769b15d29))
+
+## [0.0.6](https://github.com/aws/language-servers/compare/lsp-partiql/v0.0.5...lsp-partiql/v0.0.6) (2025-03-26)
+
+
+### Bug Fixes
+
+* update @aws/language-server-runtimes to 0.2.48 ([e1f620a](https://github.com/aws/language-servers/commit/e1f620ac2b59b4f61daff842a9f29ded1b8fa04e))
+
 ## [0.0.5](https://github.com/aws/language-servers/compare/lsp-partiql/v0.0.4...lsp-partiql/v0.0.5) (2025-03-18)
 
 

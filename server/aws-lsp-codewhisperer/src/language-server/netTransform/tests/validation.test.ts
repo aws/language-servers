@@ -17,6 +17,7 @@ const sampleStartTransformRequest: StartTransformRequest = {
     TransformNetStandardProjects: false,
     EnableRazorViewTransform: false,
     command: '',
+    PackageReferences: [],
 }
 const mockedLogging = stubInterface<Logging>()
 
