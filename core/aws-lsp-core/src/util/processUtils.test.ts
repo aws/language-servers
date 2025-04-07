@@ -8,7 +8,6 @@ import { ChildProcess, ChildProcessResult, ChildProcessTracker, eof } from './pr
 import { waitUntil } from './timeoutUtils'
 import { TestFolder } from '../test/testFolder'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
-import { Logging } from '@aws/language-server-runtimes/server-interface'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 
 const defaultBatchFileContent = '@echo hi'
@@ -306,28 +305,6 @@ describe('ChildProcess', async function () {
             })
         } // END Unix-only tests
     })
-
-    async function writeBatchFileWithDelays(folder: TestFolder, filename: string): Promise<string> {
-        const file = `
-        @echo hi
-        SLEEP 20
-        @echo bye`
-        return await folder.write(filename, file)
-    }
-
-    async function writeShellFile(folder: TestFolder, filename: string, contents = 'echo hi'): Promise<string> {
-        const result = await folder.write(filename, `#!/bin/sh\n${contents}`)
-        await chmod(result, 0o744)
-        return result
-    }
-
-    async function writeShellFileWithDelays(folder: TestFolder, filename: string): Promise<string> {
-        const file = `
-        echo hi
-        sleep 20
-        echo bye`
-        return await writeShellFile(folder, filename, file)
-    }
 })
 
 interface RunningProcess {
@@ -335,24 +312,12 @@ interface RunningProcess {
     result: Promise<ChildProcessResult>
 }
 
-function startEchoProcess(logger: Logging): RunningProcess {
-    // Windows timeout does not support anything less than 1 second.
-    const id = Math.random().toString(36).slice(2, 9)
-    const childProcess =
-        process.platform === 'win32'
-            ? new ChildProcess(logger, 'cmd', ['/c', `echo ${id}`], {
-                  spawnOptions: { shell: true, windowsHide: true },
-              })
-            : new ChildProcess(logger, 'echo', [id])
-    const result = childProcess.run().catch(() => assert.fail('echo command threw an error'))
-    return { childProcess, result }
-}
-
 describe('ChildProcessTracker', function () {
     let tracker: ChildProcessTracker
     let clock: sinon.SinonFakeTimers
     let logging: Features['logging']
     let warnings: string[]
+    let tempFolder: TestFolder
 
     async function stopAndWait(runningProcess: RunningProcess): Promise<void> {
         runningProcess.childProcess.stop(true)
@@ -370,7 +335,8 @@ describe('ChildProcessTracker', function () {
         warnings = []
     })
 
-    before(function () {
+    before(async function () {
+        tempFolder = await TestFolder.create()
         logging = {
             warn: m => warnings.push(m),
             error: _ => {},
@@ -392,26 +358,26 @@ describe('ChildProcessTracker', function () {
     })
 
     it(`removes stopped processes every ${ChildProcessTracker.pollingInterval / 1000} seconds`, async function () {
-        const runningProcess = startEchoProcess(logging)
+        const runningProcess = await startTestProcess(tempFolder, logging)
         tracker.add(runningProcess.childProcess)
         assert.strictEqual(tracker.has(runningProcess.childProcess), true, 'failed to add sleep command')
-
+        await stopAndWait(runningProcess)
         await clock.tickAsync(ChildProcessTracker.pollingInterval)
         assert.strictEqual(tracker.has(runningProcess.childProcess), false, 'process was not removed')
-        await stopAndWait(runningProcess)
     })
 
     it('multiple processes from same command are tracked seperately', async function () {
-        const runningProcess1 = startEchoProcess(logging)
-        const runningProcess2 = startEchoProcess(logging)
+        const runningProcess1 = await startTestProcess(tempFolder, logging)
+        const runningProcess2 = await startTestProcess(tempFolder, logging)
         tracker.add(runningProcess1.childProcess)
         tracker.add(runningProcess2.childProcess)
 
         assert.strictEqual(tracker.has(runningProcess1.childProcess), true, 'Missing first process')
         assert.strictEqual(tracker.has(runningProcess2.childProcess), true, 'Missing second process')
-        assert.strictEqual(tracker.size, 2, 'expected tracker to be empty')
+        assert.strictEqual(tracker.size, 2, 'expected tracker to have both processes')
 
         await stopAndWait(runningProcess1)
+        await stopAndWait(runningProcess2)
         await clock.tickAsync(ChildProcessTracker.pollingInterval)
         assert.strictEqual(
             tracker.has(runningProcess2.childProcess),
@@ -455,3 +421,43 @@ describe('ChildProcessTracker', function () {
         })
     })
 })
+
+async function startTestProcess(tempFolder: TestFolder, logger: Features['logging']): Promise<RunningProcess> {
+    if (process.platform === 'win32') {
+        const batchFile = await writeBatchFileWithDelays(tempFolder, 'test-script.bat')
+        const childProcess = new ChildProcess(logger, batchFile)
+        return {
+            childProcess,
+            result: childProcess.run(),
+        }
+    } else {
+        const scriptFile = await writeShellFileWithDelays(tempFolder, 'test-script.sh')
+        const childProcess = new ChildProcess(logger, scriptFile)
+        return {
+            childProcess,
+            result: childProcess.run(),
+        }
+    }
+}
+
+async function writeShellFileWithDelays(folder: TestFolder, filename: string): Promise<string> {
+    const file = `
+    echo hi
+    sleep 1
+    echo bye`
+    return await writeShellFile(folder, filename, file)
+}
+
+async function writeShellFile(folder: TestFolder, filename: string, contents = 'echo hi'): Promise<string> {
+    const result = await folder.write(filename, `#!/bin/sh\n${contents}`)
+    await chmod(result, 0o744)
+    return result
+}
+
+async function writeBatchFileWithDelays(folder: TestFolder, filename: string): Promise<string> {
+    const file = `
+    @echo hi
+    SLEEP 1
+    @echo bye`
+    return await folder.write(filename, file)
+}
