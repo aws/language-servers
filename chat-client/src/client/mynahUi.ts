@@ -14,6 +14,7 @@ import {
 } from '@aws/chat-client-ui-types'
 import {
     ChatResult,
+    ContextCommand,
     ContextCommandParams,
     FeedbackParams,
     FollowUpClickParams,
@@ -30,7 +31,7 @@ import {
     MynahUIDataModel,
     NotificationType,
     MynahUIProps,
-    QuickActionCommandGroup,
+    QuickActionCommand,
 } from '@aws/mynah-ui'
 import { VoteParams } from '../contracts/telemetry'
 import { Messager } from './messager'
@@ -38,6 +39,7 @@ import { TabFactory } from './tabs/tabFactory'
 import { disclaimerAcknowledgeButtonId, disclaimerCard } from './texts/disclaimer'
 import { ChatClientAdapter, ChatEventHandler } from '../contracts/chatClientAdapter'
 import { withAdapter } from './withAdapter'
+import { mapToMynahIcon } from './utils'
 
 export interface InboundChatApi {
     addChatResponse(params: ChatResult, tabId: string, isPartialResult: boolean): void
@@ -337,7 +339,7 @@ export const createMynahUi = (
         onTabBarButtonClick: undefined,
     }
 
-    let mynahUiProps: MynahUIProps = {
+    const mynahUiProps: MynahUIProps = {
         tabs: {
             [initialTabId]: {
                 isSelected: true,
@@ -454,9 +456,9 @@ export const createMynahUi = (
 
         const followUps = chatResult.followUp
             ? {
-                  text: chatResult.followUp.text ?? 'Suggested follow up questions:',
-                  options: chatResult.followUp.options,
-              }
+                text: chatResult.followUp.text ?? 'Suggested follow up questions:',
+                options: chatResult.followUp.options,
+            }
             : {}
 
         mynahUi.updateLastChatAnswer(tabId, {
@@ -545,8 +547,22 @@ ${params.message}`,
         }
     }
 
+    const mapToCommands = (commands: ContextCommand[]): QuickActionCommand[] => {
+        return commands.map(command => ({
+            ...command,
+            children: command.children?.map(child => ({
+                ...child,
+                commands: mapToCommands(child.commands),
+            })),
+            icon: mapToMynahIcon(command.icon),
+        }))
+    }
+
     const sendContextCommands = (params: ContextCommandParams) => {
-        contextCommandGroups = params.contextCommandGroups as unknown as QuickActionCommandGroup[]
+        contextCommandGroups = params.contextCommandGroups.map(group => ({
+            ...group,
+            commands: mapToCommands(group.commands),
+        }))
 
         Object.keys(mynahUi.getAllTabs()).forEach(tabId => {
             mynahUi.updateStore(tabId, {

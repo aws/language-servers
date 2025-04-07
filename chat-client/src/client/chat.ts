@@ -59,12 +59,13 @@ import {
     TabChangeParams,
     TabRemoveParams,
 } from '@aws/language-server-runtimes-types'
-import { MynahUIDataModel, MynahUITabStoreModel, QuickActionCommandGroup } from '@aws/mynah-ui'
+import { MynahUIDataModel, MynahUITabStoreModel } from '@aws/mynah-ui'
 import { ServerMessage, TELEMETRY, TelemetryParams } from '../contracts/serverContracts'
 import { Messager, OutboundChatApi } from './messager'
 import { InboundChatApi, createMynahUi } from './mynahUi'
 import { TabFactory } from './tabs/tabFactory'
 import { ChatClientAdapter } from '../contracts/chatClientAdapter'
+import { mapToMynahIcon } from './utils'
 
 const DEFAULT_TAB_DATA = {
     tabTitle: 'Chat',
@@ -134,9 +135,14 @@ export const createChat = (
             case CHAT_OPTIONS: {
                 const params = (message as ChatOptionsMessage).params
                 if (params?.quickActions?.quickActionsCommandGroups) {
-                    tabFactory.updateQuickActionCommands(
-                        params?.quickActions?.quickActionsCommandGroups as unknown as QuickActionCommandGroup[]
-                    )
+                    const quickActionCommandGroups = params.quickActions.quickActionsCommandGroups.map(group => ({
+                        ...group,
+                        commands: group.commands.map(command => ({
+                            ...command,
+                            icon: mapToMynahIcon(command.icon),
+                        })),
+                    }))
+                    tabFactory.updateQuickActionCommands(quickActionCommandGroups)
                 }
 
                 const allExistingTabs: MynahUITabStoreModel = mynahUi.getAllTabs()
