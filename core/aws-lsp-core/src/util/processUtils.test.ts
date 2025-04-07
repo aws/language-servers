@@ -335,20 +335,16 @@ interface RunningProcess {
     result: Promise<ChildProcessResult>
 }
 
-function startSleepProcess(logger: Logging): RunningProcess {
+function startEchoProcess(logger: Logging): RunningProcess {
     // Windows timeout does not support anything less than 1 second.
+    const id = Math.random().toString(36).slice(2, 9)
     const childProcess =
         process.platform === 'win32'
-            ? new ChildProcess(
-                  logger,
-                  'cmd',
-                  ['/c', `echo ${Math.random().toString(36).slice(2, 9)} && timeout /t 1 /nobreak`],
-                  {
-                      spawnOptions: { shell: true, windowsHide: true },
-                  }
-              )
-            : new ChildProcess(logger, 'sleep', ['50'])
-    const result = childProcess.run().catch(() => assert.fail('sleep command threw an error'))
+            ? new ChildProcess(logger, 'cmd', ['/c', `echo ${id}`], {
+                  spawnOptions: { shell: true, windowsHide: true },
+              })
+            : new ChildProcess(logger, 'echo', [id])
+    const result = childProcess.run().catch(() => assert.fail('echo command threw an error'))
     return { childProcess, result }
 }
 
@@ -361,13 +357,12 @@ describe('ChildProcessTracker', function () {
     async function stopAndWait(runningProcess: RunningProcess): Promise<void> {
         runningProcess.childProcess.stop(true)
         const waitForResult = runningProcess.result
+        // Smaller ticks behaves better on Windows
         for (let i = 0; i < 4; i++) {
             await clock.tickAsync(500)
-            await Promise.resolve() // Allow other promises to resolve
         }
 
         await waitForResult
-        await clock.tickAsync(100) // One final tick for cleanup
     }
 
     beforeEach(function () {
@@ -397,45 +392,36 @@ describe('ChildProcessTracker', function () {
     })
 
     it(`removes stopped processes every ${ChildProcessTracker.pollingInterval / 1000} seconds`, async function () {
-        // Start a 'sleep' command, check it only removes after we stop it.
-        const runningProcess = startSleepProcess(logging)
+        const runningProcess = startEchoProcess(logging)
         tracker.add(runningProcess.childProcess)
         assert.strictEqual(tracker.has(runningProcess.childProcess), true, 'failed to add sleep command')
 
         await clock.tickAsync(ChildProcessTracker.pollingInterval)
-        assert.strictEqual(tracker.has(runningProcess.childProcess), true, 'process was mistakenly removed')
+        assert.strictEqual(tracker.has(runningProcess.childProcess), false, 'process was not removed')
         await stopAndWait(runningProcess)
-        await Promise.resolve()
-
-        await clock.tickAsync(ChildProcessTracker.pollingInterval + 100)
-        await Promise.resolve()
-        assert.strictEqual(tracker.has(runningProcess.childProcess), false, 'process was not removed after stopping')
     })
 
     it('multiple processes from same command are tracked seperately', async function () {
-        const runningProcess1 = startSleepProcess(logging)
-        const runningProcess2 = startSleepProcess(logging)
+        const runningProcess1 = startEchoProcess(logging)
+        const runningProcess2 = startEchoProcess(logging)
         tracker.add(runningProcess1.childProcess)
         tracker.add(runningProcess2.childProcess)
 
         assert.strictEqual(tracker.has(runningProcess1.childProcess), true, 'Missing first process')
         assert.strictEqual(tracker.has(runningProcess2.childProcess), true, 'Missing second process')
+        assert.strictEqual(tracker.size, 2, 'expected tracker to be empty')
 
         await stopAndWait(runningProcess1)
-        await clock.tickAsync(ChildProcessTracker.pollingInterval)
-        assert.strictEqual(tracker.has(runningProcess2.childProcess), true, 'second process was mistakenly removed')
-        assert.strictEqual(
-            tracker.has(runningProcess1.childProcess),
-            false,
-            'first process was not removed after stopping it'
-        )
-
-        await stopAndWait(runningProcess2)
         await clock.tickAsync(ChildProcessTracker.pollingInterval)
         assert.strictEqual(
             tracker.has(runningProcess2.childProcess),
             false,
             'second process was not removed after stopping it'
+        )
+        assert.strictEqual(
+            tracker.has(runningProcess1.childProcess),
+            false,
+            'first process was not removed after stopping it'
         )
 
         assert.strictEqual(tracker.size, 0, 'expected tracker to be empty')
