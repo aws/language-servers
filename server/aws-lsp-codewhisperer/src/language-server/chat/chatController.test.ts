@@ -154,7 +154,12 @@ describe('ChatController', () => {
         }
 
         telemetryService = new TelemetryService(amazonQServiceManager, mockCredentialsProvider, telemetry, logging)
-        chatController = new ChatController(chatSessionManagementService, testFeatures, telemetryService)
+        chatController = new ChatController(
+            chatSessionManagementService,
+            testFeatures,
+            telemetryService,
+            amazonQServiceManager
+        )
     })
 
     afterEach(() => {
