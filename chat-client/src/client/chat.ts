@@ -65,7 +65,7 @@ import { Messager, OutboundChatApi } from './messager'
 import { InboundChatApi, createMynahUi } from './mynahUi'
 import { TabFactory } from './tabs/tabFactory'
 import { ChatClientAdapter } from '../contracts/chatClientAdapter'
-import { mapToMynahIcon } from './utils'
+import { toMynahIcon } from './utils'
 
 const DEFAULT_TAB_DATA = {
     tabTitle: 'Chat',
@@ -139,7 +139,7 @@ export const createChat = (
                         ...group,
                         commands: group.commands.map(command => ({
                             ...command,
-                            icon: mapToMynahIcon(command.icon),
+                            icon: toMynahIcon(command.icon),
                         })),
                     }))
                     tabFactory.updateQuickActionCommands(quickActionCommandGroups)

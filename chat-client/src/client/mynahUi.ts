@@ -39,7 +39,7 @@ import { TabFactory } from './tabs/tabFactory'
 import { disclaimerAcknowledgeButtonId, disclaimerCard } from './texts/disclaimer'
 import { ChatClientAdapter, ChatEventHandler } from '../contracts/chatClientAdapter'
 import { withAdapter } from './withAdapter'
-import { mapToMynahIcon } from './utils'
+import { toMynahIcon } from './utils'
 
 export interface InboundChatApi {
     addChatResponse(params: ChatResult, tabId: string, isPartialResult: boolean): void
@@ -547,21 +547,21 @@ ${params.message}`,
         }
     }
 
-    const mapToCommands = (commands: ContextCommand[]): QuickActionCommand[] => {
+    const toContextCommands = (commands: ContextCommand[]): QuickActionCommand[] => {
         return commands.map(command => ({
             ...command,
             children: command.children?.map(child => ({
                 ...child,
-                commands: mapToCommands(child.commands),
+                commands: toContextCommands(child.commands),
             })),
-            icon: mapToMynahIcon(command.icon),
+            icon: toMynahIcon(command.icon),
         }))
     }
 
     const sendContextCommands = (params: ContextCommandParams) => {
         contextCommandGroups = params.contextCommandGroups.map(group => ({
             ...group,
-            commands: mapToCommands(group.commands),
+            commands: toContextCommands(group.commands),
         }))
 
         Object.keys(mynahUi.getAllTabs()).forEach(tabId => {
