@@ -5,6 +5,7 @@ import {
     InitializeParams,
     Server,
     Workspace,
+    Logging,
 } from '@aws/language-server-runtimes/server-interface'
 import { StreamingClient } from '../../client/streamingClient/codewhispererStreamingClient'
 import { CodeWhispererServiceToken } from '../../shared/codeWhispererService'
@@ -63,6 +64,7 @@ export const QNetTransformServerToken =
         service: (
             credentialsProvider: CredentialsProvider,
             workspace: Workspace,
+            logging: Logging,
             awsQRegion: string,
             awsQEndpointUrl: string,
             sdkInitializator: SDKInitializator
@@ -72,6 +74,7 @@ export const QNetTransformServerToken =
         const codewhispererclient = service(
             credentialsProvider,
             workspace,
+            logging,
             runtime.getConfiguration(AWS_Q_REGION_ENV_VAR) ?? DEFAULT_AWS_Q_REGION,
             runtime.getConfiguration(AWS_Q_ENDPOINT_URL_ENV_VAR) ?? DEFAULT_AWS_Q_ENDPOINT_URL,
             sdkInitializator
@@ -134,6 +137,7 @@ export const QNetTransformServerToken =
                             runtime.getConfiguration(AWS_Q_REGION_ENV_VAR) ?? DEFAULT_AWS_Q_REGION,
                             runtime.getConfiguration(AWS_Q_ENDPOINT_URL_ENV_VAR) ?? DEFAULT_AWS_Q_ENDPOINT_URL,
                             sdkInitializator,
+                            logging,
                             customCWClientConfig
                         )
 

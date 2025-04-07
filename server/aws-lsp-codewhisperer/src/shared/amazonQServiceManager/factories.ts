@@ -19,6 +19,7 @@ export const initFallbackServiceManager = (features: Features, serviceOverride?:
         new CodeWhispererServiceIAM(
             features.credentialsProvider,
             features.workspace,
+            features.logging,
             region,
             endpoint,
             features.sdkInitializator
