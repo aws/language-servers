@@ -1,4 +1,5 @@
 import {
+    Logging,
     QueryInlineProjectContextParams,
     QueryInlineProjectContextResult,
     QueryVectorIndexParams,
@@ -8,13 +9,12 @@ import {
 import { Features } from '../types'
 import { Q_CONFIGURATION_SECTION } from '../configuration/qConfigurationServer'
 import { TelemetryService } from '../telemetryService'
-
-import { start, UpdateMode, VectorLibAPI } from 'local-indexing'
-
+import type { UpdateMode, VectorLibAPI } from 'local-indexing'
 import { languageByExtension } from '../languageDetection'
 
 const fs = require('fs').promises
 const path = require('path')
+const LIBRARY_DIR = '/Users/breedloj/Downloads/context/qserver'
 
 export class LocalProjectContextController {
     private readonly features: Features
@@ -28,64 +28,91 @@ export class LocalProjectContextController {
         features: Features,
         telemetryService: TelemetryService,
         clientName: string,
-        workspaceFolders: WorkspaceFolder[]
+        workspaceFolders: WorkspaceFolder[],
+        log: Logging
     ) {
         this.features = features
         this.telemetryService = telemetryService
-        this.fileExtensions = Object.keys(languageByExtension) // TODO: make this configurable?
+        this.fileExtensions = Object.keys(languageByExtension)
         this.workspaceFolders = workspaceFolders
         this.clientName = clientName
     }
 
     public async init(): Promise<void> {
-        const localIndexingPath = require.resolve('local-indexing')
-        const modelsPath = path.join(path.dirname(localIndexingPath), 'models')
-        console.log('local indexing models: ' + modelsPath)
-        this._vecLib = await start(modelsPath, this.clientName, 'some_path')
+        try {
+            const vectorLib = await import(path.join(LIBRARY_DIR, 'dist', 'extension.js'))
+            this._vecLib = await vectorLib.start(LIBRARY_DIR, this.clientName, 'some_path')
+        } catch (error) {
+            this.log('Vector library failed to initialize:' + error)
+        }
         await this.updateConfiguration()
     }
 
     public async dispose(): Promise<void> {
-        await this._vecLib?.clear?.()
-        this._vecLib = undefined
+        if (this._vecLib) {
+            await this._vecLib?.clear?.()
+            this._vecLib = undefined
+        }
     }
 
-    public updateConfiguration = async (): Promise<void> => {
+    public async updateConfiguration(): Promise<void> {
         try {
             const qConfig = await this.features.lsp.workspace.getConfiguration(Q_CONFIGURATION_SECTION)
             if (qConfig) {
                 const optOutTelemetryPreference = qConfig['optOutTelemetry'] === true ? 'OPTOUT' : 'OPTIN'
                 this.telemetryService.updateOptOutPreference(optOutTelemetryPreference)
             }
-            const sourceFiles = await this.processWorkspaceFolders(this.workspaceFolders)
-            const rootDir = this.findCommonWorkspaceRoot(this.workspaceFolders)
-            await this.vecLib.buildIndex(sourceFiles, rootDir, 'all')
+
+            if (this._vecLib) {
+                const sourceFiles = await this.processWorkspaceFolders(this.workspaceFolders)
+                const rootDir = this.findCommonWorkspaceRoot(this.workspaceFolders)
+                await this._vecLib?.buildIndex(sourceFiles, rootDir, 'all')
+            }
         } catch (error) {
             this.log(`Error in GetConfiguration: ${error}`)
         }
     }
 
     public async updateIndex(filePaths: string[], operation: UpdateMode): Promise<void> {
+        if (!this._vecLib) {
+            return
+        }
+
         try {
-            await this.vecLib.updateIndexV2(filePaths, operation)
+            await this._vecLib?.updateIndexV2(filePaths, operation)
         } catch (error) {
             this.log(`Error updating index: ${error}`)
-            throw error
         }
     }
 
     public async queryInlineProjectContext(
         params: QueryInlineProjectContextParams
     ): Promise<QueryInlineProjectContextResult> {
-        return this.vecLib.queryInlineProjectContext(params.query, params.filePath, params.target).then(resp => ({
-            inlineProjectContext: resp,
-        }))
+        if (!this._vecLib) {
+            return { inlineProjectContext: [] }
+        }
+
+        try {
+            const resp = await this._vecLib?.queryInlineProjectContext(params.query, params.filePath, params.target)
+            return { inlineProjectContext: resp ?? [] }
+        } catch (error) {
+            this.log(`Error in queryInlineProjectContext: ${error}`)
+            return { inlineProjectContext: [] }
+        }
     }
 
     public async queryVectorIndex(params: QueryVectorIndexParams): Promise<QueryVectorIndexResult> {
-        return this.vecLib.queryVectorIndex(params.query).then(resp => ({
-            chunks: resp ?? [],
-        }))
+        if (!this._vecLib) {
+            return { chunks: [] }
+        }
+
+        try {
+            const resp = await this._vecLib?.queryVectorIndex(params.query)
+            return { chunks: resp ?? [] }
+        } catch (error) {
+            this.log(`Error in queryVectorIndex: ${error}`)
+            return { chunks: [] }
+        }
     }
 
     private async processWorkspaceFolders(workspaceFolders?: WorkspaceFolder[] | null): Promise<string[]> {
@@ -97,7 +124,7 @@ export class LocalProjectContextController {
 
                 try {
                     const sourceFiles = await this.getCodeSourceFiles(folderPath)
-                    workspaceSourceFiles.push.apply(workspaceSourceFiles, sourceFiles)
+                    workspaceSourceFiles.push(...sourceFiles)
                 } catch (error) {
                     this.log(`Error processing ${folder.name}: ${error}`)
                 }
@@ -113,7 +140,6 @@ export class LocalProjectContextController {
 
         for (const file of files) {
             const filePath = path.join(dir, file.name)
-
             if (file.isDirectory()) {
                 sourceFiles.push(...(await this.getCodeSourceFiles(filePath)))
             } else if (this.fileExtensions.includes(path.extname(file.name).toLowerCase())) {
@@ -149,13 +175,6 @@ export class LocalProjectContextController {
             return new URL(workspaceFolders[0].uri).pathname
         }
         return path.sep + splitPaths[0].slice(0, lastMatchingIndex + 1).join(path.sep)
-    }
-
-    private get vecLib(): VectorLibAPI {
-        if (!this._vecLib) {
-            throw new Error('Context library not initialized.')
-        }
-        return this._vecLib
     }
 
     private log(...messages: string[]) {

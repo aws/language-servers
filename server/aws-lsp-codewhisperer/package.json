@@ -42,12 +42,12 @@
         "hpagent": "^1.2.0",
         "js-md5": "^0.8.3",
         "uuid": "^11.0.5",
-        "vscode-uri": "^3.1.0",
-        "local-indexing": "file:../../core/local-indexing/local-indexing-1.0.0.tgz"
+        "vscode-uri": "^3.1.0"
     },
     "devDependencies": {
         "@types/adm-zip": "^0.5.5",
         "@types/archiver": "^6.0.2",
+        "@types/local-indexing": "file:./types/types-local-indexing-1.0.0.tgz",
         "@types/uuid": "^9.0.8",
         "assert": "^2.1.0",
         "copyfiles": "^2.4.1",
@@ -71,7 +71,6 @@
         "endOfLine": "lf"
     },
     "bundleDependencies": [
-        "@amzn/codewhisperer-streaming",
-        "local-indexing"
+        "@amzn/codewhisperer-streaming"
     ]
 }

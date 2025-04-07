@@ -14,8 +14,8 @@ export const LocalProjectContextServer = (): Server => features => {
     let telemetryService: TelemetryService
 
     lsp.addInitializer((params: InitializeParams) => {
-        if (!params.workspaceFolders || !params.rootPath) {
-            throw new Error('Workspace folders and root path are required')
+        if (!params.workspaceFolders) {
+            throw new Error('Workspace folders are required')
         }
 
         amazonQServiceManager = AmazonQTokenServiceManager.getInstance(features)
@@ -25,7 +25,8 @@ export const LocalProjectContextServer = (): Server => features => {
             features,
             telemetryService,
             params.clientInfo?.name ?? 'unknown',
-            params.workspaceFolders
+            params.workspaceFolders,
+            logging
         )
 
         const supportedFilePatterns = Object.keys(languageByExtension).map(ext => `**/*${ext}`)
