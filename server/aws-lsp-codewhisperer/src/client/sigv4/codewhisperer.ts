@@ -19,7 +19,7 @@ function createService(
     sdkInitializator: SDKInitializator,
     logging: Logging
 ): Service {
-    logging.log(`Passing client for class ${Service.name} to sdkInitializator (v2) for additional setup (e.g. proxy)`)
+    logging.log(`Passing client for class Service to sdkInitializator (v2) for additional setup (e.g. proxy)`)
     const client = sdkInitializator.v2(Service, { apiConfig, ...options } as any)
     return client
 }

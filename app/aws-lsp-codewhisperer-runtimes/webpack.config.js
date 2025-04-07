@@ -1,7 +1,6 @@
 const path = require('path')
 const webpack = require('webpack')
 const HtmlWebpackPlugin = require('html-webpack-plugin')
-const TerserPlugin = require('terser-webpack-plugin')
 const baseConfig = {
     mode: 'development',
     output: {
@@ -30,17 +29,6 @@ const baseConfig = {
                     name: '[name].[ext]', // Preserves original path and filename
                 },
             },
-        ],
-    },
-    optimization: {
-        minimize: true,
-        minimizer: [
-            new TerserPlugin({
-                terserOptions: {
-                    keep_classnames: true,
-                    keep_fnames: true,
-                },
-            }),
         ],
     },
 }

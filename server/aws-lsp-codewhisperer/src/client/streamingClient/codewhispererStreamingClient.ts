@@ -32,7 +32,7 @@ export async function createStreamingClient(
     const creds = credentialsProvider.getCredentials('bearer')
 
     logging.log(
-        `Passing client for class ${CodeWhispererStreaming.name} to sdkInitializator (v3) for additional setup (e.g. proxy)`
+        `Passing client for class CodeWhispererStreaming to sdkInitializator (v3) for additional setup (e.g. proxy)`
     )
     const streamingClient = sdkInitializator(CodeWhispererStreaming, {
         region: codeWhispererRegion,

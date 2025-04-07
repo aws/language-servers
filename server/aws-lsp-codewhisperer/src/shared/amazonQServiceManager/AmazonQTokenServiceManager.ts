@@ -547,7 +547,7 @@ export class AmazonQTokenServiceManager implements BaseAmazonQServiceManager {
         // TODO: Follow-up with creating CodeWhispererStreaming client which supports inplace access to CredentialsProvider instead of caching static value.
         // Without this, we need more complex mechanism for managing token change state when caching streaming client.
         this.logging.log(
-            `Passing client for class ${CodeWhispererStreaming.name} to sdkInitializator (v3) for additional setup (e.g. proxy)`
+            `Passing client for class CodeWhispererStreaming to sdkInitializator (v3) for additional setup (e.g. proxy)`
         )
         const streamingClient = this.features.sdkInitializator(CodeWhispererStreaming, {
             region,

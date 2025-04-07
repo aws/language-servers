@@ -36,7 +36,7 @@ function createService(
     const listeners = Array.isArray(onRequest) ? onRequest : [onRequest]
     const opt = { ...options }
     delete opt.onRequestSetup
-    logging.log(`Passing client for class ${Service.name} to sdkInitializator (v2) for additional setup (e.g. proxy)`)
+    logging.log(`Passing client for class Service to sdkInitializator (v2) for additional setup (e.g. proxy)`)
     const client = sdkInitializator.v2(Service, { apiConfig, ...options } as any)
     const originalClient = client.setupRequestListeners.bind(client)
 
