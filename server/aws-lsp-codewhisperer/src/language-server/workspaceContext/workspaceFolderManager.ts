@@ -410,8 +410,11 @@ export class WorkspaceFolderManager {
         if (!metadata?.environmentId) {
             throw new Error('No environment ID found for ready workspace')
         }
-        // TODO, Change this to the PROD URL when MDE is ready
-        const websocketUrl = `wss://${metadata.environmentId}--8081.wc.gamma-us-west-2.codewhisperer.ai.aws.dev/ws`
+        if (!metadata.environmentAddress) {
+            throw new Error('No environment address found for ready workspace')
+        }
+
+        const websocketUrl = metadata.environmentAddress
         this.logging.log(`Establishing connection to ${websocketUrl}`)
 
         if (existingState?.webSocketClient) {
