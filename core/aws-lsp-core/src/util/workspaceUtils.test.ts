@@ -47,17 +47,10 @@ describe('workspaceUtils', function () {
                     path.join(entry.path, entry.name)
                 )
             ).sort()
-            assert.deepStrictEqual(result, [
-                subdir1.path,
-                file1,
-                subdir11.path,
-                file3,
-                subdir12.path,
-                file4,
-                file5,
-                subdir2.path,
-                file2,
-            ])
+            assert.deepStrictEqual(
+                result,
+                [subdir1.path, file1, subdir11.path, file3, subdir12.path, file4, file5, subdir2.path, file2].sort()
+            )
         })
 
         it('respects maxDepth parameter', async function () {
@@ -68,27 +61,17 @@ describe('workspaceUtils', function () {
             const subdir3 = await subdir2.nest('subdir3')
             const file3 = await subdir3.write('file3', 'this is also content')
 
-            const depthZeroResult = (
-                await readDirectoryRecursively(testFeatures, tempFolder.path, 0, entry =>
+            const testDepth = async (depth: number, expected: string[]) => {
+                const result = await readDirectoryRecursively(testFeatures, tempFolder.path, depth, entry =>
                     path.join(entry.path, entry.name)
                 )
-            ).sort()
-            assert.strictEqual(depthZeroResult.length, 1)
-            assert.deepStrictEqual(depthZeroResult, [subdir1.path])
+                assert.deepStrictEqual(result.sort(), expected.sort())
+            }
 
-            const depthOneResult = (
-                await readDirectoryRecursively(testFeatures, tempFolder.path, 1, entry =>
-                    path.join(entry.path, entry.name)
-                )
-            ).sort()
-            assert.deepStrictEqual(depthOneResult, [subdir1.path, file1, subdir2.path])
-
-            const depthTwoResult = (
-                await readDirectoryRecursively(testFeatures, tempFolder.path, 2, entry =>
-                    path.join(entry.path, entry.name)
-                )
-            ).sort()
-            assert.deepStrictEqual(depthTwoResult, [subdir1.path, file1, subdir2.path, file2, subdir3.path])
+            await testDepth(0, [subdir1.path])
+            await testDepth(1, [subdir1.path, file1, subdir2.path])
+            await testDepth(2, [subdir1.path, file1, subdir2.path, file2, subdir3.path])
+            await testDepth(3, [subdir1.path, file1, subdir2.path, file2, subdir3.path, file3])
         })
 
         it('correctly identifies entry types', async function () {
