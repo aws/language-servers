@@ -1,7 +1,8 @@
 import { TextDocument } from 'vscode-languageserver-textdocument'
-import { ResponseContext, Suggestion } from './codeWhispererService'
+import { CodeWhispererServiceBase, ResponseContext, Suggestion } from './codeWhispererService'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import { SsoConnectionType } from './utils'
+import { stubInterface } from 'ts-sinon'
 
 export const HELLO_WORLD_IN_CSHARP = `class HelloWorld
 {
@@ -218,4 +219,14 @@ export const setCredentialsForAmazonQTokenServiceManagerFactory = (getFeatures: 
             token: 'test-token',
         })
     }
+}
+
+export const stubCodeWhispererService = <C extends CodeWhispererServiceBase>() => {
+    const service = stubInterface<C>()
+
+    // by default, sinon will add method stubs instead of settings these to undefined, which can lead to unintended test errors.
+    service.customizationArn = undefined
+    service.profileArn = undefined
+
+    return service
 }

@@ -50,7 +50,14 @@ import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/A
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
-    'openTab' | 'sendChatUpdate' | 'onFileClicked' | 'onInlineChatPrompt' | 'sendContextCommands' | 'onCreatePrompt'
+    | 'openTab'
+    | 'sendChatUpdate'
+    | 'onFileClicked'
+    | 'onInlineChatPrompt'
+    | 'sendContextCommands'
+    | 'onCreatePrompt'
+    | 'onListConversations'
+    | 'onConversationClick'
 >
 
 export class ChatController implements ChatHandlers {
@@ -555,7 +562,7 @@ export class ChatController implements ChatHandlers {
 
     updateConfiguration = (newConfig: AmazonQWorkspaceConfig) => {
         this.#customizationArn = newConfig.customizationArn
-        this.#log(`Chat configuration updated to use ${this.#customizationArn}`)
+        this.#log(`Chat configuration updated customizationArn to ${this.#customizationArn}`)
         /*
             The flag enableTelemetryEventsToDestination is set to true temporarily. It's value will be determined through destination
             configuration post all events migration to STE. It'll be replaced by qConfig['enableTelemetryEventsToDestination'] === true

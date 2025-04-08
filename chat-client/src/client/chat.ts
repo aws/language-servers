@@ -37,8 +37,10 @@ import {
     ContextCommandParams,
     CreatePromptParams,
     FEEDBACK_NOTIFICATION_METHOD,
+    FILE_CLICK_NOTIFICATION_METHOD,
     FOLLOW_UP_CLICK_NOTIFICATION_METHOD,
     FeedbackParams,
+    FileClickParams,
     FollowUpClickParams,
     INFO_LINK_CLICK_NOTIFICATION_METHOD,
     InfoLinkClickParams,
@@ -65,6 +67,7 @@ import { Messager, OutboundChatApi } from './messager'
 import { InboundChatApi, createMynahUi } from './mynahUi'
 import { TabFactory } from './tabs/tabFactory'
 import { ChatClientAdapter } from '../contracts/chatClientAdapter'
+import { toMynahIcon } from './utils'
 
 const DEFAULT_TAB_DATA = {
     tabTitle: 'Chat',
@@ -134,7 +137,14 @@ export const createChat = (
             case CHAT_OPTIONS: {
                 const params = (message as ChatOptionsMessage).params
                 if (params?.quickActions?.quickActionsCommandGroups) {
-                    tabFactory.updateQuickActionCommands(params?.quickActions?.quickActionsCommandGroups)
+                    const quickActionCommandGroups = params.quickActions.quickActionsCommandGroups.map(group => ({
+                        ...group,
+                        commands: group.commands.map(command => ({
+                            ...command,
+                            icon: toMynahIcon(command.icon),
+                        })),
+                    }))
+                    tabFactory.updateQuickActionCommands(quickActionCommandGroups)
                 }
 
                 const allExistingTabs: MynahUITabStoreModel = mynahUi.getAllTabs()
@@ -223,6 +233,9 @@ export const createChat = (
         },
         createPrompt: (params: CreatePromptParams) => {
             sendMessageToClient({ command: CREATE_PROMPT_NOTIFICATION_METHOD, params })
+        },
+        fileClick: (params: FileClickParams) => {
+            sendMessageToClient({ command: FILE_CLICK_NOTIFICATION_METHOD, params: params })
         },
     }
 
