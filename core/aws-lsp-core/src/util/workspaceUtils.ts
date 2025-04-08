@@ -38,10 +38,7 @@ export async function readDirectoryRecursively(
 
         for (const entry of entries) {
             results.push(formatter(entry))
-            // Depending on Node version fs.Dirent.path refers to the parentPath or the full path. https://github.com/nodejs/node/issues/51955#issuecomment-1977131319
-            // TODO: fix this by updating Dirent interface in runtimes.
-            const childPath = entry.path.endsWith(entry.name) ? entry.path : path.join(entry.path, entry.name)
-
+            const childPath = getEntryPath(entry)
             if (entry.isDirectory() && (maxDepth === undefined || depth < maxDepth)) {
                 queue.push({ filepath: childPath, depth: depth + 1 })
             }
@@ -51,16 +48,22 @@ export async function readDirectoryRecursively(
     return results
 }
 
-// TODO: add a way to check symlinks in runtimes rather than doing it implicitly.
 /**
  * Returns a prefix for a directory ('[DIR]'), symlink ('[LINK]'), or file ('[FILE]').
  */
 export function formatListing(entry: Dirent): string {
+    // TODO: add a way to check symlinks in runtimes rather than doing it implicitly.
     let typeChar = '[LINK]'
     if (entry.isDirectory()) {
         typeChar = '[DIR]'
     } else if (entry.isFile()) {
         typeChar = '[FILE]'
     }
-    return `${typeChar} ${path.join(entry.path, entry.name)}`
+    return `${typeChar} ${getEntryPath(entry)}`
+}
+
+// Depending on Node version fs.Dirent.path refers to the parentPath or the full path. https://github.com/nodejs/node/issues/51955#issuecomment-1977131319
+// TODO: fix this by updating Dirent interface in runtimes.
+export function getEntryPath(entry: Dirent) {
+    return entry.path.endsWith(entry.name) ? entry.path : path.join(entry.path, entry.name)
 }

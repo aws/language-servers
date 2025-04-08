@@ -3,7 +3,7 @@ import * as fs from 'fs'
 import * as assert from 'assert'
 import * as path from 'path'
 import { TestFolder } from '../test/testFolder'
-import { readDirectoryRecursively } from './workspaceUtils'
+import { getEntryPath, readDirectoryRecursively } from './workspaceUtils'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 
 describe('workspaceUtils', function () {
@@ -43,9 +43,7 @@ describe('workspaceUtils', function () {
             const file5 = await subdir12.write('file5', 'and this is it')
 
             const result = (
-                await readDirectoryRecursively(testFeatures, tempFolder.path, undefined, entry =>
-                    path.join(entry.path, entry.name)
-                )
+                await readDirectoryRecursively(testFeatures, tempFolder.path, undefined, getEntryPath)
             ).sort()
             assert.deepStrictEqual(
                 result,
@@ -62,9 +60,7 @@ describe('workspaceUtils', function () {
             const file3 = await subdir3.write('file3', 'this is also content')
 
             const testDepth = async (depth: number, expected: string[]) => {
-                const result = await readDirectoryRecursively(testFeatures, tempFolder.path, depth, entry =>
-                    path.join(entry.path, entry.name)
-                )
+                const result = await readDirectoryRecursively(testFeatures, tempFolder.path, depth, getEntryPath)
                 assert.deepStrictEqual(result.sort(), expected.sort())
             }
 
