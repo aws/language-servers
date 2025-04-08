@@ -22,6 +22,7 @@ import { registerLogCommand, registerTransformCommand } from './sampleCommandAct
 import { randomUUID } from 'crypto'
 import { registerIdentity } from './identityActivation'
 import { registerNotification } from './notificationActivation'
+import { registerQProfileSelection } from './selectQProfileActivation'
 import { registerAwsQSection } from './awsQSectionActivation'
 
 export async function activateDocumentsLanguageServer(extensionContext: ExtensionContext) {
@@ -142,6 +143,7 @@ export async function activateDocumentsLanguageServer(extensionContext: Extensio
             { scheme: 'untitled', language: 'csharp' },
         ],
         initializationOptions: {
+            logLevel: 'debug',
             aws: {
                 clientInfo: {
                     name: env.appName,
@@ -154,7 +156,7 @@ export async function activateDocumentsLanguageServer(extensionContext: Extensio
                 },
                 awsClientCapabilities: {
                     q: {
-                        developerProfiles: false,
+                        developerProfiles: process.env.ENABLE_AMAZON_Q_PROFILES === 'true',
                     },
                     window: {
                         notifications: true,
@@ -211,6 +213,11 @@ export async function activateDocumentsLanguageServer(extensionContext: Extensio
     const enableNotification = process.env.ENABLE_NOTIFICATION === 'true'
     if (enableNotification) {
         await registerNotification(client)
+    }
+
+    const enableAmazonQProfiles = process.env.ENABLE_AMAZON_Q_PROFILES === 'true'
+    if (enableAmazonQProfiles) {
+        await registerQProfileSelection(client)
     }
 
     return client

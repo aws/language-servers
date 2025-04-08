@@ -6,8 +6,8 @@ import * as ssoUtils from '../utils'
 import { RefreshingSsoCache } from './refreshingSsoCache'
 import { SSOOIDC } from '@aws-sdk/client-sso-oidc'
 import { SSOToken } from '@smithy/shared-ini-file-loader'
-import { Logging, Telemetry } from '@aws/language-server-runtimes/server-interface'
-import { Observability } from '@aws/lsp-core'
+import { AwsErrorCodes, Logging, Telemetry } from '@aws/language-server-runtimes/server-interface'
+import { AwsError, Observability } from '@aws/lsp-core'
 
 // eslint-disable-next-line
 use(require('chai-as-promised'))
@@ -176,15 +176,17 @@ describe('RefreshingSsoCache', () => {
             expect(actual?.startUrl).to.equal('existing-start-url')
         })
 
-        it('Returns nothing when no refreshToken.', async () => {
+        it('Throw error when no refreshToken.', async () => {
             const ssoToken = createSsoToken(-10000)
             ssoToken.refreshToken = undefined
             const ssoCache = stubSsoCache(createSsoClientRegistration(10000), ssoToken)
             const sut = new RefreshingSsoCache(ssoCache, _ => {}, observability)
 
-            const actual = await sut.getSsoToken('my-client-name', ssoSession)
-
-            expect(actual).to.be.undefined
+            await expect(sut.getSsoToken('my-client-name', ssoSession))
+                .to.be.rejectedWith(AwsError)
+                .then(err => {
+                    expect(err).to.have.property('awsErrorCode', AwsErrorCodes.E_SSO_TOKEN_EXPIRED)
+                })
         })
 
         it('Returns new SSO token upon refresh.', async () => {

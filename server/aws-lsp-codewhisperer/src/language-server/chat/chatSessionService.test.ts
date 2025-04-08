@@ -1,46 +1,16 @@
-import {
-    CodeWhispererStreaming,
-    SendMessageCommandInput,
-    SendMessageCommandOutput,
-} from '@amzn/codewhisperer-streaming'
-import {
-    CredentialsProvider,
-    SDKInitializator,
-    SDKClientConstructorV2,
-    SDKClientConstructorV3,
-} from '@aws/language-server-runtimes/server-interface'
+import { SendMessageCommandInput, SendMessageCommandOutput } from '@amzn/codewhisperer-streaming'
 import * as assert from 'assert'
-import sinon from 'ts-sinon'
+import sinon, { StubbedInstance, stubInterface } from 'ts-sinon'
 import { ChatSessionService } from './chatSessionService'
-import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../../constants'
-import { Service } from 'aws-sdk'
-import { ServiceConfigurationOptions } from 'aws-sdk/lib/service'
+import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
+import { StreamingClientService } from '../../shared/streamingClientService'
 
 describe('Chat Session Service', () => {
-    let sendMessageStub: sinon.SinonStub<any, any>
     let abortStub: sinon.SinonStub<any, any>
     let chatSessionService: ChatSessionService
-    const mockCredentialsProvider: CredentialsProvider = {
-        hasCredentials: sinon.stub().returns(true),
-        getCredentials: sinon.stub().returns(Promise.resolve({ token: 'mockToken ' })),
-        getConnectionMetadata: sinon.stub(),
-        getConnectionType: sinon.stub(),
-    }
-    const awsQRegion: string = DEFAULT_AWS_Q_REGION
-    const awsQEndpointUrl: string = DEFAULT_AWS_Q_ENDPOINT_URL
+    let amazonQServiceManager: StubbedInstance<AmazonQTokenServiceManager>
+    let codeWhispererStreamingClient: StubbedInstance<StreamingClientService>
     const mockConversationId = 'mockConversationId'
-
-    const mockSdkRuntimeConfigurator: SDKInitializator = Object.assign(
-        // Default callable function for v3 clients
-        <T, P>(Ctor: SDKClientConstructorV3<T, P>, current_config: P): T => new Ctor({ ...current_config }),
-        // Property for v2 clients
-        {
-            v2: <T extends Service, P extends ServiceConfigurationOptions>(
-                Ctor: SDKClientConstructorV2<T, P>,
-                current_config: P
-            ): T => new Ctor({ ...current_config }),
-        }
-    )
 
     const mockRequestParams: SendMessageCommandInput = {
         conversationState: {
@@ -59,30 +29,35 @@ describe('Chat Session Service', () => {
     }
 
     beforeEach(() => {
+        codeWhispererStreamingClient = stubInterface<StreamingClientService>()
+        codeWhispererStreamingClient.sendMessage.callsFake(() => Promise.resolve(mockRequestResponse))
+
+        amazonQServiceManager = stubInterface<AmazonQTokenServiceManager>()
+        amazonQServiceManager.getStreamingClient.returns(codeWhispererStreamingClient)
+
         abortStub = sinon.stub(AbortController.prototype, 'abort')
 
-        sendMessageStub = sinon
-            .stub(CodeWhispererStreaming.prototype, 'sendMessage')
-            .callsFake(() => Promise.resolve(mockRequestResponse))
-
-        chatSessionService = new ChatSessionService(
-            mockCredentialsProvider,
-            awsQRegion,
-            awsQEndpointUrl,
-            mockSdkRuntimeConfigurator
-        )
+        chatSessionService = new ChatSessionService(amazonQServiceManager)
     })
 
     afterEach(() => {
-        sendMessageStub.restore()
         abortStub.restore()
     })
 
     describe('calling SendMessage', () => {
+        it('throws error is AmazonQTokenServiceManager is not initialized', async () => {
+            chatSessionService = new ChatSessionService(undefined)
+
+            await assert.rejects(
+                chatSessionService.sendMessage(mockRequestParams),
+                new Error('amazonQServiceManager is not initialized')
+            )
+        })
+
         it('should fill in conversationId in the request if exists', async () => {
             await chatSessionService.sendMessage(mockRequestParams)
-
-            sinon.assert.calledOnceWithExactly(sendMessageStub, mockRequestParams, sinon.match.object)
+            sinon.assert.calledOnce(codeWhispererStreamingClient.sendMessage)
+            sinon.assert.match(codeWhispererStreamingClient.sendMessage.firstCall.firstArg, mockRequestParams)
 
             chatSessionService.conversationId = mockConversationId
 
@@ -95,7 +70,10 @@ describe('Chat Session Service', () => {
                 },
             }
 
-            assert.ok(sendMessageStub.getCall(1).calledWithExactly(requestParamsWithConversationId, sinon.match.object))
+            sinon.assert.match(
+                codeWhispererStreamingClient.sendMessage.getCall(1).firstArg,
+                requestParamsWithConversationId
+            )
         })
     })
 

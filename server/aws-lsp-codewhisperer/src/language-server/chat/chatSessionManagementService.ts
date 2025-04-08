@@ -1,16 +1,11 @@
-import { CredentialsProvider, SDKInitializator } from '@aws/language-server-runtimes/server-interface'
 import { Result } from '../types'
-import { ChatSessionService, ChatSessionServiceConfig } from './chatSessionService'
+import { ChatSessionService } from './chatSessionService'
+import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 
 export class ChatSessionManagementService {
     static #instance?: ChatSessionManagementService
     #sessionByTab: Map<string, ChatSessionService> = new Map<string, any>()
-    #credentialsProvider?: CredentialsProvider
-    #clientConfig?: ChatSessionServiceConfig | (() => ChatSessionServiceConfig) = {}
-    #customUserAgent?: string = '%Amazon-Q-For-LanguageServers%'
-    #codeWhispererRegion?: string
-    #codeWhispererEndpoint?: string
-    #sdkInitializator?: SDKInitializator
+    #amazonQServiceManager?: AmazonQTokenServiceManager
 
     public static getInstance() {
         if (!ChatSessionManagementService.#instance) {
@@ -26,38 +21,10 @@ export class ChatSessionManagementService {
 
     private constructor() {}
 
-    public withConfig(clientConfig?: ChatSessionServiceConfig | (() => ChatSessionServiceConfig)) {
-        this.#clientConfig = clientConfig
+    public withAmazonQServiceManager(amazonQServiceManager: AmazonQTokenServiceManager) {
+        this.#amazonQServiceManager = amazonQServiceManager
 
         return this
-    }
-
-    public withCredentialsProvider(credentialsProvider: CredentialsProvider) {
-        this.#credentialsProvider = credentialsProvider
-
-        return this
-    }
-
-    public withCodeWhispererRegion(codeWhispererRegion: string) {
-        this.#codeWhispererRegion = codeWhispererRegion
-
-        return this
-    }
-
-    public withCodeWhispererEndpoint(codeWhispererEndpoint: string) {
-        this.#codeWhispererEndpoint = codeWhispererEndpoint
-
-        return this
-    }
-
-    public withSdkRuntimeConfigurator(sdkInitializator: SDKInitializator) {
-        this.#sdkInitializator = sdkInitializator
-
-        return this
-    }
-
-    public setCustomUserAgent(customUserAgent: string) {
-        this.#customUserAgent = customUserAgent
     }
 
     public hasSession(tabId: string): boolean {
@@ -65,44 +32,14 @@ export class ChatSessionManagementService {
     }
 
     public createSession(tabId: string): Result<ChatSessionService, string> {
-        if (!this.#credentialsProvider) {
-            return {
-                success: false,
-                error: 'Credentials provider is not set',
-            }
-        } else if (!this.#codeWhispererRegion) {
-            return {
-                success: false,
-                error: 'CodeWhispererRegion is not set',
-            }
-        } else if (!this.#codeWhispererEndpoint) {
-            return {
-                success: false,
-                error: 'CodeWhispererEndpoint is not set',
-            }
-        } else if (!this.#sdkInitializator) {
-            return {
-                success: false,
-                error: 'SdkInitializator is not set',
-            }
-        } else if (this.#sessionByTab.has(tabId)) {
+        if (this.#sessionByTab.has(tabId)) {
             return {
                 success: true,
                 data: this.#sessionByTab.get(tabId)!,
             }
         }
 
-        const clientConfig = typeof this.#clientConfig === 'function' ? this.#clientConfig() : this.#clientConfig
-        const newSession = new ChatSessionService(
-            this.#credentialsProvider,
-            this.#codeWhispererRegion,
-            this.#codeWhispererEndpoint,
-            this.#sdkInitializator,
-            {
-                ...clientConfig,
-                customUserAgent: this.#customUserAgent,
-            }
-        )
+        const newSession = new ChatSessionService(this.#amazonQServiceManager)
 
         this.#sessionByTab.set(tabId, newSession)
 

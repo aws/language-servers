@@ -4,23 +4,38 @@
     "description": "CodeWhisperer Language Server Runtimes",
     "main": "out/index.js",
     "scripts": {
-        "clean": "rm -rf out/ bin/ tsconfig.tsbuildinfo",
+        "clean": "rm -rf out/ bin/ node_modules/ build/ dist/ tsconfig.tsbuildinfo .tsbuildinfo",
         "compile": "tsc --build",
-        "package": "npm run compile && npm run webpack",
-        "webpack": "webpack"
+        "package": "npm run compile && cross-env NODE_OPTIONS=--max_old_space_size=8172 npm run webpack",
+        "webpack": "webpack",
+        "start": "cross-env NODE_OPTIONS=--max_old_space_size=8172 node scripts/dev-server.js start",
+        "stop-dev-server": "node scripts/dev-server.js stop",
+        "test": "node scripts/test-runner.js"
     },
     "dependencies": {
-        "@aws/language-server-runtimes": "^0.2.41",
+        "@aws/language-server-runtimes": "^0.2.55",
         "@aws/lsp-codewhisperer": "*",
         "copyfiles": "^2.4.1",
+        "cross-env": "^7.0.3",
+        "cross-spawn": "^7.0.6",
         "crypto-browserify": "^3.12.1",
         "https-browserify": "^1.0.0",
         "os-browserify": "^0.3.0",
         "path-browserify": "^1.0.1",
+        "process": "^0.11.10",
         "stream-browserify": "^3.0.0",
-        "stream-http": "^3.2.0"
+        "stream-http": "^3.2.0",
+        "vscode-languageserver": "^9.0.1",
+        "wdio": "^6.0.1",
+        "webpack-dev-server": "^5.2.0"
     },
     "devDependencies": {
+        "@wdio/cli": "^9.12.2",
+        "@wdio/local-runner": "^9.12.1",
+        "@wdio/mocha-framework": "^9.12.1",
+        "@wdio/spec-reporter": "^9.11.0",
+        "html-loader": "^5.1.0",
+        "html-webpack-plugin": "^5.6.3",
         "node-loader": "^2.1.0",
         "ts-loader": "^9.4.4",
         "webpack": "^5.94.0",

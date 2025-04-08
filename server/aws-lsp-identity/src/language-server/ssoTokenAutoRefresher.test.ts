@@ -4,8 +4,8 @@ import { SSOToken } from '@smithy/shared-ini-file-loader'
 import { StubbedInstance, stubInterface } from 'ts-sinon'
 import { SsoClientRegistration, RefreshingSsoCache } from '../sso'
 import { restore, spy } from 'sinon'
-import { Logging, Telemetry } from '@aws/language-server-runtimes/server-interface'
-import { Observability } from '@aws/lsp-core'
+import { AwsErrorCodes, Logging, Telemetry } from '@aws/language-server-runtimes/server-interface'
+import { AwsError, Observability } from '@aws/lsp-core'
 
 // eslint-disable-next-line
 use(require('chai-as-promised'))
@@ -46,7 +46,9 @@ function createSsoToken(expiresAsOffsetMillis: number): SSOToken {
 function stubSsoCache(clientRegistration?: SsoClientRegistration, ssoToken?: SSOToken): RefreshingSsoCache {
     return stubInterface<RefreshingSsoCache>({
         getSsoClientRegistration: Promise.resolve(clientRegistration),
-        getSsoToken: Promise.resolve(ssoToken),
+        getSsoToken: ssoToken
+            ? Promise.resolve(ssoToken)
+            : Promise.reject(new AwsError('Test: No SSO Token', AwsErrorCodes.E_INVALID_SSO_TOKEN)),
     })
 }
 

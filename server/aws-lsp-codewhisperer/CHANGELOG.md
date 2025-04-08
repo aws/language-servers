@@ -1,5 +1,105 @@
 # Changelog
 
+## [0.0.32](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.31...lsp-codewhisperer/v0.0.32) (2025-04-08)
+
+
+### Bug Fixes
+
+* pin typescript version and fix compile errors ([#924](https://github.com/aws/language-servers/issues/924)) ([7400fa3](https://github.com/aws/language-servers/commit/7400fa3d143fb2c22575485eec7aeb75a63b3612))
+
+## [0.0.31](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.30...lsp-codewhisperer/v0.0.31) (2025-04-07)
+
+
+### Features
+
+* Add support for inline chat ([#897](https://github.com/aws/language-servers/issues/897)) ([9fd97ea](https://github.com/aws/language-servers/commit/9fd97ea946712dbbd4490752d41c395d508c8d0c))
+* **amazonq:** add streaming client caching and inflight-request cancellation ([#901](https://github.com/aws/language-servers/issues/901)) ([ecb323d](https://github.com/aws/language-servers/commit/ecb323dbd3835193c1f8478d797b6a37d89b5961))
+* **amazonq:** optimize service manager reuse ([#886](https://github.com/aws/language-servers/issues/886)) ([84f46ef](https://github.com/aws/language-servers/commit/84f46ef88fbae72a246c3e966ee525124eb8915a))
+* context data selection support in chat-client ([#902](https://github.com/aws/language-servers/issues/902)) ([a22dea5](https://github.com/aws/language-servers/commit/a22dea51c0039f198a403e88f774ad7769b15d29))
+* port fs related tools from VSC.  ([#894](https://github.com/aws/language-servers/issues/894)) ([a368acc](https://github.com/aws/language-servers/commit/a368accfcd0b5c88b81f407d4cd7b73be2782b9b))
+* update artifact manager for qct .net to include private package support ([#872](https://github.com/aws/language-servers/issues/872)) ([9c86cac](https://github.com/aws/language-servers/commit/9c86caceb2ebaf803d3e47ad257d49c8ab87bded))
+
+
+### Bug Fixes
+
+* **amazonq:** do not throw when receiving null profile while client not connected ([#908](https://github.com/aws/language-servers/issues/908)) ([a04eed1](https://github.com/aws/language-servers/commit/a04eed1d3527009d848c4d00d0860dc0adf70d80))
+* **amazonq:** reduce noisy logging from Q Service Manager ([7ef13b5](https://github.com/aws/language-servers/commit/7ef13b585130e264f4fa9a2ba4fae2e923fb940a))
+* for transformation failure with incorrect filePath while extracting ([#875](https://github.com/aws/language-servers/issues/875)) ([54310cc](https://github.com/aws/language-servers/commit/54310cc15a8cfb3d0eb44559f0d560bdd70581e5))
+* handle large file uploads using streams ([#874](https://github.com/aws/language-servers/issues/874)) ([b5999aa](https://github.com/aws/language-servers/commit/b5999aa7c54addd4e6b92483a2bb28c2fe70ffa6))
+* update null check for net core compatibility version and path for private package support ([#914](https://github.com/aws/language-servers/issues/914)) ([30a0d80](https://github.com/aws/language-servers/commit/30a0d80591dbe73fd54ad3783e0d75526d994af8))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @aws/lsp-core bumped from ^0.0.2 to ^0.0.3
+
+## [0.0.30](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.29...lsp-codewhisperer/v0.0.30) (2025-03-27)
+
+
+### Features
+
+* copied test files and added README to clarify purpose of this folder ([6a18e55](https://github.com/aws/language-servers/commit/6a18e55a1392aa9e68a202a8ca6f1a8b5c55bb4b))
+* create copy of chat server and controller to use in agentic chat ([035b30e](https://github.com/aws/language-servers/commit/035b30ec98b85faad5696034e56dbafef67e7f79))
+
+
+### Bug Fixes
+
+* **amazonq:** select corrert Service manager mode in completion server factory ([8041934](https://github.com/aws/language-servers/commit/8041934de1021cfe570fc2686e4000749fe297a6))
+* **amazonq:** use relative path of document with chat params ([#867](https://github.com/aws/language-servers/issues/867)) ([fbc667e](https://github.com/aws/language-servers/commit/fbc667e44767ca8ddcb743b9377bf1331a27fb29))
+
+## [0.0.29](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.28...lsp-codewhisperer/v0.0.29) (2025-03-26)
+
+
+### Features
+
+* abort all inflight requests when resetCodewhispererService is invoked ([#848](https://github.com/aws/language-servers/issues/848)) ([681889b](https://github.com/aws/language-servers/commit/681889bd40a0fb84ea624f177b07ef579864303a))
+* added auth listener to reset the service manager state in case of bearer token signout ([#842](https://github.com/aws/language-servers/issues/842)) ([780be3f](https://github.com/aws/language-servers/commit/780be3fdb92917e58524472ea5967f405f802db5))
+* **amazonq:** accept extra context for Q Inline Suggestions ([4a508df](https://github.com/aws/language-servers/commit/4a508dfcba714301145089263bdce8b8f18ec03b))
+* **amazonq:** add eu-central-1 endpoint ([83133d6](https://github.com/aws/language-servers/commit/83133d61815c5acfba7ead1c87d0aaef206e72d4))
+* **amazonq:** add regionalization support to security scan server ([#859](https://github.com/aws/language-servers/issues/859)) ([9945398](https://github.com/aws/language-servers/commit/99453989934849eddf1029763c22208cdb13be74))
+* **amazonq:** add regionalization support to Telemetry service ([6937c7f](https://github.com/aws/language-servers/commit/6937c7fa53c94f23dab323d0cd92970edafd4452))
+* **amazonq:** add support for setting profile to null ([b02906d](https://github.com/aws/language-servers/commit/b02906d04fad42f09e32d44120c4dd32cb2a649c))
+* **amazonq:** attach profileArn to API calls when available ([00fe7e2](https://github.com/aws/language-servers/commit/00fe7e2d1327b519042480b8216d663a48dced54))
+* **amazonq:** Cancel inflight updateProfile requests ([#861](https://github.com/aws/language-servers/issues/861)) ([a4a4309](https://github.com/aws/language-servers/commit/a4a4309ef1f7c0978aa44a4063d1e8160ad53bb6))
+* **amazonq:** centralize access to Q Service SDK instance and add support for Q Developer profiles ([#814](https://github.com/aws/language-servers/issues/814)) ([5f11549](https://github.com/aws/language-servers/commit/5f11549bb37acf3788c991a4ceeb38a7b17f1324))
+* **amazonq:** integrate q service manager with configuration server ([#852](https://github.com/aws/language-servers/issues/852)) ([c0e3290](https://github.com/aws/language-servers/commit/c0e32905e5940a79f59b19913aac9f989e85f8fe))
+* **amazonq:** intergrate regionalization support into Q Chat server ([#853](https://github.com/aws/language-servers/issues/853)) ([394104c](https://github.com/aws/language-servers/commit/394104c3702055f55ababbbfb056bf7904f5115e))
+
+
+### Bug Fixes
+
+* **amazonq:** await for recordMetric in CodeDiff tracker ([ee04afc](https://github.com/aws/language-servers/commit/ee04afc7775e83bfa3868b4b661cf59ff3c7f949))
+* **amazonq:** handle exceptions in TelemetryService ([e8f6375](https://github.com/aws/language-servers/commit/e8f637524fe878c26c72f506de4abea86b481fde))
+* **amazonq:** specify code analysis scope and scan name when running scans ([#858](https://github.com/aws/language-servers/issues/858)) ([a925297](https://github.com/aws/language-servers/commit/a925297aabc89334f4f9eed6c13146f4fd20b164))
+* update @aws/language-server-runtimes to 0.2.48 ([e1f620a](https://github.com/aws/language-servers/commit/e1f620ac2b59b4f61daff842a9f29ded1b8fa04e))
+
+## [0.0.28](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.27...lsp-codewhisperer/v0.0.28) (2025-03-18)
+
+
+### Features
+
+* **amazonq:** add support for listing available q developer profiles ([40ee2ff](https://github.com/aws/language-servers/commit/40ee2ff254e0cfdeb54fef850bcfb1c45dd898ab))
+* **amazonq:** handle client signalling support for q developer profiles ([#839](https://github.com/aws/language-servers/issues/839)) ([8b1b4ad](https://github.com/aws/language-servers/commit/8b1b4ad88138091bacacdaa7abcccaafed85b1ff))
+* **amazonq:** stop emitting userDecision telemetry event ([dc51d24](https://github.com/aws/language-servers/commit/dc51d2472390f14490ec175ce94e841f5ee24417))
+* **chat-client:** handle 'openTab' requests ([#817](https://github.com/aws/language-servers/issues/817)) ([fdd0b87](https://github.com/aws/language-servers/commit/fdd0b87ad2d2c9a540d2594bb9243cad01b5887a))
+* **chat-client:** openTab returns error for tab create if tabs limit hit ([#832](https://github.com/aws/language-servers/issues/832)) ([aa85848](https://github.com/aws/language-servers/commit/aa8584815da1ef6298b83c8d1bb2a1011ed66fe5))
+* **identity:** device code support ([#823](https://github.com/aws/language-servers/issues/823)) ([6d5368e](https://github.com/aws/language-servers/commit/6d5368e33a36a3003dc04e9c429b63edda6989de))
+* Setting a flag with environment variable to retain generated input artifacts ([#807](https://github.com/aws/language-servers/issues/807)) ([fc9a5b5](https://github.com/aws/language-servers/commit/fc9a5b5fe4e4ae8babbff0bbed28263ae99c1385))
+
+
+### Bug Fixes
+
+* replace setInterval with recursive setTimeout for browser compatibility ([48b8fd1](https://github.com/aws/language-servers/commit/48b8fd1fd780770cb4b94bb1be33882f204a77e8))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @aws/lsp-core bumped from ^0.0.1 to ^0.0.2
+
 ## [0.0.27](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.26...lsp-codewhisperer/v0.0.27) (2025-02-20)
 
 

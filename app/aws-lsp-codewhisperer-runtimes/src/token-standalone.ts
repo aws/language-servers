@@ -7,7 +7,7 @@ import {
     QConfigurationServerTokenProxy,
     QNetTransformServerTokenProxy,
     WorkspaceContextServerTokenProxy,
-} from '@aws/lsp-codewhisperer/out/language-server/proxy-server'
+} from '@aws/lsp-codewhisperer'
 import { IdentityServer } from '@aws/lsp-identity'
 
 const MAJOR = 0

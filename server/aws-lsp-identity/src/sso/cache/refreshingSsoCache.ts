@@ -9,7 +9,7 @@ import {
     throwOnInvalidSsoSessionName,
 } from '../utils'
 import { RaiseSsoTokenChanged } from '../../language-server/ssoTokenAutoRefresher'
-import { InvalidGrantException } from '@aws-sdk/client-sso-oidc'
+import { CreateTokenCommandOutput, InvalidGrantException } from '@aws-sdk/client-sso-oidc'
 import { AwsError, Observability } from '@aws/lsp-core'
 
 export const refreshWindowMillis: number = 5 * 60 * 1000
@@ -143,7 +143,7 @@ export class RefreshingSsoCache implements SsoCache {
         // No refreshToken?  We're done
         if (!ssoToken.refreshToken) {
             this.observability.logging.log('SSO token expired and no refresh token.')
-            return undefined
+            throw new AwsError('No refresh token available.', AwsErrorCodes.E_SSO_TOKEN_EXPIRED)
         }
 
         // Good to go, try a refresh
@@ -160,7 +160,7 @@ export class RefreshingSsoCache implements SsoCache {
         using oidc = getSsoOidc(ssoSession.settings.sso_region)
 
         this.observability.logging.log('Calling SSO OIDC to refresh SSO token.')
-        const result = await oidc
+        const result: CreateTokenCommandOutput = await oidc
             .createToken({
                 clientId: clientRegistration?.clientId,
                 clientSecret: clientRegistration?.clientSecret,
@@ -174,7 +174,7 @@ export class RefreshingSsoCache implements SsoCache {
                     reason.error_description === 'Invalid refresh token provided'
                 ) {
                     this.observability.logging.log('Cannot refresh SSO token.  SSO session has expired.')
-                    return undefined
+                    throw new AwsError('SSO session is expired.', AwsErrorCodes.E_SSO_TOKEN_EXPIRED)
                 }
 
                 this.observability.logging.log('Error when attempting to refresh SSO token.')
@@ -182,11 +182,6 @@ export class RefreshingSsoCache implements SsoCache {
                     cause: reason,
                 })
             })
-
-        // SSO session expired?  We're done
-        if (!result) {
-            return undefined
-        }
 
         UpdateSsoTokenFromCreateToken(result, clientRegistration, ssoSession, ssoToken)
 
