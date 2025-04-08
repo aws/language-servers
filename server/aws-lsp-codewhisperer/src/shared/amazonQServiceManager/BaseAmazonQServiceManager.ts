@@ -25,8 +25,7 @@ export interface Features {
 
 export type AmazonQBaseServiceManager = BaseAmazonQServiceManager<CodeWhispererServiceBase>
 
-export const CONFIGURATION_CHANGE_IN_PROGRESS_MSG =
-    'DidChangeConfiguration notification handling already in progress, exiting.'
+export const CONFIGURATION_CHANGE_IN_PROGRESS_MSG = 'handleDidChangeConfiguration already in progress, exiting.'
 type DidChangeConfigurationListener = (updatedConfig: AmazonQWorkspaceConfig) => void | Promise<void>
 
 /**
@@ -62,7 +61,9 @@ export abstract class BaseAmazonQServiceManager<C extends CodeWhispererServiceBa
 
     /**
      * This method calls `getAmazonQRelatedWorkspaceConfigs`, updates the configurationCache and
-     * notifies all attached listeners.
+     * notifies all attached listeners. The method exits early if an update is already in progress,
+     * meaning that completion of the promise **does not guarantee** the configuration state is updated
+     * yet.
      *
      * **Avoid calling this method directly** for processing configuration updates, and attach a listener
      * instead.
