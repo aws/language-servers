@@ -145,7 +145,9 @@ export class ArtifactManager {
             SolutionPath: this.normalizeSourceFileRelativePath(request.SolutionRootPath, request.SolutionFilePath),
             Projects: projects,
             TransformNetStandardProjects: request.TransformNetStandardProjects,
-            EnableRazorViewTransform: request.EnableRazorViewTransform,
+            ...(request.EnableRazorViewTransform !== undefined && {
+                EnableRazorViewTransform: request.EnableRazorViewTransform,
+            }),
         } as RequirementJson
     }
 
