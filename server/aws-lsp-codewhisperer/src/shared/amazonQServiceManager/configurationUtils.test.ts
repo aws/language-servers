@@ -2,12 +2,11 @@ import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import {
     AmazonQConfigurationCache,
     AmazonQWorkspaceConfig,
-    CODE_WHISPERER_CONFIGURATION_SECTION,
     defaultAmazonQWorkspaceConfigFactory,
     getAmazonQRelatedWorkspaceConfigs,
 } from './configurationUtils'
 import { deepStrictEqual, notDeepStrictEqual } from 'assert'
-import { Q_CONFIGURATION_SECTION } from '../constants'
+import { Q_CONFIGURATION_SECTION, CODE_WHISPERER_CONFIGURATION_SECTION } from '../constants'
 
 describe('getAmazonQRelatedWorkspaceConfigs', () => {
     let features: TestFeatures

@@ -1,5 +1,5 @@
 import { Logging, Lsp, Runtime } from '@aws/language-server-runtimes/server-interface'
-import { Q_CONFIGURATION_SECTION } from '../constants'
+import { CODE_WHISPERER_CONFIGURATION_SECTION, Q_CONFIGURATION_SECTION } from '../constants'
 import { textUtils } from '@aws/lsp-core'
 import {
     AWS_Q_ENDPOINT_URL_ENV_VAR,
@@ -79,8 +79,6 @@ interface CodeWhispererConfigSection {
 }
 
 export type AmazonQWorkspaceConfig = QConfigSection & CodeWhispererConfigSection
-
-export const CODE_WHISPERER_CONFIGURATION_SECTION = 'aws.codeWhisperer'
 
 /**
  * Attempts to fetch the workspace configurations set in:

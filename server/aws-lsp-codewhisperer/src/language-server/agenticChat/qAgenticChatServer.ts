@@ -67,6 +67,12 @@ export const QAgenticChatServer =
 
             chatController = new AgenticChatController(chatSessionManagementService, features, telemetryService, amazonQServiceManager)
 
+            /* 
+                Calling handleDidChangeConfiguration once to ensure we get configuration atleast once at start up
+                
+                TODO: TODO: consider refactoring such responsibilities to common service manager config/initialisation server
+        */
+            await amazonQServiceManager.handleDidChangeConfiguration()
             await amazonQServiceManager.addDidChangeConfigurationListener(updateConfigurationHandler)
         })
 

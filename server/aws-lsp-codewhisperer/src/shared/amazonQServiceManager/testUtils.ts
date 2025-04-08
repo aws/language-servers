@@ -3,7 +3,7 @@ import { CodeWhispererServiceBase } from '../codeWhispererService'
 import { AmazonQBaseServiceManager, BaseAmazonQServiceManager } from './BaseAmazonQServiceManager'
 
 /**
- * A reusable test class that extends the abstracts base class and allows for injecting features and service mocks.
+ * A reusable test class that extends the abstract base class and allows for injecting features and service mocks.
  *
  * Note: it is the responsibility of the test suite to correctly reset/restore the injected mocks.
  */

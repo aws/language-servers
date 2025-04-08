@@ -25,6 +25,8 @@ export interface Features {
 
 export type AmazonQBaseServiceManager = BaseAmazonQServiceManager<CodeWhispererServiceBase>
 
+export const CONFIGURATION_CHANGE_IN_PROGRESS_MSG =
+    'DidChangeConfiguration notification handling already in progress, exiting.'
 type DidChangeConfigurationListener = (updatedConfig: AmazonQWorkspaceConfig) => void | Promise<void>
 
 /**
@@ -54,6 +56,7 @@ export abstract class BaseAmazonQServiceManager<C extends CodeWhispererServiceBa
     protected cachedCodewhispererService?: C
 
     private handleDidChangeConfigurationListeners = new Set<DidChangeConfigurationListener>()
+    private isConfigChangeInProgress = false
 
     abstract getCodewhispererService(): CodeWhispererServiceBase
 
@@ -62,18 +65,27 @@ export abstract class BaseAmazonQServiceManager<C extends CodeWhispererServiceBa
      * notifies all attached listeners.
      *
      * **Avoid calling this method directly** for processing configuration updates, and attach a listener
-     * instead. This prevents unneeded duplicate and parallel calls.
+     * instead.
      */
     public async handleDidChangeConfiguration(): Promise<void> {
+        if (this.isConfigChangeInProgress) {
+            this.logging.debug(CONFIGURATION_CHANGE_IN_PROGRESS_MSG)
+            return
+        }
+
         try {
+            this.isConfigChangeInProgress = true
+
             const amazonQConfig = await getAmazonQRelatedWorkspaceConfigs(this.features.lsp, this.features.logging)
             this.configurationCache.updateConfig(amazonQConfig)
 
             this.updateCachedServiceConfig()
 
-            await this.notifiyDidChangeConfigurationListeners()
+            await this.notifyDidChangeConfigurationListeners()
         } catch (error) {
             this.logging.error(`Unexpected error in getAmazonQRelatedWorkspaceConfigs: ${error}`)
+        } finally {
+            this.isConfigChangeInProgress = false
         }
     }
 
@@ -112,11 +124,11 @@ export abstract class BaseAmazonQServiceManager<C extends CodeWhispererServiceBa
         this.handleDidChangeConfigurationListeners.delete(listener)
     }
 
-    private async notifiyDidChangeConfigurationListeners(): Promise<void> {
+    private async notifyDidChangeConfigurationListeners(): Promise<void> {
         this.logging.debug('Notifying did change configuration listeners')
 
         const updatedConfig = this.configurationCache.getConfig()
-        const listenPromises = Array.from(this.handleDidChangeConfigurationListeners).map(async listener => {
+        const listenPromises = Array.from(this.handleDidChangeConfigurationListeners, async listener => {
             try {
                 await listener(updatedConfig)
             } catch (error) {

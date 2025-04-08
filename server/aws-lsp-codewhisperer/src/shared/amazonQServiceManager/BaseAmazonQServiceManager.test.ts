@@ -4,7 +4,8 @@ import { expect } from 'chai'
 import { CodeWhispererServiceBase } from '../codeWhispererService'
 import { stubCodeWhispererService } from '../testUtils'
 import { initBaseTestServiceManager, TestAmazonQServiceManager } from './testUtils'
-import { AmazonQBaseServiceManager } from './BaseAmazonQServiceManager'
+import { AmazonQBaseServiceManager, CONFIGURATION_CHANGE_IN_PROGRESS_MSG } from './BaseAmazonQServiceManager'
+import { CODE_WHISPERER_CONFIGURATION_SECTION, Q_CONFIGURATION_SECTION } from '../constants'
 
 describe('BaseAmazonQServiceManager', () => {
     let features: TestFeatures
@@ -39,16 +40,50 @@ describe('BaseAmazonQServiceManager', () => {
         expect(serviceStub.customizationArn).to.equal('some-arn')
     })
 
-    it('calls the attached listener at attachment and when calling handleDidChangeConfiguration', async () => {
-        const mockListener = sinon.stub()
+    it('calls the attached listeners at attachment and when calling handleDidChangeConfiguration', async () => {
+        const mockListeners = [sinon.stub(), sinon.stub()]
 
-        serviceManager.addDidChangeConfigurationListener(mockListener)
+        await Promise.allSettled(
+            mockListeners.map(mockListener => serviceManager.addDidChangeConfigurationListener(mockListener))
+        )
 
-        sinon.assert.calledOnceWithExactly(mockListener, serviceManager.getConfiguration())
+        mockListeners.forEach(mockListener => {
+            sinon.assert.calledOnceWithExactly(mockListener, serviceManager.getConfiguration())
+        })
 
         await serviceManager.handleDidChangeConfiguration()
 
-        sinon.assert.calledTwice(mockListener)
-        expect(mockListener.lastCall.args[0]).to.deep.equal(serviceManager.getConfiguration())
+        mockListeners.forEach(mockListener => {
+            sinon.assert.calledTwice(mockListener)
+            expect(mockListener.lastCall.args[0]).to.deep.equal(serviceManager.getConfiguration())
+        })
+    })
+
+    it('hooks handleDidChangeConfiguration to LSP server during construction', () => {
+        sinon.assert.calledOnce(features.lsp.didChangeConfiguration)
+    })
+
+    it('ignores calls to handleDidChangeConfiguration when a request is already inflight', async () => {
+        const TOTAL_CALLS = 10
+
+        expect(serviceManager['isConfigChangeInProgress']).to.be.false
+
+        const firstCall = serviceManager.handleDidChangeConfiguration()
+
+        expect(serviceManager['isConfigChangeInProgress']).to.be.true
+
+        let concurrentCalls = []
+        for (let i = 0; i < TOTAL_CALLS - 1; i++) {
+            concurrentCalls.push(serviceManager.handleDidChangeConfiguration())
+        }
+
+        await Promise.allSettled([firstCall, ...concurrentCalls])
+
+        expect(serviceManager['isConfigChangeInProgress']).to.be.false
+
+        sinon.assert.calledOnce(features.lsp.workspace.getConfiguration.withArgs(Q_CONFIGURATION_SECTION))
+        sinon.assert.calledOnce(features.lsp.workspace.getConfiguration.withArgs(CODE_WHISPERER_CONFIGURATION_SECTION))
+
+        sinon.assert.callCount(features.logging.debug.withArgs(CONFIGURATION_CHANGE_IN_PROGRESS_MSG), TOTAL_CALLS - 1)
     })
 })

@@ -14,3 +14,4 @@ export const AWS_Q_REGION_ENV_VAR = 'AWS_Q_REGION'
 export const AWS_Q_ENDPOINT_URL_ENV_VAR = 'AWS_Q_ENDPOINT_URL'
 
 export const Q_CONFIGURATION_SECTION = 'aws.q'
+export const CODE_WHISPERER_CONFIGURATION_SECTION = 'aws.codeWhisperer'

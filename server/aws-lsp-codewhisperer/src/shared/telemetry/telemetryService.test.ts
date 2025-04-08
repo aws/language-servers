@@ -109,7 +109,7 @@ describe('TelemetryService', () => {
         },
     }
 
-    beforeEach(async () => {
+    beforeEach(() => {
         clock = sinon.useFakeTimers({
             now: 1483228800000,
         })

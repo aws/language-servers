@@ -261,15 +261,15 @@ describe('CodeWhisperer Server', () => {
 
         it('should include extra context in recommendation request when extraContext is configured', async () => {
             const extraContext = 'Additional context for test'
-            features.lsp.workspace.getConfiguration.returns(
+
+            await updateConfiguration(
+                features,
                 Promise.resolve({
                     inlineSuggestions: {
                         extraContext,
                     },
                 })
             )
-
-            await features.openDocument(SOME_FILE).doChangeConfiguration()
 
             const result = await features.doInlineCompletionWithReferences(
                 {
@@ -727,10 +727,10 @@ describe('CodeWhisperer Server', () => {
             )
             await features.start(server)
 
-            features.lsp.workspace.getConfiguration.returns(
+            const afterConfigChange = await updateConfiguration(
+                features,
                 Promise.resolve({ includeSuggestionsWithCodeReferences: false })
             )
-            const afterConfigChange = await features.openDocument(SOME_FILE).doChangeConfiguration()
 
             const result = await afterConfigChange.doInlineCompletionWithReferences(
                 {
@@ -750,10 +750,11 @@ describe('CodeWhisperer Server', () => {
                 Promise.resolve({ includeSuggestionsWithCodeReferences: false })
             )
             await features.start(server)
-            features.lsp.workspace.getConfiguration.returns(
+
+            const afterConfigChange = await updateConfiguration(
+                features,
                 Promise.resolve({ includeSuggestionsWithCodeReferences: true })
             )
-            const afterConfigChange = await features.openDocument(SOME_FILE).doChangeConfiguration()
 
             const result = await afterConfigChange.doInlineCompletionWithReferences(
                 {
