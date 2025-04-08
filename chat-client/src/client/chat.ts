@@ -37,8 +37,10 @@ import {
     ContextCommandParams,
     CreatePromptParams,
     FEEDBACK_NOTIFICATION_METHOD,
+    FILE_CLICK_NOTIFICATION_METHOD,
     FOLLOW_UP_CLICK_NOTIFICATION_METHOD,
     FeedbackParams,
+    FileClickParams,
     FollowUpClickParams,
     INFO_LINK_CLICK_NOTIFICATION_METHOD,
     InfoLinkClickParams,
@@ -231,6 +233,9 @@ export const createChat = (
         },
         createPrompt: (params: CreatePromptParams) => {
             sendMessageToClient({ command: CREATE_PROMPT_NOTIFICATION_METHOD, params })
+        },
+        fileClick: (params: FileClickParams) => {
+            sendMessageToClient({ command: FILE_CLICK_NOTIFICATION_METHOD, params: params })
         },
     }
 

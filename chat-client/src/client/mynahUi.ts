@@ -174,6 +174,9 @@ export const createMynahUi = (
             messager.onUiReady()
             messager.onTabAdd(initialTabId)
         },
+        onFileClick: (tabId: string, filePath: string) => {
+            messager.onFileClick({ tabId, filePath })
+        },
         onTabAdd: (tabId: string) => {
             const defaultTabConfig: Partial<MynahUIDataModel> = {
                 quickActionCommands: tabFactory.getDefaultTabData().quickActionCommands,
