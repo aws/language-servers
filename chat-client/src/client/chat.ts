@@ -59,7 +59,7 @@ import {
     TabChangeParams,
     TabRemoveParams,
 } from '@aws/language-server-runtimes-types'
-import { MynahUIDataModel, MynahUITabStoreModel } from '@aws/mynah-ui'
+import { MynahUIDataModel, MynahUITabStoreModel, QuickActionCommandGroup } from '@aws/mynah-ui'
 import { ServerMessage, TELEMETRY, TelemetryParams } from '../contracts/serverContracts'
 import { Messager, OutboundChatApi } from './messager'
 import { InboundChatApi, createMynahUi } from './mynahUi'
@@ -134,7 +134,9 @@ export const createChat = (
             case CHAT_OPTIONS: {
                 const params = (message as ChatOptionsMessage).params
                 if (params?.quickActions?.quickActionsCommandGroups) {
-                    tabFactory.updateQuickActionCommands(params?.quickActions?.quickActionsCommandGroups)
+                    tabFactory.updateQuickActionCommands(
+                        params?.quickActions?.quickActionsCommandGroups as unknown as QuickActionCommandGroup[]
+                    )
                 }
 
                 const allExistingTabs: MynahUITabStoreModel = mynahUi.getAllTabs()

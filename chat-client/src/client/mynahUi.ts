@@ -30,6 +30,7 @@ import {
     MynahUIDataModel,
     NotificationType,
     MynahUIProps,
+    QuickActionCommandGroup,
 } from '@aws/mynah-ui'
 import { VoteParams } from '../contracts/telemetry'
 import { Messager } from './messager'
@@ -545,7 +546,7 @@ ${params.message}`,
     }
 
     const sendContextCommands = (params: ContextCommandParams) => {
-        contextCommandGroups = params.contextCommandGroups
+        contextCommandGroups = params.contextCommandGroups as unknown as QuickActionCommandGroup[]
 
         Object.keys(mynahUi.getAllTabs()).forEach(tabId => {
             mynahUi.updateStore(tabId, {

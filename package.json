@@ -31,7 +31,7 @@
         "package": "npm run compile && npm run package --workspaces --if-present"
     },
     "dependencies": {
-        "typescript": "^5.5.3"
+        "typescript": "5.8.2"
     },
     "devDependencies": {
         "@commitlint/cli": "^19.8.0",
