@@ -47,7 +47,6 @@ describe('workspaceUtils', function () {
                     path.join(entry.path, entry.name)
                 )
             ).sort()
-            assert.strictEqual(result.length, 9)
             assert.deepStrictEqual(result, [
                 subdir1.path,
                 file1,
@@ -82,7 +81,6 @@ describe('workspaceUtils', function () {
                     path.join(entry.path, entry.name)
                 )
             ).sort()
-            assert.strictEqual(depthOneResult.length, 3)
             assert.deepStrictEqual(depthOneResult, [subdir1.path, file1, subdir2.path])
 
             const depthTwoResult = (
@@ -90,7 +88,6 @@ describe('workspaceUtils', function () {
                     path.join(entry.path, entry.name)
                 )
             ).sort()
-            assert.strictEqual(depthTwoResult.length, 5)
             assert.deepStrictEqual(depthTwoResult, [subdir1.path, file1, subdir2.path, file2, subdir3.path])
         })
 
