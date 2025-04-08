@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.4](https://github.com/aws/language-servers/compare/chat-client/v0.1.3...chat-client/v0.1.4) (2025-04-08)
+
+
+### Features
+
+* **chat-client:** added support for redirecting message handling to custom adapter ([#905](https://github.com/aws/language-servers/issues/905)) ([b95fe1e](https://github.com/aws/language-servers/commit/b95fe1e1a63f6df469bcd0c5e58a66c0819feb55))
+
+
+### Bug Fixes
+
+* pin typescript version and fix compile errors ([#924](https://github.com/aws/language-servers/issues/924)) ([7400fa3](https://github.com/aws/language-servers/commit/7400fa3d143fb2c22575485eec7aeb75a63b3612))
+
 ## [0.1.3](https://github.com/aws/language-servers/compare/chat-client/v0.1.2...chat-client/v0.1.3) (2025-04-07)
 
 
