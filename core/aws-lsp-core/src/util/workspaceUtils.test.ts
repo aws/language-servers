@@ -88,28 +88,30 @@ describe('workspaceUtils', function () {
             assert.deepStrictEqual(results, [`[DIR] ${subdir.path}`, `[FILE] ${file}`, `[LINK] ${linkPath}`])
         })
 
-        it('respects the failOnError flag', async function () {
-            const subdir1 = await tempFolder.nest('subdir1')
-            await subdir1.write('file1', 'this is content')
+        if (process.platform !== 'win32') {
+            it('respects the failOnError flag', async function () {
+                const subdir1 = await tempFolder.nest('subdir1')
+                await subdir1.write('file1', 'this is content')
 
-            // Temporarily make the file unreadable.
-            await fs.chmod(subdir1.path, 0)
-            await assert.rejects(
-                readDirectoryRecursively(testFeatures, tempFolder.path, {
-                    failOnError: true,
+                // Temporarily make the file unreadable.
+                await fs.chmod(subdir1.path, 0)
+                await assert.rejects(
+                    readDirectoryRecursively(testFeatures, tempFolder.path, {
+                        failOnError: true,
+                        customFormatCallback: getEntryPath,
+                    })
+                )
+
+                const result = await readDirectoryRecursively(testFeatures, tempFolder.path, {
                     customFormatCallback: getEntryPath,
                 })
-            )
-
-            const result = await readDirectoryRecursively(testFeatures, tempFolder.path, {
-                customFormatCallback: getEntryPath,
+                await fs.chmod(subdir1.path, 0o755)
+                assert.strictEqual(result.length, 1)
+                assert.deepStrictEqual(result, [subdir1.path])
             })
-            await fs.chmod(subdir1.path, 0o755)
-            assert.strictEqual(result.length, 1)
-            assert.deepStrictEqual(result, [subdir1.path])
-        })
+        }
 
-        it('always fails if directory does not exist', async function () {
+        it('always fail if directory does not exist', async function () {
             await assert.rejects(
                 readDirectoryRecursively(testFeatures, path.join(tempFolder.path, 'notReal'), {
                     customFormatCallback: getEntryPath,
