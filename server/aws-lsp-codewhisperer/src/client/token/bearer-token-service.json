@@ -5064,7 +5064,7 @@
             "members": {
                 "workspaceId": { "shape": "UUID" },
                 "workspaceStatus": { "shape": "WorkspaceStatus" },
-                "envrionmentAddress": { "shape": "SensitiveString" },
+                "environmentAddress": { "shape": "SensitiveString" },
                 "environmentId": { "shape": "SensitiveString" }
             }
         },

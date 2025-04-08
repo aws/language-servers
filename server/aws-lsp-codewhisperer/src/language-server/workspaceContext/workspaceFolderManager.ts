@@ -846,7 +846,7 @@ export class WorkspaceFolderManager {
                 workspaceRoot: workspaceRoot,
             })
             this.logging.log(
-                `ListWorkspaceMetadata response for ${workspaceRoot}: ${JSON.stringify(response)} address: ${response.workspaces[0].envrionmentAddress}`
+                `ListWorkspaceMetadata response for ${workspaceRoot}: ${JSON.stringify(response)} address: ${response.workspaces[0].environmentAddress}`
             )
             metadata = response && response.workspaces.length ? response.workspaces[0] : null
         } catch (e: any) {

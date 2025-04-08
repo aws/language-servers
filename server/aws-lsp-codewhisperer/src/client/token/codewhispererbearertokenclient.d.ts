@@ -1664,7 +1664,7 @@ declare namespace CodeWhispererBearerTokenClient {
   export interface WorkspaceMetadata {
     workspaceId: UUID;
     workspaceStatus: WorkspaceStatus;
-    envrionmentAddress?: SensitiveString;
+    environmentAddress?: SensitiveString;
     environmentId?: SensitiveString;
   }
   export interface WorkspaceState {
