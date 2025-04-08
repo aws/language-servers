@@ -189,6 +189,11 @@ export const QChatServer =
             return chatController.onListConversations(...params)
         })
 
+        chat.onConversationClick((...params) => {
+            logging.log(`Received conversation click for id ${params[0].id}`)
+            return chatController.onConversationClick(...params)
+        })
+
         logging.log('Q Chat server has been initialized')
 
         return () => {

@@ -19,6 +19,7 @@ import {
     inlineChatRequestType,
     contextCommandsNotificationType,
     listConversationsRequestType,
+    conversationClickRequestType,
 } from '@aws/language-server-runtimes/protocol'
 import { v4 as uuidv4 } from 'uuid'
 import { Uri, Webview, WebviewView, commands, window } from 'vscode'
@@ -131,14 +132,20 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri, 
                             break
                         }
                         case listConversationsRequestType.method:
-                            const result = await languageClient.sendRequest(
-                                listConversationsRequestType,
-                                message.params
+                            await handleRequest(
+                                languageClient,
+                                message.params,
+                                webviewView,
+                                listConversationsRequestType.method
                             )
-                            webviewView.webview.postMessage({
-                                command: listConversationsRequestType.method,
-                                params: result,
-                            })
+                            break
+                        case conversationClickRequestType.method:
+                            await handleRequest(
+                                languageClient,
+                                message.params,
+                                webviewView,
+                                conversationClickRequestType.method
+                            )
                             break
                         case followUpClickNotificationType.method:
                             if (!isValidAuthFollowUpType(message.params.followUp.type))
@@ -231,6 +238,19 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri, 
         } catch (e) {
             languageClient.info(`Logging error for inline chat ${JSON.stringify(e)}`)
         }
+    })
+}
+
+async function handleRequest(
+    languageClient: LanguageClient,
+    params: any,
+    webviewView: WebviewView,
+    requestMethod: string
+) {
+    const result = await languageClient.sendRequest(requestMethod, params)
+    webviewView.webview.postMessage({
+        command: requestMethod,
+        params: result,
     })
 }
 
