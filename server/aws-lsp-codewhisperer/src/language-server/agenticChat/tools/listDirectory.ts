@@ -1,6 +1,6 @@
 // VSC Port from https://github.com/aws/aws-toolkit-vscode/blob/dfee9f7a400e677e91a75e9c20d9515a52a6fad4/packages/core/src/codewhispererChat/tools/listDirectory.ts#L18
 import { InvokeOutput } from './toolShared'
-import { pathUtils, workspaceUtils } from '@aws/lsp-core'
+import { workspaceUtils } from '@aws/lsp-core'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 
 export interface ListDirectoryParams {
@@ -9,64 +9,38 @@ export interface ListDirectoryParams {
 }
 
 export class ListDirectory {
-    private fsPath: string
-    private maxDepth?: number
     private readonly logging: Features['logging']
     private readonly workspace: Features['workspace']
 
-    constructor(features: Pick<Features, 'logging' | 'workspace'>, params: ListDirectoryParams) {
-        this.fsPath = params.path
-        this.maxDepth = params.maxDepth
+    constructor(features: Pick<Features, 'logging' | 'workspace'>) {
         this.logging = features.logging
         this.workspace = features.workspace
     }
 
-    public async validate(): Promise<void> {
-        if (!this.fsPath || this.fsPath.trim().length === 0) {
-            throw new Error('Path cannot be empty.')
-        }
-        if (this.maxDepth !== undefined && this.maxDepth < 0) {
-            throw new Error('MaxDepth cannot be negative.')
-        }
-
-        const sanitized = pathUtils.sanitize(this.fsPath)
-        this.fsPath = sanitized
-
-        let pathExists: boolean
-        try {
-            pathExists = await this.workspace.fs.exists(this.fsPath)
-            if (!pathExists) {
-                throw new Error(`Path: "${this.fsPath}" does not exist or cannot be accessed.`)
-            }
-        } catch (err) {
-            throw new Error(`Path: "${this.fsPath}" does not exist or cannot be accessed. (${err})`)
-        }
-    }
-
-    public async queueDescription(updates: WritableStream) {
+    public async queueDescription(params: ListDirectoryParams, updates: WritableStream) {
         const writer = updates.getWriter()
-        if (this.maxDepth === undefined) {
-            await writer.write(`Listing directory recursively: ${this.fsPath}`)
-        } else if (this.maxDepth === 0) {
-            await writer.write(`Listing directory: ${this.fsPath}`)
+        if (params.maxDepth === undefined) {
+            await writer.write(`Listing directory recursively: ${params.path}`)
+        } else if (params.maxDepth === 0) {
+            await writer.write(`Listing directory: ${params.path}`)
         } else {
-            const level = this.maxDepth > 1 ? 'levels' : 'level'
-            await writer.write(`Listing directory: ${this.fsPath} limited to ${this.maxDepth} subfolder ${level}`)
+            const level = params.maxDepth > 1 ? 'levels' : 'level'
+            await writer.write(`Listing directory: ${params.path} limited to ${params.maxDepth} subfolder ${level}`)
         }
         await writer.close()
     }
 
-    public async invoke(_updates?: WritableStream): Promise<InvokeOutput> {
+    public async invoke(params: ListDirectoryParams): Promise<InvokeOutput> {
         try {
             const listing = await workspaceUtils.readDirectoryRecursively(
                 { workspace: this.workspace, logging: this.logging },
-                this.fsPath,
-                this.maxDepth
+                params.path,
+                { maxDepth: params.maxDepth }
             )
             return this.createOutput(listing.join('\n'))
         } catch (error: any) {
-            this.logging.error(`Failed to list directory "${this.fsPath}": ${error.message || error}`)
-            throw new Error(`Failed to list directory "${this.fsPath}": ${error.message || error}`)
+            this.logging.error(`Failed to list directory "${params.path}": ${error.message || error}`)
+            throw new Error(`Failed to list directory "${params.path}": ${error.message || error}`)
         }
     }
 
@@ -77,5 +51,28 @@ export class ListDirectory {
                 content: content,
             },
         }
+    }
+
+    public getSpec() {
+        return {
+            name: 'listDirectory',
+            description:
+                'List the contents of a directory and its subdirectories.\n * Use this tool for discovery, before using more targeted tools like fsRead.\n *Useful to try to understand the file structure before diving deeper into specific files.\n *Can be used to explore the codebase.\n *Results clearly distinguish between files, directories or symlinks with [FILE], [DIR] and [LINK] prefixes.',
+            inputSchema: {
+                type: 'object',
+                properties: {
+                    path: {
+                        type: 'string',
+                        description: 'Absolute path to a directory, e.g., `/repo`.',
+                    },
+                    maxDepth: {
+                        type: 'number',
+                        description:
+                            'Maximum depth to traverse when listing directories. Use `0` to list only the specified directory, `1` to include immediate subdirectories, etc. If it is not provided, it will list all subdirectories recursively.',
+                    },
+                },
+                required: ['path'],
+            },
+        } as const
     }
 }
