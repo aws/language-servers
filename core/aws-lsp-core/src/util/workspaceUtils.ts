@@ -8,22 +8,30 @@ type Dirent = ElementType<Awaited<ReturnType<Features['workspace']['fs']['readdi
 export async function readDirectoryRecursively(
     features: Pick<Features, 'workspace' | 'logging'> & Partial<Features>,
     folderPath: string,
-    maxDepth?: number,
-    customFormatCallback?: (entry: Dirent) => string
+    options?: {
+        maxDepth?: number
+        customFormatCallback?: (entry: Dirent) => string
+        failOnError?: boolean
+    }
 ): Promise<string[]> {
+    const dirExists = await features.workspace.fs.exists(folderPath)
+    if (!dirExists) {
+        throw new Error(`Directory does not exist: ${folderPath}`)
+    }
+
     features.logging.info(
-        `Reading directory: ${folderPath} to max depth: ${maxDepth === undefined ? 'unlimited' : maxDepth}`
+        `Reading directory: ${folderPath} to max depth: ${options?.maxDepth === undefined ? 'unlimited' : options.maxDepth}`
     )
 
     const queue: Array<{ filepath: string; depth: number }> = [{ filepath: folderPath, depth: 0 }]
     const results: string[] = []
 
-    const formatter = customFormatCallback ?? formatListing
+    const formatter = options?.customFormatCallback ?? formatListing
 
     while (queue.length > 0) {
         const { filepath, depth } = queue.shift()!
-        if (maxDepth !== undefined && depth > maxDepth) {
-            features.logging.info(`Skipping directory: ${filepath} (depth ${depth} > max ${maxDepth})`)
+        if (options?.maxDepth !== undefined && depth > options?.maxDepth) {
+            features.logging.info(`Skipping directory: ${filepath} (depth ${depth} > max ${options.maxDepth})`)
             continue
         }
 
@@ -31,15 +39,18 @@ export async function readDirectoryRecursively(
         try {
             entries = await features.workspace.fs.readdir(filepath)
         } catch (err) {
-            features.logging.error(`Cannot read directory: ${filepath} (${err})`)
-            results.push(`Cannot read directory: ${filepath} (${err})`)
+            if (options?.failOnError) {
+                throw err
+            }
+            const errMsg = `Failed to read: ${filepath} (${err})`
+            features.logging.warn(errMsg)
             continue
         }
 
         for (const entry of entries) {
             results.push(formatter(entry))
             const childPath = getEntryPath(entry)
-            if (entry.isDirectory() && (maxDepth === undefined || depth < maxDepth)) {
+            if (entry.isDirectory() && (options?.maxDepth === undefined || depth < options?.maxDepth)) {
                 queue.push({ filepath: childPath, depth: depth + 1 })
             }
         }
