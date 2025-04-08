@@ -2,16 +2,14 @@ import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import {
     AmazonQConfigurationCache,
     AmazonQWorkspaceConfig,
-    CODE_WHISPERER_CONFIGURATION_SECTION,
     defaultAmazonQWorkspaceConfigFactory,
     getAmazonQRelatedWorkspaceConfigs,
 } from './configurationUtils'
-import { Q_CONFIGURATION_SECTION } from '../../language-server/configuration/qConfigurationServer'
 import { deepStrictEqual, notDeepStrictEqual } from 'assert'
+import { Q_CONFIGURATION_SECTION, CODE_WHISPERER_CONFIGURATION_SECTION } from '../constants'
 
 describe('getAmazonQRelatedWorkspaceConfigs', () => {
     let features: TestFeatures
-    let cache: AmazonQConfigurationCache
 
     const MOCKED_AWS_Q_SECTION = {
         customization: 'some-customization-arn',
@@ -27,7 +25,6 @@ describe('getAmazonQRelatedWorkspaceConfigs', () => {
     }
 
     beforeEach(() => {
-        cache = new AmazonQConfigurationCache()
         features = new TestFeatures()
 
         features.lsp.workspace.getConfiguration.withArgs(Q_CONFIGURATION_SECTION).resolves(MOCKED_AWS_Q_SECTION)
