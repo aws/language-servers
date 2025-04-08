@@ -8,24 +8,14 @@ import {
     Workspace,
     WorkspaceFolder,
 } from '@aws/language-server-runtimes/server-interface'
-import { CodeWhispererServiceToken } from './codeWhispererService'
-import {
-    cleanUrl,
-    getRelativePath,
-    isDirectory,
-    isEmptyDirectory,
-    isLoggedInUsingBearerToken,
-} from './workspaceContext/util'
-import {
-    ArtifactManager,
-    FileMetadata,
-    SUPPORTED_WORKSPACE_CONTEXT_LANGUAGES,
-} from './workspaceContext/artifactManager'
-import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../constants'
-import { WorkspaceFolderManager } from './workspaceContext/workspaceFolderManager'
+import { cleanUrl, getRelativePath, isDirectory, isEmptyDirectory, isLoggedInUsingBearerToken } from './util'
+import { ArtifactManager, FileMetadata, SUPPORTED_WORKSPACE_CONTEXT_LANGUAGES } from './artifactManager'
+import { WorkspaceFolderManager } from './workspaceFolderManager'
 import { URI } from 'vscode-uri'
-import { getCodeWhispererLanguageIdFromPath } from './languageDetection'
-import { DependencyDiscoverer } from './workspaceContext/dependency/dependencyDiscoverer'
+import { DependencyDiscoverer } from './dependency/dependencyDiscoverer'
+import { getCodeWhispererLanguageIdFromPath } from '../../shared/languageDetection'
+import { CodeWhispererServiceToken } from '../../shared/codeWhispererService'
+import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../../shared/constants'
 
 const Q_CONTEXT_CONFIGURATION_SECTION = 'aws.q.workspaceContext'
 

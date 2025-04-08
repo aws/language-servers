@@ -1,9 +1,9 @@
 import { Logging, Workspace, WorkspaceFolder } from '@aws/language-server-runtimes/server-interface'
-import { CodewhispererLanguage } from '../../../languageDetection'
 import * as fs from 'fs'
 import { ArtifactManager, FileMetadata } from '../../artifactManager'
 import path = require('path')
 import { EventEmitter } from 'events'
+import { CodewhispererLanguage } from '../../../../shared/languageDetection'
 
 export interface Dependency {
     name: string

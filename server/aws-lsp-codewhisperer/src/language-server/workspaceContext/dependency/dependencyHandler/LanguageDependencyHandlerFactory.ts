@@ -3,8 +3,8 @@ import { PythonDependencyHandler } from './PythonDependencyHandler'
 import { JSTSDependencyHandler } from './JSTSDependencyHandler'
 import { BaseDependencyInfo, LanguageDependencyHandler } from './LanguageDependencyHandler'
 import { Logging, Workspace, WorkspaceFolder } from '@aws/language-server-runtimes/server-interface'
-import { CodewhispererLanguage } from '../../../languageDetection'
 import { ArtifactManager } from '../../artifactManager'
+import { CodewhispererLanguage } from '../../../../shared/languageDetection'
 
 export class DependencyHandlerFactory {
     static createHandler(

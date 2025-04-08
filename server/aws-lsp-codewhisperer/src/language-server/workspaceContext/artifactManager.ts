@@ -1,12 +1,12 @@
 import { Logging, Workspace, WorkspaceFolder } from '@aws/language-server-runtimes/server-interface'
 import * as fs from 'fs'
 import path = require('path')
-import { CodewhispererLanguage, getCodeWhispererLanguageIdFromPath } from '../languageDetection'
 import { URI } from 'vscode-uri'
 import JSZip = require('jszip')
 import { EclipseConfigGenerator, JavaProjectAnalyzer } from './javaManager'
 import { isDirectory } from './util'
 import glob = require('fast-glob')
+import { CodewhispererLanguage, getCodeWhispererLanguageIdFromPath } from '../../shared/languageDetection'
 
 export interface FileMetadata {
     filePath: string

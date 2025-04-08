@@ -1,5 +1,4 @@
 import { WebSocketClient } from './client'
-import { CodeWhispererServiceToken } from '../codeWhispererService'
 import { WorkspaceFolder } from '@aws/language-server-runtimes/protocol'
 import {
     CreateUploadUrlRequest,
@@ -17,6 +16,7 @@ import {
     uploadArtifactToS3,
 } from './util'
 import { DependencyDiscoverer } from './dependency/dependencyDiscoverer'
+import { CodeWhispererServiceToken } from '../../shared/codeWhispererService'
 
 interface WorkspaceState {
     remoteWorkspaceState: WorkspaceStatus

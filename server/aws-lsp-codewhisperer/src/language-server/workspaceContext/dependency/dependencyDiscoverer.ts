@@ -4,8 +4,8 @@ import { Logging, Workspace, WorkspaceFolder } from '@aws/language-server-runtim
 import { URI } from 'vscode-uri'
 import { DependencyHandlerFactory } from './dependencyHandler/LanguageDependencyHandlerFactory'
 import { BaseDependencyInfo, LanguageDependencyHandler } from './dependencyHandler/LanguageDependencyHandler'
-import { supportedWorkspaceContextLanguages } from '../../languageDetection'
-import { ArtifactManager, FileMetadata } from '../artifactManager'
+import { ArtifactManager } from '../artifactManager'
+import { supportedWorkspaceContextLanguages } from '../../../shared/languageDetection'
 
 export class DependencyDiscoverer {
     private logging: Logging
