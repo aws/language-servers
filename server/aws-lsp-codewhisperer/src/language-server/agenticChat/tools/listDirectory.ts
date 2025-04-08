@@ -2,6 +2,7 @@
 import { InvokeOutput } from './toolShared'
 import { workspaceUtils } from '@aws/lsp-core'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
+import { sanitize } from '@aws/lsp-core/out/util/path'
 
 export interface ListDirectoryParams {
     path: string
@@ -31,16 +32,17 @@ export class ListDirectory {
     }
 
     public async invoke(params: ListDirectoryParams): Promise<InvokeOutput> {
+        const path = sanitize(params.path)
         try {
             const listing = await workspaceUtils.readDirectoryRecursively(
                 { workspace: this.workspace, logging: this.logging },
-                params.path,
+                path,
                 { maxDepth: params.maxDepth }
             )
             return this.createOutput(listing.join('\n'))
         } catch (error: any) {
-            this.logging.error(`Failed to list directory "${params.path}": ${error.message || error}`)
-            throw new Error(`Failed to list directory "${params.path}": ${error.message || error}`)
+            this.logging.error(`Failed to list directory "${path}": ${error.message || error}`)
+            throw new Error(`Failed to list directory "${path}": ${error.message || error}`)
         }
     }
 

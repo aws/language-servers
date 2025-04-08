@@ -66,7 +66,7 @@ describe('ListDirectory Tool', () => {
         assert.ok(hasFileB, 'Should list fileB.md in the subfolder in the directory output')
     })
 
-    it.only('throws error if path does not exist', async () => {
+    it('throws error if path does not exist', async () => {
         const missingPath = path.join(tempFolder.path, 'no_such_file.txt')
         const listDirectory = new ListDirectory(testFeatures)
 
