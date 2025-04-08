@@ -23,6 +23,7 @@ export class AmazonQIAMServiceManager extends BaseAmazonQServiceManager<CodeWhis
             this.cachedCodewhispererService = new CodeWhispererServiceIAM(
                 this.features.credentialsProvider,
                 this.features.workspace,
+                this.features.logging,
                 region,
                 endpoint,
                 this.features.sdkInitializator

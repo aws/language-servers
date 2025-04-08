@@ -3,7 +3,7 @@ import {
     SendMessageCommandInput,
     SendMessageCommandOutput,
 } from '@amzn/codewhisperer-streaming'
-import { CredentialsProvider, SDKInitializator } from '@aws/language-server-runtimes/server-interface'
+import { CredentialsProvider, SDKInitializator, Logging } from '@aws/language-server-runtimes/server-interface'
 import { getBearerTokenFromProvider } from './utils'
 import { ConfiguredRetryStrategy } from '@aws-sdk/util-retry'
 
@@ -15,6 +15,7 @@ export class StreamingClientService {
     constructor(
         credentialsProvider: CredentialsProvider,
         sdkInitializator: SDKInitializator,
+        logging: Logging,
         region: string,
         endpoint: string,
         customUserAgent: string
@@ -25,6 +26,9 @@ export class StreamingClientService {
             return { token, expiration: new Date() }
         }
 
+        logging.log(
+            `Passing client for class CodeWhispererStreaming to sdkInitializator (v3) for additional setup (e.g. proxy)`
+        )
         this.client = sdkInitializator(CodeWhispererStreaming, {
             region,
             endpoint,

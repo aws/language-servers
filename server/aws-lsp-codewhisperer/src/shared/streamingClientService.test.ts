@@ -52,6 +52,7 @@ describe('StreamingClientService', () => {
         streamingClientService = new StreamingClientService(
             features.credentialsProvider,
             features.sdkInitializator,
+            features.logging,
             DEFAULT_AWS_Q_REGION,
             DEFAULT_AWS_Q_ENDPOINT_URL,
             'some-user-agent'

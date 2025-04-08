@@ -490,22 +490,11 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<CodeWh
         return service
     }
 
-<<<<<<< HEAD
-    private streamingClientFactory(region: string, endpoint: string): CodeWhispererStreaming {
-        const token = getBearerTokenFromProvider(this.features.credentialsProvider)
-
-        // TODO: Follow-up with creating CodeWhispererStreaming client which supports inplace access to CredentialsProvider instead of caching static value.
-        // Without this, we need more complex mechanism for managing token change state when caching streaming client.
-        this.logging.log(
-            `Passing client for class CodeWhispererStreaming to sdkInitializator (v3) for additional setup (e.g. proxy)`
-        )
-        const streamingClient = this.features.sdkInitializator(CodeWhispererStreaming, {
-=======
     private streamingClientFactory(region: string, endpoint: string): StreamingClientService {
         const streamingClient = new StreamingClientService(
             this.features.credentialsProvider,
             this.features.sdkInitializator,
->>>>>>> main
+            this.features.logging,
             region,
             endpoint,
             this.getCustomUserAgent()
