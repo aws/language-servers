@@ -1,0 +1,124 @@
+import { ConversationAction, ConversationItemGroup, ListConversationsResult } from '@aws/language-server-runtimes-types'
+import { ChatItemButton, DetailedList, DetailedListItem, MynahUI } from '@aws/mynah-ui'
+import { toMynahIcon } from '../utils'
+import { Messager } from '../messager'
+
+export const ChatHistory = {
+    TabBarButtonId: 'history_sheet',
+} as const
+
+interface MynahDetailedList {
+    update: (data: DetailedList) => void
+    close: () => void
+    changeTarget: (direction: 'up' | 'down', snapOnLastAndFirst?: boolean) => void
+    getTargetElementId: () => string | undefined
+}
+
+export class ChatHistoryList {
+    historyDetailedList: MynahDetailedList | undefined
+    public tabId: string | undefined // TODO: remove this id alltogether (test if works with empty string) or introduce public getter
+
+    constructor(
+        private mynahUi: MynahUI,
+        private messager: Messager
+    ) {}
+
+    show(params: ListConversationsResult) {
+        const detailedList = {
+            header: params.header,
+            filterOptions: params.filterOptions?.map(filter => ({
+                ...filter,
+                icon: toMynahIcon(filter.icon),
+            })),
+            list: this.toConversarionGroups(params.list),
+        }
+        // set auto focus on the 1st filter option item
+        if (detailedList.filterOptions && detailedList.filterOptions.length > 0) {
+            // @ts-ignore - autoFocus is supported only for text-based filter options,
+            // but chat-client supports only text-based filter now
+            detailedList.filterOptions[0].autoFocus = true
+        }
+
+        this.tabId = params.tabId
+
+        // TODO: find better way to define if it's udpate
+        if (this.historyDetailedList && !detailedList.header && !detailedList.filterOptions) {
+            this.historyDetailedList.update(detailedList)
+        } else {
+            this.historyDetailedList = this.mynahUi.openDetailedList({
+                tabId: params.tabId,
+                detailedList: detailedList,
+                events: {
+                    onFilterValueChange: this.onFilterValueChange,
+                    onKeyPress: this.onKeyPress,
+                    onItemSelect: this.onItemSelect,
+                    onActionClick: this.onActionClick,
+                },
+            })
+        }
+    }
+
+    // TODO: call after item selected
+    close() {
+        this.historyDetailedList?.close()
+    }
+
+    private onFilterValueChange = (filterValues: Record<string, any>) => {
+        this.messager.onListConversations(this.tabId!, filterValues)
+    }
+
+    private onItemSelect = (item: DetailedListItem) => {
+        if (!item.id) {
+            throw new Error('Conversation id is not defined')
+        }
+        this.messager.onConversationClick(item.id)
+    }
+
+    private onActionClick = (action: ChatItemButton) => {
+        const conversationAction = this.getConversationAction(action.text)
+        this.messager.onConversationClick(action.id, conversationAction)
+    }
+
+    private onKeyPress = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') {
+            this.close()
+        } else if (e.key === 'Enter') {
+            const targetElementId = this.historyDetailedList?.getTargetElementId()
+            if (targetElementId) {
+                this.onItemSelect({
+                    id: targetElementId,
+                })
+            }
+        } else if (e.key === 'ArrowUp') {
+            this.historyDetailedList?.changeTarget('up')
+        } else if (e.key === 'ArrowDown') {
+            this.historyDetailedList?.changeTarget('down')
+        }
+    }
+
+    private toConversarionGroups = (groups: ConversationItemGroup[]) => {
+        return groups.map(group => ({
+            groupName: group.groupName,
+            icon: toMynahIcon(group.icon),
+            children: group.items?.map(item => ({
+                ...item,
+                icon: toMynahIcon(item.icon),
+                actions: item.actions?.map(action => ({
+                    ...action,
+                    icon: toMynahIcon(action.icon),
+                })),
+            })),
+        }))
+    }
+
+    private getConversationAction = (actionText: string | undefined): ConversationAction => {
+        switch (actionText) {
+            case 'Export':
+                return 'export'
+            case 'Delete':
+                return 'delete'
+            default:
+                throw new Error(`Unsupported action: ${actionText}`)
+        }
+    }
+}

@@ -5,6 +5,9 @@ import {
     FeedbackParams,
     InlineChatParams,
     InsertToCursorPositionParams,
+    ListConversationsParams,
+    ListConversationsResult,
+    RequestHandler,
     TextDocumentEdit,
     TextEdit,
     chatRequestType,
@@ -56,7 +59,7 @@ type ChatHandlers = Omit<
     | 'onInlineChatPrompt'
     | 'sendContextCommands'
     | 'onCreatePrompt'
-    | 'onListConversations'
+    // | 'onListConversations'
     | 'onConversationClick'
 >
 
@@ -371,6 +374,71 @@ export class ChatController implements ChatHandlers {
         const { success } = this.#chatSessionManagementService.deleteSession(params.tabId)
 
         return success
+    }
+
+    onListConversations(params: ListConversationsParams, _token: CancellationToken): Promise<ListConversationsResult> {
+        const header = params.filter ? undefined : { title: 'Chat history' }
+        const filterOptions = params.filter
+            ? undefined
+            : [
+                  {
+                      type: 'textinput',
+                      icon: 'search',
+                      id: 'search',
+                      placeholder: 'Search...',
+                  },
+              ]
+        let items = [
+            {
+                id: '1',
+                icon: 'chat',
+                description: 'You asked about TS',
+                actions: [
+                    {
+                        text: 'Export',
+                        icon: 'external',
+                        id: '1',
+                    },
+                    {
+                        text: 'Delete',
+                        icon: 'trash',
+                        id: '1',
+                    },
+                ],
+            },
+            {
+                id: '2',
+                icon: 'chat',
+                description: 'You asked about Node',
+                actions: [
+                    {
+                        text: 'Export',
+                        icon: 'external',
+                        id: '2',
+                    },
+                    {
+                        text: 'Delete',
+                        icon: 'trash',
+                        id: '2',
+                    },
+                ],
+            },
+        ]
+        if (params.filter) {
+            items = items.filter(item => item.description?.includes(params.filter?.['search'] ?? ''))
+        }
+        return Promise.resolve({
+            tabId: params.tabId,
+            header: header,
+            filterOptions: filterOptions,
+            list: [
+                {
+                    groupName: 'Yesterday',
+                    icon: 'calendar',
+                    items: items,
+                },
+            ],
+        } as ListConversationsResult)
     }
 
     onFollowUpClicked() {}

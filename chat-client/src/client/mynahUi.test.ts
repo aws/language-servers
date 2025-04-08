@@ -4,9 +4,8 @@ import { assert } from 'sinon'
 import { createMynahUi, InboundChatApi, handleChatPrompt, DEFAULT_HELP_PROMPT } from './mynahUi'
 import { Messager, OutboundChatApi } from './messager'
 import { TabFactory } from './tabs/tabFactory'
-import { ChatItemType, MynahUI, MynahUIProps } from '@aws/mynah-ui'
-import { ChatEventHandler, ChatClientAdapter } from '../contracts/chatClientAdapter'
-import { withAdapter } from './withAdapter'
+import { ChatItemType, MynahUI } from '@aws/mynah-ui'
+import { ChatClientAdapter } from '../contracts/chatClientAdapter'
 
 describe('MynahUI', () => {
     let messager: Messager
@@ -45,6 +44,8 @@ describe('MynahUI', () => {
             onOpenTab: sinon.stub(),
             createPrompt: sinon.stub(),
             fileClick: sinon.stub(),
+            listConversations: sinon.stub(),
+            conversationClick: sinon.stub(),
         }
 
         messager = new Messager(outboundChatApi)

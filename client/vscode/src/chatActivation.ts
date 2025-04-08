@@ -18,6 +18,7 @@ import {
     InlineChatResult,
     inlineChatRequestType,
     contextCommandsNotificationType,
+    listConversationsRequestType,
 } from '@aws/language-server-runtimes/protocol'
 import { v4 as uuidv4 } from 'uuid'
 import { Uri, Webview, WebviewView, commands, window } from 'vscode'
@@ -129,6 +130,16 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri, 
                             )
                             break
                         }
+                        case listConversationsRequestType.method:
+                            const result = await languageClient.sendRequest(
+                                listConversationsRequestType,
+                                message.params
+                            )
+                            webviewView.webview.postMessage({
+                                command: listConversationsRequestType.method,
+                                params: result,
+                            })
+                            break
                         case followUpClickNotificationType.method:
                             if (!isValidAuthFollowUpType(message.params.followUp.type))
                                 languageClient.sendNotification(followUpClickNotificationType, message.params)

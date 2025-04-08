@@ -22,12 +22,16 @@ import {
 } from '@aws/chat-client-ui-types'
 import {
     ChatParams,
+    ConversationAction,
+    ConversationClickParams,
     CreatePromptParams,
     FeedbackParams,
     FileClickParams,
+    FilterValue,
     FollowUpClickParams,
     InfoLinkClickParams,
     LinkClickParams,
+    ListConversationsParams,
     OpenTabResult,
     QuickActionParams,
     SourceLinkClickParams,
@@ -78,6 +82,8 @@ export interface OutboundChatApi {
     onOpenTab(result: OpenTabResult | ErrorResult): void
     createPrompt(params: CreatePromptParams): void
     fileClick(params: FileClickParams): void
+    listConversations(params: ListConversationsParams): void
+    conversationClick(params: ConversationClickParams): void
 }
 
 export class Messager {
@@ -184,5 +190,13 @@ export class Messager {
     onFileClick = (params: FileClickParams): void => {
         this.chatApi.telemetry({ ...params, name: FILE_CLICK_TELEMETRY_EVENT })
         this.chatApi.fileClick(params)
+    }
+
+    onListConversations = (tabId: string, filter?: Record<string, FilterValue>): void => {
+        this.chatApi.listConversations({ tabId, filter })
+    }
+
+    onConversationClick = (conversationId: string, action?: ConversationAction): void => {
+        this.chatApi.conversationClick({ id: conversationId, action })
     }
 }

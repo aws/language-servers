@@ -16,10 +16,12 @@ import {
     ChatResult,
     ContextCommand,
     ContextCommandParams,
+    ConversationClickResult,
     FeedbackParams,
     FollowUpClickParams,
     InfoLinkClickParams,
     LinkClickParams,
+    ListConversationsResult,
     OpenTabParams,
     SourceLinkClickParams,
 } from '@aws/language-server-runtimes-types'
@@ -32,6 +34,7 @@ import {
     NotificationType,
     MynahUIProps,
     QuickActionCommand,
+    MynahIcons,
 } from '@aws/mynah-ui'
 import { VoteParams } from '../contracts/telemetry'
 import { Messager } from './messager'
@@ -40,6 +43,7 @@ import { disclaimerAcknowledgeButtonId, disclaimerCard } from './texts/disclaime
 import { ChatClientAdapter, ChatEventHandler } from '../contracts/chatClientAdapter'
 import { withAdapter } from './withAdapter'
 import { toMynahIcon } from './utils'
+import { ChatHistory, ChatHistoryList } from './features/history'
 
 export interface InboundChatApi {
     addChatResponse(params: ChatResult, tabId: string, isPartialResult: boolean): void
@@ -48,6 +52,8 @@ export interface InboundChatApi {
     showError(params: ErrorParams): void
     openTab(params: OpenTabParams): void
     sendContextCommands(params: ContextCommandParams): void
+    listConversations(params: ListConversationsResult): void
+    conversationClicked(params: ConversationClickResult): void
 }
 
 type ContextCommandGroups = MynahUIDataModel['contextCommands']
@@ -328,6 +334,23 @@ export const createMynahUi = (
             }
             return false
         },
+        onTabBarButtonClick: (tabId: string, buttonId: string) => {
+            if (buttonId === ChatHistory.TabBarButtonId) {
+                messager.onListConversations(tabId)
+                return
+            }
+            throw new Error(`Unhandled tab bar button id: ${buttonId}`)
+        },
+
+        // Noop not-implemented handlers
+        onBeforeTabRemove: undefined,
+        onFileActionClick: undefined,
+        onStopChatResponse: undefined,
+        onQuickCommandGroupActionClick: undefined,
+        onChatItemEngagement: undefined,
+        onShowMoreWebResultsClick: undefined,
+        onFormLinkClick: undefined,
+        onFormModifierEnterPress: undefined,
     }
 
     const mynahUiProps: MynahUIProps = {
@@ -343,6 +366,14 @@ export const createMynahUi = (
         config: {
             maxTabs: 10,
             texts: uiComponentsTexts,
+            // TODO: load dynamically from ChatOptions
+            tabBarButtons: [
+                {
+                    id: ChatHistory.TabBarButtonId,
+                    icon: MynahIcons.COMMENT,
+                    description: 'View chat history',
+                },
+            ],
         },
     }
 
@@ -447,9 +478,9 @@ export const createMynahUi = (
 
         const followUps = chatResult.followUp
             ? {
-                  text: chatResult.followUp.text ?? 'Suggested follow up questions:',
-                  options: chatResult.followUp.options,
-              }
+                text: chatResult.followUp.text ?? 'Suggested follow up questions:',
+                options: chatResult.followUp.options,
+            }
             : {}
 
         mynahUi.updateLastChatAnswer(tabId, {
@@ -562,6 +593,29 @@ ${params.message}`,
         })
     }
 
+    let chatHistoryList = new ChatHistoryList(mynahUi, messager)
+    const listConversations = (params: ListConversationsResult) => {
+        chatHistoryList.show(params)
+    }
+
+    const conversationClicked = (params: ConversationClickResult) => {
+        if (!params.success) {
+            // TODO: any logging, error for this?
+            return
+        }
+
+        // close history list if conversation item was successfully opened
+        if (!params.action) {
+            chatHistoryList.close()
+            return
+        }
+        // request update conversations list if conversation item was successfully deleted
+        const tabId = mynahUi.getSelectedTabId()
+        if (params.action === 'delete') {
+            messager.onListConversations(chatHistoryList.tabId!)
+        }
+    }
+
     const api = {
         addChatResponse: addChatResponse,
         sendToPrompt: sendToPrompt,
@@ -569,6 +623,8 @@ ${params.message}`,
         showError: showError,
         openTab: openTab,
         sendContextCommands: sendContextCommands,
+        listConversations: listConversations,
+        conversationClicked: conversationClicked,
     }
 
     return [mynahUi, api]

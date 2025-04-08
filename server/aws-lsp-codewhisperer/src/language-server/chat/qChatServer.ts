@@ -74,6 +74,74 @@ export const QChatServer =
         chat.onTabAdd(params => {
             logging.log(`Adding tab: ${params.tabId}`)
 
+            chat.sendContextCommands({
+                contextCommandGroups: [
+                    {
+                        commands: [{
+                            command: 'Prompts',
+                            children: [
+                                {
+                                    groupName: 'Prompts',
+                                    commands: [
+                                        {
+                                            command: 'Create a new prompt',
+                                            id: 'create-saved-prompt',
+                                            icon: 'list-add',
+                                        }
+                                    ],
+                                },
+                            ],
+                            description: 'Prompts',
+                            icon: 'magic',
+                        },
+                        {
+                            command: 'Prompts',
+                            children: [
+                                {
+                                    groupName: 'Prompts',
+                                    commands: [
+                                        {
+                                            command: 'Create a new prompt',
+                                            id: 'create-saved-prompt',
+                                            icon: 'list-add',
+                                        }
+                                    ],
+                                },
+                            ],
+                            description: 'Prompts',
+                            icon: 'magic',
+                        },
+                        {
+                            command: 'Folders',
+                            children: [
+                                {
+                                    groupName: 'Folders',
+                                    commands: [
+                                        {
+                                            command: 'types',
+                                            description: '/ws/types',
+                                            route: ['ws', 'types'],
+                                            label: 'folder',
+                                            id: '1',
+                                            icon: 'folder',
+                                        },
+                                        {
+                                            command: 'README2.MD',
+                                            description: '/ws/README2.MD',
+                                            route: ['ws', 'README2.MD'],
+                                            label: 'file',
+                                            id: '1',
+                                            icon: 'file',
+                                        }
+                                    ],
+                                }
+                            ]
+                        }
+                        ]
+                    }
+                ]
+            })
+
             return chatController.onTabAdd(params)
         })
 
@@ -114,6 +182,11 @@ export const QChatServer =
 
         chat.onCodeInsertToCursorPosition(params => {
             return chatController.onCodeInsertToCursorPosition(params)
+        })
+
+        chat.onListConversations((...params) => {
+            logging.log('Received list conversations')
+            return chatController.onListConversations(...params)
         })
 
         logging.log('Q Chat server has been initialized')
