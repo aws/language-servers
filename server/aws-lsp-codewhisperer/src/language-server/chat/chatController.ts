@@ -40,19 +40,24 @@ import { getErrorMessage, isAwsError, isNullish, isObject } from '../../shared/u
 import { Metric } from '../../shared/telemetry/metric'
 import { QChatTriggerContext, TriggerContext } from './contexts/triggerContext'
 import { HELP_MESSAGE } from './constants'
-import { Q_CONFIGURATION_SECTION } from '../configuration/qConfigurationServer'
-import { textUtils } from '@aws/lsp-core'
 import {
     AmazonQServicePendingProfileError,
     AmazonQServicePendingSigninError,
 } from '../../shared/amazonQServiceManager/errors'
-import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
+import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
-    'openTab' | 'sendChatUpdate' | 'onFileClicked' | 'onInlineChatPrompt' | 'sendContextCommands' | 'onCreatePrompt'
+    | 'openTab'
+    | 'sendChatUpdate'
+    | 'onFileClicked'
+    | 'onInlineChatPrompt'
+    | 'sendContextCommands'
+    | 'onCreatePrompt'
+    | 'onListConversations'
+    | 'onConversationClick'
 >
 
 export class ChatController implements ChatHandlers {
@@ -62,13 +67,13 @@ export class ChatController implements ChatHandlers {
     #triggerContext: QChatTriggerContext
     #customizationArn?: string
     #telemetryService: TelemetryService
-    #amazonQServiceManager?: AmazonQTokenServiceManager
+    #amazonQServiceManager: AmazonQTokenServiceManager
 
     constructor(
         chatSessionManagementService: ChatSessionManagementService,
         features: Features,
         telemetryService: TelemetryService,
-        amazonQServiceManager?: AmazonQTokenServiceManager
+        amazonQServiceManager: AmazonQTokenServiceManager
     ) {
         this.#features = features
         this.#chatSessionManagementService = chatSessionManagementService
@@ -116,13 +121,11 @@ export class ChatController implements ChatHandlers {
         const conversationIdentifier = session?.conversationId ?? 'New conversation'
         try {
             this.#log('Request for conversation id:', conversationIdentifier)
-            const profileArn = AmazonQTokenServiceManager.getInstance(this.#features).getActiveProfileArn()
             requestInput = this.#triggerContext.getChatParamsFromTrigger(
                 params,
                 triggerContext,
                 ChatTriggerType.MANUAL,
-                this.#customizationArn,
-                profileArn
+                this.#customizationArn
             )
 
             metric.recordStart()
@@ -237,18 +240,12 @@ export class ChatController implements ChatHandlers {
         let requestInput: SendMessageCommandInput
 
         try {
-            const profileArn = AmazonQTokenServiceManager.getInstance(this.#features).getActiveProfileArn()
             requestInput = this.#triggerContext.getChatParamsFromTrigger(
                 params,
                 triggerContext,
                 ChatTriggerType.INLINE_CHAT,
-                this.#customizationArn,
-                profileArn
+                this.#customizationArn
             )
-
-            if (!this.#amazonQServiceManager) {
-                throw new Error('amazonQServiceManager is not initialized')
-            }
 
             const client = this.#amazonQServiceManager.getStreamingClient()
             response = await client.sendMessage(requestInput)
@@ -565,7 +562,7 @@ export class ChatController implements ChatHandlers {
 
     updateConfiguration = (newConfig: AmazonQWorkspaceConfig) => {
         this.#customizationArn = newConfig.customizationArn
-        this.#log(`Chat configuration updated to use ${this.#customizationArn}`)
+        this.#log(`Chat configuration updated customizationArn to ${this.#customizationArn}`)
         /*
             The flag enableTelemetryEventsToDestination is set to true temporarily. It's value will be determined through destination
             configuration post all events migration to STE. It'll be replaced by qConfig['enableTelemetryEventsToDestination'] === true

@@ -5,7 +5,8 @@ import { CodeWhispererServiceToken } from './codeWhispererService'
 import { QNetTransformServerToken } from '../language-server/netTransform/netTransformServer'
 import { QChatServer } from '../language-server/chat/qChatServer'
 import { QConfigurationServerToken } from '../language-server/configuration/qConfigurationServer'
-import { initBaseIAMServiceManager, initBaseTokenServiceManager } from '../shared/amazonQServiceManager/factories'
+import { initBaseTokenServiceManager } from './amazonQServiceManager/AmazonQTokenServiceManager'
+import { initBaseIAMServiceManager } from './amazonQServiceManager/AmazonQIAMServiceManager'
 
 export const CodeWhispererServerTokenProxy = CodewhispererServerFactory(initBaseTokenServiceManager)
 

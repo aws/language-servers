@@ -15,8 +15,10 @@ import { CodeWhispererSession } from '../../language-server/inline-completion/se
 import sinon, { StubbedInstance, stubInterface } from 'ts-sinon'
 import { BUILDER_ID_START_URL } from '../constants'
 import { ChatInteractionType } from './types'
-import { BaseAmazonQServiceManager } from '../amazonQServiceManager/BaseAmazonQServiceManager'
 import { CodeWhispererServiceToken } from '../codeWhispererService'
+import { initBaseTestServiceManager, TestAmazonQServiceManager } from '../amazonQServiceManager/testUtils'
+import { TestFeatures } from '@aws/language-server-runtimes/testing'
+import { AmazonQBaseServiceManager } from '../amazonQServiceManager/BaseAmazonQServiceManager'
 
 class MockCredentialsProvider implements CredentialsProvider {
     private mockIamCredentials: IamCredentials | undefined
@@ -66,7 +68,7 @@ describe('TelemetryService', () => {
     let clock: sinon.SinonFakeTimers
     let telemetryService: TelemetryService
     let mockCredentialsProvider: MockCredentialsProvider
-    let baseAmazonQServiceManagerStub: StubbedInstance<BaseAmazonQServiceManager>
+    let baseAmazonQServiceManagerStub: AmazonQBaseServiceManager
     let codeWhisperServiceStub: StubbedInstance<CodeWhispererServiceToken>
 
     const logging: Logging = {
@@ -117,16 +119,17 @@ describe('TelemetryService', () => {
             onClientTelemetry: sinon.stub(),
         }
 
-        baseAmazonQServiceManagerStub = stubInterface<BaseAmazonQServiceManager>()
         codeWhisperServiceStub = stubInterface<CodeWhispererServiceToken>()
         codeWhisperServiceStub.getCredentialsType.returns('bearer')
 
-        baseAmazonQServiceManagerStub.getCodewhispererService.returns(codeWhisperServiceStub)
+        const features = new TestFeatures()
+        baseAmazonQServiceManagerStub = initBaseTestServiceManager(features, codeWhisperServiceStub)
     })
 
     afterEach(() => {
         clock.restore()
         sinon.restore()
+        TestAmazonQServiceManager.resetInstance()
     })
 
     it('updateUserContext updates the userContext property', () => {

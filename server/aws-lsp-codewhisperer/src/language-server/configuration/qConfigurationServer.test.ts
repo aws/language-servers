@@ -1,7 +1,6 @@
 import sinon, { StubbedInstance, stubInterface } from 'ts-sinon'
 import * as assert from 'assert'
 import {
-    Q_CONFIGURATION_SECTION,
     Q_CUSTOMIZATIONS_CONFIGURATION_SECTION,
     Q_DEVELOPER_PROFILES_CONFIGURATION_SECTION,
     QConfigurationServerToken,
@@ -12,6 +11,7 @@ import { CodeWhispererServiceToken } from '../../shared/codeWhispererService'
 import { InitializeParams, Server } from '@aws/language-server-runtimes/server-interface'
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 import { setCredentialsForAmazonQTokenServiceManagerFactory } from '../../shared/testUtils'
+import { Q_CONFIGURATION_SECTION } from '../../shared/constants'
 
 const getInitializeParams = (developerProfiles = true): InitializeParams => {
     return {
