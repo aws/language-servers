@@ -367,22 +367,13 @@ export const WorkspaceContextServer =
                 return
             }
             for (const file of event.files) {
-                const isDir = isDirectory(file.newUri)
                 const result = workspaceFolderManager.getWorkspaceDetailsWithId(file.newUri, workspaceFolders)
                 if (!result) {
                     continue
                 }
                 const { workspaceDetails, workspaceRoot } = result
 
-                let filesMetadata: FileMetadata[] = []
-                if (isDir && isEmptyDirectory(file.newUri)) {
-                    continue
-                } else if (isDir) {
-                    filesMetadata = await artifactManager.addNewDirectories([URI.parse(file.newUri)])
-                } else {
-                    filesMetadata = [await artifactManager.processNewFile(workspaceRoot, file.newUri)]
-                }
-
+                const filesMetadata = await artifactManager.handleRename(workspaceRoot, file.oldUri, file.newUri)
                 for (const fileMetadata of filesMetadata) {
                     const s3Url = await workspaceFolderManager.uploadToS3(fileMetadata)
                     if (!s3Url) {

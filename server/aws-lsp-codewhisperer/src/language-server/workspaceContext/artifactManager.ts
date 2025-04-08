@@ -4,7 +4,7 @@ import path = require('path')
 import { URI } from 'vscode-uri'
 import JSZip = require('jszip')
 import { EclipseConfigGenerator, JavaProjectAnalyzer } from './javaManager'
-import { isDirectory } from './util'
+import { isDirectory, isEmptyDirectory } from './util'
 import glob = require('fast-glob')
 import { CodewhispererLanguage, getCodeWhispererLanguageIdFromPath } from '../../shared/languageDetection'
 
@@ -310,6 +310,23 @@ export class ArtifactManager {
             }
         }
         return Array.from(programmingLanguages)
+    }
+
+    async handleRename(workspaceFolder: WorkspaceFolder, oldUri: string, newUri: string): Promise<FileMetadata[]> {
+        // First remove the old entry
+        this.handleDeletedPathAndGetLanguages(oldUri, workspaceFolder)
+
+        // Then process the new path
+        let filesMetadata: FileMetadata[] = []
+        if (isDirectory(newUri)) {
+            if (!isEmptyDirectory(newUri)) {
+                filesMetadata = await this.addNewDirectories([URI.parse(newUri)])
+            }
+        } else {
+            filesMetadata = [await this.processNewFile(workspaceFolder, newUri)]
+        }
+
+        return filesMetadata
     }
 
     cleanup(preserveDependencies: boolean = false) {
