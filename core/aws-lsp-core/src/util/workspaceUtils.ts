@@ -1,7 +1,6 @@
 import * as path from 'path'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 
-// TODO: export type from runtimes to avoid this.
 type ElementType<T> = T extends (infer U)[] ? U : never
 type Dirent = ElementType<Awaited<ReturnType<Features['workspace']['fs']['readdir']>>>
 
@@ -39,7 +38,9 @@ export async function readDirectoryRecursively(
 
         for (const entry of entries) {
             results.push(formatter(entry))
-            const childPath = path.join(entry.path, entry.name)
+            // Depending on Node version fs.Dirent.path refers to the parentPath or the full path. https://github.com/nodejs/node/issues/51955#issuecomment-1977131319
+            // TODO: fix this by updating Dirent interface in runtimes.
+            const childPath = entry.path.endsWith(entry.name) ? entry.path : path.join(entry.path, entry.name)
 
             if (entry.isDirectory() && (maxDepth === undefined || depth < maxDepth)) {
                 queue.push({ filepath: childPath, depth: depth + 1 })
