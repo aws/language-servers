@@ -7,10 +7,10 @@ import {
     WorkspaceFolder,
 } from '@aws/language-server-runtimes/server-interface'
 import { Features } from '../types'
-import { Q_CONFIGURATION_SECTION } from '../configuration/qConfigurationServer'
-import { TelemetryService } from '../telemetryService'
+//import { Q_CONFIGURATION_SECTION } from '../configuration/qConfigurationServer'
+import { TelemetryService } from '../../shared/telemetry/telemetryService'
+import { languageByExtension } from '../../shared/languageDetection'
 import type { UpdateMode, VectorLibAPI } from 'local-indexing'
-import { languageByExtension } from '../languageDetection'
 
 const fs = require('fs').promises
 const path = require('path')
@@ -57,11 +57,11 @@ export class LocalProjectContextController {
 
     public async updateConfiguration(): Promise<void> {
         try {
-            const qConfig = await this.features.lsp.workspace.getConfiguration(Q_CONFIGURATION_SECTION)
-            if (qConfig) {
-                const optOutTelemetryPreference = qConfig['optOutTelemetry'] === true ? 'OPTOUT' : 'OPTIN'
-                this.telemetryService.updateOptOutPreference(optOutTelemetryPreference)
-            }
+            // const qConfig = await this.features.lsp.workspace.getConfiguration(Q_CONFIGURATION_SECTION)
+            // if (qConfig) {
+            //     const optOutTelemetryPreference = qConfig['optOutTelemetry'] === true ? 'OPTOUT' : 'OPTIN'
+            //     this.telemetryService.updateOptOutPreference(optOutTelemetryPreference)
+            // }
 
             if (this._vecLib) {
                 const sourceFiles = await this.processWorkspaceFolders(this.workspaceFolders)

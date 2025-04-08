@@ -1,18 +1,15 @@
-import {
-    CodeWhispererStreaming,
-    SendMessageCommandInput,
-    SendMessageCommandOutput,
-} from '@amzn/codewhisperer-streaming'
+import { SendMessageCommandInput, SendMessageCommandOutput } from '@amzn/codewhisperer-streaming'
 import * as assert from 'assert'
 import sinon, { StubbedInstance, stubInterface } from 'ts-sinon'
 import { ChatSessionService } from './chatSessionService'
-import { AmazonQTokenServiceManager } from '../amazonQServiceManager/AmazonQTokenServiceManager'
+import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
+import { StreamingClientService } from '../../shared/streamingClientService'
 
 describe('Chat Session Service', () => {
-    let sendMessageStub: sinon.SinonStub<any, any>
     let abortStub: sinon.SinonStub<any, any>
     let chatSessionService: ChatSessionService
     let amazonQServiceManager: StubbedInstance<AmazonQTokenServiceManager>
+    let codeWhispererStreamingClient: StubbedInstance<StreamingClientService>
     const mockConversationId = 'mockConversationId'
 
     const mockRequestParams: SendMessageCommandInput = {
@@ -32,12 +29,11 @@ describe('Chat Session Service', () => {
     }
 
     beforeEach(() => {
-        sendMessageStub = sinon
-            .stub(CodeWhispererStreaming.prototype, 'sendMessage')
-            .callsFake(() => Promise.resolve(mockRequestResponse))
+        codeWhispererStreamingClient = stubInterface<StreamingClientService>()
+        codeWhispererStreamingClient.sendMessage.callsFake(() => Promise.resolve(mockRequestResponse))
 
         amazonQServiceManager = stubInterface<AmazonQTokenServiceManager>()
-        amazonQServiceManager.getStreamingClient.returns(new CodeWhispererStreaming())
+        amazonQServiceManager.getStreamingClient.returns(codeWhispererStreamingClient)
 
         abortStub = sinon.stub(AbortController.prototype, 'abort')
 
@@ -45,7 +41,6 @@ describe('Chat Session Service', () => {
     })
 
     afterEach(() => {
-        sendMessageStub.restore()
         abortStub.restore()
     })
 
@@ -61,8 +56,8 @@ describe('Chat Session Service', () => {
 
         it('should fill in conversationId in the request if exists', async () => {
             await chatSessionService.sendMessage(mockRequestParams)
-
-            sinon.assert.calledOnceWithExactly(sendMessageStub, mockRequestParams, sinon.match.object)
+            sinon.assert.calledOnce(codeWhispererStreamingClient.sendMessage)
+            sinon.assert.match(codeWhispererStreamingClient.sendMessage.firstCall.firstArg, mockRequestParams)
 
             chatSessionService.conversationId = mockConversationId
 
@@ -75,7 +70,10 @@ describe('Chat Session Service', () => {
                 },
             }
 
-            assert.ok(sendMessageStub.getCall(1).calledWithExactly(requestParamsWithConversationId, sinon.match.object))
+            sinon.assert.match(
+                codeWhispererStreamingClient.sendMessage.getCall(1).firstArg,
+                requestParamsWithConversationId
+            )
         })
     })
 

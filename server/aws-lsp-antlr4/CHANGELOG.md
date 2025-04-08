@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.3](https://github.com/aws/language-servers/compare/lsp-antlr4/v0.1.2...lsp-antlr4/v0.1.3) (2025-04-07)
+
+
+### Features
+
+* context data selection support in chat-client ([#902](https://github.com/aws/language-servers/issues/902)) ([a22dea5](https://github.com/aws/language-servers/commit/a22dea51c0039f198a403e88f774ad7769b15d29))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @aws/lsp-core bumped from ^0.0.2 to ^0.0.3
+
 ## [0.1.2](https://github.com/aws/language-servers/compare/lsp-antlr4/v0.1.1...lsp-antlr4/v0.1.2) (2025-03-26)
 
 

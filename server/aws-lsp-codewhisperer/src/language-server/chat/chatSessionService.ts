@@ -3,7 +3,8 @@ import {
     SendMessageCommandInput,
     SendMessageCommandOutput,
 } from '@amzn/codewhisperer-streaming'
-import { AmazonQTokenServiceManager } from '../amazonQServiceManager/AmazonQTokenServiceManager'
+
+import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 
 export type ChatSessionServiceConfig = CodeWhispererStreamingClientConfig
 export class ChatSessionService {
@@ -37,9 +38,7 @@ export class ChatSessionService {
 
         const client = this.#amazonQServiceManager.getStreamingClient()
 
-        const response = await client.sendMessage(request, {
-            abortSignal: this.#abortController?.signal,
-        })
+        const response = await client.sendMessage(request, this.#abortController)
 
         return response
     }

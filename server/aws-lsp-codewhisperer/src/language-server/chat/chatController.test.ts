@@ -13,8 +13,10 @@ import {
 } from '@aws/language-server-runtimes/server-interface'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import * as assert from 'assert'
-import { createIterableResponse, setCredentialsForAmazonQTokenServiceManagerFactory } from '../testUtils'
+
+import { createIterableResponse, setCredentialsForAmazonQTokenServiceManagerFactory } from '../../shared/testUtils'
 import sinon from 'ts-sinon'
+
 import { ChatController } from './chatController'
 import { ChatSessionManagementService } from './chatSessionManagementService'
 import { ChatSessionService } from './chatSessionService'
@@ -22,8 +24,8 @@ import { ChatTelemetryController } from './telemetry/chatTelemetryController'
 import { DocumentContextExtractor } from './contexts/documentContext'
 import * as utils from './utils'
 import { DEFAULT_HELP_FOLLOW_UP_PROMPT, HELP_MESSAGE } from './constants'
-import { TelemetryService } from '../telemetryService'
-import { AmazonQTokenServiceManager } from '../amazonQServiceManager/AmazonQTokenServiceManager'
+import { TelemetryService } from '../../shared/telemetry/telemetryService'
+import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 
 describe('ChatController', () => {
     const mockTabId = 'tab-1'
@@ -152,7 +154,12 @@ describe('ChatController', () => {
         }
 
         telemetryService = new TelemetryService(amazonQServiceManager, mockCredentialsProvider, telemetry, logging)
-        chatController = new ChatController(chatSessionManagementService, testFeatures, telemetryService)
+        chatController = new ChatController(
+            chatSessionManagementService,
+            testFeatures,
+            telemetryService,
+            amazonQServiceManager
+        )
     })
 
     afterEach(() => {

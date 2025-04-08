@@ -7,7 +7,7 @@ import {
     QConfigurationServerTokenProxy,
     QNetTransformServerTokenProxy,
     QLocalProjectContextServerTokenProxy,
-} from '@aws/lsp-codewhisperer/out/language-server/proxy-server'
+} from '@aws/lsp-codewhisperer'
 import { IdentityServer } from '@aws/lsp-identity'
 
 const MAJOR = 0
@@ -23,6 +23,7 @@ const props: RuntimeProps = {
         QConfigurationServerTokenProxy,
         QNetTransformServerTokenProxy,
         QChatServerProxy,
+        // @ts-expect-error
         IdentityServer.create,
         QLocalProjectContextServerTokenProxy,
     ],

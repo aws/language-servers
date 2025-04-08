@@ -1,7 +1,7 @@
 import { EditorState, TextDocument as CwsprTextDocument } from '@amzn/codewhisperer-streaming'
 import { CursorState } from '@aws/language-server-runtimes/server-interface'
 import { Range, TextDocument } from 'vscode-languageserver-textdocument'
-import { getLanguageId } from '../../languageDetection'
+import { getLanguageId } from '../../../shared/languageDetection'
 import { Features } from '../../types'
 import { getExtendedCodeBlockRange, getSelectionWithinExtendedRange } from './utils'
 import path = require('path')

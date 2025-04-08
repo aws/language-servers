@@ -78,6 +78,11 @@
                 "category": "Test Amazon Q Extension"
             },
             {
+                "command": "aws.sample-vscode-ext-amazonq.sendInlineChat",
+                "title": "Send request to inline chat",
+                "category": "Test Amazon Q Extension"
+            },
+            {
                 "command": "aws.sample-vscode-ext-amazonq.openTab",
                 "title": "Open tab",
                 "category": "Test Amazon Q Extension"
@@ -312,7 +317,25 @@
                     ".vue"
                 ]
             }
-        ]
+        ],
+        "viewsContainers": {
+            "activitybar": [
+                {
+                    "id": "amazonq",
+                    "title": "Amazon Q Chat Container",
+                    "icon": "resources/amazonq-logo.svg"
+                }
+            ]
+        },
+        "views": {
+            "amazonq": [
+                {
+                    "type": "webview",
+                    "id": "amazonq.chat",
+                    "name": "Amazon Q Chat"
+                }
+            ]
+        }
     },
     "scripts": {
         "vscode:prepublish": "npm run compile",
@@ -322,8 +345,8 @@
     "devDependencies": {
         "@aws-sdk/credential-providers": "^3.731.1",
         "@aws-sdk/types": "^3.734.0",
-        "@aws/chat-client-ui-types": "^0.1.7",
-        "@aws/language-server-runtimes": "^0.2.48",
+        "@aws/chat-client-ui-types": "^0.1.13",
+        "@aws/language-server-runtimes": "^0.2.55",
         "@types/uuid": "^9.0.8",
         "@types/vscode": "^1.98.0",
         "jose": "^5.2.4",

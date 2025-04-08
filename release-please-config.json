@@ -1,5 +1,6 @@
 {
     "bootstrap-sha": "ea570718da2b32b552b4308de1b4b3c2ee444b2b",
+    "last-release-sha": "307f5a961ebcaa0dfd86edca85a8374f797163ed",
     "bump-minor-pre-major": true,
     "bump-patch-for-minor-pre-major": true,
     "always-link-local": false,
