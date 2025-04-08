@@ -1,5 +1,5 @@
 import * as mockfs from 'mock-fs'
-import * as fs from 'fs'
+import * as fs from 'fs/promises'
 import * as assert from 'assert'
 import * as path from 'path'
 import { TestFolder } from '../test/testFolder'
@@ -19,7 +19,12 @@ describe('workspaceUtils', function () {
             tempFolder = await TestFolder.create()
             testFeatures = new TestFeatures()
             // Taken from https://github.com/aws/language-server-runtimes/blob/674c02696c150838b4bc93543fb0009c5982e7ad/runtimes/runtimes/standalone.ts#L216
-            testFeatures.workspace.fs.readdir = path => fs.promises.readdir(path, { withFileTypes: true })
+            testFeatures.workspace.fs.readdir = path => fs.readdir(path, { withFileTypes: true })
+            testFeatures.workspace.fs.exists = path =>
+                fs.access(path).then(
+                    () => true,
+                    () => false
+                )
         })
 
         afterEach(async function () {
@@ -43,7 +48,7 @@ describe('workspaceUtils', function () {
             const file5 = await subdir12.write('file5', 'and this is it')
 
             const result = (
-                await readDirectoryRecursively(testFeatures, tempFolder.path, undefined, getEntryPath)
+                await readDirectoryRecursively(testFeatures, tempFolder.path, { customFormatCallback: getEntryPath })
             ).sort()
             assert.deepStrictEqual(
                 result,
@@ -59,8 +64,11 @@ describe('workspaceUtils', function () {
             const subdir3 = await subdir2.nest('subdir3')
             const file3 = await subdir3.write('file3', 'this is also content')
 
-            const testDepth = async (depth: number, expected: string[]) => {
-                const result = await readDirectoryRecursively(testFeatures, tempFolder.path, depth, getEntryPath)
+            const testDepth = async (maxDepth: number, expected: string[]) => {
+                const result = await readDirectoryRecursively(testFeatures, tempFolder.path, {
+                    maxDepth,
+                    customFormatCallback: getEntryPath,
+                })
                 assert.deepStrictEqual(result.sort(), expected.sort())
             }
 
@@ -74,10 +82,39 @@ describe('workspaceUtils', function () {
             const file = await tempFolder.write('file1', 'this is a file')
             const subdir = await tempFolder.nest('subdir1')
             const linkPath = path.join(tempFolder.path, 'link1')
-            await fs.promises.symlink(tempFolder.path, linkPath, 'dir')
+            await fs.symlink(tempFolder.path, linkPath, 'dir')
 
             const results = (await readDirectoryRecursively(testFeatures, tempFolder.path, undefined)).sort()
             assert.deepStrictEqual(results, [`[DIR] ${subdir.path}`, `[FILE] ${file}`, `[LINK] ${linkPath}`])
+        })
+
+        it('respects the failOnError flag', async function () {
+            const subdir1 = await tempFolder.nest('subdir1')
+            await subdir1.write('file1', 'this is content')
+
+            // Temporarily make the file unreadable.
+            await fs.chmod(subdir1.path, 0)
+            await assert.rejects(
+                readDirectoryRecursively(testFeatures, tempFolder.path, {
+                    failOnError: true,
+                    customFormatCallback: getEntryPath,
+                })
+            )
+
+            const result = await readDirectoryRecursively(testFeatures, tempFolder.path, {
+                customFormatCallback: getEntryPath,
+            })
+            await fs.chmod(subdir1.path, 0o755)
+            assert.strictEqual(result.length, 2)
+            assert.ok(result.sort()[1].includes('Failed to read'))
+        })
+
+        it('always fails if directory does not exist', async function () {
+            await assert.rejects(
+                readDirectoryRecursively(testFeatures, path.join(tempFolder.path, 'notReal'), {
+                    customFormatCallback: getEntryPath,
+                })
+            )
         })
     })
 })
