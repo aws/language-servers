@@ -105,8 +105,8 @@ describe('workspaceUtils', function () {
                 customFormatCallback: getEntryPath,
             })
             await fs.chmod(subdir1.path, 0o755)
-            assert.strictEqual(result.length, 2)
-            assert.ok(result.sort()[1].includes('Failed to read'))
+            assert.strictEqual(result.length, 1)
+            assert.deepStrictEqual(result, [subdir1.path])
         })
 
         it('always fails if directory does not exist', async function () {

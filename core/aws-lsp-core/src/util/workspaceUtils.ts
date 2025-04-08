@@ -43,8 +43,7 @@ export async function readDirectoryRecursively(
                 throw err
             }
             const errMsg = `Failed to read: ${filepath} (${err})`
-            features.logging.error(errMsg)
-            results.push(errMsg)
+            features.logging.warn(errMsg)
             continue
         }
 
