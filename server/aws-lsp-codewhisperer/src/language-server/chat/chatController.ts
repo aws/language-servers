@@ -50,7 +50,14 @@ import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/A
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
-    'openTab' | 'sendChatUpdate' | 'onFileClicked' | 'onInlineChatPrompt' | 'sendContextCommands' | 'onCreatePrompt'
+    | 'openTab'
+    | 'sendChatUpdate'
+    | 'onFileClicked'
+    | 'onInlineChatPrompt'
+    | 'sendContextCommands'
+    | 'onCreatePrompt'
+    | 'onListConversations'
+    | 'onConversationClick'
 >
 
 export class ChatController implements ChatHandlers {
