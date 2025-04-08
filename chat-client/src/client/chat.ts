@@ -1,4 +1,14 @@
 /* eslint-disable prefer-const */
+/**
+ * @fileoverview
+ * Core module for the Q Chat Client that initializes the chat interface and establishes
+ * bidirectional communication between the UI and the host application.
+ *
+ * This module follows a layered architecture pattern:
+ * - UI Layer: MynahUI component renders the chat interface
+ * - Messaging Layer: Handles communication between UI and host application
+ * - Event Handling Layer: Routes events to appropriate handlers
+ */
 import {
     AUTH_FOLLOW_UP_CLICKED,
     AuthFollowUpClickedParams,
@@ -54,6 +64,8 @@ import { ServerMessage, TELEMETRY, TelemetryParams } from '../contracts/serverCo
 import { Messager, OutboundChatApi } from './messager'
 import { InboundChatApi, createMynahUi } from './mynahUi'
 import { TabFactory } from './tabs/tabFactory'
+import { ChatClientAdapter } from '../contracts/chatClientAdapter'
+import { toMynahIcon } from './utils'
 
 const DEFAULT_TAB_DATA = {
     tabTitle: 'Chat',
@@ -66,20 +78,40 @@ type ChatClientConfig = Pick<MynahUIDataModel, 'quickActionCommands'> & { discla
 
 export const createChat = (
     clientApi: { postMessage: (msg: UiMessage | UiResultMessage | ServerMessage) => void },
-    config?: ChatClientConfig
+    config?: ChatClientConfig,
+    chatClientAdapter?: ChatClientAdapter
 ) => {
-    // eslint-disable-next-line semi
     let mynahApi: InboundChatApi
 
     const sendMessageToClient = (message: UiMessage | UiResultMessage | ServerMessage) => {
         clientApi.postMessage(message)
     }
 
-    const handleMessage = (event: MessageEvent): void => {
+    /**
+     * Handles incoming messages from the IDE or other sources.
+     * Routes messages to appropriate handlers based on command type.
+     *
+     * 1. Messages with a 'sender' property are routed to the external connector
+     *    if one is configured. This supports legacy systems and extensions.
+     *
+     * 2. Messages without a 'sender' property are processed by the standard
+     *    command-based router, which dispatches based on the 'command' field.
+     *
+     * @param event - The message event containing data from the IDE
+     */
+    const handleInboundMessage = (event: MessageEvent): void => {
         if (event.data === undefined) {
             return
         }
         const message = event.data
+
+        // 'message.sender' field is used by IDE connector logic to route messages through Chat Client to injected Connector.
+        // When detected, chat client will delegate message handling back to IDE connectors.
+        if (message?.sender && chatClientAdapter) {
+            const connectorEvent = new MessageEvent('message', { data: JSON.stringify(message) })
+            chatClientAdapter.handleMessageReceive(connectorEvent)
+            return
+        }
 
         switch (message?.command) {
             case CHAT_REQUEST_METHOD:
@@ -102,17 +134,20 @@ export const createChat = (
                 break
             case CHAT_OPTIONS: {
                 const params = (message as ChatOptionsMessage).params
-                const chatConfig: ChatClientConfig = params?.quickActions?.quickActionsCommandGroups
-                    ? {
-                          quickActionCommands: params.quickActions.quickActionsCommandGroups,
-                      }
-                    : {}
-
-                tabFactory.updateDefaultTabData(chatConfig)
+                if (params?.quickActions?.quickActionsCommandGroups) {
+                    const quickActionCommandGroups = params.quickActions.quickActionsCommandGroups.map(group => ({
+                        ...group,
+                        commands: group.commands.map(command => ({
+                            ...command,
+                            icon: toMynahIcon(command.icon),
+                        })),
+                    }))
+                    tabFactory.updateQuickActionCommands(quickActionCommandGroups)
+                }
 
                 const allExistingTabs: MynahUITabStoreModel = mynahUi.getAllTabs()
                 for (const tabId in allExistingTabs) {
-                    mynahUi.updateStore(tabId, chatConfig)
+                    mynahUi.updateStore(tabId, tabFactory.getDefaultTabData())
                 }
                 break
             }
@@ -170,7 +205,7 @@ export const createChat = (
                 command: READY_NOTIFICATION_METHOD,
             })
 
-            window.addEventListener('message', handleMessage)
+            window.addEventListener('message', handleInboundMessage)
         },
         disclaimerAcknowledged: () => {
             sendMessageToClient({ command: DISCLAIMER_ACKNOWLEDGED })
@@ -200,12 +235,16 @@ export const createChat = (
     }
 
     const messager = new Messager(chatApi)
-    const tabFactory = new TabFactory({
-        ...DEFAULT_TAB_DATA,
-        ...(config?.quickActionCommands ? { quickActionCommands: config.quickActionCommands } : {}),
-    })
+    const tabFactory = new TabFactory(DEFAULT_TAB_DATA, [
+        ...(config?.quickActionCommands ? config.quickActionCommands : []),
+    ])
 
-    const [mynahUi, api] = createMynahUi(messager, tabFactory, config?.disclaimerAcknowledged ?? false)
+    const [mynahUi, api] = createMynahUi(
+        messager,
+        tabFactory,
+        config?.disclaimerAcknowledged ?? false,
+        chatClientAdapter
+    )
 
     mynahApi = api
 

@@ -1,15 +1,12 @@
 import {
     CancellationToken,
-    CredentialsProvider,
     ExecuteCommandParams,
     InitializeParams,
     Server,
-    Workspace,
 } from '@aws/language-server-runtimes/server-interface'
 import { performance } from 'perf_hooks'
 import { pathToFileURL } from 'url'
 import { ArtifactMap } from '../../client/token/codewhispererbearertokenclient'
-import { CodeWhispererServiceToken } from '../../shared/codeWhispererService'
 import { DependencyGraphFactory } from './dependencyGraph/dependencyGraphFactory'
 import { getSupportedLanguageId, supportedSecurityScanLanguages } from '../../shared/languageDetection'
 import SecurityScanDiagnosticsProvider from './securityScanDiagnosticsProvider'
@@ -17,9 +14,6 @@ import { SecurityScanCancelledError, SecurityScanHandler } from './securityScanH
 import { SecurityScanRequestParams, SecurityScanResponse } from './types'
 import { SecurityScanEvent } from '../../shared/telemetry/types'
 import { getErrorMessage, parseJson } from '../../shared/utils'
-import { getUserAgent } from '../../shared/telemetryUtils'
-import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../../shared/constants'
-import { SDKInitializator } from '@aws/language-server-runtimes/server-interface'
 import { v4 as uuidv4 } from 'uuid'
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 
@@ -237,7 +231,7 @@ export const SecurityScanServerToken =
             }
         }
 
-        const onInitializedHandler = () => {
+        const onInitializedHandler = async () => {
             amazonQServiceManager = AmazonQTokenServiceManager.getInstance({
                 lsp,
                 logging,
@@ -247,6 +241,12 @@ export const SecurityScanServerToken =
                 workspace,
             })
             scanHandler = new SecurityScanHandler(amazonQServiceManager, workspace, logging)
+            /* 
+                Calling handleDidChangeConfiguration once to ensure we get configuration atleast once at start up
+                
+                TODO: TODO: consider refactoring such responsibilities to common service manager config/initialisation server
+            */
+            await amazonQServiceManager.handleDidChangeConfiguration()
         }
 
         lsp.onExecuteCommand(onExecuteCommandHandler)

@@ -14,6 +14,7 @@ import {
 } from '@aws/chat-client-ui-types'
 import {
     ChatResult,
+    ContextCommand,
     ContextCommandParams,
     FeedbackParams,
     FollowUpClickParams,
@@ -22,11 +23,23 @@ import {
     OpenTabParams,
     SourceLinkClickParams,
 } from '@aws/language-server-runtimes-types'
-import { ChatItem, ChatItemType, ChatPrompt, MynahUI, MynahUIDataModel, NotificationType } from '@aws/mynah-ui'
+import {
+    ChatItem,
+    ChatItemType,
+    ChatPrompt,
+    MynahUI,
+    MynahUIDataModel,
+    NotificationType,
+    MynahUIProps,
+    QuickActionCommand,
+} from '@aws/mynah-ui'
 import { VoteParams } from '../contracts/telemetry'
 import { Messager } from './messager'
 import { TabFactory } from './tabs/tabFactory'
 import { disclaimerAcknowledgeButtonId, disclaimerCard } from './texts/disclaimer'
+import { ChatClientAdapter, ChatEventHandler } from '../contracts/chatClientAdapter'
+import { withAdapter } from './withAdapter'
+import { toMynahIcon } from './utils'
 
 export interface InboundChatApi {
     addChatResponse(params: ChatResult, tabId: string, isPartialResult: boolean): void
@@ -100,13 +113,14 @@ export const handleChatPrompt = (
 export const createMynahUi = (
     messager: Messager,
     tabFactory: TabFactory,
-    disclaimerAcknowledged: boolean
+    disclaimerAcknowledged: boolean,
+    customChatClientAdapter?: ChatClientAdapter
 ): [MynahUI, InboundChatApi] => {
     const initialTabId = TabFactory.generateUniqueId()
     let disclaimerCardActive = !disclaimerAcknowledged
     let contextCommandGroups: ContextCommandGroups | undefined
 
-    const mynahUi = new MynahUI({
+    let chatEventHandlers: ChatEventHandler = {
         onCodeInsertToCursorPosition(
             tabId,
             messageId,
@@ -311,6 +325,21 @@ export const createMynahUi = (
             }
             return false
         },
+
+        // Noop not-implemented handlers
+        onBeforeTabRemove: undefined,
+        onFileActionClick: undefined,
+        onStopChatResponse: undefined,
+        onFileClick: undefined,
+        onQuickCommandGroupActionClick: undefined,
+        onChatItemEngagement: undefined,
+        onShowMoreWebResultsClick: undefined,
+        onFormLinkClick: undefined,
+        onFormModifierEnterPress: undefined,
+        onTabBarButtonClick: undefined,
+    }
+
+    const mynahUiProps: MynahUIProps = {
         tabs: {
             [initialTabId]: {
                 isSelected: true,
@@ -324,7 +353,19 @@ export const createMynahUi = (
             maxTabs: 10,
             texts: uiComponentsTexts,
         },
+    }
+
+    const mynahUiRef = { mynahUI: undefined as MynahUI | undefined }
+    if (customChatClientAdapter) {
+        // Attach routing to custom adapter top of default message handlers
+        chatEventHandlers = withAdapter(chatEventHandlers, mynahUiRef, customChatClientAdapter)
+    }
+
+    const mynahUi = new MynahUI({
+        ...mynahUiProps,
+        ...chatEventHandlers,
     })
+    mynahUiRef.mynahUI = mynahUi
 
     const getTabStore = (tabId = mynahUi.getSelectedTabId()) => {
         return tabId ? mynahUi.getAllTabs()[tabId]?.store : undefined
@@ -506,8 +547,22 @@ ${params.message}`,
         }
     }
 
+    const toContextCommands = (commands: ContextCommand[]): QuickActionCommand[] => {
+        return commands.map(command => ({
+            ...command,
+            children: command.children?.map(child => ({
+                ...child,
+                commands: toContextCommands(child.commands),
+            })),
+            icon: toMynahIcon(command.icon),
+        }))
+    }
+
     const sendContextCommands = (params: ContextCommandParams) => {
-        contextCommandGroups = params.contextCommandGroups
+        contextCommandGroups = params.contextCommandGroups.map(group => ({
+            ...group,
+            commands: toContextCommands(group.commands),
+        }))
 
         Object.keys(mynahUi.getAllTabs()).forEach(tabId => {
             mynahUi.updateStore(tabId, {
