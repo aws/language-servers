@@ -328,18 +328,6 @@ export const createMynahUi = (
             }
             return false
         },
-
-        // Noop not-implemented handlers
-        onBeforeTabRemove: undefined,
-        onFileActionClick: undefined,
-        onStopChatResponse: undefined,
-        onFileClick: undefined,
-        onQuickCommandGroupActionClick: undefined,
-        onChatItemEngagement: undefined,
-        onShowMoreWebResultsClick: undefined,
-        onFormLinkClick: undefined,
-        onFormModifierEnterPress: undefined,
-        onTabBarButtonClick: undefined,
     }
 
     const mynahUiProps: MynahUIProps = {
