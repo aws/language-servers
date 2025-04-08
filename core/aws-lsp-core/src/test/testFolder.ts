@@ -57,4 +57,10 @@ export class TestFolder {
             await fs.rmSync(path.join(this.path, f), { recursive: true, force: true })
         }
     }
+
+    async nest(folderName: string) {
+        const folderPath = path.join(this.path, folderName)
+        await fs.promises.mkdir(folderPath, { recursive: true })
+        return new TestFolder(folderPath)
+    }
 }
