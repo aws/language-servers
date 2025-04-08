@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.32](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.31...lsp-codewhisperer/v0.0.32) (2025-04-08)
+
+
+### Bug Fixes
+
+* pin typescript version and fix compile errors ([#924](https://github.com/aws/language-servers/issues/924)) ([7400fa3](https://github.com/aws/language-servers/commit/7400fa3d143fb2c22575485eec7aeb75a63b3612))
+
 ## [0.0.31](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.30...lsp-codewhisperer/v0.0.31) (2025-04-07)
 
 
