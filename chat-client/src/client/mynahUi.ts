@@ -333,7 +333,6 @@ export const createMynahUi = (
         onBeforeTabRemove: undefined,
         onFileActionClick: undefined,
         onStopChatResponse: undefined,
-        onFileClick: undefined,
         onQuickCommandGroupActionClick: undefined,
         onChatItemEngagement: undefined,
         onShowMoreWebResultsClick: undefined,
