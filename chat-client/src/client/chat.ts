@@ -32,9 +32,12 @@ import {
 import {
     CHAT_REQUEST_METHOD,
     CONTEXT_COMMAND_NOTIFICATION_METHOD,
+    CONVERSATION_CLICK_REQUEST_METHOD,
     CREATE_PROMPT_NOTIFICATION_METHOD,
     ChatParams,
     ContextCommandParams,
+    ConversationClickParams,
+    ConversationClickResult,
     CreatePromptParams,
     FEEDBACK_NOTIFICATION_METHOD,
     FILE_CLICK_NOTIFICATION_METHOD,
@@ -45,7 +48,10 @@ import {
     INFO_LINK_CLICK_NOTIFICATION_METHOD,
     InfoLinkClickParams,
     LINK_CLICK_NOTIFICATION_METHOD,
+    LIST_CONVERSATIONS_REQUEST_METHOD,
     LinkClickParams,
+    ListConversationsParams,
+    ListConversationsResult,
     OPEN_TAB_REQUEST_METHOD,
     OpenTabParams,
     OpenTabResult,
@@ -133,6 +139,12 @@ export const createChat = (
                 break
             case CONTEXT_COMMAND_NOTIFICATION_METHOD:
                 mynahApi.sendContextCommands(message.params as ContextCommandParams)
+                break
+            case LIST_CONVERSATIONS_REQUEST_METHOD:
+                mynahApi.listConversations(message.params as ListConversationsResult)
+                break
+            case CONVERSATION_CLICK_REQUEST_METHOD:
+                mynahApi.conversationClicked(message.params as ConversationClickResult)
                 break
             case CHAT_OPTIONS: {
                 const params = (message as ChatOptionsMessage).params
@@ -236,6 +248,12 @@ export const createChat = (
         },
         fileClick: (params: FileClickParams) => {
             sendMessageToClient({ command: FILE_CLICK_NOTIFICATION_METHOD, params: params })
+        },
+        listConversations: (params: ListConversationsParams) => {
+            sendMessageToClient({ command: LIST_CONVERSATIONS_REQUEST_METHOD, params })
+        },
+        conversationClick: (params: ConversationClickParams) => {
+            sendMessageToClient({ command: CONVERSATION_CLICK_REQUEST_METHOD, params })
         },
     }
 
