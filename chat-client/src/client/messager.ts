@@ -192,8 +192,8 @@ export class Messager {
         this.chatApi.fileClick(params)
     }
 
-    onListConversations = (tabId: string, filter?: Record<string, FilterValue>): void => {
-        this.chatApi.listConversations({ tabId, filter })
+    onListConversations = (filter?: Record<string, FilterValue>): void => {
+        this.chatApi.listConversations({ filter })
     }
 
     onConversationClick = (conversationId: string, action?: ConversationAction): void => {

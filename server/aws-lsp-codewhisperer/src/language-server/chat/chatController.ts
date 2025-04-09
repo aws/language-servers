@@ -458,6 +458,12 @@ export class ChatController implements ChatHandlers {
     }
 
     onConversationClick(params: ConversationClickParams, _token: CancellationToken): Promise<ConversationClickResult> {
+        if (params.action === 'delete') {
+            const index = this.items.findIndex(item => item.id === params.id)
+            if (index !== -1) {
+                this.items.splice(index, 1)
+            }
+        }
         return Promise.resolve({
             success: true,
             ...params,

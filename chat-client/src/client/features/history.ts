@@ -16,7 +16,6 @@ interface MynahDetailedList {
 
 export class ChatHistoryList {
     historyDetailedList: MynahDetailedList | undefined
-    public tabId: string | undefined // TODO: remove this id alltogether (test if works with empty string) or introduce public getter
 
     constructor(
         private mynahUi: MynahUI,
@@ -39,32 +38,29 @@ export class ChatHistoryList {
             detailedList.filterOptions[0].autoFocus = true
         }
 
-        this.tabId = params.tabId
-
-        // TODO: find better way to define if it's udpate
-        if (this.historyDetailedList && !detailedList.header && !detailedList.filterOptions) {
+        if (this.historyDetailedList) {
             this.historyDetailedList.update(detailedList)
         } else {
             this.historyDetailedList = this.mynahUi.openDetailedList({
-                tabId: params.tabId,
+                tabId: '', // TODO: remove after MynahUI is changed to remove the property
                 detailedList: detailedList,
                 events: {
                     onFilterValueChange: this.onFilterValueChange,
                     onKeyPress: this.onKeyPress,
                     onItemSelect: this.onItemSelect,
                     onActionClick: this.onActionClick,
+                    onClose: this.onClose,
                 },
             })
         }
     }
 
-    // TODO: call after item selected
     close() {
         this.historyDetailedList?.close()
     }
 
     private onFilterValueChange = (filterValues: Record<string, any>) => {
-        this.messager.onListConversations(this.tabId!, filterValues)
+        this.messager.onListConversations(filterValues)
     }
 
     private onItemSelect = (item: DetailedListItem) => {
@@ -77,6 +73,10 @@ export class ChatHistoryList {
     private onActionClick = (action: ChatItemButton) => {
         const conversationAction = this.getConversationAction(action.text)
         this.messager.onConversationClick(action.id, conversationAction)
+    }
+
+    private onClose = () => {
+        this.historyDetailedList = undefined
     }
 
     private onKeyPress = (e: KeyboardEvent) => {

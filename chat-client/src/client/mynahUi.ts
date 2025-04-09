@@ -336,7 +336,7 @@ export const createMynahUi = (
         },
         onTabBarButtonClick: (tabId: string, buttonId: string) => {
             if (buttonId === ChatHistory.TabBarButtonId) {
-                messager.onListConversations(tabId)
+                messager.onListConversations()
                 return
             }
             throw new Error(`Unhandled tab bar button id: ${buttonId}`)
@@ -610,9 +610,8 @@ ${params.message}`,
             return
         }
         // request update conversations list if conversation item was successfully deleted
-        const tabId = mynahUi.getSelectedTabId()
         if (params.action === 'delete') {
-            messager.onListConversations(chatHistoryList.tabId!)
+            messager.onListConversations()
         }
     }
 
