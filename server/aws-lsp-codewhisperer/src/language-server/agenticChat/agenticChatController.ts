@@ -473,7 +473,8 @@ export class AgenticChatController implements ChatHandlers {
     }
 
     async #getInlineChatTriggerContext(params: InlineChatParams) {
-        return this.#triggerContext.getNewTriggerContext(params)
+        let triggerContext: TriggerContext = await this.#triggerContext.getNewTriggerContext(params)
+        return triggerContext
     }
 
     async #getTriggerContext(params: ChatParams, metric: Metric<CombinedConversationEvent>) {
