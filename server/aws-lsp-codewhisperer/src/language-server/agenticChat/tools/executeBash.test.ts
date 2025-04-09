@@ -1,18 +1,13 @@
-/*!
- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import { strict as assert } from 'assert'
+import * as mockfs from 'mock-fs'
 import * as sinon from 'sinon'
 import { ExecuteBash } from './executeBash'
 import { processUtils } from '@aws/lsp-core'
 import { Logging } from '@aws/language-server-runtimes/server-interface'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
+import { Writable } from 'stream'
 
 describe('ExecuteBash Tool', () => {
-    let runStub: sinon.SinonStub
-    let invokeStub: sinon.SinonStub
     let logging: Logging
 
     before(function () {
@@ -20,8 +15,7 @@ describe('ExecuteBash Tool', () => {
     })
 
     beforeEach(() => {
-        runStub = sinon.stub(processUtils.ChildProcess.prototype, 'run')
-        invokeStub = sinon.stub(ExecuteBash.prototype, 'invoke')
+        mockfs.restore()
     })
 
     afterEach(() => {
@@ -29,13 +23,6 @@ describe('ExecuteBash Tool', () => {
     })
 
     it('pass validation for a safe command (read-only)', async () => {
-        runStub.resolves({
-            exitCode: 0,
-            stdout: '/bin/ls',
-            stderr: '',
-            error: undefined,
-            signal: undefined,
-        })
         const execBash = new ExecuteBash(logging)
         await execBash.validate(logging, 'ls')
     })
@@ -62,14 +49,6 @@ describe('ExecuteBash Tool', () => {
     })
 
     it('whichCommand cannot find the first arg', async () => {
-        runStub.resolves({
-            exitCode: 1,
-            stdout: '',
-            stderr: '',
-            error: undefined,
-            signal: undefined,
-        })
-
         const execBash = new ExecuteBash(logging)
         await assert.rejects(
             execBash.validate(logging, 'noSuchCmd'),
@@ -78,46 +57,18 @@ describe('ExecuteBash Tool', () => {
         )
     })
 
-    it('whichCommand sees first arg on PATH', async () => {
-        runStub.resolves({
-            exitCode: 0,
-            stdout: '/usr/bin/noSuchCmd\n',
-            stderr: '',
-            error: undefined,
-            signal: undefined,
-        })
-
-        const execBash = new ExecuteBash(logging)
-        await execBash.validate(logging, 'noSuchCmd')
-    })
-
-    it('stub invoke() call', async () => {
-        invokeStub.resolves({
-            output: {
-                kind: 'json',
-                content: {
-                    exitStatus: '0',
-                    stdout: 'mocked stdout lines',
-                    stderr: '',
-                },
-            },
-        })
-
+    it('validate and invokes the command', async () => {
         const execBash = new ExecuteBash(logging)
 
-        const dummyWritable = { write: () => {} } as any
-        const result = await execBash.invoke(dummyWritable)
+        const writable = new WritableStream()
+        const result = await execBash.invoke({ command: 'ls' }, writable)
 
         assert.strictEqual(result.output.kind, 'json')
-        const out = result.output.content as unknown as {
-            exitStatus: string
-            stdout: string
-            stderr: string
-        }
-        assert.strictEqual(out.exitStatus, '0')
-        assert.strictEqual(out.stdout, 'mocked stdout lines')
-        assert.strictEqual(out.stderr, '')
-
-        assert.strictEqual(invokeStub.callCount, 1)
+        assert.ok('exitStatus' in result.output.content && result.output.content.exitStatus === '0')
+        assert.ok(
+            'stdout' in result.output.content &&
+                typeof result.output.content.stdout === 'string' &&
+                result.output.content.stdout.length > 0
+        )
     })
 })
