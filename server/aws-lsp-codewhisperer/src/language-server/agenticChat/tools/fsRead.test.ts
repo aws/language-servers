@@ -94,4 +94,17 @@ describe('FsRead Tool', () => {
         assert.strictEqual(result.output.kind, 'text')
         assert.strictEqual(result.output.content, '')
     })
+
+    it('updates the stream', async () => {
+        const fsRead = new FsRead(features)
+        const chunks = []
+        const stream = new WritableStream({
+            write: c => {
+                chunks.push(c)
+            },
+        })
+        await fsRead.queueDescription({ path: 'this/is/my/path' }, stream)
+        assert.ok(chunks.length > 0)
+        assert.ok(!stream.locked)
+    })
 })

@@ -49,6 +49,8 @@ export class FsRead {
         } else {
             await updateWriter.write('all lines')
         }
+        await updateWriter.close()
+        updateWriter.releaseLock()
     }
 
     public async invoke(params: FsReadParams): Promise<InvokeOutput> {
