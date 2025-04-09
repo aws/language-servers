@@ -2,10 +2,8 @@ import { strict as assert } from 'assert'
 import * as mockfs from 'mock-fs'
 import * as sinon from 'sinon'
 import { ExecuteBash } from './executeBash'
-import { processUtils } from '@aws/lsp-core'
 import { Logging } from '@aws/language-server-runtimes/server-interface'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
-import { Writable } from 'stream'
 
 describe('ExecuteBash Tool', () => {
     let logging: Logging
