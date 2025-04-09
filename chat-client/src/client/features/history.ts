@@ -29,7 +29,7 @@ export class ChatHistoryList {
                 ...filter,
                 icon: toMynahIcon(filter.icon),
             })),
-            list: this.toConversarionGroups(params.list),
+            list: this.toConversationGroups(params.list),
         }
         // set auto focus on the 1st filter option item
         if (detailedList.filterOptions && detailedList.filterOptions.length > 0) {
@@ -95,7 +95,7 @@ export class ChatHistoryList {
         }
     }
 
-    private toConversarionGroups = (groups: ConversationItemGroup[]) => {
+    private toConversationGroups = (groups: ConversationItemGroup[]) => {
         return groups.map(group => ({
             groupName: group.groupName,
             icon: toMynahIcon(group.icon),

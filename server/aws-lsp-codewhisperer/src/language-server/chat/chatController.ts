@@ -1,15 +1,10 @@
 import { ChatTriggerType, SendMessageCommandInput, SendMessageCommandOutput } from '@amzn/codewhisperer-streaming'
 import {
     ApplyWorkspaceEditParams,
-    ConversationClickParams,
-    ConversationClickResult,
     ErrorCodes,
     FeedbackParams,
     InlineChatParams,
     InsertToCursorPositionParams,
-    ListConversationsParams,
-    ListConversationsResult,
-    RequestHandler,
     TextDocumentEdit,
     TextEdit,
     chatRequestType,
@@ -56,8 +51,8 @@ import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/A
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
     'openTab' | 'sendChatUpdate' | 'onFileClicked' | 'onInlineChatPrompt' | 'sendContextCommands' | 'onCreatePrompt'
-    // | 'onListConversations'
-    // | 'onConversationClick'
+    | 'onListConversations'
+    | 'onConversationClick'
 >
 
 export class ChatController implements ChatHandlers {
@@ -271,9 +266,9 @@ export class ChatController implements ChatHandlers {
 
             return result.success
                 ? {
-                      ...result.data.chatResult,
-                      requestId: response.$metadata.requestId,
-                  }
+                    ...result.data.chatResult,
+                    requestId: response.$metadata.requestId,
+                }
                 : new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, result.error)
         } catch (err) {
             this.#log(
@@ -371,102 +366,6 @@ export class ChatController implements ChatHandlers {
         const { success } = this.#chatSessionManagementService.deleteSession(params.tabId)
 
         return success
-    }
-
-    private items = [
-        {
-            id: '1',
-            icon: 'chat',
-            description: 'You asked about TS',
-            actions: [
-                {
-                    text: 'Export',
-                    icon: 'external',
-                    id: '1',
-                },
-                {
-                    text: 'Delete',
-                    icon: 'trash',
-                    id: '1',
-                },
-            ],
-        },
-        {
-            id: '2',
-            icon: 'chat',
-            description: 'You asked about Node',
-            actions: [
-                {
-                    text: 'Export',
-                    icon: 'external',
-                    id: '2',
-                },
-                {
-                    text: 'Delete',
-                    icon: 'trash',
-                    id: '2',
-                },
-            ],
-        },
-        {
-            id: '3',
-            icon: 'chat',
-            description: 'Refactor the code in file xxx.ts',
-            actions: [
-                {
-                    text: 'Export',
-                    icon: 'external',
-                    id: '3',
-                },
-                {
-                    text: 'Delete',
-                    icon: 'trash',
-                    id: '3',
-                },
-            ],
-        },
-    ]
-    onListConversations(params: ListConversationsParams, _token: CancellationToken): Promise<ListConversationsResult> {
-        const header = params.filter ? undefined : { title: 'Chat history' }
-        const filterOptions = params.filter
-            ? undefined
-            : [
-                  {
-                      type: 'textinput',
-                      icon: 'search',
-                      id: 'search',
-                      placeholder: 'Search...',
-                  },
-              ]
-
-        const items = params.filter
-            ? this.items.filter(item => item.description?.includes(params.filter?.['search'] ?? ''))
-            : this.items
-
-        return Promise.resolve({
-            header: header,
-            filterOptions: filterOptions,
-            list: [
-                {
-                    groupName: 'Yesterday',
-                    icon: 'calendar',
-                    items: items,
-                },
-            ],
-        } as ListConversationsResult)
-    }
-
-    onConversationClick(params: ConversationClickParams, _token: CancellationToken): Promise<ConversationClickResult> {
-        if (params.action === 'delete') {
-            const index = this.items.findIndex(item => item.id === params.id)
-            if (index !== -1) {
-                this.items.splice(index, 1)
-            }
-        }
-        return Promise.resolve({
-            success: true,
-            ...params,
-        })
     }
 
     onFollowUpClicked() {}
