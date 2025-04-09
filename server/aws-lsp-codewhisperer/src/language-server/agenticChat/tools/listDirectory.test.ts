@@ -36,6 +36,7 @@ describe('ListDirectory Tool', () => {
         const listDirectory = new ListDirectory(testFeatures)
         const result = await listDirectory.invoke({ path: tempFolder.path, maxDepth: 0 })
 
+        assert.strictEqual(result.output.kind, 'text')
         const lines = result.output.content.split('\n')
         const hasFileA = lines.some((line: string | string[]) => line.includes('[FILE] ') && line.includes('fileA.txt'))
         const hasSubfolder = lines.some(
@@ -54,6 +55,7 @@ describe('ListDirectory Tool', () => {
         const listDirectory = new ListDirectory(testFeatures)
         const result = await listDirectory.invoke({ path: tempFolder.path })
 
+        assert.strictEqual(result.output.kind, 'text')
         const lines = result.output.content.split('\n')
         const hasFileA = lines.some((line: string | string[]) => line.includes('[FILE] ') && line.includes('fileA.txt'))
         const hasSubfolder = lines.some(
