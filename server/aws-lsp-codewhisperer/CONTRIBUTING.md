@@ -26,3 +26,5 @@ Please make sure:
   `client` directory contains the AWS SDK for JavaScript client to call CodeWhisperer service using either [AWS Signature Version 4 (SigV4)](https://docs.aws.amazon.com/AmazonS3/latest/API/sig-v4-authenticating-requests.html) or [Builder ID (bearer token)](https://docs.aws.amazon.com/signin/latest/userguide/sign-in-aws_builder_id.html), which are two different ways to access Amazon Q Developer.
 
 
+## Testing
+

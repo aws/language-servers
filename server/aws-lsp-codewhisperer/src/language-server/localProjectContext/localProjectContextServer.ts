@@ -1,28 +1,64 @@
-import { InitializeParams, Server, TextDocumentSyncKind } from '@aws/language-server-runtimes/server-interface'
+import {
+    AwsResponseError,
+    InitializeParams,
+    Server,
+    TextDocumentSyncKind,
+} from '@aws/language-server-runtimes/server-interface'
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import { LocalProjectContextController } from '../../shared/localProjectContextController'
 import { languageByExtension } from '../../shared/languageDetection'
 import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
 
+type LocalProjectContextServerDependencies = {
+    localProjectContextController: LocalProjectContextController
+    amazonQServiceManager: AmazonQTokenServiceManager
+    telemetryService: TelemetryService
+}
+
 export const LocalProjectContextServer = (): Server => features => {
-    const { credentialsProvider, telemetry, logging, lsp } = features
+    const { credentialsProvider, telemetry, logging, lsp, chat } = features
+    let deps: LocalProjectContextServerDependencies | undefined = undefined
 
-    let localProjectContextController: LocalProjectContextController
-    let amazonQServiceManager: AmazonQTokenServiceManager
-    let telemetryService: TelemetryService
+    lsp.addInitializer(async (params: InitializeParams) => {
+        if (!params.workspaceFolders) {
+            logging.info('No workspace is configured, skip launching local project context server')
+            return {
+                capabilities: {},
+            }
+        }
 
-    lsp.addInitializer((params: InitializeParams) => {
-        amazonQServiceManager = AmazonQTokenServiceManager.getInstance(features)
-        telemetryService = new TelemetryService(amazonQServiceManager, credentialsProvider, telemetry, logging)
-
-        localProjectContextController = new LocalProjectContextController(
+        const amazonQServiceManager = AmazonQTokenServiceManager.getInstance(features)
+        const telemetryService = new TelemetryService(amazonQServiceManager, credentialsProvider, telemetry, logging)
+        const localProjectContextController = new LocalProjectContextController(
             params.clientInfo?.name ?? 'unknown',
             params.workspaceFolders ?? [],
             logging
         )
+        await localProjectContextController.init()
+        deps = {
+            amazonQServiceManager,
+            telemetryService,
+            localProjectContextController,
+        }
 
         const supportedFilePatterns = Object.keys(languageByExtension).map(ext => `**/*${ext}`)
+        chat.sendContextCommands({
+            contextCommandGroups: [
+                // announce that @workspace context is ready
+                // https://github.com/aws/aws-toolkit-vscode/blob/413ce4b5c0d35dbc9c854c9bbcc2dbbc3977193e/packages/core/src/codewhispererChat/controllers/chat/controller.ts#L473
+                {
+                    groupName: 'Mention code',
+                    commands: [
+                        {
+                            command: '@workspace',
+                            description: 'Reference all code in workspace.',
+                        },
+                    ],
+                },
+            ],
+        })
+        logging.info('Initialized local project context server')
 
         return {
             capabilities: {
@@ -54,13 +90,23 @@ export const LocalProjectContextServer = (): Server => features => {
                     },
                 },
             },
+            // awsServerCapabilities: {
+            //     chatOptions: {
+            //         quickActions: {
+            //             quickActionsCommandGroups: [],
+            //         }
+            //     }
+            // }
         }
     })
 
     lsp.onInitialized(async () => {
+        if (deps === undefined) {
+            return
+        }
         try {
-            await amazonQServiceManager.handleDidChangeConfiguration()
-            await amazonQServiceManager.addDidChangeConfigurationListener(updateConfigurationHandler)
+            await deps.amazonQServiceManager.handleDidChangeConfiguration()
+            await deps.amazonQServiceManager.addDidChangeConfigurationListener(updateConfigurationHandler)
             logging.log('Local context server has been initialized')
         } catch (error) {
             logging.error(`Failed to initialize local context server: ${error}`)
@@ -68,59 +114,77 @@ export const LocalProjectContextServer = (): Server => features => {
     })
 
     lsp.workspace.onDidChangeWorkspaceFolders(async event => {
+        if (deps === undefined) {
+            return
+        }
         try {
-            await localProjectContextController.updateWorkspaceFolders(event.event.added, event.event.removed)
+            await deps.localProjectContextController.updateWorkspaceFolders(event.event.added, event.event.removed)
         } catch (error) {
             logging.error(`Error handling workspace folder change: ${error}`)
         }
     })
 
     lsp.workspace.onDidCreateFiles(async event => {
+        if (deps === undefined) {
+            return
+        }
         try {
             const filePaths = event.files.map(file => file.uri.replace('file:', ''))
-            await localProjectContextController.updateIndex(filePaths, 'add')
+            await deps.localProjectContextController.updateIndex(filePaths, 'add')
         } catch (error) {
             logging.error(`Error handling create event: ${error}`)
         }
     })
 
     lsp.workspace.onDidDeleteFiles(async event => {
+        if (deps === undefined) {
+            return
+        }
         try {
             const filePaths = event.files.map(file => file.uri.replace('file:', ''))
-            await localProjectContextController.updateIndex(filePaths, 'remove')
+            await deps.localProjectContextController.updateIndex(filePaths, 'remove')
         } catch (error) {
             logging.error(`Error handling delete event: ${error}`)
         }
     })
 
     lsp.workspace.onDidRenameFiles(async event => {
+        if (deps === undefined) {
+            return
+        }
         try {
             const oldPaths = event.files.map(file => file.oldUri.replace('file:', ''))
             const newPaths = event.files.map(file => file.oldUri.replace('file:', ''))
 
-            await localProjectContextController.updateIndex(oldPaths, 'remove')
-            await localProjectContextController.updateIndex(newPaths, 'add')
+            await deps.localProjectContextController.updateIndex(oldPaths, 'remove')
+            await deps.localProjectContextController.updateIndex(newPaths, 'add')
         } catch (error) {
             logging.error(`Error handling rename event: ${error}`)
         }
     })
 
     lsp.onDidSaveTextDocument(async event => {
+        if (deps === undefined) {
+            return
+        }
         try {
             const filePaths = [event.textDocument.uri.replace('file:', '')]
-            await localProjectContextController.updateIndex(filePaths, 'update')
+            await deps.localProjectContextController.updateIndex(filePaths, 'update')
         } catch (error) {
             logging.error(`Error handling save event: ${error}`)
         }
     })
 
     const updateConfigurationHandler = async (updatedConfig: AmazonQWorkspaceConfig) => {
+        if (deps === undefined) {
+            return
+        }
         logging.log('Updating configuration of local context server')
         try {
             logging.log(`Setting project context enabled to ${updatedConfig.projectContext?.enableLocalIndexing}`)
             updatedConfig.projectContext?.enableLocalIndexing
-                ? await localProjectContextController.init()
-                : await localProjectContextController.dispose()
+                ? await deps.localProjectContextController.init()
+                : await deps.localProjectContextController.dispose()
         } catch (error) {
             logging.error(`Error handling configuration change: ${error}`)
         }

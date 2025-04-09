@@ -1,5 +1,10 @@
 import { TriggerType } from '@aws/chat-client-ui-types'
-import { ChatTriggerType, UserIntent, Tool, ToolResult } from '@amzn/codewhisperer-streaming'
+import {
+    ChatTriggerType,
+    UserIntent,
+    RelevantTextDocument,
+    EditorState,
+} from '@amzn/codewhisperer-streaming'
 import { BedrockTools, ChatParams, CursorState, InlineChatParams } from '@aws/language-server-runtimes/server-interface'
 import { Features } from '../../types'
 import { DocumentContext, DocumentContextExtractor } from './documentContext'
@@ -30,38 +35,45 @@ export class QChatTriggerContext {
         }
     }
 
+    // TODO: this function does not need to be a method!
     getChatParamsFromTrigger(
         params: ChatParams | InlineChatParams,
         triggerContext: TriggerContext,
         chatTriggerType: ChatTriggerType,
         customizationArn?: string,
         profileArn?: string,
-        tools: BedrockTools = []
+        tools: BedrockTools = [],
+        useRelevantDocuments?: boolean,
+        relevantDocuments?: RelevantTextDocument[]
     ): SendMessageCommandInput {
         const { prompt } = params
-
+        let editorState: EditorState | undefined = undefined
+        if (triggerContext.cursorState && triggerContext.relativeFilePath) {
+            editorState = Object.assign<EditorState, EditorState>(editorState ?? {}, {
+                cursorState: triggerContext.cursorState,
+                document: {
+                    relativeFilePath: triggerContext.relativeFilePath,
+                    text: triggerContext.text,
+                    programmingLanguage: triggerContext.programmingLanguage,
+                },
+            })
+        }
+        if (useRelevantDocuments && relevantDocuments) {
+            editorState = Object.assign<EditorState, EditorState>(editorState ?? {}, {
+                useRelevantDocuments,
+                relevantDocuments,
+            })
+        }
         const data: SendMessageCommandInput = {
             conversationState: {
                 chatTriggerType: chatTriggerType,
                 currentMessage: {
                     userInputMessage: {
                         content: prompt.escapedPrompt ?? prompt.prompt,
-                        userInputMessageContext:
-                            triggerContext.cursorState && triggerContext.relativeFilePath
-                                ? {
-                                      editorState: {
-                                          cursorState: triggerContext.cursorState,
-                                          document: {
-                                              text: triggerContext.text,
-                                              programmingLanguage: triggerContext.programmingLanguage,
-                                              relativeFilePath: triggerContext.relativeFilePath,
-                                          },
-                                      },
-                                      tools,
-                                  }
-                                : {
-                                      tools,
-                                  },
+                        userInputMessageContext: {
+                            editorState: editorState,
+                            tools,
+                        },
                         userIntent: triggerContext.userIntent,
                         origin: 'IDE',
                     },
@@ -85,11 +97,11 @@ export class QChatTriggerContext {
 
         return textDocument
             ? this.#documentContextExtractor.extractDocumentContext(
-                  textDocument,
-                  // we want to include a default position if a text document is found so users can still ask questions about the opened file
-                  // the range will be expanded up to the max characters downstream
-                  cursorState?.[0] ?? QChatTriggerContext.DEFAULT_CURSOR_STATE
-              )
+                textDocument,
+                // we want to include a default position if a text document is found so users can still ask questions about the opened file
+                // the range will be expanded up to the max characters downstream
+                cursorState?.[0] ?? QChatTriggerContext.DEFAULT_CURSOR_STATE
+            )
             : undefined
     }
 
