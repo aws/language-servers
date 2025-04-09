@@ -75,6 +75,7 @@ async function fetchProfilesFromRegion(
 
             const response = await service.listAvailableProfiles({
                 maxResults: MAX_Q_DEVELOPER_PROFILES_PER_PAGE,
+                nextToken: nextToken,
             })
 
             const profiles = response.profiles.map(profile => ({
