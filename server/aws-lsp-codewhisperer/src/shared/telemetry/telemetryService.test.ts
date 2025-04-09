@@ -982,4 +982,134 @@ describe('TelemetryService', () => {
             sinon.assert.notCalled(codeWhisperServiceStub.sendTelemetryEvent)
         })
     })
+
+    describe('Inline chat result notification', () => {
+        let telemetryService: TelemetryService
+        let mockCredentialsProvider: MockCredentialsProvider
+
+        beforeEach(() => {
+            mockCredentialsProvider = new MockCredentialsProvider()
+            mockCredentialsProvider.setConnectionMetadata({
+                sso: {
+                    startUrl: 'idc-start-url',
+                },
+            })
+
+            codeWhisperServiceStub.getCredentialsType.returns('bearer')
+            telemetryService = new TelemetryService(
+                baseAmazonQServiceManagerStub,
+                mockCredentialsProvider,
+                telemetry,
+                logging
+            )
+        })
+
+        afterEach(() => {
+            sinon.restore()
+        })
+
+        it('should send InlineChatEvent with correct parameters', () => {
+            const timestamp = new Date()
+            telemetryService.emitInlineChatResultLog({
+                requestId: 'mock-request-id',
+                inputLength: 10,
+                selectedLines: 2,
+                suggestionAddedChars: 20,
+                suggestionAddedLines: 3,
+                suggestionDeletedChars: 10,
+                suggestionDeletedLines: 2,
+                codeIntent: true,
+                userDecision: 'ACCEPT',
+                responseStartLatency: 1250,
+                responseEndLatency: 1500,
+                programmingLanguage: {
+                    languageName: 'typescript',
+                },
+            })
+
+            const expectedEvent = {
+                telemetryEvent: {
+                    inlineChatEvent: {
+                        requestId: 'mock-request-id',
+                        timestamp: timestamp,
+                        inputLength: 10,
+                        numSelectedLines: 2,
+                        numSuggestionAddChars: 20,
+                        numSuggestionAddLines: 3,
+                        numSuggestionDelChars: 10,
+                        numSuggestionDelLines: 2,
+                        codeIntent: true,
+                        userDecision: 'ACCEPT',
+                        responseStartLatency: 1250,
+                        responseEndLatency: 1500,
+                        programmingLanguage: {
+                            languageName: 'typescript',
+                        },
+                    },
+                },
+            }
+            sinon.assert.calledOnceWithExactly(codeWhisperServiceStub.sendTelemetryEvent, expectedEvent)
+        })
+
+        it('should not send InlineChatEvent when credentialsType is IAM', () => {
+            codeWhisperServiceStub.getCredentialsType.returns('iam')
+            telemetryService = new TelemetryService(
+                baseAmazonQServiceManagerStub,
+                mockCredentialsProvider,
+                telemetry,
+                logging
+            )
+            const timestamp = new Date()
+            telemetryService.emitInlineChatResultLog({
+                requestId: 'mock-request-id',
+                inputLength: 10,
+                selectedLines: 2,
+                suggestionAddedChars: 20,
+                suggestionAddedLines: 3,
+                suggestionDeletedChars: 10,
+                suggestionDeletedLines: 2,
+                codeIntent: true,
+                userDecision: 'ACCEPT',
+                responseStartLatency: 1250,
+                responseEndLatency: 1500,
+                programmingLanguage: {
+                    languageName: 'typescript',
+                },
+            })
+            sinon.assert.notCalled(codeWhisperServiceStub.sendTelemetryEvent)
+        })
+
+        it('should not send InlineChatEvent when login is BuilderID, but user chose OPTOUT option', () => {
+            mockCredentialsProvider.setConnectionMetadata({
+                sso: {
+                    startUrl: BUILDER_ID_START_URL,
+                },
+            })
+            telemetryService = new TelemetryService(
+                baseAmazonQServiceManagerStub,
+                mockCredentialsProvider,
+                telemetry,
+                logging
+            )
+            telemetryService.updateOptOutPreference('OPTOUT')
+            const timestamp = new Date()
+            telemetryService.emitInlineChatResultLog({
+                requestId: 'mock-request-id',
+                inputLength: 10,
+                selectedLines: 2,
+                suggestionAddedChars: 20,
+                suggestionAddedLines: 3,
+                suggestionDeletedChars: 10,
+                suggestionDeletedLines: 2,
+                codeIntent: true,
+                userDecision: 'ACCEPT',
+                responseStartLatency: 1250,
+                responseEndLatency: 1500,
+                programmingLanguage: {
+                    languageName: 'typescript',
+                },
+            })
+            sinon.assert.notCalled(codeWhisperServiceStub.sendTelemetryEvent)
+        })
+    })
 })
