@@ -305,8 +305,7 @@ export class ExecuteBash {
     }
 
     private static async whichCommand(logger: Logging, cmd: string): Promise<string> {
-        // use 'command -v' instead as which isn't POSIX
-        const cp = new processUtils.ChildProcess(logger, 'command', ['-v', cmd], {
+        const cp = new processUtils.ChildProcess(logger, 'which', [cmd], {
             collect: true,
             waitForStreams: true,
         })
