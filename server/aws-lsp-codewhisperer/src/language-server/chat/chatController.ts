@@ -50,7 +50,12 @@ import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/A
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
-    'openTab' | 'sendChatUpdate' | 'onFileClicked' | 'onInlineChatPrompt' | 'sendContextCommands' | 'onCreatePrompt'
+    | 'openTab'
+    | 'sendChatUpdate'
+    | 'onFileClicked'
+    | 'onInlineChatPrompt'
+    | 'sendContextCommands'
+    | 'onCreatePrompt'
     | 'onListConversations'
     | 'onConversationClick'
 >
@@ -266,9 +271,9 @@ export class ChatController implements ChatHandlers {
 
             return result.success
                 ? {
-                    ...result.data.chatResult,
-                    requestId: response.$metadata.requestId,
-                }
+                      ...result.data.chatResult,
+                      requestId: response.$metadata.requestId,
+                  }
                 : new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, result.error)
         } catch (err) {
             this.#log(
