@@ -1,7 +1,3 @@
-/*!
- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
- * SPDX-License-Identifier: Apache-2.0
- */
 import { AppendParams, CreateParams, FsWrite, InsertParams, StrReplaceParams } from './fsWrite'
 import { testFolder } from '@aws/lsp-core'
 import * as path from 'path'
@@ -22,12 +18,6 @@ describe('FsWrite Tool', function () {
         },
     }
 
-    const stdout = new WritableStream({
-        write(chunk) {
-            process.stdout.write(chunk)
-        },
-    })
-
     before(async function () {
         features = new TestFeatures()
         features.workspace = {
@@ -44,6 +34,10 @@ describe('FsWrite Tool', function () {
             } as Workspace['fs'],
         } as StubbedInstance<Workspace>
         tempFolder = await testFolder.TestFolder.create()
+    })
+
+    afterEach(async function () {
+        await tempFolder.clear()
     })
 
     after(async function () {
@@ -85,7 +79,7 @@ describe('FsWrite Tool', function () {
         })
 
         it('replaces existing file with fileText content', async function () {
-            const filePath = path.join(tempFolder.path, 'file1.txt')
+            const filePath = await tempFolder.write('file1.txt', 'Hello World')
             const fileExists = await features.workspace.fs.exists(filePath)
             assert.ok(fileExists)
 
@@ -162,7 +156,7 @@ describe('FsWrite Tool', function () {
         })
 
         it('throws error when no matches are found', async function () {
-            const filePath = path.join(tempFolder.path, 'file1.txt')
+            const filePath = await tempFolder.write('file1.txt', 'some text is here')
 
             const params: StrReplaceParams = {
                 command: 'strReplace',
@@ -238,7 +232,7 @@ describe('FsWrite Tool', function () {
         })
 
         it('inserts text after the specified line number', async function () {
-            const filePath = path.join(tempFolder.path, 'file1.txt')
+            const filePath = path.join(tempFolder.path, 'insertFileLine.txt')
             await fs.writeFile(filePath, 'Line 1\nLine 2\nLine 3\nLine 4')
 
             const params: InsertParams = {
@@ -257,7 +251,8 @@ describe('FsWrite Tool', function () {
         })
 
         it('inserts text at the beginning when line number is 0', async function () {
-            const filePath = path.join(tempFolder.path, 'file1.txt')
+            const originalContent = 'Line 1\nLine 2\nNew Line\nLine 3\nLine 4'
+            const filePath = await tempFolder.write('insertStart.txt', originalContent)
             const params: InsertParams = {
                 command: 'insert',
                 path: filePath,
@@ -268,13 +263,14 @@ describe('FsWrite Tool', function () {
             const output = await fsWrite.invoke(params)
 
             const newContent = await features.workspace.fs.readFile(filePath)
-            assert.strictEqual(newContent, 'New First Line\nLine 1\nLine 2\nNew Line\nLine 3\nLine 4')
+            assert.strictEqual(newContent, `New First Line\n${originalContent}`)
 
             assert.deepStrictEqual(output, expectedOutput)
         })
 
         it('inserts text at the end when line number exceeds file length', async function () {
-            const filePath = path.join(tempFolder.path, 'file1.txt')
+            const originalContent = 'Line 1\nLine 2\nNew Line\nLine 3\nLine 4'
+            const filePath = await tempFolder.write('insertEnd.txt', originalContent)
             const params: InsertParams = {
                 command: 'insert',
                 path: filePath,
@@ -285,7 +281,7 @@ describe('FsWrite Tool', function () {
             const output = await fsWrite.invoke(params)
 
             const newContent = await features.workspace.fs.readFile(filePath)
-            assert.strictEqual(newContent, 'New First Line\nLine 1\nLine 2\nNew Line\nLine 3\nLine 4\nNew Last Line')
+            assert.strictEqual(newContent, 'Line 1\nLine 2\nNew Line\nLine 3\nLine 4\nNew Last Line')
 
             assert.deepStrictEqual(output, expectedOutput)
         })
@@ -310,7 +306,7 @@ describe('FsWrite Tool', function () {
         })
 
         it('handles negative line numbers by inserting at the beginning', async function () {
-            const filePath = path.join(tempFolder.path, 'file2.txt')
+            const filePath = await tempFolder.write('negativeInsert.txt', 'First Line\n')
 
             const params: InsertParams = {
                 command: 'insert',
@@ -400,7 +396,7 @@ describe('FsWrite Tool', function () {
         })
 
         it('appends multiple lines correctly', async function () {
-            const filePath = path.join(tempFolder.path, 'file3.txt')
+            const filePath = await tempFolder.write('multiLineAppend.txt', 'Line 1')
 
             const params: AppendParams = {
                 command: 'append',
