@@ -305,7 +305,11 @@ export class ExecuteBash {
     }
 
     private static async whichCommand(logger: Logging, cmd: string): Promise<string> {
-        const cp = new processUtils.ChildProcess(logger, 'which', [cmd], {
+        const { command, args } =
+            process.platform === 'win32'
+                ? { command: 'where', args: [cmd] }
+                : { command: 'sh', args: ['-c', `command -v ${cmd} || which ${cmd}`] }
+        const cp = new processUtils.ChildProcess(logger, command, args, {
             collect: true,
             waitForStreams: true,
         })
