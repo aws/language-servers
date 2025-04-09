@@ -6,7 +6,7 @@ type Dirent = ElementType<Awaited<ReturnType<Features['workspace']['fs']['readdi
 
 // Port of https://github.com/aws/aws-toolkit-vscode/blob/dfee9f7a400e677e91a75e9c20d9515a52a6fad4/packages/core/src/shared/utilities/workspaceUtils.ts#L699
 export async function readDirectoryRecursively(
-    features: Features,
+    features: Pick<Features, 'workspace' | 'logging'> & Partial<Features>,
     folderPath: string,
     options?: {
         maxDepth?: number
