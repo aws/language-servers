@@ -444,7 +444,6 @@ export class ChatController implements ChatHandlers {
             : this.items
 
         return Promise.resolve({
-            tabId: params.tabId,
             header: header,
             filterOptions: filterOptions,
             list: [
