@@ -1,12 +1,8 @@
-/*!
- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
- * SPDX-License-Identifier: Apache-2.0
- */
 import { sanitize } from '@aws/lsp-core/out/util/path'
-import { InvokeOutput, maxToolResponseSize } from './toolShared'
+import { InvokeOutput } from './toolShared'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 
-// Port of https://github.com/aws/aws-toolkit-vscode/blob/10bb1c7dc45f128df14d749d95905c0e9b808096/packages/core/src/codewhispererChat/tools/fsRead.ts#L17
+// Port of https://github.com/aws/aws-toolkit-vscode/blob/8e00eefa33f4eee99eed162582c32c270e9e798e/packages/core/src/codewhispererChat/tools/fsRead.ts#L17
 
 export interface FsReadParams {
     path: string
@@ -20,6 +16,39 @@ export class FsRead {
     constructor(features: Pick<Features, 'workspace' | 'logging'> & Partial<Features>) {
         this.logging = features.logging
         this.workspace = features.workspace
+    }
+
+    public async validate(params: FsReadParams): Promise<void> {
+        this.logging.debug(`Validating path: ${params.path}`)
+        if (!params.path || params.path.trim().length === 0) {
+            throw new Error('Path cannot be empty.')
+        }
+
+        const fileExists = await this.workspace.fs.exists(params.path)
+        if (!fileExists) {
+            throw new Error(`Path: "${params.path}" does not exist or cannot be accessed.`)
+        }
+
+        this.logging.debug(`Validation succeeded for path: ${params.path}`)
+    }
+
+    public async queueDescription(params: FsReadParams, updates: WritableStream) {
+        const updateWriter = updates.getWriter()
+        await updateWriter.write(`Reading file: ${params.path}]`)
+
+        const [start, end] = params.readRange ?? []
+
+        if (start && end) {
+            await updateWriter.write(`from line ${start} to ${end}`)
+        } else if (start) {
+            if (start > 0) {
+                await updateWriter.write(`from line ${start} to end of file`)
+            } else {
+                await updateWriter.write(`${start} line from the end of file to end of file`)
+            }
+        } else {
+            await updateWriter.write('all lines')
+        }
     }
 
     public async invoke(params: FsReadParams): Promise<InvokeOutput> {
@@ -37,7 +66,7 @@ export class FsRead {
     private handleFileRange(params: FsReadParams, fullText: string): InvokeOutput {
         if (!params.readRange || params.readRange.length === 0) {
             this.logging.log('No range provided. returning entire file.')
-            return this.createOutput(this.enforceMaxSize(fullText))
+            return this.createOutput(fullText)
         }
 
         const lines = fullText.split('\n')
@@ -49,7 +78,7 @@ export class FsRead {
 
         this.logging.log(`Reading file: ${params.path}, lines ${start + 1}-${end + 1}`)
         const slice = lines.slice(start, end + 1).join('\n')
-        return this.createOutput(this.enforceMaxSize(slice))
+        return this.createOutput(slice)
     }
 
     private parseLineRange(lineCount: number, range: number[]): [number, number] {
@@ -67,17 +96,6 @@ export class FsRead {
         const finalStart = Math.max(0, Math.min(lineCount - 1, convert(startIdx)))
         const finalEnd = Math.max(0, Math.min(lineCount - 1, convert(endIdx)))
         return [finalStart, finalEnd]
-    }
-
-    private enforceMaxSize(content: string): string {
-        const byteCount = Buffer.byteLength(content, 'utf8')
-        if (byteCount > maxToolResponseSize) {
-            throw new Error(
-                `This tool only supports reading ${maxToolResponseSize} bytes at a time.
-                You tried to read ${byteCount} bytes. Try executing with fewer lines specified.`
-            )
-        }
-        return content
     }
 
     private createOutput(content: string): InvokeOutput {
