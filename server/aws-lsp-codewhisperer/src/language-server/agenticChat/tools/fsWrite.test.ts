@@ -427,10 +427,6 @@ describe('FsWrite Tool', function () {
     })
 
     describe('getDiffChanges', function () {
-        beforeEach(async () => {
-            tempFolder.clear()
-        })
-
         it('handles create case', async function () {
             const testContent = 'newFileText'
             const fsWrite = new FsWrite(features)
