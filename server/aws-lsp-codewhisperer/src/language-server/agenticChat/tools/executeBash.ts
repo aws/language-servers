@@ -305,10 +305,10 @@ export class ExecuteBash {
     }
 
     private static async whichCommand(logger: Logging, cmd: string): Promise<string> {
-        const { command, args } =
-            process.platform === 'win32'
-                ? { command: 'where', args: [cmd] }
-                : { command: 'sh', args: ['-c', `command -v ${cmd}`] }
+        const isWindows = process.platform === 'win32'
+        const { command, args } = isWindows
+            ? { command: 'where', args: [cmd] }
+            : { command: 'sh', args: ['-c', `command -v ${cmd}`] }
         const cp = new processUtils.ChildProcess(logger, command, args, {
             collect: true,
             waitForStreams: true,
@@ -321,7 +321,7 @@ export class ExecuteBash {
 
         const output = result.stdout.trim()
         if (!output) {
-            throw new Error(`Command '${cmd}' found but 'which' returned empty output.`)
+            throw new Error(`Command '${cmd}' found but '${command} ${args.join(' ')}' returned empty output.`)
         }
         return output
     }
