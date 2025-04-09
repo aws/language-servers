@@ -113,7 +113,7 @@ export class FsRead {
         return {
             name: 'fsRead',
             description:
-                'A tool for reading a file. \n* This tool returns the contents of a file, and the optional `readRange` determines what range of lines will be read from the specified file.',
+                'A tool for reading a file.\n * This tool returns the contents of a file, and the optional `readRange` determines what range of lines will be read from the specified file',
             inputSchema: {
                 type: 'object',
                 properties: {
@@ -123,7 +123,7 @@ export class FsRead {
                     },
                     readRange: {
                         description:
-                            'Optional parameter when reading files.\n* If none is given, the full file is shown. If provided, the file will be shown in the indicated line number range, e.g. [11, 12] will show lines 11 and 12. Indexing at 1 to start. Setting `[startLine, -1]` shows all lines from `startLine` to the end of the file.',
+                            'Optional parameter when reading files.\n * If none is given, the full file is shown. If provided, the file will be shown in the indicated line number range, e.g. [11, 12] will show lines 11 and 12. Indexing at 1 to start. Setting `[startLine, -1]` shows all lines from `startLine` to the end of the file.',
                         type: 'array',
                         items: {
                             type: 'number',
