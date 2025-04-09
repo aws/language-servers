@@ -308,7 +308,7 @@ export class ExecuteBash {
         const { command, args } =
             process.platform === 'win32'
                 ? { command: 'where', args: [cmd] }
-                : { command: 'sh', args: ['-c', `command -v ${cmd} || which ${cmd}`] }
+                : { command: 'sh', args: ['-c', `command -v ${cmd}`] }
         const cp = new processUtils.ChildProcess(logger, command, args, {
             collect: true,
             waitForStreams: true,
