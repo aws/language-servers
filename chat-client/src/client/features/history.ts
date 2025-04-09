@@ -1,5 +1,5 @@
 import { ConversationAction, ConversationItemGroup, ListConversationsResult } from '@aws/language-server-runtimes-types'
-import { ChatItemButton, DetailedList, DetailedListItem, MynahUI } from '@aws/mynah-ui'
+import { ChatItemButton, DetailedList, DetailedListItem, MynahUI, TextBasedFormItem } from '@aws/mynah-ui'
 import { toMynahIcon } from '../utils'
 import { Messager } from '../messager'
 
@@ -33,9 +33,8 @@ export class ChatHistoryList {
         }
         // set auto focus on the 1st filter option item
         if (detailedList.filterOptions && detailedList.filterOptions.length > 0) {
-            // @ts-ignore - autoFocus is supported only for text-based filter options,
-            // but chat-client supports only text-based filter now
-            detailedList.filterOptions[0].autoFocus = true
+            // we currently support only text-based items
+            ;(detailedList.filterOptions[0] as TextBasedFormItem).autoFocus = true
         }
 
         if (this.historyDetailedList) {
