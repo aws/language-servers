@@ -10,6 +10,8 @@ export interface StartTransformRequest extends ExecuteCommandParams {
     SolutionConfigPaths: string[]
     ProjectMetadata: TransformProjectMetadata[]
     TransformNetStandardProjects: boolean
+    EnableRazorViewTransform: boolean
+    PackageReferences?: PackageReferenceMetadata[]
 }
 
 export interface StartTransformResponse {
@@ -76,6 +78,7 @@ export interface RequirementJson {
     SolutionPath: string
     Projects: Project[]
     TransformNetStandardProjects: boolean
+    EnableRazorViewTransform: boolean
 }
 
 export interface ExternalReference {
@@ -110,4 +113,16 @@ export interface CodeFile {
 export interface References {
     includedInArtifact: boolean
     relativePath: string
+    isThirdPartyPackage: boolean
+    netCompatibleRelativePath?: string
+    netCompatibleVersion?: string
+}
+
+export interface PackageReferenceMetadata {
+    Id: string
+    Versions: string[]
+    IsPrivatePackage: boolean
+    NetCompatiblePackageVersion?: string
+    NetCompatibleAssemblyPath?: string
+    NetCompatibleAssemblyRelativePath?: string
 }

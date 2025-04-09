@@ -22,6 +22,7 @@ import {
 } from '../contracts/telemetry'
 import { MynahUI } from '@aws/mynah-ui'
 import { TabFactory } from './tabs/tabFactory'
+import { ChatClientAdapter } from '../contracts/chatClientAdapter'
 
 describe('Chat', () => {
     const sandbox = sinon.createSandbox()
@@ -30,9 +31,11 @@ describe('Chat', () => {
     let clientApi: { postMessage: sinon.SinonStub }
 
     before(() => {
-        // Mock global ResizeObserver for test environment
+        // Mock global observers for test environment
         // @ts-ignore
         global.ResizeObserver = null
+        // @ts-ignore
+        global.IntersectionObserver = null
     })
 
     beforeEach(() => {
@@ -130,7 +133,7 @@ describe('Chat', () => {
         })
     })
 
-    it('publishes tab changed event, when UI tab is changed ', () => {
+    it('publishes tab changed event, when UI tab is changed', () => {
         const tabId = mynahUi.updateStore('', {})
         mynahUi.updateStore('', {})
         clientApi.postMessage.resetHistory()
@@ -166,7 +169,7 @@ describe('Chat', () => {
         })
     })
 
-    it('complete chat response triggers ui events ', () => {
+    it('complete chat response triggers ui events', () => {
         const endMessageStreamStub = sandbox.stub(mynahUi, 'endMessageStream')
         const updateLastChatAnswerStub = sandbox.stub(mynahUi, 'updateLastChatAnswer')
         const updateStoreStub = sandbox.stub(mynahUi, 'updateStore')
@@ -189,7 +192,7 @@ describe('Chat', () => {
         })
     })
 
-    it('partial chat response triggers ui events ', () => {
+    it('partial chat response triggers ui events', () => {
         const endMessageStreamStub = sandbox.stub(mynahUi, 'endMessageStream')
         const updateLastChatAnswerStub = sandbox.stub(mynahUi, 'updateLastChatAnswer')
         const updateStoreStub = sandbox.stub(mynahUi, 'updateStore')
@@ -205,7 +208,60 @@ describe('Chat', () => {
         })
         window.dispatchEvent(chatEvent)
 
-        assert.calledOnceWithExactly(updateLastChatAnswerStub, tabId, { body })
+        assert.calledOnceWithExactly(updateLastChatAnswerStub, tabId, { body, header: undefined })
+        assert.notCalled(endMessageStreamStub)
+        assert.notCalled(updateStoreStub)
+    })
+
+    it('partial chat response with header triggers ui events', () => {
+        const endMessageStreamStub = sandbox.stub(mynahUi, 'endMessageStream')
+        const updateLastChatAnswerStub = sandbox.stub(mynahUi, 'updateLastChatAnswer')
+        const updateStoreStub = sandbox.stub(mynahUi, 'updateStore')
+
+        const tabId = '123'
+        const body = 'some response'
+
+        const contextList = {
+            filePaths: ['file1', 'file2'],
+            details: {
+                file1: {
+                    lineRanges: [{ first: 1, second: 2 }],
+                },
+            },
+        }
+        const params = { body, contextList }
+
+        const mockHeader = {
+            fileList: {
+                fileTreeTitle: '',
+                filePaths: ['file1', 'file2'],
+                rootFolderTitle: 'Context',
+                flatList: true,
+                collapsed: true,
+                hideFileCount: true,
+                details: {
+                    file1: {
+                        label: 'line 1 - 2',
+                        description: 'file1',
+                        clickable: true,
+                    },
+                },
+            },
+        }
+
+        const chatEvent = createInboundEvent({
+            command: CHAT_REQUEST_METHOD,
+            tabId,
+            params,
+            isPartialResult: true,
+        })
+
+        window.dispatchEvent(chatEvent)
+
+        assert.calledOnceWithExactly(updateLastChatAnswerStub, tabId, {
+            ...params,
+            header: mockHeader,
+        })
         assert.notCalled(endMessageStreamStub)
         assert.notCalled(updateStoreStub)
     })
@@ -215,4 +271,31 @@ describe('Chat', () => {
         event.data = params
         return event
     }
+
+    describe('with client adapter', () => {
+        it('should route inbound message to client adapter', () => {
+            const handleMessageReceiveStub = sandbox.stub()
+            const createChatEventHandlerStub = sandbox.stub().returns({})
+            const clientAdapter: Partial<ChatClientAdapter> = {
+                createChatEventHandler: createChatEventHandlerStub,
+                handleMessageReceive: handleMessageReceiveStub,
+                isSupportedTab: () => false,
+            }
+            mynahUi = createChat(clientApi, {}, clientAdapter as ChatClientAdapter)
+
+            const tabId = '123'
+            const body = 'some response'
+
+            const chatEvent = createInboundEvent({
+                command: CHAT_REQUEST_METHOD,
+                tabId,
+                params: { body },
+                sender: 'ide-extension',
+            })
+            window.dispatchEvent(chatEvent)
+
+            assert.calledOnce(handleMessageReceiveStub)
+            assert.match(handleMessageReceiveStub.getCall(0).args[0].data, JSON.stringify(chatEvent.data))
+        })
+    })
 })

@@ -82,6 +82,7 @@ const webworkerConfig = {
             crypto: 'crypto-browserify',
             stream: 'stream-browserify',
             fs: path.resolve(__dirname, 'src/mock-fs.js'),
+            child_process: false,
             vm: false,
         },
         extensions: ['.ts', '.tsx', '.js', '.jsx'],
@@ -103,9 +104,6 @@ const webworkerConfig = {
     plugins: [
         new webpack.ProvidePlugin({
             process: 'process/browser',
-        }),
-        new webpack.DefinePlugin({
-            'process.platform': JSON.stringify('browser'),
         }),
     ],
 }

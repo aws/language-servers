@@ -2,6 +2,7 @@ import { CodeWhispererStreaming, CodeWhispererStreamingClientConfig } from '@amz
 import { ConfiguredRetryStrategy } from '@aws-sdk/util-retry'
 import { SDKInitializator } from '@aws/language-server-runtimes/server-interface'
 
+// TODO: refactor and combine with language-server/streamingClientService.ts when no longer in use
 export class StreamingClient {
     public async getStreamingClient(
         credentialsProvider: any,

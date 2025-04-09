@@ -13,6 +13,7 @@ import { CodewhispererServerFactory } from './codeWhispererServer'
 import { CodeWhispererServiceBase, ResponseContext, Suggestion } from '../../shared/codeWhispererService'
 import { CodeWhispererSession, SessionManager } from './session/sessionManager'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
+import { initBaseTestServiceManager, TestAmazonQServiceManager } from '../../shared/amazonQServiceManager/testUtils'
 
 describe('Telemetry', () => {
     const sandbox = sinon.createSandbox()
@@ -175,10 +176,9 @@ describe('Telemetry', () => {
             service = stubInterface<CodeWhispererServiceBase>()
             setServiceResponse(DEFAULT_SUGGESTIONS, EXPECTED_RESPONSE_CONTEXT)
 
-            server = CodewhispererServerFactory(_auth => service)
-
             // Initialize the features, but don't start server yet
             features = new TestFeatures()
+            server = CodewhispererServerFactory(() => initBaseTestServiceManager(features, service))
 
             // Return no specific configuration for CodeWhisperer
             features.lsp.workspace.getConfiguration.returns(Promise.resolve({}))
@@ -195,6 +195,10 @@ describe('Telemetry', () => {
             await features.start(server)
 
             features.openDocument(SOME_FILE).openDocument(SOME_FILE_WITH_ALT_CASED_LANGUAGE_ID)
+        })
+
+        afterEach(() => {
+            TestAmazonQServiceManager.resetInstance()
         })
 
         const aUserTriggerDecision = (override: object = {}) => {

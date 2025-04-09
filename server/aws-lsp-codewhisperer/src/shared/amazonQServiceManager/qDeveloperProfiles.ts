@@ -21,7 +21,7 @@ interface IdentityDetails {
 export interface ListAllAvailableProfilesHandlerParams {
     connectionType: SsoConnectionType
     logging: Logging
-    endpoints?: { [region: string]: string } // override option for flexibility, we default to all (AWS_Q_ENDPOINTS)
+    endpoints?: Map<string, string> // override option for flexibility, we default to all (AWS_Q_ENDPOINTS)
 }
 
 export type ListAllAvailableProfilesHandler = (
@@ -43,7 +43,7 @@ export const getListAllAvailableProfilesHandler =
         const qEndpoints = endpoints ?? AWS_Q_ENDPOINTS
 
         const result = await Promise.allSettled(
-            Object.entries(qEndpoints).map(([region, endpoint]) => {
+            Array.from(qEndpoints.entries(), ([region, endpoint]) => {
                 const codeWhispererService = service(region, endpoint)
                 return fetchProfilesFromRegion(codeWhispererService, region, logging)
             })

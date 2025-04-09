@@ -7,6 +7,7 @@ import { makeUserContextObject } from '../../shared/telemetryUtils'
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 import { AmazonQServiceInitializationError } from '../../shared/amazonQServiceManager/errors'
 import { safeGet } from '../../shared/utils'
+import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
 
 export const QChatServer =
     // prettier-ignore
@@ -35,9 +36,9 @@ export const QChatServer =
             }
         })
 
-        const updateConfigurationHandler = async () => {
-            await amazonQServiceManager.handleDidChangeConfiguration()
-            await chatController.updateConfiguration()
+        const updateConfigurationHandler = (updatedConfig: AmazonQWorkspaceConfig) => {
+            logging.debug('Updating configuration of chat server')
+            chatController.updateConfiguration(updatedConfig)
         }
 
         lsp.onInitialized(async () => {
@@ -61,9 +62,14 @@ export const QChatServer =
 
             chatController = new ChatController(chatSessionManagementService, features, telemetryService, amazonQServiceManager)
 
-            await updateConfigurationHandler()
+            /* 
+                Calling handleDidChangeConfiguration once to ensure we get configuration atleast once at start up
+                
+                TODO: TODO: consider refactoring such responsibilities to common service manager config/initialisation server
+            */
+            await amazonQServiceManager.handleDidChangeConfiguration()
+            await amazonQServiceManager.addDidChangeConfigurationListener(updateConfigurationHandler)
         })
-        lsp.didChangeConfiguration(updateConfigurationHandler)
 
         chat.onTabAdd(params => {
             logging.log(`Adding tab: ${params.tabId}`)

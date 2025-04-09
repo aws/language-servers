@@ -17,23 +17,167 @@ import {
     InlineChatParams,
     InlineChatResult,
     inlineChatRequestType,
+    contextCommandsNotificationType,
 } from '@aws/language-server-runtimes/protocol'
 import { v4 as uuidv4 } from 'uuid'
-import { Uri, ViewColumn, Webview, WebviewPanel, commands, window } from 'vscode'
+import { Uri, Webview, WebviewView, commands, window } from 'vscode'
 import { Disposable, LanguageClient, Position, State, TextDocumentIdentifier } from 'vscode-languageclient/node'
 import * as jose from 'jose'
 import * as vscode from 'vscode'
 
 export function registerChat(languageClient: LanguageClient, extensionUri: Uri, encryptionKey?: Buffer) {
-    const panel = window.createWebviewPanel(
-        'testChat', // Identifies the type of the webview. Used internally
-        'Chat Test', // Title of the panel displayed to the user
-        ViewColumn.Active, // Editor column to show the new webview panel in.
-        {
-            enableScripts: true,
-            localResourceRoots: [Uri.joinPath(extensionUri, 'build')],
-        } // Webview options
-    )
+    const webviewInitialized: Promise<Webview> = new Promise(resolveWebview => {
+        const provider = {
+            resolveWebviewView(webviewView: WebviewView) {
+                webviewView.webview.options = {
+                    enableScripts: true,
+                    localResourceRoots: [Uri.joinPath(extensionUri, 'build')],
+                }
+
+                resolveWebview(webviewView.webview)
+
+                webviewView.webview.onDidReceiveMessage(async message => {
+                    languageClient.info(`[VSCode Client]  Received ${JSON.stringify(message)} from chat`)
+
+                    switch (message.command) {
+                        case COPY_TO_CLIPBOARD:
+                            languageClient.info('[VSCode Client] Copy to clipboard event received')
+                            break
+                        case INSERT_TO_CURSOR_POSITION: {
+                            const editor = window.activeTextEditor
+                            let textDocument: TextDocumentIdentifier | undefined = undefined
+                            let cursorPosition: Position | undefined = undefined
+                            if (editor) {
+                                cursorPosition = editor.selection.active
+                                textDocument = { uri: editor.document.uri.toString() }
+                            }
+
+                            languageClient.sendNotification(insertToCursorPositionNotificationType, {
+                                ...message.params,
+                                cursorPosition,
+                                textDocument,
+                            })
+                            break
+                        }
+                        case AUTH_FOLLOW_UP_CLICKED:
+                            languageClient.info('[VSCode Client] AuthFollowUp clicked')
+                            break
+                        case chatRequestType.method: {
+                            const partialResultToken = uuidv4()
+                            const chatDisposable = languageClient.onProgress(
+                                chatRequestType,
+                                partialResultToken,
+                                partialResult =>
+                                    handlePartialResult<ChatResult>(
+                                        partialResult,
+                                        encryptionKey,
+                                        webviewView.webview,
+                                        message.params.tabId
+                                    )
+                            )
+
+                            const editor =
+                                window.activeTextEditor ||
+                                window.visibleTextEditors.find(editor => editor.document.languageId != 'Log')
+                            if (editor) {
+                                message.params.cursorPosition = [editor.selection.active]
+                                message.params.textDocument = { uri: editor.document.uri.toString() }
+                            }
+
+                            const chatRequest = await encryptRequest<ChatParams>(message.params, encryptionKey)
+                            const chatResult = await languageClient.sendRequest(chatRequestType, {
+                                ...chatRequest,
+                                partialResultToken,
+                            })
+                            handleCompleteResult<ChatResult>(
+                                chatResult,
+                                encryptionKey,
+                                webviewView.webview,
+                                message.params.tabId,
+                                chatDisposable
+                            )
+                            break
+                        }
+                        case quickActionRequestType.method: {
+                            const quickActionPartialResultToken = uuidv4()
+                            const quickActionDisposable = languageClient.onProgress(
+                                quickActionRequestType,
+                                quickActionPartialResultToken,
+                                partialResult =>
+                                    handlePartialResult<QuickActionResult>(
+                                        partialResult,
+                                        encryptionKey,
+                                        webviewView.webview,
+                                        message.params.tabId
+                                    )
+                            )
+
+                            const quickActionRequest = await encryptRequest<QuickActionParams>(
+                                message.params,
+                                encryptionKey
+                            )
+                            const quickActionResult = await languageClient.sendRequest(quickActionRequestType, {
+                                ...quickActionRequest,
+                                partialResultToken: quickActionPartialResultToken,
+                            })
+                            handleCompleteResult<ChatResult>(
+                                quickActionResult,
+                                encryptionKey,
+                                webviewView.webview,
+                                message.params.tabId,
+                                quickActionDisposable
+                            )
+                            break
+                        }
+                        case followUpClickNotificationType.method:
+                            if (!isValidAuthFollowUpType(message.params.followUp.type))
+                                languageClient.sendNotification(followUpClickNotificationType, message.params)
+                            break
+                        default:
+                            if (isServerEvent(message.command))
+                                languageClient.sendNotification(message.command, message.params)
+                            break
+                    }
+                }, undefined)
+
+                languageClient.onNotification(contextCommandsNotificationType, params => {
+                    webviewView.webview.postMessage({
+                        command: contextCommandsNotificationType.method,
+                        params: params,
+                    })
+                })
+
+                webviewView.webview.html = getWebviewContent(webviewView.webview, extensionUri)
+
+                registerGenericCommand('aws.sample-vscode-ext-amazonq.explainCode', 'Explain', webviewView.webview)
+                registerGenericCommand('aws.sample-vscode-ext-amazonq.refactorCode', 'Refactor', webviewView.webview)
+                registerGenericCommand('aws.sample-vscode-ext-amazonq.fixCode', 'Fix', webviewView.webview)
+                registerGenericCommand('aws.sample-vscode-ext-amazonq.optimizeCode', 'Optimize', webviewView.webview)
+
+                commands.registerCommand('aws.sample-vscode-ext-amazonq.sendToPrompt', data => {
+                    const triggerType = getCommandTriggerType(data)
+                    const selection = getSelectedText()
+
+                    webviewView.webview.postMessage({
+                        command: 'sendToPrompt',
+                        params: { selection: selection, triggerType },
+                    })
+                })
+
+                commands.registerCommand('aws.sample-vscode-ext-amazonq.openTab', data => {
+                    webviewView.webview.postMessage({
+                        command: 'aws/chat/openTab',
+                        params: {},
+                    })
+                })
+            },
+        }
+
+        // Register the provider for the auxiliary bar
+        window.registerWebviewViewProvider('amazonq.chat', provider, {
+            webviewOptions: { retainContextWhenHidden: true },
+        })
+    })
 
     // Listen for Initialize handshake from LSP server to register quick actions dynamically
     languageClient.onDidChangeState(({ oldState, newState }) => {
@@ -45,118 +189,18 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri, 
 
             const chatOptions = languageClient.initializeResult?.awsServerCapabilities?.chatOptions
 
-            panel.webview.postMessage({
-                command: CHAT_OPTIONS,
-                params: chatOptions,
+            // We can only initialize the chat once the webview is initialized
+            webviewInitialized.then(webview => {
+                webview.postMessage({
+                    command: CHAT_OPTIONS,
+                    params: chatOptions,
+                })
             })
         }
     })
 
     languageClient.onTelemetry(e => {
         languageClient.info(`[VSCode Client] Received telemetry event from server ${JSON.stringify(e)}`)
-    })
-
-    panel.webview.onDidReceiveMessage(async message => {
-        languageClient.info(`[VSCode Client]  Received ${JSON.stringify(message)} from chat`)
-
-        switch (message.command) {
-            case COPY_TO_CLIPBOARD:
-                languageClient.info('[VSCode Client] Copy to clipboard event received')
-                break
-            case INSERT_TO_CURSOR_POSITION: {
-                const editor = window.activeTextEditor
-                let textDocument: TextDocumentIdentifier | undefined = undefined
-                let cursorPosition: Position | undefined = undefined
-                if (editor) {
-                    cursorPosition = editor.selection.active
-                    textDocument = { uri: editor.document.uri.toString() }
-                }
-
-                languageClient.sendNotification(insertToCursorPositionNotificationType, {
-                    ...message.params,
-                    cursorPosition,
-                    textDocument,
-                })
-                break
-            }
-            case AUTH_FOLLOW_UP_CLICKED:
-                languageClient.info('[VSCode Client] AuthFollowUp clicked')
-                break
-            case chatRequestType.method: {
-                const partialResultToken = uuidv4()
-                const chatDisposable = languageClient.onProgress(chatRequestType, partialResultToken, partialResult =>
-                    handlePartialResult<ChatResult>(partialResult, encryptionKey, panel, message.params.tabId)
-                )
-
-                const editor =
-                    window.activeTextEditor ||
-                    window.visibleTextEditors.find(editor => editor.document.languageId != 'Log')
-                if (editor) {
-                    message.params.cursorPosition = [editor.selection.active]
-                    message.params.textDocument = { uri: editor.document.uri.toString() }
-                }
-
-                const chatRequest = await encryptRequest<ChatParams>(message.params, encryptionKey)
-                const chatResult = await languageClient.sendRequest(chatRequestType, {
-                    ...chatRequest,
-                    partialResultToken,
-                })
-                handleCompleteResult<ChatResult>(chatResult, encryptionKey, panel, message.params.tabId, chatDisposable)
-                break
-            }
-            case quickActionRequestType.method: {
-                const quickActionPartialResultToken = uuidv4()
-                const quickActionDisposable = languageClient.onProgress(
-                    quickActionRequestType,
-                    quickActionPartialResultToken,
-                    partialResult =>
-                        handlePartialResult<QuickActionResult>(
-                            partialResult,
-                            encryptionKey,
-                            panel,
-                            message.params.tabId
-                        )
-                )
-
-                const quickActionRequest = await encryptRequest<QuickActionParams>(message.params, encryptionKey)
-                const quickActionResult = await languageClient.sendRequest(quickActionRequestType, {
-                    ...quickActionRequest,
-                    partialResultToken: quickActionPartialResultToken,
-                })
-                handleCompleteResult<ChatResult>(
-                    quickActionResult,
-                    encryptionKey,
-                    panel,
-                    message.params.tabId,
-                    quickActionDisposable
-                )
-                break
-            }
-            case followUpClickNotificationType.method:
-                if (!isValidAuthFollowUpType(message.params.followUp.type))
-                    languageClient.sendNotification(followUpClickNotificationType, message.params)
-                break
-            default:
-                if (isServerEvent(message.command)) languageClient.sendNotification(message.command, message.params)
-                break
-        }
-    }, undefined)
-
-    panel.webview.html = getWebviewContent(panel.webview, extensionUri)
-
-    registerGenericCommand('aws.sample-vscode-ext-amazonq.explainCode', 'Explain', panel)
-    registerGenericCommand('aws.sample-vscode-ext-amazonq.refactorCode', 'Refactor', panel)
-    registerGenericCommand('aws.sample-vscode-ext-amazonq.fixCode', 'Fix', panel)
-    registerGenericCommand('aws.sample-vscode-ext-amazonq.optimizeCode', 'Optimize', panel)
-
-    commands.registerCommand('aws.sample-vscode-ext-amazonq.sendToPrompt', data => {
-        const triggerType = getCommandTriggerType(data)
-        const selection = getSelectedText()
-
-        panel.webview.postMessage({
-            command: 'sendToPrompt',
-            params: { selection: selection, triggerType },
-        })
     })
 
     commands.registerCommand('aws.sample-vscode-ext-amazonq.sendInlineChat', async () => {
@@ -176,13 +220,6 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri, 
         } catch (e) {
             languageClient.info(`Logging error for inline chat ${JSON.stringify(e)}`)
         }
-    })
-
-    commands.registerCommand('aws.sample-vscode-ext-amazonq.openTab', data => {
-        panel.webview.postMessage({
-            command: 'aws/chat/openTab',
-            params: {},
-        })
     })
 }
 
@@ -251,12 +288,12 @@ function getCommandTriggerType(data: any): string {
     return data === undefined ? 'hotkeys' : 'contextMenu'
 }
 
-function registerGenericCommand(commandName: string, genericCommand: string, panel: WebviewPanel) {
+function registerGenericCommand(commandName: string, genericCommand: string, webview: Webview) {
     commands.registerCommand(commandName, data => {
         const triggerType = getCommandTriggerType(data)
         const selection = getSelectedText()
 
-        panel.webview.postMessage({
+        webview.postMessage({
             command: 'genericCommand',
             params: { genericCommand, selection, triggerType },
         })
@@ -298,7 +335,7 @@ async function decodeRequest<T>(request: string, key: Buffer): Promise<T> {
 async function handlePartialResult<T extends ChatResult>(
     partialResult: string | T,
     encryptionKey: Buffer | undefined,
-    panel: WebviewPanel,
+    webview: Webview,
     tabId: string
 ) {
     const decryptedMessage =
@@ -307,7 +344,7 @@ async function handlePartialResult<T extends ChatResult>(
             : (partialResult as T)
 
     if (decryptedMessage.body) {
-        panel.webview.postMessage({
+        webview.postMessage({
             command: chatRequestType.method,
             params: decryptedMessage,
             isPartialResult: true,
@@ -319,14 +356,14 @@ async function handlePartialResult<T extends ChatResult>(
 async function handleCompleteResult<T>(
     result: string | T,
     encryptionKey: Buffer | undefined,
-    panel: WebviewPanel,
+    webview: Webview,
     tabId: string,
     disposable: Disposable
 ) {
     const decryptedMessage =
         typeof result === 'string' && encryptionKey ? await decodeRequest(result, encryptionKey) : result
 
-    panel.webview.postMessage({
+    webview.postMessage({
         command: chatRequestType.method,
         params: decryptedMessage,
         tabId: tabId,

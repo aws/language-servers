@@ -14,15 +14,13 @@ import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../../shared/c
 const SOME_Q_DEVELOPER_PROFILE_ARN = 'some-random-q-developer-profile-arn'
 const SOME_Q_DEVELOPER_PROFILE_NAME = 'some-random-q-developer-profile-name'
 const SOME_Q_ENDPOINT_URL = 'some-random-q-endpoint'
-const SOME_AWS_Q_ENDPOINT = {
-    [DEFAULT_AWS_Q_REGION]: DEFAULT_AWS_Q_ENDPOINT_URL,
-}
-const SOME_AWS_Q_ENDPOINTS = {
-    ...SOME_AWS_Q_ENDPOINT,
-    'eu-central-1': SOME_Q_ENDPOINT_URL,
-}
+const SOME_AWS_Q_ENDPOINT = new Map([[DEFAULT_AWS_Q_REGION, DEFAULT_AWS_Q_ENDPOINT_URL]])
+const SOME_AWS_Q_ENDPOINTS = new Map([
+    [DEFAULT_AWS_Q_REGION, DEFAULT_AWS_Q_ENDPOINT_URL],
+    ['eu-central-1', SOME_Q_ENDPOINT_URL],
+])
 
-const EXPECTED_DEVELOPER_PROFILES_LIST: AmazonQDeveloperProfile[] = Object.keys(SOME_AWS_Q_ENDPOINTS).map(region => ({
+const EXPECTED_DEVELOPER_PROFILES_LIST: AmazonQDeveloperProfile[] = Array.from(SOME_AWS_Q_ENDPOINTS.keys(), region => ({
     arn: SOME_Q_DEVELOPER_PROFILE_ARN,
     name: SOME_Q_DEVELOPER_PROFILE_NAME,
     identityDetails: {

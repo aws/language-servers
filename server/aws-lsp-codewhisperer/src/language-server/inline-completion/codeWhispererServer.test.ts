@@ -10,7 +10,7 @@ import {
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import * as assert from 'assert'
 import { AWSError } from 'aws-sdk'
-import sinon, { StubbedInstance, stubInterface } from 'ts-sinon'
+import sinon, { StubbedInstance } from 'ts-sinon'
 import { CONTEXT_CHARACTERS_LIMIT, CodewhispererServerFactory } from './codeWhispererServer'
 import {
     CodeWhispererServiceBase,
@@ -40,10 +40,24 @@ import {
     SOME_SINGLE_LINE_FILE,
     SOME_UNSUPPORTED_FILE,
     SPECIAL_CHARACTER_HELLO_WORLD,
+    stubCodeWhispererService,
 } from '../../shared/testUtils'
 import { CodeDiffTracker } from './codeDiffTracker'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
-import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
+import { initBaseTestServiceManager, TestAmazonQServiceManager } from '../../shared/amazonQServiceManager/testUtils'
+
+const updateConfiguration = async (
+    features: TestFeatures,
+    getConfigurationReturns?: Promise<any>
+): Promise<TestFeatures> => {
+    features.lsp.workspace.getConfiguration.returns(getConfigurationReturns ?? Promise.resolve({}))
+
+    // Invoke event twice to ensure LSP Router propagates didChangeConfiguration notification and allows time for it to take effect in tests
+    await features.openDocument(SOME_FILE).doChangeConfiguration()
+    await features.openDocument(SOME_FILE).doChangeConfiguration()
+
+    return features
+}
 
 describe('CodeWhisperer Server', () => {
     const sandbox = sinon.createSandbox()
@@ -84,7 +98,7 @@ describe('CodeWhisperer Server', () => {
 
         beforeEach(async () => {
             // Set up the server with a mock service, returning predefined recommendations
-            service = stubInterface<CodeWhispererServiceBase>()
+            service = stubCodeWhispererService()
             service.generateSuggestions.returns(
                 Promise.resolve({
                     suggestions: EXPECTED_SUGGESTION,
@@ -92,10 +106,13 @@ describe('CodeWhisperer Server', () => {
                 })
             )
 
-            server = CodewhispererServerFactory(_auth => service)
-
             // Initialize the features, but don't start server yet
             features = new TestFeatures()
+            //@ts-ignore
+            features.logging = console
+
+            server = CodewhispererServerFactory(() => initBaseTestServiceManager(features, service))
+
             features.lsp.getClientInitializeParams.returns({} as InitializeParams)
 
             // Return no specific configuration for CodeWhisperer
@@ -114,6 +131,7 @@ describe('CodeWhisperer Server', () => {
 
         afterEach(() => {
             features.dispose()
+            TestAmazonQServiceManager.resetInstance()
         })
 
         it('should return recommendations', async () => {
@@ -243,15 +261,15 @@ describe('CodeWhisperer Server', () => {
 
         it('should include extra context in recommendation request when extraContext is configured', async () => {
             const extraContext = 'Additional context for test'
-            features.lsp.workspace.getConfiguration.returns(
+
+            await updateConfiguration(
+                features,
                 Promise.resolve({
                     inlineSuggestions: {
                         extraContext,
                     },
                 })
             )
-
-            await features.openDocument(SOME_FILE).doChangeConfiguration()
 
             const result = await features.doInlineCompletionWithReferences(
                 {
@@ -528,16 +546,13 @@ describe('CodeWhisperer Server', () => {
                     })
                 )
 
-                const test_server = CodewhispererServerFactory(_auth => test_service)
-
-                // @ts-ignore
-                sinon.stub(AmazonQTokenServiceManager, 'getInstance').returns({
-                    getCodewhispererService: () => test_service,
-                    handleDidChangeConfiguration: () => Promise.resolve(),
-                })
-
                 // Initialize the features, but don't start server yet
+                TestAmazonQServiceManager.resetInstance()
                 const test_features = new TestFeatures()
+                const test_server = CodewhispererServerFactory(() =>
+                    initBaseTestServiceManager(test_features, test_service)
+                )
+
                 features.lsp.getClientInitializeParams.returns({} as InitializeParams)
 
                 test_features.credentialsProvider.hasCredentials.returns(true)
@@ -588,30 +603,19 @@ describe('CodeWhisperer Server', () => {
         // Currently the suite just checks whether the boolean is passed to codeWhispererService
         describe('Opting out of sending data to CodeWhisperer', () => {
             it('should send opt-out header when the setting is disabled', async () => {
-                features.lsp.workspace.getConfiguration.returns(
-                    Promise.resolve({ shareCodeWhispererContentWithAWS: false })
-                )
+                await updateConfiguration(features, Promise.resolve({ shareCodeWhispererContentWithAWS: false }))
 
                 assert(service.shareCodeWhispererContentWithAWS === false)
             })
 
             it('should not send opt-out header when the setting is enabled after startup', async () => {
-                features.lsp.workspace.getConfiguration.returns(
-                    Promise.resolve({ shareCodeWhispererContentWithAWS: false })
-                )
-                features.lsp.workspace.getConfiguration.returns(
-                    Promise.resolve({ shareCodeWhispererContentWithAWS: true })
-                )
-
-                // Invoke event twice to ensure LSP Router propagates didChangeConfiguration notification and allows time for it to take effect in tests
-                await features.openDocument(SOME_FILE).doChangeConfiguration()
-                await features.openDocument(SOME_FILE).doChangeConfiguration()
+                await updateConfiguration(features, Promise.resolve({ shareCodeWhispererContentWithAWS: true }))
 
                 assert(service.shareCodeWhispererContentWithAWS === true)
             })
 
             it('should send opt-out header if no settings are specificed', async () => {
-                features.lsp.workspace.getConfiguration.returns(Promise.resolve({}))
+                await updateConfiguration(features, Promise.resolve({}))
 
                 assert(service.shareCodeWhispererContentWithAWS === false)
             })
@@ -626,9 +630,9 @@ describe('CodeWhisperer Server', () => {
         // for examples on how to mock just the SDK client
         let service: StubbedInstance<CodeWhispererServiceBase>
 
-        beforeEach(() => {
+        beforeEach(async () => {
             // Set up the server with a mock service, returning predefined recommendations
-            service = stubInterface<CodeWhispererServiceBase>()
+            service = stubCodeWhispererService()
             service.customizationArn = undefined
             service.generateSuggestions.returns(
                 Promise.resolve({
@@ -636,15 +640,17 @@ describe('CodeWhisperer Server', () => {
                     responseContext: EXPECTED_RESPONSE_CONTEXT,
                 })
             )
-            server = CodewhispererServerFactory(_auth => service)
 
             // Initialize the features, but don't start server yet
             features = new TestFeatures()
+            server = CodewhispererServerFactory(() => initBaseTestServiceManager(features, service))
+
             features.lsp.getClientInitializeParams.returns({} as InitializeParams)
         })
 
         afterEach(() => {
             features.dispose()
+            TestAmazonQServiceManager.resetInstance()
         })
 
         it('should return all recommendations if no settings are specificed', async () => {
@@ -721,10 +727,10 @@ describe('CodeWhisperer Server', () => {
             )
             await features.start(server)
 
-            features.lsp.workspace.getConfiguration.returns(
+            const afterConfigChange = await updateConfiguration(
+                features,
                 Promise.resolve({ includeSuggestionsWithCodeReferences: false })
             )
-            const afterConfigChange = await features.openDocument(SOME_FILE).doChangeConfiguration()
 
             const result = await afterConfigChange.doInlineCompletionWithReferences(
                 {
@@ -744,10 +750,11 @@ describe('CodeWhisperer Server', () => {
                 Promise.resolve({ includeSuggestionsWithCodeReferences: false })
             )
             await features.start(server)
-            features.lsp.workspace.getConfiguration.returns(
+
+            const afterConfigChange = await updateConfiguration(
+                features,
                 Promise.resolve({ includeSuggestionsWithCodeReferences: true })
             )
-            const afterConfigChange = await features.openDocument(SOME_FILE).doChangeConfiguration()
 
             const result = await afterConfigChange.doInlineCompletionWithReferences(
                 {
@@ -967,7 +974,7 @@ describe('CodeWhisperer Server', () => {
 
         beforeEach(async () => {
             // Set up the server with a mock service, returning predefined recommendations
-            service = stubInterface<CodeWhispererServiceBase>()
+            service = stubCodeWhispererService()
             service.generateSuggestions.returns(
                 Promise.resolve({
                     suggestions: EXPECTED_SUGGESTION,
@@ -975,10 +982,10 @@ describe('CodeWhisperer Server', () => {
                 })
             )
 
-            server = CodewhispererServerFactory(_auth => service)
-
             // Initialize the features, but don't start server yet
             features = new TestFeatures()
+            server = CodewhispererServerFactory(() => initBaseTestServiceManager(features, service))
+
             features.lsp.getClientInitializeParams.returns({} as InitializeParams)
 
             // Return no specific configuration for CodeWhisperer
@@ -992,6 +999,7 @@ describe('CodeWhisperer Server', () => {
 
         afterEach(() => {
             features.dispose()
+            TestAmazonQServiceManager.resetInstance()
         })
 
         it('should return recommendations even on a below-threshold auto-trigger position when special characters are present', async () => {
@@ -1109,12 +1117,12 @@ describe('CodeWhisperer Server', () => {
 
         beforeEach(async () => {
             // Set up the server with a mock service, returning predefined recommendations
-            service = stubInterface<CodeWhispererServiceBase>()
-
-            server = CodewhispererServerFactory(_auth => service)
-
+            service = stubCodeWhispererService()
             // Initialize the features, but don't start server yet
             features = new TestFeatures()
+
+            server = CodewhispererServerFactory(() => initBaseTestServiceManager(features, service))
+
             features.lsp.getClientInitializeParams.returns({} as InitializeParams)
 
             // Start the server and open a document
@@ -1125,6 +1133,7 @@ describe('CodeWhisperer Server', () => {
 
         afterEach(() => {
             features.dispose()
+            TestAmazonQServiceManager.resetInstance()
         })
 
         it('should deactivate current session when session result for current session is sent', async () => {
@@ -1215,18 +1224,17 @@ describe('CodeWhisperer Server', () => {
             })
 
             // Set up the server with a mock service, returning predefined recommendations
-            service = stubInterface<CodeWhispererServiceBase>()
+            service = stubCodeWhispererService()
             service.generateSuggestions.returns(
                 Promise.resolve({
                     suggestions: EXPECTED_SUGGESTION,
                     responseContext: EXPECTED_RESPONSE_CONTEXT,
                 })
             )
-
-            server = CodewhispererServerFactory(_auth => service)
-
             // Initialize the features, but don't start server yet
             features = new TestFeatures()
+            server = CodewhispererServerFactory(() => initBaseTestServiceManager(features, service))
+
             features.lsp.getClientInitializeParams.returns({} as InitializeParams)
             // Return no specific configuration for CodeWhisperer
             features.lsp.workspace.getConfiguration.returns(Promise.resolve({}))
@@ -1240,6 +1248,7 @@ describe('CodeWhisperer Server', () => {
         afterEach(async () => {
             clock.restore()
             features.dispose()
+            TestAmazonQServiceManager.resetInstance()
         })
 
         it('should emit Success ServiceInvocation telemetry on successful response', async () => {
@@ -1655,7 +1664,7 @@ describe('CodeWhisperer Server', () => {
                 now: 1483228800000,
             })
             // Set up the server with a mock service, returning predefined recommendations
-            service = stubInterface<CodeWhispererServiceBase>()
+            service = stubCodeWhispererService()
             service.generateSuggestions.returns(
                 Promise.resolve({
                     suggestions: EXPECTED_SUGGESTION,
@@ -1663,10 +1672,10 @@ describe('CodeWhisperer Server', () => {
                 })
             )
 
-            server = CodewhispererServerFactory(_auth => service)
-
             // Initialize the features, but don't start server yet
             features = new TestFeatures()
+            server = CodewhispererServerFactory(() => initBaseTestServiceManager(features, service))
+
             features.lsp.getClientInitializeParams.returns({} as InitializeParams)
             // Return no specific configuration for CodeWhisperer
             features.lsp.workspace.getConfiguration.returns(Promise.resolve({}))
@@ -1680,6 +1689,7 @@ describe('CodeWhisperer Server', () => {
         afterEach(() => {
             clock.restore()
             features.dispose()
+            TestAmazonQServiceManager.resetInstance()
         })
 
         it('should cache new session on new request when no session exists', async () => {

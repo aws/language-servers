@@ -3,7 +3,7 @@
     "author": "Amazon Web Services",
     "license": "Apache-2.0",
     "description": "PartiQL language server",
-    "version": "0.0.6",
+    "version": "0.0.7",
     "repository": {
         "type": "git",
         "url": "https://github.com/aws/language-servers"
@@ -24,7 +24,7 @@
         "out"
     ],
     "dependencies": {
-        "@aws/language-server-runtimes": "^0.2.52",
+        "@aws/language-server-runtimes": "^0.2.55",
         "antlr4-c3": "3.4.2",
         "antlr4ng": "3.0.14",
         "web-tree-sitter": "0.22.6"
