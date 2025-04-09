@@ -341,16 +341,6 @@ export const createMynahUi = (
             }
             throw new Error(`Unhandled tab bar button id: ${buttonId}`)
         },
-
-        // Noop not-implemented handlers
-        onBeforeTabRemove: undefined,
-        onFileActionClick: undefined,
-        onStopChatResponse: undefined,
-        onQuickCommandGroupActionClick: undefined,
-        onChatItemEngagement: undefined,
-        onShowMoreWebResultsClick: undefined,
-        onFormLinkClick: undefined,
-        onFormModifierEnterPress: undefined,
     }
 
     const mynahUiProps: MynahUIProps = {
