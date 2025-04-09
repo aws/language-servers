@@ -49,6 +49,32 @@ export class FsWrite {
         this.workspace = features.workspace
     }
 
+    public async validate(params: FsWriteParams): Promise<void> {
+        switch (params.command) {
+            case 'create':
+                if (!params.path) {
+                    throw new Error('Path must not be empty')
+                }
+                break
+            case 'strReplace':
+            case 'insert': {
+                const fileExists = await this.workspace.fs.exists(params.path)
+                if (!fileExists) {
+                    throw new Error('The provided path must exist in order to replace or insert contents into it')
+                }
+                break
+            }
+            case 'append':
+                if (!params.path) {
+                    throw new Error('Path must not be empty')
+                }
+                if (!params.newStr) {
+                    throw new Error('Content to append must not be empty')
+                }
+                break
+        }
+    }
+
     public async invoke(params: FsWriteParams): Promise<InvokeOutput> {
         const sanitizedPath = sanitize(params.path)
 
