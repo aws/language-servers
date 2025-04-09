@@ -478,9 +478,9 @@ export const createMynahUi = (
 
         const followUps = chatResult.followUp
             ? {
-                text: chatResult.followUp.text ?? 'Suggested follow up questions:',
-                options: chatResult.followUp.options,
-            }
+                  text: chatResult.followUp.text ?? 'Suggested follow up questions:',
+                  options: chatResult.followUp.options,
+              }
             : {}
 
         mynahUi.updateLastChatAnswer(tabId, {
