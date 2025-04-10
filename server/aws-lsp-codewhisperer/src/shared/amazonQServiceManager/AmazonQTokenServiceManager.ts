@@ -30,7 +30,7 @@ import {
 import { isStringOrNull } from '../utils'
 import { getAmazonQRegionAndEndpoint } from './configurationUtils'
 import { getUserAgent } from '../telemetryUtils'
-import { StreamingClientService } from '../streamingClientService'
+import { StreamingClientServiceToken } from '../streamingClientService'
 
 /**
  * AmazonQTokenServiceManager manages state and provides centralized access to
@@ -58,9 +58,11 @@ import { StreamingClientService } from '../streamingClientService'
  * const AmazonQServiceManager = AmazonQTokenServiceManager.getInstance(features);
  * const codewhispererService = AmazonQServiceManager.getCodewhispererService();
  */
-export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<CodeWhispererServiceToken> {
+export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
+    CodeWhispererServiceToken,
+    StreamingClientServiceToken
+> {
     private static instance: AmazonQTokenServiceManager | null = null
-    private cachedStreamingClient?: StreamingClientService
     private enableDeveloperProfileSupport?: boolean
     private activeIdcProfile?: AmazonQDeveloperProfile
     private connectionType?: SsoConnectionType
@@ -489,8 +491,8 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<CodeWh
         return service
     }
 
-    private streamingClientFactory(region: string, endpoint: string): StreamingClientService {
-        const streamingClient = new StreamingClientService(
+    private streamingClientFactory(region: string, endpoint: string): StreamingClientServiceToken {
+        const streamingClient = new StreamingClientServiceToken(
             this.features.credentialsProvider,
             this.features.sdkInitializator,
             region,

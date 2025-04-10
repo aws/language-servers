@@ -1,12 +1,22 @@
 import { CodeWhispererServiceBase, CodeWhispererServiceIAM } from '../codeWhispererService'
 import { AmazonQBaseServiceManager, BaseAmazonQServiceManager, Features } from './BaseAmazonQServiceManager'
 import { getAmazonQRegionAndEndpoint } from './configurationUtils'
+import { AmazonQServiceNotInitializedError } from './errors'
+import { StreamingClientServiceIAM } from '../streamingClientService'
 
-export class AmazonQIAMServiceManager extends BaseAmazonQServiceManager<CodeWhispererServiceIAM> {
+export class AmazonQIAMServiceManager extends BaseAmazonQServiceManager<
+    CodeWhispererServiceIAM,
+    StreamingClientServiceIAM
+> {
     private static instance: AmazonQIAMServiceManager | null = null
+    private region: string
+    private endpoint: string
 
     private constructor(features: Features) {
         super(features)
+        const amazonQRegionAndEndpoint = getAmazonQRegionAndEndpoint(features.runtime, features.logging)
+        this.region = amazonQRegionAndEndpoint.region
+        this.endpoint = amazonQRegionAndEndpoint.endpoint
     }
 
     public static getInstance(features: Features): AmazonQIAMServiceManager {
@@ -32,6 +42,30 @@ export class AmazonQIAMServiceManager extends BaseAmazonQServiceManager<CodeWhis
         }
 
         return this.cachedCodewhispererService
+    }
+
+    public getStreamingClient() {
+        const iamService = this.getCodewhispererService()
+
+        if (!iamService || !this.region || !this.endpoint) {
+            throw new AmazonQServiceNotInitializedError()
+        }
+
+        if (!this.cachedStreamingClient) {
+            this.cachedStreamingClient = this.streamingClientFactory(this.region, this.endpoint)
+        }
+
+        return this.cachedStreamingClient
+    }
+
+    private streamingClientFactory(region: string, endpoint: string): StreamingClientServiceIAM {
+        const streamingClient = new StreamingClientServiceIAM(
+            this.features.credentialsProvider,
+            this.features.sdkInitializator,
+            region,
+            endpoint
+        )
+        return streamingClient
     }
 }
 
