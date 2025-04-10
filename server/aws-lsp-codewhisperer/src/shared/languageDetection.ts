@@ -281,7 +281,11 @@ export const getRuntimeLanguage = (language: CodewhispererLanguage): RuntimeLang
  * @remarks
  * - This function is extension-based only
  */
-export function getCodeWhispererLanguageIdFromPath(filePath: string) {
+export function getCodeWhispererLanguageIdFromPath(filePath: string): CodewhispererLanguage | undefined {
+    if (filePath.endsWith(`package.json`)) {
+        return 'javascript'
+    }
+
     for (const [extension, languageId] of Object.entries(languageByExtension)) {
         if (filePath.endsWith(extension)) {
             return languageId
