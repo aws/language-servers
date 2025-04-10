@@ -7,6 +7,7 @@ import { ChatResponseStream, Reference, SupplementaryWebLink, ToolUse } from '@a
 import {
     ChatItemAction,
     ChatResult,
+    FileList,
     ReferenceTrackerInformation,
     SourceLink,
 } from '@aws/language-server-runtimes/protocol'
@@ -31,6 +32,7 @@ export class AgenticChatEventParser implements ChatResult {
     followUp?: { text?: string; options?: ChatItemAction[] }
     codeReference?: ReferenceTrackerInformation[]
     toolUses: Record<string, ToolUse & { stop: boolean }> = {}
+    contextList?: FileList = undefined
 
     conversationId?: string
 
@@ -78,7 +80,10 @@ export class AgenticChatEventParser implements ChatResult {
         return this.#totalEvents
     }
 
-    public processPartialEvent(chatEvent: ChatResponseStream): Result<ChatResultWithMetadata, string> {
+    public processPartialEvent(
+        chatEvent: ChatResponseStream,
+        contextList?: FileList
+    ): Result<ChatResultWithMetadata, string> {
         const {
             messageMetadataEvent,
             followupPromptEvent,
@@ -108,6 +113,9 @@ export class AgenticChatEventParser implements ChatResult {
         } else if (invalidStateEvent) {
             this.error = invalidStateEvent.message ?? invalidStateEvent.reason ?? 'Invalid state'
         } else if (assistantResponseEvent?.content) {
+            if (contextList?.filePaths?.length) {
+                this.contextList = contextList
+            }
             this.#totalEvents.assistantResponseEvent += 1
             this.body = (this.body ?? '') + assistantResponseEvent.content
         } else if (toolUseEvent) {
@@ -185,6 +193,7 @@ export class AgenticChatEventParser implements ChatResult {
             relatedContent: this.relatedContent,
             followUp: this.followUp,
             codeReference: this.codeReference,
+            ...(this.contextList && { contextList: { ...this.contextList } }),
         }
 
         const chatResultWithMetadata = {

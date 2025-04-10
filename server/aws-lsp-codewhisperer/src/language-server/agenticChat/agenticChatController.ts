@@ -7,7 +7,9 @@ import {
     ChatTriggerType,
     GenerateAssistantResponseCommandInput,
     GenerateAssistantResponseCommandOutput,
+    SendMessageCommandInput,
     SendMessageCommandInput as SendMessageCommandInputCodeWhispererStreaming,
+    SendMessageCommandOutput,
     ToolResult,
     ToolResultContentBlock,
     ToolUse,
@@ -24,10 +26,15 @@ import {
     ConversationClickParams,
     ListConversationsParams,
     TabBarActionParams,
+    CreatePromptParams,
+    FileClickParams,
+} from '@aws/language-server-runtimes/protocol'
+import {
     CancellationToken,
     Chat,
     ChatParams,
     ChatResult,
+    FileList,
     EndChatParams,
     LSPErrorCodes,
     QuickActionParams,
@@ -52,7 +59,6 @@ import { ChatTelemetryController } from '../chat/telemetry/chatTelemetryControll
 import { QuickAction } from '../chat/quickActions'
 import { Metric } from '../../shared/telemetry/metric'
 import { getErrorMessage, isAwsError, isNullish, isObject } from '../../shared/utils'
-import { QChatTriggerContext, TriggerContext } from '../chat/contexts/triggerContext'
 import { HELP_MESSAGE } from '../chat/constants'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import {
@@ -63,7 +69,6 @@ import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/A
 import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
 import { TabBarController } from './tabBarController'
 import { ChatDatabase } from './tools/chatDb/chatDb'
-import { SendMessageCommandInput, SendMessageCommandOutput } from '../../shared/streamingClientService'
 import {
     AgenticChatEventParser,
     ChatResultWithMetadata as AgenticChatResultWithMetadata,
@@ -71,14 +76,22 @@ import {
 import { ChatSessionService } from '../chat/chatSessionService'
 import { AgenticChatResultStream } from './agenticChatResultStream'
 import { executeToolMessage, toolErrorMessage, toolResultMessage } from './textFormatting'
+import {
+    AdditionalContentEntryAddition,
+    AgenticChatTriggerContext,
+    TriggerContext,
+} from './context/agenticChatTriggerContext'
+import { AdditionalContextProvider } from './context/addtionalContextProvider'
+import { getNewPromptFilePath } from './context/contextUtils'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
     | 'openTab'
     | 'sendChatUpdate'
-    | 'onFileClicked'
     | 'sendContextCommands'
-    | 'onCreatePrompt'
+    | 'onListConversations'
+    | 'onConversationClick'
+    | 'onTabBarAction'
     | 'getSerializedChat'
     | 'chatOptionsUpdate'
 >
@@ -87,12 +100,13 @@ export class AgenticChatController implements ChatHandlers {
     #features: Features
     #chatSessionManagementService: ChatSessionManagementService
     #telemetryController: ChatTelemetryController
-    #triggerContext: QChatTriggerContext
+    #triggerContext: AgenticChatTriggerContext
     #customizationArn?: string
     #telemetryService: TelemetryService
     #amazonQServiceManager?: AmazonQTokenServiceManager
     #tabBarController: TabBarController
     #chatHistoryDb: ChatDatabase
+    #additionalContextProvider: AdditionalContextProvider
 
     constructor(
         chatSessionManagementService: ChatSessionManagementService,
@@ -102,12 +116,24 @@ export class AgenticChatController implements ChatHandlers {
     ) {
         this.#features = features
         this.#chatSessionManagementService = chatSessionManagementService
-        this.#triggerContext = new QChatTriggerContext(features.workspace, features.logging)
+        this.#triggerContext = new AgenticChatTriggerContext(features.workspace, features.logging)
         this.#telemetryController = new ChatTelemetryController(features, telemetryService)
         this.#telemetryService = telemetryService
         this.#amazonQServiceManager = amazonQServiceManager
         this.#chatHistoryDb = new ChatDatabase(features)
         this.#tabBarController = new TabBarController(features, this.#chatHistoryDb)
+        this.#additionalContextProvider = new AdditionalContextProvider(features.workspace)
+    }
+
+    async onCreatePrompt(params: CreatePromptParams): Promise<void> {
+        const newFilePath = getNewPromptFilePath(params.promptName)
+        const newFileContent = ''
+        try {
+            await this.#features.workspace.fs.writeFile(newFilePath, newFileContent, { mode: 0o600 })
+            await this.#features.lsp.window.showDocument({ uri: newFilePath })
+        } catch (e) {
+            this.#features.logging.warn(`Error creating prompt file: ${e}`)
+        }
     }
 
     dispose() {
@@ -166,8 +192,21 @@ export class AgenticChatController implements ChatHandlers {
         const conversationIdentifier = session?.conversationId ?? 'New conversation'
         const chatResultStream = this.#getChatResultStream(params.partialResultToken)
         try {
+            const additionalContext = await this.#additionalContextProvider.getAdditionalContext(
+                triggerContext,
+                (params.prompt as any).context
+            )
+            if (additionalContext.length) {
+                triggerContext.documentReference =
+                    this.#additionalContextProvider.getFileListFromContext(additionalContext)
+            }
             // Get the initial request input
-            const initialRequestInput = await this.#prepareRequestInput(params, session, triggerContext)
+            const initialRequestInput = await this.#prepareRequestInput(
+                params,
+                session,
+                triggerContext,
+                additionalContext
+            )
 
             // Start the agent loop
             const finalResult = await this.#runAgentLoop(
@@ -176,7 +215,8 @@ export class AgenticChatController implements ChatHandlers {
                 metric,
                 chatResultStream,
                 conversationIdentifier,
-                token
+                token,
+                triggerContext.documentReference
             )
 
             // Phase 5: Result Handling - This happens only once
@@ -200,7 +240,8 @@ export class AgenticChatController implements ChatHandlers {
     async #prepareRequestInput(
         params: ChatParams,
         session: ChatSessionService,
-        triggerContext: TriggerContext
+        triggerContext: TriggerContext,
+        additionalContext: AdditionalContentEntryAddition[]
     ): Promise<GenerateAssistantResponseCommandInput> {
         this.#debug('Preparing request input')
         const profileArn = AmazonQTokenServiceManager.getInstance(this.#features).getActiveProfileArn()
@@ -210,7 +251,8 @@ export class AgenticChatController implements ChatHandlers {
             ChatTriggerType.MANUAL,
             this.#customizationArn,
             profileArn,
-            this.#features.agent.getTools({ format: 'bedrock' })
+            this.#features.agent.getTools({ format: 'bedrock' }),
+            additionalContext
         )
 
         if (!session.localHistoryHydrated && requestInput.conversationState) {
@@ -230,7 +272,8 @@ export class AgenticChatController implements ChatHandlers {
         metric: Metric<CombinedConversationEvent>,
         chatResultStream: AgenticChatResultStream,
         conversationIdentifier?: string,
-        token?: CancellationToken
+        token?: CancellationToken,
+        documentReference?: FileList
     ): Promise<Result<AgenticChatResultWithMetadata, string>> {
         let currentRequestInput = { ...initialRequestInput }
         let finalResult: Result<AgenticChatResultWithMetadata, string> | null = null
@@ -260,7 +303,8 @@ export class AgenticChatController implements ChatHandlers {
                     cwsprChatResponseCode: response.$metadata.httpStatusCode,
                     cwsprChatMessageId: response.$metadata.requestId,
                 }),
-                chatResultStream
+                chatResultStream,
+                documentReference
             )
 
             // Store the conversation ID from the first response
@@ -670,6 +714,11 @@ export class AgenticChatController implements ChatHandlers {
         return success
     }
 
+    async onFileClicked(params: FileClickParams) {
+        // TODO: also pass in selection and handle on client side
+        await this.#features.lsp.window.showDocument({ uri: params.filePath })
+    }
+
     onFollowUpClicked() {}
 
     onInfoLinkClick() {}
@@ -811,13 +860,14 @@ export class AgenticChatController implements ChatHandlers {
     async #processGenerateAssistantResponseResponse(
         response: GenerateAssistantResponseCommandOutput,
         metric: Metric<AddMessageEvent>,
-        chatResultStream: AgenticChatResultStream
+        chatResultStream: AgenticChatResultStream,
+        contextList?: FileList
     ): Promise<Result<AgenticChatResultWithMetadata, string>> {
         const requestId = response.$metadata.requestId!
         const chatEventParser = new AgenticChatEventParser(requestId, metric)
         const streamWriter = chatResultStream.getResultStreamWriter()
         for await (const chatEvent of response.generateAssistantResponseResponse!) {
-            const result = chatEventParser.processPartialEvent(chatEvent)
+            const result = chatEventParser.processPartialEvent(chatEvent, contextList)
 
             // terminate early when there is an error
             if (!result.success) {

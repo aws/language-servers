@@ -1,10 +1,11 @@
 import { LocalProjectContextController } from './localProjectContextController'
-import { SinonStub, stub, spy, assert as sinonAssert, match } from 'sinon'
+import { SinonStub, stub, assert as sinonAssert, match } from 'sinon'
 import * as assert from 'assert'
 import * as fs from 'fs'
 import { Dirent } from 'fs'
 import * as path from 'path'
 import { URI } from 'vscode-uri'
+import { TestFeatures } from '@aws/language-server-runtimes/testing'
 
 class LoggingMock {
     public error: SinonStub
@@ -26,10 +27,12 @@ describe('LocalProjectContextController', () => {
     let mockWorkspaceFolders: any[]
     let vectorLibMock: any
     let fsStub: SinonStub
+    let testFeatures: TestFeatures
 
     const BASE_PATH = path.join(__dirname, 'path', 'to', 'workspace1')
 
     beforeEach(() => {
+        testFeatures = new TestFeatures()
         logging = new LoggingMock()
         mockWorkspaceFolders = [
             {
@@ -45,6 +48,9 @@ describe('LocalProjectContextController', () => {
                 queryVectorIndex: stub().resolves(['mockChunk1', 'mockChunk2']),
                 queryInlineProjectContext: stub().resolves(['mockContext1']),
                 updateIndexV2: stub().resolves(),
+                getContextCommandItems: stub().resolves([]),
+                getIndexSequenceNumber: stub().resolves(1),
+                getContextCommandPrompt: stub().resolves([]),
             }),
         }
 
@@ -58,7 +64,14 @@ describe('LocalProjectContextController', () => {
                 return Promise.resolve([])
             }
         })
-        controller = new LocalProjectContextController('testClient', mockWorkspaceFolders, logging as any)
+
+        controller = new LocalProjectContextController(
+            'testClient',
+            mockWorkspaceFolders,
+            logging as any,
+            testFeatures.chat,
+            testFeatures.workspace
+        )
     })
 
     afterEach(() => {
@@ -93,7 +106,9 @@ describe('LocalProjectContextController', () => {
             const uninitializedController = new LocalProjectContextController(
                 'testClient',
                 mockWorkspaceFolders,
-                logging as any
+                logging as any,
+                testFeatures.chat,
+                testFeatures.workspace
             )
 
             const result = await uninitializedController.queryVectorIndex({ query: 'test' })
@@ -124,7 +139,9 @@ describe('LocalProjectContextController', () => {
             const uninitializedController = new LocalProjectContextController(
                 'testClient',
                 mockWorkspaceFolders,
-                logging as any
+                logging as any,
+                testFeatures.chat,
+                testFeatures.workspace
             )
 
             const result = await uninitializedController.queryInlineProjectContext({
@@ -167,7 +184,9 @@ describe('LocalProjectContextController', () => {
             const uninitializedController = new LocalProjectContextController(
                 'testClient',
                 mockWorkspaceFolders,
-                logging as any
+                logging as any,
+                testFeatures.chat,
+                testFeatures.workspace
             )
 
             await uninitializedController.updateIndex(['test.java'], 'add')

@@ -3,6 +3,7 @@
  * Will be deleted or merged.
  */
 
+import * as path from 'path'
 import {
     ChatResponseStream,
     CodeWhispererStreaming,
@@ -36,6 +37,8 @@ import { DEFAULT_HELP_FOLLOW_UP_PROMPT, HELP_MESSAGE } from '../chat/constants'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 import { TabBarController } from './tabBarController'
+import { getUserPromptsDirectory } from './context/contextUtils'
+import { AdditionalContextProvider } from './context/addtionalContextProvider'
 
 describe('AgenticChatController', () => {
     const mockTabId = 'tab-1'
@@ -97,11 +100,13 @@ describe('AgenticChatController', () => {
 
     let sendMessageStub: sinon.SinonStub
     let generateAssistantResponseStub: sinon.SinonStub
+    let additionalContextProviderStub: sinon.SinonStub
     let disposeStub: sinon.SinonStub
     let activeTabSpy: {
         get: sinon.SinonSpy<[], string | undefined>
         set: sinon.SinonSpy<[string | undefined], void>
     }
+    let fsWriteFileStub: sinon.SinonStub
     let removeConversationSpy: sinon.SinonSpy
     let emitConversationMetricStub: sinon.SinonStub
 
@@ -144,13 +149,14 @@ describe('AgenticChatController', () => {
             })
 
         testFeatures = new TestFeatures()
+        fsWriteFileStub = sinon.stub()
 
         testFeatures.workspace.fs = {
             ...testFeatures.workspace.fs,
             getServerDataDirPath: sinon.stub().returns('/mock/server/data/path'),
             mkdir: sinon.stub().resolves(),
             readFile: sinon.stub().resolves(),
-            writeFile: sinon.stub().resolves(),
+            writeFile: fsWriteFileStub.resolves(),
             rm: sinon.stub().resolves(),
         }
 
@@ -161,6 +167,8 @@ describe('AgenticChatController', () => {
             addTool: sinon.stub().resolves(),
         }
 
+        additionalContextProviderStub = sinon.stub(AdditionalContextProvider.prototype, 'getAdditionalContext')
+        additionalContextProviderStub.resolves([])
         // @ts-ignore
         const cachedInitializeParams: InitializeParams = {
             initializationOptions: {
@@ -173,6 +181,7 @@ describe('AgenticChatController', () => {
                 },
             },
         }
+        testFeatures.lsp.window.showDocument = sinon.stub()
         testFeatures.lsp.getClientInitializeParams.returns(cachedInitializeParams)
         setCredentials('builderId')
 
@@ -998,6 +1007,25 @@ describe('AgenticChatController', () => {
                     }
                 )
             })
+        })
+    })
+
+    describe('onCreatePrompt', () => {
+        it('should create prompt file with given name', async () => {
+            const promptName = 'testPrompt'
+            const expectedPath = path.join(getUserPromptsDirectory(), 'testPrompt.prompt.md')
+
+            await chatController.onCreatePrompt({ promptName })
+
+            sinon.assert.calledOnceWithExactly(fsWriteFileStub, expectedPath, '', { mode: 0o600 })
+        })
+
+        it('should create default prompt file when no name provided', async () => {
+            const expectedPath = path.join(getUserPromptsDirectory(), 'default.prompt.md')
+
+            await chatController.onCreatePrompt({ promptName: '' })
+
+            sinon.assert.calledOnceWithExactly(fsWriteFileStub, expectedPath, '', { mode: 0o600 })
         })
     })
 

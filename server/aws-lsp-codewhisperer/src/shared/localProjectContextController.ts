@@ -1,8 +1,10 @@
-import { Logging, WorkspaceFolder } from '@aws/language-server-runtimes/server-interface'
+import { Chat, Logging, Workspace, WorkspaceFolder } from '@aws/language-server-runtimes/server-interface'
 import { dirname } from 'path'
 import { languageByExtension } from './languageDetection'
 import type {
+    AdditionalContextPrompt,
     Chunk,
+    ContextCommandItem,
     InlineProjectContext,
     QueryInlineProjectContextRequestV2,
     QueryRequest,
@@ -10,6 +12,8 @@ import type {
     VectorLibAPI,
 } from 'local-indexing'
 import { URI } from 'vscode-uri'
+import { waitUntil } from '@aws/lsp-core/out/util/timeoutUtils'
+import { ContextCommandsProvider } from '../language-server/agenticChat/context/contextCommandsProvider'
 
 const fs = require('fs').promises
 const path = require('path')
@@ -25,15 +29,24 @@ export class LocalProjectContextController {
 
     private workspaceFolders: WorkspaceFolder[]
     private _vecLib?: VectorLibAPI
+    private _contextCommandSymbolsUpdated = false
+    private readonly contextCommandsProvider: ContextCommandsProvider
     private readonly fileExtensions: string[]
     private readonly clientName: string
     private readonly log: Logging
 
-    constructor(clientName: string, workspaceFolders: WorkspaceFolder[], logging: Logging) {
+    constructor(
+        clientName: string,
+        workspaceFolders: WorkspaceFolder[],
+        logging: Logging,
+        chat: Chat,
+        workspace: Workspace
+    ) {
         this.fileExtensions = Object.keys(languageByExtension)
         this.workspaceFolders = workspaceFolders
         this.clientName = clientName
         this.log = logging
+        this.contextCommandsProvider = new ContextCommandsProvider(logging, chat, workspace)
     }
 
     public static getInstance() {
@@ -52,6 +65,10 @@ export class LocalProjectContextController {
                 this._vecLib = await vecLib.start(LIBRARY_DIR, this.clientName, root)
                 await this.buildIndex()
                 LocalProjectContextController.instance = this
+
+                const contextItems = await this.getContextCommandItems()
+                await this.contextCommandsProvider.processContextCommandUpdate(contextItems)
+                void this.maybeUpdateCodeSymbols()
             } else {
                 this.log.warn(`Vector library could not be imported from: ${libraryPath}`)
             }
@@ -65,6 +82,10 @@ export class LocalProjectContextController {
             await this._vecLib?.clear?.()
             this._vecLib = undefined
         }
+    }
+
+    public getRootDirectory() {
+        return this.findCommonWorkspaceRoot(this.workspaceFolders)
     }
 
     public async updateIndex(filePaths: string[], operation: UpdateMode): Promise<void> {
@@ -138,6 +159,71 @@ export class LocalProjectContextController {
         } catch (error) {
             this.log.error(`Error in queryVectorIndex: ${error}`)
             return []
+        }
+    }
+
+    public async getContextCommandItems(): Promise<ContextCommandItem[]> {
+        if (!this._vecLib) {
+            return []
+        }
+
+        try {
+            const foldersPath = this.workspaceFolders.map(folder => URI.parse(folder.uri).fsPath)
+            const resp = await this._vecLib?.getContextCommandItems(foldersPath)
+            this.log.log(`received ${resp.length} context command items`)
+            return resp ?? []
+        } catch (error) {
+            this.log.error(`Error in getContextCommandItems: ${error}`)
+            return []
+        }
+    }
+
+    public async shouldUpdateContextCommandSymbolsOnce(): Promise<boolean> {
+        if (this._contextCommandSymbolsUpdated) {
+            return false
+        }
+        this._contextCommandSymbolsUpdated = true
+        try {
+            const indexSeqNum = await this._vecLib?.getIndexSequenceNumber()
+            await this.updateIndex([], 'context_command_symbol_update')
+            await waitUntil(
+                async () => {
+                    const newIndexSeqNum = await this._vecLib?.getIndexSequenceNumber()
+                    if (newIndexSeqNum && indexSeqNum && newIndexSeqNum > indexSeqNum) {
+                        return true
+                    }
+                    return false
+                },
+                { interval: 1000, timeout: 60_000, truthy: true }
+            )
+            return true
+        } catch (error) {
+            this.log.error(`Error in shouldUpdateContextCommandSymbolsOnce: ${error}`)
+            return false
+        }
+    }
+
+    public async getContextCommandPrompt(
+        contextCommandItems: ContextCommandItem[]
+    ): Promise<AdditionalContextPrompt[]> {
+        if (!this._vecLib) {
+            return []
+        }
+
+        try {
+            const resp = await this._vecLib?.getContextCommandPrompt(contextCommandItems)
+            return resp ?? []
+        } catch (error) {
+            this.log.error(`Error in getContextCommandPrompt: ${error}`)
+            return []
+        }
+    }
+
+    private async maybeUpdateCodeSymbols() {
+        const needUpdate = await LocalProjectContextController.getInstance().shouldUpdateContextCommandSymbolsOnce()
+        if (needUpdate) {
+            const items = await this.getContextCommandItems()
+            await this.contextCommandsProvider.processContextCommandUpdate(items)
         }
     }
 
