@@ -2745,7 +2745,6 @@
         },
         "ListWorkspaceMetadataRequest": {
             "type": "structure",
-            "required": ["workspaceRoot"],
             "members": {
                 "workspaceRoot": { "shape": "ListWorkspaceMetadataRequestWorkspaceRootString" },
                 "nextToken": { "shape": "String" },

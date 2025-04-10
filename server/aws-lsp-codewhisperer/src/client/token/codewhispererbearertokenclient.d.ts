@@ -882,7 +882,7 @@ declare namespace CodeWhispererBearerTokenClient {
     featureEvaluations: FeatureEvaluationsList;
   }
   export interface ListWorkspaceMetadataRequest {
-    workspaceRoot: ListWorkspaceMetadataRequestWorkspaceRootString;
+    workspaceRoot?: ListWorkspaceMetadataRequestWorkspaceRootString;
     nextToken?: String;
     maxResults?: Integer;
     profileArn?: ProfileArn;
