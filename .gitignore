@@ -3,7 +3,7 @@ build
 .gradle
 .idea
 **/*.tgz
-!core/codewhisperer-streaming/amzn-codewhisperer-streaming-1.0.0.tgz
+!core/codewhisperer-streaming/amzn-codewhisperer-streaming-*.tgz
 .testresults/**
 
 # Visual Studio Related

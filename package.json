@@ -31,6 +31,7 @@
         "package": "npm run compile && npm run package --workspaces --if-present"
     },
     "dependencies": {
+        "@smithy/types": "4.2.0",
         "typescript": "^5.8.2"
     },
     "devDependencies": {

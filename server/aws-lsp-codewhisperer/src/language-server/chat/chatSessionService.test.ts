@@ -75,33 +75,97 @@ describe('Chat Session Service', () => {
                 requestParamsWithConversationId
             )
         })
+
+        it('abortRequest() aborts request with AbortController', async () => {
+            await chatSessionService.sendMessage(mockRequestParams)
+
+            chatSessionService.abortRequest()
+
+            sinon.assert.calledOnce(abortStub)
+        })
+
+        it('dispose() calls aborts outgoing requests', async () => {
+            await chatSessionService.sendMessage(mockRequestParams)
+
+            chatSessionService.dispose()
+
+            sinon.assert.calledOnce(abortStub)
+        })
+
+        it('clear() resets conversation id and aborts outgoing request', async () => {
+            await chatSessionService.sendMessage(mockRequestParams)
+            chatSessionService.conversationId = mockConversationId
+
+            assert.strictEqual(chatSessionService.conversationId, mockConversationId)
+
+            chatSessionService.clear()
+
+            sinon.assert.calledOnce(abortStub)
+            assert.strictEqual(chatSessionService.conversationId, undefined)
+        })
     })
 
-    it('abortRequest() aborts request with AbortController', async () => {
-        await chatSessionService.sendMessage(mockRequestParams)
+    describe('calling GenerateAssistantResponse', () => {
+        it('throws error is AmazonQTokenServiceManager is not initialized', async () => {
+            chatSessionService = new ChatSessionService(undefined)
 
-        chatSessionService.abortRequest()
+            await assert.rejects(
+                chatSessionService.generateAssistantResponse(mockRequestParams),
+                new Error('amazonQServiceManager is not initialized')
+            )
+        })
 
-        sinon.assert.calledOnce(abortStub)
-    })
+        it('should fill in conversationId in the request if exists', async () => {
+            await chatSessionService.generateAssistantResponse(mockRequestParams)
+            sinon.assert.calledOnce(codeWhispererStreamingClient.generateAssistantResponse)
+            sinon.assert.match(
+                codeWhispererStreamingClient.generateAssistantResponse.firstCall.firstArg,
+                mockRequestParams
+            )
 
-    it('dispose() calls aborts outgoing requests', async () => {
-        await chatSessionService.sendMessage(mockRequestParams)
+            chatSessionService.conversationId = mockConversationId
 
-        chatSessionService.dispose()
+            await chatSessionService.generateAssistantResponse(mockRequestParams)
 
-        sinon.assert.calledOnce(abortStub)
-    })
+            const requestParamsWithConversationId = {
+                conversationState: {
+                    ...mockRequestParams.conversationState,
+                    conversationId: mockConversationId,
+                },
+            }
 
-    it('clear() resets conversation id and aborts outgoing request', async () => {
-        await chatSessionService.sendMessage(mockRequestParams)
-        chatSessionService.conversationId = mockConversationId
+            sinon.assert.match(
+                codeWhispererStreamingClient.generateAssistantResponse.getCall(1).firstArg,
+                requestParamsWithConversationId
+            )
+        })
 
-        assert.strictEqual(chatSessionService.conversationId, mockConversationId)
+        it('abortRequest() aborts request with AbortController', async () => {
+            await chatSessionService.generateAssistantResponse(mockRequestParams)
 
-        chatSessionService.clear()
+            chatSessionService.abortRequest()
 
-        sinon.assert.calledOnce(abortStub)
-        assert.strictEqual(chatSessionService.conversationId, undefined)
+            sinon.assert.calledOnce(abortStub)
+        })
+
+        it('dispose() calls aborts outgoing requests', async () => {
+            await chatSessionService.generateAssistantResponse(mockRequestParams)
+
+            chatSessionService.dispose()
+
+            sinon.assert.calledOnce(abortStub)
+        })
+
+        it('clear() resets conversation id and aborts outgoing request', async () => {
+            await chatSessionService.generateAssistantResponse(mockRequestParams)
+            chatSessionService.conversationId = mockConversationId
+
+            assert.strictEqual(chatSessionService.conversationId, mockConversationId)
+
+            chatSessionService.clear()
+
+            sinon.assert.calledOnce(abortStub)
+            assert.strictEqual(chatSessionService.conversationId, undefined)
+        })
     })
 })
