@@ -744,12 +744,27 @@ export class WorkspaceFolderManager {
         }
         const inMemoryQueueEvents: any[] = []
         for (const fileMetadata of filesMetadata) {
-            const s3Url = await this.uploadToS3(fileMetadata)
-            if (!s3Url) {
-                continue
-            }
-            inMemoryQueueEvents.push(
-                JSON.stringify({
+            try {
+                const s3Url = await this.uploadToS3(fileMetadata)
+
+                if (!s3Url) {
+                    this.logging.warn(
+                        `Failed to get S3 URL for file in workspace: ${fileMetadata.workspaceFolder.name}`
+                    )
+                    continue
+                }
+
+                this.logging.log(
+                    `Successfully uploaded to S3: workspace=${fileMetadata.workspaceFolder.name}, s3Url=${cleanUrl(s3Url)}`
+                )
+
+                const workspaceId = this.getWorkspaces().get(fileMetadata.workspaceFolder.uri)?.workspaceId
+
+                if (!workspaceId) {
+                    this.logging.warn(`No workspace ID found for URI: ${fileMetadata.workspaceFolder.uri}`)
+                }
+
+                const event = JSON.stringify({
                     method: 'workspace/didChangeWorkspaceFolders',
                     params: {
                         workspaceFoldersChangeEvent: {
@@ -762,23 +777,57 @@ export class WorkspaceFolderManager {
                             removed: [],
                         },
                         workspaceChangeMetadata: {
-                            workspaceId: this.getWorkspaces().get(fileMetadata.workspaceFolder.uri)?.workspaceId ?? '',
+                            workspaceId: workspaceId ?? '',
                             s3Path: cleanUrl(s3Url),
                             programmingLanguage: fileMetadata.language,
                         },
                     },
                 })
-            )
+
+                this.logging.log(`Added didChangeWorkspaceFolders event to queue`)
+                inMemoryQueueEvents.push(event)
+            } catch (error) {
+                this.logging.error(
+                    `Error processing file metadata: error=${error instanceof Error ? error.message : 'Unknown error'}, workspace=${fileMetadata.workspaceFolder.name}`
+                )
+            }
         }
 
-        const workspaceDetails = this.getWorkspaces().get(filesMetadata[0].workspaceFolder.uri)
-        if (workspaceDetails?.webSocketClient) {
-            inMemoryQueueEvents.forEach(event => {
-                workspaceDetails.webSocketClient?.send(event)
-            })
-        } else {
-            workspaceDetails?.messageQueue?.push(...inMemoryQueueEvents)
+        try {
+            const workspaceDetails = this.getWorkspaces().get(filesMetadata[0].workspaceFolder.uri)
+
+            if (!workspaceDetails) {
+                this.logging.error(`No workspace details found for URI: ${filesMetadata[0].workspaceFolder.uri}`)
+                return
+            }
+
+            if (workspaceDetails.webSocketClient) {
+                this.logging.log('Using WebSocket client to send events')
+
+                inMemoryQueueEvents.forEach((event, index) => {
+                    try {
+                        workspaceDetails.webSocketClient?.send(event)
+                        this.logging.log(`Successfully sent event ${index + 1}/${inMemoryQueueEvents.length}`)
+                    } catch (error) {
+                        this.logging.error(
+                            `Failed to send event via WebSocket: error=${error instanceof Error ? error.message : 'Unknown error'}, eventIndex=${index}`
+                        )
+                    }
+                })
+            } else {
+                this.logging.log('No WebSocket client available, queueing messages')
+                if (workspaceDetails.messageQueue) {
+                    workspaceDetails.messageQueue.push(...inMemoryQueueEvents)
+                    this.logging.log(`Added ${inMemoryQueueEvents.length} events to message queue`)
+                } else {
+                    this.logging.warn('No message queue available to store events')
+                }
+            }
+        } catch (error) {
+            this.logging.error(`Error in final processing: ${error instanceof Error ? error.message : 'Unknown error'}`)
         }
+
+        this.logging.log(`Completed uploadS3AndQueueEvents processing ${inMemoryQueueEvents.length} events`)
     }
 
     private async uploadWithTimeout(fileMetadataMap: Map<string, FileMetadata[]>) {
