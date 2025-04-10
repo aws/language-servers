@@ -95,7 +95,7 @@ export class TabFactory {
         if (this.enableHistory) {
             tabBarActions.push({
                 id: ChatHistory.TabBarButtonId,
-                icon: MynahIcons.COMMENT,
+                icon: MynahIcons.HISTORY,
                 description: 'View chat history',
             })
         }
