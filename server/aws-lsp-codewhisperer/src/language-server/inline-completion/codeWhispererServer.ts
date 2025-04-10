@@ -352,12 +352,12 @@ export const CodewhispererServerFactory =
                         customizationArn: textUtils.undefinedIfEmpty(codeWhispererService.customizationArn),
                     })
 
-                // Add extra context to request context
-                const {extraContext} = amazonQServiceManager.getConfiguration().inlineSuggestions
-                if (extraContext) {
-                    requestContext.fileContext.leftFileContent = extraContext + '\n' + requestContext.fileContext.leftFileContent
-                }
-                return codeWhispererService.generateSuggestions({
+                    // Add extra context to request context
+                    const { extraContext } = amazonQServiceManager.getConfiguration().inlineSuggestions
+                    if (extraContext) {
+                        requestContext.fileContext.leftFileContent = extraContext + '\n' + requestContext.fileContext.leftFileContent
+                    }
+                    return codeWhispererService.generateSuggestions({
                         ...requestContext,
                         fileContext: {
                             ...requestContext.fileContext,
@@ -417,7 +417,7 @@ export const CodewhispererServerFactory =
                                     // the response. No locking or concurrency controls, filtering is done
                                     // right before returning and is only guaranteed to be consistent within
                                     // the context of a single response.
-                                    const {includeSuggestionsWithCodeReferences} = amazonQServiceManager.getConfiguration()
+                                    const { includeSuggestionsWithCodeReferences } = amazonQServiceManager.getConfiguration()
                                     if (includeSuggestionsWithCodeReferences) {
                                         return true
                                     }
@@ -571,9 +571,9 @@ export const CodewhispererServerFactory =
             codePercentageTracker.customizationArn = customizationArn
             logging.debug(`CodePercentageTracker customizationArn updated to ${customizationArn}`)
             /*
-                The flag enableTelemetryEventsToDestination is set to true temporarily. It's value will be determined through destination
-                configuration post all events migration to STE. It'll be replaced by qConfig['enableTelemetryEventsToDestination'] === true
-            */
+                    The flag enableTelemetryEventsToDestination is set to true temporarily. It's value will be determined through destination
+                    configuration post all events migration to STE. It'll be replaced by qConfig['enableTelemetryEventsToDestination'] === true
+                */
             // const enableTelemetryEventsToDestination = true
             // telemetryService.updateEnableTelemetryEventsToDestination(enableTelemetryEventsToDestination)
             telemetryService.updateOptOutPreference(optOutTelemetryPreference)
@@ -588,6 +588,7 @@ export const CodewhispererServerFactory =
                 runtime,
                 sdkInitializator,
                 workspace,
+                telemetry,
             })
 
             const clientParams = safeGet(
@@ -619,10 +620,10 @@ export const CodewhispererServerFactory =
             )
 
             /* 
-                Calling handleDidChangeConfiguration once to ensure we get configuration atleast once at start up
-                
-                TODO: TODO: consider refactoring such responsibilities to common service manager config/initialisation server
-            */
+                    Calling handleDidChangeConfiguration once to ensure we get configuration atleast once at start up
+                    
+                    TODO: TODO: consider refactoring such responsibilities to common service manager config/initialisation server
+                */
             await amazonQServiceManager.handleDidChangeConfiguration()
             await amazonQServiceManager.addDidChangeConfigurationListener(updateConfiguration)
         }
