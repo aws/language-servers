@@ -400,21 +400,17 @@ export class WorkspaceFolderManager {
         return createWorkspaceResult
     }
 
-    private async establishConnection(workspace: WorkspaceRoot) {
+    private async establishConnection(workspace: WorkspaceRoot, existingMetadata: WorkspaceMetadata) {
         const existingState = this.workspaceMap.get(workspace)
-        this.logging.log(`Establishing connection to ${workspace}`)
-        const { metadata, optOut } = await this.listWorkspaceMetadata(workspace)
-        if (optOut) {
-            throw new Error(`Workspace ${workspace} is opted out`)
-        }
-        if (!metadata?.environmentId) {
+
+        if (!existingMetadata.environmentId) {
             throw new Error('No environment ID found for ready workspace')
         }
-        if (!metadata.environmentAddress) {
+        if (!existingMetadata.environmentAddress) {
             throw new Error('No environment address found for ready workspace')
         }
 
-        const websocketUrl = metadata.environmentAddress
+        const websocketUrl = existingMetadata.environmentAddress
         this.logging.log(`Establishing connection to ${websocketUrl}`)
 
         if (existingState?.webSocketClient) {
@@ -518,7 +514,7 @@ export class WorkspaceFolderManager {
                         case 'READY':
                             const client = workspaceState.webSocketClient
                             if (!client || !client.isConnected()) {
-                                await this.establishConnection(workspace)
+                                await this.establishConnection(workspace, metadata)
                             }
                             clearInterval(intervalId)
                             return resolve(true)
@@ -589,7 +585,7 @@ export class WorkspaceFolderManager {
                             this.logging.log(
                                 `Workspace ${workspace} is ready but no connection exists or connection lost`
                             )
-                            await this.establishConnection(workspace)
+                            await this.establishConnection(workspace, metadata)
                         }
                         break
                     case 'PENDING':
@@ -687,7 +683,7 @@ export class WorkspaceFolderManager {
 
                 if (metadata.workspaceStatus === 'READY') {
                     this.logging.log(`Quick check found workspace ${workspace} is ready, attempting connection`)
-                    await this.establishConnection(workspace)
+                    await this.establishConnection(workspace, metadata)
                 } else {
                     this.logging.log(`Quick check found workspace ${workspace} state is ${metadata.workspaceStatus}`)
                 }
