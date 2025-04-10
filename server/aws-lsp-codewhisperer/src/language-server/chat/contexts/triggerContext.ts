@@ -7,6 +7,7 @@ import { DocumentContext, DocumentContextExtractor } from './documentContext'
 export interface TriggerContext extends Partial<DocumentContext> {
     userIntent?: UserIntent
     triggerType?: TriggerType
+    workspaceRulesCount?: number
 }
 
 export class QChatTriggerContext {

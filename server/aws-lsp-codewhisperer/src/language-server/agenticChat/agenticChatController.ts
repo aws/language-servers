@@ -13,12 +13,15 @@ import {
     TextEdit,
     chatRequestType,
     InlineChatParams,
+    CreatePromptParams,
+    FileClickParams,
 } from '@aws/language-server-runtimes/protocol'
 import {
     CancellationToken,
     Chat,
     ChatParams,
     ChatResult,
+    FileList,
     EndChatParams,
     LSPErrorCodes,
     QuickActionParams,
@@ -52,15 +55,14 @@ import {
 } from '../../shared/amazonQServiceManager/errors'
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
+import { ContextCommandsProvider } from './context/contextCommandsProvider'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
     | 'openTab'
     | 'sendChatUpdate'
-    | 'onFileClicked'
     | 'onInlineChatPrompt'
     | 'sendContextCommands'
-    | 'onCreatePrompt'
     | 'onListConversations'
     | 'onConversationClick'
 >
@@ -70,6 +72,7 @@ export class AgenticChatController implements ChatHandlers {
     #chatSessionManagementService: ChatSessionManagementService
     #telemetryController: ChatTelemetryController
     #triggerContext: QChatTriggerContext
+    #contextCommandsProvider: ContextCommandsProvider
     #customizationArn?: string
     #telemetryService: TelemetryService
     #amazonQServiceManager?: AmazonQTokenServiceManager
@@ -86,11 +89,17 @@ export class AgenticChatController implements ChatHandlers {
         this.#telemetryController = new ChatTelemetryController(features, telemetryService)
         this.#telemetryService = telemetryService
         this.#amazonQServiceManager = amazonQServiceManager
+        this.#contextCommandsProvider = new ContextCommandsProvider(features)
+    }
+
+    async onCreatePrompt(params: CreatePromptParams): Promise<void> {
+        await this.#contextCommandsProvider?.handleCreatePrompt(params.promptName)
     }
 
     dispose() {
         this.#chatSessionManagementService.dispose()
         this.#telemetryController.dispose()
+        this.#contextCommandsProvider?.dispose()
     }
 
     async onChatPrompt(params: ChatParams, token: CancellationToken): Promise<ChatResult | ResponseError<ChatResult>> {
@@ -134,6 +143,7 @@ export class AgenticChatController implements ChatHandlers {
                 this.#customizationArn,
                 profileArn
             )
+            await this.#contextCommandsProvider.addAdditionalContext(triggerContext)
 
             metric.recordStart()
             response = await session.sendMessage(requestInput)
@@ -386,13 +396,20 @@ export class AgenticChatController implements ChatHandlers {
         return success
     }
 
+    async onFileClicked(params: FileClickParams) {
+        // TODO: also pass in selection and handle on client side
+        await this.#features.lsp.window.showDocument({ uri: params.filePath })
+    }
+
     onFollowUpClicked() {}
 
     onInfoLinkClick() {}
 
     onLinkClick() {}
 
-    onReady() {}
+    onReady() {
+        void this.#contextCommandsProvider?.processContextCommandUpdate()
+    }
 
     onSendFeedback({ tabId, feedbackPayload }: FeedbackParams) {
         this.#features.telemetry.emitMetric({
