@@ -41,6 +41,7 @@ export class WorkspaceFolderManager {
     private readonly INITIAL_TIMEOUT = 2 * 60 * 1000 // 2 minutes
     private readonly CONTINUOUS_MONITOR_INTERVAL = 5 * 60 * 1000 // 5 minutes
     private monitorIntervals: Map<string, NodeJS.Timeout> = new Map()
+    private isOptedOut: boolean = false
 
     static createInstance(
         cwsprClient: CodeWhispererServiceToken,
@@ -191,6 +192,10 @@ export class WorkspaceFolderManager {
         return workspaceDetails.workspaceId
     }
 
+    public getOptOutStatus(): boolean {
+        return this.isOptedOut
+    }
+
     async processNewWorkspaceFolders(
         folders: WorkspaceFolder[],
         options: {
@@ -198,6 +203,16 @@ export class WorkspaceFolderManager {
             didChangeWorkspaceFoldersAddition?: boolean
         }
     ) {
+        // Check if user is opted in before trying to process any files
+        const { metadata, optOut } = await this.listWorkspaceMetadata()
+        if (optOut) {
+            this.logging.log('User is opted out, clearing resources and starting opt-out monitor')
+            this.isOptedOut = true
+            await this.clearAllWorkspaceResources()
+            await this.startOptOutMonitor()
+            return
+        }
+
         for (const folder of folders) {
             await this.handleNewWorkspace(folder.uri).catch(e => {
                 this.logging.warn(`Error processing new workspace: ${e}`)
@@ -273,8 +288,9 @@ export class WorkspaceFolderManager {
         })
 
         if (!workspaceDetails.webSocketClient) {
-            this.logging.log(`Websocket client is not connected yet: ${fileMetadata.workspaceFolder.uri}`)
-            this.logging.log(`Queue Websocket request ${message}}`)
+            this.logging.log(
+                `Websocket client is not connected yet: ${fileMetadata.workspaceFolder.uri} adding didChangeDependencyPaths message to queue`
+            )
             workspaceDetails.messageQueue?.push(message)
         } else {
             workspaceDetails.webSocketClient.send(message)
@@ -329,10 +345,6 @@ export class WorkspaceFolderManager {
         for (const { webSocketClient, workspaceId } of this.workspaceMap.values()) {
             if (webSocketClient) {
                 webSocketClient.destroyClient()
-            }
-
-            if (workspaceId) {
-                await this.deleteWorkspace(workspaceId)
             }
         }
 
@@ -448,8 +460,12 @@ export class WorkspaceFolderManager {
 
         // Check if workspace exists remotely
         const { metadata, optOut } = await this.listWorkspaceMetadata(workspace)
+
         if (optOut) {
-            this.logging.log(`Not creating a new workspace ${workspace}, it is opted out`)
+            this.logging.log(`Not creating a new workspace ${workspace}, user is opted out`)
+            this.isOptedOut = true
+            await this.clearAllWorkspaceResources()
+            await this.startOptOutMonitor()
             return
         }
 
@@ -460,11 +476,13 @@ export class WorkspaceFolderManager {
                 remoteWorkspaceState: metadata.workspaceStatus,
                 messageQueue: queueEvents ?? [],
             })
+            //  We don't attempt a connection here even if remote workspace is ready and leave the connection attempt to the workspace status monitor
         } else {
             // Create new workspace
             const createWorkspaceResult = await this.createNewWorkspace(workspace)
             if (createWorkspaceResult.error && createWorkspaceResult.error.retryable) {
                 this.logging.log(`Workspace creation failed with retryable error, starting monitor`)
+                // todo, consider whether we should add the failed env to the map or not and what to do in the create failure case
                 this.updateWorkspaceEntry(workspace, {
                     remoteWorkspaceState: 'CREATION_PENDING',
                     messageQueue: queueEvents ?? [],
@@ -494,9 +512,10 @@ export class WorkspaceFolderManager {
                     const { metadata, optOut } = await this.listWorkspaceMetadata(workspace)
 
                     if (optOut) {
-                        this.logging.log(`Workspace ${workspace} is opted out during initial connection`)
-                        await this.clearWorkspaceResources(workspace, workspaceState)
-                        clearInterval(intervalId)
+                        this.logging.log(`User opted out during initial connection`)
+                        this.isOptedOut = true
+                        await this.clearAllWorkspaceResources()
+                        await this.startOptOutMonitor()
                         return resolve(false)
                     }
 
@@ -555,6 +574,7 @@ export class WorkspaceFolderManager {
             try {
                 const workspaceState = this.workspaceMap.get(workspace)
                 if (!workspaceState) {
+                    // todo, revisit this
                     this.stopMonitoring(workspace)
                     return
                 }
@@ -562,9 +582,10 @@ export class WorkspaceFolderManager {
                 const { metadata, optOut } = await this.listWorkspaceMetadata(workspace)
 
                 if (optOut) {
-                    this.logging.log(`Workspace ${workspace} is opted out`)
-                    await this.clearWorkspaceResources(workspace, workspaceState)
-                    this.stopMonitoring(workspace)
+                    this.logging.log('User opted out, clearing all resources and starting opt-out monitor')
+                    this.isOptedOut = true
+                    await this.clearAllWorkspaceResources()
+                    await this.startOptOutMonitor()
                     return
                 }
 
@@ -603,6 +624,24 @@ export class WorkspaceFolderManager {
         }, this.CONTINUOUS_MONITOR_INTERVAL)
 
         this.monitorIntervals.set(workspace, intervalId)
+    }
+
+    private async startOptOutMonitor() {
+        const intervalId = setInterval(async () => {
+            try {
+                const { optOut } = await this.listWorkspaceMetadata()
+
+                if (!optOut) {
+                    this.isOptedOut = false
+                    this.logging.log('User opted back in, stopping opt-out monitor and reinitializing workspace')
+                    clearInterval(intervalId)
+                    // Process all workspace folders with initialize flag
+                    await this.processNewWorkspaceFolders(this.workspaceFolders, { initialize: true })
+                }
+            } catch (error) {
+                this.logging.error(`Error in opt-out monitor: ${error}`)
+            }
+        }, this.CONTINUOUS_MONITOR_INTERVAL)
     }
 
     /**
@@ -672,7 +711,10 @@ export class WorkspaceFolderManager {
                 const { metadata, optOut } = await this.listWorkspaceMetadata(workspace)
 
                 if (optOut) {
-                    this.logging.log(`Workspace ${workspace} is opted out during quick check`)
+                    this.logging.log(`User is opted out during quick check`)
+                    this.isOptedOut = true
+                    await this.clearAllWorkspaceResources()
+                    await this.startOptOutMonitor()
                     return
                 }
 
@@ -707,20 +749,15 @@ export class WorkspaceFolderManager {
         this.logging.log(
             `Initial connection ${success ? 'successful' : 'failed'} for ${workspace}, starting continuous monitor`
         )
+        if (!success && this.isOptedOut) {
+            // If initial connection fails due to opt out, do not start the continuous monitor
+            // The opt-out monitor will already be started
+            return
+        }
         this.startContinuousMonitor(workspace)
     }
 
-    private async clearWorkspaceResources(workspace: WorkspaceRoot, workspaceState: WorkspaceState) {
-        this.stopMonitoring(workspace)
-        if (workspaceState.webSocketClient) {
-            workspaceState.webSocketClient.disconnect()
-        }
-        if (workspaceState.workspaceId) {
-            await this.deleteWorkspace(workspaceState.workspaceId)
-        }
-        this.removeWorkspaceEntry(workspace)
-    }
-
+    // could this cause messages to be lost??????
     private processMessagesInQueue(workspaceRoot: WorkspaceRoot) {
         const workspaceDetails = this.workspaceMap.get(workspaceRoot)
         while (workspaceDetails?.messageQueue && workspaceDetails.messageQueue.length > 0) {
@@ -781,7 +818,8 @@ export class WorkspaceFolderManager {
                 })
 
                 this.logging.log(`Added didChangeWorkspaceFolders event to queue`)
-                inMemoryQueueEvents.push(event)
+                // We add this event to the front of the queue here to prevent any race condition that might put events before the didChangeWorkspaceFolders event
+                inMemoryQueueEvents.unshift(event)
             } catch (error) {
                 this.logging.error(
                     `Error processing file metadata: error=${error instanceof Error ? error.message : 'Unknown error'}, workspace=${fileMetadata.workspaceFolder.name}`
@@ -883,25 +921,24 @@ export class WorkspaceFolderManager {
      * @param workspaceRoot
      * @private
      */
-    private async listWorkspaceMetadata(workspaceRoot: WorkspaceRoot): Promise<{
+    private async listWorkspaceMetadata(workspaceRoot?: WorkspaceRoot): Promise<{
         metadata: WorkspaceMetadata | undefined | null
         optOut: boolean
     }> {
         let metadata: WorkspaceMetadata | undefined | null
         let optOut = false
         try {
-            const response = await this.cwsprClient.listWorkspaceMetadata({
-                workspaceRoot: workspaceRoot,
-            })
-            this.logging.log(
-                `ListWorkspaceMetadata response for ${workspaceRoot}: ${JSON.stringify(response)} address: ${response.workspaces[0].environmentAddress}`
-            )
+            const params = workspaceRoot ? { workspaceRoot } : {}
+            const response = await this.cwsprClient.listWorkspaceMetadata(params)
+            this.logging.log(`ListWorkspaceMetadata response for ${workspaceRoot}: ${JSON.stringify(response)}`)
             metadata = response && response.workspaces.length ? response.workspaces[0] : null
         } catch (e: any) {
-            // TODO, need a better way of understanding opt out, currently AccessDeniedException that happens due to expired token leads to opt out being marked true
-            this.logging.warn(`Error while fetching workspace (${workspaceRoot}) metadata: ${e?.message}, ${e?.__type}`)
-            if (e?.__type?.includes('AccessDeniedException')) {
-                this.logging.warn(`Access denied while fetching workspace (${workspaceRoot}) metadata.`)
+            this.logging.warn(`Error while fetching workspace (${workspaceRoot}) metadata: ${e?.message}`)
+            if (
+                e?.__type?.includes('AccessDeniedException') &&
+                e?.reason === 'UNAUTHORIZED_WORKSPACE_CONTEXT_FEATURE_ACCESS'
+            ) {
+                this.logging.log(`Server side opt-out detected for workspace context`)
                 optOut = true
             }
         }

@@ -135,6 +135,46 @@ export const WorkspaceContextServer =
             }
         }
 
+        let abTestingEvaluated = false
+        let abTestingEnabled = false
+
+        const isUserEligibleForWorkspaceContext = async () => {
+            // Early return if A/B testing was previously checked and user was not part of test
+            if (abTestingEvaluated && !abTestingEnabled) {
+                return false
+            }
+
+            // Check basic conditions first to avoid unnecessary API calls
+            if (
+                !isOptedIn ||
+                !isLoggedInUsingBearerToken(credentialsProvider) ||
+                workspaceFolderManager.getOptOutStatus()
+            ) {
+                return false
+            }
+
+            // Perform A/B testing check if not already done
+            if (!abTestingEvaluated) {
+                try {
+                    const featureEvaluations = await cwsprClient.listFeatureEvaluations({
+                        userContext: {
+                            ideCategory: 'VSCODE',
+                            operatingSystem: 'MAC',
+                            product: 'CodeWhisperer',
+                        },
+                    })
+                    // todo, use the result
+                    abTestingEnabled = true //featureEvaluations.some(feature => feature.enabled)
+                    abTestingEvaluated = true
+                } catch (error) {
+                    console.error('Error checking A/B testing status:', error)
+                    return false
+                }
+            }
+
+            return abTestingEnabled
+        }
+
         lsp.onInitialized(async params => {
             logging.log(`LSP initialized`)
 
@@ -210,13 +250,11 @@ export const WorkspaceContextServer =
         lsp.didChangeConfiguration(updateConfiguration)
 
         lsp.onDidSaveTextDocument(async event => {
-            if (!isOptedIn) {
+            if (!(await isUserEligibleForWorkspaceContext())) {
                 return
             }
             logging.log(`Document saved: ${event.textDocument.uri}`)
-            if (!isLoggedInUsingBearerToken(credentialsProvider)) {
-                return
-            }
+
             const programmingLanguage = getCodeWhispererLanguageIdFromPath(event.textDocument.uri)
             if (!programmingLanguage || !SUPPORTED_WORKSPACE_CONTEXT_LANGUAGES.includes(programmingLanguage)) {
                 return
@@ -247,7 +285,7 @@ export const WorkspaceContextServer =
                 },
             })
             if (!workspaceDetails.webSocketClient) {
-                logging.log(`Websocket client is not connected yet: ${workspaceRoot.uri}`)
+                logging.log(`Websocket client is not connected yet: ${workspaceRoot.uri}, adding message to queue`)
                 workspaceDetails.messageQueue?.push(message)
             } else {
                 workspaceDetails.webSocketClient.send(message)
@@ -255,13 +293,12 @@ export const WorkspaceContextServer =
         })
 
         lsp.workspace.onDidCreateFiles(async event => {
-            if (!isOptedIn) {
+            if (!(await isUserEligibleForWorkspaceContext())) {
                 return
             }
+
             logging.log(`Documents created ${JSON.stringify(event)}`)
-            if (!isLoggedInUsingBearerToken(credentialsProvider)) {
-                return
-            }
+
             for (const file of event.files) {
                 const isDir = isDirectory(file.uri)
                 const result = workspaceFolderManager.getWorkspaceDetailsWithId(file.uri, workspaceFolders)
@@ -301,7 +338,9 @@ export const WorkspaceContextServer =
                         },
                     })
                     if (!workspaceDetails.webSocketClient) {
-                        logging.log(`Websocket client is not connected yet: ${workspaceRoot.uri}`)
+                        logging.log(
+                            `Websocket client is not connected yet: ${workspaceRoot.uri}, adding message to queue`
+                        )
                         workspaceDetails.messageQueue?.push(message)
                     } else {
                         workspaceDetails.webSocketClient.send(message)
@@ -311,7 +350,7 @@ export const WorkspaceContextServer =
         })
 
         lsp.workspace.onDidDeleteFiles(async event => {
-            if (!isOptedIn || !isLoggedInUsingBearerToken(credentialsProvider)) {
+            if (!(await isUserEligibleForWorkspaceContext())) {
                 return
             }
             logging.log(`Documents deleted ${JSON.stringify(event)}`)
@@ -349,7 +388,9 @@ export const WorkspaceContextServer =
                         },
                     })
                     if (!workspaceDetails.webSocketClient) {
-                        logging.log(`Websocket client is not connected yet: ${workspaceRoot.uri}`)
+                        logging.log(
+                            `Websocket client is not connected yet: ${workspaceRoot.uri}, adding message to queue`
+                        )
                         workspaceDetails.messageQueue?.push(message)
                     } else {
                         workspaceDetails.webSocketClient.send(message)
@@ -359,13 +400,11 @@ export const WorkspaceContextServer =
         })
 
         lsp.workspace.onDidRenameFiles(async event => {
-            if (!isOptedIn) {
+            if (!(await isUserEligibleForWorkspaceContext())) {
                 return
             }
             logging.log(`Documents renamed ${JSON.stringify(event)}`)
-            if (!isLoggedInUsingBearerToken(credentialsProvider)) {
-                return
-            }
+
             for (const file of event.files) {
                 const result = workspaceFolderManager.getWorkspaceDetailsWithId(file.newUri, workspaceFolders)
                 if (!result) {
@@ -396,7 +435,9 @@ export const WorkspaceContextServer =
                         },
                     })
                     if (!workspaceDetails.webSocketClient) {
-                        logging.log(`Websocket client is not connected yet: ${workspaceRoot.uri}`)
+                        logging.log(
+                            `Websocket client is not connected yet: ${workspaceRoot.uri}, adding message to queue`
+                        )
                         workspaceDetails.messageQueue?.push(message)
                     } else {
                         workspaceDetails.webSocketClient.send(message)
@@ -406,6 +447,10 @@ export const WorkspaceContextServer =
         })
 
         lsp.extensions.onDidChangeDependencyPaths(async params => {
+            if (!(await isUserEligibleForWorkspaceContext())) {
+                return
+            }
+
             logging.log(`Dependency path changed ${JSON.stringify(params)}`)
             if (!isOptedIn) {
                 return
@@ -421,7 +466,10 @@ export const WorkspaceContextServer =
         logging.log('Workspace context server has been initialized')
 
         return () => {
-            artifactManager.cleanup()
-            dependencyDiscoverer.dispose()
+            workspaceFolderManager.clearAllWorkspaceResources().catch(error => {
+                logging.error(
+                    `Error clearing all workspace resources: ${error instanceof Error ? error.message : 'Unknown error'}`
+                )
+            })
         }
     }
