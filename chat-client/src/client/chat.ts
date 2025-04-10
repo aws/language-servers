@@ -126,7 +126,7 @@ export const createChat = (
                 mynahApi.addChatResponse(message.params, message.tabId, message.isPartialResult)
                 break
             case OPEN_TAB_REQUEST_METHOD:
-                mynahApi.openTab(message.params as OpenTabParams)
+                mynahApi.openTab(message.requestId, message.params as OpenTabParams)
                 break
             case SEND_TO_PROMPT:
                 mynahApi.sendToPrompt((message as SendToPromptMessage).params)
@@ -224,9 +224,10 @@ export const createChat = (
         disclaimerAcknowledged: () => {
             sendMessageToClient({ command: DISCLAIMER_ACKNOWLEDGED })
         },
-        onOpenTab: (params: OpenTabResult | ErrorResult) => {
+        onOpenTab: (requestId: string, params: OpenTabResult | ErrorResult) => {
             if ('tabId' in params) {
                 sendMessageToClient({
+                    requestId: requestId,
                     command: OPEN_TAB_REQUEST_METHOD,
                     params: {
                         success: true,
@@ -235,6 +236,7 @@ export const createChat = (
                 })
             } else {
                 sendMessageToClient({
+                    requestId: requestId,
                     command: OPEN_TAB_REQUEST_METHOD,
                     params: {
                         success: false,

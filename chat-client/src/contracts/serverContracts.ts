@@ -52,11 +52,9 @@ export type ServerMessageCommand =
     | typeof LIST_CONVERSATIONS_REQUEST_METHOD
     | typeof CONVERSATION_CLICK_REQUEST_METHOD
 
-export interface Message {
+export interface ServerMessage {
     command: ServerMessageCommand
-}
-
-export interface ServerMessage extends Message {
+    requestId?: string
     params?: ServerMessageParams
 }
 

@@ -4,6 +4,7 @@ build
 .idea
 **/*.tgz
 !core/codewhisperer-streaming/amzn-codewhisperer-streaming-1.0.0.tgz
+!core/q-developer-streaming-client/amzn-amazon-q-developer-streaming-client-1.0.0.tgz
 .testresults/**
 
 # Visual Studio Related
