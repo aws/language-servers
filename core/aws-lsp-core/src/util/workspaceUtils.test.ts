@@ -3,7 +3,7 @@ import * as fs from 'fs/promises'
 import * as assert from 'assert'
 import * as path from 'path'
 import { TestFolder } from '../test/testFolder'
-import { getEntryPath, readDirectoryRecursively } from './workspaceUtils'
+import { readDirectoryRecursively, getEntryPath } from './workspaceUtils'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 
 describe('workspaceUtils', function () {

@@ -63,18 +63,19 @@ export async function readDirectoryRecursively(
  * Returns a prefix for a directory ('[DIR]'), symlink ('[LINK]'), or file ('[FILE]').
  */
 export function formatListing(entry: Dirent): string {
-    // TODO: add a way to check symlinks in runtimes rather than doing it implicitly.
-    let typeChar = '[LINK]'
+    let typeChar: string
     if (entry.isDirectory()) {
         typeChar = '[DIR]'
+    } else if (entry.isSymbolicLink()) {
+        typeChar = '[LINK]'
     } else if (entry.isFile()) {
         typeChar = '[FILE]'
+    } else {
+        typeChar = '[UNKNOWN]'
     }
-    return `${typeChar} ${getEntryPath(entry)}`
+    return `${typeChar} ${path.join(entry.parentPath, entry.name)}`
 }
 
-// Depending on Node version fs.Dirent.path refers to the parentPath or the full path. https://github.com/nodejs/node/issues/51955#issuecomment-1977131319
-// TODO: fix this by updating Dirent interface in runtimes.
 export function getEntryPath(entry: Dirent) {
-    return entry.path.endsWith(entry.name) ? entry.path : path.join(entry.path, entry.name)
+    return path.join(entry.parentPath, entry.name)
 }
