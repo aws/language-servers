@@ -81,6 +81,10 @@ export const QAgenticChatServer =
 
             return chatController.onTabAdd(params)
         })
+        chat.onReady(() => {
+            logging.log(`Received ready notification`)
+            return chatController.onReady()
+        })
 
         chat.onTabChange(params => {
             logging.log(`Changing to tab: ${params.tabId}`)
@@ -119,6 +123,14 @@ export const QAgenticChatServer =
 
         chat.onCodeInsertToCursorPosition(params => {
             return chatController.onCodeInsertToCursorPosition(params)
+        })
+
+        chat.onListConversations(params => {
+            return chatController.onListConversations(params)
+        })
+
+        chat.onConversationClick(params => {
+            return chatController.onConversationClick(params)
         })
 
         logging.log('Q Chat server has been initialized')
