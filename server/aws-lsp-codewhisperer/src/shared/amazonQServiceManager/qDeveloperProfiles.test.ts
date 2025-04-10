@@ -2,7 +2,11 @@ import * as assert from 'assert'
 import { StubbedInstance, stubInterface } from 'ts-sinon'
 import { CodeWhispererServiceToken } from '../codeWhispererService'
 import { SsoConnectionType } from '../utils'
-import { AWSInitializationOptions, Logging } from '@aws/language-server-runtimes/server-interface'
+import {
+    AWSInitializationOptions,
+    CancellationTokenSource,
+    Logging,
+} from '@aws/language-server-runtimes/server-interface'
 import {
     AmazonQDeveloperProfile,
     getListAllAvailableProfilesHandler,
@@ -35,6 +39,7 @@ describe('ListAllAvailableProfiles Handler', () => {
 
     let codeWhispererService: StubbedInstance<CodeWhispererServiceToken>
     let handler: ListAllAvailableProfilesHandler
+    let tokenSource: CancellationTokenSource
 
     const listAvailableProfilesResponse = {
         profiles: [
@@ -57,6 +62,7 @@ describe('ListAllAvailableProfiles Handler', () => {
         codeWhispererService.listAvailableProfiles.resolves(listAvailableProfilesResponse)
 
         handler = getListAllAvailableProfilesHandler(() => codeWhispererService)
+        tokenSource = new CancellationTokenSource()
     })
 
     it('should aggregrate profiles retrieved from different regions', async () => {
@@ -64,6 +70,7 @@ describe('ListAllAvailableProfiles Handler', () => {
             connectionType: 'identityCenter',
             logging,
             endpoints: SOME_AWS_Q_ENDPOINTS,
+            token: tokenSource.token,
         })
 
         assert.strictEqual(
@@ -78,6 +85,7 @@ describe('ListAllAvailableProfiles Handler', () => {
             const profiles = await handler({
                 connectionType,
                 logging,
+                token: tokenSource.token,
             })
 
             assert.deepStrictEqual(profiles, [])
@@ -102,6 +110,7 @@ describe('ListAllAvailableProfiles Handler', () => {
                 connectionType: 'identityCenter',
                 logging,
                 endpoints: SOME_AWS_Q_ENDPOINT,
+                token: tokenSource.token,
             })
 
             assert.strictEqual(codeWhispererService.listAvailableProfiles.callCount, EXPECTED_CALLS)
@@ -115,6 +124,7 @@ describe('ListAllAvailableProfiles Handler', () => {
                 connectionType: 'identityCenter',
                 logging,
                 endpoints: SOME_AWS_Q_ENDPOINT,
+                token: tokenSource.token,
             })
 
             assert.strictEqual(codeWhispererService.listAvailableProfiles.callCount, MAX_EXPECTED_PAGES)

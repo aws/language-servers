@@ -305,6 +305,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<CodeWh
         const profiles = await getListAllAvailableProfilesHandler(this.serviceFactory)({
             connectionType: 'identityCenter',
             logging: this.logging,
+            token: token,
         })
 
         this.handleTokenCancellationRequest(token)

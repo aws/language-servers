@@ -80,7 +80,7 @@ export const QConfigurationServerToken =
                         case Q_CONFIGURATION_SECTION:
                             ;[customizations, developerProfiles] = await Promise.all([
                                 serverConfigurationProvider.listAvailableCustomizations(),
-                                serverConfigurationProvider.listAvailableProfiles(),
+                                serverConfigurationProvider.listAvailableProfiles(token),
                             ])
 
                             return amazonQServiceManager.getEnableDeveloperProfileSupport()
@@ -91,7 +91,7 @@ export const QConfigurationServerToken =
 
                             return customizations
                         case Q_DEVELOPER_PROFILES_CONFIGURATION_SECTION:
-                            developerProfiles = await serverConfigurationProvider.listAvailableProfiles()
+                            developerProfiles = await serverConfigurationProvider.listAvailableProfiles(token)
 
                             return developerProfiles
                         default:
@@ -130,7 +130,7 @@ export class ServerConfigurationProvider {
         )
     }
 
-    async listAvailableProfiles(): Promise<AmazonQDeveloperProfile[]> {
+    async listAvailableProfiles(token: CancellationToken): Promise<AmazonQDeveloperProfile[]> {
         if (!this.serviceManager.getEnableDeveloperProfileSupport()) {
             this.logging.debug('Q developer profiles disabled - returning empty list')
             return []
@@ -140,6 +140,7 @@ export class ServerConfigurationProvider {
             const profiles = await this.listAllAvailableProfilesHandler({
                 connectionType: this.credentialsProvider.getConnectionType(),
                 logging: this.logging,
+                token: token,
             })
 
             return profiles
