@@ -290,6 +290,7 @@ export const createChat = (
         messager,
         tabFactory,
         config?.disclaimerAcknowledged ?? false,
+        config?.enableConversationExport ?? false,
         chatClientAdapter
     )
 

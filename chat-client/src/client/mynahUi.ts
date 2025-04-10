@@ -127,6 +127,7 @@ export const createMynahUi = (
     messager: Messager,
     tabFactory: TabFactory,
     disclaimerAcknowledged: boolean,
+    enableConversationExport: boolean,
     customChatClientAdapter?: ChatClientAdapter
 ): [MynahUI, InboundChatApi] => {
     const initialTabId = TabFactory.generateUniqueId()
@@ -607,7 +608,7 @@ ${params.message}`,
         })
     }
 
-    let chatHistoryList = new ChatHistoryList(mynahUi, messager)
+    let chatHistoryList = new ChatHistoryList(mynahUi, messager, enableConversationExport)
     const listConversations = (params: ListConversationsResult) => {
         chatHistoryList.show(params)
     }
@@ -627,8 +628,6 @@ ${params.message}`,
         if (params.action === 'delete') {
             messager.onListConversations()
         }
-
-        // TODO: Hook action for Chat Export
     }
 
     const exportConversation = (params: ExportConversationParams) => {
