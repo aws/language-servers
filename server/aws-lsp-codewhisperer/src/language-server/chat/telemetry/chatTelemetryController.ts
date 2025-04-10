@@ -7,7 +7,7 @@ import {
     CombinedConversationEvent,
     InteractWithMessageEvent,
 } from '../../../shared/telemetry/types'
-import { Features, KeysMatching } from '../../types'
+import { KeysMatching } from '../../types'
 import {
     ChatUIEventName,
     InsertToCursorPositionParams,
@@ -22,6 +22,7 @@ import { AcceptedSuggestionEntry, CodeDiffTracker } from '../../inline-completio
 import { TelemetryService } from '../../../shared/telemetry/telemetryService'
 import { getEndPositionForAcceptedSuggestion } from '../../../shared/utils'
 import { CodewhispererLanguage } from '../../../shared/languageDetection'
+import { Features } from '../../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
 
 export const CONVERSATION_ID_METRIC_KEY = 'cwsprChatConversationId'
 
