@@ -83,6 +83,8 @@ export const QConfigurationServerToken =
                                 serverConfigurationProvider.listAvailableProfiles(token),
                             ])
 
+                            throwIfCancelled(token)
+
                             return amazonQServiceManager.getEnableDeveloperProfileSupport()
                                 ? { customizations, developerProfiles }
                                 : { customizations }
@@ -92,6 +94,8 @@ export const QConfigurationServerToken =
                             return customizations
                         case Q_DEVELOPER_PROFILES_CONFIGURATION_SECTION:
                             developerProfiles = await serverConfigurationProvider.listAvailableProfiles(token)
+
+                            throwIfCancelled(token)
 
                             return developerProfiles
                         default:
@@ -114,6 +118,12 @@ export const QConfigurationServerToken =
         logging.log('Amazon Q Configuration server has been initialised')
         return () => {}
     }
+
+function throwIfCancelled(token: CancellationToken) {
+    if (token.isCancellationRequested) {
+        throw new ResponseError(LSPErrorCodes.RequestCancelled, 'Request cancelled')
+    }
+}
 
 const ON_GET_CONFIGURATION_FROM_SERVER_ERROR_PREFIX = 'Failed to fetch: '
 
