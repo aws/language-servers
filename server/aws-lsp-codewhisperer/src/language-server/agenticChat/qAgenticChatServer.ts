@@ -121,6 +121,18 @@ export const QAgenticChatServer =
             return chatController.onCodeInsertToCursorPosition(params)
         })
 
+        chat.onCreatePrompt((params) => {
+            return chatController.onCreatePrompt(params)
+        })
+
+        chat.onReady(() => {
+            return chatController.onReady()
+        })
+
+        chat.onFileClicked((params) => {
+            return chatController.onFileClicked(params)
+        })
+
         logging.log('Q Chat server has been initialized')
 
         return () => {

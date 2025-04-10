@@ -1,5 +1,5 @@
 import { EditorState, TextDocument as CwsprTextDocument } from '@amzn/codewhisperer-streaming'
-import { CursorState } from '@aws/language-server-runtimes/server-interface'
+import { CursorState, WorkspaceFolder } from '@aws/language-server-runtimes/server-interface'
 import { Range, TextDocument } from 'vscode-languageserver-textdocument'
 import { getLanguageId } from '../../../shared/languageDetection'
 import { Features } from '../../types'
@@ -11,6 +11,7 @@ export type DocumentContext = CwsprTextDocument & {
     cursorState?: EditorState['cursorState']
     hasCodeSnippet: boolean
     totalEditorCharacters: number
+    workspaceFolder?: WorkspaceFolder | null
 }
 
 export interface DocumentContextExtractorConfig {
@@ -49,6 +50,8 @@ export class DocumentContextExtractor {
 
         const rangeWithinCodeBlock = getSelectionWithinExtendedRange(targetRange, codeBlockRange)
 
+        const workspaceFolder = this.#workspace?.getWorkspaceFolder?.(document.uri)
+
         const relativePath = this.getRelativePath(document)
 
         const languageId = getLanguageId(document)
@@ -60,6 +63,7 @@ export class DocumentContextExtractor {
             relativeFilePath: relativePath,
             hasCodeSnippet: Boolean(rangeWithinCodeBlock),
             totalEditorCharacters: document.getText().length,
+            workspaceFolder,
         }
     }
 
