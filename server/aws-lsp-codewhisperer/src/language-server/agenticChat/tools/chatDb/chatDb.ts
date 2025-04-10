@@ -72,6 +72,11 @@ export class ChatDatabase {
         return ChatDatabase.#instance
     }
 
+    public close() {
+        this.#db.close()
+        ChatDatabase.#instance = undefined
+    }
+
     setHistoryIdMapping(tabId: string, historyId: string) {
         this.#features.logging.log(`Setting historyIdMapping: tabId=${tabId}, historyId=${historyId}`)
         this.#historyIdMapping.set(tabId, historyId)

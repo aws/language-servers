@@ -64,6 +64,7 @@ describe('QAgenticChatServer', () => {
     afterEach(() => {
         sinon.restore()
         ChatSessionManagementService.reset()
+        disposeServer()
         testFeatures.dispose()
     })
 

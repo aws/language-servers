@@ -99,6 +99,7 @@ export class AgenticChatController implements ChatHandlers {
     dispose() {
         this.#chatSessionManagementService.dispose()
         this.#telemetryController.dispose()
+        this.#chatHistoryDb.close()
     }
 
     async onListConversations(params: ListConversationsParams) {

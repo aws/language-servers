@@ -187,6 +187,7 @@ describe('AgenticChatController', () => {
 
     afterEach(() => {
         sinon.restore()
+        chatController.dispose()
         ChatSessionManagementService.reset()
     })
 
