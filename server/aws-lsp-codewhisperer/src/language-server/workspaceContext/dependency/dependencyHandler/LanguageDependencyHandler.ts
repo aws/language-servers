@@ -87,8 +87,12 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
     }
 
     protected emitDependencyChange(workspaceFolder: WorkspaceFolder, zips: FileMetadata[]): void {
-        this.logging.log(`Emitting dependency change event for ${workspaceFolder.name}`)
-        this.eventEmitter.emit('dependencyChange', workspaceFolder, zips)
+        if (zips.length > 0) {
+            this.logging.log(`Emitting ${this.language} dependency change event for ${workspaceFolder.name}`)
+            this.eventEmitter.emit('dependencyChange', workspaceFolder, zips)
+            return
+        }
+        this.logging.log(`No ${this.language} dependency change event for ${workspaceFolder.name}`)
     }
 
     /**
