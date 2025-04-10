@@ -11,6 +11,8 @@ export class WebSocketClient {
     private reconnectAttempts: number = 0
     private readonly maxReconnectAttempts: number = 5
     private messageQueue: string[] = []
+    private readonly messageThrottleDelay: number = 100
+    private lastMessageTime: number = 0
 
     constructor(url: string, logging: Logging, credentialsProvider: CredentialsProvider) {
         this.url = url
@@ -124,11 +126,18 @@ export class WebSocketClient {
     }
 
     // https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API/Writing_WebSocket_client_applications#sending_data_to_the_server
-    public send(message: string): void {
+    public async send(message: string): Promise<void> {
         if (this.ws?.readyState === WebSocket.OPEN) {
+            const now = Date.now()
+            const timeSinceLastMessage = now - this.lastMessageTime
+            if (timeSinceLastMessage < this.messageThrottleDelay) {
+                // Wait for the remaining delay time
+                await new Promise(resolve => setTimeout(resolve, this.messageThrottleDelay - timeSinceLastMessage))
+            }
             // TODO, remove this log
             this.logging.log(`Sending message: ${message}`)
             this.ws.send(message)
+            this.lastMessageTime = Date.now()
         } else {
             this.messageQueue.push(message)
             this.logging.warn(`Message queued until connection is ready, queue size: ${this.messageQueue.length}`)
