@@ -17,10 +17,8 @@ import {
  * Controller for managing chat history and export functionality.
  *
  * Handles chat conversation management including:
- * - Loading and restoring chat history
- * - Searching through conversations
- * - Managing conversation tabs
- * - Handling chat history operations (list, delete, etc.)
+ * - Loading and restoring conversations from chat history
+ * - Handling chat history operations (list, search, delete)
  * - TODO: Export chat
  *
  * Ported from https://github.com/aws/aws-toolkit-vscode/blob/master/packages/core/src/codewhispererChat/controllers/chat/tabBarController.ts
@@ -81,7 +79,6 @@ export class TabBarController {
      * This method performs different actions based on the click parameters:
      * - If no action is specified, it attempts to open or focus the conversation tab.
      * - If the action is 'delete', it removes the conversation from the chat history.
-     * - The 'export' action is not yet implemented.
      *
      */
     async onConversationClick(params: ConversationClickParams): Promise<ConversationClickResult> {
@@ -100,11 +97,11 @@ export class TabBarController {
             // Handle delete action
         } else if (params.action === 'delete') {
             this.#chatHistoryDb.deleteHistory(historyID)
+        } // TODO: Handle Export action clicked
+        else {
+            this.#features.logging.error(`Unsupported action: ${params.action}`)
+            return { ...params, success: false }
         }
-        // TODO: Handle Export action clicked
-        // else if (params.action === 'export') {
-
-        // }
 
         return { ...params, success: true }
     }

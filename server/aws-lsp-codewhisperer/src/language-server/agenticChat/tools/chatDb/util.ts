@@ -4,7 +4,6 @@
  */
 
 import * as path from 'path'
-import * as fs from 'fs/promises'
 import {
     Action,
     ChatMessage,
@@ -19,6 +18,7 @@ import {
     UserInputMessageContext,
     UserIntent,
 } from '@amzn/codewhisperer-streaming'
+import { Workspace } from '@aws/language-server-runtimes/server-interface'
 
 // Ported from https://github.com/aws/aws-toolkit-vscode/blob/master/packages/core/src/shared/db/chatDb/util.ts
 
@@ -115,24 +115,24 @@ export function messageToChatMessage(msg: Message): ChatMessage {
  *
  */
 export class FileSystemAdapter implements LokiPersistenceAdapter {
-    private directory
-    constructor(directory: string) {
-        this.directory = directory
+    #directory
+    #workspace
+    constructor(workspace: Workspace, directory: string) {
+        this.#directory = directory
+        this.#workspace = workspace
     }
 
     async ensureDirectory() {
-        await fs.mkdir(this.directory, { recursive: true })
+        await this.#workspace.fs.mkdir(this.#directory, { recursive: true })
     }
 
     async loadDatabase(dbname: string, callback: (data: string | undefined | Error) => void) {
         try {
             await this.ensureDirectory()
-            const filename = path.join(this.directory, dbname)
+            const filename = path.join(this.#directory, dbname)
 
             try {
-                await fs.access(filename)
-                // If we get here, file exists
-                const data = await fs.readFile(filename, 'utf8')
+                const data = await this.#workspace.fs.readFile(filename, { encoding: 'utf8' })
                 callback(data)
             } catch (err) {
                 // File doesn't exist
@@ -146,9 +146,9 @@ export class FileSystemAdapter implements LokiPersistenceAdapter {
     async saveDatabase(dbname: string, dbstring: string, callback: (err: Error | undefined) => void) {
         try {
             await this.ensureDirectory()
-            const filename = path.join(this.directory, dbname)
+            const filename = path.join(this.#directory, dbname)
 
-            await fs.writeFile(filename, dbstring, { mode: 0o600, encoding: 'utf8' })
+            await this.#workspace.fs.writeFile(filename, dbstring, { mode: 0o600 })
             callback(undefined)
         } catch (err: any) {
             callback(err)
@@ -156,9 +156,9 @@ export class FileSystemAdapter implements LokiPersistenceAdapter {
     }
 
     async deleteDatabase(dbname: string, callback: (err: Error | undefined) => void) {
-        const filename = path.join(this.directory, dbname)
+        const filename = path.join(this.#directory, dbname)
         try {
-            await fs.unlink(filename)
+            await this.#workspace.fs.rm(filename)
             callback(undefined)
         } catch (err: any) {
             callback(err)

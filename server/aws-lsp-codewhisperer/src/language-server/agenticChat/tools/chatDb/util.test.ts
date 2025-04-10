@@ -5,7 +5,6 @@
 
 import * as assert from 'assert'
 import sinon from 'ts-sinon'
-import * as fs from 'fs/promises'
 import * as path from 'path'
 import {
     FileSystemAdapter,
@@ -17,6 +16,7 @@ import {
     updateOrCreateConversation,
 } from './util'
 import { ChatMessage } from '@aws/language-server-runtimes/protocol'
+import { Workspace } from '@aws/language-server-runtimes/server-interface'
 
 describe('ChatDb Utilities', () => {
     describe('messageToStreamingMessage', () => {
@@ -281,10 +281,19 @@ describe('ChatDb Utilities', () => {
     describe('FileSystemAdapter', () => {
         let adapter: FileSystemAdapter
         const testDir = '/tmp/test-chat-db'
+        let mockWorkspace: Workspace
 
         beforeEach(() => {
-            adapter = new FileSystemAdapter(testDir)
-            sinon.stub(fs, 'mkdir').resolves()
+            mockWorkspace = {
+                fs: {
+                    mkdir: sinon.stub().resolves(),
+                    readFile: sinon.stub().resolves(),
+                    writeFile: sinon.stub().resolves(),
+                    rm: sinon.stub().resolves(),
+                },
+            } as unknown as Workspace
+
+            adapter = new FileSystemAdapter(mockWorkspace, testDir)
         })
 
         afterEach(() => {
@@ -295,14 +304,13 @@ describe('ChatDb Utilities', () => {
             it('should create directory with recursive option', async () => {
                 await adapter.ensureDirectory()
 
-                sinon.assert.calledWith(fs.mkdir as sinon.SinonStub, testDir, { recursive: true })
+                sinon.assert.calledWith(mockWorkspace.fs.mkdir as sinon.SinonStub, testDir, { recursive: true })
             })
         })
 
         describe('loadDatabase', () => {
             it('should load database file when it exists', async () => {
-                sinon.stub(fs, 'access').resolves()
-                sinon.stub(fs, 'readFile').resolves('{"test": "data"}')
+                ;(mockWorkspace.fs.readFile as sinon.SinonStub).resolves('{"test": "data"}')
 
                 const callback = sinon.stub()
                 await adapter.loadDatabase('test.json', callback)
@@ -311,7 +319,7 @@ describe('ChatDb Utilities', () => {
             })
 
             it('should return undefined when file does not exist', async () => {
-                sinon.stub(fs, 'access').rejects(new Error('File not found'))
+                ;(mockWorkspace.fs.readFile as sinon.SinonStub).rejects(new Error('File not found'))
 
                 const callback = sinon.stub()
                 await adapter.loadDatabase('test.json', callback)
@@ -320,7 +328,7 @@ describe('ChatDb Utilities', () => {
             })
 
             it('should handle errors during directory creation', async () => {
-                ;(fs.mkdir as sinon.SinonStub).rejects(new Error('Permission denied'))
+                ;(mockWorkspace.fs.mkdir as sinon.SinonStub).rejects(new Error('Permission denied'))
 
                 const callback = sinon.stub()
                 await adapter.loadDatabase('test.json', callback)
@@ -332,22 +340,19 @@ describe('ChatDb Utilities', () => {
 
         describe('saveDatabase', () => {
             it('should save database file', async () => {
-                sinon.stub(fs, 'writeFile').resolves()
-
                 const callback = sinon.stub()
                 await adapter.saveDatabase('test.json', '{"test": "data"}', callback)
 
                 sinon.assert.calledWith(
-                    fs.writeFile as sinon.SinonStub,
+                    mockWorkspace.fs.writeFile as sinon.SinonStub,
                     path.join(testDir, 'test.json'),
-                    '{"test": "data"}',
-                    { mode: 0o600, encoding: 'utf8' }
+                    '{"test": "data"}'
                 )
                 sinon.assert.calledWith(callback, undefined)
             })
 
             it('should handle errors during save', async () => {
-                sinon.stub(fs, 'writeFile').rejects(new Error('Write error'))
+                ;(mockWorkspace.fs.writeFile as sinon.SinonStub).rejects(new Error('Write error'))
 
                 const callback = sinon.stub()
                 await adapter.saveDatabase('test.json', '{"test": "data"}', callback)
@@ -359,17 +364,15 @@ describe('ChatDb Utilities', () => {
 
         describe('deleteDatabase', () => {
             it('should delete database file', async () => {
-                sinon.stub(fs, 'unlink').resolves()
-
                 const callback = sinon.stub()
                 await adapter.deleteDatabase('test.json', callback)
 
-                sinon.assert.calledWith(fs.unlink as sinon.SinonStub, path.join(testDir, 'test.json'))
+                sinon.assert.calledWith(mockWorkspace.fs.rm as sinon.SinonStub, path.join(testDir, 'test.json'))
                 sinon.assert.calledWith(callback, undefined)
             })
 
             it('should handle errors during delete', async () => {
-                sinon.stub(fs, 'unlink').rejects(new Error('Delete error'))
+                ;(mockWorkspace.fs.rm as sinon.SinonStub).rejects(new Error('Delete error'))
 
                 const callback = sinon.stub()
                 await adapter.deleteDatabase('test.json', callback)

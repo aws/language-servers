@@ -8,7 +8,6 @@ import {
     FileSystemAdapter,
     groupTabsByDate,
     Message,
-    messageToChatMessage,
     messageToStreamingMessage,
     Tab,
     TabCollection,
@@ -16,12 +15,10 @@ import {
     updateOrCreateConversation,
 } from './util'
 import * as crypto from 'crypto'
-import * as fs from 'fs'
 import * as path from 'path'
-import { homedir } from 'os'
-import { fileURLToPath } from 'url'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 import { ConversationItemGroup } from '@aws/language-server-runtimes/protocol'
+import { getUserHomeDir } from '@aws/lsp-core/out/util/path'
 
 /**
  * A singleton database class that manages chat history persistence using LokiJS.
@@ -46,15 +43,20 @@ export class ChatDatabase {
     #initialized: boolean = false
 
     constructor(features: Features) {
-        this.#dbDirectory = path.join(homedir(), '.aws/amazonq/history')
         this.#features = features
+        this.#dbDirectory = path.join(
+            features.runtime.platform === 'browser'
+                ? features.workspace.fs.getServerDataDirPath('amazonq-chat')
+                : getUserHomeDir(),
+            '.aws/amazonq/history'
+        )
         const workspaceId = this.getWorkspaceIdentifier()
         const dbName = `chat-history-${workspaceId}.json`
 
         this.#features.logging.log(`Initializing database at ${this.#dbDirectory}/${dbName}`)
 
         this.#db = new Loki(dbName, {
-            adapter: new FileSystemAdapter(this.#dbDirectory),
+            adapter: new FileSystemAdapter(features.workspace, this.#dbDirectory),
             autosave: true,
             autoload: true,
             autoloadCallback: () => this.databaseInitialize(),
@@ -80,7 +82,7 @@ export class ChatDatabase {
      */
     getWorkspaceIdentifier() {
         let clientParams = this.#features.lsp.getClientInitializeParams()
-        let workspaceFolderPaths = clientParams?.workspaceFolders?.map(({ uri }) => fileURLToPath(uri))
+        let workspaceFolderPaths = clientParams?.workspaceFolders?.map(({ uri }) => new URL(uri).pathname)
         // Case 1: Multi-root workspace (unsaved)
         if (workspaceFolderPaths && workspaceFolderPaths.length > 1) {
             // Create hash from all folder paths combined

@@ -28,6 +28,7 @@ describe('TabBarController', () => {
             deleteHistory: sinon.stub(),
             setHistoryIdMapping: sinon.stub(),
             getOpenTabs: sinon.stub().returns([]),
+            updateTabOpenState: sinon.stub(),
         } as unknown as ChatDatabase
 
         tabBarController = new TabBarController(testFeatures, chatHistoryDb)
