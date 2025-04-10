@@ -1,10 +1,20 @@
-import { ChatItem, ChatItemType, MynahUIDataModel, QuickActionCommandGroup } from '@aws/mynah-ui'
-import { disclaimerCard } from '../texts/disclaimer'
 import { ChatMessage } from '@aws/language-server-runtimes-types'
+import {
+    ChatItem,
+    ChatItemType,
+    MynahIcons,
+    MynahUIDataModel,
+    QuickActionCommandGroup,
+    TabBarMainAction,
+} from '@aws/mynah-ui'
+import { disclaimerCard } from '../texts/disclaimer'
+import { ChatHistory } from '../features/history'
 
 export type DefaultTabData = MynahUIDataModel
 
 export class TabFactory {
+    private enableHistory: boolean = false
+
     public static generateUniqueId() {
         // from https://github.com/aws/mynah-ui/blob/a3799f47ca4b7c02850264e328539a40709a6858/src/helper/guid.ts#L6
         const firstPart: number = (Math.random() * 46656) | 0
@@ -14,7 +24,8 @@ export class TabFactory {
 
     constructor(
         private defaultTabData: DefaultTabData,
-        private quickActionCommands?: QuickActionCommandGroup[]
+        private quickActionCommands?: QuickActionCommandGroup[],
+        private enableConversationExport?: boolean
     ) {}
 
     public createTab(
@@ -26,20 +37,20 @@ export class TabFactory {
             ...this.getDefaultTabData(),
             chatItems: needWelcomeMessages
                 ? [
-                      {
-                          type: ChatItemType.ANSWER,
-                          body: `Hi, I'm Amazon Q. I can answer your software development questions. 
+                    {
+                        type: ChatItemType.ANSWER,
+                        body: `Hi, I'm Amazon Q. I can answer your software development questions. 
                         Ask me to explain, debug, or optimize your code. 
                         You can enter \`/\` to see a list of quick actions.`,
-                      },
-                      {
-                          type: ChatItemType.ANSWER,
-                          followUp: this.getWelcomeBlock(),
-                      },
-                  ]
+                    },
+                    {
+                        type: ChatItemType.ANSWER,
+                        followUp: this.getWelcomeBlock(),
+                    },
+                ]
                 : chatMessages
-                  ? (chatMessages as ChatItem[])
-                  : [],
+                    ? (chatMessages as ChatItem[])
+                    : [],
             ...(disclaimerCardActive ? { promptInputStickyCard: disclaimerCard } : {}),
         }
         return tabData
@@ -49,10 +60,15 @@ export class TabFactory {
         this.quickActionCommands = [...(this.quickActionCommands ?? []), ...quickActionCommands]
     }
 
+    public setHistorySupport(isHistoryEnabled: boolean) {
+        this.enableHistory = isHistoryEnabled
+    }
+
     public getDefaultTabData(): DefaultTabData {
         return {
             ...this.defaultTabData,
             ...(this.quickActionCommands ? { quickActionCommands: this.quickActionCommands } : {}),
+            tabBarButtons: this.getTabBarActions(),
         }
     }
 
@@ -71,5 +87,27 @@ export class TabFactory {
                 },
             ],
         }
+    }
+
+    private getTabBarActions(): TabBarMainAction[] {
+        const tabBarActions = []
+
+        if (this.enableHistory) {
+            tabBarActions.push({
+                id: ChatHistory.TabBarButtonId,
+                icon: MynahIcons.COMMENT,
+                description: 'View chat history',
+            })
+        }
+
+        if (this.enableConversationExport) {
+            tabBarActions.push({
+                id: 'export',
+                icon: MynahIcons.EXTERNAL,
+                description: 'Export chat',
+            })
+        }
+
+        return tabBarActions
     }
 }

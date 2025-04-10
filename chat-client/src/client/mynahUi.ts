@@ -6,6 +6,7 @@ import {
     AuthFollowUpClickedParams,
     CopyCodeToClipboardParams,
     ErrorParams,
+    ExportConversationParams,
     GenericCommandParams,
     InsertToCursorPositionParams,
     SendToPromptParams,
@@ -55,6 +56,11 @@ export interface InboundChatApi {
     sendContextCommands(params: ContextCommandParams): void
     listConversations(params: ListConversationsResult): void
     conversationClicked(params: ConversationClickResult): void
+
+    /**
+     * A notification sent from Extension to Chat Client to export serialized conversation history for specific chat tab at given filepath.
+     */
+    exportConversation(params: ExportConversationParams): void
 }
 
 type ContextCommandGroups = MynahUIDataModel['contextCommands']
@@ -185,8 +191,10 @@ export const createMynahUi = (
             messager.onFileClick({ tabId, filePath })
         },
         onTabAdd: (tabId: string) => {
+            const defaultTabBarData = tabFactory.getDefaultTabData()
             const defaultTabConfig: Partial<MynahUIDataModel> = {
-                quickActionCommands: tabFactory.getDefaultTabData().quickActionCommands,
+                quickActionCommands: defaultTabBarData.quickActionCommands,
+                tabBarButtons: defaultTabBarData.tabBarButtons,
                 contextCommands: contextCommandGroups,
                 ...(disclaimerCardActive ? { promptInputStickyCard: disclaimerCard } : {}),
             }
@@ -340,6 +348,17 @@ export const createMynahUi = (
                 messager.onListConversations()
                 return
             }
+
+            if (buttonId === 'export') {
+                const defaultFileName = `q-dev-chat-${new Date().toISOString().split('T')[0]}.md`
+                messager.onShowExportConversationDialog({
+                    tabId,
+                    supportedFormats: ['markdown', 'html'],
+                    defaultFileName,
+                })
+                return
+            }
+
             throw new Error(`Unhandled tab bar button id: ${buttonId}`)
         },
     }
@@ -472,9 +491,9 @@ export const createMynahUi = (
 
         const followUps = chatResult.followUp
             ? {
-                  text: chatResult.followUp.text ?? 'Suggested follow up questions:',
-                  options: chatResult.followUp.options,
-              }
+                text: chatResult.followUp.text ?? 'Suggested follow up questions:',
+                options: chatResult.followUp.options,
+            }
             : {}
 
         mynahUi.updateLastChatAnswer(tabId, {
@@ -608,6 +627,21 @@ ${params.message}`,
         if (params.action === 'delete') {
             messager.onListConversations()
         }
+
+        // TODO: Hook action for Chat Export
+    }
+
+    const exportConversation = (params: ExportConversationParams) => {
+        const format = params.filepath.endsWith('.md') ? 'markdown' : 'html'
+        const serializedChat = mynahUi.serializeChat(params.tabId, format)
+
+        // Send ExportConversation response back to Extension
+        messager.onExportConversation({
+            tabId: params.tabId,
+            filepath: params.filepath,
+            format,
+            serializedChat,
+        })
     }
 
     const api = {
@@ -619,6 +653,7 @@ ${params.message}`,
         sendContextCommands: sendContextCommands,
         listConversations: listConversations,
         conversationClicked: conversationClicked,
+        exportConversation: exportConversation,
     }
 
     return [mynahUi, api]

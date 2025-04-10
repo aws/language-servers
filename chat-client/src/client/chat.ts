@@ -28,6 +28,11 @@ import {
     DISCLAIMER_ACKNOWLEDGED,
     ErrorResult,
     UiResultMessage,
+    ExportConversationDialogParams,
+    ExportSerializedConversationParams,
+    EXPORT_CONVERSATION,
+    ExportConversationParams,
+    EXPORT_CONVERSATION_DIALOG,
 } from '@aws/chat-client-ui-types'
 import {
     CHAT_REQUEST_METHOD,
@@ -82,7 +87,10 @@ const DEFAULT_TAB_DATA = {
     promptInputPlaceholder: 'Ask a question or enter "/" for quick actions',
 }
 
-type ChatClientConfig = Pick<MynahUIDataModel, 'quickActionCommands'> & { disclaimerAcknowledged?: boolean }
+type ChatClientConfig = Pick<MynahUIDataModel, 'quickActionCommands'> & {
+    disclaimerAcknowledged?: boolean
+    enableConversationExport?: boolean
+}
 
 export const createChat = (
     clientApi: { postMessage: (msg: UiMessage | UiResultMessage | ServerMessage) => void },
@@ -146,6 +154,8 @@ export const createChat = (
             case CONVERSATION_CLICK_REQUEST_METHOD:
                 mynahApi.conversationClicked(message.params as ConversationClickResult)
                 break
+            case EXPORT_CONVERSATION:
+                mynahApi.exportConversation(message.params as ExportConversationParams)
             case CHAT_OPTIONS: {
                 const params = (message as ChatOptionsMessage).params
                 if (params?.quickActions?.quickActionsCommandGroups) {
@@ -157,6 +167,10 @@ export const createChat = (
                         })),
                     }))
                     tabFactory.updateQuickActionCommands(quickActionCommandGroups)
+                }
+
+                if (params?.history) {
+                    tabFactory.setHistorySupport(true)
                 }
 
                 const allExistingTabs: MynahUITabStoreModel = mynahUi.getAllTabs()
@@ -257,12 +271,20 @@ export const createChat = (
         conversationClick: (params: ConversationClickParams) => {
             sendMessageToClient({ command: CONVERSATION_CLICK_REQUEST_METHOD, params })
         },
+        exportConversationDialog: function (params: ExportConversationDialogParams): void {
+            sendMessageToClient({ command: EXPORT_CONVERSATION_DIALOG, params })
+        },
+        exportConversation: function (params: ExportSerializedConversationParams): void {
+            sendMessageToClient({ command: EXPORT_CONVERSATION, params })
+        },
     }
 
     const messager = new Messager(chatApi)
-    const tabFactory = new TabFactory(DEFAULT_TAB_DATA, [
-        ...(config?.quickActionCommands ? config.quickActionCommands : []),
-    ])
+    const tabFactory = new TabFactory(
+        DEFAULT_TAB_DATA,
+        [...(config?.quickActionCommands ? config.quickActionCommands : [])],
+        config?.enableConversationExport
+    )
 
     const [mynahUi, api] = createMynahUi(
         messager,

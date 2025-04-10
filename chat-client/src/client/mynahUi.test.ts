@@ -48,6 +48,8 @@ describe('MynahUI', () => {
             fileClick: sinon.stub(),
             listConversations: sinon.stub(),
             conversationClick: sinon.stub(),
+            exportConversation: sinon.stub(),
+            exportConversationDialog: sinon.stub(),
         }
 
         messager = new Messager(outboundChatApi)
