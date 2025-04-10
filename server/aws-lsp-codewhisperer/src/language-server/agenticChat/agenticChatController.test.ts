@@ -30,6 +30,12 @@ import * as utils from '../chat/utils'
 import { DEFAULT_HELP_FOLLOW_UP_PROMPT, HELP_MESSAGE } from '../chat/constants'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
+import { MISSING_BEARER_TOKEN_ERROR } from '../../shared/constants'
+import {
+    AmazonQError,
+    AmazonQServicePendingProfileError,
+    AmazonQServicePendingSigninError,
+} from '../../shared/amazonQServiceManager/errors'
 
 describe('AgenticChatController', () => {
     const mockTabId = 'tab-1'
@@ -324,21 +330,38 @@ describe('AgenticChatController', () => {
             assert.ok(chatResult instanceof ResponseError)
         })
 
-        it('returns a auth follow up action if sendMessage returns an auth error', async () => {
-            sendMessageStub.callsFake(() => {
-                throw new Error('Error')
+        const authFollowUpTestCases = [
+            {
+                expectedAuthFollowUp: 'full-auth',
+                error: new Error(MISSING_BEARER_TOKEN_ERROR),
+            },
+            {
+                expectedAuthFollowUp: 'full-auth',
+                error: new AmazonQServicePendingSigninError(),
+            },
+            {
+                expectedAuthFollowUp: 'use-supported-auth',
+                error: new AmazonQServicePendingProfileError(),
+            },
+        ]
+
+        authFollowUpTestCases.forEach(testCase => {
+            it(`returns ${testCase.expectedAuthFollowUp} follow up action when sendMessage throws ${testCase.error instanceof AmazonQError ? testCase.error.code : testCase.error.message}`, async () => {
+                sendMessageStub.callsFake(() => {
+                    throw testCase.error
+                })
+
+                const chatResultPromise = chatController.onChatPrompt(
+                    { tabId: mockTabId, prompt: { prompt: 'Hello' }, partialResultToken: 1 },
+                    mockCancellationToken
+                )
+
+                const chatResult = await chatResultPromise
+
+                sinon.assert.callCount(testFeatures.lsp.sendProgress, 0)
+                // @ts-ignore
+                assert.deepStrictEqual(chatResult, utils.createAuthFollowUpResult(testCase.expectedAuthFollowUp))
             })
-
-            sinon.stub(utils, 'getAuthFollowUpType').returns('full-auth')
-            const chatResultPromise = chatController.onChatPrompt(
-                { tabId: mockTabId, prompt: { prompt: 'Hello' }, partialResultToken: 1 },
-                mockCancellationToken
-            )
-
-            const chatResult = await chatResultPromise
-
-            sinon.assert.callCount(testFeatures.lsp.sendProgress, 0)
-            assert.deepStrictEqual(chatResult, utils.createAuthFollowUpResult('full-auth'))
         })
 
         it('returns a ResponseError if response streams return an error event', async () => {
