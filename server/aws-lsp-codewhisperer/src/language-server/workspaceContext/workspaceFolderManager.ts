@@ -198,6 +198,12 @@ export class WorkspaceFolderManager {
             didChangeWorkspaceFoldersAddition?: boolean
         }
     ) {
+        for (const folder of folders) {
+            await this.handleNewWorkspace(folder.uri).catch(e => {
+                this.logging.warn(`Error processing new workspace: ${e}`)
+            })
+        }
+
         let sourceCodeMetadata: FileMetadata[] = []
 
         if (options.didChangeWorkspaceFoldersAddition) {
@@ -230,12 +236,6 @@ export class WorkspaceFolderManager {
             }
         })
         await this.uploadWithTimeout(fileMetadataMap)
-
-        for (const folder of folders) {
-            this.handleNewWorkspace(folder.uri).catch(e => {
-                this.logging.warn(`Error processing new workspace: ${e}`)
-            })
-        }
     }
 
     private async handleDependencyChanges(zips: FileMetadata[]): Promise<void> {
