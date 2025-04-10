@@ -5,6 +5,7 @@ injectJSDOM()
 import { ERROR_MESSAGE, GENERIC_COMMAND, SEND_TO_PROMPT } from '@aws/chat-client-ui-types'
 import {
     CHAT_REQUEST_METHOD,
+    OPEN_TAB_REQUEST_METHOD,
     READY_NOTIFICATION_METHOD,
     TAB_ADD_NOTIFICATION_METHOD,
     TAB_CHANGE_NOTIFICATION_METHOD,
@@ -165,6 +166,35 @@ describe('Chat', () => {
                     prompt: expectedPrompt,
                     escapedPrompt: expectedPrompt,
                 },
+            },
+        })
+    })
+
+    it('open tab requestId was propagated from inbound to outbound message', () => {
+        const requestId = 'request-1234'
+
+        const openTabEvent = createInboundEvent({
+            command: OPEN_TAB_REQUEST_METHOD,
+            params: {
+                newTabOptions: {
+                    data: {
+                        messages: [],
+                    },
+                },
+            },
+            requestId: requestId,
+        })
+        window.dispatchEvent(openTabEvent)
+
+        // Verify that postMessage was called with the correct requestId
+        assert.calledWithExactly(clientApi.postMessage, {
+            command: OPEN_TAB_REQUEST_METHOD,
+            requestId,
+            params: {
+                success: true,
+                result: sinon.match({
+                    tabId: sinon.match.string,
+                }),
             },
         })
     })
