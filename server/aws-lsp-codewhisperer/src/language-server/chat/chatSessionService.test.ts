@@ -3,13 +3,13 @@ import * as assert from 'assert'
 import sinon, { StubbedInstance, stubInterface } from 'ts-sinon'
 import { ChatSessionService } from './chatSessionService'
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
-import { StreamingClientService } from '../../shared/streamingClientService'
+import { StreamingClientServiceToken } from '../../shared/streamingClientService'
 
 describe('Chat Session Service', () => {
     let abortStub: sinon.SinonStub<any, any>
     let chatSessionService: ChatSessionService
     let amazonQServiceManager: StubbedInstance<AmazonQTokenServiceManager>
-    let codeWhispererStreamingClient: StubbedInstance<StreamingClientService>
+    let codeWhispererStreamingClient: StubbedInstance<StreamingClientServiceToken>
     const mockConversationId = 'mockConversationId'
 
     const mockRequestParams: SendMessageCommandInput = {
@@ -29,7 +29,7 @@ describe('Chat Session Service', () => {
     }
 
     beforeEach(() => {
-        codeWhispererStreamingClient = stubInterface<StreamingClientService>()
+        codeWhispererStreamingClient = stubInterface<StreamingClientServiceToken>()
         codeWhispererStreamingClient.sendMessage.callsFake(() => Promise.resolve(mockRequestResponse))
 
         amazonQServiceManager = stubInterface<AmazonQTokenServiceManager>()
