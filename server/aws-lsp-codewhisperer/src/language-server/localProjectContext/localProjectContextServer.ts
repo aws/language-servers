@@ -4,10 +4,8 @@ import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import { LocalProjectContextController } from './localProjectContextController'
 import { languageByExtension } from '../../shared/languageDetection'
 
-const Q_CONTEXT_CONFIGURATION_SECTION = 'aws.q.localProjectContext'
-
 export const LocalProjectContextServer = (): Server => features => {
-    const { credentialsProvider, telemetry, logging, lsp, project } = features
+    const { credentialsProvider, telemetry, logging, lsp } = features
 
     let localProjectContextController: LocalProjectContextController
     let amazonQServiceManager: AmazonQTokenServiceManager
@@ -22,10 +20,8 @@ export const LocalProjectContextServer = (): Server => features => {
         telemetryService = new TelemetryService(amazonQServiceManager, credentialsProvider, telemetry, logging)
 
         localProjectContextController = new LocalProjectContextController(
-            features,
-            telemetryService,
             params.clientInfo?.name ?? 'unknown',
-            params.workspaceFolders,
+            params.workspaceFolders ?? [],
             logging
         )
 
@@ -45,7 +41,6 @@ export const LocalProjectContextServer = (): Server => features => {
                     fileOperations: {
                         didCreate: {
                             filters: [
-                                // these don't seem to be working?
                                 { pattern: { glob: '{' + supportedFilePatterns.join(',') + '}', matches: 'file' } },
                             ],
                         },
@@ -62,9 +57,6 @@ export const LocalProjectContextServer = (): Server => features => {
                     },
                 },
             },
-            awsServerCapabilities: {
-                configurationProvider: { sections: [Q_CONTEXT_CONFIGURATION_SECTION] },
-            },
         }
     })
 
@@ -78,7 +70,11 @@ export const LocalProjectContextServer = (): Server => features => {
     })
 
     lsp.workspace.onDidChangeWorkspaceFolders(async event => {
-        // update the workspace folders
+        try {
+            await localProjectContextController.updateWorkspaceFolders(event.event.added, event.event.removed)
+        } catch (error) {
+            logging.error(`Error handling workspace folder change: ${error}`)
+        }
     })
 
     lsp.onDidSaveTextDocument(async event => {
@@ -115,28 +111,8 @@ export const LocalProjectContextServer = (): Server => features => {
 
             await localProjectContextController.updateIndex(oldPaths, 'remove')
             await localProjectContextController.updateIndex(newPaths, 'add')
-
-            logging.log(`Files renamed: ${JSON.stringify(event)}`)
         } catch (error) {
             logging.error(`Error handling rename event: ${error}`)
-        }
-    })
-
-    project.onQueryInlineProjectContext(async params => {
-        try {
-            return await localProjectContextController.queryInlineProjectContext(params)
-        } catch (error) {
-            logging.error(`Error handling inline project index query: ${error}`)
-            throw error
-        }
-    })
-
-    project.onQueryVectorIndex(async params => {
-        try {
-            return await localProjectContextController.queryVectorIndex(params)
-        } catch (error) {
-            logging.error(`Error handling project vector index query: ${error}`)
-            throw error
         }
     })
 
