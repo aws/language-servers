@@ -3,7 +3,6 @@ import { SinonStub, stub, spy, assert as sinonAssert } from 'sinon'
 import * as assert from 'assert'
 import * as fs from 'fs'
 import { Dirent } from 'fs'
-import sinon from 'ts-sinon'
 
 class LoggingMock {
     public error: SinonStub
@@ -84,7 +83,7 @@ describe('LocalProjectContextController', () => {
             await controller.init(vectorLibMock)
         })
 
-        it('should return empty chunks when vector library is not initialized', async () => {
+        it('should return empty array when vector library is not initialized', async () => {
             const uninitializedController = new LocalProjectContextController(
                 'testClient',
                 mockWorkspaceFolders,
@@ -92,12 +91,12 @@ describe('LocalProjectContextController', () => {
             )
 
             const result = await uninitializedController.queryVectorIndex({ query: 'test' })
-            assert.deepStrictEqual(result, { chunks: [] })
+            assert.deepStrictEqual(result, [])
         })
 
         it('should return chunks from vector library', async () => {
             const result = await controller.queryVectorIndex({ query: 'test' })
-            assert.deepStrictEqual(result, { chunks: ['mockChunk1', 'mockChunk2'] })
+            assert.deepStrictEqual(result, ['mockChunk1', 'mockChunk2'])
         })
 
         it('should handle query errors', async () => {
@@ -105,7 +104,7 @@ describe('LocalProjectContextController', () => {
             vecLib.queryVectorIndex.rejects(new Error('Query failed'))
 
             const result = await controller.queryVectorIndex({ query: 'test' })
-            assert.deepStrictEqual(result, { chunks: [] })
+            assert.deepStrictEqual(result, [])
             sinonAssert.called(logging.error)
         })
     })
@@ -115,7 +114,7 @@ describe('LocalProjectContextController', () => {
             await controller.init(vectorLibMock)
         })
 
-        it('should return empty context when vector library is not initialized', async () => {
+        it('should return empty array when vector library is not initialized', async () => {
             const uninitializedController = new LocalProjectContextController(
                 'testClient',
                 mockWorkspaceFolders,
@@ -127,7 +126,7 @@ describe('LocalProjectContextController', () => {
                 filePath: 'test.java',
                 target: 'test',
             })
-            assert.deepStrictEqual(result, { inlineProjectContext: [] })
+            assert.deepStrictEqual(result, [])
         })
 
         it('should return context from vector library', async () => {
@@ -136,7 +135,7 @@ describe('LocalProjectContextController', () => {
                 filePath: 'test.java',
                 target: 'test',
             })
-            assert.deepStrictEqual(result, { inlineProjectContext: ['mockContext1'] })
+            assert.deepStrictEqual(result, ['mockContext1'])
         })
 
         it('should handle query errors', async () => {
@@ -148,7 +147,7 @@ describe('LocalProjectContextController', () => {
                 filePath: 'test.java',
                 target: 'test',
             })
-            assert.deepStrictEqual(result, { inlineProjectContext: [] })
+            assert.deepStrictEqual(result, [])
             sinonAssert.called(logging.error)
         })
     })
@@ -218,14 +217,6 @@ describe('LocalProjectContextController', () => {
 
             assert.deepStrictEqual(results, ['/path/to/workspace1/Test.java', '/path/to/workspace1/src/Main.java'])
         })
-
-        it('should handle directory read errors', async () => {
-            fsStub.withArgs('/path/to/error', { withFileTypes: true }).rejects(new Error('Read error'))
-
-            const results = await (controller as any).getCodeSourceFiles('/path/to/error')
-            assert.deepStrictEqual(results, [])
-            sinonAssert.calledWith(logging.error, sinon.match(/Error reading directory \/path\/to\/error/))
-        })
     })
 
     describe('dispose', () => {
@@ -237,7 +228,7 @@ describe('LocalProjectContextController', () => {
             sinonAssert.called(vecLib.clear)
 
             const queryResult = await controller.queryVectorIndex({ query: 'test' })
-            assert.deepStrictEqual(queryResult, { chunks: [] })
+            assert.deepStrictEqual(queryResult, [])
         })
     })
 })

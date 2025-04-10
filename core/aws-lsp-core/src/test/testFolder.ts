@@ -47,14 +47,26 @@ export class TestFolder {
         return new TestFolder(tempDir)
     }
 
+    async createNested(name: string) {
+        const tempDir = path.join(this.path, name)
+        await fs.promises.mkdir(tempDir, { recursive: true })
+        return new TestFolder(tempDir)
+    }
+
     async delete() {
         fs.rmSync(this.path, { recursive: true, force: true })
     }
 
     async clear() {
-        const files = await fs.readdirSync(this.path)
+        const files = await fs.promises.readdir(this.path)
         for (const f of files) {
-            await fs.rmSync(path.join(this.path, f), { recursive: true, force: true })
+            await fs.promises.rm(path.join(this.path, f), { recursive: true, force: true })
         }
+    }
+
+    async nest(folderName: string) {
+        const folderPath = path.join(this.path, folderName)
+        await fs.promises.mkdir(folderPath, { recursive: true })
+        return new TestFolder(folderPath)
     }
 }

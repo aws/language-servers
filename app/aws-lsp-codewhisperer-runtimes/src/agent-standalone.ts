@@ -22,7 +22,6 @@ const props: RuntimeProps = {
         QConfigurationServerTokenProxy,
         QNetTransformServerTokenProxy,
         QAgenticChatServerProxy,
-        // @ts-expect-error
         IdentityServer.create,
     ],
     name: 'AWS CodeWhisperer',

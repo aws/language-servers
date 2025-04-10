@@ -1,14 +1,14 @@
-import {
-    Logging,
-    QueryInlineProjectContextParams,
-    QueryInlineProjectContextResult,
-    QueryVectorIndexParams,
-    QueryVectorIndexResult,
-    WorkspaceFolder,
-} from '@aws/language-server-runtimes/server-interface'
+import { Logging, WorkspaceFolder } from '@aws/language-server-runtimes/server-interface'
 import { dirname } from 'path'
 import { languageByExtension } from '../../shared/languageDetection'
-import type { UpdateMode, VectorLibAPI } from 'local-indexing'
+import type {
+    Chunk,
+    InlineProjectContext,
+    QueryInlineProjectContextRequestV2,
+    QueryRequest,
+    UpdateMode,
+    VectorLibAPI,
+} from 'local-indexing'
 
 const fs = require('fs').promises
 const path = require('path')
@@ -101,32 +101,32 @@ export class LocalProjectContextController {
     }
 
     public async queryInlineProjectContext(
-        params: QueryInlineProjectContextParams
-    ): Promise<QueryInlineProjectContextResult> {
+        request: QueryInlineProjectContextRequestV2
+    ): Promise<InlineProjectContext[]> {
         if (!this._vecLib) {
-            return { inlineProjectContext: [] }
+            return []
         }
 
         try {
-            const resp = await this._vecLib?.queryInlineProjectContext(params.query, params.filePath, params.target)
-            return { inlineProjectContext: resp ?? [] }
+            const resp = await this._vecLib?.queryInlineProjectContext(request.query, request.filePath, request.target)
+            return resp ?? []
         } catch (error) {
             this.log.error(`Error in queryInlineProjectContext: ${error}`)
-            return { inlineProjectContext: [] }
+            return []
         }
     }
 
-    public async queryVectorIndex(params: QueryVectorIndexParams): Promise<QueryVectorIndexResult> {
+    public async queryVectorIndex(request: QueryRequest): Promise<Chunk[]> {
         if (!this._vecLib) {
-            return { chunks: [] }
+            return []
         }
 
         try {
-            const resp = await this._vecLib?.queryVectorIndex(params.query)
-            return { chunks: resp ?? [] }
+            const resp = await this._vecLib?.queryVectorIndex(request.query)
+            return resp ?? []
         } catch (error) {
             this.log.error(`Error in queryVectorIndex: ${error}`)
-            return { chunks: [] }
+            return []
         }
     }
 

@@ -25,6 +25,10 @@ import {
     CREATE_PROMPT_NOTIFICATION_METHOD,
     FileClickParams,
     FILE_CLICK_NOTIFICATION_METHOD,
+    LIST_CONVERSATIONS_REQUEST_METHOD,
+    ListConversationsParams,
+    CONVERSATION_CLICK_REQUEST_METHOD,
+    ConversationClickParams,
 } from '@aws/language-server-runtimes-types'
 
 export const TELEMETRY = 'telemetry/event'
@@ -45,12 +49,12 @@ export type ServerMessageCommand =
     | typeof OPEN_TAB_REQUEST_METHOD
     | typeof CREATE_PROMPT_NOTIFICATION_METHOD
     | typeof FILE_CLICK_NOTIFICATION_METHOD
+    | typeof LIST_CONVERSATIONS_REQUEST_METHOD
+    | typeof CONVERSATION_CLICK_REQUEST_METHOD
 
-export interface Message {
+export interface ServerMessage {
     command: ServerMessageCommand
-}
-
-export interface ServerMessage extends Message {
+    requestId?: string
     params?: ServerMessageParams
 }
 
@@ -73,3 +77,5 @@ export type ServerMessageParams =
     | OpenTabResult
     | CreatePromptParams
     | FileClickParams
+    | ListConversationsParams
+    | ConversationClickParams

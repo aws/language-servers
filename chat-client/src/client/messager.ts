@@ -22,12 +22,16 @@ import {
 } from '@aws/chat-client-ui-types'
 import {
     ChatParams,
+    ConversationAction,
+    ConversationClickParams,
     CreatePromptParams,
     FeedbackParams,
     FileClickParams,
+    FilterValue,
     FollowUpClickParams,
     InfoLinkClickParams,
     LinkClickParams,
+    ListConversationsParams,
     OpenTabResult,
     QuickActionParams,
     SourceLinkClickParams,
@@ -43,7 +47,6 @@ import {
     ENTER_FOCUS,
     ERROR_MESSAGE_TELEMETRY_EVENT,
     EXIT_FOCUS,
-    FILE_CLICK_TELEMETRY_EVENT,
     INFO_LINK_CLICK_TELEMETRY_EVENT,
     INSERT_TO_CURSOR_POSITION_TELEMETRY_EVENT,
     LINK_CLICK_TELEMETRY_EVENT,
@@ -75,9 +78,11 @@ export interface OutboundChatApi {
     infoLinkClick(params: InfoLinkClickParams): void
     uiReady(): void
     disclaimerAcknowledged(): void
-    onOpenTab(result: OpenTabResult | ErrorResult): void
+    onOpenTab(requestId: string, result: OpenTabResult | ErrorResult): void
     createPrompt(params: CreatePromptParams): void
     fileClick(params: FileClickParams): void
+    listConversations(params: ListConversationsParams): void
+    conversationClick(params: ConversationClickParams): void
 }
 
 export class Messager {
@@ -173,8 +178,8 @@ export class Messager {
         this.chatApi.telemetry({ ...params, name: ERROR_MESSAGE_TELEMETRY_EVENT })
     }
 
-    onOpenTab = (result: OpenTabResult | ErrorResult): void => {
-        this.chatApi.onOpenTab(result)
+    onOpenTab = (requestId: string, result: OpenTabResult | ErrorResult): void => {
+        this.chatApi.onOpenTab(requestId, result)
     }
 
     onCreatePrompt = (promptName: string): void => {
@@ -182,7 +187,14 @@ export class Messager {
     }
 
     onFileClick = (params: FileClickParams): void => {
-        this.chatApi.telemetry({ ...params, name: FILE_CLICK_TELEMETRY_EVENT })
         this.chatApi.fileClick(params)
+    }
+
+    onListConversations = (filter?: Record<string, FilterValue>): void => {
+        this.chatApi.listConversations({ filter })
+    }
+
+    onConversationClick = (conversationId: string, action?: ConversationAction): void => {
+        this.chatApi.conversationClick({ id: conversationId, action })
     }
 }

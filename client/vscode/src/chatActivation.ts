@@ -4,6 +4,7 @@ import {
     AUTH_FOLLOW_UP_CLICKED,
     CHAT_OPTIONS,
     COPY_TO_CLIPBOARD,
+    UiMessageResultParams,
 } from '@aws/chat-client-ui-types'
 import {
     ChatResult,
@@ -18,6 +19,11 @@ import {
     InlineChatResult,
     inlineChatRequestType,
     contextCommandsNotificationType,
+    listConversationsRequestType,
+    conversationClickRequestType,
+    ErrorCodes,
+    openTabRequestType,
+    ResponseError,
 } from '@aws/language-server-runtimes/protocol'
 import { v4 as uuidv4 } from 'uuid'
 import { Uri, Webview, WebviewView, commands, window } from 'vscode'
@@ -129,6 +135,22 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri, 
                             )
                             break
                         }
+                        case listConversationsRequestType.method:
+                            await handleRequest(
+                                languageClient,
+                                message.params,
+                                webviewView,
+                                listConversationsRequestType.method
+                            )
+                            break
+                        case conversationClickRequestType.method:
+                            await handleRequest(
+                                languageClient,
+                                message.params,
+                                webviewView,
+                                conversationClickRequestType.method
+                            )
+                            break
                         case followUpClickNotificationType.method:
                             if (!isValidAuthFollowUpType(message.params.followUp.type))
                                 languageClient.sendNotification(followUpClickNotificationType, message.params)
@@ -145,6 +167,52 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri, 
                         command: contextCommandsNotificationType.method,
                         params: params,
                     })
+                })
+
+                languageClient.onRequest(openTabRequestType.method, async (params, _) => {
+                    const mapErrorType = (type: string | undefined): number => {
+                        switch (type) {
+                            case 'InvalidRequest':
+                                return ErrorCodes.InvalidRequest
+                            case 'InternalError':
+                                return ErrorCodes.InternalError
+                            case 'UnknownError':
+                            default:
+                                return ErrorCodes.UnknownErrorCode
+                        }
+                    }
+                    const requestId = uuidv4()
+
+                    webviewView.webview.postMessage({
+                        requestId: requestId,
+                        command: openTabRequestType.method,
+                        params: params,
+                    })
+                    const responsePromise = new Promise<UiMessageResultParams | undefined>((resolve, reject) => {
+                        const timeout = setTimeout(() => {
+                            disposable.dispose()
+                            reject(new Error('Request timed out'))
+                        }, 30000)
+
+                        const disposable = webviewView.webview.onDidReceiveMessage((message: any) => {
+                            if (message.requestId === requestId) {
+                                clearTimeout(timeout)
+                                disposable.dispose()
+                                resolve(message.params)
+                            }
+                        })
+                    })
+
+                    const result = await responsePromise
+
+                    if (result?.success) {
+                        return { tabId: result.result.tabId }
+                    } else {
+                        return new ResponseError(
+                            mapErrorType(result?.error.type),
+                            result?.error.message ?? 'No response from client'
+                        )
+                    }
                 })
 
                 webviewView.webview.html = getWebviewContent(webviewView.webview, extensionUri)
@@ -220,6 +288,19 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri, 
         } catch (e) {
             languageClient.info(`Logging error for inline chat ${JSON.stringify(e)}`)
         }
+    })
+}
+
+async function handleRequest(
+    languageClient: LanguageClient,
+    params: any,
+    webviewView: WebviewView,
+    requestMethod: string
+) {
+    const result = await languageClient.sendRequest(requestMethod, params)
+    webviewView.webview.postMessage({
+        command: requestMethod,
+        params: result,
     })
 }
 

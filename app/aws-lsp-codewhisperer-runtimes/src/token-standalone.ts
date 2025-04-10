@@ -23,7 +23,6 @@ const props: RuntimeProps = {
         QConfigurationServerTokenProxy,
         QNetTransformServerTokenProxy,
         QChatServerProxy,
-        // @ts-expect-error
         IdentityServer.create,
         QLocalProjectContextServerTokenProxy,
     ],
