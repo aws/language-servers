@@ -16,6 +16,8 @@ import {
     CopyCodeToClipboardParams,
     ErrorParams,
     ErrorResult,
+    ExportConversationDialogParams,
+    ExportSerializedConversationParams,
     InsertToCursorPositionParams,
     SendToPromptParams,
     TriggerType,
@@ -83,6 +85,8 @@ export interface OutboundChatApi {
     fileClick(params: FileClickParams): void
     listConversations(params: ListConversationsParams): void
     conversationClick(params: ConversationClickParams): void
+    exportConversationDialog(params: ExportConversationDialogParams): void
+    exportConversation(params: ExportSerializedConversationParams): void
 }
 
 export class Messager {
@@ -196,5 +200,13 @@ export class Messager {
 
     onConversationClick = (conversationId: string, action?: ConversationAction): void => {
         this.chatApi.conversationClick({ id: conversationId, action })
+    }
+
+    onShowExportConversationDialog = (params: ExportConversationDialogParams): void => {
+        this.chatApi.exportConversationDialog(params)
+    }
+
+    onExportConversation = (params: ExportSerializedConversationParams): void => {
+        this.chatApi.exportConversation(params)
     }
 }

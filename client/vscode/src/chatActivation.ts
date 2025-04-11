@@ -5,6 +5,10 @@ import {
     CHAT_OPTIONS,
     COPY_TO_CLIPBOARD,
     UiMessageResultParams,
+    EXPORT_CONVERSATION_DIALOG,
+    EXPORT_CONVERSATION,
+    ExportSerializedConversationParams,
+    ExportConversationDialogParams,
 } from '@aws/chat-client-ui-types'
 import {
     ChatResult,
@@ -30,6 +34,7 @@ import { Uri, Webview, WebviewView, commands, window } from 'vscode'
 import { Disposable, LanguageClient, Position, State, TextDocumentIdentifier } from 'vscode-languageclient/node'
 import * as jose from 'jose'
 import * as vscode from 'vscode'
+import * as fs from 'fs'
 
 export function registerChat(languageClient: LanguageClient, extensionUri: Uri, encryptionKey?: Buffer) {
     const webviewInitialized: Promise<Webview> = new Promise(resolveWebview => {
@@ -154,6 +159,52 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri, 
                         case followUpClickNotificationType.method:
                             if (!isValidAuthFollowUpType(message.params.followUp.type))
                                 languageClient.sendNotification(followUpClickNotificationType, message.params)
+                            break
+                        // Handlers for Export Conversation feature
+                        case EXPORT_CONVERSATION_DIALOG:
+                            const { defaultFileName, supportedFormats } =
+                                message.params as ExportConversationDialogParams
+
+                            // Prompt user for destination to export file
+                            const workspaceFolders = vscode.workspace.workspaceFolders
+                            let defaultUri
+
+                            if (workspaceFolders && workspaceFolders.length > 0) {
+                                defaultUri = vscode.Uri.joinPath(workspaceFolders[0].uri, defaultFileName)
+                            } else {
+                                defaultUri = vscode.Uri.file(defaultFileName)
+                            }
+
+                            const saveUri = await vscode.window.showSaveDialog({
+                                filters: {
+                                    Markdown: ['md'],
+                                    HTML: ['html'],
+                                },
+                                defaultUri,
+                                title: 'Export chat',
+                            })
+
+                            // Send message to Chat Client to do Conversation Export
+                            if (saveUri) {
+                                webviewView.webview.postMessage({
+                                    command: EXPORT_CONVERSATION,
+                                    params: {
+                                        tabId: message.params.tabId,
+                                        filepath: saveUri.fsPath,
+                                    },
+                                })
+                            }
+                            break
+                        case EXPORT_CONVERSATION:
+                            // Save conversation content at given. Chat Client send with message in response to `EXPORT_CONVERSATION` notification
+                            const { filepath, format, serializedChat } =
+                                message.params as ExportSerializedConversationParams
+
+                            try {
+                                fs.writeFileSync(filepath, serializedChat)
+                            } catch (error) {
+                                void vscode.window.showErrorMessage('An error occurred while exporting your chat.')
+                            }
                             break
                         default:
                             if (isServerEvent(message.command))
@@ -346,7 +397,7 @@ function generateJS(webView: Webview, extensionUri: Uri): string {
     <script type="text/javascript" src="${entrypoint.toString()}" defer onload="init()"></script>
     <script type="text/javascript">
         const init = () => {
-            amazonQChat.createChat(acquireVsCodeApi(), {disclaimerAcknowledged: false});
+            amazonQChat.createChat(acquireVsCodeApi(), {disclaimerAcknowledged: false, enableConversationExport: true});
         }
     </script>
     `
