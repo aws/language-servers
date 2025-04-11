@@ -146,17 +146,11 @@ export class AgenticChatController implements ChatHandlers {
         try {
             this.#log('Request for conversation id:', conversationIdentifier)
 
-            let profileArn: string | undefined
-
-            if (this.#amazonQServiceManager instanceof AmazonQTokenServiceManager) {
-                profileArn = AmazonQTokenServiceManager.getInstance(this.#features).getActiveProfileArn()
-            }
             requestInput = this.#triggerContext.getChatParamsFromTrigger(
                 params,
                 triggerContext,
                 ChatTriggerType.MANUAL,
-                this.#customizationArn,
-                profileArn
+                this.#customizationArn
             )
 
             if (!session.localHistoryHydrated && requestInput.conversationState) {
@@ -294,16 +288,11 @@ export class AgenticChatController implements ChatHandlers {
         let requestInput: SendMessageCommandInput
 
         try {
-            let profileArn: string | undefined
-            if (this.#amazonQServiceManager instanceof AmazonQTokenServiceManager) {
-                profileArn = AmazonQTokenServiceManager.getInstance(this.#features).getActiveProfileArn()
-            }
             requestInput = this.#triggerContext.getChatParamsFromTrigger(
                 params,
                 triggerContext,
                 ChatTriggerType.INLINE_CHAT,
-                this.#customizationArn,
-                profileArn
+                this.#customizationArn
             )
 
             if (!this.#amazonQServiceManager) {
