@@ -3,7 +3,7 @@ import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import sinon from 'ts-sinon'
 import { ChatController } from './chatController'
 import { ChatSessionManagementService } from './chatSessionManagementService'
-import { QChatServer } from './qChatServer'
+import { QChatServerFactory } from './qChatServer'
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 
 describe('QChatServer', () => {
@@ -37,7 +37,7 @@ describe('QChatServer', () => {
         chatSessionManagementService = ChatSessionManagementService.getInstance()
         withAmazonQServiceManagerSpy = sinon.spy(chatSessionManagementService, 'withAmazonQServiceManager')
 
-        const chatServerFactory: Server = QChatServer()
+        const chatServerFactory: Server = QChatServerFactory(() => amazonQServiceManager)
 
         disposeServer = chatServerFactory(testFeatures)
 

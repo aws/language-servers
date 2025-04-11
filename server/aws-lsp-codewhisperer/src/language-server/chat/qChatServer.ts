@@ -4,20 +4,51 @@ import { ChatSessionManagementService } from './chatSessionManagementService'
 import { CLEAR_QUICK_ACTION, HELP_QUICK_ACTION } from './quickActions'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import { makeUserContextObject } from '../../shared/telemetryUtils'
-import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
+import {
+    AmazonQBaseServiceManager,
+    QServiceManagerFeatures,
+} from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
+import { initBaseTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
+import { initBaseIAMServiceManager } from '../../shared/amazonQServiceManager/AmazonQIAMServiceManager'
 import { AmazonQServiceInitializationError } from '../../shared/amazonQServiceManager/errors'
 import { safeGet } from '../../shared/utils'
 import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
+import { Features } from '../types'
 
-export const QChatServer =
-    // prettier-ignore
-    (): Server => features => {
-        const { chat, credentialsProvider, telemetry, logging, lsp, runtime } = features
+export const QChatServerFactory =
+    (serviceManager: (features: QServiceManagerFeatures) => AmazonQBaseServiceManager): Server =>
+    ({
+        chat,
+        credentialsProvider,
+        lsp,
+        workspace,
+        telemetry,
+        logging,
+        runtime,
+        sdkInitializator,
+        identityManagement,
+        notification,
+        agent,
+    }) => {
+        const features: Features = {
+            chat,
+            credentialsProvider,
+            lsp,
+            workspace,
+            telemetry,
+            logging,
+            runtime,
+            sdkInitializator,
+            identityManagement,
+            notification,
+            agent,
+        }
+        // AmazonQTokenServiceManager and TelemetryService are initialized in `onInitialized` handler to make sure Language Server connection is started
+        let amazonQServiceManager: AmazonQBaseServiceManager
+        let telemetryService: TelemetryService
 
-        let amazonQServiceManager: AmazonQTokenServiceManager
         let chatController: ChatController
         let chatSessionManagementService: ChatSessionManagementService
-        let telemetryService: TelemetryService;
 
         lsp.addInitializer((params: InitializeParams) => {
             return {
@@ -43,30 +74,33 @@ export const QChatServer =
 
         lsp.onInitialized(async () => {
             // Initialize service manager and inject it to chatSessionManagementService to pass it down
-            amazonQServiceManager = AmazonQTokenServiceManager.getInstance(features)
-            chatSessionManagementService = ChatSessionManagementService
-                .getInstance()
-                .withAmazonQServiceManager(amazonQServiceManager)
+            amazonQServiceManager = serviceManager(features)
+            chatSessionManagementService =
+                ChatSessionManagementService.getInstance().withAmazonQServiceManager(amazonQServiceManager)
 
-            telemetryService = new TelemetryService(
-                amazonQServiceManager,
-                credentialsProvider,
-                telemetry,
-                logging,
+            telemetryService = new TelemetryService(amazonQServiceManager, credentialsProvider, telemetry, logging)
+
+            const clientParams = safeGet(
+                lsp.getClientInitializeParams(),
+                new AmazonQServiceInitializationError(
+                    'TelemetryService initialized before LSP connection was initialized.'
+                )
             )
-
-            const clientParams = safeGet(lsp.getClientInitializeParams(), new AmazonQServiceInitializationError(
-                'TelemetryService initialized before LSP connection was initialized.'))
 
             telemetryService.updateUserContext(makeUserContextObject(clientParams, runtime.platform, 'CHAT'))
 
-            chatController = new ChatController(chatSessionManagementService, features, telemetryService, amazonQServiceManager)
+            chatController = new ChatController(
+                chatSessionManagementService,
+                features,
+                telemetryService,
+                amazonQServiceManager
+            )
 
             /* 
-                Calling handleDidChangeConfiguration once to ensure we get configuration atleast once at start up
-                
-                TODO: TODO: consider refactoring such responsibilities to common service manager config/initialisation server
-            */
+                                Calling handleDidChangeConfiguration once to ensure we get configuration atleast once at start up
+                                
+                                TODO: TODO: consider refactoring such responsibilities to common service manager config/initialisation server
+                            */
             await amazonQServiceManager.handleDidChangeConfiguration()
             await amazonQServiceManager.addDidChangeConfigurationListener(updateConfigurationHandler)
         })
@@ -122,3 +156,6 @@ export const QChatServer =
             chatController?.dispose()
         }
     }
+
+export const QChatServerIAM = QChatServerFactory(initBaseIAMServiceManager)
+export const QChatServerToken = QChatServerFactory(initBaseTokenServiceManager)

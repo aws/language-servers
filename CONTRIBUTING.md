@@ -211,14 +211,21 @@ and be able to debug it all.
    A new window will open.
 
 ### With CodeWhisperer Server in VSCode
-
-1. In the `Run & Debug` menu, run `"CodeWhisperer Server"`
+#### With token credentials
+1. In the `Run & Debug` menu, run `"CodeWhisperer Server Token"`
 2. Set breakpoints in `src` where needed
 3. Check the logs in `"AWS Documents Language Server"` output window.
 
 > **NOTE**: If you see "Recommendation failure: Error: Authorization failed, bearer token is not set" errors, make sure to authenticate using `"AWS LSP - Obtain bearer token and send to LSP server"` command.
 
 > **NOTE**: The lsp client is activated by one of the `activationEvents` defined [here](https://github.com/aws/language-servers/blob/06fd81d1e936648ef43243865039f89c7ac142a7/client/vscode/package.json#L18-L22), the lsp client then starts the LSP server.
+
+#### With IAM credentials
+1. In the `Run & Debug` menu, run `"CodeWhisperer Server IAM"`
+2. Set breakpoints in `src` where needed
+3. Check the logs in `"AWS Documents Language Server"` output window.
+
+> **NOTE**: To authenticate use ['AWS LSP - Choose credentials profile, resolve, and send to LSP Server'](https://github.com/aws/language-servers/blob/694bbb85580cc79313d65ad77b224875f74280c2/client/vscode/package.json#L32-L33) command, giving as input your iam credential profile name, for more info see [here](https://github.com/aws/language-servers/blob/694bbb85580cc79313d65ad77b224875f74280c2/client/vscode/README.md?plain=1#L11).
 
 ### With Other Clients
 Using other clients can also be done with the bundle created from this package.

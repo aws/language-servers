@@ -1,10 +1,7 @@
-import {
-    CodeWhispererStreamingClientConfig,
-    SendMessageCommandInput,
-    SendMessageCommandOutput,
-} from '@amzn/codewhisperer-streaming'
+import { CodeWhispererStreamingClientConfig } from '@amzn/codewhisperer-streaming'
 
-import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
+import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
+import { SendMessageCommandInput, SendMessageCommandOutput } from '../../shared/streamingClientService'
 
 export type ChatSessionServiceConfig = CodeWhispererStreamingClientConfig
 export class ChatSessionService {
@@ -12,7 +9,7 @@ export class ChatSessionService {
     public localHistoryHydrated: boolean = false
     #abortController?: AbortController
     #conversationId?: string
-    #amazonQServiceManager?: AmazonQTokenServiceManager
+    #amazonQServiceManager?: AmazonQBaseServiceManager
 
     public get conversationId(): string | undefined {
         return this.#conversationId
@@ -22,7 +19,7 @@ export class ChatSessionService {
         this.#conversationId = value
     }
 
-    constructor(amazonQServiceManager?: AmazonQTokenServiceManager) {
+    constructor(amazonQServiceManager?: AmazonQBaseServiceManager) {
         this.#amazonQServiceManager = amazonQServiceManager
     }
 

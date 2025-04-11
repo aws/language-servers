@@ -3,7 +3,7 @@
  * Will be deleted or merged.
  */
 
-import { ChatTriggerType, SendMessageCommandInput, SendMessageCommandOutput } from '@amzn/codewhisperer-streaming'
+import { ChatTriggerType } from '@amzn/codewhisperer-streaming'
 import {
     ApplyWorkspaceEditParams,
     ErrorCodes,
@@ -53,7 +53,9 @@ import {
     AmazonQServicePendingSigninError,
 } from '../../shared/amazonQServiceManager/errors'
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
+import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
 import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
+import { SendMessageCommandInput, SendMessageCommandOutput } from '../../shared/streamingClientService'
 import { TabBarController } from './tabBarController'
 import { ChatDatabase } from './tools/chatDb/chatDb'
 
@@ -76,7 +78,7 @@ export class AgenticChatController implements ChatHandlers {
     #triggerContext: QChatTriggerContext
     #customizationArn?: string
     #telemetryService: TelemetryService
-    #amazonQServiceManager?: AmazonQTokenServiceManager
+    #amazonQServiceManager?: AmazonQBaseServiceManager
     #tabBarController: TabBarController
     #chatHistoryDb: ChatDatabase
 
@@ -84,7 +86,7 @@ export class AgenticChatController implements ChatHandlers {
         chatSessionManagementService: ChatSessionManagementService,
         features: Features,
         telemetryService: TelemetryService,
-        amazonQServiceManager?: AmazonQTokenServiceManager
+        amazonQServiceManager?: AmazonQBaseServiceManager
     ) {
         this.#features = features
         this.#chatSessionManagementService = chatSessionManagementService
@@ -143,13 +145,12 @@ export class AgenticChatController implements ChatHandlers {
         const conversationIdentifier = session?.conversationId ?? 'New conversation'
         try {
             this.#log('Request for conversation id:', conversationIdentifier)
-            const profileArn = AmazonQTokenServiceManager.getInstance(this.#features).getActiveProfileArn()
+
             requestInput = this.#triggerContext.getChatParamsFromTrigger(
                 params,
                 triggerContext,
                 ChatTriggerType.MANUAL,
-                this.#customizationArn,
-                profileArn
+                this.#customizationArn
             )
 
             if (!session.localHistoryHydrated && requestInput.conversationState) {
@@ -287,13 +288,11 @@ export class AgenticChatController implements ChatHandlers {
         let requestInput: SendMessageCommandInput
 
         try {
-            const profileArn = AmazonQTokenServiceManager.getInstance(this.#features).getActiveProfileArn()
             requestInput = this.#triggerContext.getChatParamsFromTrigger(
                 params,
                 triggerContext,
                 ChatTriggerType.INLINE_CHAT,
-                this.#customizationArn,
-                profileArn
+                this.#customizationArn
             )
 
             if (!this.#amazonQServiceManager) {

@@ -1,9 +1,9 @@
-import { QAgenticChatServer } from '../language-server/agenticChat/qAgenticChatServer'
+import { QAgenticChatServerFactory } from '../language-server/agenticChat/qAgenticChatServer'
 import { SecurityScanServerToken } from '../language-server/securityScan/codeWhispererSecurityScanServer'
 import { CodewhispererServerFactory } from '../language-server/inline-completion/codeWhispererServer'
 import { CodeWhispererServiceToken } from './codeWhispererService'
 import { QNetTransformServerToken } from '../language-server/netTransform/netTransformServer'
-import { QChatServer } from '../language-server/chat/qChatServer'
+import { QChatServerFactory } from '../language-server/chat/qChatServer'
 import { QConfigurationServerToken } from '../language-server/configuration/qConfigurationServer'
 import { initBaseTokenServiceManager } from './amazonQServiceManager/AmazonQTokenServiceManager'
 import { initBaseIAMServiceManager } from './amazonQServiceManager/AmazonQIAMServiceManager'
@@ -26,8 +26,10 @@ export const QNetTransformServerTokenProxy = QNetTransformServerToken(
     }
 )
 
-export const QChatServerProxy = QChatServer()
+export const QChatServerTokenProxy = QChatServerFactory(initBaseTokenServiceManager)
+export const QChatServerIAMProxy = QChatServerFactory(initBaseIAMServiceManager)
 
-export const QAgenticChatServerProxy = QAgenticChatServer()
+export const QAgenticChatServerTokenProxy = QAgenticChatServerFactory(initBaseTokenServiceManager)
+export const QAgenticChatServerIAMProxy = QAgenticChatServerFactory(initBaseIAMServiceManager)
 
 export const QConfigurationServerTokenProxy = QConfigurationServerToken()
