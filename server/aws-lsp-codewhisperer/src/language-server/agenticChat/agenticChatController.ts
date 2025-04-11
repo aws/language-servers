@@ -35,7 +35,7 @@ import {
     ChatTelemetryEventName,
     CombinedConversationEvent,
 } from '../../shared/telemetry/types'
-import { LspHandlers, Result } from '../types'
+import { Features, LspHandlers, Result } from '../types'
 import { ChatEventParser, ChatResultWithMetadata } from '../chat/chatEventParser'
 import { createAuthFollowUpResult, getAuthFollowUpType, getDefaultChatResponse } from '../chat/utils'
 import { ChatSessionManagementService } from '../chat/chatSessionManagementService'
@@ -51,7 +51,7 @@ import {
     AmazonQServicePendingSigninError,
 } from '../../shared/amazonQServiceManager/errors'
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
-import { AmazonQBaseServiceManager, Features } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
+import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
 import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
 import { SendMessageCommandInput, SendMessageCommandOutput } from '../../shared/streamingClientService'
 

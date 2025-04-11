@@ -20,7 +20,11 @@ import {
     AmazonQServicePendingSigninError,
     AmazonQServiceProfileUpdateCancelled,
 } from './errors'
-import { AmazonQBaseServiceManager, BaseAmazonQServiceManager, Features } from './BaseAmazonQServiceManager'
+import {
+    AmazonQBaseServiceManager,
+    BaseAmazonQServiceManager,
+    QServiceManagerFeatures,
+} from './BaseAmazonQServiceManager'
 import { Q_CONFIGURATION_SECTION } from '../constants'
 import {
     AmazonQDeveloperProfile,
@@ -80,11 +84,11 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
     private state: 'PENDING_CONNECTION' | 'PENDING_Q_PROFILE' | 'PENDING_Q_PROFILE_UPDATE' | 'INITIALIZED' =
         'PENDING_CONNECTION'
 
-    private constructor(features: Features) {
+    private constructor(features: QServiceManagerFeatures) {
         super(features)
     }
 
-    public static getInstance(features: Features): AmazonQTokenServiceManager {
+    public static getInstance(features: QServiceManagerFeatures): AmazonQTokenServiceManager {
         if (!AmazonQTokenServiceManager.instance) {
             AmazonQTokenServiceManager.instance = new AmazonQTokenServiceManager(features)
             AmazonQTokenServiceManager.instance.initialize()
@@ -553,6 +557,6 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
     }
 }
 
-export const initBaseTokenServiceManager = (features: Features): AmazonQBaseServiceManager => {
+export const initBaseTokenServiceManager = (features: QServiceManagerFeatures): AmazonQBaseServiceManager => {
     return AmazonQTokenServiceManager.getInstance(features)
 }

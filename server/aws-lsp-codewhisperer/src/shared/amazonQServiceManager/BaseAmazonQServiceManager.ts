@@ -5,8 +5,6 @@ import {
     Runtime,
     SDKInitializator,
     Workspace,
-    Chat,
-    Telemetry,
 } from '@aws/language-server-runtimes/server-interface'
 import { CodeWhispererServiceBase } from '../codeWhispererService'
 import {
@@ -16,15 +14,13 @@ import {
 } from './configurationUtils'
 import { AmazonQServiceInitializationError } from './errors'
 import { StreamingClientServiceBase } from '../streamingClientService'
-export interface Features {
+export interface QServiceManagerFeatures {
     lsp: Lsp
     logging: Logging
     runtime: Runtime
     credentialsProvider: CredentialsProvider
     sdkInitializator: SDKInitializator
     workspace: Workspace
-    chat?: Chat
-    telemetry: Telemetry
 }
 
 export type AmazonQBaseServiceManager = BaseAmazonQServiceManager<CodeWhispererServiceBase, StreamingClientServiceBase>
@@ -56,7 +52,7 @@ export abstract class BaseAmazonQServiceManager<
     C extends CodeWhispererServiceBase,
     S extends StreamingClientServiceBase,
 > {
-    protected features!: Features
+    protected features!: QServiceManagerFeatures
     protected logging!: Logging
     protected configurationCache = new AmazonQConfigurationCache()
     protected cachedCodewhispererService?: C
@@ -149,7 +145,7 @@ export abstract class BaseAmazonQServiceManager<
         await Promise.allSettled(listenPromises)
     }
 
-    constructor(features: Features) {
+    constructor(features: QServiceManagerFeatures) {
         if (!features || !features.logging || !features.lsp) {
             throw new AmazonQServiceInitializationError(
                 'Service features not initialized. Please ensure proper initialization.'

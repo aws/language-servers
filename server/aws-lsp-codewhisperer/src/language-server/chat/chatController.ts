@@ -30,7 +30,7 @@ import {
     ChatTelemetryEventName,
     CombinedConversationEvent,
 } from '../../shared/telemetry/types'
-import { LspHandlers, Result } from '../types'
+import { Features, LspHandlers, Result } from '../types'
 import { ChatEventParser, ChatResultWithMetadata } from './chatEventParser'
 import { createAuthFollowUpResult, getAuthFollowUpType, getDefaultChatResponse } from './utils'
 import { ChatSessionManagementService } from './chatSessionManagementService'
@@ -46,7 +46,7 @@ import {
 } from '../../shared/amazonQServiceManager/errors'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
-import { AmazonQBaseServiceManager, Features } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
+import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
 import { SendMessageCommandInput, SendMessageCommandOutput } from '../../shared/streamingClientService'
 
 type ChatHandlers = Omit<
