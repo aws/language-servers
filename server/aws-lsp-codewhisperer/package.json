@@ -27,10 +27,11 @@
         "postinstall": "node ./script/install_transitive_dep.js"
     },
     "dependencies": {
+        "@amzn/amazon-q-developer-streaming-client": "file:../../core/q-developer-streaming-client/amzn-amazon-q-developer-streaming-client-1.0.0.tgz",
         "@amzn/codewhisperer-streaming": "file:../../core/codewhisperer-streaming/amzn-codewhisperer-streaming-1.0.0.tgz",
         "@aws-sdk/util-retry": "^3.374.0",
         "@aws/chat-client-ui-types": "^0.1.13",
-        "@aws/language-server-runtimes": "^0.2.55",
+        "@aws/language-server-runtimes": "^0.2.56",
         "@aws/lsp-core": "^0.0.3",
         "@smithy/node-http-handler": "^2.5.0",
         "shlex": "2.1.2",
@@ -42,6 +43,7 @@
         "got": "^11.8.5",
         "hpagent": "^1.2.0",
         "js-md5": "^0.8.3",
+        "lokijs": "^1.5.12",
         "uuid": "^11.0.5",
         "diff": "^7.0.0",
         "vscode-uri": "^3.1.0"
@@ -49,6 +51,7 @@
     "devDependencies": {
         "@types/adm-zip": "^0.5.5",
         "@types/archiver": "^6.0.2",
+        "@types/lokijs": "^1.5.14",
         "@types/uuid": "^9.0.8",
         "@types/diff": "^7.0.2",
         "assert": "^2.1.0",
@@ -73,6 +76,7 @@
         "endOfLine": "lf"
     },
     "bundleDependencies": [
-        "@amzn/codewhisperer-streaming"
+        "@amzn/codewhisperer-streaming",
+        "@amzn/amazon-q-developer-streaming-client"
     ]
 }

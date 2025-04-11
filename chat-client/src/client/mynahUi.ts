@@ -13,6 +13,7 @@ import {
     isValidAuthFollowUpType,
 } from '@aws/chat-client-ui-types'
 import {
+    ChatMessage,
     ChatResult,
     ContextCommand,
     ContextCommandParams,
@@ -50,7 +51,7 @@ export interface InboundChatApi {
     sendToPrompt(params: SendToPromptParams): void
     sendGenericCommand(params: GenericCommandParams): void
     showError(params: ErrorParams): void
-    openTab(params: OpenTabParams): void
+    openTab(requestId: string, params: OpenTabParams): void
     sendContextCommands(params: ContextCommandParams): void
     listConversations(params: ListConversationsResult): void
     conversationClicked(params: ConversationClickResult): void
@@ -383,8 +384,11 @@ export const createMynahUi = (
         return tabId ? mynahUi.getAllTabs()[tabId]?.store : undefined
     }
 
-    const createTabId = (needWelcomeMessages: boolean = false) => {
-        const tabId = mynahUi.updateStore('', tabFactory.createTab(needWelcomeMessages, disclaimerCardActive))
+    const createTabId = (needWelcomeMessages: boolean = false, chatMessages?: ChatMessage[]) => {
+        const tabId = mynahUi.updateStore(
+            '',
+            tabFactory.createTab(needWelcomeMessages, disclaimerCardActive, chatMessages)
+        )
         if (tabId === undefined) {
             mynahUi.notify({
                 content: uiComponentsTexts.noMoreTabsTooltip,
@@ -540,18 +544,19 @@ ${params.message}`,
         messager.onError(params)
     }
 
-    const openTab = ({ tabId }: OpenTabParams) => {
-        if (tabId) {
-            if (tabId !== mynahUi.getSelectedTabId()) {
-                mynahUi.selectTab(tabId)
+    const openTab = (requestId: string, params: OpenTabParams) => {
+        if (params.tabId) {
+            if (params.tabId !== mynahUi.getSelectedTabId()) {
+                mynahUi.selectTab(params.tabId)
             }
-            messager.onOpenTab({ tabId })
+            messager.onOpenTab(requestId, { tabId: params.tabId })
         } else {
-            const tabId = createTabId(true)
+            const messages = params.newTabOptions?.data?.messages
+            const tabId = createTabId(messages ? false : true, messages)
             if (tabId) {
-                messager.onOpenTab({ tabId })
+                messager.onOpenTab(requestId, { tabId })
             } else {
-                messager.onOpenTab({
+                messager.onOpenTab(requestId, {
                     type: 'InvalidRequest',
                     message: 'No more tabs available',
                 })
