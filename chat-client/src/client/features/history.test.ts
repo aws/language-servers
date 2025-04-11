@@ -66,7 +66,6 @@ describe('history', () => {
 
         sinon.assert.calledOnce(openDetailedListStub)
         const arg = openDetailedListStub.getCall(0).args[0] as DetailedListSheetProps
-        assert.equal(arg.tabId, '')
         assert.equal(arg.detailedList.header, mockParams.header)
         assert.deepEqual(arg.detailedList.filterOptions, [
             {

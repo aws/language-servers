@@ -257,7 +257,7 @@ describe('MynahUI', () => {
 
             sinon.assert.calledOnce(listConversationsSpy)
         })
-        it('should not  list conversarions if conversartion click processing failed', () => {
+        it('should not list conversarions if conversartion click processing failed', () => {
             const listConversationsSpy = sinon.spy(messager, 'onListConversations')
 
             // Simulate a successful conversation deletion
