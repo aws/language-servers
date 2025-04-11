@@ -3,6 +3,7 @@ import { SinonStub, stub, spy, assert as sinonAssert } from 'sinon'
 import * as assert from 'assert'
 import * as fs from 'fs'
 import { Dirent } from 'fs'
+import * as path from 'path'
 
 class LoggingMock {
     public error: SinonStub
@@ -25,11 +26,13 @@ describe('LocalProjectContextController', () => {
     let vectorLibMock: any
     let fsStub: SinonStub
 
+    const BASE_PATH = path.join('path', 'to', 'workspace1')
+
     beforeEach(() => {
         logging = new LoggingMock()
         mockWorkspaceFolders = [
             {
-                uri: 'file:///path/to/workspace1',
+                uri: `file://${BASE_PATH}`,
                 name: 'workspace1',
             },
         ]
@@ -46,10 +49,10 @@ describe('LocalProjectContextController', () => {
 
         fsStub = stub(fs.promises, 'readdir')
         fsStub
-            .withArgs('/path/to/workspace1', { withFileTypes: true })
+            .withArgs(BASE_PATH, { withFileTypes: true })
             .resolves([createMockDirent('Test.java', false), createMockDirent('src', true)])
         fsStub
-            .withArgs('/path/to/workspace1/src', { withFileTypes: true })
+            .withArgs(path.join(BASE_PATH, 'src'), { withFileTypes: true })
             .resolves([createMockDirent('Main.java', false)])
 
         controller = new LocalProjectContextController('testClient', mockWorkspaceFolders, logging as any)
@@ -187,13 +190,13 @@ describe('LocalProjectContextController', () => {
         it('should return single workspace path when only one workspace exists', () => {
             const singleWorkspace = [
                 {
-                    uri: 'file:///path/to/workspace',
+                    uri: `file://${BASE_PATH}`,
                     name: 'workspace',
                 },
             ]
 
             const result = (controller as any).findCommonWorkspaceRoot(singleWorkspace)
-            assert.strictEqual(result, '/path/to/workspace')
+            assert.strictEqual(result, BASE_PATH)
         })
 
         it('should throw error when no workspaces provided', () => {
@@ -202,20 +205,24 @@ describe('LocalProjectContextController', () => {
 
         it('should find common root between multiple workspaces', () => {
             const multipleWorkspaces = [
-                { uri: 'file:///path/to/workspace1', name: 'workspace1' },
-                { uri: 'file:///path/to/workspace2', name: 'workspace2' },
+                { uri: `file://${path.join('path', 'to', 'workspace1')}`, name: 'workspace1' },
+                { uri: `file://${path.join('path', 'to', 'workspace2')}`, name: 'workspace2' },
             ]
 
             const result = (controller as any).findCommonWorkspaceRoot(multipleWorkspaces)
-            assert.strictEqual(result, '/path/to')
+            assert.strictEqual(result, path.join('path', 'to'))
         })
     })
 
     describe('getCodeSourceFiles', () => {
         it('should return java files from directory', async () => {
-            const results = await (controller as any).getCodeSourceFiles('/path/to/workspace1')
+            const results = await (controller as any).getCodeSourceFiles(BASE_PATH)
 
-            assert.deepStrictEqual(results, ['/path/to/workspace1/Test.java', '/path/to/workspace1/src/Main.java'])
+            const expectedPaths = [path.join(BASE_PATH, 'Test.java'), path.join(BASE_PATH, 'src', 'Main.java')]
+            assert.deepStrictEqual(
+                results.map((p: string) => path.normalize(p)),
+                expectedPaths.map((p: string) => path.normalize(p))
+            )
         })
     })
 
