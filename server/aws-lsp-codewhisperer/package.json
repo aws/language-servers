@@ -45,6 +45,7 @@
         "js-md5": "^0.8.3",
         "lokijs": "^1.5.12",
         "uuid": "^11.0.5",
+        "diff": "^7.0.0",
         "vscode-uri": "^3.1.0"
     },
     "devDependencies": {
@@ -53,6 +54,7 @@
         "@types/local-indexing": "file:./types/types-local-indexing-1.0.0.tgz",
         "@types/lokijs": "^1.5.14",
         "@types/uuid": "^9.0.8",
+        "@types/diff": "^7.0.2",
         "assert": "^2.1.0",
         "copyfiles": "^2.4.1",
         "mock-fs": "^5.2.0",
