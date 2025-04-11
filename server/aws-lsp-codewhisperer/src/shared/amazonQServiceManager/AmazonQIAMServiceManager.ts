@@ -5,7 +5,6 @@ import {
     QServiceManagerFeatures,
 } from './BaseAmazonQServiceManager'
 import { getAmazonQRegionAndEndpoint } from './configurationUtils'
-import { AmazonQServiceNotInitializedError } from './errors'
 import { StreamingClientServiceIAM } from '../streamingClientService'
 
 export class AmazonQIAMServiceManager extends BaseAmazonQServiceManager<
@@ -33,12 +32,11 @@ export class AmazonQIAMServiceManager extends BaseAmazonQServiceManager<
 
     public getCodewhispererService(): CodeWhispererServiceBase {
         if (!this.cachedCodewhispererService) {
-            const { region, endpoint } = getAmazonQRegionAndEndpoint(this.features.runtime, this.features.logging)
             this.cachedCodewhispererService = new CodeWhispererServiceIAM(
                 this.features.credentialsProvider,
                 this.features.workspace,
-                region,
-                endpoint,
+                this.region,
+                this.endpoint,
                 this.features.sdkInitializator
             )
 
@@ -49,27 +47,15 @@ export class AmazonQIAMServiceManager extends BaseAmazonQServiceManager<
     }
 
     public getStreamingClient() {
-        const iamService = this.getCodewhispererService()
-
-        if (!iamService || !this.region || !this.endpoint) {
-            throw new AmazonQServiceNotInitializedError()
-        }
-
         if (!this.cachedStreamingClient) {
-            this.cachedStreamingClient = this.streamingClientFactory(this.region, this.endpoint)
+            this.cachedStreamingClient = new StreamingClientServiceIAM(
+                this.features.credentialsProvider,
+                this.features.sdkInitializator,
+                this.region,
+                this.endpoint
+            )
         }
-
         return this.cachedStreamingClient
-    }
-
-    private streamingClientFactory(region: string, endpoint: string): StreamingClientServiceIAM {
-        const streamingClient = new StreamingClientServiceIAM(
-            this.features.credentialsProvider,
-            this.features.sdkInitializator,
-            region,
-            endpoint
-        )
-        return streamingClient
     }
 }
 
