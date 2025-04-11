@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.0.4](https://github.com/aws/language-servers/compare/lsp-core/v0.0.3...lsp-core/v0.0.4) (2025-04-11)
+
+
+### Features
+
+* port executeBash tool from VSC ([#912](https://github.com/aws/language-servers/issues/912)) ([1ccba58](https://github.com/aws/language-servers/commit/1ccba58a9e339ab7d5e4370cf40fa7268f802fd8))
+* port listDirectory from VSC ([#930](https://github.com/aws/language-servers/issues/930)) ([7feb127](https://github.com/aws/language-servers/commit/7feb127f33570d2349852781e16cc9d6763a92b8))
+* port readDirectoryRecursively from VSC ([#923](https://github.com/aws/language-servers/issues/923)) ([af48204](https://github.com/aws/language-servers/commit/af48204201fbe531d9d5185b927936e8adbb695f))
+
 ## [0.0.3](https://github.com/aws/language-servers/compare/lsp-core/v0.0.2...lsp-core/v0.0.3) (2025-04-07)
 
 

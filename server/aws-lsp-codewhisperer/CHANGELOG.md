@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.0.33](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.32...lsp-codewhisperer/v0.0.33) (2025-04-11)
+
+
+### Features
+
+* add enablerazorviewtransform ([527ae03](https://github.com/aws/language-servers/commit/527ae03521642e9b6940f3ba71ca61327d8d28b8))
+* add IAM Q Streaming Client to language-servers ([#927](https://github.com/aws/language-servers/issues/927)) ([ef89fdf](https://github.com/aws/language-servers/commit/ef89fdf228f4799a29a22a60dc105ade4ee99ab3))
+* add proper windows support for executeBash and remove mocks in tests. ([#934](https://github.com/aws/language-servers/issues/934)) ([148062f](https://github.com/aws/language-servers/commit/148062f51d9ef54fdce7be5658bb878b6a9fccc7))
+* added icons to help and clear action ([#942](https://github.com/aws/language-servers/issues/942)) ([694bbb8](https://github.com/aws/language-servers/commit/694bbb85580cc79313d65ad77b224875f74280c2))
+* **amazonq:** centralize configuration handling to base service manager class ([#906](https://github.com/aws/language-servers/issues/906)) ([b3aa8fa](https://github.com/aws/language-servers/commit/b3aa8fa54c7b13144fd8a924b1ad6e4f4a25fca4))
+* **amazonq:** chat history and conversation persistence ([#941](https://github.com/aws/language-servers/issues/941)) ([bf944e0](https://github.com/aws/language-servers/commit/bf944e08e6044eb286a16ba451e70dbc5d88837a))
+* port executeBash tool from VSC ([#912](https://github.com/aws/language-servers/issues/912)) ([1ccba58](https://github.com/aws/language-servers/commit/1ccba58a9e339ab7d5e4370cf40fa7268f802fd8))
+* port listDirectory from VSC ([#930](https://github.com/aws/language-servers/issues/930)) ([7feb127](https://github.com/aws/language-servers/commit/7feb127f33570d2349852781e16cc9d6763a92b8))
+* support generateAssistantResponse as well as sendMessage ([a96f864](https://github.com/aws/language-servers/commit/a96f86444147757f20cc1fd033b018a12c915622))
+
+
+### Bug Fixes
+
+* **amazonq:** add missing paginator to list profiles call ([#938](https://github.com/aws/language-servers/issues/938)) ([0435c80](https://github.com/aws/language-servers/commit/0435c80b05fd3c7065da7f831e1e2d9281da0b2e))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @aws/lsp-core bumped from ^0.0.3 to ^0.0.4
+
 ## [0.0.32](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.31...lsp-codewhisperer/v0.0.32) (2025-04-08)
 
 
