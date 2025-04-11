@@ -25,7 +25,7 @@ export const Q_DEVELOPER_PROFILES_CONFIGURATION_SECTION = `${Q_CONFIGURATION_SEC
 
 export const QConfigurationServerToken =
     (): Server =>
-    ({ chat, credentialsProvider, lsp, logging, runtime, workspace, sdkInitializator, telemetry }) => {
+    ({ credentialsProvider, lsp, logging, runtime, workspace, sdkInitializator }) => {
         let amazonQServiceManager: AmazonQTokenServiceManager
         let serverConfigurationProvider: ServerConfigurationProvider
 
@@ -61,10 +61,10 @@ export const QConfigurationServerToken =
             )
 
             /* 
-                        Calling handleDidChangeConfiguration once to ensure we get configuration atleast once at start up
-                        
-                        TODO: TODO: consider refactoring such responsibilities to common service manager config/initialisation server
-                    */
+                            Calling handleDidChangeConfiguration once to ensure we get configuration atleast once at start up
+                            
+                            TODO: TODO: consider refactoring such responsibilities to common service manager config/initialisation server
+                        */
             await amazonQServiceManager.handleDidChangeConfiguration()
         })
 
