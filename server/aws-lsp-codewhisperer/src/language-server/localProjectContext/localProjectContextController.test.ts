@@ -26,7 +26,7 @@ describe('LocalProjectContextController', () => {
     let vectorLibMock: any
     let fsStub: SinonStub
 
-    const BASE_PATH = path.join('path', 'to', 'workspace1')
+    const BASE_PATH = path.join(__dirname, 'path', 'to', 'workspace1')
 
     beforeEach(() => {
         logging = new LoggingMock()
@@ -205,12 +205,12 @@ describe('LocalProjectContextController', () => {
 
         it('should find common root between multiple workspaces', () => {
             const multipleWorkspaces = [
-                { uri: `file://${path.join('path', 'to', 'workspace1')}`, name: 'workspace1' },
-                { uri: `file://${path.join('path', 'to', 'workspace2')}`, name: 'workspace2' },
+                { uri: `file://${path.join(__dirname, 'path', 'to', 'workspace1')}`, name: 'workspace1' },
+                { uri: `file://${path.join(__dirname, 'path', 'to', 'workspace1')}`, name: 'workspace2' },
             ]
 
             const result = (controller as any).findCommonWorkspaceRoot(multipleWorkspaces)
-            assert.strictEqual(result, path.join('path', 'to'))
+            assert.strictEqual(result, BASE_PATH)
         })
     })
 

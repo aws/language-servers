@@ -41,7 +41,6 @@ export class ChatHistoryList {
             this.historyDetailedList.update(detailedList)
         } else {
             this.historyDetailedList = this.mynahUi.openDetailedList({
-                tabId: '', // TODO: remove after MynahUI is changed to remove the property
                 detailedList: detailedList,
                 events: {
                     onFilterValueChange: this.onFilterValueChange,

@@ -43,6 +43,7 @@
         "got": "^11.8.5",
         "hpagent": "^1.2.0",
         "js-md5": "^0.8.3",
+        "lokijs": "^1.5.12",
         "uuid": "^11.0.5",
         "vscode-uri": "^3.1.0"
     },
@@ -50,6 +51,7 @@
         "@types/adm-zip": "^0.5.5",
         "@types/archiver": "^6.0.2",
         "@types/local-indexing": "file:./types/types-local-indexing-1.0.0.tgz",
+        "@types/lokijs": "^1.5.14",
         "@types/uuid": "^9.0.8",
         "assert": "^2.1.0",
         "copyfiles": "^2.4.1",
