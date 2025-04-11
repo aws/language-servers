@@ -51,6 +51,9 @@ const IGNORE_PATTERNS = [
     '**/target/**', // Maven/Gradle builds
 ]
 
+const MAX_UNCOMPRESSED_SRC_SIZE_MB = 250 // 250 MB limit
+const MAX_UNCOMPRESSED_SRC_SIZE_BYTES = MAX_UNCOMPRESSED_SRC_SIZE_MB * 1024 * 1024 // Convert to bytes
+
 export class ArtifactManager {
     private workspace: Workspace
     private logging: Logging
@@ -483,10 +486,34 @@ export class ArtifactManager {
         this.createFolderIfNotExist(zipDirectoryPath)
 
         const zipPath = path.join(zipDirectoryPath, `${language}.zip`)
-        const zipBuffer = await this.createZipBuffer(files)
+
+        let currentSize = 0
+        let skippedSize = 0
+        let skippedFiles = 0
+        const filesToInclude: FileMetadata[] = []
+
+        // Don't add files to the zip if the total size of uncompressed source code would go over the limit
+        // Currently there is no ordering on the files. If the first file added to the zip is equal to the limit, only it will be added and no other files will be added
+        for (const file of files) {
+            if (currentSize + file.contentLength <= MAX_UNCOMPRESSED_SRC_SIZE_BYTES) {
+                filesToInclude.push(file)
+                currentSize += file.contentLength
+            } else {
+                skippedSize += file.contentLength
+                skippedFiles += 1
+            }
+        }
+
+        const zipBuffer = await this.createZipBuffer(filesToInclude)
         await fs.promises.writeFile(zipPath, zipBuffer)
 
         const stats = fs.statSync(zipPath)
+
+        if (skippedFiles > 0) {
+            this.log(
+                `Skipped ${skippedFiles} ${language} files of total size ${skippedSize} bytes due to exceeding the maximum zip size`
+            )
+        }
 
         return {
             filePath: zipPath,
@@ -600,9 +627,7 @@ export class ArtifactManager {
             this.log(`Processing ${processedFiles.length} files for language ${language}`)
             const zipMetadata = await this.createZipForLanguage(workspaceFolder, language, processedFiles, relativePath)
             this.log(`Created zip for language ${language}`)
-            if (zipMetadata) {
-                zipFileMetadata.push(zipMetadata)
-            }
+            zipFileMetadata.push(zipMetadata)
         }
         return zipFileMetadata
     }
