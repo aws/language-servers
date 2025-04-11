@@ -123,15 +123,6 @@ describe('AgenticChatController', () => {
 
         testFeatures = new TestFeatures()
 
-        testFeatures.workspace.fs = {
-            ...testFeatures.workspace.fs,
-            getServerDataDirPath: sinon.stub().returns('/mock/server/data/path'),
-            mkdir: sinon.stub().resolves(),
-            readFile: sinon.stub().resolves(),
-            writeFile: sinon.stub().resolves(),
-            rm: sinon.stub().resolves(),
-        }
-
         // @ts-ignore
         const cachedInitializeParams: InitializeParams = {
             initializationOptions: {
@@ -187,7 +178,6 @@ describe('AgenticChatController', () => {
 
     afterEach(() => {
         sinon.restore()
-        chatController.dispose()
         ChatSessionManagementService.reset()
     })
 

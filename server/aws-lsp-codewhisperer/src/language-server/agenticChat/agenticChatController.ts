@@ -13,8 +13,6 @@ import {
     TextEdit,
     chatRequestType,
     InlineChatParams,
-    ConversationClickParams,
-    ListConversationsParams,
 } from '@aws/language-server-runtimes/protocol'
 import {
     CancellationToken,
@@ -56,8 +54,6 @@ import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/A
 import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
 import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
 import { SendMessageCommandInput, SendMessageCommandOutput } from '../../shared/streamingClientService'
-import { TabBarController } from './tabBarController'
-import { ChatDatabase } from './tools/chatDb/chatDb'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -79,8 +75,6 @@ export class AgenticChatController implements ChatHandlers {
     #customizationArn?: string
     #telemetryService: TelemetryService
     #amazonQServiceManager?: AmazonQBaseServiceManager
-    #tabBarController: TabBarController
-    #chatHistoryDb: ChatDatabase
 
     constructor(
         chatSessionManagementService: ChatSessionManagementService,
@@ -94,22 +88,11 @@ export class AgenticChatController implements ChatHandlers {
         this.#telemetryController = new ChatTelemetryController(features, telemetryService)
         this.#telemetryService = telemetryService
         this.#amazonQServiceManager = amazonQServiceManager
-        this.#chatHistoryDb = new ChatDatabase(features)
-        this.#tabBarController = new TabBarController(features, this.#chatHistoryDb)
     }
 
     dispose() {
         this.#chatSessionManagementService.dispose()
         this.#telemetryController.dispose()
-        this.#chatHistoryDb.close()
-    }
-
-    async onListConversations(params: ListConversationsParams) {
-        return this.#tabBarController.onListConversations(params)
-    }
-
-    async onConversationClick(params: ConversationClickParams) {
-        return this.#tabBarController.onConversationClick(params)
     }
 
     async onChatPrompt(params: ChatParams, token: CancellationToken): Promise<ChatResult | ResponseError<ChatResult>> {
@@ -158,11 +141,6 @@ export class AgenticChatController implements ChatHandlers {
                 this.#customizationArn,
                 profileArn
             )
-
-            if (!session.localHistoryHydrated && requestInput.conversationState) {
-                requestInput.conversationState.history = this.#chatHistoryDb.getMessages(params.tabId, 10)
-                session.localHistoryHydrated = true
-            }
 
             metric.recordStart()
             response = await session.sendMessage(requestInput)
@@ -248,24 +226,6 @@ export class AgenticChatController implements ChatHandlers {
                     ),
                 },
             })
-            // Save question/answer interaction to chat history
-            if (params.prompt.prompt && session.conversationId && result.data?.chatResult.body) {
-                this.#chatHistoryDb.addMessage(params.tabId, 'cwc', session.conversationId, {
-                    body: params.prompt.prompt,
-                    type: 'prompt' as any,
-                })
-
-                this.#chatHistoryDb.addMessage(params.tabId, 'cwc', session.conversationId, {
-                    body: result.data.chatResult.body,
-                    type: 'answer' as any,
-                    codeReference: result.data.chatResult.codeReference,
-                    relatedContent:
-                        result.data.chatResult.relatedContent?.content &&
-                        result.data.chatResult.relatedContent.content.length > 0
-                            ? result.data?.chatResult.relatedContent
-                            : undefined,
-                })
-            }
 
             return result.success
                 ? result.data.chatResult
@@ -442,9 +402,7 @@ export class AgenticChatController implements ChatHandlers {
 
     onLinkClick() {}
 
-    async onReady() {
-        await this.#tabBarController.loadChats()
-    }
+    onReady() {}
 
     onSendFeedback({ tabId, feedbackPayload }: FeedbackParams) {
         this.#features.telemetry.emitMetric({
@@ -493,7 +451,7 @@ export class AgenticChatController implements ChatHandlers {
             })
             this.#telemetryController.activeTabId = undefined
         }
-        this.#chatHistoryDb.updateTabOpenState(params.tabId, false)
+
         this.#chatSessionManagementService.deleteSession(params.tabId)
         this.#telemetryController.removeConversation(params.tabId)
     }
@@ -511,7 +469,6 @@ export class AgenticChatController implements ChatHandlers {
                 })
 
                 this.#telemetryController.removeConversation(params.tabId)
-                this.#chatHistoryDb.clearTab(params.tabId)
 
                 sessionResult.data?.clear()
 
