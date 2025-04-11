@@ -3,6 +3,7 @@ import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/A
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import { LocalProjectContextController } from './localProjectContextController'
 import { languageByExtension } from '../../shared/languageDetection'
+import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
 
 export const LocalProjectContextServer = (): Server => features => {
     const { credentialsProvider, telemetry, logging, lsp } = features
@@ -62,7 +63,8 @@ export const LocalProjectContextServer = (): Server => features => {
 
     lsp.onInitialized(async () => {
         try {
-            await localProjectContextController.init()
+            await amazonQServiceManager.handleDidChangeConfiguration()
+            await amazonQServiceManager.addDidChangeConfigurationListener(updateConfigurationHandler)
             logging.log('Local context server has been initialized')
         } catch (error) {
             logging.error(`Failed to initialize local context server: ${error}`)
@@ -74,15 +76,6 @@ export const LocalProjectContextServer = (): Server => features => {
             await localProjectContextController.updateWorkspaceFolders(event.event.added, event.event.removed)
         } catch (error) {
             logging.error(`Error handling workspace folder change: ${error}`)
-        }
-    })
-
-    lsp.onDidSaveTextDocument(async event => {
-        try {
-            const filePaths = [event.textDocument.uri.replace('file:', '')]
-            await localProjectContextController.updateIndex(filePaths, 'update')
-        } catch (error) {
-            logging.error(`Error handling save event: ${error}`)
         }
     })
 
@@ -124,6 +117,18 @@ export const LocalProjectContextServer = (): Server => features => {
             logging.error(`Error handling save event: ${error}`)
         }
     })
+
+    const updateConfigurationHandler = async (updatedConfig: AmazonQWorkspaceConfig) => {
+        logging.log('Updating configuration of local context server')
+        try {
+            logging.log(`Setting project context enabled to ${updatedConfig.projectContext?.enableIndexing}`)
+            updatedConfig.projectContext?.enableIndexing
+                ? await localProjectContextController.init()
+                : await localProjectContextController.dispose()
+        } catch (error) {
+            logging.error(`Error handling configuration change: ${error}`)
+        }
+    }
 
     return () => {}
 }

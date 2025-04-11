@@ -4,6 +4,7 @@ import * as assert from 'assert'
 import * as fs from 'fs'
 import { Dirent } from 'fs'
 import * as path from 'path'
+import { URI } from 'vscode-uri'
 
 class LoggingMock {
     public error: SinonStub
@@ -32,7 +33,7 @@ describe('LocalProjectContextController', () => {
         logging = new LoggingMock()
         mockWorkspaceFolders = [
             {
-                uri: `file://${BASE_PATH}`,
+                uri: URI.file(BASE_PATH),
                 name: 'workspace1',
             },
         ]
@@ -190,7 +191,7 @@ describe('LocalProjectContextController', () => {
         it('should return single workspace path when only one workspace exists', () => {
             const singleWorkspace = [
                 {
-                    uri: `file://${BASE_PATH}`,
+                    uri: URI.file(BASE_PATH),
                     name: 'workspace',
                 },
             ]
@@ -205,8 +206,8 @@ describe('LocalProjectContextController', () => {
 
         it('should find common root between multiple workspaces', () => {
             const multipleWorkspaces = [
-                { uri: `file://${path.join(__dirname, 'path', 'to', 'workspace1')}`, name: 'workspace1' },
-                { uri: `file://${path.join(__dirname, 'path', 'to', 'workspace1')}`, name: 'workspace2' },
+                { uri: URI.file(path.join(__dirname, 'path', 'to', 'workspace1')), name: 'workspace1' },
+                { uri: URI.file(path.join(__dirname, 'path', 'to', 'workspace1')), name: 'workspace2' },
             ]
 
             const result = (controller as any).findCommonWorkspaceRoot(multipleWorkspaces)
