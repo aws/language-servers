@@ -349,6 +349,13 @@ myStubbedFunc.returns()
 -   In the top left menu bar: `View > Output`
 -   Select `"AWS Documents Language Server"` from the dropdown menu in the topright.
 
+### Amazon Q Chat window is not visible in sample VS Code extension
+
+Sample Q Chat extension window may not open at startup of this Sample extension or not in focus on extension startup.
+
+1. Check if `ENABLE_CHAT` flag is set to `true` in `.vscode/launch.json`.
+2. Manually focus on Chat window by running `Focus on Amazon Q Chat View` VS Code command.
+
 ## Developer Notes
 
 ### Develop and test Language servers with Language Server Runtimes locally
