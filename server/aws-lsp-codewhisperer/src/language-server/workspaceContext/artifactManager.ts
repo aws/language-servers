@@ -14,7 +14,7 @@ export interface FileMetadata {
     language: CodewhispererLanguage
     contentLength: number
     lastModified: number
-    content: string | Buffer
+    content: Buffer
     workspaceFolder: WorkspaceFolder
 }
 
@@ -406,23 +406,6 @@ export class ArtifactManager {
         }
     }
 
-    async createFileMetadataWithoutContent(
-        filePath: string,
-        relativePath: string,
-        language: CodewhispererLanguage,
-        workspaceFolder: WorkspaceFolder
-    ): Promise<FileMetadata> {
-        return {
-            filePath,
-            contentLength: 0,
-            lastModified: fs.statSync(filePath).mtimeMs,
-            content: '',
-            language,
-            relativePath,
-            workspaceFolder,
-        }
-    }
-
     async processDirectory(
         workspaceFolder: WorkspaceFolder,
         directoryPath: string,
@@ -478,7 +461,7 @@ export class ArtifactManager {
         language: CodewhispererLanguage,
         workspaceFolder: WorkspaceFolder
     ): Promise<FileMetadata> {
-        const fileContent = this.workspace.fs.readFileSync(filePath)
+        const fileContent = fs.readFileSync(filePath)
         return {
             filePath,
             contentLength: fileContent.length,
@@ -574,11 +557,9 @@ export class ArtifactManager {
     private findWorkspaceFolder(workspace: WorkspaceFolder): WorkspaceFolder | undefined {
         for (const [existingWorkspace] of this.filesByWorkspaceFolderAndLanguage) {
             if (existingWorkspace.uri === workspace.uri) {
-                this.log(`Found existing workspace`)
                 return existingWorkspace
             }
         }
-        this.log(`No existing workspace found`)
         return undefined
     }
 

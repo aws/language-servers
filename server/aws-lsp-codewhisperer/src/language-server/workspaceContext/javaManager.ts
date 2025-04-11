@@ -715,7 +715,7 @@ export class EclipseConfigGenerator {
             this.addAttribute(aptTestEntry, ClasspathAttribute.IGNORE_OPTIONAL_PROBLEMS)
         }
 
-        const generatedContent = builder.end({ prettyPrint: true })
+        const generatedContent = Buffer.from(builder.end({ prettyPrint: true }))
         const relativePath = '.classpath'
 
         const newClasspathFile: FileMetadata = {
@@ -769,7 +769,7 @@ export class EclipseConfigGenerator {
             link.ele('location').txt(path.resolve(process.cwd(), 'target/generated-sources'))
         }
 
-        const generatedContent = builder.end({ prettyPrint: true })
+        const generatedContent = Buffer.from(builder.end({ prettyPrint: true }))
         const relativePath = '.project'
 
         const newProjectFile: FileMetadata = {
@@ -878,7 +878,7 @@ export class EclipseConfigGenerator {
 
                 for (const file of files) {
                     try {
-                        const content = await fs.readFile(file, 'utf-8')
+                        const content = await fs.readFile(file)
                         const relativePath = path.relative(this.workspacePath, file)
 
                         fileMetadataArray.push({
