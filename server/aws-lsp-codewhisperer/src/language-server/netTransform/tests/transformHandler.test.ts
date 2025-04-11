@@ -227,7 +227,7 @@ describe('Test Transform handler ', () => {
         getCredentials: sinon.stub().returns({ token: 'mockedToken' }),
     }
 
-    const mockSdkRuntimeConfigurator: SDKInitializator = Object.assign(
+    const mockSdkInitializator: SDKInitializator = Object.assign(
         // Default callable function for v3 clients
         <T, P>(Ctor: SDKClientConstructorV3<T, P>, current_config: P): T => new Ctor({ ...current_config }),
         // Property for v2 clients
@@ -246,7 +246,8 @@ describe('Test Transform handler ', () => {
                 mockedCredentialsProvider,
                 awsQRegion,
                 awsQEndpointUrl,
-                mockSdkRuntimeConfigurator
+                mockSdkInitializator,
+                mockedLogging
             )
             expect(client).to.be.instanceOf(CodeWhispererStreaming)
         })
@@ -258,7 +259,8 @@ describe('Test Transform handler ', () => {
                 mockedCredentialsProvider,
                 awsQRegion,
                 awsQEndpointUrl,
-                mockSdkRuntimeConfigurator
+                mockSdkInitializator,
+                mockedLogging
             )
             expect(client).to.be.instanceOf(CodeWhispererStreaming)
         })
