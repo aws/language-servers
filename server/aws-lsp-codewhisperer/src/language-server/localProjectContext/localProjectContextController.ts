@@ -9,6 +9,7 @@ import type {
     UpdateMode,
     VectorLibAPI,
 } from 'local-indexing'
+import { URI } from 'vscode-uri'
 
 const fs = require('fs').promises
 const path = require('path')
@@ -42,11 +43,11 @@ export class LocalProjectContextController {
             const vecLib = vectorLib ?? (await import(path.join(LIBRARY_DIR, 'dist', 'extension.js')))
             const root = this.findCommonWorkspaceRoot(this.workspaceFolders)
             this._vecLib = await vecLib.start(LIBRARY_DIR, this.clientName, root)
+            await this.buildIndex()
             LocalProjectContextController.instance = this
         } catch (error) {
             this.log.error('Vector library failed to initialize:' + error)
         }
-        await this.buildIndex()
     }
 
     public async dispose(): Promise<void> {
@@ -82,17 +83,17 @@ export class LocalProjectContextController {
 
     public async updateWorkspaceFolders(added: WorkspaceFolder[], removed: WorkspaceFolder[]): Promise<void> {
         try {
-            if (this._vecLib) {
-                const afterRemovals = this.workspaceFolders.filter(
-                    existing => !removed.some(removal => this.areWorkspaceFoldersEqual(existing, removal))
-                )
+            const afterRemovals = this.workspaceFolders.filter(
+                existing => !removed.some(removal => this.areWorkspaceFoldersEqual(existing, removal))
+            )
 
-                const merged = [...afterRemovals]
-                for (const addition of added) {
-                    if (!merged.some(existing => this.areWorkspaceFoldersEqual(existing, addition))) {
-                        merged.push(addition)
-                    }
+            const merged = [...afterRemovals]
+            for (const addition of added) {
+                if (!merged.some(existing => this.areWorkspaceFoldersEqual(existing, addition))) {
+                    merged.push(addition)
                 }
+            }
+            if (this._vecLib) {
                 await this.buildIndex()
             }
         } catch (error) {
@@ -134,7 +135,7 @@ export class LocalProjectContextController {
         const workspaceSourceFiles: string[] = []
         if (workspaceFolders) {
             for (const folder of workspaceFolders) {
-                const folderPath = new URL(folder.uri).pathname
+                const folderPath = URI.parse(folder.uri).fsPath
                 this.log.info(`Processing workspace: ${folder.name}`)
 
                 try {

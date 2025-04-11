@@ -67,10 +67,15 @@ interface QInlineSuggestionsConfig {
     extraContext: string | undefined // aws.q.inlineSuggestions.extraContext
 }
 
+interface QProjectContextConfig {
+    enableIndexing: boolean // aws.q.projectContext.enableIndexing
+}
+
 interface QConfigSection {
     customizationArn: string | undefined // aws.q.customization - selected customization
     optOutTelemetryPreference: 'OPTOUT' | 'OPTIN' // aws.q.optOutTelemetry - telemetry optout option
     inlineSuggestions: QInlineSuggestionsConfig
+    projectContext: QProjectContextConfig
 }
 
 interface CodeWhispererConfigSection {
@@ -104,6 +109,9 @@ export async function getAmazonQRelatedWorkspaceConfigs(
                 optOutTelemetryPreference: newQConfig['optOutTelemetry'] === true ? 'OPTOUT' : 'OPTIN',
                 inlineSuggestions: {
                     extraContext: textUtils.undefinedIfEmpty(newQConfig.inlineSuggestions?.extraContext),
+                },
+                projectContext: {
+                    enableIndexing: newQConfig.projectContext?.enableIndexing === true,
                 },
             }
 
@@ -150,6 +158,9 @@ export const defaultAmazonQWorkspaceConfigFactory = (): AmazonQWorkspaceConfig =
         },
         includeSuggestionsWithCodeReferences: false,
         shareCodeWhispererContentWithAWS: false,
+        projectContext: {
+            enableIndexing: false,
+        },
     }
 }
 
