@@ -51,6 +51,7 @@
     "devDependencies": {
         "@types/adm-zip": "^0.5.5",
         "@types/archiver": "^6.0.2",
+        "@types/local-indexing": "file:./types/types-local-indexing-1.0.0.tgz",
         "@types/lokijs": "^1.5.14",
         "@types/uuid": "^9.0.8",
         "@types/diff": "^7.0.2",
