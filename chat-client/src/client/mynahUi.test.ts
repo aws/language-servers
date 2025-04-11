@@ -274,6 +274,33 @@ describe('MynahUI', () => {
             })
         })
     })
+
+    describe('conversationClicked result', () => {
+        it('should list conversarions if successfully deleted conversation', () => {
+            const listConversationsSpy = sinon.spy(messager, 'onListConversations')
+
+            // Successful conversation deletion
+            inboundChatApi.conversationClicked({
+                success: true,
+                action: 'delete',
+                id: 'test-conversation-id',
+            })
+
+            sinon.assert.calledOnce(listConversationsSpy)
+        })
+        it('should not list conversarions if conversartion click processing failed', () => {
+            const listConversationsSpy = sinon.spy(messager, 'onListConversations')
+
+            // Unsuccessful conversation deletion
+            inboundChatApi.conversationClicked({
+                success: false,
+                action: 'delete',
+                id: 'test-conversation-id',
+            })
+
+            sinon.assert.neverCalledWith(listConversationsSpy)
+        })
+    })
 })
 
 describe('withAdapter', () => {

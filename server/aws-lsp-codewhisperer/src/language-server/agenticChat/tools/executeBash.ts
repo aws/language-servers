@@ -220,6 +220,7 @@ export class ExecuteBash {
 
             let firstChunk = true
             let firstStderrChunk = true
+            const writer = updates?.getWriter()
             const childProcessOptions: processUtils.ChildProcessOptions = {
                 spawnOptions: {
                     cwd: cwd,
@@ -228,11 +229,11 @@ export class ExecuteBash {
                 collect: false,
                 waitForStreams: true,
                 onStdout: (chunk: string) => {
-                    ExecuteBash.handleChunk(firstChunk ? '```console\n' + chunk : chunk, stdoutBuffer, updates)
+                    ExecuteBash.handleChunk(firstChunk ? '```console\n' + chunk : chunk, stdoutBuffer, writer)
                     firstChunk = false
                 },
                 onStderr: (chunk: string) => {
-                    ExecuteBash.handleChunk(firstStderrChunk ? '```console\n' + chunk : chunk, stderrBuffer, updates)
+                    ExecuteBash.handleChunk(firstStderrChunk ? '```console\n' + chunk : chunk, stderrBuffer, writer)
                     firstStderrChunk = false
                 },
             }
@@ -273,13 +274,15 @@ export class ExecuteBash {
             } catch (err: any) {
                 this.logger.error(`Failed to execute bash command '${params.command}': ${err.message}`)
                 reject(new Error(`Failed to execute command: ${err.message}`))
+            } finally {
+                await writer?.close()
+                writer?.releaseLock()
             }
         })
     }
 
-    private static handleChunk(chunk: string, buffer: string[], updates?: WritableStream) {
+    private static handleChunk(chunk: string, buffer: string[], writer?: WritableStreamDefaultWriter<any>) {
         try {
-            const writer = updates?.getWriter()
             void writer?.write(chunk)
             const lines = chunk.split(/\r?\n/)
             for (const line of lines) {
@@ -302,7 +305,11 @@ export class ExecuteBash {
     }
 
     private static async whichCommand(logger: Logging, cmd: string): Promise<string> {
-        const cp = new processUtils.ChildProcess(logger, 'which', [cmd], {
+        const isWindows = process.platform === 'win32'
+        const { command, args } = isWindows
+            ? { command: 'where', args: [cmd] }
+            : { command: 'sh', args: ['-c', `command -v ${cmd}`] }
+        const cp = new processUtils.ChildProcess(logger, command, args, {
             collect: true,
             waitForStreams: true,
         })
@@ -314,7 +321,7 @@ export class ExecuteBash {
 
         const output = result.stdout.trim()
         if (!output) {
-            throw new Error(`Command '${cmd}' found but 'which' returned empty output.`)
+            throw new Error(`Command '${cmd}' found but '${command} ${args.join(' ')}' returned empty output.`)
         }
         return output
     }

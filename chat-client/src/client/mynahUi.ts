@@ -361,7 +361,7 @@ export const createMynahUi = (
             tabBarButtons: [
                 {
                     id: ChatHistory.TabBarButtonId,
-                    icon: MynahIcons.COMMENT,
+                    icon: MynahIcons.HISTORY,
                     description: 'View chat history',
                 },
             ],
