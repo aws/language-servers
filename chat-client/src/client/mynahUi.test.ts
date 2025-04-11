@@ -248,7 +248,7 @@ describe('MynahUI', () => {
         it('should list conversarions if successfully deleted conversation', () => {
             const listConversationsSpy = sinon.spy(messager, 'onListConversations')
 
-            // Simulate a successful conversation deletion
+            // Successful conversation deletion
             inboundChatApi.conversationClicked({
                 success: true,
                 action: 'delete',
@@ -260,7 +260,7 @@ describe('MynahUI', () => {
         it('should not list conversarions if conversartion click processing failed', () => {
             const listConversationsSpy = sinon.spy(messager, 'onListConversations')
 
-            // Simulate a successful conversation deletion
+            // Unsuccessful conversation deletion
             inboundChatApi.conversationClicked({
                 success: false,
                 action: 'delete',
