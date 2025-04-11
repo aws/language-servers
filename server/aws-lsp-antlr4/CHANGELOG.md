@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.1.4](https://github.com/aws/language-servers/compare/lsp-antlr4/v0.1.3...lsp-antlr4/v0.1.4) (2025-04-11)
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @aws/lsp-core bumped from ^0.0.3 to ^0.0.4
+
 ## [0.1.3](https://github.com/aws/language-servers/compare/lsp-antlr4/v0.1.2...lsp-antlr4/v0.1.3) (2025-04-07)
 
 

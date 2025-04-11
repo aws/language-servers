@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.1.5](https://github.com/aws/language-servers/compare/chat-client/v0.1.4...chat-client/v0.1.5) (2025-04-11)
+
+
+### Features
+
+* **chat-client:** history list and conversation actions ([#929](https://github.com/aws/language-servers/issues/929)) ([5b8e83c](https://github.com/aws/language-servers/commit/5b8e83cacc56d854623a6e2b59f2f920538f5b85))
+* handle fileClick events ([#919](https://github.com/aws/language-servers/issues/919)) ([511be2e](https://github.com/aws/language-servers/commit/511be2e2e6f527039a99f53cb76fbfc180ef9b55))
+* implement restore tab ([#933](https://github.com/aws/language-servers/issues/933)) ([ad2c5d7](https://github.com/aws/language-servers/commit/ad2c5d77e497e9f8a2019eb547b164f5c5992160))
+
+
+### Bug Fixes
+
+* remove duplicate property ([#928](https://github.com/aws/language-servers/issues/928)) ([c1aaec0](https://github.com/aws/language-servers/commit/c1aaec06b70f4ef9d5e2a7ad0d1cc4d5d6955087))
+* replaced icon for history and added tests ([#951](https://github.com/aws/language-servers/issues/951)) ([da3b664](https://github.com/aws/language-servers/commit/da3b66414514740f514d96279b826aebc4e86077))
+
 ## [0.1.4](https://github.com/aws/language-servers/compare/chat-client/v0.1.3...chat-client/v0.1.4) (2025-04-08)
 
 
