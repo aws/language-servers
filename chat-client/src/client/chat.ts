@@ -290,14 +290,13 @@ export const createChat = (
                     },
                 })
             }
-        }
+        },
     }
 
     const messager = new Messager(chatApi)
-    const tabFactory = new TabFactory(
-        DEFAULT_TAB_DATA,
-        [...(config?.quickActionCommands ? config.quickActionCommands : [])]
-    )
+    const tabFactory = new TabFactory(DEFAULT_TAB_DATA, [
+        ...(config?.quickActionCommands ? config.quickActionCommands : []),
+    ])
 
     const [mynahUi, api] = createMynahUi(
         messager,

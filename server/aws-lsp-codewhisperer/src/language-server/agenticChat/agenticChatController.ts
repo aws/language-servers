@@ -10,6 +10,7 @@ import {
     SendMessageCommandInput,
     SendMessageCommandOutput,
 } from '@amzn/codewhisperer-streaming'
+import { chatRequestType } from '@aws/language-server-runtimes/protocol'
 import {
     ApplyWorkspaceEditParams,
     ErrorCodes,
@@ -17,13 +18,10 @@ import {
     InsertToCursorPositionParams,
     TextDocumentEdit,
     TextEdit,
-    chatRequestType,
     InlineChatParams,
     ConversationClickParams,
     ListConversationsParams,
     TabBarActionParams,
-} from '@aws/language-server-runtimes/protocol'
-import {
     CancellationToken,
     Chat,
     ChatParams,
@@ -283,7 +281,7 @@ export class AgenticChatController implements ChatHandlers {
                     codeReference: result.data.chatResult.codeReference,
                     relatedContent:
                         result.data.chatResult.relatedContent?.content &&
-                            result.data.chatResult.relatedContent.content.length > 0
+                        result.data.chatResult.relatedContent.content.length > 0
                             ? result.data?.chatResult.relatedContent
                             : undefined,
                 })
@@ -353,9 +351,9 @@ export class AgenticChatController implements ChatHandlers {
 
             return result.success
                 ? {
-                    ...result.data.chatResult,
-                    requestId: response.$metadata.requestId,
-                }
+                      ...result.data.chatResult,
+                      requestId: response.$metadata.requestId,
+                  }
                 : new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, result.error)
         } catch (err) {
             this.#log(

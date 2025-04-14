@@ -273,9 +273,9 @@ export class ChatController implements ChatHandlers {
 
             return result.success
                 ? {
-                    ...result.data.chatResult,
-                    requestId: response.$metadata.requestId,
-                }
+                      ...result.data.chatResult,
+                      requestId: response.$metadata.requestId,
+                  }
                 : new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, result.error)
         } catch (err) {
             this.#log(

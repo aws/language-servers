@@ -25,7 +25,7 @@ export class TabFactory {
 
     constructor(
         private defaultTabData: DefaultTabData,
-        private quickActionCommands?: QuickActionCommandGroup[],
+        private quickActionCommands?: QuickActionCommandGroup[]
     ) {}
 
     public createTab(
@@ -37,20 +37,20 @@ export class TabFactory {
             ...this.getDefaultTabData(),
             chatItems: needWelcomeMessages
                 ? [
-                    {
-                        type: ChatItemType.ANSWER,
-                        body: `Hi, I'm Amazon Q. I can answer your software development questions. 
+                      {
+                          type: ChatItemType.ANSWER,
+                          body: `Hi, I'm Amazon Q. I can answer your software development questions. 
                         Ask me to explain, debug, or optimize your code. 
                         You can enter \`/\` to see a list of quick actions.`,
-                    },
-                    {
-                        type: ChatItemType.ANSWER,
-                        followUp: this.getWelcomeBlock(),
-                    },
-                ]
+                      },
+                      {
+                          type: ChatItemType.ANSWER,
+                          followUp: this.getWelcomeBlock(),
+                      },
+                  ]
                 : chatMessages
-                    ? (chatMessages as ChatItem[])
-                    : [],
+                  ? (chatMessages as ChatItem[])
+                  : [],
             ...(disclaimerCardActive ? { promptInputStickyCard: disclaimerCard } : {}),
         }
         return tabData

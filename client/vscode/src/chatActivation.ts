@@ -155,8 +155,6 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri, 
                                 listConversationsRequestType.method
                             )
                             break
-                        // TODO: we need to allow integrating Extension to signal if it has support for History and Export handlers
-                        // so that we don't display not-supported actions in VS and Eclipse.
                         case conversationClickRequestType.method:
                             await handleRequest(
                                 languageClient,
@@ -301,18 +299,23 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri, 
     })
 
     languageClient.onRequest(ShowSaveFileDialogRequestType.method, async (params: ShowSaveFileDialogParams) => {
-        // Show netive dialog to save file
-        const filters: any = {}
-        if (params.supportedFormats?.includes('markdown')) {
-            filters['Markdown'] = ['md']
-        } else if (params.supportedFormats?.includes('html')) {
-            filters['HTML'] = ['html']
-        }
+        // Show native Save File dialog
+        const filters: Record<string, string[]> = {}
+        const formatMappings = [
+            { format: 'markdown', key: 'Markdown', extensions: ['md'] },
+            { format: 'html', key: 'HTML', extensions: ['html'] },
+        ]
+        params.supportedFormats?.forEach(format => {
+            const mapping = formatMappings.find(m => m.format === format)
+            if (mapping) {
+                filters[mapping.key] = mapping.extensions
+            }
+        })
 
-        const defaultName = 'export.md'
+        const saveAtUri = params.defaultUri ? vscode.Uri.parse(params.defaultUri) : vscode.Uri.file('export-chat.md')
         const targetUri = await vscode.window.showSaveDialog({
             filters,
-            defaultUri: vscode.Uri.file(params.defaultUri || defaultName),
+            defaultUri: saveAtUri,
             title: 'Export',
         })
 

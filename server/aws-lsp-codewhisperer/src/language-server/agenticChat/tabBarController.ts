@@ -7,13 +7,16 @@ import { ChatDatabase } from './tools/chatDb/chatDb'
 import { Conversation, messageToChatMessage, Tab } from './tools/chatDb/util'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 import {
+    Action as ConversationItemAction,
     ConversationClickParams,
     ConversationClickResult,
     ListConversationsParams,
     ListConversationsResult,
     TabBarActionParams,
+    ConversationItemGroup,
 } from '@aws/language-server-runtimes-types'
 import { URI, Utils } from 'vscode-uri'
+import { InitializeParams } from '@aws/language-server-runtimes/server-interface'
 
 /**
  * Controller for managing chat history and export functionality.
@@ -50,16 +53,28 @@ export class TabBarController {
             clearTimeout(this.#searchTimeout)
         }
 
+        const attachActionsToConversationList = (list: ConversationItemGroup[]) => {
+            list.forEach(group => {
+                group.items?.forEach(item => {
+                    item.actions = this.getConversationActions(item.id)
+                })
+            })
+        }
+
         if (searchFilter) {
-            const list = await new Promise<any[]>(resolve => {
+            const list: ConversationItemGroup[] = await new Promise<any[]>(resolve => {
                 this.#searchTimeout = setTimeout(() => {
                     const results = this.#chatHistoryDb.searchMessages(searchFilter)
                     resolve(results)
                 }, this.#DebounceTime)
             })
+            attachActionsToConversationList(list)
 
             return { list }
         }
+
+        const list = this.#chatHistoryDb.getHistory()
+        attachActionsToConversationList(list)
 
         return {
             header: { title: 'Chat history' },
@@ -71,8 +86,28 @@ export class TabBarController {
                     placeholder: 'Search...',
                 },
             ],
-            list: this.#chatHistoryDb.getHistory(),
+
+            list,
         }
+    }
+
+    private getConversationActions(historyId: string): ConversationItemAction[] {
+        const actions = []
+
+        if (TabBarController.enableChatExport(this.#features.lsp.getClientInitializeParams())) {
+            actions.push({
+                text: 'Export',
+                icon: 'external',
+                id: historyId,
+            })
+        }
+
+        actions.push({
+            text: 'Delete',
+            icon: 'trash',
+            id: historyId,
+        })
+        return actions
     }
 
     /**
@@ -196,5 +231,14 @@ export class TabBarController {
                 }
             }
         }
+    }
+
+    public static enableChatExport(params?: InitializeParams) {
+        if (params?.initializationOptions?.aws?.awsClientCapabilities?.window?.showSaveFileDialog) {
+            // Export Chat UX flow relies on show Save File dialog protocol supported by client
+            return true
+        }
+
+        return false
     }
 }

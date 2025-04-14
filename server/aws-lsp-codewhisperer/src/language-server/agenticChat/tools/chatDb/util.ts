@@ -5,13 +5,12 @@
 
 import * as path from 'path'
 import {
-    Action,
     ChatMessage,
     ConversationItem,
     ConversationItemGroup,
     IconType,
     ReferenceTrackerInformation,
-} from '@aws/language-server-runtimes/protocol'
+} from '@aws/language-server-runtimes/server-interface'
 import {
     ChatMessage as StreamingMessage,
     Origin,
@@ -210,7 +209,6 @@ export function groupTabsByDate(tabs: Tab[]): ConversationItemGroup[] {
         icon: getTabTypeIcon(tab.tabType),
         // Show open tabs as bold (in markdown)
         description: tab.isOpen ? `**${tab.title}**` : tab.title,
-        actions: getConversationActions(tab.historyId),
         id: tab.historyId,
     })
 
@@ -246,20 +244,6 @@ export function groupTabsByDate(tabs: Tab[]): ConversationItemGroup[] {
             items: group.tabs.map(tabToDetailedListItem),
         }))
 }
-
-const getConversationActions = (historyId: string): Action[] => [
-    // TODO: put export behind feature flag
-    {
-        text: 'Export',
-        icon: 'external',
-        id: historyId,
-    },
-    {
-        text: 'Delete',
-        icon: 'trash',
-        id: historyId,
-    },
-]
 
 function getTabTypeIcon(tabType: TabType): IconType {
     switch (tabType) {

@@ -13,6 +13,7 @@ import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/A
 import { safeGet } from '../../shared/utils'
 import { AmazonQServiceInitializationError } from '../../shared/amazonQServiceManager/errors'
 import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
+import { TabBarController } from './tabBarController'
 
 export const QAgenticChatServer =
     // prettier-ignore
@@ -23,13 +24,8 @@ export const QAgenticChatServer =
         let chatController: AgenticChatController
         let chatSessionManagementService: ChatSessionManagementService
         let telemetryService: TelemetryService;
-        let chatExport: boolean = false
 
         lsp.addInitializer((params: InitializeParams) => {
-            if (params.initializationOptions?.aws?.awsClientCapabilities?.window?.showSaveFileDialog) {
-                chatExport = true
-            }
-
             return {
                 capabilities: {},
                 awsServerCapabilities: {
@@ -42,7 +38,7 @@ export const QAgenticChatServer =
                             ],
                         },
                         history: true,
-                        export: chatExport
+                        export: TabBarController.enableChatExport(params)
                     },
                 },
             }

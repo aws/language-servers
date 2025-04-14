@@ -19,7 +19,7 @@ export class ChatHistoryList {
 
     constructor(
         private mynahUi: MynahUI,
-        private messager: Messager,
+        private messager: Messager
     ) {}
 
     show(params: ListConversationsResult) {
@@ -34,7 +34,7 @@ export class ChatHistoryList {
         // set auto focus on the 1st filter option item
         if (detailedList.filterOptions && detailedList.filterOptions.length > 0) {
             // we currently support only text-based items
-            ; (detailedList.filterOptions[0] as TextBasedFormItem).autoFocus = true
+            ;(detailedList.filterOptions[0] as TextBasedFormItem).autoFocus = true
         }
 
         if (this.historyDetailedList) {
