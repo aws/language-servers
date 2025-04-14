@@ -68,7 +68,7 @@ interface QInlineSuggestionsConfig {
 }
 
 interface QProjectContextConfig {
-    enableIndexing: boolean // aws.q.projectContext.enableIndexing
+    enableLocalIndexing: boolean // aws.q.projectContext.enableLocalIndexing
 }
 
 interface QConfigSection {
@@ -111,7 +111,7 @@ export async function getAmazonQRelatedWorkspaceConfigs(
                     extraContext: textUtils.undefinedIfEmpty(newQConfig.inlineSuggestions?.extraContext),
                 },
                 projectContext: {
-                    enableIndexing: newQConfig.projectContext?.enableIndexing === true,
+                    enableLocalIndexing: newQConfig.projectContext?.enableLocalIndexing === true,
                 },
             }
 
@@ -159,7 +159,7 @@ export const defaultAmazonQWorkspaceConfigFactory = (): AmazonQWorkspaceConfig =
         includeSuggestionsWithCodeReferences: false,
         shareCodeWhispererContentWithAWS: false,
         projectContext: {
-            enableIndexing: false,
+            enableLocalIndexing: false,
         },
     }
 }

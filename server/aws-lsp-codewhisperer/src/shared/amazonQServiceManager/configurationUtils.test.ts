@@ -18,7 +18,7 @@ describe('getAmazonQRelatedWorkspaceConfigs', () => {
             extraContext: 'some-extra-context',
         },
         projectContext: {
-            enableIndexing: true,
+            enableLocalIndexing: true,
         },
     }
 
@@ -43,7 +43,7 @@ describe('getAmazonQRelatedWorkspaceConfigs', () => {
             inlineSuggestions: { extraContext: MOCKED_AWS_Q_SECTION.inlineSuggestions.extraContext },
             includeSuggestionsWithCodeReferences: MOCKED_AWS_CODEWHISPERER_SECTION.includeSuggestionsWithCodeReferences,
             shareCodeWhispererContentWithAWS: MOCKED_AWS_CODEWHISPERER_SECTION.shareCodeWhispererContentWithAWS,
-            projectContext: { enableIndexing: MOCKED_AWS_Q_SECTION.projectContext.enableIndexing },
+            projectContext: { enableLocalIndexing: MOCKED_AWS_Q_SECTION.projectContext.enableLocalIndexing },
         }
 
         const amazonQConfig = await getAmazonQRelatedWorkspaceConfigs(features.lsp, features.logging)
@@ -86,7 +86,7 @@ describe('AmazonQConfigurationCache', () => {
             includeSuggestionsWithCodeReferences: false,
             shareCodeWhispererContentWithAWS: true,
             projectContext: {
-                enableIndexing: true,
+                enableLocalIndexing: true,
             },
         }
     })
@@ -101,7 +101,7 @@ describe('AmazonQConfigurationCache', () => {
 
         mockedQConfig.customizationArn = undefined
         mockedQConfig.inlineSuggestions = { extraContext: undefined }
-        mockedQConfig.projectContext = { enableIndexing: false }
+        mockedQConfig.projectContext = { enableLocalIndexing: false }
         notDeepStrictEqual(cache.getProperty('customizationArn'), mockedQConfig.customizationArn)
         notDeepStrictEqual(cache.getProperty('inlineSuggestions'), mockedQConfig.inlineSuggestions)
         notDeepStrictEqual(cache.getProperty('projectContext'), mockedQConfig.projectContext)

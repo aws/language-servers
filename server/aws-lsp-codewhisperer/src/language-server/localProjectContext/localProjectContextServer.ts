@@ -121,8 +121,8 @@ export const LocalProjectContextServer = (): Server => features => {
     const updateConfigurationHandler = async (updatedConfig: AmazonQWorkspaceConfig) => {
         logging.log('Updating configuration of local context server')
         try {
-            logging.log(`Setting project context enabled to ${updatedConfig.projectContext?.enableIndexing}`)
-            updatedConfig.projectContext?.enableIndexing
+            logging.log(`Setting project context enabled to ${updatedConfig.projectContext?.enableLocalIndexing}`)
+            updatedConfig.projectContext?.enableLocalIndexing
                 ? await localProjectContextController.init()
                 : await localProjectContextController.dispose()
         } catch (error) {
