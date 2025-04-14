@@ -1,5 +1,6 @@
 import {
     AWSInitializationOptions,
+    CancellationToken,
     Logging,
     LSPErrorCodes,
     ResponseError,
@@ -22,6 +23,7 @@ export interface ListAllAvailableProfilesHandlerParams {
     connectionType: SsoConnectionType
     logging: Logging
     endpoints?: Map<string, string> // override option for flexibility, we default to all (AWS_Q_ENDPOINTS)
+    token: CancellationToken
 }
 
 export type ListAllAvailableProfilesHandler = (
@@ -33,7 +35,7 @@ const MAX_Q_DEVELOPER_PROFILES_PER_PAGE = 10
 
 export const getListAllAvailableProfilesHandler =
     (service: (region: string, endpoint: string) => CodeWhispererServiceToken): ListAllAvailableProfilesHandler =>
-    async ({ connectionType, logging, endpoints }) => {
+    async ({ connectionType, logging, endpoints, token }) => {
         if (!connectionType || connectionType !== 'identityCenter') {
             logging.debug('Connection type is not set or not identityCenter - returning empty response.')
             return []
@@ -42,12 +44,20 @@ export const getListAllAvailableProfilesHandler =
         let allProfiles: AmazonQDeveloperProfile[] = []
         const qEndpoints = endpoints ?? AWS_Q_ENDPOINTS
 
+        if (token.isCancellationRequested) {
+            return []
+        }
+
         const result = await Promise.allSettled(
             Array.from(qEndpoints.entries(), ([region, endpoint]) => {
                 const codeWhispererService = service(region, endpoint)
-                return fetchProfilesFromRegion(codeWhispererService, region, logging)
+                return fetchProfilesFromRegion(codeWhispererService, region, logging, token)
             })
         )
+
+        if (token.isCancellationRequested) {
+            return []
+        }
 
         const fulfilledResults = result.filter(settledResult => settledResult.status === 'fulfilled')
 
@@ -63,7 +73,8 @@ export const getListAllAvailableProfilesHandler =
 async function fetchProfilesFromRegion(
     service: CodeWhispererServiceToken,
     region: string,
-    logging: Logging
+    logging: Logging,
+    token: CancellationToken
 ): Promise<AmazonQDeveloperProfile[]> {
     let allRegionalProfiles: AmazonQDeveloperProfile[] = []
     let nextToken: string | undefined = undefined
@@ -72,6 +83,10 @@ async function fetchProfilesFromRegion(
     try {
         do {
             logging.debug(`Fetching profiles from region: ${region} (iteration: ${numberOfPages})`)
+
+            if (token.isCancellationRequested) {
+                return allRegionalProfiles
+            }
 
             const response = await service.listAvailableProfiles({
                 maxResults: MAX_Q_DEVELOPER_PROFILES_PER_PAGE,
