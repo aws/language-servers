@@ -90,7 +90,7 @@ export class ArtifactManager {
             const workspaceFolder = this.workspaceFolders.find(ws => directory.path.startsWith(URI.parse(ws.uri).path))
 
             if (!workspaceFolder) {
-                this.log(`No workspace folder found for directory ${directory.path}`)
+                // No workspace folder found for directory, it will not be processed
                 continue
             }
 
@@ -101,7 +101,7 @@ export class ArtifactManager {
                 const filesByLanguage = await this.processDirectory(workspaceFolder, directory.path, relativePath)
                 zipFileMetadata = await this.processFilesByLanguage(workspaceFolder, filesByLanguage, relativePath)
             } catch (error) {
-                this.log(`Error processing new directory ${directory.path}: ${error}`)
+                this.logging.warn(`Error processing new directory ${directory.path}: ${error}`)
             }
         }
 
@@ -109,10 +109,6 @@ export class ArtifactManager {
     }
 
     async removeWorkspaceFolders(workspaceFolders: WorkspaceFolder[]): Promise<void> {
-        this.log(
-            `Number of workspace folders in memory before deletion: ${this.filesByWorkspaceFolderAndLanguage.size}`
-        )
-
         workspaceFolders.forEach(workspaceToRemove => {
             // Find the matching workspace folder by URI
             let folderToDelete: WorkspaceFolder | undefined
@@ -125,17 +121,15 @@ export class ArtifactManager {
             }
 
             if (!folderToDelete) {
-                this.log(`No matching workspace found for: ${workspaceToRemove.name}`)
+                // No matching workspace found to remove, do nothing
                 return
             }
 
-            this.log(`Found matching workspace to remove: ${folderToDelete.name}`)
             this.filesByWorkspaceFolderAndLanguage.delete(folderToDelete)
             this.workspaceFolders = this.workspaceFolders.filter(folder => folder.uri !== workspaceToRemove.uri)
             const workspaceDirPath = path.join(this.tempDirPath, workspaceToRemove.name)
             fs.rmSync(workspaceDirPath, { recursive: true, force: true })
         })
-        this.log(`Number of workspace folders in memory after deletion: ${this.filesByWorkspaceFolderAndLanguage.size}`)
     }
 
     async getFileMetadata(
@@ -172,7 +166,7 @@ export class ArtifactManager {
                     )
                     fileMetadataList.push(fileMetadata)
                 } catch (error) {
-                    this.log(`Error processing file ${fullPath}: ${error}`)
+                    this.logging.warn(`Error processing file ${fullPath}: ${error}`)
                 }
             }
         } else {
@@ -195,7 +189,6 @@ export class ArtifactManager {
     }
 
     async processNewFile(currentWorkspace: WorkspaceFolder, filePath: string): Promise<FileMetadata> {
-        this.log(`Processing new file: ${filePath}`)
         const workspaceUri = URI.parse(currentWorkspace.uri)
         const fileUri = URI.parse(filePath)
         // const relativePath = path.join(currentWorkspace.name, path.relative(workspaceUri.path, fileUri.path))
@@ -318,7 +311,7 @@ export class ArtifactManager {
 
                             if (stat.isFile() && zipPatternsToDelete.includes(entry.toLowerCase())) {
                                 fs.rmSync(entryPath, { force: true })
-                                this.log(`Deleted zip file: ${entry}`)
+                                this.log(`Deleted zip file: ${workspaceDirPath}/${entry}`)
                             }
                         })
                     }
@@ -331,7 +324,7 @@ export class ArtifactManager {
                 }
             })
         } catch (error) {
-            this.log('Failed to cleanup: ' + error)
+            this.logging.warn(`Failed to cleanup workspace artifacts: ${error}`)
         }
     }
 
@@ -381,7 +374,6 @@ export class ArtifactManager {
     ): Promise<Map<CodewhispererLanguage, FileMetadata[]>> {
         const filesByLanguage = new Map<CodewhispererLanguage, FileMetadata[]>()
 
-        this.log(`Processing directory for source code`)
         const files = await glob(['**/*'], {
             cwd: directoryPath,
             dot: false,
@@ -390,7 +382,6 @@ export class ArtifactManager {
             absolute: false,
             onlyFiles: true,
         })
-        this.log(`Number of source files found before filtering: ${files.length}`)
 
         for (const relativePath of files) {
             const fullPath = path.join(directoryPath, relativePath)
@@ -413,7 +404,7 @@ export class ArtifactManager {
                 }
                 filesByLanguage.get(language)!.push(fileMetadata)
             } catch (error) {
-                this.log(`Error processing file ${fullPath}: ${error}`)
+                this.logging.warn(`Error processing file ${fullPath}: ${error}`)
             }
         }
 
@@ -591,7 +582,7 @@ export class ArtifactManager {
                 const fileMetadata = await this.processFilesByLanguage(workspaceFolder, filesByLanguage)
                 zipFileMetadata.push(...fileMetadata)
             } catch (error) {
-                this.log(`Error processing workspace folder ${workspacePath}: ${error}`)
+                this.logging.warn(`Error processing workspace folder ${workspacePath}: ${error}`)
             }
         }
         const totalTime = performance.now() - startTime
@@ -613,9 +604,10 @@ export class ArtifactManager {
             const processedFiles =
                 language === 'java' ? await this.processJavaProjectConfig(workspaceFolder, files) : files
 
-            this.log(`Processing ${processedFiles.length} files for language ${language}`)
             const zipMetadata = await this.createZipForLanguage(workspaceFolder, language, processedFiles, relativePath)
-            this.log(`Created zip for language ${language}`)
+            this.log(
+                `Created zip for language ${language} out of ${processedFiles.length} files in ${workspaceFolder.name}`
+            )
             zipFileMetadata.push(zipMetadata)
         }
         return zipFileMetadata
@@ -647,7 +639,7 @@ export class ArtifactManager {
         // Generate Eclipse configuration files
         const javaManager = new JavaProjectAnalyzer(workspacePath)
         const structure = await javaManager.analyze()
-        const generator = new EclipseConfigGenerator(workspaceFolder)
+        const generator = new EclipseConfigGenerator(workspaceFolder, this.logging)
 
         // Generate and add .classpath file
         const classpathFiles = await generator.generateDotClasspath(structure)

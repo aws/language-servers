@@ -6,6 +6,7 @@ import { create } from 'xmlbuilder2'
 import { FileMetadata } from './artifactManager'
 import { URI } from 'vscode-uri'
 import { WorkspaceFolder } from '@aws/language-server-runtimes/protocol'
+import { Logging } from '@aws/language-server-runtimes/server-interface'
 
 const IGNORE_PATTERNS = [
     // Package management and git
@@ -412,7 +413,6 @@ export class JavaProjectAnalyzer {
     }
 
     private async analyzeDependencies(buildSystem: BuildSystem): Promise<LibraryArtifact[]> {
-        console.log('Analyzing Java dependencies')
         const dependencies: LibraryArtifact[] = []
 
         if (buildSystem === 'maven') {
@@ -446,7 +446,6 @@ export class JavaProjectAnalyzer {
                 })
             }
         }
-        console.log('Finished analyzing Java dependencies')
         return dependencies
     }
 
@@ -583,11 +582,14 @@ export class EclipseConfigGenerator {
     private initializationPromise: Promise<void> | null = null
     private readonly workspacePath: string
 
-    constructor(private readonly workspaceFolder: WorkspaceFolder) {
+    constructor(
+        private readonly workspaceFolder: WorkspaceFolder,
+        private readonly logging: Logging
+    ) {
         this.projectFiles = new Map()
         this.workspacePath = URI.parse(workspaceFolder.uri).path
         this.initializeProjectFiles().catch(error => {
-            console.error('Failed to initialize project files:', error)
+            this.logging.warn(`Failed to initialize Java project files:  ${error}`)
         })
     }
     async generateDotClasspath(structure: JavaProjectStructure): Promise<FileMetadata[]> {
@@ -595,10 +597,8 @@ export class EclipseConfigGenerator {
         const existingClasspaths = this.projectFiles.get('.classpath') || []
 
         if (existingClasspaths.length > 0) {
-            console.log('Found existing .classpath files, returning them')
             return existingClasspaths
         }
-        console.log('No existing classpath found, creating')
 
         const builder = create({ version: '1.0', encoding: 'UTF-8' })
         const classpath = builder.ele('classpath')
@@ -736,10 +736,8 @@ export class EclipseConfigGenerator {
         const existingProjects = this.projectFiles.get('.project') || []
 
         if (existingProjects.length > 0) {
-            console.log('Found existing .project files, returning them')
             return existingProjects
         }
-        console.log('No existing .project found, creating')
 
         const builder = create({ version: '1.0', encoding: 'UTF-8' })
         const project = builder.ele('projectDescription')
@@ -862,7 +860,6 @@ export class EclipseConfigGenerator {
 
     private async initializeProjectFiles(): Promise<void> {
         try {
-            console.log(`Initializing project files for workspace: ${this.workspacePath}`)
             const eclipseFiles = ['.project', '.classpath']
 
             for (const fileName of eclipseFiles) {
@@ -891,25 +888,22 @@ export class EclipseConfigGenerator {
                             workspaceFolder: this.workspaceFolder,
                         })
                     } catch (error) {
-                        console.warn(`Error reading file ${file}:`, error)
+                        this.logging.warn(`Error reading file ${file}: ${error}`)
                     }
                 }
 
                 this.projectFiles.set(fileName, fileMetadataArray)
-                console.log(`Finished initializing project files for workspace: ${this.workspacePath}`)
             }
         } catch (error) {
-            console.error('Error initializing project files:', error)
+            this.logging.warn(`Error initializing project files: ${error}`)
         }
     }
 
     private async ensureInitialized(): Promise<void> {
         if (!this.initializationPromise) {
-            console.log(`EclipseConfigGenerator not initialized yet`)
             this.initializationPromise = this.initializeProjectFiles()
         }
         await this.initializationPromise
-        console.log(`EclipseConfigGenerator initialized`)
     }
 
     private addAttribute(node: any, attribute: ClasspathAttribute, value: string = 'true'): void {

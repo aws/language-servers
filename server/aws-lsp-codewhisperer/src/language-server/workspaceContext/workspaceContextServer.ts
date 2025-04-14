@@ -45,9 +45,8 @@ export const WorkspaceContextServer =
             workspaceFolders = params.workspaceFolders || []
             if (params.workspaceFolders) {
                 workspaceFolders = params.workspaceFolders
-                logging.log(`Workspace folders set: ${workspaceFolders.map(folder => folder.uri).join(', ')}`)
             } else {
-                logging.error(`WORKSPACE FOLDERS IS NOT SET`)
+                logging.warn(`No workspace folders set during initialization`)
             }
 
             artifactManager = new ArtifactManager(workspace, logging, workspaceFolders)
@@ -124,14 +123,13 @@ export const WorkspaceContextServer =
                     workspaceContextConfig = workspaceContextConfig || configJetBrains['workspaceContext']
                 }
                 isOptedIn = workspaceContextConfig === true
-                logging.info(`Workspace context optin: ${isOptedIn}`)
 
                 if (!isOptedIn) {
                     isWorkflowInitialized = false
                     await workspaceFolderManager.clearAllWorkspaceResources()
                 }
             } catch (error) {
-                logging.error(`Error in GetConfiguration: ${error}`)
+                logging.error(`Error in getConfiguration: ${error}`)
             }
         }
 
@@ -166,8 +164,8 @@ export const WorkspaceContextServer =
                     // todo, use the result
                     abTestingEnabled = true //featureEvaluations.some(feature => feature.enabled)
                     abTestingEvaluated = true
-                } catch (error) {
-                    console.error('Error checking A/B testing status:', error)
+                } catch (error: any) {
+                    console.error('Error checking A/B status:', error.code)
                     return false
                 }
             }
@@ -176,11 +174,8 @@ export const WorkspaceContextServer =
         }
 
         lsp.onInitialized(async params => {
-            logging.log(`LSP initialized`)
-
             await updateConfiguration()
             lsp.workspace.onDidChangeWorkspaceFolders(async params => {
-                logging.log(`Workspace folders changed ${JSON.stringify(params)}`)
                 const addedFolders = params.event.added
 
                 if (addedFolders.length > 0) {
@@ -247,7 +242,6 @@ export const WorkspaceContextServer =
             if (!(await isUserEligibleForWorkspaceContext())) {
                 return
             }
-            logging.log(`Document saved: ${event.textDocument.uri}`)
 
             const programmingLanguage = getCodeWhispererLanguageIdFromPath(event.textDocument.uri)
             if (!programmingLanguage || !SUPPORTED_WORKSPACE_CONTEXT_LANGUAGES.includes(programmingLanguage)) {
@@ -259,7 +253,6 @@ export const WorkspaceContextServer =
                 return
             }
             const { workspaceDetails, workspaceRoot } = result
-            logging.log(`Retrieved workspace details - ID: ${workspaceDetails.workspaceId}, Root: ${workspaceRoot.uri}`)
 
             const fileMetadata = await artifactManager.processNewFile(workspaceRoot, event.textDocument.uri)
             const s3Url = await workspaceFolderManager.uploadToS3(fileMetadata)
@@ -279,7 +272,9 @@ export const WorkspaceContextServer =
                 },
             })
             if (!workspaceDetails.webSocketClient) {
-                logging.log(`Websocket client is not connected yet: ${workspaceRoot.uri}, adding message to queue`)
+                logging.log(
+                    `WebSocket client is not connected yet: ${workspaceRoot.uri}, adding didSave message to queue`
+                )
                 workspaceDetails.messageQueue?.push(message)
             } else {
                 workspaceDetails.webSocketClient.send(message)
@@ -290,8 +285,6 @@ export const WorkspaceContextServer =
             if (!(await isUserEligibleForWorkspaceContext())) {
                 return
             }
-
-            logging.log(`Documents created ${JSON.stringify(event)}`)
 
             for (const file of event.files) {
                 const isDir = isDirectory(file.uri)
@@ -333,7 +326,7 @@ export const WorkspaceContextServer =
                     })
                     if (!workspaceDetails.webSocketClient) {
                         logging.log(
-                            `Websocket client is not connected yet: ${workspaceRoot.uri}, adding message to queue`
+                            `WebSocket client is not connected yet: ${workspaceRoot.uri}, adding didCreateFiles message to queue`
                         )
                         workspaceDetails.messageQueue?.push(message)
                     } else {
@@ -347,7 +340,6 @@ export const WorkspaceContextServer =
             if (!(await isUserEligibleForWorkspaceContext())) {
                 return
             }
-            logging.log(`Documents deleted ${JSON.stringify(event)}`)
 
             for (const file of event.files) {
                 const result = workspaceFolderManager.getWorkspaceDetailsWithId(file.uri, workspaceFolders)
@@ -362,8 +354,6 @@ export const WorkspaceContextServer =
                     logging.log(`No programming languages determined for: ${file.uri}`)
                     continue
                 }
-
-                logging.log(`Programming languages for deleted item: ${file.uri} is ${programmingLanguages}`)
 
                 // Send notification for each programming language
                 for (const language of programmingLanguages) {
@@ -383,7 +373,7 @@ export const WorkspaceContextServer =
                     })
                     if (!workspaceDetails.webSocketClient) {
                         logging.log(
-                            `Websocket client is not connected yet: ${workspaceRoot.uri}, adding message to queue`
+                            `WebSocket client is not connected yet: ${workspaceRoot.uri}, adding didDeleteFiles message to queue`
                         )
                         workspaceDetails.messageQueue?.push(message)
                     } else {
@@ -397,7 +387,6 @@ export const WorkspaceContextServer =
             if (!(await isUserEligibleForWorkspaceContext())) {
                 return
             }
-            logging.log(`Documents renamed ${JSON.stringify(event)}`)
 
             for (const file of event.files) {
                 const result = workspaceFolderManager.getWorkspaceDetailsWithId(file.newUri, workspaceFolders)
@@ -430,7 +419,7 @@ export const WorkspaceContextServer =
                     })
                     if (!workspaceDetails.webSocketClient) {
                         logging.log(
-                            `Websocket client is not connected yet: ${workspaceRoot.uri}, adding message to queue`
+                            `WebSocket client is not connected yet: ${workspaceRoot.uri}, adding didRenameFiles message to queue`
                         )
                         workspaceDetails.messageQueue?.push(message)
                     } else {
@@ -444,8 +433,6 @@ export const WorkspaceContextServer =
             if (!(await isUserEligibleForWorkspaceContext())) {
                 return
             }
-
-            logging.log(`Dependency path changed ${JSON.stringify(params)}`)
             if (!isOptedIn) {
                 return
             }
@@ -461,8 +448,8 @@ export const WorkspaceContextServer =
 
         return () => {
             workspaceFolderManager.clearAllWorkspaceResources().catch(error => {
-                logging.error(
-                    `Error clearing all workspace resources: ${error instanceof Error ? error.message : 'Unknown error'}`
+                logging.warn(
+                    `Error while clearing workspace resources: ${error instanceof Error ? error.message : 'Unknown error'}`
                 )
             })
         }

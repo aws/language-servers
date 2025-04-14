@@ -95,7 +95,7 @@ export class WorkspaceFolderManager {
                     // Clean up only after successful processing
                     await handler.cleanupZipFiles(zips)
                 } catch (error) {
-                    this.logging.error(`Error handling dependency change: ${error}`)
+                    this.logging.warn(`Error handling dependency change: ${error}`)
                 }
             })
         })
@@ -180,12 +180,8 @@ export class WorkspaceFolderManager {
         sourceCodeMetadata = await this.artifactManager.addWorkspaceFolders(folders)
         //  Kick off dependency discovery but don't wait
         this.dependencyDiscoverer.searchDependencies(folders).catch(e => {
-            this.logging.warn(`Error processing dependency discovery: ${e}`)
+            this.logging.warn(`Error during dependency discovery: ${e}`)
         })
-
-        this.logging.log(
-            `Length of file metadata for new workspace folders: ${JSON.stringify(sourceCodeMetadata.length)}`
-        )
 
         const fileMetadataMap: Map<string, FileMetadata[]> = new Map<string, FileMetadata[]>()
         sourceCodeMetadata.forEach((fileMetadata: FileMetadata) => {
@@ -211,7 +207,7 @@ export class WorkspaceFolderManager {
         relativePath = relativePath.startsWith('/') ? relativePath.slice(1) : relativePath
         const workspaceId = this.getWorkspaces().get(fileMetadata.workspaceFolder.uri)?.workspaceId ?? ''
         if (!workspaceId) {
-            this.logging.warn(`Workspace ID is not found for ${fileMetadata.workspaceFolder.uri}`) // probably will need to queue s3 uploads here
+            this.logging.warn(`Workspace ID is not found for ${fileMetadata.workspaceFolder.uri}`)
             return
         }
 
@@ -341,7 +337,7 @@ export class WorkspaceFolderManager {
                 }
                 this.notifyDependencyChange(zip, s3Url)
             } catch (error) {
-                this.logging.error(`Error processing dependency zip ${zip.filePath}: ${error}`)
+                this.logging.warn(`Error processing dependency change ${zip.filePath}: ${error}`)
             }
         }
     }
@@ -367,7 +363,7 @@ export class WorkspaceFolderManager {
 
         if (!workspaceDetails.webSocketClient) {
             this.logging.log(
-                `Websocket client is not connected yet: ${fileMetadata.workspaceFolder.uri} adding didChangeDependencyPaths message to queue`
+                `WebSocket client is not connected yet: ${fileMetadata.workspaceFolder.uri} adding didChangeDependencyPaths message to queue`
             )
             workspaceDetails.messageQueue?.push(message)
         } else {
@@ -767,7 +763,7 @@ export class WorkspaceFolderManager {
                 }
 
                 this.logging.log(
-                    `Successfully uploaded to S3: workspace=${fileMetadata.workspaceFolder.name}, s3Url=${cleanUrl(s3Url)}`
+                    `Successfully uploaded to S3: workspace=${fileMetadata.workspaceFolder.name} language= ${fileMetadata.language}`
                 )
 
                 const workspaceId = this.getWorkspaces().get(fileMetadata.workspaceFolder.uri)?.workspaceId
@@ -815,8 +811,6 @@ export class WorkspaceFolderManager {
             }
 
             if (workspaceDetails.webSocketClient) {
-                this.logging.log('Using WebSocket client to send events')
-
                 inMemoryQueueEvents.forEach((event, index) => {
                     try {
                         workspaceDetails.webSocketClient?.send(event)
@@ -828,7 +822,6 @@ export class WorkspaceFolderManager {
                     }
                 })
             } else {
-                this.logging.log('No WebSocket client available, queueing messages')
                 if (workspaceDetails.messageQueue) {
                     workspaceDetails.messageQueue.push(...inMemoryQueueEvents)
                     this.logging.log(`Added ${inMemoryQueueEvents.length} events to message queue`)
@@ -840,7 +833,7 @@ export class WorkspaceFolderManager {
             this.logging.error(`Error in final processing: ${error instanceof Error ? error.message : 'Unknown error'}`)
         }
 
-        this.logging.log(`Completed uploadS3AndQueueEvents processing ${inMemoryQueueEvents.length} events`)
+        this.logging.log(`Completed processing ${inMemoryQueueEvents.length} queued events`)
     }
 
     private async uploadWithTimeout(fileMetadataMap: Map<string, FileMetadata[]>) {
@@ -910,7 +903,6 @@ export class WorkspaceFolderManager {
         try {
             const params = workspaceRoot ? { workspaceRoot } : {}
             const response = await this.cwsprClient.listWorkspaceMetadata(params)
-            this.logging.log(`ListWorkspaceMetadata response for ${workspaceRoot}: ${JSON.stringify(response)}`)
             metadata = response && response.workspaces.length ? response.workspaces[0] : null
         } catch (e: any) {
             this.logging.warn(`Error while fetching workspace (${workspaceRoot}) metadata: ${e?.message}`)
@@ -931,7 +923,6 @@ export class WorkspaceFolderManager {
             response = await this.cwsprClient.createWorkspace({
                 workspaceRoot: workspaceRoot,
             })
-            this.logging.log(`CreateWorkspace response for ${workspaceRoot}: ${JSON.stringify(response)}`)
             return { response, error: null }
         } catch (e: any) {
             this.logging.warn(

@@ -95,7 +95,6 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
             this.eventEmitter.emit('dependencyChange', workspaceFolder, zips)
             return
         }
-        this.logging.log(`No ${this.language} dependency change event for ${workspaceFolder.name}`)
     }
 
     /**
@@ -200,11 +199,9 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
                         path.basename(dependency.path)
                     )
                     fileMetadataList.push(...fileMetadata)
-                } else {
-                    this.logging.log(`Dependency jar not found: ${dependency.path}`)
                 }
             } catch (error) {
-                this.logging.log(`Error processing dependency ${dependency.name}: ${error}`)
+                this.logging.warn(`Error processing dependency ${dependency.name}: ${error}`)
             }
         }
         if (fileMetadataList.length > 0) {
@@ -226,7 +223,7 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
                     ).toFixed(2)}MB under ${workspaceFolder.name}`
                 )
             } catch (error) {
-                this.logging.log(`Error creating zip for workspace ${workspaceFolder.uri}: ${error}`)
+                this.logging.warn(`Error creating dependency zip for workspace ${workspaceFolder.uri}: ${error}`)
             }
         }
     }
@@ -258,12 +255,10 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
 
         // log all added and updated changes
         if (changes.added.length > 0) {
-            this.logging.log(`Added dependencies: ${changes.added.map(dep => `${dep.name}@${dep.version}`).join(', ')}`)
+            this.logging.log(`Added ${changes.added.length} new dependencies`)
         }
         if (changes.updated.length > 0) {
-            this.logging.log(
-                `Updated dependencies: ${changes.updated.map(dep => `${dep.name}@${dep.version}`).join(', ')}`
-            )
+            this.logging.log(`Updated ${changes.updated.length} dependencies`)
         }
 
         // Update the dependency map
@@ -299,10 +294,6 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
             return false
         }
         return true
-    }
-
-    protected log(message: string): void {
-        this.logging.log(message)
     }
 
     dispose(): void {
@@ -361,7 +352,7 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
                 }
             } catch (error) {
                 // Log error but don't throw to ensure other files are processed
-                this.logging.log(`Error deleting zip file ${zip.filePath}: ${error}`)
+                this.logging.warn(`Error deleting zip file ${zip.filePath}: ${error}`)
             }
         }
     }

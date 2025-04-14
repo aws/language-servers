@@ -29,12 +29,12 @@ export class PythonDependencyHandler extends LanguageDependencyHandler<PythonDep
         let result: PythonDependencyInfo | null = null
         const vscCodeSettingsJsonPath = path.join(currentDir, '.vscode', 'settings.json')
         if (fs.existsSync(vscCodeSettingsJsonPath) && fs.statSync(vscCodeSettingsJsonPath).isFile()) {
-            console.log(`Found .vscode/settings.json in ${currentDir}`)
+            this.logging.log(`Found .vscode/settings.json in ${currentDir}`)
             let settingsContent
             try {
                 settingsContent = JSON.parse(fs.readFileSync(vscCodeSettingsJsonPath, 'utf-8'))
             } catch (error) {
-                this.logging.log(`Can't parse settings.json, skipping`)
+                this.logging.warn(`Can't parse settings.json, skipping`)
                 return false
             }
             // Get and resolve paths from both settings
@@ -70,19 +70,20 @@ export class PythonDependencyHandler extends LanguageDependencyHandler<PythonDep
      */
     initiateDependencyMap(): void {
         this.pythonDependencyInfos.forEach(pythonDependencyInfo => {
+            // TODO, check if the try catch is necessary here
             try {
                 let generatedDependencyMap: Map<string, Dependency> = this.generateDependencyMap(pythonDependencyInfo)
                 this.compareAndUpdateDependencyMap(pythonDependencyInfo.workspaceFolder, generatedDependencyMap).catch(
                     error => {
-                        this.logging.log(`Error processing Python dependencies: ${error}`)
+                        this.logging.warn(`Error processing Python dependencies: ${error}`)
                     }
                 )
                 // Log found dependencies
                 this.logging.log(
-                    `Total python dependencies found: ${generatedDependencyMap.size} under ${pythonDependencyInfo.pkgDir}`
+                    `Total Python dependencies found: ${generatedDependencyMap.size} under ${pythonDependencyInfo.pkgDir}`
                 )
             } catch (error) {
-                this.logging.log(`Error processing Python dependencies: ${error}`)
+                this.logging.warn(`Error processing Python dependencies: ${error}`)
             }
         })
 
@@ -121,7 +122,7 @@ export class PythonDependencyHandler extends LanguageDependencyHandler<PythonDep
                     this.dependencyWatchers.set(sitePackagesPath, watcher)
                     this.logging.log(`Started watching Python site-packages: ${sitePackagesPath}`)
                 } catch (error) {
-                    this.logging.log(`Error setting up watcher for ${sitePackagesPath}: ${error}`)
+                    this.logging.warn(`Error setting up watcher for ${sitePackagesPath}: ${error}`)
                 }
             })
         })

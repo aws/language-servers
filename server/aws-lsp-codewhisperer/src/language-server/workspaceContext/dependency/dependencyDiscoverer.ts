@@ -95,7 +95,6 @@ export class DependencyDiscoverer {
                     // Check if currentDir is a symlink first
                     const dirStats = await fs.promises.lstat(currentDir)
                     if (dirStats.isSymbolicLink()) {
-                        this.logging.log(`Skipping symlink directory: ${currentDir}`)
                         continue
                     }
 
@@ -107,7 +106,6 @@ export class DependencyDiscoverer {
 
                         // Skip if it's a symlink
                         if (stats.isSymbolicLink()) {
-                            this.logging.log(`Skipping symlink: ${itemPath}`)
                             continue
                         }
 
@@ -119,19 +117,17 @@ export class DependencyDiscoverer {
                         queue.push({ dir: itemPath, depth: depth + 1 })
                     }
                 } catch (error: any) {
-                    this.logging.warn(`Error reading directory ${currentDir}: ${error.message}`)
+                    this.logging.warn(`Error searching dependency under directory ${currentDir}: ${error.message}`)
                 }
             }
         }
 
         for (const dependencyHandler of this.dependencyHandlerRegistry) {
-            this.logging.log(`Initializing dependency map for ${dependencyHandler.language}`)
             dependencyHandler.initiateDependencyMap()
             dependencyHandler.setupWatchers()
-            this.logging.info(`Zipping dependency map for ${dependencyHandler.language}`)
             await dependencyHandler.zipDependencyMap()
         }
-        this.logging.log('Dependency search completed successfully')
+        this.logging.log(`Dependency search completed successfully`)
     }
 
     async handleDependencyUpdateFromLSP(language: string, paths: string[], workspaceRoot?: WorkspaceFolder) {

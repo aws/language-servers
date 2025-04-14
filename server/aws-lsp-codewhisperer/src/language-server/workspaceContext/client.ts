@@ -54,7 +54,7 @@ export class WebSocketClient {
         })
 
         this.ws.onclose = event => {
-            this.logging.log(`WebSocket connection closed ${event.code}, ${event.reason}, ${event.wasClean}`)
+            this.logging.log(`WebSocket connection closed with code: ${event.code} reason: ${event.reason}`)
             if (!event.wasClean) {
                 this.handleDisconnect()
             }
@@ -65,7 +65,7 @@ export class WebSocketClient {
         })
 
         this.ws.on('unexpected-response', (_req, res) => {
-            this.logging.log(
+            this.logging.warn(
                 `Unexpected response: ${JSON.stringify({
                     statusCode: res.statusCode,
                     statusMessage: res.statusMessage,
@@ -86,19 +86,19 @@ export class WebSocketClient {
             this.reconnectAttempts++
             const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000)
             this.logging.log(
-                `Websocket reconnection attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts} in ${delay}s`
+                `WebSocket will attempt reconnection ${this.reconnectAttempts}/${this.maxReconnectAttempts} in ${delay}s`
             )
 
             setTimeout(() => {
                 this.connect()
             }, delay)
         } else {
-            this.logging.warn('Max websocket reconnection attempts reached')
+            this.logging.warn('Maximum WebSocket reconnection attempts reached')
         }
     }
 
     private flushMessageQueue(): void {
-        this.logging.log(`Flushing ${this.messageQueue.length} queued events through websocket`)
+        this.logging.log(`Flushing ${this.messageQueue.length} queued events through WebSocket`)
         while (this.messageQueue.length > 0) {
             const message = this.messageQueue.shift()
             if (message) {
@@ -115,7 +115,7 @@ export class WebSocketClient {
             this.messageQueue.push(message)
         }
 
-        this.logging.log(`Websocket message queued until connection is ready, queue size: ${this.messageQueue.length}`)
+        this.logging.log(`WebSocket message queued until connection is ready, queue size: ${this.messageQueue.length}`)
     }
 
     public isConnected(): boolean {

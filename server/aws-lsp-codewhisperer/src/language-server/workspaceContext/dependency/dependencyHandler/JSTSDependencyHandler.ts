@@ -54,6 +54,7 @@ export class JSTSDependencyHandler extends LanguageDependencyHandler<JSTSDepende
      */
     initiateDependencyMap(): void {
         this.jstsDependencyInfos.forEach(jstsDependencyInfo => {
+            // TODO, check if try catch is necessary here
             try {
                 let generatedDependencyMap: Map<string, Dependency> = this.generateDependencyMap(jstsDependencyInfo)
                 generatedDependencyMap.forEach((dep, name) => {
@@ -61,10 +62,10 @@ export class JSTSDependencyHandler extends LanguageDependencyHandler<JSTSDepende
                 })
                 // Log found dependencies
                 this.logging.log(
-                    `Total javascript/typescript dependencies found: ${generatedDependencyMap.size} under ${jstsDependencyInfo.pkgDir}`
+                    `Total Javascript/Typescript dependencies found: ${generatedDependencyMap.size} under ${jstsDependencyInfo.pkgDir}`
                 )
             } catch (error) {
-                this.logging.log(`Error parsing dependencies: ${error}`)
+                this.logging.warn(`Error parsing dependencies: ${error}`)
             }
         })
     }
@@ -90,7 +91,7 @@ export class JSTSDependencyHandler extends LanguageDependencyHandler<JSTSDepende
                 ...(packageJsonContent.peerDependencies || {}),
             }
         } catch (e) {
-            this.logging.log(`Can't parse package.json skipping `)
+            this.logging.warn(`Can't parse package.json skipping `)
         }
 
         // process each dependency
@@ -107,7 +108,7 @@ export class JSTSDependencyHandler extends LanguageDependencyHandler<JSTSDepende
                         const depPackageJson = JSON.parse(fs.readFileSync(depPackageJsonPath, 'utf-8'))
                         actualVersion = depPackageJson.version
                     } catch (e) {
-                        this.logging.log(`Can't parse ${depPackageJsonPath}, skipping`)
+                        this.logging.warn(`Can't parse ${depPackageJsonPath}, skipping`)
                     }
                 }
 
@@ -145,7 +146,7 @@ export class JSTSDependencyHandler extends LanguageDependencyHandler<JSTSDepende
                                 zipped: false,
                             })
                         } catch (e) {
-                            this.logging.log(`Can't parse ${depPackageJsonPath}, skipping`)
+                            this.logging.warn(`Can't parse ${depPackageJsonPath}, skipping`)
                         }
                     }
                 }
@@ -161,12 +162,12 @@ export class JSTSDependencyHandler extends LanguageDependencyHandler<JSTSDepende
     setupWatchers(): void {
         this.jstsDependencyInfos.forEach((jstsDependencyInfo: JSTSDependencyInfo) => {
             const packageJsonPath = jstsDependencyInfo.packageJsonPath
-            this.logging.log(`Setting up js/ts dependency watcher for ${packageJsonPath}`)
+            this.logging.log(`Setting up Javascript/Typescript dependency watcher for ${packageJsonPath}`)
             if (this.dependencyWatchers.has(packageJsonPath)) {
                 return
             }
             try {
-                const watcher = fs.watch(packageJsonPath, async (eventType, filename) => {
+                const watcher = fs.watch(packageJsonPath, async eventType => {
                     if (eventType === 'change') {
                         this.logging.log(`Change detected in ${packageJsonPath}`)
                         const updatedDependencyMap = this.generateDependencyMap(jstsDependencyInfo)
@@ -180,7 +181,7 @@ export class JSTSDependencyHandler extends LanguageDependencyHandler<JSTSDepende
                 })
                 this.dependencyWatchers.set(packageJsonPath, watcher)
             } catch (error) {
-                this.logging.log(`Error setting up watcher for ${packageJsonPath}: ${error}`)
+                this.logging.warn(`Error setting up watcher for ${packageJsonPath}: ${error}`)
             }
         })
     }

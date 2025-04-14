@@ -49,19 +49,20 @@ export class JavaDependencyHandler extends LanguageDependencyHandler<JavaDepende
      */
     initiateDependencyMap(): void {
         for (const javaDependencyInfo of this.javaDependencyInfos) {
+            // TODO, check if try catch is necessary here
             try {
                 let generatedDependencyMap: Map<string, Dependency> = this.generateDependencyMap(javaDependencyInfo)
                 this.compareAndUpdateDependencyMap(javaDependencyInfo.workspaceFolder, generatedDependencyMap).catch(
                     error => {
-                        this.logging.log(`Error processing Java dependencies: ${error}`)
+                        this.logging.warn(`Error processing Java dependencies: ${error}`)
                     }
                 )
                 // Log found dependencies
                 this.logging.log(
-                    `Total java dependencies found:  ${generatedDependencyMap.size} under ${javaDependencyInfo.pkgDir}`
+                    `Total Java dependencies found:  ${generatedDependencyMap.size} under ${javaDependencyInfo.pkgDir}`
                 )
             } catch (error) {
-                this.logging.log(`Error processing Java dependencies: ${error}`)
+                this.logging.warn(`Error processing Java dependencies: ${error}`)
             }
         }
     }
@@ -73,7 +74,7 @@ export class JavaDependencyHandler extends LanguageDependencyHandler<JavaDepende
     setupWatchers(): void {
         this.javaDependencyInfos.forEach((javaDependencyInfo: JavaDependencyInfo) => {
             const dotClasspathPath = javaDependencyInfo.dotClasspathPath
-            this.logging.log(`Setting up java dependency watcher for ${dotClasspathPath}`)
+            this.logging.log(`Setting up Java dependency watcher for ${dotClasspathPath}`)
             if (this.dependencyWatchers.has(dotClasspathPath)) {
                 return
             }
@@ -92,7 +93,7 @@ export class JavaDependencyHandler extends LanguageDependencyHandler<JavaDepende
                 })
                 this.dependencyWatchers.set(dotClasspathPath, watcher)
             } catch (error) {
-                this.logging.log(`Error setting up watcher for ${dotClasspathPath}: ${error}`)
+                this.logging.warn(`Error setting up watcher for ${dotClasspathPath}: ${error}`)
             }
         })
     }
