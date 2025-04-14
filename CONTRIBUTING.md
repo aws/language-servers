@@ -349,6 +349,13 @@ myStubbedFunc.returns()
 -   In the top left menu bar: `View > Output`
 -   Select `"AWS Documents Language Server"` from the dropdown menu in the topright.
 
+### Amazon Q Chat window is not visible in sample VS Code extension
+
+Sample Q Chat extension window may not open at startup of this Sample extension or not in focus on extension startup.
+
+1. Check if `ENABLE_CHAT` flag is set to `true` in `.vscode/launch.json`.
+2. Manually focus on Chat window by running `Focus on Amazon Q Chat View` VS Code command.
+
 ## Developer Notes
 
 ### Develop and test Language servers with Language Server Runtimes locally
@@ -449,3 +456,15 @@ As visible [here](https://github.com/aws/language-servers/blob/34dd2f6598bc9b170
 export const DEFAULT_AWS_Q_ENDPOINT_URL = 'https://codewhisperer.us-east-1.amazonaws.com/'
 export const DEFAULT_AWS_Q_REGION = 'us-east-1'
 ```
+
+### Important Note About Bundling
+
+When integrating and bundling the language servers into your own project, we provide examples of bundling configurations with webpack (see `language-servers/app` folder for different bundling config examples e.g. `aws-lsp-codewhisperer-runtimes` for the `server/aws-lsp-codewhisperer` language server). In case you are working with a different bundler (e.g. vite) we recommend using webpack pre-bundled server artifacts rather than attempting to bundle the server code with alternative bundlers.
+
+While it's possible to use other bundlers (like Vite, Rollup, etc.), we've encountered various compatibility issues when attempting direct bundling with these tools, for instance previous attempts with Vite resulted in significant challenges that were difficult to resolve.
+
+**Recommended Approach:**
+1. Use the Webpack configuration provided in this repository as a starting point to pre-bundle the language server with webpack
+2. Import and use the pre-bundled server artifact in your project, regardless of which bundler your project uses
+
+This approach ensures maximum compatibility and helps avoid common integration issues. While we don't provide out-of-the-box configurations for other bundlers, we might be able to assist with Webpack configuration for pre-bundling if needed. If you encounter webpack bundling-related issues, please open a GitHub issue for support.

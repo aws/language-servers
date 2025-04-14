@@ -1,5 +1,7 @@
 import {
     CodeWhispererStreamingClientConfig,
+    GenerateAssistantResponseCommandInput,
+    GenerateAssistantResponseCommandOutput,
     SendMessageCommandInput,
     SendMessageCommandOutput,
 } from '@amzn/codewhisperer-streaming'
@@ -40,6 +42,26 @@ export class ChatSessionService {
         const client = this.#amazonQServiceManager.getStreamingClient()
 
         const response = await client.sendMessage(request, this.#abortController)
+
+        return response
+    }
+
+    public async generateAssistantResponse(
+        request: GenerateAssistantResponseCommandInput
+    ): Promise<GenerateAssistantResponseCommandOutput> {
+        this.#abortController = new AbortController()
+
+        if (this.#conversationId && request.conversationState) {
+            request.conversationState.conversationId = this.#conversationId
+        }
+
+        if (!this.#amazonQServiceManager) {
+            throw new Error('amazonQServiceManager is not initialized')
+        }
+
+        const client = this.#amazonQServiceManager.getStreamingClient()
+
+        const response = await client.generateAssistantResponse(request, this.#abortController)
 
         return response
     }
