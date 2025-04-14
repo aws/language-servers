@@ -225,11 +225,12 @@ export class WorkspaceFolderManager {
             sourceCodeMetadata = await this.artifactManager.addWorkspaceFolders(folders)
         } else if (options.initialize) {
             sourceCodeMetadata = await this.artifactManager.createLanguageArtifacts()
-            //  Kick off dependency discovery but don't wait
-            this.dependencyDiscoverer.searchDependencies().catch(e => {
-                this.logging.warn(`Error processing dependency discovery: ${e}`)
-            })
         }
+        //  Kick off dependency discovery but don't wait
+        this.dependencyDiscoverer.searchDependencies(folders).catch(e => {
+            this.logging.warn(`Error processing dependency discovery: ${e}`)
+        })
+
         this.logging.log(
             `Length of file metadata for new workspace folders: ${JSON.stringify(sourceCodeMetadata.length)}`
         )

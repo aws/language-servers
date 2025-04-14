@@ -61,14 +61,14 @@ export class DependencyDiscoverer {
         return EXCLUDE_PATTERNS.some(pattern => pattern.test(dir))
     }
 
-    async searchDependencies(): Promise<void> {
+    async searchDependencies(folders: WorkspaceFolder[]): Promise<void> {
         if (this.initialized) {
             return
         }
         this.logging.log('Starting dependency search across workspace folders')
         this.initialized = true
 
-        for (const workspaceFolder of this.workspaceFolders) {
+        for (const workspaceFolder of folders) {
             const workspaceFolderPath = URI.parse(workspaceFolder.uri).path
             const queue: { dir: string; depth: number }[] = [{ dir: workspaceFolderPath, depth: 0 }]
 
