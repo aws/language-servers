@@ -35,7 +35,6 @@ import {
     NotificationType,
     MynahUIProps,
     QuickActionCommand,
-    MynahIcons,
 } from '@aws/mynah-ui'
 import { VoteParams } from '../contracts/telemetry'
 import { Messager } from './messager'
@@ -357,14 +356,6 @@ export const createMynahUi = (
         config: {
             maxTabs: 10,
             texts: uiComponentsTexts,
-            // TODO: load dynamically from ChatOptions
-            tabBarButtons: [
-                {
-                    id: ChatHistory.TabBarButtonId,
-                    icon: MynahIcons.HISTORY,
-                    description: 'View chat history',
-                },
-            ],
         },
     }
 
@@ -588,7 +579,7 @@ ${params.message}`,
         })
     }
 
-    let chatHistoryList = new ChatHistoryList(mynahUi, messager)
+    const chatHistoryList = new ChatHistoryList(mynahUi, messager)
     const listConversations = (params: ListConversationsResult) => {
         chatHistoryList.show(params)
     }
