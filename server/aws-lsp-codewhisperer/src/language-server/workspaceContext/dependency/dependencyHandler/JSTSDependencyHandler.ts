@@ -192,4 +192,17 @@ export class JSTSDependencyHandler extends LanguageDependencyHandler<JSTSDepende
         dependencyPath: string,
         dependencyMap: Map<string, Dependency>
     ): void {}
+
+    disposeWatchers(workspaceFolder: WorkspaceFolder): void {
+        this.jstsDependencyInfos.forEach((jstsDependencyInfo: JSTSDependencyInfo) => {
+            if (workspaceFolder.uri === jstsDependencyInfo.workspaceFolder.uri) {
+                const packageJsonPath = jstsDependencyInfo.packageJsonPath
+                if (this.dependencyWatchers.has(packageJsonPath)) {
+                    this.logging.log(`Disposing dependency watcher for ${packageJsonPath}`)
+                    this.dependencyWatchers.get(packageJsonPath)?.close()
+                    this.dependencyWatchers.delete(packageJsonPath)
+                }
+            }
+        })
+    }
 }

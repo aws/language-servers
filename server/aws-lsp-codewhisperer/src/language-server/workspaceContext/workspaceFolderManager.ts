@@ -393,6 +393,7 @@ export class WorkspaceFolderManager {
                 websocketClient.disconnect()
             }
             this.removeWorkspaceEntry(folder.uri)
+            this.dependencyDiscoverer.disposeWorkspaceFolder(folder)
         }
         await this.artifactManager.removeWorkspaceFolders(workspaceFolders)
     }

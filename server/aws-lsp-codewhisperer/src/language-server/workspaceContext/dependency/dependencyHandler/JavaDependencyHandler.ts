@@ -153,4 +153,17 @@ export class JavaDependencyHandler extends LanguageDependencyHandler<JavaDepende
             }
         }
     }
+
+    disposeWatchers(workspaceFolder: WorkspaceFolder): void {
+        this.javaDependencyInfos.forEach((javaDependencyInfo: JavaDependencyInfo) => {
+            if (workspaceFolder.uri === javaDependencyInfo.workspaceFolder.uri) {
+                const dotClasspathPath = javaDependencyInfo.dotClasspathPath
+                if (this.dependencyWatchers.has(dotClasspathPath)) {
+                    this.logging.log(`Disposing dependency watcher for ${dotClasspathPath}`)
+                    this.dependencyWatchers.get(dotClasspathPath)?.close()
+                    this.dependencyWatchers.delete(dotClasspathPath)
+                }
+            }
+        })
+    }
 }

@@ -241,4 +241,18 @@ export class PythonDependencyHandler extends LanguageDependencyHandler<PythonDep
 
         return Array.from(normalizedPaths)
     }
+
+    disposeWatchers(workspaceFolder: WorkspaceFolder): void {
+        this.pythonDependencyInfos.forEach((pythonDependencyInfo: PythonDependencyInfo) => {
+            if (workspaceFolder.uri === pythonDependencyInfo.workspaceFolder.uri) {
+                pythonDependencyInfo.sitePackagesPaths.forEach((sitePackagesPath: string) => {
+                    if (this.dependencyWatchers.has(sitePackagesPath)) {
+                        this.logging.log(`Disposing dependency watcher for ${sitePackagesPath}`)
+                        this.dependencyWatchers.get(sitePackagesPath)?.close()
+                        this.dependencyWatchers.delete(sitePackagesPath)
+                    }
+                })
+            }
+        })
+    }
 }

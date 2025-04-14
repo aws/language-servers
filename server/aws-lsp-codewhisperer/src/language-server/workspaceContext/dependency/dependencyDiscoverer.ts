@@ -11,7 +11,7 @@ export class DependencyDiscoverer {
     private logging: Logging
     private workspaceFolders: WorkspaceFolder[]
     public dependencyHandlerRegistry: LanguageDependencyHandler<BaseDependencyInfo>[] = []
-    private initialized: boolean = false
+    private initializedWorkspaceFolder = new Map<WorkspaceFolder, boolean>()
 
     constructor(
         workspace: Workspace,
@@ -62,13 +62,17 @@ export class DependencyDiscoverer {
     }
 
     async searchDependencies(folders: WorkspaceFolder[]): Promise<void> {
-        if (this.initialized) {
-            return
-        }
         this.logging.log('Starting dependency search across workspace folders')
-        this.initialized = true
 
         for (const workspaceFolder of folders) {
+            if (
+                this.initializedWorkspaceFolder.has(workspaceFolder) &&
+                this.initializedWorkspaceFolder.get(workspaceFolder)
+            ) {
+                this.logging.log(`Skipping already initialized workspace folder: ${workspaceFolder.uri}`)
+                continue
+            }
+            this.initializedWorkspaceFolder.set(workspaceFolder, true)
             const workspaceFolderPath = URI.parse(workspaceFolder.uri).path
             const queue: { dir: string; depth: number }[] = [{ dir: workspaceFolderPath, depth: 0 }]
 
@@ -140,9 +144,16 @@ export class DependencyDiscoverer {
     }
 
     public dispose(): void {
-        this.initialized = false
+        this.initializedWorkspaceFolder.clear()
         this.dependencyHandlerRegistry.forEach(dependencyHandler => {
             dependencyHandler.dispose()
+        })
+    }
+
+    public disposeWorkspaceFolder(workspaceFolder: WorkspaceFolder) {
+        this.initializedWorkspaceFolder.delete(workspaceFolder)
+        this.dependencyHandlerRegistry.forEach(dependencyHandler => {
+            dependencyHandler.disposeWorkspaceFolder(workspaceFolder)
         })
     }
 }

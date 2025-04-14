@@ -306,9 +306,24 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
     }
 
     dispose(): void {
+        this.dependencyMap.clear()
+        this.dependencyUploadedSize.clear()
         this.dependencyWatchers.forEach(watcher => watcher.close())
         this.dependencyWatchers.clear()
     }
+
+    disposeWorkspaceFolder(workspaceFolder: WorkspaceFolder): void {
+        this.dependencyMap.delete(workspaceFolder)
+        this.dependencyUploadedSize.delete(workspaceFolder)
+        this.disposeWatchers(workspaceFolder)
+    }
+
+    /**
+     * Dispose watchers for one workspace folder.
+     * This needs to be implemented in individual language because watcher are mapped with watched folder paths.
+     * @param workspaceFolder
+     */
+    abstract disposeWatchers(workspaceFolder: WorkspaceFolder): void
 
     // For synchronous version if needed:
     protected getDirectorySize(directoryPath: string): number {
