@@ -110,31 +110,6 @@ export class WorkspaceFolderManager {
         this.workspaceFolders = workspaceFolders
     }
 
-    updateWorkspaceEntry(workspaceRoot: WorkspaceRoot, workspaceState: WorkspaceState) {
-        if (!workspaceState.messageQueue) {
-            workspaceState.messageQueue = []
-        }
-
-        if (!this.workspaceMap.has(workspaceRoot)) {
-            workspaceState.requiresS3Upload = true
-            this.workspaceMap.set(workspaceRoot, workspaceState)
-        } else {
-            const existingWorkspaceState = this.workspaceMap.get(workspaceRoot)
-            if (existingWorkspaceState) {
-                existingWorkspaceState.remoteWorkspaceState =
-                    workspaceState.remoteWorkspaceState ?? existingWorkspaceState.remoteWorkspaceState
-                existingWorkspaceState.webSocketClient =
-                    workspaceState.webSocketClient ?? existingWorkspaceState.webSocketClient
-                existingWorkspaceState.workspaceId = workspaceState.workspaceId ?? existingWorkspaceState.workspaceId
-                existingWorkspaceState.messageQueue = workspaceState.messageQueue ?? existingWorkspaceState.messageQueue
-            }
-        }
-    }
-
-    removeWorkspaceEntry(workspaceRoot: WorkspaceRoot) {
-        this.workspaceMap.delete(workspaceRoot)
-    }
-
     getWorkspaces(): Map<WorkspaceRoot, WorkspaceState> {
         return this.workspaceMap
     }
@@ -164,20 +139,8 @@ export class WorkspaceFolderManager {
         return { workspaceDetails, workspaceRoot }
     }
 
-    getWorkspaceDetailsByWorkspaceFolder(workspaceFolder?: WorkspaceFolder): WorkspaceState | null {
-        if (!workspaceFolder) {
-            return null
-        }
-        const workspaceDetails = this.getWorkspaces().get(workspaceFolder.uri)
-        if (!workspaceDetails || !workspaceDetails.workspaceId) {
-            return null
-        }
-        return workspaceDetails
-    }
-
     getWorkspaceFolder(fileUri: string): WorkspaceFolder | undefined {
-        const workspaceRoot = findWorkspaceRootFolder(fileUri, this.workspaceFolders)
-        return workspaceRoot
+        return findWorkspaceRootFolder(fileUri, this.workspaceFolders)
     }
 
     getWorkspaceId(workspaceFolder?: WorkspaceFolder): string | undefined {
@@ -192,19 +155,13 @@ export class WorkspaceFolderManager {
         return workspaceDetails.workspaceId
     }
 
-    public getOptOutStatus(): boolean {
+    getOptOutStatus(): boolean {
         return this.isOptedOut
     }
 
-    async processNewWorkspaceFolders(
-        folders: WorkspaceFolder[],
-        options: {
-            initialize?: boolean
-            didChangeWorkspaceFoldersAddition?: boolean
-        }
-    ) {
+    async processNewWorkspaceFolders(folders: WorkspaceFolder[]) {
         // Check if user is opted in before trying to process any files
-        const { metadata, optOut } = await this.listWorkspaceMetadata()
+        const { optOut } = await this.listWorkspaceMetadata()
         if (optOut) {
             this.logging.log('User is opted out, clearing resources and starting opt-out monitor')
             this.isOptedOut = true
@@ -220,12 +177,7 @@ export class WorkspaceFolderManager {
         }
 
         let sourceCodeMetadata: FileMetadata[] = []
-
-        if (options.didChangeWorkspaceFoldersAddition) {
-            sourceCodeMetadata = await this.artifactManager.addWorkspaceFolders(folders)
-        } else if (options.initialize) {
-            sourceCodeMetadata = await this.artifactManager.createLanguageArtifacts()
-        }
+        sourceCodeMetadata = await this.artifactManager.addWorkspaceFolders(folders)
         //  Kick off dependency discovery but don't wait
         this.dependencyDiscoverer.searchDependencies(folders).catch(e => {
             this.logging.warn(`Error processing dependency discovery: ${e}`)
@@ -252,50 +204,6 @@ export class WorkspaceFolderManager {
             }
         })
         await this.uploadWithTimeout(fileMetadataMap)
-    }
-
-    private async handleDependencyChanges(zips: FileMetadata[]): Promise<void> {
-        this.logging.log(`Processing ${zips.length} dependency changes`)
-        for (const zip of zips) {
-            try {
-                const s3Url = await this.uploadToS3(zip)
-                if (!s3Url) {
-                    continue
-                }
-                this.notifyDependencyChange(zip, s3Url)
-            } catch (error) {
-                this.logging.error(`Error processing dependency zip ${zip.filePath}: ${error}`)
-            }
-        }
-    }
-
-    private notifyDependencyChange(fileMetadata: FileMetadata, s3Url: string) {
-        const workspaceDetails = this.getWorkspaces().get(fileMetadata.workspaceFolder.uri)
-
-        if (!workspaceDetails) {
-            return
-        }
-
-        const message = JSON.stringify({
-            method: 'didChangeDependencyPaths',
-            params: {
-                event: { paths: [] },
-                workspaceChangeMetadata: {
-                    workspaceId: workspaceDetails.workspaceId,
-                    s3Path: cleanUrl(s3Url),
-                    programmingLanguage: fileMetadata.language,
-                },
-            },
-        })
-
-        if (!workspaceDetails.webSocketClient) {
-            this.logging.log(
-                `Websocket client is not connected yet: ${fileMetadata.workspaceFolder.uri} adding didChangeDependencyPaths message to queue`
-            )
-            workspaceDetails.messageQueue?.push(message)
-        } else {
-            workspaceDetails.webSocketClient.send(message)
-        }
     }
 
     async uploadToS3(fileMetadata: FileMetadata): Promise<string | undefined> {
@@ -396,6 +304,75 @@ export class WorkspaceFolderManager {
             this.dependencyDiscoverer.disposeWorkspaceFolder(folder)
         }
         await this.artifactManager.removeWorkspaceFolders(workspaceFolders)
+    }
+
+    private updateWorkspaceEntry(workspaceRoot: WorkspaceRoot, workspaceState: WorkspaceState) {
+        if (!workspaceState.messageQueue) {
+            workspaceState.messageQueue = []
+        }
+
+        if (!this.workspaceMap.has(workspaceRoot)) {
+            workspaceState.requiresS3Upload = true
+            this.workspaceMap.set(workspaceRoot, workspaceState)
+        } else {
+            const existingWorkspaceState = this.workspaceMap.get(workspaceRoot)
+            if (existingWorkspaceState) {
+                existingWorkspaceState.remoteWorkspaceState =
+                    workspaceState.remoteWorkspaceState ?? existingWorkspaceState.remoteWorkspaceState
+                existingWorkspaceState.webSocketClient =
+                    workspaceState.webSocketClient ?? existingWorkspaceState.webSocketClient
+                existingWorkspaceState.workspaceId = workspaceState.workspaceId ?? existingWorkspaceState.workspaceId
+                existingWorkspaceState.messageQueue = workspaceState.messageQueue ?? existingWorkspaceState.messageQueue
+            }
+        }
+    }
+
+    private removeWorkspaceEntry(workspaceRoot: WorkspaceRoot) {
+        this.workspaceMap.delete(workspaceRoot)
+    }
+
+    private async handleDependencyChanges(zips: FileMetadata[]): Promise<void> {
+        this.logging.log(`Processing ${zips.length} dependency changes`)
+        for (const zip of zips) {
+            try {
+                const s3Url = await this.uploadToS3(zip)
+                if (!s3Url) {
+                    continue
+                }
+                this.notifyDependencyChange(zip, s3Url)
+            } catch (error) {
+                this.logging.error(`Error processing dependency zip ${zip.filePath}: ${error}`)
+            }
+        }
+    }
+
+    private notifyDependencyChange(fileMetadata: FileMetadata, s3Url: string) {
+        const workspaceDetails = this.getWorkspaces().get(fileMetadata.workspaceFolder.uri)
+
+        if (!workspaceDetails) {
+            return
+        }
+
+        const message = JSON.stringify({
+            method: 'didChangeDependencyPaths',
+            params: {
+                event: { paths: [] },
+                workspaceChangeMetadata: {
+                    workspaceId: workspaceDetails.workspaceId,
+                    s3Path: cleanUrl(s3Url),
+                    programmingLanguage: fileMetadata.language,
+                },
+            },
+        })
+
+        if (!workspaceDetails.webSocketClient) {
+            this.logging.log(
+                `Websocket client is not connected yet: ${fileMetadata.workspaceFolder.uri} adding didChangeDependencyPaths message to queue`
+            )
+            workspaceDetails.messageQueue?.push(message)
+        } else {
+            workspaceDetails.webSocketClient.send(message)
+        }
     }
 
     private async createNewWorkspace(workspace: WorkspaceRoot) {
@@ -637,8 +614,8 @@ export class WorkspaceFolderManager {
                     this.isOptedOut = false
                     this.logging.log('User opted back in, stopping opt-out monitor and reinitializing workspace')
                     clearInterval(intervalId)
-                    // Process all workspace folders with initialize flag
-                    await this.processNewWorkspaceFolders(this.workspaceFolders, { initialize: true })
+                    // Process all workspace folders
+                    await this.processNewWorkspaceFolders(this.workspaceFolders)
                 }
             } catch (error) {
                 this.logging.error(`Error in opt-out monitor: ${error}`)
@@ -902,6 +879,7 @@ export class WorkspaceFolderManager {
         }
     }
 
+    // TODO, this function is unused at the moment
     private async deleteWorkspace(workspaceId: string) {
         try {
             if (isLoggedInUsingBearerToken(this.credentialsProvider)) {

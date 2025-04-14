@@ -51,7 +51,7 @@ const IGNORE_PATTERNS = [
     '**/target/**', // Maven/Gradle builds
 ]
 
-const MAX_UNCOMPRESSED_SRC_SIZE_MB = 250 // 250 MB limit
+const MAX_UNCOMPRESSED_SRC_SIZE_MB = 250 // 250 MB limit per language per workspace folder
 const MAX_UNCOMPRESSED_SRC_SIZE_BYTES = MAX_UNCOMPRESSED_SRC_SIZE_MB * 1024 * 1024 // Convert to bytes
 
 export class ArtifactManager {
@@ -76,26 +76,11 @@ export class ArtifactManager {
         this.workspaceFolders = workspaceFolders
     }
 
-    // Public functions
-    async createLanguageArtifacts(): Promise<FileMetadata[]> {
-        const startTime = performance.now()
-        let zipFileMetadata: FileMetadata[] = []
-
-        try {
-            for (const workspaceFolder of this.workspaceFolders) {
-                const workspacePath = URI.parse(workspaceFolder.uri).path
-                const filesByLanguage = await this.processDirectory(workspaceFolder, workspacePath)
-                const fileMetadata = await this.processFilesByLanguage(workspaceFolder, filesByLanguage)
-                zipFileMetadata.push(...fileMetadata)
-            }
-            const totalTime = performance.now() - startTime
-            this.log(`Creating workspace source code artifacts took: ${totalTime.toFixed(2)}ms`)
-
-            return zipFileMetadata
-        } catch (error) {
-            this.log(`Error creating language artifacts: ${error}`)
-            throw error
-        }
+    async addWorkspaceFolders(workspaceFolders: WorkspaceFolder[]): Promise<FileMetadata[]> {
+        this.log(`Adding new workspace folders: ${workspaceFolders.map(f => f.name).join(', ')}`)
+        this.workspaceFolders = [...this.workspaceFolders, ...workspaceFolders]
+        const zipFileMetadata = await this.processWorkspaceFolders(workspaceFolders)
+        return zipFileMetadata
     }
 
     async addNewDirectories(newDirectories: URI[]): Promise<FileMetadata[]> {
@@ -120,26 +105,6 @@ export class ArtifactManager {
             }
         }
 
-        return zipFileMetadata
-    }
-
-    async addWorkspaceFolders(workspaceFolders: WorkspaceFolder[]): Promise<FileMetadata[]> {
-        this.log(`Adding new workspace folders: ${workspaceFolders.map(f => f.name).join(', ')}`)
-        let zipFileMetadata: FileMetadata[] = []
-        this.workspaceFolders = [...this.workspaceFolders, ...workspaceFolders]
-
-        for (const workspaceFolder of workspaceFolders) {
-            const workspacePath = URI.parse(workspaceFolder.uri).path
-
-            try {
-                const filesByLanguage = await this.processDirectory(workspaceFolder, workspacePath)
-                zipFileMetadata = await this.processFilesByLanguage(workspaceFolder, filesByLanguage)
-            } catch (error) {
-                this.log(`Error processing workspace folder ${workspacePath}: ${error}`)
-            }
-        }
-
-        this.log(`Number of workspace folders found: ${this.filesByWorkspaceFolderAndLanguage.size}`)
         return zipFileMetadata
     }
 
@@ -542,9 +507,7 @@ export class ArtifactManager {
             zip.file(path.basename(file.relativePath), file.content)
         }
         const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' })
-
         await fs.promises.writeFile(zipPath, zipBuffer)
-
         const stats = fs.statSync(zipPath)
 
         return {
@@ -574,7 +537,12 @@ export class ArtifactManager {
                 })
             } else {
                 // Use default compression for other files
-                zip.file(file.relativePath, file.content)
+                zip.file(file.relativePath, file.content, {
+                    compression: 'DEFLATE',
+                    compressionOptions: {
+                        level: 9, // Maximum compression (0-9)
+                    },
+                })
             }
         }
 
@@ -609,6 +577,27 @@ export class ArtifactManager {
             }
             workspaceMap.get(language)!.push(...files)
         }
+    }
+
+    private async processWorkspaceFolders(workspaceFolders: WorkspaceFolder[]): Promise<FileMetadata[]> {
+        const startTime = performance.now()
+        let zipFileMetadata: FileMetadata[] = []
+
+        for (const workspaceFolder of workspaceFolders) {
+            const workspacePath = URI.parse(workspaceFolder.uri).path
+
+            try {
+                const filesByLanguage = await this.processDirectory(workspaceFolder, workspacePath)
+                const fileMetadata = await this.processFilesByLanguage(workspaceFolder, filesByLanguage)
+                zipFileMetadata.push(...fileMetadata)
+            } catch (error) {
+                this.log(`Error processing workspace folder ${workspacePath}: ${error}`)
+            }
+        }
+        const totalTime = performance.now() - startTime
+        this.log(`Creating workspace source code artifacts took: ${totalTime.toFixed(2)}ms`)
+
+        return zipFileMetadata
     }
 
     private async processFilesByLanguage(

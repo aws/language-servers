@@ -204,9 +204,7 @@ export const WorkspaceContextServer =
                 }
 
                 if (addedFolders.length > 0 && isLoggedInUsingBearerToken(credentialsProvider)) {
-                    await workspaceFolderManager.processNewWorkspaceFolders(addedFolders, {
-                        didChangeWorkspaceFoldersAddition: true,
-                    })
+                    await workspaceFolderManager.processNewWorkspaceFolders(addedFolders)
                 }
                 if (removedFolders.length > 0) {
                     await workspaceFolderManager.processWorkspaceFoldersDeletion(removedFolders)
@@ -229,13 +227,9 @@ export const WorkspaceContextServer =
                     isWorkflowInitialized = true
                     logging.log(`Workspace context workflow initialized`)
                     artifactManager.updateWorkspaceFolders(workspaceFolders)
-                    workspaceFolderManager
-                        .processNewWorkspaceFolders(workspaceFolders, {
-                            initialize: true,
-                        })
-                        .catch(error => {
-                            logging.error(`Error in processNewWorkspaceFolders: ${error}`)
-                        })
+                    workspaceFolderManager.processNewWorkspaceFolders(workspaceFolders).catch(error => {
+                        logging.error(`Error while processing new workspace folders: ${error}`)
+                    })
                 } else if (!isLoggedIn) {
                     if (isWorkflowInitialized) {
                         // If user is not logged in but the workflow is marked as initialized, it means user was logged in and is now logged out
