@@ -114,10 +114,8 @@ export const QNetTransformServerToken =
                     }
                     case DownloadArtifactsCommand: {
                         const request = params as DownloadArtifactsRequest
-                        const cwStreamingClient = amazonQServiceManager.getStreamingClient()
 
                         const response = await transformHandler.downloadExportResultArchive(
-                            cwStreamingClient,
                             request.TransformationJobId,
                             request.SolutionRootPath
                         )

@@ -29,7 +29,6 @@ import * as validation from './validation'
 import path = require('path')
 import AdmZip = require('adm-zip')
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
-import { StreamingClientService } from '../../shared/streamingClientService'
 
 const workspaceFolderName = 'artifactWorkspace'
 
@@ -356,10 +355,10 @@ export class TransformHandler {
         } as GetTransformResponse
     }
 
-    async downloadExportResultArchive(cwStreamingClient: StreamingClientService, exportId: string, saveToDir: string) {
+    async downloadExportResultArchive(exportId: string, saveToDir: string) {
         let result
         try {
-            result = await cwStreamingClient.client.exportResultArchive({
+            result = await this.serviceManager.getStreamingClient().client.exportResultArchive({
                 exportId,
                 exportIntent: ExportIntent.TRANSFORMATION,
             })
