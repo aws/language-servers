@@ -64,7 +64,7 @@ export class WebSocketClient {
             this.logging.error(`WebSocket error: ${error}`)
         })
 
-        this.ws.on('unexpected-response', (req, res) => {
+        this.ws.on('unexpected-response', (_req, res) => {
             this.logging.log(
                 `Unexpected response: ${JSON.stringify({
                     statusCode: res.statusCode,
@@ -85,13 +85,15 @@ export class WebSocketClient {
         if (this.reconnectAttempts < this.maxReconnectAttempts) {
             this.reconnectAttempts++
             const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000)
-            this.logging.log(`Reconnecting attempt ${this.reconnectAttempts} in ${delay}ms...`)
+            this.logging.log(
+                `Websocket reconnection attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts} in ${delay}s`
+            )
 
             setTimeout(() => {
                 this.connect()
             }, delay)
         } else {
-            this.logging.error('Max reconnection attempts reached')
+            this.logging.warn('Max websocket reconnection attempts reached')
         }
     }
 
@@ -105,9 +107,21 @@ export class WebSocketClient {
         }
     }
 
+    private queueMessage(message: string) {
+        // Make sure that didChangeWorkspaceFolders messages go to the front of the queue
+        if (message.includes(`workspace/didChangeWorkspaceFolders`)) {
+            this.messageQueue.unshift(message)
+        } else {
+            this.messageQueue.push(message)
+        }
+
+        this.logging.log(`Websocket message queued until connection is ready, queue size: ${this.messageQueue.length}`)
+    }
+
     public isConnected(): boolean {
         return this.ws?.readyState === WebSocket.OPEN
     }
+
     public getWebsocketReadyState(): WebSocketReadyState {
         if (!this.ws) return 'CLOSED'
 
@@ -134,13 +148,10 @@ export class WebSocketClient {
                 // Wait for the remaining delay time
                 await new Promise(resolve => setTimeout(resolve, this.messageThrottleDelay - timeSinceLastMessage))
             }
-            // TODO, remove this log
-            this.logging.log(`Sending message: ${message}`)
             this.ws.send(message)
             this.lastMessageTime = Date.now()
         } else {
-            this.messageQueue.push(message)
-            this.logging.warn(`Message queued until connection is ready, queue size: ${this.messageQueue.length}`)
+            this.queueMessage(message)
         }
     }
 
