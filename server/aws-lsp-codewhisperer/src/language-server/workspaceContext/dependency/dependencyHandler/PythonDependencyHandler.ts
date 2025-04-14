@@ -96,6 +96,9 @@ export class PythonDependencyHandler extends LanguageDependencyHandler<PythonDep
     setupWatchers(): void {
         this.pythonDependencyInfos.forEach(pythonDependencyInfo => {
             pythonDependencyInfo.sitePackagesPaths.forEach(sitePackagesPath => {
+                if (this.dependencyWatchers.has(sitePackagesPath)) {
+                    return
+                }
                 try {
                     const watcher = fs.watch(sitePackagesPath, { recursive: false }, async (eventType, fileName) => {
                         if (!fileName) return

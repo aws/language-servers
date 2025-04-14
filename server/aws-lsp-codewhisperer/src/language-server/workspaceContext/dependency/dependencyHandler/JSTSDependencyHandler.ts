@@ -162,6 +162,9 @@ export class JSTSDependencyHandler extends LanguageDependencyHandler<JSTSDepende
         this.jstsDependencyInfos.forEach((jstsDependencyInfo: JSTSDependencyInfo) => {
             const packageJsonPath = jstsDependencyInfo.packageJsonPath
             this.logging.log(`Setting up js/ts dependency watcher for ${packageJsonPath}`)
+            if (this.dependencyWatchers.has(packageJsonPath)) {
+                return
+            }
             try {
                 const watcher = fs.watch(packageJsonPath, async (eventType, filename) => {
                     if (eventType === 'change') {
