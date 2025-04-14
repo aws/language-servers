@@ -3,7 +3,12 @@
  * Will be deleted or merged.
  */
 
-import { ChatResponseStream, CodeWhispererStreaming, SendMessageCommandInput } from '@amzn/codewhisperer-streaming'
+import {
+    ChatResponseStream,
+    CodeWhispererStreaming,
+    GenerateAssistantResponseCommandInput,
+    SendMessageCommandInput,
+} from '@amzn/codewhisperer-streaming'
 import {
     ChatResult,
     LSPErrorCodes,
@@ -90,6 +95,7 @@ describe('AgenticChatController', () => {
     } as Logging
 
     let sendMessageStub: sinon.SinonStub
+    let generateAssistantResponseStub: sinon.SinonStub
     let disposeStub: sinon.SinonStub
     let activeTabSpy: {
         get: sinon.SinonSpy<[], string | undefined>
@@ -120,6 +126,21 @@ describe('AgenticChatController', () => {
                 })
             )
         })
+
+        generateAssistantResponseStub = sinon
+            .stub(CodeWhispererStreaming.prototype, 'generateAssistantResponse')
+            .callsFake(() => {
+                return new Promise(resolve =>
+                    setTimeout(() => {
+                        resolve({
+                            $metadata: {
+                                requestId: mockMessageId,
+                            },
+                            generateAssistantResponseResponse: createIterableResponse(mockChatResponseList),
+                        })
+                    })
+                )
+            })
 
         testFeatures = new TestFeatures()
 
@@ -322,7 +343,7 @@ describe('AgenticChatController', () => {
         })
 
         it('returns a ResponseError if sendMessage returns an error', async () => {
-            sendMessageStub.callsFake(() => {
+            generateAssistantResponseStub.callsFake(() => {
                 throw new Error('Error')
             })
 
@@ -335,7 +356,7 @@ describe('AgenticChatController', () => {
         })
 
         it('returns a auth follow up action if sendMessage returns an auth error', async () => {
-            sendMessageStub.callsFake(() => {
+            generateAssistantResponseStub.callsFake(() => {
                 throw new Error('Error')
             })
 
@@ -352,12 +373,12 @@ describe('AgenticChatController', () => {
         })
 
         it('returns a ResponseError if response streams return an error event', async () => {
-            sendMessageStub.callsFake(() => {
+            generateAssistantResponseStub.callsFake(() => {
                 return Promise.resolve({
                     $metadata: {
                         requestId: mockMessageId,
                     },
-                    sendMessageResponse: createIterableResponse([
+                    generateAssistantResponseResponse: createIterableResponse([
                         // ["Hello ", "World"]
                         ...mockChatResponseList.slice(1, 3),
                         { error: { message: 'some error' } },
@@ -376,12 +397,12 @@ describe('AgenticChatController', () => {
         })
 
         it('returns a ResponseError if response streams return an invalid state event', async () => {
-            sendMessageStub.callsFake(() => {
+            generateAssistantResponseStub.callsFake(() => {
                 return Promise.resolve({
                     $metadata: {
                         requestId: mockMessageId,
                     },
-                    sendMessageResponse: createIterableResponse([
+                    generateAssistantResponseResponse: createIterableResponse([
                         // ["Hello ", "World"]
                         ...mockChatResponseList.slice(1, 3),
                         { invalidStateEvent: { message: 'invalid state' } },
@@ -443,7 +464,8 @@ describe('AgenticChatController', () => {
                     mockCancellationToken
                 )
 
-                const calledRequestInput: SendMessageCommandInput = sendMessageStub.firstCall.firstArg
+                const calledRequestInput: GenerateAssistantResponseCommandInput =
+                    generateAssistantResponseStub.firstCall.firstArg
 
                 assert.strictEqual(
                     calledRequestInput.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext
@@ -469,7 +491,8 @@ describe('AgenticChatController', () => {
                     mockCancellationToken
                 )
 
-                const calledRequestInput: SendMessageCommandInput = sendMessageStub.firstCall.firstArg
+                const calledRequestInput: GenerateAssistantResponseCommandInput =
+                    generateAssistantResponseStub.firstCall.firstArg
 
                 assert.strictEqual(
                     calledRequestInput.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext
@@ -496,7 +519,8 @@ describe('AgenticChatController', () => {
                     mockCancellationToken
                 )
 
-                const calledRequestInput: SendMessageCommandInput = sendMessageStub.firstCall.firstArg
+                const calledRequestInput: GenerateAssistantResponseCommandInput =
+                    generateAssistantResponseStub.firstCall.firstArg
 
                 assert.deepStrictEqual(
                     calledRequestInput.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext
