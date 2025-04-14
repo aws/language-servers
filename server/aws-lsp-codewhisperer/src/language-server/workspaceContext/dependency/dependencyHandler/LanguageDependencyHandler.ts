@@ -32,7 +32,7 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
     protected dependenciesFolderName: string
     protected eventEmitter: EventEmitter
     protected readonly MAX_SINGLE_DEPENDENCY_SIZE: number = 500 * 1024 * 1024 // 500 MB
-    protected readonly MAX_WORKSPACE_DEPENDENCY_SIZE: number = 50 * 1024 * 1024 * 1024 //50 GB
+    protected readonly MAX_WORKSPACE_DEPENDENCY_SIZE: number = 5 * 1024 * 1024 * 1024 //5 GB
 
     constructor(
         language: CodewhispererLanguage,
