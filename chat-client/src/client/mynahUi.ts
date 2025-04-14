@@ -586,7 +586,10 @@ ${params.message}`,
 
     const conversationClicked = (params: ConversationClickResult) => {
         if (!params.success) {
-            // TODO: any logging, error for this?
+            mynahUi.notify({
+                content: `Failed to ${params.action ?? 'open'} the history`,
+                type: NotificationType.ERROR,
+            })
             return
         }
 
