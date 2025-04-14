@@ -67,7 +67,7 @@ describe('LocalProjectContextController', () => {
 
     describe('init', () => {
         it('should initialize vector library successfully', async () => {
-            await controller.init(vectorLibMock)
+            await controller.init({}, vectorLibMock)
 
             sinonAssert.notCalled(logging.error)
             sinonAssert.called(vectorLibMock.start)
@@ -78,7 +78,7 @@ describe('LocalProjectContextController', () => {
         it('should handle initialization errors', async () => {
             vectorLibMock.start.rejects(new Error('Init failed'))
 
-            await controller.init(vectorLibMock)
+            await controller.init({}, vectorLibMock)
 
             sinonAssert.called(logging.error)
         })
@@ -86,7 +86,7 @@ describe('LocalProjectContextController', () => {
 
     describe('queryVectorIndex', () => {
         beforeEach(async () => {
-            await controller.init(vectorLibMock)
+            await controller.init({}, vectorLibMock)
         })
 
         it('should return empty array when vector library is not initialized', async () => {
@@ -117,7 +117,7 @@ describe('LocalProjectContextController', () => {
 
     describe('queryInlineProjectContext', () => {
         beforeEach(async () => {
-            await controller.init(vectorLibMock)
+            await controller.init({}, vectorLibMock)
         })
 
         it('should return empty array when vector library is not initialized', async () => {
@@ -160,7 +160,7 @@ describe('LocalProjectContextController', () => {
 
     describe('updateIndex', () => {
         beforeEach(async () => {
-            await controller.init(vectorLibMock)
+            await controller.init({}, vectorLibMock)
         })
 
         it('should do nothing when vector library is not initialized', async () => {
@@ -189,9 +189,67 @@ describe('LocalProjectContextController', () => {
         })
     })
 
+    describe('configuration options', () => {
+        let processEnvBackup: NodeJS.ProcessEnv
+
+        beforeEach(() => {
+            processEnvBackup = { ...process.env }
+        })
+
+        afterEach(() => {
+            process.env = processEnvBackup
+        })
+
+        it('should set GPU acceleration environment variable when enabled', async () => {
+            await controller.init({ enableGpuAcceleration: true }, vectorLibMock)
+
+            assert.strictEqual(process.env.Q_ENABLE_GPU, 'true')
+            sinonAssert.called(vectorLibMock.start)
+        })
+
+        it('should remove GPU acceleration environment variable when disabled', async () => {
+            process.env.Q_ENABLE_GPU = 'true'
+            await controller.init({ enableGpuAcceleration: false }, vectorLibMock)
+
+            assert.strictEqual(process.env.Q_ENABLE_GPU, undefined)
+            sinonAssert.called(vectorLibMock.start)
+        })
+
+        it('should set worker threads environment variable when specified', async () => {
+            await controller.init({ indexWorkerThreads: 4 }, vectorLibMock)
+
+            assert.strictEqual(process.env.Q_WORKER_THREADS, '4')
+            sinonAssert.called(vectorLibMock.start)
+        })
+
+        it('should remove worker threads environment variable when not specified', async () => {
+            process.env.Q_WORKER_THREADS = '4'
+            await controller.init({}, vectorLibMock)
+
+            assert.strictEqual(process.env.Q_WORKER_THREADS, undefined)
+            sinonAssert.called(vectorLibMock.start)
+        })
+
+        it('should ignore invalid worker thread counts', async () => {
+            process.env.Q_WORKER_THREADS = '4'
+            await controller.init({ indexWorkerThreads: 101 }, vectorLibMock)
+
+            assert.strictEqual(process.env.Q_WORKER_THREADS, undefined)
+            sinonAssert.called(vectorLibMock.start)
+        })
+
+        it('should ignore negative worker thread counts', async () => {
+            process.env.Q_WORKER_THREADS = '4'
+            await controller.init({ indexWorkerThreads: -1 }, vectorLibMock)
+
+            assert.strictEqual(process.env.Q_WORKER_THREADS, undefined)
+            sinonAssert.called(vectorLibMock.start)
+        })
+    })
+
     describe('dispose', () => {
         it('should clear and remove vector library reference', async () => {
-            await controller.init(vectorLibMock)
+            await controller.init({}, vectorLibMock)
             await controller.dispose()
 
             const vecLib = await vectorLibMock.start()

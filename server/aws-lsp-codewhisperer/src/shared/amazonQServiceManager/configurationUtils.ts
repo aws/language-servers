@@ -69,6 +69,8 @@ interface QInlineSuggestionsConfig {
 
 interface QProjectContextConfig {
     enableLocalIndexing: boolean // aws.q.projectContext.enableLocalIndexing
+    enableGpuAcceleration: boolean // aws.q.projectContext.enableGpuAcceleration
+    indexWorkerThreads: number // aws.q.projectContext.indexWorkerThreads
 }
 
 interface QConfigSection {
@@ -112,6 +114,8 @@ export async function getAmazonQRelatedWorkspaceConfigs(
                 },
                 projectContext: {
                     enableLocalIndexing: newQConfig.projectContext?.enableLocalIndexing === true,
+                    enableGpuAcceleration: newQConfig.projectContext?.enableGpuAcceleration === true,
+                    indexWorkerThreads: newQConfig.projectContext?.indexWorkerThreads ?? -1,
                 },
             }
 
@@ -160,6 +164,8 @@ export const defaultAmazonQWorkspaceConfigFactory = (): AmazonQWorkspaceConfig =
         shareCodeWhispererContentWithAWS: false,
         projectContext: {
             enableLocalIndexing: false,
+            enableGpuAcceleration: false,
+            indexWorkerThreads: -1,
         },
     }
 }

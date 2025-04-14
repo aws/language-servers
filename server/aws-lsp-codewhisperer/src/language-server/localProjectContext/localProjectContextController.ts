@@ -38,8 +38,29 @@ export class LocalProjectContextController {
         return this.instance
     }
 
-    public async init(vectorLib?: any): Promise<void> {
+    public async init(
+        config: {
+            enableGpuAcceleration?: boolean
+            indexWorkerThreads?: number
+        },
+        vectorLib?: any
+    ): Promise<void> {
         try {
+            if (config.enableGpuAcceleration) {
+                process.env.Q_ENABLE_GPU = 'true'
+            } else {
+                delete process.env.Q_ENABLE_GPU
+            }
+            if (config.indexWorkerThreads && config.indexWorkerThreads > 0 && config.indexWorkerThreads < 100) {
+                process.env.Q_WORKER_THREADS = config.indexWorkerThreads.toString()
+            } else {
+                delete process.env.Q_WORKER_THREADS
+            }
+
+            this.log.info(
+                `Vector library initializing with GPU acceleration: ${config.enableGpuAcceleration}, ` +
+                    `index worker thread count: ${config.indexWorkerThreads}`
+            )
             const vecLib = vectorLib ?? (await import(path.join(LIBRARY_DIR, 'dist', 'extension.js')))
             const root = this.findCommonWorkspaceRoot(this.workspaceFolders)
             this._vecLib = await vecLib.start(LIBRARY_DIR, this.clientName, root)
@@ -75,6 +96,7 @@ export class LocalProjectContextController {
                 const sourceFiles = await this.processWorkspaceFolders(this.workspaceFolders)
                 const rootDir = this.findCommonWorkspaceRoot(this.workspaceFolders)
                 await this._vecLib?.buildIndex(sourceFiles, rootDir, 'all')
+                this.log.info('Context index built successfully')
             }
         } catch (error) {
             this.log.error(`Error building index: ${error}`)

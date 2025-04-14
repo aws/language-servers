@@ -123,7 +123,10 @@ export const LocalProjectContextServer = (): Server => features => {
         try {
             logging.log(`Setting project context enabled to ${updatedConfig.projectContext?.enableLocalIndexing}`)
             updatedConfig.projectContext?.enableLocalIndexing
-                ? await localProjectContextController.init()
+                ? await localProjectContextController.init({
+                      enableGpuAcceleration: updatedConfig?.projectContext?.enableGpuAcceleration,
+                      indexWorkerThreads: updatedConfig?.projectContext?.indexWorkerThreads,
+                  })
                 : await localProjectContextController.dispose()
         } catch (error) {
             logging.error(`Error handling configuration change: ${error}`)
