@@ -26,10 +26,13 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
     protected workspaceFolders: WorkspaceFolder[]
     // key: workspaceFolder, value: {key: dependency name, value: Dependency}
     protected dependencyMap = new Map<WorkspaceFolder, Map<string, Dependency>>()
+    protected dependencyUploadedSize = new Map<WorkspaceFolder, number>()
     protected dependencyWatchers: Map<string, fs.FSWatcher> = new Map<string, fs.FSWatcher>()
     protected artifactManager: ArtifactManager
     protected dependenciesFolderName: string
     protected eventEmitter: EventEmitter
+    protected readonly MAX_SINGLE_DEPENDENCY_SIZE: number = 500 * 1024 * 1024 // 500 MB
+    protected readonly MAX_WORKSPACE_DEPENDENCY_SIZE: number = 50 * 1024 * 1024 * 1024 //50 GB
 
     constructor(
         language: CodewhispererLanguage,
@@ -154,8 +157,20 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
             }
             // Add dependency to current chunk. If the dependency has been zipped, skip it.
             if (!this.isDependencyZipped(dependency.name, workspaceFolder)) {
+                if (!this.validateSingleDependencySize(workspaceFolder, dependency)) {
+                    this.logging.warn(`Dependency ${dependency.name} size exceeds the limit.`)
+                    continue
+                }
+                if (!this.validateWorkspaceDependencySize(workspaceFolder)) {
+                    this.logging.warn(`Workspace ${workspaceFolder.name} dependency size exceeds the limit.`)
+                    break
+                }
                 currentChunk.push(dependency)
                 currentChunkSize += dependency.size
+                this.dependencyUploadedSize.set(
+                    workspaceFolder,
+                    (this.dependencyUploadedSize.get(workspaceFolder) || 0) + dependency.size
+                )
                 // Mark this dependency that has been zipped
                 dependency.zipped = true
                 this.dependencyMap.get(workspaceFolder)?.set(dependency.name, dependency)
@@ -262,6 +277,28 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
         }
 
         return zips
+    }
+
+    private validateSingleDependencySize(workspaceFolder: WorkspaceFolder, dependency: Dependency): boolean {
+        return dependency.size < this.MAX_SINGLE_DEPENDENCY_SIZE
+    }
+
+    /**
+     * This validation will calculate how such of size of dependencies uploaded per workspace.
+     *
+     * This validation is only used for new dependency being uploaded.
+     * Existing dependencies will be uploaded as long as single size didn't exceed
+     *
+     * The dependency map doesn't get updated when dependency is deleted so that this validation may be
+     * false positive when large of dependencies is deleted.
+     * However, everytime flare server restarts, this dependency map will be initialized.
+     */
+    private validateWorkspaceDependencySize(workspaceFolder: WorkspaceFolder): boolean {
+        let uploadedSize = this.dependencyUploadedSize.get(workspaceFolder)
+        if (uploadedSize && this.MAX_WORKSPACE_DEPENDENCY_SIZE < uploadedSize) {
+            return false
+        }
+        return true
     }
 
     protected log(message: string): void {
