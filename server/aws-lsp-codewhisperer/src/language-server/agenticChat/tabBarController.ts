@@ -11,7 +11,9 @@ import {
     ConversationClickResult,
     ListConversationsParams,
     ListConversationsResult,
+    TabBarActionParams,
 } from '@aws/language-server-runtimes-types'
+import { URI, Utils } from 'vscode-uri'
 
 /**
  * Controller for managing chat history and export functionality.
@@ -19,7 +21,7 @@ import {
  * Handles chat conversation management including:
  * - Loading and restoring conversations from chat history
  * - Handling chat history operations (list, search, delete)
- * - TODO: Export chat
+ * - Export chat
  *
  * Ported from https://github.com/aws/aws-toolkit-vscode/blob/master/packages/core/src/codewhispererChat/controllers/chat/tabBarController.ts
  *
@@ -94,16 +96,73 @@ export class TabBarController {
                 const selectedTab = this.#chatHistoryDb.getTab(historyID)
                 await this.restoreTab(selectedTab)
             }
-            // Handle delete action
         } else if (params.action === 'delete') {
             this.#chatHistoryDb.deleteHistory(historyID)
-        } // TODO: Handle Export action clicked
-        else {
+        } else if (params.action === 'export') {
+            // 1. Get or restore Chat Client tab, if not opened
+
+            let openTabID = this.#chatHistoryDb.getOpenTabId(historyID)
+
+            // Restore tab if it is not open in Chat Client, this is needed to request serialized content from Chat Client later on.
+            if (!openTabID) {
+                const selectedTab = this.#chatHistoryDb.getTab(historyID)
+                await this.restoreTab(selectedTab)
+
+                openTabID = this.#chatHistoryDb.getOpenTabId(historyID)
+            }
+
+            if (!openTabID) {
+                // If still not tab id - return error
+                this.#features.logging.error('Failed to restore Chat Client Tab from history')
+                return { ...params, success: false }
+            }
+
+            await this.onExportTab(openTabID)
+        } else {
             this.#features.logging.error(`Unsupported action: ${params.action}`)
             return { ...params, success: false }
         }
 
         return { ...params, success: true }
+    }
+
+    async onTabBarAction(params: TabBarActionParams) {
+        if (params.action === 'export' && params.tabId) {
+            await this.onExportTab(params.tabId)
+
+            return { ...params, success: true }
+        }
+
+        return { ...params, success: false }
+    }
+
+    async onExportTab(tabId: string) {
+        const defaultFileName = `q-dev-chat-${new Date().toISOString().split('T')[0]}.md`
+
+        let defaultUri
+        const clientParams = this.#features.lsp.getClientInitializeParams()
+        let workspaceFolders = clientParams?.workspaceFolders
+        if (workspaceFolders && workspaceFolders.length > 0) {
+            const workspaceUri = URI.parse(workspaceFolders[0].uri)
+            defaultUri = Utils.joinPath(workspaceUri, defaultFileName)
+        } else {
+            defaultUri = URI.file(defaultFileName)
+        }
+
+        // TODO: make it URI instead of filepath?
+        const { targetUri } = await this.#features.lsp.window.showSaveFileDialog({
+            supportedFormats: ['markdown', 'html'],
+            defaultUri: defaultUri.toString(),
+        })
+
+        const targetPath = URI.parse(targetUri)
+        const format = targetPath.fsPath.endsWith('.md') ? 'markdown' : 'html'
+        const { content } = await this.#features.chat.getSerializedChat({
+            tabId,
+            format,
+        })
+
+        await this.#features.workspace.fs.writeFile(targetPath.fsPath, content)
     }
 
     /**

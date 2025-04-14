@@ -48,8 +48,8 @@ describe('MynahUI', () => {
             fileClick: sinon.stub(),
             listConversations: sinon.stub(),
             conversationClick: sinon.stub(),
-            exportConversation: sinon.stub(),
-            exportConversationDialog: sinon.stub(),
+            tabBarAction: sinon.stub(),
+            onGetSerializedChat: sinon.stub(),
         }
 
         messager = new Messager(outboundChatApi)
@@ -60,7 +60,7 @@ describe('MynahUI', () => {
         const tabFactory = new TabFactory({})
         createTabStub = sinon.stub(tabFactory, 'createTab')
         createTabStub.returns({})
-        const mynahUiResult = createMynahUi(messager, tabFactory, true, true)
+        const mynahUiResult = createMynahUi(messager, tabFactory, true)
         mynahUi = mynahUiResult[0]
         inboundChatApi = mynahUiResult[1]
         getSelectedTabIdStub = sinon.stub(mynahUi, 'getSelectedTabId')
@@ -331,7 +331,7 @@ describe('withAdapter', () => {
             telemetry: sinon.stub(),
         } as OutboundChatApi)
         const tabFactory = new TabFactory({})
-        const mynahUiResult = createMynahUi(messager as Messager, tabFactory, true, true, chatClientAdapter)
+        const mynahUiResult = createMynahUi(messager as Messager, tabFactory, true, chatClientAdapter)
         mynahUi = mynahUiResult[0]
     })
 

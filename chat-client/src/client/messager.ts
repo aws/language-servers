@@ -16,8 +16,6 @@ import {
     CopyCodeToClipboardParams,
     ErrorParams,
     ErrorResult,
-    ExportConversationDialogParams,
-    ExportSerializedConversationParams,
     InsertToCursorPositionParams,
     SendToPromptParams,
     TriggerType,
@@ -31,6 +29,7 @@ import {
     FileClickParams,
     FilterValue,
     FollowUpClickParams,
+    GetSerializedChatResult,
     InfoLinkClickParams,
     LinkClickParams,
     ListConversationsParams,
@@ -38,6 +37,7 @@ import {
     QuickActionParams,
     SourceLinkClickParams,
     TabAddParams,
+    TabBarActionParams,
     TabChangeParams,
     TabRemoveParams,
 } from '@aws/language-server-runtimes-types'
@@ -85,8 +85,8 @@ export interface OutboundChatApi {
     fileClick(params: FileClickParams): void
     listConversations(params: ListConversationsParams): void
     conversationClick(params: ConversationClickParams): void
-    exportConversationDialog(params: ExportConversationDialogParams): void
-    exportConversation(params: ExportSerializedConversationParams): void
+    tabBarAction(params: TabBarActionParams): void
+    onGetSerializedChat(requestId: string, result: GetSerializedChatResult | ErrorResult): void
 }
 
 export class Messager {
@@ -202,11 +202,11 @@ export class Messager {
         this.chatApi.conversationClick({ id: conversationId, action })
     }
 
-    onShowExportConversationDialog = (params: ExportConversationDialogParams): void => {
-        this.chatApi.exportConversationDialog(params)
+    onTabBarAction = (params: TabBarActionParams): void => {
+        this.chatApi.tabBarAction(params)
     }
 
-    onExportConversation = (params: ExportSerializedConversationParams): void => {
-        this.chatApi.exportConversation(params)
+    onGetSerializedChat = (requestId: string, result: GetSerializedChatResult | ErrorResult): void => {
+        this.chatApi.onGetSerializedChat(requestId, result)
     }
 }

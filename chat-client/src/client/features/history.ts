@@ -20,7 +20,6 @@ export class ChatHistoryList {
     constructor(
         private mynahUi: MynahUI,
         private messager: Messager,
-        private enableExport: boolean
     ) {}
 
     show(params: ListConversationsResult) {
@@ -35,7 +34,7 @@ export class ChatHistoryList {
         // set auto focus on the 1st filter option item
         if (detailedList.filterOptions && detailedList.filterOptions.length > 0) {
             // we currently support only text-based items
-            ;(detailedList.filterOptions[0] as TextBasedFormItem).autoFocus = true
+            ; (detailedList.filterOptions[0] as TextBasedFormItem).autoFocus = true
         }
 
         if (this.historyDetailedList) {
@@ -71,18 +70,6 @@ export class ChatHistoryList {
 
     private onActionClick = (action: ChatItemButton) => {
         const conversationAction = this.getConversationAction(action.text)
-
-        if (conversationAction === 'export') {
-            // TODO: Invoke export conversation flow for conversation item
-            // 1.If conversation is not opened in a tab:
-            //   - restore history in a tab in background
-            // 2. Trigger export dialog for that TabID
-
-            console.error('Not Implemented: implement export flow from conversation history actions')
-
-            return
-        }
-
         this.messager.onConversationClick(action.id, conversationAction)
     }
 
@@ -114,7 +101,6 @@ export class ChatHistoryList {
             children: group.items?.map(item => ({
                 ...item,
                 icon: toMynahIcon(item.icon),
-                // TODO: Set actions from inside of Chat Client. Currently it is based on items returned from language server
                 actions: item.actions?.map(action => ({
                     ...action,
                     icon: toMynahIcon(action.icon),
@@ -126,7 +112,6 @@ export class ChatHistoryList {
     private getConversationAction = (actionText: string | undefined): ConversationAction => {
         switch (actionText) {
             case 'Export':
-                // TODO: Hook Export method here
                 return 'export'
             case 'Delete':
                 return 'delete'

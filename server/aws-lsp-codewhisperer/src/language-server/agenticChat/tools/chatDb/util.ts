@@ -248,6 +248,7 @@ export function groupTabsByDate(tabs: Tab[]): ConversationItemGroup[] {
 }
 
 const getConversationActions = (historyId: string): Action[] => [
+    // TODO: put export behind feature flag
     {
         text: 'Export',
         icon: 'external',

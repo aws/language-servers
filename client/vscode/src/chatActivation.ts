@@ -5,10 +5,6 @@ import {
     CHAT_OPTIONS,
     COPY_TO_CLIPBOARD,
     UiMessageResultParams,
-    EXPORT_CONVERSATION_DIALOG,
-    EXPORT_CONVERSATION,
-    ExportSerializedConversationParams,
-    ExportConversationDialogParams,
 } from '@aws/chat-client-ui-types'
 import {
     ChatResult,
@@ -28,10 +24,21 @@ import {
     ErrorCodes,
     openTabRequestType,
     ResponseError,
+    getSerializedChatRequestType,
+    ShowSaveFileDialogRequestType,
+    ShowSaveFileDialogParams,
+    tabBarActionRequestType,
 } from '@aws/language-server-runtimes/protocol'
 import { v4 as uuidv4 } from 'uuid'
 import { Uri, Webview, WebviewView, commands, window } from 'vscode'
-import { Disposable, LanguageClient, Position, State, TextDocumentIdentifier } from 'vscode-languageclient/node'
+import {
+    Disposable,
+    LanguageClient,
+    LSPErrorCodes,
+    Position,
+    State,
+    TextDocumentIdentifier,
+} from 'vscode-languageclient/node'
 import * as jose from 'jose'
 import * as vscode from 'vscode'
 import * as fs from 'fs'
@@ -148,6 +155,8 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri, 
                                 listConversationsRequestType.method
                             )
                             break
+                        // TODO: we need to allow integrating Extension to signal if it has support for History and Export handlers
+                        // so that we don't display not-supported actions in VS and Eclipse.
                         case conversationClickRequestType.method:
                             await handleRequest(
                                 languageClient,
@@ -156,55 +165,17 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri, 
                                 conversationClickRequestType.method
                             )
                             break
+                        case tabBarActionRequestType.method:
+                            await handleRequest(
+                                languageClient,
+                                message.params,
+                                webviewView,
+                                tabBarActionRequestType.method
+                            )
+                            break
                         case followUpClickNotificationType.method:
                             if (!isValidAuthFollowUpType(message.params.followUp.type))
                                 languageClient.sendNotification(followUpClickNotificationType, message.params)
-                            break
-                        // Handlers for Export Conversation feature
-                        case EXPORT_CONVERSATION_DIALOG:
-                            const { defaultFileName, supportedFormats } =
-                                message.params as ExportConversationDialogParams
-
-                            // Prompt user for destination to export file
-                            const workspaceFolders = vscode.workspace.workspaceFolders
-                            let defaultUri
-
-                            if (workspaceFolders && workspaceFolders.length > 0) {
-                                defaultUri = vscode.Uri.joinPath(workspaceFolders[0].uri, defaultFileName)
-                            } else {
-                                defaultUri = vscode.Uri.file(defaultFileName)
-                            }
-
-                            const saveUri = await vscode.window.showSaveDialog({
-                                filters: {
-                                    Markdown: ['md'],
-                                    HTML: ['html'],
-                                },
-                                defaultUri,
-                                title: 'Export chat',
-                            })
-
-                            // Send message to Chat Client to do Conversation Export
-                            if (saveUri) {
-                                webviewView.webview.postMessage({
-                                    command: EXPORT_CONVERSATION,
-                                    params: {
-                                        tabId: message.params.tabId,
-                                        filepath: saveUri.fsPath,
-                                    },
-                                })
-                            }
-                            break
-                        case EXPORT_CONVERSATION:
-                            // Save conversation content at given. Chat Client send with message in response to `EXPORT_CONVERSATION` notification
-                            const { filepath, format, serializedChat } =
-                                message.params as ExportSerializedConversationParams
-
-                            try {
-                                fs.writeFileSync(filepath, serializedChat)
-                            } catch (error) {
-                                void vscode.window.showErrorMessage('An error occurred while exporting your chat.')
-                            }
                             break
                         default:
                             if (isServerEvent(message.command))
@@ -220,51 +191,58 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri, 
                     })
                 })
 
-                languageClient.onRequest(openTabRequestType.method, async (params, _) => {
-                    const mapErrorType = (type: string | undefined): number => {
-                        switch (type) {
-                            case 'InvalidRequest':
-                                return ErrorCodes.InvalidRequest
-                            case 'InternalError':
-                                return ErrorCodes.InternalError
-                            case 'UnknownError':
-                            default:
-                                return ErrorCodes.UnknownErrorCode
+                const registerHandlerWithResponseRouter = (command: string) => {
+                    const handler = async (params: any, _: any) => {
+                        const mapErrorType = (type: string | undefined): number => {
+                            switch (type) {
+                                case 'InvalidRequest':
+                                    return ErrorCodes.InvalidRequest
+                                case 'InternalError':
+                                    return ErrorCodes.InternalError
+                                case 'UnknownError':
+                                default:
+                                    return ErrorCodes.UnknownErrorCode
+                            }
+                        }
+                        const requestId = uuidv4()
+
+                        webviewView.webview.postMessage({
+                            requestId: requestId,
+                            command: command,
+                            params: params,
+                        })
+                        const responsePromise = new Promise<UiMessageResultParams | undefined>((resolve, reject) => {
+                            const timeout = setTimeout(() => {
+                                disposable.dispose()
+                                reject(new Error('Request timed out'))
+                            }, 30000)
+
+                            const disposable = webviewView.webview.onDidReceiveMessage((message: any) => {
+                                if (message.requestId === requestId) {
+                                    clearTimeout(timeout)
+                                    disposable.dispose()
+                                    resolve(message.params)
+                                }
+                            })
+                        })
+
+                        const result = await responsePromise
+
+                        if (result?.success) {
+                            return result.result
+                        } else {
+                            return new ResponseError(
+                                mapErrorType(result?.error.type),
+                                result?.error.message ?? 'No response from client'
+                            )
                         }
                     }
-                    const requestId = uuidv4()
 
-                    webviewView.webview.postMessage({
-                        requestId: requestId,
-                        command: openTabRequestType.method,
-                        params: params,
-                    })
-                    const responsePromise = new Promise<UiMessageResultParams | undefined>((resolve, reject) => {
-                        const timeout = setTimeout(() => {
-                            disposable.dispose()
-                            reject(new Error('Request timed out'))
-                        }, 30000)
+                    languageClient.onRequest(command, handler)
+                }
 
-                        const disposable = webviewView.webview.onDidReceiveMessage((message: any) => {
-                            if (message.requestId === requestId) {
-                                clearTimeout(timeout)
-                                disposable.dispose()
-                                resolve(message.params)
-                            }
-                        })
-                    })
-
-                    const result = await responsePromise
-
-                    if (result?.success) {
-                        return { tabId: result.result.tabId }
-                    } else {
-                        return new ResponseError(
-                            mapErrorType(result?.error.type),
-                            result?.error.message ?? 'No response from client'
-                        )
-                    }
-                })
+                registerHandlerWithResponseRouter(openTabRequestType.method)
+                registerHandlerWithResponseRouter(getSerializedChatRequestType.method)
 
                 webviewView.webview.html = getWebviewContent(webviewView.webview, extensionUri)
 
@@ -320,6 +298,32 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri, 
 
     languageClient.onTelemetry(e => {
         languageClient.info(`[VSCode Client] Received telemetry event from server ${JSON.stringify(e)}`)
+    })
+
+    languageClient.onRequest(ShowSaveFileDialogRequestType.method, async (params: ShowSaveFileDialogParams) => {
+        // Show netive dialog to save file
+        const filters: any = {}
+        if (params.supportedFormats?.includes('markdown')) {
+            filters['Markdown'] = ['md']
+        } else if (params.supportedFormats?.includes('html')) {
+            filters['HTML'] = ['html']
+        }
+
+        const defaultName = 'export.md'
+        const targetUri = await vscode.window.showSaveDialog({
+            filters,
+            defaultUri: vscode.Uri.file(params.defaultUri || defaultName),
+            title: 'Export',
+        })
+
+        // Send message to Chat Client to do Conversation Export
+        if (!targetUri) {
+            return new ResponseError(LSPErrorCodes.RequestFailed, 'Export failed')
+        }
+
+        return {
+            targetUri: targetUri.toString(),
+        }
     })
 
     commands.registerCommand('aws.sample-vscode-ext-amazonq.sendInlineChat', async () => {

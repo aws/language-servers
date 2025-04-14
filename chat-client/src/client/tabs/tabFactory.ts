@@ -14,6 +14,7 @@ export type DefaultTabData = MynahUIDataModel
 
 export class TabFactory {
     private enableHistory: boolean = false
+    private enableExport: boolean = false
 
     public static generateUniqueId() {
         // from https://github.com/aws/mynah-ui/blob/a3799f47ca4b7c02850264e328539a40709a6858/src/helper/guid.ts#L6
@@ -25,7 +26,6 @@ export class TabFactory {
     constructor(
         private defaultTabData: DefaultTabData,
         private quickActionCommands?: QuickActionCommandGroup[],
-        private enableConversationExport?: boolean
     ) {}
 
     public createTab(
@@ -60,8 +60,12 @@ export class TabFactory {
         this.quickActionCommands = [...(this.quickActionCommands ?? []), ...quickActionCommands]
     }
 
-    public setHistorySupport(isHistoryEnabled: boolean) {
-        this.enableHistory = isHistoryEnabled
+    public enableHistoryAction(isEnabled: boolean) {
+        this.enableHistory = isEnabled
+    }
+
+    public enableExportAction(isEnabled: boolean) {
+        this.enableExport = isEnabled
     }
 
     public getDefaultTabData(): DefaultTabData {
@@ -100,7 +104,7 @@ export class TabFactory {
             })
         }
 
-        if (this.enableConversationExport) {
+        if (this.enableExport) {
             tabBarActions.push({
                 id: 'export',
                 icon: MynahIcons.EXTERNAL,

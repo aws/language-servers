@@ -23,8 +23,13 @@ export const QAgenticChatServer =
         let chatController: AgenticChatController
         let chatSessionManagementService: ChatSessionManagementService
         let telemetryService: TelemetryService;
+        let chatExport: boolean = false
 
         lsp.addInitializer((params: InitializeParams) => {
+            if (params.initializationOptions?.aws?.awsClientCapabilities?.window?.showSaveFileDialog) {
+                chatExport = true
+            }
+
             return {
                 capabilities: {},
                 awsServerCapabilities: {
@@ -36,6 +41,8 @@ export const QAgenticChatServer =
                                 },
                             ],
                         },
+                        history: true,
+                        export: chatExport
                     },
                 },
             }
@@ -131,6 +138,10 @@ export const QAgenticChatServer =
 
         chat.onConversationClick(params => {
             return chatController.onConversationClick(params)
+        })
+
+        chat.onTabBarAction(params => {
+            return chatController.onTabBarAction(params)
         })
 
         logging.log('Q Chat server has been initialized')

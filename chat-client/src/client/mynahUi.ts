@@ -6,7 +6,6 @@ import {
     AuthFollowUpClickedParams,
     CopyCodeToClipboardParams,
     ErrorParams,
-    ExportConversationParams,
     GenericCommandParams,
     InsertToCursorPositionParams,
     SendToPromptParams,
@@ -21,6 +20,7 @@ import {
     ConversationClickResult,
     FeedbackParams,
     FollowUpClickParams,
+    GetSerializedChatParams,
     InfoLinkClickParams,
     LinkClickParams,
     ListConversationsResult,
@@ -56,11 +56,7 @@ export interface InboundChatApi {
     sendContextCommands(params: ContextCommandParams): void
     listConversations(params: ListConversationsResult): void
     conversationClicked(params: ConversationClickResult): void
-
-    /**
-     * A notification sent from Extension to Chat Client to export serialized conversation history for specific chat tab at given filepath.
-     */
-    exportConversation(params: ExportConversationParams): void
+    getSerializedChat(requestId: string, params: GetSerializedChatParams): void
 }
 
 type ContextCommandGroups = MynahUIDataModel['contextCommands']
@@ -127,7 +123,6 @@ export const createMynahUi = (
     messager: Messager,
     tabFactory: TabFactory,
     disclaimerAcknowledged: boolean,
-    enableConversationExport: boolean,
     customChatClientAdapter?: ChatClientAdapter
 ): [MynahUI, InboundChatApi] => {
     const initialTabId = TabFactory.generateUniqueId()
@@ -351,11 +346,9 @@ export const createMynahUi = (
             }
 
             if (buttonId === 'export') {
-                const defaultFileName = `q-dev-chat-${new Date().toISOString().split('T')[0]}.md`
-                messager.onShowExportConversationDialog({
+                messager.onTabBarAction({
                     tabId,
-                    supportedFormats: ['markdown', 'html'],
-                    defaultFileName,
+                    action: 'export',
                 })
                 return
             }
@@ -377,15 +370,23 @@ export const createMynahUi = (
         config: {
             maxTabs: 10,
             texts: uiComponentsTexts,
-            // TODO: load dynamically from ChatOptions
+            // Without these MynahUI loses tab bar icons.
             tabBarButtons: [
                 {
                     id: ChatHistory.TabBarButtonId,
                     icon: MynahIcons.HISTORY,
                     description: 'View chat history',
                 },
+                {
+                    id: 'export',
+                    icon: MynahIcons.EXTERNAL,
+                    description: 'Export chat',
+                },
             ],
         },
+
+        // TODO: Check case when we close all tabs, and tabBar buttons disappear, this is actually true in current VSCode release too.
+        // Potentially we fix it by setting history link as also visible here.
     }
 
     const mynahUiRef = { mynahUI: undefined as MynahUI | undefined }
@@ -492,9 +493,9 @@ export const createMynahUi = (
 
         const followUps = chatResult.followUp
             ? {
-                text: chatResult.followUp.text ?? 'Suggested follow up questions:',
-                options: chatResult.followUp.options,
-            }
+                  text: chatResult.followUp.text ?? 'Suggested follow up questions:',
+                  options: chatResult.followUp.options,
+              }
             : {}
 
         mynahUi.updateLastChatAnswer(tabId, {
@@ -608,7 +609,7 @@ ${params.message}`,
         })
     }
 
-    let chatHistoryList = new ChatHistoryList(mynahUi, messager, enableConversationExport)
+    let chatHistoryList = new ChatHistoryList(mynahUi, messager)
     const listConversations = (params: ListConversationsResult) => {
         chatHistoryList.show(params)
     }
@@ -630,16 +631,11 @@ ${params.message}`,
         }
     }
 
-    const exportConversation = (params: ExportConversationParams) => {
-        const format = params.filepath.endsWith('.md') ? 'markdown' : 'html'
-        const serializedChat = mynahUi.serializeChat(params.tabId, format)
+    const getSerializedChat = (requestId: string, params: GetSerializedChatParams) => {
+        const serializedChat = mynahUi.serializeChat(params.tabId, params.format)
 
-        // Send ExportConversation response back to Extension
-        messager.onExportConversation({
-            tabId: params.tabId,
-            filepath: params.filepath,
-            format,
-            serializedChat,
+        messager.onGetSerializedChat(requestId, {
+            content: serializedChat,
         })
     }
 
@@ -652,7 +648,7 @@ ${params.message}`,
         sendContextCommands: sendContextCommands,
         listConversations: listConversations,
         conversationClicked: conversationClicked,
-        exportConversation: exportConversation,
+        getSerializedChat: getSerializedChat,
     }
 
     return [mynahUi, api]

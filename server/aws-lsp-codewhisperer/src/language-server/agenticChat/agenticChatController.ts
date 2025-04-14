@@ -15,6 +15,7 @@ import {
     InlineChatParams,
     ConversationClickParams,
     ListConversationsParams,
+    TabBarActionParams,
 } from '@aws/language-server-runtimes/protocol'
 import {
     CancellationToken,
@@ -67,6 +68,7 @@ type ChatHandlers = Omit<
     | 'onCreatePrompt'
     | 'onListConversations'
     | 'onConversationClick'
+    | 'getSerializedChat'
 >
 
 export class AgenticChatController implements ChatHandlers {
@@ -254,7 +256,7 @@ export class AgenticChatController implements ChatHandlers {
                     codeReference: result.data.chatResult.codeReference,
                     relatedContent:
                         result.data.chatResult.relatedContent?.content &&
-                        result.data.chatResult.relatedContent.content.length > 0
+                            result.data.chatResult.relatedContent.content.length > 0
                             ? result.data?.chatResult.relatedContent
                             : undefined,
                 })
@@ -324,9 +326,9 @@ export class AgenticChatController implements ChatHandlers {
 
             return result.success
                 ? {
-                      ...result.data.chatResult,
-                      requestId: response.$metadata.requestId,
-                  }
+                    ...result.data.chatResult,
+                    requestId: response.$metadata.requestId,
+                }
                 : new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, result.error)
         } catch (err) {
             this.#log(
@@ -522,6 +524,10 @@ export class AgenticChatController implements ChatHandlers {
             default:
                 return {}
         }
+    }
+
+    async onTabBarAction(params: TabBarActionParams) {
+        return this.#tabBarController.onTabBarAction(params)
     }
 
     async #getInlineChatTriggerContext(params: InlineChatParams) {
