@@ -100,8 +100,6 @@ export class TabFactory {
             : null
 
         const tabBarButtons = [...(this.defaultTabData.tabBarButtons ?? []), ...(historyButton ? [historyButton] : [])]
-
-        // Return buttons array only if it's not empty
         return tabBarButtons.length ? tabBarButtons : undefined
     }
 }
