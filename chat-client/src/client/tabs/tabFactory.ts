@@ -13,8 +13,8 @@ import { ChatHistory } from '../features/history'
 export type DefaultTabData = MynahUIDataModel
 
 export class TabFactory {
-    private enableHistory: boolean = false
-    private enableExport: boolean = false
+    private history: boolean = false
+    private export: boolean = false
 
     public static generateUniqueId() {
         // from https://github.com/aws/mynah-ui/blob/a3799f47ca4b7c02850264e328539a40709a6858/src/helper/guid.ts#L6
@@ -60,12 +60,12 @@ export class TabFactory {
         this.quickActionCommands = [...(this.quickActionCommands ?? []), ...quickActionCommands]
     }
 
-    public enableHistoryAction(isEnabled: boolean) {
-        this.enableHistory = isEnabled
+    public enableHistory() {
+        this.history = true
     }
 
-    public enableExportAction(isEnabled: boolean) {
-        this.enableExport = isEnabled
+    public enableExport() {
+        this.export = true
     }
 
     public getDefaultTabData(): DefaultTabData {
@@ -96,7 +96,7 @@ export class TabFactory {
     private getTabBarActions(): TabBarMainAction[] {
         const tabBarActions = []
 
-        if (this.enableHistory) {
+        if (this.history) {
             tabBarActions.push({
                 id: ChatHistory.TabBarButtonId,
                 icon: MynahIcons.HISTORY,
@@ -104,7 +104,7 @@ export class TabFactory {
             })
         }
 
-        if (this.enableExport) {
+        if (this.export) {
             tabBarActions.push({
                 id: 'export',
                 icon: MynahIcons.EXTERNAL,

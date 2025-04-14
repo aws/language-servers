@@ -166,8 +166,13 @@ export const createChat = (
                     tabFactory.updateQuickActionCommands(quickActionCommandGroups)
                 }
 
-                tabFactory.enableHistoryAction(params?.history === true)
-                tabFactory.enableExportAction(params?.export === true)
+                if (params?.history) {
+                    tabFactory.enableHistory()
+                }
+
+                if (params?.export) {
+                    tabFactory.enableExport()
+                }
 
                 const allExistingTabs: MynahUITabStoreModel = mynahUi.getAllTabs()
                 for (const tabId in allExistingTabs) {
