@@ -38,6 +38,10 @@ describe('Chat Session Service', () => {
         abortStub = sinon.stub(AbortController.prototype, 'abort')
 
         chatSessionService = new ChatSessionService(amazonQServiceManager)
+
+        // needed to identify the stubs as the actual class when checking 'instanceof' in generateAssistantResponse
+        Object.setPrototypeOf(amazonQServiceManager, AmazonQTokenServiceManager.prototype)
+        Object.setPrototypeOf(codeWhispererStreamingClient, StreamingClientServiceToken.prototype)
     })
 
     afterEach(() => {
