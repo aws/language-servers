@@ -20,7 +20,7 @@ export const LocalProjectContextServer = (): Server => features => {
             params.clientInfo?.name ?? 'unknown',
             params.workspaceFolders ?? [],
             logging,
-            params?.aws?.contextConfiguration?.workspaceIndexConfiguration
+            lsp.getClientInitializeParams()?.initializationOptions?.aws?.contextConfiguration
         )
 
         const supportedFilePatterns = Object.keys(languageByExtension).map(ext => `**/*${ext}`)
