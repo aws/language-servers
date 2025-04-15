@@ -3,7 +3,8 @@ import * as assert from 'assert'
 import sinon, { StubbedInstance, stubInterface } from 'ts-sinon'
 import { ChatSessionService } from './chatSessionService'
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
-import { StreamingClientServiceToken } from '../../shared/streamingClientService'
+import { AmazonQIAMServiceManager } from '../../shared/amazonQServiceManager/AmazonQIAMServiceManager'
+import { StreamingClientServiceToken, StreamingClientServiceIAM } from '../../shared/streamingClientService'
 
 describe('Chat Session Service', () => {
     let abortStub: sinon.SinonStub<any, any>
@@ -144,6 +145,36 @@ describe('Chat Session Service', () => {
             )
         })
 
+        it('abortRequest() in IAM client, aborts request with AbortController', async () => {
+            const codeWhispererStreamingClientIAM = stubInterface<StreamingClientServiceIAM>()
+            codeWhispererStreamingClientIAM.sendMessage.callsFake(() => Promise.resolve(mockRequestResponse))
+
+            const amazonQServiceManagerIAM = stubInterface<AmazonQIAMServiceManager>()
+            amazonQServiceManagerIAM.getStreamingClient.returns(codeWhispererStreamingClientIAM)
+
+            const chatSessionServiceIAM = new ChatSessionService(amazonQServiceManagerIAM)
+            await chatSessionServiceIAM.sendMessage(mockRequestParams)
+
+            chatSessionServiceIAM.abortRequest()
+
+            sinon.assert.calledOnce(abortStub)
+        })
+
+        it('dispose() in IAM client, calls aborts outgoing requests', async () => {
+            const codeWhispererStreamingClientIAM = stubInterface<StreamingClientServiceIAM>()
+            codeWhispererStreamingClientIAM.sendMessage.callsFake(() => Promise.resolve(mockRequestResponse))
+
+            const amazonQServiceManagerIAM = stubInterface<AmazonQIAMServiceManager>()
+            amazonQServiceManagerIAM.getStreamingClient.returns(codeWhispererStreamingClientIAM)
+
+            const chatSessionServiceIAM = new ChatSessionService(amazonQServiceManagerIAM)
+            await chatSessionServiceIAM.sendMessage(mockRequestParams)
+
+            chatSessionServiceIAM.dispose()
+
+            sinon.assert.calledOnce(abortStub)
+        })
+
         it('abortRequest() aborts request with AbortController', async () => {
             await chatSessionService.generateAssistantResponse(mockRequestParams)
 
@@ -171,5 +202,25 @@ describe('Chat Session Service', () => {
             sinon.assert.calledOnce(abortStub)
             assert.strictEqual(chatSessionService.conversationId, undefined)
         })
+    })
+
+    it('clear() in IAM client, resets conversation id and aborts outgoing request', async () => {
+        const codeWhispererStreamingClientIAM = stubInterface<StreamingClientServiceIAM>()
+        codeWhispererStreamingClientIAM.sendMessage.callsFake(() => Promise.resolve(mockRequestResponse))
+
+        const amazonQServiceManagerIAM = stubInterface<AmazonQIAMServiceManager>()
+        amazonQServiceManagerIAM.getStreamingClient.returns(codeWhispererStreamingClientIAM)
+
+        const chatSessionServiceIAM = new ChatSessionService(amazonQServiceManagerIAM)
+        await chatSessionServiceIAM.sendMessage(mockRequestParams)
+
+        chatSessionServiceIAM.conversationId = mockConversationId
+
+        assert.strictEqual(chatSessionServiceIAM.conversationId, mockConversationId)
+
+        chatSessionServiceIAM.clear()
+
+        sinon.assert.calledOnce(abortStub)
+        assert.strictEqual(chatSessionServiceIAM.conversationId, undefined)
     })
 })
