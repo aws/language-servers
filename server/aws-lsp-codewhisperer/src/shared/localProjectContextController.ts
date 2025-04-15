@@ -1,6 +1,6 @@
 import { Logging, WorkspaceFolder } from '@aws/language-server-runtimes/server-interface'
 import { dirname } from 'path'
-import { languageByExtension } from '../../shared/languageDetection'
+import { languageByExtension } from './languageDetection'
 import type {
     Chunk,
     InlineProjectContext,
