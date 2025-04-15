@@ -251,10 +251,8 @@ export class WorkspaceFolderManager {
             this.stopMonitoring(workspace)
         }
 
-        for (const { webSocketClient, workspaceId } of this.workspaceMap.values()) {
-            if (webSocketClient) {
-                webSocketClient.destroyClient()
-            }
+        for (const { webSocketClient } of this.workspaceMap.values()) {
+            webSocketClient?.destroyClient()
         }
 
         this.workspaceMap.clear()
