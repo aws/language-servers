@@ -1,4 +1,3 @@
-import { ChatMessage } from '@aws/language-server-runtimes-types'
 import {
     ChatItem,
     ChatItemType,
@@ -8,6 +7,7 @@ import {
     TabBarMainAction,
 } from '@aws/mynah-ui'
 import { disclaimerCard } from '../texts/disclaimer'
+import { ChatMessage } from '@aws/language-server-runtimes-types'
 import { ChatHistory } from '../features/history'
 
 export type DefaultTabData = MynahUIDataModel
@@ -69,11 +69,13 @@ export class TabFactory {
     }
 
     public getDefaultTabData(): DefaultTabData {
-        return {
+        const tabData = {
             ...this.defaultTabData,
             ...(this.quickActionCommands ? { quickActionCommands: this.quickActionCommands } : {}),
-            tabBarButtons: this.getTabBarActions(),
         }
+
+        tabData.tabBarButtons = this.getTabBarButtons()
+        return tabData
     }
 
     private getWelcomeBlock() {
@@ -113,5 +115,26 @@ export class TabFactory {
         }
 
         return tabBarActions
+    }
+    private getTabBarButtons(): TabBarMainAction[] | undefined {
+        const tabBarButtons = [...(this.defaultTabData.tabBarButtons ?? [])]
+
+        if (this.history) {
+            tabBarButtons.push({
+                id: ChatHistory.TabBarButtonId,
+                icon: MynahIcons.HISTORY,
+                description: 'View chat history',
+            })
+        }
+
+        if (this.export) {
+            tabBarButtons.push({
+                id: 'export',
+                icon: MynahIcons.EXTERNAL,
+                description: 'Export chat',
+            })
+        }
+
+        return tabBarButtons.length ? tabBarButtons : undefined
     }
 }

@@ -36,7 +36,6 @@ import {
     NotificationType,
     MynahUIProps,
     QuickActionCommand,
-    MynahIcons,
 } from '@aws/mynah-ui'
 import { VoteParams } from '../contracts/telemetry'
 import { Messager } from './messager'
@@ -370,23 +369,7 @@ export const createMynahUi = (
         config: {
             maxTabs: 10,
             texts: uiComponentsTexts,
-            // Without these MynahUI loses tab bar icons.
-            tabBarButtons: [
-                {
-                    id: ChatHistory.TabBarButtonId,
-                    icon: MynahIcons.HISTORY,
-                    description: 'View chat history',
-                },
-                {
-                    id: 'export',
-                    icon: MynahIcons.EXTERNAL,
-                    description: 'Export chat',
-                },
-            ],
         },
-
-        // TODO: Check case when we close all tabs, and tabBar buttons disappear, this is actually true in current VSCode release too.
-        // Potentially we fix it by setting history link as also visible here.
     }
 
     const mynahUiRef = { mynahUI: undefined as MynahUI | undefined }
@@ -609,14 +592,17 @@ ${params.message}`,
         })
     }
 
-    let chatHistoryList = new ChatHistoryList(mynahUi, messager)
+    const chatHistoryList = new ChatHistoryList(mynahUi, messager)
     const listConversations = (params: ListConversationsResult) => {
         chatHistoryList.show(params)
     }
 
     const conversationClicked = (params: ConversationClickResult) => {
         if (!params.success) {
-            // TODO: any logging, error for this?
+            mynahUi.notify({
+                content: `Failed to ${params.action ?? 'open'} the history`,
+                type: NotificationType.ERROR,
+            })
             return
         }
 
