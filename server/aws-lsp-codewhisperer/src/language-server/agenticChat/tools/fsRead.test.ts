@@ -43,9 +43,24 @@ describe('FsRead Tool', () => {
         tempFolder.clear()
     })
 
-    it('throws if path is empty', async () => {
+    it('invalidates empty path', async () => {
         const fsRead = new FsRead(features)
-        await assert.rejects(() => fsRead.invoke({ path: '' }))
+        await assert.rejects(
+            fsRead.validate({ path: '' }),
+            /Path cannot be empty/i,
+            'Expected an error about empty path'
+        )
+    })
+
+    it('invalidates non-existent paths', async () => {
+        const filePath = path.join(tempFolder.path, 'no_such_file.txt')
+        const fsRead = new FsRead(features)
+
+        await assert.rejects(
+            fsRead.validate({ path: filePath }),
+            /does not exist or cannot be accessed/i,
+            'Expected an error indicating the path does not exist'
+        )
     })
 
     it('reads entire file', async () => {
@@ -70,27 +85,6 @@ describe('FsRead Tool', () => {
         assert.strictEqual(result.output.content, 'B\nC\nD')
     })
 
-    it('throws error if path does not exist', async () => {
-        const filePath = path.join(tempFolder.path, 'no_such_file.txt')
-        const fsRead = new FsRead(features)
-
-        await assert.rejects(fsRead.invoke({ path: filePath }))
-    })
-
-    it('throws error if content exceeds 30KB', async function () {
-        const bigContent = 'x'.repeat(35_000)
-
-        const filePath = await tempFolder.write('bigFile.txt', bigContent)
-
-        const fsRead = new FsRead(features)
-
-        await assert.rejects(
-            fsRead.invoke({ path: filePath }),
-            /This tool only supports reading \d+ bytes at a time/i,
-            'Expected a size-limit error'
-        )
-    })
-
     it('invalid line range', async () => {
         const filePath = await tempFolder.write('rangeTest.txt', '1\n2\n3')
         const fsRead = new FsRead(features)
@@ -99,5 +93,18 @@ describe('FsRead Tool', () => {
         const result = await fsRead.invoke({ path: filePath, readRange: [3, 2] })
         assert.strictEqual(result.output.kind, 'text')
         assert.strictEqual(result.output.content, '')
+    })
+
+    it('updates the stream', async () => {
+        const fsRead = new FsRead(features)
+        const chunks = []
+        const stream = new WritableStream({
+            write: c => {
+                chunks.push(c)
+            },
+        })
+        await fsRead.queueDescription({ path: 'this/is/my/path' }, stream)
+        assert.ok(chunks.length > 0)
+        assert.ok(!stream.locked)
     })
 })

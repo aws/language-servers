@@ -13,13 +13,16 @@ import {
     isValidAuthFollowUpType,
 } from '@aws/chat-client-ui-types'
 import {
+    ChatMessage,
     ChatResult,
     ContextCommand,
     ContextCommandParams,
+    ConversationClickResult,
     FeedbackParams,
     FollowUpClickParams,
     InfoLinkClickParams,
     LinkClickParams,
+    ListConversationsResult,
     OpenTabParams,
     SourceLinkClickParams,
 } from '@aws/language-server-runtimes-types'
@@ -40,14 +43,17 @@ import { disclaimerAcknowledgeButtonId, disclaimerCard } from './texts/disclaime
 import { ChatClientAdapter, ChatEventHandler } from '../contracts/chatClientAdapter'
 import { withAdapter } from './withAdapter'
 import { toMynahIcon } from './utils'
+import { ChatHistory, ChatHistoryList } from './features/history'
 
 export interface InboundChatApi {
     addChatResponse(params: ChatResult, tabId: string, isPartialResult: boolean): void
     sendToPrompt(params: SendToPromptParams): void
     sendGenericCommand(params: GenericCommandParams): void
     showError(params: ErrorParams): void
-    openTab(params: OpenTabParams): void
+    openTab(requestId: string, params: OpenTabParams): void
     sendContextCommands(params: ContextCommandParams): void
+    listConversations(params: ListConversationsResult): void
+    conversationClicked(params: ConversationClickResult): void
 }
 
 type ContextCommandGroups = MynahUIDataModel['contextCommands']
@@ -328,6 +334,13 @@ export const createMynahUi = (
             }
             return false
         },
+        onTabBarButtonClick: (tabId: string, buttonId: string) => {
+            if (buttonId === ChatHistory.TabBarButtonId) {
+                messager.onListConversations()
+                return
+            }
+            throw new Error(`Unhandled tab bar button id: ${buttonId}`)
+        },
     }
 
     const mynahUiProps: MynahUIProps = {
@@ -362,8 +375,11 @@ export const createMynahUi = (
         return tabId ? mynahUi.getAllTabs()[tabId]?.store : undefined
     }
 
-    const createTabId = (needWelcomeMessages: boolean = false) => {
-        const tabId = mynahUi.updateStore('', tabFactory.createTab(needWelcomeMessages, disclaimerCardActive))
+    const createTabId = (needWelcomeMessages: boolean = false, chatMessages?: ChatMessage[]) => {
+        const tabId = mynahUi.updateStore(
+            '',
+            tabFactory.createTab(needWelcomeMessages, disclaimerCardActive, chatMessages)
+        )
         if (tabId === undefined) {
             mynahUi.notify({
                 content: uiComponentsTexts.noMoreTabsTooltip,
@@ -519,18 +535,19 @@ ${params.message}`,
         messager.onError(params)
     }
 
-    const openTab = ({ tabId }: OpenTabParams) => {
-        if (tabId) {
-            if (tabId !== mynahUi.getSelectedTabId()) {
-                mynahUi.selectTab(tabId)
+    const openTab = (requestId: string, params: OpenTabParams) => {
+        if (params.tabId) {
+            if (params.tabId !== mynahUi.getSelectedTabId()) {
+                mynahUi.selectTab(params.tabId)
             }
-            messager.onOpenTab({ tabId })
+            messager.onOpenTab(requestId, { tabId: params.tabId })
         } else {
-            const tabId = createTabId(true)
+            const messages = params.newTabOptions?.data?.messages
+            const tabId = createTabId(messages ? false : true, messages)
             if (tabId) {
-                messager.onOpenTab({ tabId })
+                messager.onOpenTab(requestId, { tabId })
             } else {
-                messager.onOpenTab({
+                messager.onOpenTab(requestId, {
                     type: 'InvalidRequest',
                     message: 'No more tabs available',
                 })
@@ -562,6 +579,31 @@ ${params.message}`,
         })
     }
 
+    const chatHistoryList = new ChatHistoryList(mynahUi, messager)
+    const listConversations = (params: ListConversationsResult) => {
+        chatHistoryList.show(params)
+    }
+
+    const conversationClicked = (params: ConversationClickResult) => {
+        if (!params.success) {
+            mynahUi.notify({
+                content: `Failed to ${params.action ?? 'open'} the history`,
+                type: NotificationType.ERROR,
+            })
+            return
+        }
+
+        // close history list if conversation item was successfully opened
+        if (!params.action) {
+            chatHistoryList.close()
+            return
+        }
+        // request update conversations list if conversation item was successfully deleted
+        if (params.action === 'delete') {
+            messager.onListConversations()
+        }
+    }
+
     const api = {
         addChatResponse: addChatResponse,
         sendToPrompt: sendToPrompt,
@@ -569,6 +611,8 @@ ${params.message}`,
         showError: showError,
         openTab: openTab,
         sendContextCommands: sendContextCommands,
+        listConversations: listConversations,
+        conversationClicked: conversationClicked,
     }
 
     return [mynahUi, api]

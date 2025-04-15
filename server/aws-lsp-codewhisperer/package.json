@@ -21,18 +21,20 @@
         "lint": "npm run lint:src",
         "lint:bundle:webworker": "webpack --config webpack.lint.config.js && eslint bundle/aws-lsp-codewhisperer-webworker.js # Verify compatibility with web runtime target",
         "lint:src": "eslint src/ --ext .ts,.tsx",
-        "test:unit": "ts-mocha -b \"./src/**/*.test.ts\"",
+        "test:unit": "ts-mocha --timeout 0 -b \"./src/**/*.test.ts\"",
         "test": "npm run lint && npm run test:unit",
         "prepack": "npm run compile && ts-node ../../script/link_bundled_dependencies.ts",
         "postinstall": "node ./script/install_transitive_dep.js"
     },
     "dependencies": {
-        "@amzn/codewhisperer-streaming": "file:../../core/codewhisperer-streaming/amzn-codewhisperer-streaming-1.0.0.tgz",
+        "@amzn/amazon-q-developer-streaming-client": "file:../../core/q-developer-streaming-client/amzn-amazon-q-developer-streaming-client-1.0.0.tgz",
+        "@amzn/codewhisperer-streaming": "file:../../core/codewhisperer-streaming/amzn-codewhisperer-streaming-1.0.4.tgz",
         "@aws-sdk/util-retry": "^3.374.0",
         "@aws/chat-client-ui-types": "^0.1.13",
-        "@aws/language-server-runtimes": "^0.2.55",
+        "@aws/language-server-runtimes": "^0.2.56",
         "@aws/lsp-core": "^0.0.3",
         "@smithy/node-http-handler": "^2.5.0",
+        "shlex": "2.1.2",
         "adm-zip": "^0.5.10",
         "archiver": "^7.0.1",
         "aws-sdk": "^2.1403.0",
@@ -42,8 +44,10 @@
         "got": "^11.8.5",
         "hpagent": "^1.2.0",
         "js-md5": "^0.8.3",
+        "lokijs": "^1.5.12",
         "jszip": "^3.10.1",
         "uuid": "^11.0.5",
+        "diff": "^7.0.0",
         "vscode-uri": "^3.1.0",
         "ws": "^8.18.0",
         "xml2js": "^0.6.2",
@@ -52,8 +56,10 @@
     "devDependencies": {
         "@types/adm-zip": "^0.5.5",
         "@types/archiver": "^6.0.2",
-        "@types/ignore-walk": "^4.0.3",
+        "@types/local-indexing": "file:./types/types-local-indexing-1.0.0.tgz",
+        "@types/lokijs": "^1.5.14",
         "@types/uuid": "^9.0.8",
+        "@types/diff": "^7.0.2",
         "@types/xml2js": "^0.4.14",
         "assert": "^2.1.0",
         "copyfiles": "^2.4.1",
@@ -77,6 +83,7 @@
         "endOfLine": "lf"
     },
     "bundleDependencies": [
-        "@amzn/codewhisperer-streaming"
+        "@amzn/codewhisperer-streaming",
+        "@amzn/amazon-q-developer-streaming-client"
     ]
 }

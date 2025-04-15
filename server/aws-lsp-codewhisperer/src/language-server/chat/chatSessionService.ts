@@ -1,5 +1,7 @@
 import {
     CodeWhispererStreamingClientConfig,
+    GenerateAssistantResponseCommandInput,
+    GenerateAssistantResponseCommandOutput,
     SendMessageCommandInput,
     SendMessageCommandOutput,
 } from '@amzn/codewhisperer-streaming'
@@ -9,6 +11,7 @@ import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/A
 export type ChatSessionServiceConfig = CodeWhispererStreamingClientConfig
 export class ChatSessionService {
     public shareCodeWhispererContentWithAWS = false
+    public localHistoryHydrated: boolean = false
     #abortController?: AbortController
     #conversationId?: string
     #amazonQServiceManager?: AmazonQTokenServiceManager
@@ -39,6 +42,26 @@ export class ChatSessionService {
         const client = this.#amazonQServiceManager.getStreamingClient()
 
         const response = await client.sendMessage(request, this.#abortController)
+
+        return response
+    }
+
+    public async generateAssistantResponse(
+        request: GenerateAssistantResponseCommandInput
+    ): Promise<GenerateAssistantResponseCommandOutput> {
+        this.#abortController = new AbortController()
+
+        if (this.#conversationId && request.conversationState) {
+            request.conversationState.conversationId = this.#conversationId
+        }
+
+        if (!this.#amazonQServiceManager) {
+            throw new Error('amazonQServiceManager is not initialized')
+        }
+
+        const client = this.#amazonQServiceManager.getStreamingClient()
+
+        const response = await client.generateAssistantResponse(request, this.#abortController)
 
         return response
     }

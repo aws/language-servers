@@ -3,7 +3,13 @@
  * Will be deleted or merged.
  */
 
-import { ChatTriggerType, SendMessageCommandInput, SendMessageCommandOutput } from '@amzn/codewhisperer-streaming'
+import {
+    ChatTriggerType,
+    GenerateAssistantResponseCommandInput,
+    GenerateAssistantResponseCommandOutput,
+    SendMessageCommandInput,
+    SendMessageCommandOutput,
+} from '@amzn/codewhisperer-streaming'
 import {
     ApplyWorkspaceEditParams,
     ErrorCodes,
@@ -13,6 +19,8 @@ import {
     TextEdit,
     chatRequestType,
     InlineChatParams,
+    ConversationClickParams,
+    ListConversationsParams,
 } from '@aws/language-server-runtimes/protocol'
 import {
     CancellationToken,
@@ -52,6 +60,9 @@ import {
 } from '../../shared/amazonQServiceManager/errors'
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
+import { TabBarController } from './tabBarController'
+import { ChatDatabase } from './tools/chatDb/chatDb'
+import { AgenticChatEventParser } from './agenticChatEventParser'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -63,6 +74,8 @@ type ChatHandlers = Omit<
     | 'onCreatePrompt'
     | 'onListConversations'
     | 'onConversationClick'
+    | 'onTabBarAction'
+    | 'getSerializedChat'
 >
 
 export class AgenticChatController implements ChatHandlers {
@@ -73,6 +86,8 @@ export class AgenticChatController implements ChatHandlers {
     #customizationArn?: string
     #telemetryService: TelemetryService
     #amazonQServiceManager?: AmazonQTokenServiceManager
+    #tabBarController: TabBarController
+    #chatHistoryDb: ChatDatabase
 
     constructor(
         chatSessionManagementService: ChatSessionManagementService,
@@ -86,11 +101,41 @@ export class AgenticChatController implements ChatHandlers {
         this.#telemetryController = new ChatTelemetryController(features, telemetryService)
         this.#telemetryService = telemetryService
         this.#amazonQServiceManager = amazonQServiceManager
+        this.#chatHistoryDb = new ChatDatabase(features)
+        this.#tabBarController = new TabBarController(features, this.#chatHistoryDb)
+
+        features.agent.addTool(
+            {
+                name: 'count_input',
+                description: 'Count the length of the prompt',
+                inputSchema: {
+                    type: 'object',
+                    properties: {
+                        prompt: {
+                            type: 'string',
+                        },
+                    },
+                    required: ['prompt'],
+                },
+            },
+            async input => {
+                return input.prompt?.length
+            }
+        )
     }
 
     dispose() {
         this.#chatSessionManagementService.dispose()
         this.#telemetryController.dispose()
+        this.#chatHistoryDb.close()
+    }
+
+    async onListConversations(params: ListConversationsParams) {
+        return this.#tabBarController.onListConversations(params)
+    }
+
+    async onConversationClick(params: ConversationClickParams) {
+        return this.#tabBarController.onConversationClick(params)
     }
 
     async onChatPrompt(params: ChatParams, token: CancellationToken): Promise<ChatResult | ResponseError<ChatResult>> {
@@ -120,8 +165,8 @@ export class AgenticChatController implements ChatHandlers {
             session.abortRequest()
         })
 
-        let response: SendMessageCommandOutput
-        let requestInput: SendMessageCommandInput
+        let response: GenerateAssistantResponseCommandOutput
+        let requestInput: GenerateAssistantResponseCommandInput
 
         const conversationIdentifier = session?.conversationId ?? 'New conversation'
         try {
@@ -132,11 +177,17 @@ export class AgenticChatController implements ChatHandlers {
                 triggerContext,
                 ChatTriggerType.MANUAL,
                 this.#customizationArn,
-                profileArn
+                profileArn,
+                this.#features.agent.getTools({ format: 'bedrock' })
             )
 
+            if (!session.localHistoryHydrated && requestInput.conversationState) {
+                requestInput.conversationState.history = this.#chatHistoryDb.getMessages(params.tabId, 10)
+                session.localHistoryHydrated = true
+            }
+
             metric.recordStart()
-            response = await session.sendMessage(requestInput)
+            response = await session.generateAssistantResponse(requestInput)
             this.#log('Response for conversation id:', conversationIdentifier, JSON.stringify(response.$metadata))
         } catch (err) {
             if (isAwsError(err) || (isObject(err) && 'statusCode' in err && typeof err.statusCode === 'number')) {
@@ -178,7 +229,7 @@ export class AgenticChatController implements ChatHandlers {
         }
 
         try {
-            const result = await this.#processSendMessageResponse(
+            const result = await this.#processGenerateAssistantResponseResponse(
                 response,
                 metric.mergeWith({
                     cwsprChatResponseCode: response.$metadata.httpStatusCode,
@@ -219,6 +270,24 @@ export class AgenticChatController implements ChatHandlers {
                     ),
                 },
             })
+            // Save question/answer interaction to chat history
+            if (params.prompt.prompt && session.conversationId && result.data?.chatResult.body) {
+                this.#chatHistoryDb.addMessage(params.tabId, 'cwc', session.conversationId, {
+                    body: params.prompt.prompt,
+                    type: 'prompt' as any,
+                })
+
+                this.#chatHistoryDb.addMessage(params.tabId, 'cwc', session.conversationId, {
+                    body: result.data.chatResult.body,
+                    type: 'answer' as any,
+                    codeReference: result.data.chatResult.codeReference,
+                    relatedContent:
+                        result.data.chatResult.relatedContent?.content &&
+                        result.data.chatResult.relatedContent.content.length > 0
+                            ? result.data?.chatResult.relatedContent
+                            : undefined,
+                })
+            }
 
             return result.success
                 ? result.data.chatResult
@@ -392,7 +461,9 @@ export class AgenticChatController implements ChatHandlers {
 
     onLinkClick() {}
 
-    onReady() {}
+    async onReady() {
+        await this.#tabBarController.loadChats()
+    }
 
     onSendFeedback({ tabId, feedbackPayload }: FeedbackParams) {
         this.#features.telemetry.emitMetric({
@@ -441,7 +512,7 @@ export class AgenticChatController implements ChatHandlers {
             })
             this.#telemetryController.activeTabId = undefined
         }
-
+        this.#chatHistoryDb.updateTabOpenState(params.tabId, false)
         this.#chatSessionManagementService.deleteSession(params.tabId)
         this.#telemetryController.removeConversation(params.tabId)
     }
@@ -459,6 +530,7 @@ export class AgenticChatController implements ChatHandlers {
                 })
 
                 this.#telemetryController.removeConversation(params.tabId)
+                this.#chatHistoryDb.clearTab(params.tabId)
 
                 sessionResult.data?.clear()
 
@@ -517,15 +589,15 @@ export class AgenticChatController implements ChatHandlers {
         return triggerContext
     }
 
-    async #processSendMessageResponse(
-        response: SendMessageCommandOutput,
+    async #processGenerateAssistantResponseResponse(
+        response: GenerateAssistantResponseCommandOutput,
         metric: Metric<AddMessageEvent>,
         partialResultToken?: string | number
     ): Promise<Result<ChatResultWithMetadata, string>> {
         const requestId = response.$metadata.requestId!
-        const chatEventParser = new ChatEventParser(requestId, metric)
+        const chatEventParser = new AgenticChatEventParser(requestId, metric)
 
-        for await (const chatEvent of response.sendMessageResponse!) {
+        for await (const chatEvent of response.generateAssistantResponseResponse!) {
             const result = chatEventParser.processPartialEvent(chatEvent)
 
             // terminate early when there is an error

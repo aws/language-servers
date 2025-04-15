@@ -7,6 +7,7 @@ import { QChatServer } from '../language-server/chat/qChatServer'
 import { QConfigurationServerToken } from '../language-server/configuration/qConfigurationServer'
 import { initBaseTokenServiceManager } from './amazonQServiceManager/AmazonQTokenServiceManager'
 import { initBaseIAMServiceManager } from './amazonQServiceManager/AmazonQIAMServiceManager'
+import { LocalProjectContextServer } from '../language-server/localProjectContext/localProjectContextServer'
 import { WorkspaceContextServer } from '../language-server/workspaceContext/workspaceContextServer'
 
 export const CodeWhispererServerTokenProxy = CodewhispererServerFactory(initBaseTokenServiceManager)
@@ -32,6 +33,8 @@ export const QChatServerProxy = QChatServer()
 export const QAgenticChatServerProxy = QAgenticChatServer()
 
 export const QConfigurationServerTokenProxy = QConfigurationServerToken()
+
+export const QLocalProjectContextServerTokenProxy = LocalProjectContextServer()
 
 export const WorkspaceContextServerTokenProxy = WorkspaceContextServer(
     (credentialsProvider, workspace, awsQRegion, awsQEndpointUrl, sdkInitializator) => {

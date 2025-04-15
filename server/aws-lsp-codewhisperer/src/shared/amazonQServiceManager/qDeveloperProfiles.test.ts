@@ -1,8 +1,12 @@
 import * as assert from 'assert'
-import { StubbedInstance, stubInterface } from 'ts-sinon'
+import sinon, { StubbedInstance, stubInterface } from 'ts-sinon'
 import { CodeWhispererServiceToken } from '../codeWhispererService'
 import { SsoConnectionType } from '../utils'
-import { AWSInitializationOptions, Logging } from '@aws/language-server-runtimes/server-interface'
+import {
+    AWSInitializationOptions,
+    CancellationTokenSource,
+    Logging,
+} from '@aws/language-server-runtimes/server-interface'
 import {
     AmazonQDeveloperProfile,
     getListAllAvailableProfilesHandler,
@@ -35,6 +39,7 @@ describe('ListAllAvailableProfiles Handler', () => {
 
     let codeWhispererService: StubbedInstance<CodeWhispererServiceToken>
     let handler: ListAllAvailableProfilesHandler
+    let tokenSource: CancellationTokenSource
 
     const listAvailableProfilesResponse = {
         profiles: [
@@ -46,17 +51,13 @@ describe('ListAllAvailableProfiles Handler', () => {
         $response: {} as any,
     }
 
-    const listAvailableProfilesResponseWithNextToken = {
-        ...listAvailableProfilesResponse,
-        nextToken: 'some-random-next-token',
-    }
-
     beforeEach(() => {
         logging = stubInterface<Logging>()
         codeWhispererService = stubInterface<CodeWhispererServiceToken>()
         codeWhispererService.listAvailableProfiles.resolves(listAvailableProfilesResponse)
 
         handler = getListAllAvailableProfilesHandler(() => codeWhispererService)
+        tokenSource = new CancellationTokenSource()
     })
 
     it('should aggregrate profiles retrieved from different regions', async () => {
@@ -64,6 +65,7 @@ describe('ListAllAvailableProfiles Handler', () => {
             connectionType: 'identityCenter',
             logging,
             endpoints: SOME_AWS_Q_ENDPOINTS,
+            token: tokenSource.token,
         })
 
         assert.strictEqual(
@@ -78,6 +80,7 @@ describe('ListAllAvailableProfiles Handler', () => {
             const profiles = await handler({
                 connectionType,
                 logging,
+                token: tokenSource.token,
             })
 
             assert.deepStrictEqual(profiles, [])
@@ -86,6 +89,12 @@ describe('ListAllAvailableProfiles Handler', () => {
 
     describe('Pagination', () => {
         const MAX_EXPECTED_PAGES = 10
+        const SOME_NEXT_TOKEN = 'some-random-next-token'
+
+        const listAvailableProfilesResponseWithNextToken = {
+            ...listAvailableProfilesResponse,
+            nextToken: SOME_NEXT_TOKEN,
+        }
 
         it('should paginate if nextToken is defined', async () => {
             const EXPECTED_CALLS = 3
@@ -102,9 +111,14 @@ describe('ListAllAvailableProfiles Handler', () => {
                 connectionType: 'identityCenter',
                 logging,
                 endpoints: SOME_AWS_Q_ENDPOINT,
+                token: tokenSource.token,
             })
 
-            assert.strictEqual(codeWhispererService.listAvailableProfiles.callCount, EXPECTED_CALLS)
+            sinon.assert.calledThrice(codeWhispererService.listAvailableProfiles)
+            assert.strictEqual(codeWhispererService.listAvailableProfiles.firstCall.args[0].nextToken, undefined)
+            assert.strictEqual(codeWhispererService.listAvailableProfiles.secondCall.args[0].nextToken, SOME_NEXT_TOKEN)
+            assert.strictEqual(codeWhispererService.listAvailableProfiles.thirdCall.args[0].nextToken, SOME_NEXT_TOKEN)
+
             assert.deepStrictEqual(profiles, Array(EXPECTED_CALLS).fill(EXPECTED_DEVELOPER_PROFILES_LIST[0]))
         })
 
@@ -115,9 +129,17 @@ describe('ListAllAvailableProfiles Handler', () => {
                 connectionType: 'identityCenter',
                 logging,
                 endpoints: SOME_AWS_Q_ENDPOINT,
+                token: tokenSource.token,
             })
 
             assert.strictEqual(codeWhispererService.listAvailableProfiles.callCount, MAX_EXPECTED_PAGES)
+            codeWhispererService.listAvailableProfiles.getCalls().forEach((call, index) => {
+                if (index === 0) {
+                    assert.strictEqual(call.args[0].nextToken, undefined)
+                } else {
+                    assert.strictEqual(call.args[0].nextToken, SOME_NEXT_TOKEN)
+                }
+            })
             assert.deepStrictEqual(profiles, Array(MAX_EXPECTED_PAGES).fill(EXPECTED_DEVELOPER_PROFILES_LIST[0]))
         })
     })
