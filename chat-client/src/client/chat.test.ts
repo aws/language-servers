@@ -320,11 +320,12 @@ describe('Chat', () => {
     describe('onGetSerializedChat', () => {
         it('getSerializedChat requestId was propagated from inbound to outbound message', () => {
             const requestId = 'request-1234'
+            const tabId = mynahUi.updateStore('', {})
 
             const setSerializedChatEvent = createInboundEvent({
                 command: GET_SERIALIZED_CHAT_REQUEST_METHOD,
                 params: {
-                    tabId: 'tab-1',
+                    tabId: tabId,
                     format: 'markdown',
                 },
                 requestId: requestId,

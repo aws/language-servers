@@ -618,6 +618,15 @@ ${params.message}`,
     }
 
     const getSerializedChat = (requestId: string, params: GetSerializedChatParams) => {
+        const supportedFormats = ['markdown', 'html']
+        if (!supportedFormats.includes(params.format)) {
+            mynahUi.notify({
+                content: `Failed to export chat`,
+                type: NotificationType.ERROR,
+            })
+            return
+        }
+
         const serializedChat = mynahUi.serializeChat(params.tabId, params.format)
 
         messager.onGetSerializedChat(requestId, {
