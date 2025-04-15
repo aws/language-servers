@@ -28,7 +28,7 @@ export class JavaDependencyHandler extends LanguageDependencyHandler<JavaDepende
         let result: JavaDependencyInfo | null = null
         const dotClasspathPath = path.join(currentDir, '.classpath')
         if (fs.existsSync(dotClasspathPath) && fs.statSync(dotClasspathPath).isFile()) {
-            console.log(`Found .classpath in ${currentDir}`)
+            this.logging.log(`Found .classpath in ${currentDir}`)
             result = {
                 pkgDir: currentDir,
                 dotClasspathPath: dotClasspathPath,

@@ -125,13 +125,13 @@ export class WorkspaceFolderManager {
 
         const workspaceDetails = this.getWorkspaces().get(workspaceRoot.uri)
         if (!workspaceDetails) {
-            this.logging.log(`Workspace folder ${workspaceRoot.uri} is not found in workspace map`)
+            this.logging.log(`Workspace details not found for workspace folder ${workspaceRoot.uri}`)
             return null
         }
 
         if (!workspaceDetails.workspaceId) {
             this.logging.log(
-                `Workspace folder ${workspaceRoot.uri} is under processing and doesn't have workspaceId yet`
+                `Workspace initialization in progress - workspaceId not yet assigned for: ${workspaceRoot.uri}`
             )
             return { workspaceDetails, workspaceRoot }
         }
@@ -149,7 +149,9 @@ export class WorkspaceFolderManager {
         }
         const workspaceDetails = this.getWorkspaces().get(workspaceFolder.uri)
         if (!workspaceDetails || !workspaceDetails.workspaceId) {
-            this.logging.log(`Workspace folder ${workspaceFolder.uri} is under processing`)
+            this.logging.log(
+                `Unable to retrieve workspaceId - workspace initialization incomplete for: ${workspaceFolder.uri}`
+            )
             return undefined
         }
         return workspaceDetails.workspaceId
@@ -172,7 +174,7 @@ export class WorkspaceFolderManager {
 
         for (const folder of folders) {
             await this.handleNewWorkspace(folder.uri).catch(e => {
-                this.logging.warn(`Error processing new workspace: ${e}`)
+                this.logging.warn(`Error processing new workspace ${folder.uri} with error: ${e}`)
             })
         }
 
@@ -207,7 +209,9 @@ export class WorkspaceFolderManager {
         relativePath = relativePath.startsWith('/') ? relativePath.slice(1) : relativePath
         const workspaceId = this.getWorkspaces().get(fileMetadata.workspaceFolder.uri)?.workspaceId ?? ''
         if (!workspaceId) {
-            this.logging.warn(`Workspace ID is not found for ${fileMetadata.workspaceFolder.uri}`)
+            this.logging.warn(
+                `Workspace ID is not found for folder ${fileMetadata.workspaceFolder.uri}, skipping S3 upload`
+            )
             return
         }
 
@@ -375,7 +379,7 @@ export class WorkspaceFolderManager {
         const createWorkspaceResult = await this.createWorkspace(workspace)
         const workspaceDetails = createWorkspaceResult.response
         if (!workspaceDetails) {
-            this.logging.warn(`Failed to create workspace for ${workspace}`)
+            this.logging.warn(`Failed to create remote workspace for ${workspace}`)
             return createWorkspaceResult
         }
 
@@ -479,7 +483,7 @@ export class WorkspaceFolderManager {
                 try {
                     const workspaceState = this.workspaceMap.get(workspace)
                     if (!workspaceState) {
-                        this.logging.log(`No workspace state for ${workspace}, stopping monitoring`)
+                        this.logging.log(`Workspace ${workspace} no longer exists, stopping monitors for workspace`)
                         clearInterval(intervalId)
                         return resolve(false)
                     }
@@ -579,7 +583,7 @@ export class WorkspaceFolderManager {
                         const client = workspaceState.webSocketClient
                         if (!client || !client.isConnected()) {
                             this.logging.log(
-                                `Workspace ${workspace} is ready but no connection exists or connection lost`
+                                `Workspace ${workspace} is ready but no connection exists or connection lost. Re-establishing connection...`
                             )
                             await this.establishConnection(workspace, metadata)
                         }
@@ -608,7 +612,7 @@ export class WorkspaceFolderManager {
 
                 if (!optOut) {
                     this.isOptedOut = false
-                    this.logging.log('User opted back in, stopping opt-out monitor and reinitializing workspace')
+                    this.logging.log('User opted back in, stopping opt-out monitor and re-initializing workspace')
                     clearInterval(intervalId)
                     // Process all workspace folders
                     await this.processNewWorkspaceFolders(this.workspaceFolders)
@@ -651,17 +655,19 @@ export class WorkspaceFolderManager {
             return
         }
 
-        this.logging.log(`Retryable error for workspace ${workspace}, attempting one retry: ${initialResult.error}`)
+        this.logging.warn(
+            `Retryable error for workspace ${workspace} creation: ${initialResult.error}. Attempting single retry...`
+        )
         const retryResult = await this.createNewWorkspace(workspace)
 
         if (retryResult.error) {
-            this.logging.log(
-                `Retry failed for workspace ${workspace}: ${retryResult.error}, will wait for next polling cycle`
+            this.logging.warn(
+                `Retry failed for workspace ${workspace}: ${retryResult.error}. Will wait for next polling cycle`
             )
             return
         }
 
-        this.logging.log(`Retry succeeded for workspace ${workspace}, scheduling quick check`)
+        this.logging.log(`Retry succeeded for workspace ${workspace}, scheduling quick check for connection`)
         this.scheduleQuickCheck(workspace)
     }
 
@@ -679,7 +685,7 @@ export class WorkspaceFolderManager {
             try {
                 const workspaceState = this.workspaceMap.get(workspace)
                 if (!workspaceState) {
-                    this.logging.log(`No workspace state found during quick check`)
+                    this.logging.log(`Workspace state not found for: ${workspace} during quick check`)
                     return
                 }
 
@@ -694,7 +700,7 @@ export class WorkspaceFolderManager {
                 }
 
                 if (!metadata) {
-                    this.logging.log(`No metadata available during quick check`)
+                    this.logging.log(`No metadata available for workspace: ${workspace} during quick check`)
                     return
                 }
 
@@ -763,7 +769,7 @@ export class WorkspaceFolderManager {
                 }
 
                 this.logging.log(
-                    `Successfully uploaded to S3: workspace=${fileMetadata.workspaceFolder.name} language= ${fileMetadata.language}`
+                    `Successfully uploaded to S3: workspace=${fileMetadata.workspaceFolder.name} language=${fileMetadata.language}`
                 )
 
                 const workspaceId = this.getWorkspaces().get(fileMetadata.workspaceFolder.uri)?.workspaceId
@@ -792,12 +798,12 @@ export class WorkspaceFolderManager {
                     },
                 })
 
-                this.logging.log(`Added didChangeWorkspaceFolders event to queue`)
                 // We add this event to the front of the queue here to prevent any race condition that might put events before the didChangeWorkspaceFolders event
                 inMemoryQueueEvents.unshift(event)
+                this.logging.log(`Added didChangeWorkspaceFolders event to queue`)
             } catch (error) {
                 this.logging.error(
-                    `Error processing file metadata: error=${error instanceof Error ? error.message : 'Unknown error'}, workspace=${fileMetadata.workspaceFolder.name}`
+                    `Error processing file metadata:${error instanceof Error ? error.message : 'Unknown error'}, workspace=${fileMetadata.workspaceFolder.name}`
                 )
             }
         }
@@ -817,7 +823,7 @@ export class WorkspaceFolderManager {
                         this.logging.log(`Successfully sent event ${index + 1}/${inMemoryQueueEvents.length}`)
                     } catch (error) {
                         this.logging.error(
-                            `Failed to send event via WebSocket: error=${error instanceof Error ? error.message : 'Unknown error'}, eventIndex=${index}`
+                            `Failed to send event via WebSocket:${error instanceof Error ? error.message : 'Unknown error'}, eventIndex=${index}`
                         )
                     }
                 })
@@ -833,7 +839,7 @@ export class WorkspaceFolderManager {
             this.logging.error(`Error in final processing: ${error instanceof Error ? error.message : 'Unknown error'}`)
         }
 
-        this.logging.log(`Completed processing ${inMemoryQueueEvents.length} queued events`)
+        this.logging.log(`Completed processing ${inMemoryQueueEvents.length} queued WebSocket events`)
     }
 
     private async uploadWithTimeout(fileMetadataMap: Map<string, FileMetadata[]>) {

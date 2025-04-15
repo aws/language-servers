@@ -98,6 +98,9 @@ export class WebSocketClient {
     }
 
     private flushMessageQueue(): void {
+        if (this.messageQueue.length <= 0) {
+            return
+        }
         this.logging.log(`Flushing ${this.messageQueue.length} queued events through WebSocket`)
         while (this.messageQueue.length > 0) {
             const message = this.messageQueue.shift()
@@ -140,6 +143,18 @@ export class WebSocketClient {
     }
 
     // https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API/Writing_WebSocket_client_applications#sending_data_to_the_server
+    // TODO, the approach of delaying websocket messages should be investigated and validated
+    // The current approach could be susceptible to race conditions that might result in out of order events
+    // Consider this scenario
+    // wsClient.send("message1"); // needs throttling, will wait 100ms
+    // wsClient.send("message2"); // runs immediately without waiting
+
+    // What actually happens:
+    // - Both calls start executing simultaneously
+    // - Both check timeSinceLastMessage at nearly the same time
+    // - Both might determine they need to wait
+    // - They could end up sending in unpredictable order
+    // It might be better to keep an active queue in the client and expose enqueueMessage instead of send
     public async send(message: string): Promise<void> {
         if (this.ws?.readyState === WebSocket.OPEN) {
             const now = Date.now()

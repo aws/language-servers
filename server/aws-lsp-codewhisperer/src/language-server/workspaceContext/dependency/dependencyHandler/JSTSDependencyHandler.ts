@@ -33,7 +33,7 @@ export class JSTSDependencyHandler extends LanguageDependencyHandler<JSTSDepende
             fs.existsSync(nodeModulesPath) &&
             fs.statSync(nodeModulesPath).isDirectory()
         ) {
-            console.log(`Found package.json and node_modules in ${currentDir}`)
+            this.logging.log(`Found package.json and node_modules in ${currentDir}`)
             result = {
                 pkgDir: currentDir,
                 packageJsonPath: packageJsonPath,
