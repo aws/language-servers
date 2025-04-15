@@ -67,7 +67,7 @@ describe('LocalProjectContextController', () => {
 
     describe('init', () => {
         it('should initialize vector library successfully', async () => {
-            await controller.init({ vectLib: vectorLibMock })
+            await controller.init({ vectorLib: vectorLibMock })
 
             sinonAssert.notCalled(logging.error)
             sinonAssert.called(vectorLibMock.start)
@@ -78,7 +78,7 @@ describe('LocalProjectContextController', () => {
         it('should handle initialization errors', async () => {
             vectorLibMock.start.rejects(new Error('Init failed'))
 
-            await controller.init({ vectLib: vectorLibMock })
+            await controller.init({ vectorLib: vectorLibMock })
 
             sinonAssert.called(logging.error)
         })
@@ -86,7 +86,7 @@ describe('LocalProjectContextController', () => {
 
     describe('queryVectorIndex', () => {
         beforeEach(async () => {
-            await controller.init({ vectLib: vectorLibMock })
+            await controller.init({ vectorLib: vectorLibMock })
         })
 
         it('should return empty array when vector library is not initialized', async () => {
@@ -117,7 +117,7 @@ describe('LocalProjectContextController', () => {
 
     describe('queryInlineProjectContext', () => {
         beforeEach(async () => {
-            await controller.init(vectorLibMock)
+            await controller.init({ vectorLib: vectorLibMock })
         })
 
         it('should return empty array when vector library is not initialized', async () => {
@@ -160,7 +160,7 @@ describe('LocalProjectContextController', () => {
 
     describe('updateIndex', () => {
         beforeEach(async () => {
-            await controller.init(vectorLibMock)
+            await controller.init({ vectorLib: vectorLibMock })
         })
 
         it('should do nothing when vector library is not initialized', async () => {
@@ -191,7 +191,7 @@ describe('LocalProjectContextController', () => {
 
     describe('dispose', () => {
         it('should clear and remove vector library reference', async () => {
-            await controller.init(vectorLibMock)
+            await controller.init({ vectorLib: vectorLibMock })
             await controller.dispose()
 
             const vecLib = await vectorLibMock.start()
