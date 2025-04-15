@@ -9,47 +9,17 @@ import { ChatSessionManagementService } from '../chat/chatSessionManagementServi
 import { CLEAR_QUICK_ACTION, HELP_QUICK_ACTION } from '../chat/quickActions'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import { makeUserContextObject } from '../../shared/telemetryUtils'
-import {
-    AmazonQBaseServiceManager,
-    QServiceManagerFeatures,
-} from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
-import { initBaseTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
-import { initBaseIAMServiceManager } from '../../shared/amazonQServiceManager/AmazonQIAMServiceManager'
+import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 import { safeGet } from '../../shared/utils'
 import { AmazonQServiceInitializationError } from '../../shared/amazonQServiceManager/errors'
 import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
-import { Features } from '../types'
 
-export const QAgenticChatServerFactory =
-    (serviceManager: (features: QServiceManagerFeatures) => AmazonQBaseServiceManager): Server =>
-    ({
-        chat,
-        credentialsProvider,
-        lsp,
-        workspace,
-        telemetry,
-        logging,
-        runtime,
-        sdkInitializator,
-        identityManagement,
-        notification,
-        agent,
-    }) => {
-        const features: Features = {
-            chat,
-            credentialsProvider,
-            lsp,
-            workspace,
-            telemetry,
-            logging,
-            runtime,
-            sdkInitializator,
-            identityManagement,
-            notification,
-            agent,
-        }
+export const QAgenticChatServer =
+    // prettier-ignore
+    (): Server => features => {
+        const { chat, credentialsProvider, telemetry, logging, lsp, runtime } = features
         // AmazonQTokenServiceManager and TelemetryService are initialized in `onInitialized` handler to make sure Language Server connection is started
-        let amazonQServiceManager: AmazonQBaseServiceManager
+        let amazonQServiceManager: AmazonQTokenServiceManager
         let telemetryService: TelemetryService
 
         let chatController: AgenticChatController
@@ -79,7 +49,7 @@ export const QAgenticChatServerFactory =
 
         lsp.onInitialized(async () => {
             // Initialize service manager and inject it to chatSessionManagementService to pass it down
-            amazonQServiceManager = serviceManager(features)
+            amazonQServiceManager = AmazonQTokenServiceManager.getInstance(features)
             chatSessionManagementService =
                 ChatSessionManagementService.getInstance().withAmazonQServiceManager(amazonQServiceManager)
 
@@ -173,6 +143,3 @@ export const QAgenticChatServerFactory =
             chatController?.dispose()
         }
     }
-
-export const QAgenticChatServerIAM = QAgenticChatServerFactory(initBaseIAMServiceManager)
-export const QAgenticChatServerToken = QAgenticChatServerFactory(initBaseTokenServiceManager)

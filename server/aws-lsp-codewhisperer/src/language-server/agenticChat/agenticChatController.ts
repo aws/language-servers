@@ -3,7 +3,10 @@
  * Will be deleted or merged.
  */
 
-import { ChatTriggerType } from '@amzn/codewhisperer-streaming'
+import {
+    ChatTriggerType,
+    SendMessageCommandInput as SendMessageCommandInputCodeWhispererStreaming,
+} from '@amzn/codewhisperer-streaming'
 import {
     ApplyWorkspaceEditParams,
     ErrorCodes,
@@ -53,11 +56,10 @@ import {
     AmazonQServicePendingSigninError,
 } from '../../shared/amazonQServiceManager/errors'
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
-import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
 import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
-import { SendMessageCommandInput, SendMessageCommandOutput } from '../../shared/streamingClientService'
 import { TabBarController } from './tabBarController'
 import { ChatDatabase } from './tools/chatDb/chatDb'
+import { SendMessageCommandInput, SendMessageCommandOutput } from '../../shared/streamingClientService'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -78,7 +80,7 @@ export class AgenticChatController implements ChatHandlers {
     #triggerContext: QChatTriggerContext
     #customizationArn?: string
     #telemetryService: TelemetryService
-    #amazonQServiceManager?: AmazonQBaseServiceManager
+    #amazonQServiceManager?: AmazonQTokenServiceManager
     #tabBarController: TabBarController
     #chatHistoryDb: ChatDatabase
 
@@ -86,7 +88,7 @@ export class AgenticChatController implements ChatHandlers {
         chatSessionManagementService: ChatSessionManagementService,
         features: Features,
         telemetryService: TelemetryService,
-        amazonQServiceManager?: AmazonQBaseServiceManager
+        amazonQServiceManager?: AmazonQTokenServiceManager
     ) {
         this.#features = features
         this.#chatSessionManagementService = chatSessionManagementService
@@ -300,7 +302,7 @@ export class AgenticChatController implements ChatHandlers {
             }
 
             const client = this.#amazonQServiceManager.getStreamingClient()
-            response = await client.sendMessage(requestInput)
+            response = await client.sendMessage(requestInput as SendMessageCommandInputCodeWhispererStreaming)
             this.#log('Response for inline chat', JSON.stringify(response.$metadata), JSON.stringify(response))
         } catch (err) {
             if (err instanceof AmazonQServicePendingSigninError || err instanceof AmazonQServicePendingProfileError) {

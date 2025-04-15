@@ -1,4 +1,4 @@
-import { QAgenticChatServerFactory } from '../language-server/agenticChat/qAgenticChatServer'
+import { QAgenticChatServer } from '../language-server/agenticChat/qAgenticChatServer'
 import { SecurityScanServerToken } from '../language-server/securityScan/codeWhispererSecurityScanServer'
 import { CodewhispererServerFactory } from '../language-server/inline-completion/codeWhispererServer'
 import { CodeWhispererServiceToken } from './codeWhispererService'
@@ -29,7 +29,6 @@ export const QNetTransformServerTokenProxy = QNetTransformServerToken(
 export const QChatServerTokenProxy = QChatServerFactory(initBaseTokenServiceManager)
 export const QChatServerIAMProxy = QChatServerFactory(initBaseIAMServiceManager)
 
-export const QAgenticChatServerTokenProxy = QAgenticChatServerFactory(initBaseTokenServiceManager)
-export const QAgenticChatServerIAMProxy = QAgenticChatServerFactory(initBaseIAMServiceManager)
+export const QAgenticChatServerTokenProxy = QAgenticChatServer()
 
 export const QConfigurationServerTokenProxy = QConfigurationServerToken()
