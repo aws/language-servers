@@ -34,7 +34,10 @@ export const withAdapter = (
     }
 
     const eventHandlerWithAdapter: ChatEventHandler = {
-        onTabAdd: addDefaultRouting('onTabAdd'),
+        onTabAdd: (tabID: string) => {
+            customEventHandler.onTabAdd?.(tabID)
+            defaultEventHandler.onTabAdd?.(tabID)
+        },
         onTabChange: addDefaultRouting('onTabChange'),
         onBeforeTabRemove: addDefaultRouting('onBeforeTabRemove', true),
         onTabRemove: addDefaultRouting('onTabRemove'),
