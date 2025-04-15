@@ -3,10 +3,11 @@ import { Features } from '@aws/language-server-runtimes/server-interface/server'
 import { sanitize } from '@aws/lsp-core/out/util/path'
 import { Change, diffLines } from 'diff'
 
-// Port of https://github.com/aws/aws-toolkit-vscode/blob/8e00eefa33f4eee99eed162582c32c270e9e798e/packages/core/src/codewhispererChat/tools/fsWrite.ts#L42
+// Port of https://github.com/aws/aws-toolkit-vscode/blob/4cc64fcf279f47b1bd2ecd64de803abfed623c6d/packages/core/src/codewhispererChat/tools/fsWrite.ts#L42
 
 interface BaseParams {
     path: string
+    explanation?: string
 }
 
 export interface CreateParams extends BaseParams {
@@ -259,7 +260,15 @@ export class FsWrite {
         return {
             name: 'fsWrite',
             description:
-                'A tool for creating and editing a file.\n * The `create` command will override the file at `path` if it already exists as a file, and otherwise create a new file\n * The `append` command will add content to the end of an existing file, automatically adding a newline if the file does not end with one. The file must exist.\n Notes for using the `strReplace` command:\n * The `oldStr` parameter should match EXACTLY one or more consecutive lines from the original file. Be mindful of whitespaces!\n * If the `oldStr` parameter is not unique in the file, the replacement will not be performed. Make sure to include enough context in `oldStr` to make it unique\n * The `newStr` parameter should contain the edited lines that should replace the `oldStr`. The `insert` command will insert `newStr` after `insertLine` and place it on its own line.',
+                'A tool for creating and editing a file.\n * The `create` command will override the file at `path` if it already exists as a file, \
+                and otherwise create a new file\n * The `append` command will add content to the end of an existing file, \
+                automatically adding a newline if the file does not end with one. \
+                The file must exist.\n Notes for using the `strReplace` command:\n * \
+                The `oldStr` parameter should match EXACTLY one or more consecutive lines from the original file. Be mindful of whitespaces!\n * \
+                If the `oldStr` parameter is not unique in the file, the replacement will not be performed. \
+                Make sure to include enough context in `oldStr` to make it unique\n * \
+                The `newStr` parameter should contain the edited lines that should replace the `oldStr`. \
+                The `insert` command will insert `newStr` after `insertLine` and place it on its own line.',
             inputSchema: {
                 type: 'object',
                 properties: {
@@ -268,6 +277,11 @@ export class FsWrite {
                         enum: commands,
                         description:
                             'The commands to run. Allowed options are: `create`, `strReplace`, `insert`, `append`.',
+                    },
+                    explanation: {
+                        description:
+                            'One sentence explanation as to why this tool is being used, and how it contributes to the goal.',
+                        type: 'string',
                     },
                     fileText: {
                         description:
