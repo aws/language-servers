@@ -3,14 +3,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Features } from '@aws/language-server-runtimes/server-interface/server'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import sinon from 'ts-sinon'
 import * as assert from 'assert'
 import { TabBarController } from './tabBarController'
 import { ChatDatabase } from './tools/chatDb/chatDb'
 import { Tab } from './tools/chatDb/util'
-import { OpenTabParams, OpenTabResult } from '@aws/language-server-runtimes-types'
+import { ConversationItemGroup, OpenTabParams, OpenTabResult } from '@aws/language-server-runtimes-types'
+import { InitializeParams } from '@aws/language-server-runtimes/protocol'
 
 describe('TabBarController', () => {
     let testFeatures: TestFeatures
@@ -86,6 +86,101 @@ describe('TabBarController', () => {
             sinon.assert.calledOnce(clearTimeoutSpy)
             sinon.assert.calledWith(chatHistoryDb.searchMessages as sinon.SinonStub, 'second query')
         })
+
+        it('should attach Delete action to each conversation item in history', async () => {
+            const mockHistory: ConversationItemGroup[] = [
+                {
+                    items: [{ id: 'history1' }, { id: 'history2' }],
+                },
+            ]
+            ;(chatHistoryDb.getHistory as sinon.SinonStub).returns(mockHistory)
+
+            const result = await tabBarController.onListConversations({})
+
+            sinon.assert.calledOnce(chatHistoryDb.getHistory as sinon.SinonStub)
+            assert.deepStrictEqual(result.list, [
+                {
+                    items: [
+                        { id: 'history1', actions: [{ text: 'Delete', icon: 'trash', id: 'history1' }] },
+                        { id: 'history2', actions: [{ text: 'Delete', icon: 'trash', id: 'history2' }] },
+                    ],
+                },
+            ])
+        })
+
+        it('should attach Export action if client supports window.showSaveFileDialog protocol', async () => {
+            testFeatures.lsp.getClientInitializeParams.returns({
+                initializationOptions: {
+                    aws: {
+                        awsClientCapabilities: {
+                            window: {
+                                showSaveFileDialog: true,
+                            },
+                        },
+                    },
+                },
+            } as InitializeParams)
+            const mockHistory: ConversationItemGroup[] = [
+                {
+                    items: [{ id: 'history1' }, { id: 'history2' }],
+                },
+            ]
+            ;(chatHistoryDb.getHistory as sinon.SinonStub).returns(mockHistory)
+
+            const result = await tabBarController.onListConversations({})
+
+            sinon.assert.calledOnce(chatHistoryDb.getHistory as sinon.SinonStub)
+            assert.deepStrictEqual(result.list, [
+                {
+                    items: [
+                        {
+                            id: 'history1',
+                            actions: [
+                                { text: 'Export', icon: 'external', id: 'history1' },
+                                { text: 'Delete', icon: 'trash', id: 'history1' },
+                            ],
+                        },
+                        {
+                            id: 'history2',
+                            actions: [
+                                { text: 'Export', icon: 'external', id: 'history2' },
+                                { text: 'Delete', icon: 'trash', id: 'history2' },
+                            ],
+                        },
+                    ],
+                },
+            ])
+        })
+
+        it('should attach actions to each conversation item in history when search filter is applied', async () => {
+            const mockSearchResults: ConversationItemGroup[] = [
+                {
+                    items: [{ id: 'history1' }, { id: 'history2' }],
+                },
+            ]
+            ;(chatHistoryDb.searchMessages as sinon.SinonStub).returns(mockSearchResults)
+
+            const promise = tabBarController.onListConversations({
+                filter: {
+                    search: 'testsearch',
+                },
+            })
+
+            // Fast-forward the debounce timer
+            clock.tick(300)
+
+            const result = await promise
+
+            sinon.assert.calledOnce(chatHistoryDb.searchMessages as sinon.SinonStub)
+            assert.deepStrictEqual(result.list, [
+                {
+                    items: [
+                        { id: 'history1', actions: [{ text: 'Delete', icon: 'trash', id: 'history1' }] },
+                        { id: 'history2', actions: [{ text: 'Delete', icon: 'trash', id: 'history2' }] },
+                    ],
+                },
+            ])
+        })
     })
 
     describe('onConversationClick', () => {
@@ -124,6 +219,128 @@ describe('TabBarController', () => {
             const result = await tabBarController.onConversationClick({ id: historyId, action: 'delete' })
 
             sinon.assert.calledWith(chatHistoryDb.deleteHistory as sinon.SinonStub, historyId)
+            assert.strictEqual(result.success, true)
+        })
+    })
+
+    describe('export conversation', () => {
+        let showSaveFileDialogStub: sinon.SinonStub
+        let fsWriteFileStub: sinon.SinonStub
+
+        beforeEach(() => {
+            testFeatures.lsp.getClientInitializeParams.returns({
+                workspaceFolders: [
+                    {
+                        uri: 'file:///testworkspace',
+                        name: 'workspace',
+                    },
+                ],
+            } as InitializeParams)
+
+            showSaveFileDialogStub = sinon.stub().returns({
+                targetUri: 'file:///testworkspace/test.md',
+            })
+            testFeatures.lsp.window.showSaveFileDialog = showSaveFileDialogStub
+            fsWriteFileStub = sinon.stub()
+            testFeatures.workspace.fs.writeFile = fsWriteFileStub
+
+            testFeatures.chat.getSerializedChat.resolves({
+                content: 'Test Serialized Content',
+            })
+        })
+
+        it('should write serialized chat content to the location selected by user', async () => {
+            const historyId = 'history1'
+            const openTabId = 'tab1'
+            ;(chatHistoryDb.getOpenTabId as sinon.SinonStub).withArgs(historyId).returns(openTabId)
+
+            const result = await tabBarController.onConversationClick({ id: historyId, action: 'export' })
+
+            // Show SaveFile dialog to user with default filename
+            sinon.assert.calledWith(showSaveFileDialogStub, {
+                supportedFormats: ['markdown', 'html'],
+                defaultUri: 'file:///testworkspace/q-dev-chat-1970-01-01.md',
+            })
+
+            // Get serialized Chat content from Chat Client library
+            assert(
+                testFeatures.chat.getSerializedChat.calledWith({
+                    tabId: 'tab1',
+                    format: 'markdown',
+                })
+            )
+
+            // Write serialized content to file
+            sinon.assert.calledWith(fsWriteFileStub, '/testworkspace/test.md', 'Test Serialized Content')
+
+            assert.strictEqual(result.success, true)
+        })
+
+        it('should restore conversation tab and export conversation if tab was not opened', async () => {
+            const historyId = 'history1'
+            const mockTab = { historyId, conversations: [{ messages: [] }] } as unknown as Tab
+            const openTabId = 'tab1'
+            ;(chatHistoryDb.getOpenTabId as sinon.SinonStub)
+                .withArgs(historyId)
+                .onFirstCall()
+                .returns(null)
+                .onSecondCall()
+                .returns(openTabId)
+            ;(chatHistoryDb.getTab as sinon.SinonStub).withArgs(historyId).returns(mockTab)
+
+            const openTabStub = sinon.stub<[OpenTabParams], Promise<OpenTabResult>>().resolves({ tabId: 'newTabId' })
+            testFeatures.chat.openTab = openTabStub
+
+            const result = await tabBarController.onConversationClick({ id: historyId, action: 'export' })
+
+            sinon.assert.calledOnceWithExactly(chatHistoryDb.getTab as sinon.SinonStub, 'history1')
+
+            assert.strictEqual(result.success, true)
+        })
+
+        it('should fail if tab was not restored during export', async () => {
+            const historyId = 'history1'
+            const mockTab = { historyId, conversations: [{ messages: [] }] } as unknown as Tab
+            ;(chatHistoryDb.getOpenTabId as sinon.SinonStub)
+                .withArgs(historyId)
+                .onFirstCall()
+                .returns(null)
+                .onSecondCall()
+                .returns(null) // failed to restore tab
+            ;(chatHistoryDb.getTab as sinon.SinonStub).withArgs(historyId).returns(mockTab)
+
+            const openTabStub = sinon.stub<[OpenTabParams], Promise<OpenTabResult>>().resolves({ tabId: 'newTabId' })
+            testFeatures.chat.openTab = openTabStub
+
+            const result = await tabBarController.onConversationClick({ id: historyId, action: 'export' })
+
+            sinon.assert.calledOnceWithExactly(chatHistoryDb.getTab as sinon.SinonStub, 'history1')
+            sinon.assert.notCalled(showSaveFileDialogStub)
+            sinon.assert.notCalled(fsWriteFileStub)
+
+            assert.strictEqual(result.success, false)
+        })
+
+        it('should export conversation on tabBarAction call', async () => {
+            const result = await tabBarController.onTabBarAction({ tabId: 'tab1', action: 'export' })
+
+            // Show SaveFile dialog to user with default filename
+            sinon.assert.calledWith(showSaveFileDialogStub, {
+                supportedFormats: ['markdown', 'html'],
+                defaultUri: 'file:///testworkspace/q-dev-chat-1970-01-01.md',
+            })
+
+            // Get serialized Chat content from Chat Client library
+            assert(
+                testFeatures.chat.getSerializedChat.calledWith({
+                    tabId: 'tab1',
+                    format: 'markdown',
+                })
+            )
+
+            // Write serialized content to file
+            sinon.assert.calledWith(fsWriteFileStub, '/testworkspace/test.md', 'Test Serialized Content')
+
             assert.strictEqual(result.success, true)
         })
     })

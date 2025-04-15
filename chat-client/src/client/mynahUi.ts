@@ -619,19 +619,33 @@ ${params.message}`,
 
     const getSerializedChat = (requestId: string, params: GetSerializedChatParams) => {
         const supportedFormats = ['markdown', 'html']
+
         if (!supportedFormats.includes(params.format)) {
             mynahUi.notify({
                 content: `Failed to export chat`,
                 type: NotificationType.ERROR,
             })
+
+            messager.onGetSerializedChat(requestId, {
+                type: 'InvalidRequest',
+                message: `Failed to get serialized chat content, ${params.format} is not supported`,
+            })
+
             return
         }
 
-        const serializedChat = mynahUi.serializeChat(params.tabId, params.format)
+        try {
+            const serializedChat = mynahUi.serializeChat(params.tabId, params.format)
 
-        messager.onGetSerializedChat(requestId, {
-            content: serializedChat,
-        })
+            messager.onGetSerializedChat(requestId, {
+                content: serializedChat,
+            })
+        } catch (err) {
+            messager.onGetSerializedChat(requestId, {
+                type: 'InternalError',
+                message: 'Failed to get serialized chat content',
+            })
+        }
     }
 
     const api = {

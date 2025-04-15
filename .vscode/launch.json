@@ -82,7 +82,7 @@
             "args": ["--extensionDevelopmentPath=${workspaceFolder}/client/vscode", "--disable-extensions"],
             "outFiles": ["${workspaceFolder}/client/vscode/out/**/*.js"],
             "env": {
-                "LSP_SERVER": "${workspaceFolder}/app/aws-lsp-codewhisperer-runtimes/out/agent-standalone.js",
+                "LSP_SERVER": "${workspaceFolder}/app/aws-lsp-codewhisperer-runtimes/out/token-standalone.js",
                 "ENABLE_INLINE_COMPLETION": "true",
                 "ENABLE_ENCRYPTION": "true",
                 "ENABLE_TOKEN_PROVIDER": "true",

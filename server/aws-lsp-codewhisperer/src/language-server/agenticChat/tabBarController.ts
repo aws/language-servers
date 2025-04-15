@@ -86,7 +86,6 @@ export class TabBarController {
                     placeholder: 'Search...',
                 },
             ],
-
             list,
         }
     }
@@ -107,6 +106,7 @@ export class TabBarController {
             icon: 'trash',
             id: historyId,
         })
+
         return actions
     }
 
@@ -166,6 +166,7 @@ export class TabBarController {
             return { ...params, success: true }
         }
 
+        this.#features.logging.error(`Unsupported action ${params.action}`)
         return { ...params, success: false }
     }
 
