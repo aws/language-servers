@@ -67,7 +67,6 @@ describe('ExecuteBash Tool', () => {
     })
 
     it('requires acceptance if the command references an absolute file path outside the workspace', async () => {
-        // Stub workspace folders to simulate a workspace at '/workspace/folder'
         const execBash = new ExecuteBash({
             ...features,
             workspace: {
@@ -102,7 +101,6 @@ describe('ExecuteBash Tool', () => {
     })
 
     it('does NOT require acceptance if there is no path-like token in the command', async () => {
-        // Stub workspace folders (even though they are not used in this case)
         const execBash = new ExecuteBash({
             ...features,
             workspace: {
