@@ -69,6 +69,11 @@ interface QInlineSuggestionsConfig {
 
 interface QProjectContextConfig {
     enableLocalIndexing: boolean // aws.q.projectContext.enableLocalIndexing
+    localIndexing?: {
+        includeSymlinks?: boolean
+        maxFileSizeMb?: number
+        maxIndexSizeMb?: number
+    }
 }
 
 interface QConfigSection {

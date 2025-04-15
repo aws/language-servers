@@ -13,7 +13,11 @@
         "test": "node scripts/test-runner.js"
     },
     "dependencies": {
+<<<<<<< HEAD
         "@aws/language-server-runtimes": "^0.2.63",
+=======
+        "@aws/language-server-runtimes": "^0.2.59",
+>>>>>>> dabd61e (feat: add configurable file indexing logic)
         "@aws/lsp-codewhisperer": "*",
         "copyfiles": "^2.4.1",
         "cross-env": "^7.0.3",

@@ -19,7 +19,8 @@ export const LocalProjectContextServer = (): Server => features => {
         localProjectContextController = new LocalProjectContextController(
             params.clientInfo?.name ?? 'unknown',
             params.workspaceFolders ?? [],
-            logging
+            logging,
+            params?.aws?.contextConfiguration?.workspaceIndexConfiguration
         )
 
         const supportedFilePatterns = Object.keys(languageByExtension).map(ext => `**/*${ext}`)
@@ -119,7 +120,11 @@ export const LocalProjectContextServer = (): Server => features => {
         try {
             logging.log(`Setting project context enabled to ${updatedConfig.projectContext?.enableLocalIndexing}`)
             updatedConfig.projectContext?.enableLocalIndexing
-                ? await localProjectContextController.init()
+                ? await localProjectContextController.init({
+                      includeSymlinks: updatedConfig.projectContext?.localIndexing?.includeSymlinks,
+                      maxFileSizeMb: updatedConfig.projectContext?.localIndexing?.maxFileSizeMb,
+                      maxIndexSizeMb: updatedConfig.projectContext?.localIndexing?.maxIndexSizeMb,
+                  })
                 : await localProjectContextController.dispose()
         } catch (error) {
             logging.error(`Error handling configuration change: ${error}`)
