@@ -39,7 +39,7 @@ import {
 } from '@aws/mynah-ui'
 import { VoteParams } from '../contracts/telemetry'
 import { Messager } from './messager'
-import { TabFactory } from './tabs/tabFactory'
+import { ExportTabBarButtonId, TabFactory } from './tabs/tabFactory'
 import { disclaimerAcknowledgeButtonId, disclaimerCard } from './texts/disclaimer'
 import { ChatClientAdapter, ChatEventHandler } from '../contracts/chatClientAdapter'
 import { withAdapter } from './withAdapter'
@@ -344,7 +344,7 @@ export const createMynahUi = (
                 return
             }
 
-            if (buttonId === 'export') {
+            if (buttonId === ExportTabBarButtonId) {
                 messager.onTabBarAction({
                     tabId,
                     action: 'export',

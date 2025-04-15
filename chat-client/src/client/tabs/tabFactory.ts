@@ -12,6 +12,8 @@ import { ChatHistory } from '../features/history'
 
 export type DefaultTabData = MynahUIDataModel
 
+export const ExportTabBarButtonId = 'export'
+
 export class TabFactory {
     private history: boolean = false
     private export: boolean = false
@@ -108,7 +110,7 @@ export class TabFactory {
 
         if (this.export) {
             tabBarButtons.push({
-                id: 'export',
+                id: ExportTabBarButtonId,
                 icon: MynahIcons.EXTERNAL,
                 description: 'Export chat',
             })

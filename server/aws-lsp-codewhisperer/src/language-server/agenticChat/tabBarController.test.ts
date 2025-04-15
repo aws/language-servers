@@ -181,6 +181,29 @@ describe('TabBarController', () => {
                 },
             ])
         })
+
+        it('does not attach actions to empty conversation list result', async () => {
+            const mockSearchResults: ConversationItemGroup[] = [
+                { items: [{ id: 'empty', description: 'No matches found' }] },
+            ]
+            ;(chatHistoryDb.searchMessages as sinon.SinonStub).returns(mockSearchResults)
+
+            const promise = tabBarController.onListConversations({
+                filter: {
+                    search: 'testsearch',
+                },
+            })
+
+            // Fast-forward the debounce timer
+            clock.tick(300)
+
+            const result = await promise
+
+            sinon.assert.calledOnce(chatHistoryDb.searchMessages as sinon.SinonStub)
+            assert.deepStrictEqual(result.list, [{ items: [{ id: 'empty', description: 'No matches found' }] }])
+            // @ts-ignore
+            assert.strictEqual(result.list[0].items[0].actions!, undefined)
+        })
     })
 
     describe('onConversationClick', () => {

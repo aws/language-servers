@@ -300,7 +300,7 @@ describe('Chat', () => {
     })
 
     describe('chatOptions', () => {
-        it('enables history feature support', () => {
+        it('enables history and export features support', () => {
             const chatOptionsRequest = createInboundEvent({
                 command: CHAT_OPTIONS,
                 params: {
@@ -314,6 +314,22 @@ describe('Chat', () => {
             assert.called(TabFactory.prototype.enableHistory)
             // @ts-ignore
             assert.called(TabFactory.prototype.enableExport)
+        })
+
+        it('does not enable history and export features support if flags are falsy', () => {
+            const chatOptionsRequest = createInboundEvent({
+                command: CHAT_OPTIONS,
+                params: {
+                    history: false,
+                    export: false,
+                },
+            })
+            window.dispatchEvent(chatOptionsRequest)
+
+            // @ts-ignore
+            assert.notCalled(TabFactory.prototype.enableHistory)
+            // @ts-ignore
+            assert.notCalled(TabFactory.prototype.enableExport)
         })
     })
 

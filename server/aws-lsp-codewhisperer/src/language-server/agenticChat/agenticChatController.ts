@@ -65,15 +65,7 @@ import { AgenticChatEventParser } from './agenticChatEventParser'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
-    | 'openTab'
-    | 'sendChatUpdate'
-    | 'onFileClicked'
-    | 'onInlineChatPrompt'
-    | 'sendContextCommands'
-    | 'onCreatePrompt'
-    | 'onListConversations'
-    | 'onConversationClick'
-    | 'getSerializedChat'
+    'openTab' | 'sendChatUpdate' | 'onFileClicked' | 'sendContextCommands' | 'onCreatePrompt' | 'getSerializedChat'
 >
 
 export class AgenticChatController implements ChatHandlers {

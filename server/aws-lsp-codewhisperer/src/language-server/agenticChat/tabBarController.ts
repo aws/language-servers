@@ -54,27 +54,34 @@ export class TabBarController {
         }
 
         const attachActionsToConversationList = (list: ConversationItemGroup[]) => {
-            list.forEach(group => {
-                group.items?.forEach(item => {
-                    item.actions = this.getConversationActions(item.id)
-                })
+            return list.map(group => {
+                const items =
+                    group.items?.map(item => ({
+                        ...item,
+                        ...(item.id !== 'empty' ? { actions: this.getConversationActions(item.id) } : {}),
+                    })) || []
+
+                return {
+                    ...group,
+                    ...(items.length > 0 ? { items } : {}),
+                }
             })
         }
 
         if (searchFilter) {
-            const list: ConversationItemGroup[] = await new Promise<any[]>(resolve => {
+            let list: ConversationItemGroup[] = await new Promise<any[]>(resolve => {
                 this.#searchTimeout = setTimeout(() => {
                     const results = this.#chatHistoryDb.searchMessages(searchFilter)
                     resolve(results)
                 }, this.#DebounceTime)
             })
-            attachActionsToConversationList(list)
+            list = attachActionsToConversationList(list)
 
             return { list }
         }
 
-        const list = this.#chatHistoryDb.getHistory()
-        attachActionsToConversationList(list)
+        let list = this.#chatHistoryDb.getHistory()
+        list = attachActionsToConversationList(list)
 
         return {
             header: { title: 'Chat history' },
