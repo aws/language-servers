@@ -443,7 +443,7 @@ export const WorkspaceContextServer =
             }
             const workspaceFolder = workspaceFolderManager.getWorkspaceFolder(params.moduleName)
             await dependencyDiscoverer.handleDependencyUpdateFromLSP(
-                JSON.parse(JSON.stringify(params))['programmingLanguage'], //todo, this needs to be changed to runtimeLanguage
+                params.runtimeLanguage,
                 params.paths,
                 workspaceFolder
             )
