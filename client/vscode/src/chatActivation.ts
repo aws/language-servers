@@ -206,7 +206,7 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri, 
                     const result = await responsePromise
 
                     if (result?.success) {
-                        return { tabId: result.result.tabId }
+                        return result.result
                     } else {
                         return new ResponseError(
                             mapErrorType(result?.error.type),
