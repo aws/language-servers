@@ -13,9 +13,9 @@ import { URI } from 'vscode-uri'
 
 const ignore = require('ignore')
 const { fdir } = require('fdir')
-
-const fs = require('fs').promises
+const fs = require('fs')
 const path = require('path')
+const readline = require('readline')
 const LIBRARY_DIR = path.join(dirname(require.main!.filename), 'indexing')
 
 export interface SizeConstraints {
@@ -26,6 +26,7 @@ export interface SizeConstraints {
 export interface LocalProjectContextInitializationOptions {
     vectorLib?: any
     ignoreFilePatterns?: string[]
+    respectUserGitIgnores?: boolean
     fileExtensions?: string[]
     includeSymlinks?: boolean
     maxFileSizeMb?: number
@@ -38,17 +39,18 @@ export class LocalProjectContextController {
     private workspaceFolders: WorkspaceFolder[]
     private _vecLib?: VectorLibAPI
     private readonly clientName: string
-    private readonly log: Logging
+    private readonly log?: Logging
 
     private readonly workspaceIndexConfiguration?: WorkspaceIndexConfiguration
     private includeSymlinks?: boolean
     private maxFileSizeMb?: number
     private maxIndexSizeMb?: number
+    private respectUserGitIgnores?: boolean
 
     constructor(
         clientName: string,
         workspaceFolders: WorkspaceFolder[],
-        logging: Logging,
+        logging?: Logging,
         workspaceIndexConfiguration?: WorkspaceIndexConfiguration
     ) {
         this.workspaceFolders = workspaceFolders
@@ -66,6 +68,7 @@ export class LocalProjectContextController {
 
     public async init({
         vectorLib,
+        respectUserGitIgnores = true,
         includeSymlinks = false,
         maxFileSizeMb = 10,
         maxIndexSizeMb = 100,
@@ -74,6 +77,7 @@ export class LocalProjectContextController {
             this.includeSymlinks = includeSymlinks
             this.maxFileSizeMb = maxFileSizeMb
             this.maxIndexSizeMb = maxIndexSizeMb
+            this.respectUserGitIgnores = respectUserGitIgnores
 
             const vecLib = vectorLib ?? (await import(path.join(LIBRARY_DIR, 'dist', 'extension.js')))
             const root = this.findCommonWorkspaceRoot(this.workspaceFolders)
@@ -81,7 +85,7 @@ export class LocalProjectContextController {
             await this.buildIndex()
             LocalProjectContextController.instance = this
         } catch (error) {
-            this.log.error('Vector library failed to initialize:' + error)
+            this.log?.error('Vector library failed to initialize:' + error)
         }
     }
 
@@ -100,7 +104,7 @@ export class LocalProjectContextController {
         try {
             await this._vecLib?.updateIndexV2(filePaths, operation)
         } catch (error) {
-            this.log.error(`Error updating index: ${error}`)
+            this.log?.error(`Error updating index: ${error}`)
         }
     }
 
@@ -110,6 +114,7 @@ export class LocalProjectContextController {
                 const sourceFiles = await this.processWorkspaceFolders(
                     this.workspaceFolders,
                     this.workspaceIndexConfiguration?.ignoreFilePatterns,
+                    this.respectUserGitIgnores,
                     this.includeSymlinks,
                     this.workspaceIndexConfiguration?.fileExtensions,
                     this.maxFileSizeMb,
@@ -119,7 +124,7 @@ export class LocalProjectContextController {
                 await this._vecLib?.buildIndex(sourceFiles, rootDir, 'all')
             }
         } catch (error) {
-            this.log.error(`Error building index: ${error}`)
+            this.log?.error(`Error building index: ${error}`)
         }
     }
 
@@ -139,7 +144,7 @@ export class LocalProjectContextController {
                 await this.buildIndex()
             }
         } catch (error) {
-            this.log.error(`Error in updateWorkspaceFolders: ${error}`)
+            this.log?.error(`Error in updateWorkspaceFolders: ${error}`)
         }
     }
 
@@ -154,7 +159,7 @@ export class LocalProjectContextController {
             const resp = await this._vecLib?.queryInlineProjectContext(request.query, request.filePath, request.target)
             return resp ?? []
         } catch (error) {
-            this.log.error(`Error in queryInlineProjectContext: ${error}`)
+            this.log?.error(`Error in queryInlineProjectContext: ${error}`)
             return []
         }
     }
@@ -168,25 +173,25 @@ export class LocalProjectContextController {
             const resp = await this._vecLib?.queryVectorIndex(request.query)
             return resp ?? []
         } catch (error) {
-            this.log.error(`Error in queryVectorIndex: ${error}`)
+            this.log?.error(`Error in queryVectorIndex: ${error}`)
             return []
         }
     }
 
-    private async fileMeetsFileSizeConstraints(filePath: string, sizeConstraints: SizeConstraints): Promise<boolean> {
-        let fileSize: number
+    private fileMeetsFileSizeConstraints(filePath: string, sizeConstraints: SizeConstraints): boolean {
+        let fileSize
 
         try {
-            const stats = await fs.promises.stat(filePath)
-            fileSize = stats.size
+            fileSize = fs.statSync(filePath).size
         } catch (error) {
-            this.log.error(`Error reading file size for ${filePath}: ${error}`)
+            this.log?.error(`Error reading file size for ${filePath}: ${error}`)
             return false
         }
 
         if (fileSize > sizeConstraints.maxFileSize || fileSize > sizeConstraints.remainingIndexSize) {
             return false
         }
+
         sizeConstraints.remainingIndexSize -= fileSize
         return true
     }
@@ -194,8 +199,9 @@ export class LocalProjectContextController {
     public async processWorkspaceFolders(
         workspaceFolders?: WorkspaceFolder[] | null,
         ignoreFilePatterns?: string[],
+        respectUserGitIgnores?: boolean,
         includeSymLinks?: boolean,
-        fileExtensions: string[] = Object.keys(languageByExtension),
+        fileExtensions?: string[],
         maxFileSizeMb?: number,
         maxIndexSizeMb?: number
     ): Promise<string[]> {
@@ -204,44 +210,97 @@ export class LocalProjectContextController {
         }
 
         const filter = ignore().add(ignoreFilePatterns ?? [])
-
         const sizeConstraints: SizeConstraints = {
             maxFileSize: maxFileSizeMb !== undefined ? maxFileSizeMb * 1024 * 1024 : Infinity,
             remainingIndexSize: maxIndexSizeMb !== undefined ? maxIndexSizeMb * 1024 * 1024 : Infinity,
         }
-        const controller = new AbortController()
-        const { signal } = controller
 
         const workspaceSourceFiles = await Promise.all(
             workspaceFolders.map(async (folder: WorkspaceFolder) => {
                 const absolutePath = path.resolve(URI.parse(folder.uri).fsPath)
+                const localGitIgnoreFiles: string[] = []
 
                 const crawler = new fdir()
                     .withSymlinks({ resolvePaths: !includeSymLinks })
                     .exclude((dirName: string, dirPath: string) => {
                         return filter.ignores(path.relative(absolutePath, dirPath))
                     })
-                    .glob(fileExtensions?.map(ext => `**/*${ext}`) ?? [])
-                    .withAbortSignal(signal)
-                    .filter(async (filePath: string, isDirectory: boolean) => {
-                        if (sizeConstraints.remainingIndexSize <= 0) {
-                            controller.abort()
-                            return false
-                        }
-
+                    .glob([...(fileExtensions?.map(ext => `**/*${ext}`) ?? []), '**/.gitignore'])
+                    .filter((filePath: string, isDirectory: boolean) => {
                         if (isDirectory || filter.ignores(path.relative(absolutePath, filePath))) {
                             return false
                         }
 
-                        return (
-                            (maxFileSizeMb === undefined && maxIndexSizeMb === undefined) ||
-                            this.fileMeetsFileSizeConstraints(filePath, sizeConstraints)
-                        )
+                        if (path.basename(filePath) === '.gitignore') {
+                            localGitIgnoreFiles.push(filePath)
+                            return false
+                        }
+
+                        return true
                     })
 
-                return await crawler.crawl(absolutePath).withPromise()
+                return crawler
+                    .crawl(absolutePath)
+                    .withPromise()
+                    .then(async (sourceFiles: string[]) => {
+                        if (!respectUserGitIgnores) {
+                            return sourceFiles
+                        }
+                        const userGitIgnoreFilterByFile = new Map(
+                            await Promise.all(
+                                localGitIgnoreFiles.map(async filePath => {
+                                    const lines: string[] = []
+                                    try {
+                                        const fileStream = fs.createReadStream(filePath)
+                                        const rl = readline.createInterface({
+                                            input: fileStream,
+                                            crlfDelay: Infinity,
+                                        })
+
+                                        for await (const line of rl) {
+                                            if (line && !line.startsWith('#')) {
+                                                lines.push(line.trim())
+                                            }
+                                        }
+                                    } catch (error) {
+                                        this.log?.error(`Error reading .gitignore file ${filePath}: ${error}`)
+                                    }
+                                    return [filePath, ignore().add(lines)] as const
+                                })
+                            )
+                        )
+
+                        return sourceFiles.reduce((filteredSourceFiles, filePath) => {
+                            if (
+                                maxFileSizeMb !== undefined &&
+                                maxIndexSizeMb !== undefined &&
+                                sizeConstraints.remainingIndexSize <= 0
+                            ) {
+                                return filteredSourceFiles
+                            }
+
+                            const isIgnored = [...userGitIgnoreFilterByFile].some(
+                                ([gitIgnorePath, filter]: [string, any]) => {
+                                    const gitIgnoreDir = path.dirname(path.resolve(gitIgnorePath))
+                                    const relativePath = path.relative(gitIgnoreDir, filePath)
+
+                                    return !relativePath.startsWith('..') && filter.ignores(relativePath)
+                                }
+                            )
+
+                            if (
+                                !isIgnored &&
+                                ((maxFileSizeMb === undefined && maxIndexSizeMb === undefined) ||
+                                    this.fileMeetsFileSizeConstraints(filePath, sizeConstraints))
+                            ) {
+                                filteredSourceFiles.push(filePath)
+                            }
+
+                            return filteredSourceFiles
+                        }, [] as string[])
+                    })
             })
-        ).then(files => files.flat())
+        ).then(nestedFilePaths => nestedFilePaths.flat())
 
         return workspaceSourceFiles
     }

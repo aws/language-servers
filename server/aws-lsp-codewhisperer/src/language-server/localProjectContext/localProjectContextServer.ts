@@ -121,6 +121,7 @@ export const LocalProjectContextServer = (): Server => features => {
             logging.log(`Setting project context enabled to ${updatedConfig.projectContext?.enableLocalIndexing}`)
             updatedConfig.projectContext?.enableLocalIndexing
                 ? await localProjectContextController.init({
+                      respectUserGitIgnores: updatedConfig.projectContext?.localIndexing?.respectUserGitIgnores,
                       includeSymlinks: updatedConfig.projectContext?.localIndexing?.includeSymlinks,
                       maxFileSizeMb: updatedConfig.projectContext?.localIndexing?.maxFileSizeMb,
                       maxIndexSizeMb: updatedConfig.projectContext?.localIndexing?.maxIndexSizeMb,

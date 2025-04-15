@@ -67,7 +67,7 @@ describe('LocalProjectContextController', () => {
 
     describe('init', () => {
         it('should initialize vector library successfully', async () => {
-            await controller.init(vectorLibMock)
+            await controller.init({ vectLib: vectorLibMock })
 
             sinonAssert.notCalled(logging.error)
             sinonAssert.called(vectorLibMock.start)
