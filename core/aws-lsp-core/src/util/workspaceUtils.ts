@@ -79,3 +79,9 @@ export function formatListing(entry: Dirent): string {
 export function getEntryPath(entry: Dirent) {
     return path.join(entry.parentPath, entry.name)
 }
+
+// TODO: port this to runtimes?
+export async function inWorkspace(workspace: Features['workspace'], filepath: string) {
+    const r = await workspace.getTextDocument(filepath)
+    return r !== undefined
+}
