@@ -39,7 +39,7 @@ export class LocalProjectContextController {
     private workspaceFolders: WorkspaceFolder[]
     private _vecLib?: VectorLibAPI
     private readonly clientName: string
-    private readonly log?: Logging
+    private readonly log: Logging
 
     private readonly workspaceIndexConfiguration?: WorkspaceIndexConfiguration
     private includeSymlinks?: boolean
@@ -50,7 +50,7 @@ export class LocalProjectContextController {
     constructor(
         clientName: string,
         workspaceFolders: WorkspaceFolder[],
-        logging?: Logging,
+        logging: Logging,
         workspaceIndexConfiguration?: WorkspaceIndexConfiguration
     ) {
         this.workspaceFolders = workspaceFolders
@@ -85,7 +85,7 @@ export class LocalProjectContextController {
             await this.buildIndex()
             LocalProjectContextController.instance = this
         } catch (error) {
-            this.log?.error('Vector library failed to initialize:' + error)
+            this.log.error('Vector library failed to initialize:' + error)
         }
     }
 
@@ -104,7 +104,7 @@ export class LocalProjectContextController {
         try {
             await this._vecLib?.updateIndexV2(filePaths, operation)
         } catch (error) {
-            this.log?.error(`Error updating index: ${error}`)
+            this.log.error(`Error updating index: ${error}`)
         }
     }
 
@@ -124,7 +124,7 @@ export class LocalProjectContextController {
                 await this._vecLib?.buildIndex(sourceFiles, rootDir, 'all')
             }
         } catch (error) {
-            this.log?.error(`Error building index: ${error}`)
+            this.log.error(`Error building index: ${error}`)
         }
     }
 
@@ -144,7 +144,7 @@ export class LocalProjectContextController {
                 await this.buildIndex()
             }
         } catch (error) {
-            this.log?.error(`Error in updateWorkspaceFolders: ${error}`)
+            this.log.error(`Error in updateWorkspaceFolders: ${error}`)
         }
     }
 
@@ -159,7 +159,7 @@ export class LocalProjectContextController {
             const resp = await this._vecLib?.queryInlineProjectContext(request.query, request.filePath, request.target)
             return resp ?? []
         } catch (error) {
-            this.log?.error(`Error in queryInlineProjectContext: ${error}`)
+            this.log.error(`Error in queryInlineProjectContext: ${error}`)
             return []
         }
     }
@@ -184,7 +184,7 @@ export class LocalProjectContextController {
         try {
             fileSize = fs.statSync(filePath).size
         } catch (error) {
-            this.log?.error(`Error reading file size for ${filePath}: ${error}`)
+            this.log.error(`Error reading file size for ${filePath}: ${error}`)
             return false
         }
 
@@ -263,7 +263,7 @@ export class LocalProjectContextController {
                                             }
                                         }
                                     } catch (error) {
-                                        this.log?.error(`Error reading .gitignore file ${filePath}: ${error}`)
+                                        this.log.error(`Error reading .gitignore file ${filePath}: ${error}`)
                                     }
                                     return [filePath, ignore().add(lines)] as const
                                 })
