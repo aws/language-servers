@@ -1,4 +1,4 @@
-// Port from VSC https://github.com/aws/aws-toolkit-vscode/blob/093d5bcbce777c88cf18c76b52738610263d1fc0/packages/core/src/codewhispererChat/tools/executeBash.ts#L134
+// Port from VSC https://github.com/aws/aws-toolkit-vscode/blob/741c2c481bcf0dca2d9554e32dc91d8514b1b1d1/packages/core/src/codewhispererChat/tools/executeBash.ts#L134
 
 import { InvokeOutput } from './toolShared'
 import { split } from 'shlex'
