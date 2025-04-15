@@ -3,7 +3,7 @@ import { FsRead } from './fsRead'
 import * as path from 'path'
 import * as fs from 'fs/promises'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
-import { Workspace } from '@aws/language-server-runtimes/server-interface'
+import { TextDocument, Workspace } from '@aws/language-server-runtimes/server-interface'
 import { testFolder } from '@aws/lsp-core'
 import { StubbedInstance } from 'ts-sinon'
 
@@ -63,6 +63,20 @@ describe('FsRead Tool', () => {
         )
     })
 
+    it('truncate output if too large', async () => {
+        const fileContent = 'A'.repeat(FsRead.maxResponseSize + 10)
+        const filePath = await tempFolder.write('largeFile.txt', fileContent)
+        const fsRead = new FsRead(features)
+        await fsRead.validate({ path: filePath })
+        const result = await fsRead.invoke({ path: filePath })
+        assert.strictEqual(result.output.kind, 'text', 'Output kind should be "text"')
+        assert.strictEqual(
+            result.output.content.length,
+            FsRead.maxResponseSize,
+            'Output should be truncated to the max size'
+        )
+    })
+
     it('reads entire file', async () => {
         const fileContent = 'Line 1\nLine 2\nLine 3'
         const filePath = await tempFolder.write('fullFile.txt', fileContent)
@@ -103,8 +117,40 @@ describe('FsRead Tool', () => {
                 chunks.push(c)
             },
         })
-        await fsRead.queueDescription({ path: 'this/is/my/path' }, stream)
+        await fsRead.queueDescription({ path: 'this/is/my/path' }, stream, true)
         assert.ok(chunks.length > 0)
         assert.ok(!stream.locked)
+    })
+
+    it('should require acceptance if fsPath is outside the workspace', async () => {
+        const fsRead = new FsRead({
+            ...features,
+            workspace: {
+                ...features.workspace,
+                getTextDocument: async s => undefined,
+            },
+        })
+        const result = await fsRead.requiresAcceptance({ path: '/not/in/workspace/file.txt' })
+        assert.equal(
+            result.requiresAcceptance,
+            true,
+            'Expected requiresAcceptance to be true for a path outside the workspace'
+        )
+    })
+
+    it('should not require acceptance if fsPath is inside the workspace', async () => {
+        const fsRead = new FsRead({
+            ...features,
+            workspace: {
+                ...features.workspace,
+                getTextDocument: async s => ({}) as TextDocument,
+            },
+        })
+        const result = await fsRead.requiresAcceptance({ path: '/workspace/folder/file.txt' })
+        assert.equal(
+            result.requiresAcceptance,
+            false,
+            'Expected requiresAcceptance to be false for a path inside the workspace'
+        )
     })
 })

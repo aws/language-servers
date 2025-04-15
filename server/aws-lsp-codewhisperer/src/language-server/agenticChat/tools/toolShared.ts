@@ -9,3 +9,8 @@ export interface InvokeOutput {
               content: object
           }
 }
+
+export interface CommandValidation {
+    requiresAcceptance: boolean
+    warning?: string
+}

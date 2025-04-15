@@ -1,6 +1,6 @@
 // Port from VSC https://github.com/aws/aws-toolkit-vscode/blob/093d5bcbce777c88cf18c76b52738610263d1fc0/packages/core/src/codewhispererChat/tools/executeBash.ts#L134
 
-import { InvokeOutput } from './toolShared'
+import { CommandValidation, InvokeOutput } from './toolShared'
 import { split } from 'shlex'
 import { Logging } from '@aws/language-server-runtimes/server-interface'
 import { processUtils } from '@aws/lsp-core'
@@ -120,11 +120,6 @@ export const highRiskCommandWarningMessage = '⚠️ WARNING: High risk command 
 export interface ExecuteBashParams {
     command: string
     cwd?: string
-}
-
-export interface CommandValidation {
-    requiresAcceptance: boolean
-    warning?: string
 }
 
 export class ExecuteBash {
