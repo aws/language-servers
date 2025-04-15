@@ -5,7 +5,6 @@ import { split } from 'shlex'
 import { Logging } from '@aws/language-server-runtimes/server-interface'
 import { processUtils, workspaceUtils } from '@aws/lsp-core'
 import { CancellationToken } from 'vscode-languageserver'
-import { getUserHomeDir, sanitize } from '@aws/lsp-core/out/util/path'
 import { ChildProcess, ChildProcessOptions } from '@aws/lsp-core/out/util/processUtils'
 // eslint-disable-next-line import/no-nodejs-modules
 import { isAbsolute, join } from 'path' // Safe to import on web since this is part of path-browserify
@@ -233,6 +232,7 @@ export class ExecuteBash {
         return arg.startsWith('/') || arg.startsWith('./') || arg.startsWith('../')
     }
 
+    // TODO: generalize cancellation logic for tools.
     public async invoke(
         params: ExecuteBashParams,
         updates?: WritableStream,
