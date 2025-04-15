@@ -28,3 +28,14 @@ export const HELP_MESSAGE = `I'm Amazon Q, a generative AI assistant. Learn more
 \n\n*For additional help, visit the [Amazon Q User Guide](${userGuideURL}).*`
 
 export const DEFAULT_HELP_FOLLOW_UP_PROMPT = 'How can Amazon Q help me?'
+
+export const DEFAULT_EXCLUDE_PATTERNS = [
+    // Dependency directories
+    'node_modules',
+    // Build outputs
+    'dist',
+    'build',
+    'out',
+    // OS specific files
+    '.DS_Store',
+]

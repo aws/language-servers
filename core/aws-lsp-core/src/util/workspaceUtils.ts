@@ -10,6 +10,7 @@ export async function readDirectoryRecursively(
     folderPath: string,
     options?: {
         maxDepth?: number
+        excludePatterns?: (string | RegExp)[]
         customFormatCallback?: (entry: Dirent) => string
         failOnError?: boolean
     }
@@ -46,10 +47,13 @@ export async function readDirectoryRecursively(
             features.logging.warn(errMsg)
             continue
         }
-
+        // TODO: add tests here
         for (const entry of entries) {
-            results.push(formatter(entry))
             const childPath = getEntryPath(entry)
+            if (options?.excludePatterns?.some(pattern => new RegExp(pattern).test(childPath))) {
+                continue
+            }
+            results.push(formatter(entry))
             if (entry.isDirectory() && (options?.maxDepth === undefined || depth < options?.maxDepth)) {
                 queue.push({ filepath: childPath, depth: depth + 1 })
             }
@@ -78,4 +82,10 @@ export function formatListing(entry: Dirent): string {
 
 export function getEntryPath(entry: Dirent) {
     return path.join(entry.parentPath, entry.name)
+}
+
+// TODO: port this to runtimes?
+export async function inWorkspace(workspace: Features['workspace'], filepath: string) {
+    const r = await workspace.getTextDocument(filepath)
+    return r !== undefined
 }

@@ -29,6 +29,24 @@ describe('ListDirectory Tool', () => {
         await tempFolder.delete()
     })
 
+    it('invalidates empty path', async () => {
+        const listDirectory = new ListDirectory(testFeatures)
+        await assert.rejects(
+            listDirectory.validate({ path: '', maxDepth: 0 }),
+            /Path cannot be empty/i,
+            'Expected an error about empty path'
+        )
+    })
+
+    it('invalidates negative maxDepth', async () => {
+        const listDirectory = new ListDirectory(testFeatures)
+        await assert.rejects(
+            listDirectory.validate({ path: '~', maxDepth: -1 }),
+            /MaxDepth cannot be negative/i,
+            'Expected an error about negative maxDepth'
+        )
+    })
+
     it('lists directory contents', async () => {
         await tempFolder.nest('subfolder')
         await tempFolder.write('fileA.txt', 'fileA content')
@@ -66,6 +84,25 @@ describe('ListDirectory Tool', () => {
         assert.ok(hasFileA, 'Should list fileA.txt in the directory output')
         assert.ok(hasSubfolder, 'Should list the subfolder in the directory output')
         assert.ok(hasFileB, 'Should list fileB.md in the subfolder in the directory output')
+    })
+
+    it('lists directory contents with ignored pattern', async () => {
+        await tempFolder.nest('node_modules')
+        await tempFolder.write('fileC.md', '# fileC')
+
+        const listDirectory = new ListDirectory(testFeatures)
+        await listDirectory.validate({ path: tempFolder.path })
+        const result = await listDirectory.invoke({ path: tempFolder.path })
+
+        assert.strictEqual(result.output.kind, 'text')
+        const lines = result.output.content.split('\n')
+        const hasNodeModules = lines.some(
+            (line: string | string[]) => line.includes('[DIR] ') && line.includes('node_modules')
+        )
+        const hasFileC = lines.some((line: string | string[]) => line.includes('[FILE] ') && line.includes('fileC.md'))
+
+        assert.ok(!hasNodeModules, 'Should not list node_modules in the directory output')
+        assert.ok(!hasFileC, 'Should not list fileC.md under node_modules in the directory output')
     })
 
     it('throws error if path does not exist', async () => {
