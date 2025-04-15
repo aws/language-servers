@@ -165,11 +165,6 @@ describe('withAdapter', () => {
 
     describe('Standard Events routing on tabId as first argument', () => {
         testEventHandler({
-            handlerName: 'onTabAdd',
-            args: ['__TAB_ID__'],
-        })
-
-        testEventHandler({
             handlerName: 'onTabChange',
             args: ['__TAB_ID__'],
         })
@@ -580,6 +575,13 @@ describe('withAdapter', () => {
                 sinon.assert.notCalled(customOnFormLinkClickHandler as sinon.SinonStub)
                 sinon.assert.calledOnceWithExactly(onFormLinkClickStub, 'https://example.com', mouseEvent, 'event-1')
             })
+        })
+
+        it('should call both custom and original onTabAdd handlers', () => {
+            mynahUiPropsWithAdapter.onTabAdd?.('__TAB_ID__')
+
+            sinon.assert.calledOnce(customEventHandlers.onTabAdd as sinon.SinonStub)
+            sinon.assert.calledOnce(defaultEventHandlers.onTabAdd as sinon.SinonStub)
         })
 
         it('should call both custom and original onReady handlers', () => {
