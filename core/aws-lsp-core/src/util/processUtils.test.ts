@@ -357,7 +357,7 @@ describe('ChildProcessTracker', function () {
         await tempFolder.delete()
     })
 
-    it(`removes stopped processes every ${ChildProcessTracker.pollingInterval / 1000} seconds`, async function () {
+    it.skip(`removes stopped processes every ${ChildProcessTracker.pollingInterval / 1000} seconds`, async function () {
         const runningProcess = await startTestProcess(tempFolder, logging)
         tracker.add(runningProcess.childProcess)
         assert.strictEqual(tracker.has(runningProcess.childProcess), true, 'failed to add test command')

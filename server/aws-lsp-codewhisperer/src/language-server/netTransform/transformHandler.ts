@@ -1,4 +1,4 @@
-import { CodeWhispererStreaming, ExportIntent } from '@amzn/codewhisperer-streaming'
+import { ExportIntent } from '@amzn/codewhisperer-streaming'
 import { Logging, Runtime, Workspace } from '@aws/language-server-runtimes/server-interface'
 import * as fs from 'fs'
 import got from 'got'
@@ -9,7 +9,6 @@ import {
     StopTransformationRequest,
     TransformationJob,
 } from '../../client/token/codewhispererbearertokenclient'
-import { CodeWhispererServiceToken } from '../../shared/codeWhispererService'
 import { ArtifactManager } from './artifactManager'
 import { getCWStartTransformRequest, getCWStartTransformResponse } from './converter'
 import {
@@ -29,21 +28,17 @@ import {
 import * as validation from './validation'
 import path = require('path')
 import AdmZip = require('adm-zip')
-import { Console } from 'console'
-import { supportedProjects, unsupportedViewComponents } from './resources/SupportedProjects'
-import { String } from 'aws-sdk/clients/codebuild'
-import { ProjectMetadata } from 'aws-sdk/clients/lookoutvision'
-import { httpstatus } from 'aws-sdk/clients/glacier'
+import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 
 const workspaceFolderName = 'artifactWorkspace'
 
 export class TransformHandler {
-    private client: CodeWhispererServiceToken
+    private serviceManager: AmazonQTokenServiceManager
     private workspace: Workspace
     private logging: Logging
     private runtime: Runtime
-    constructor(client: CodeWhispererServiceToken, workspace: Workspace, logging: Logging, runtime: Runtime) {
-        this.client = client
+    constructor(serviceManager: AmazonQTokenServiceManager, workspace: Workspace, logging: Logging, runtime: Runtime) {
+        this.serviceManager = serviceManager
         this.workspace = workspace
         this.logging = logging
         this.runtime = runtime
@@ -82,7 +77,9 @@ export class TransformHandler {
             const uploadId = await this.preTransformationUploadCode(payloadFilePath)
             const request = getCWStartTransformRequest(userInputrequest, uploadId, this.logging)
             this.logging.log('Sending request to start transform api: ' + JSON.stringify(request))
-            const response = await this.client.codeModernizerStartCodeTransformation(request)
+            const response = await this.serviceManager
+                .getCodewhispererService()
+                .codeModernizerStartCodeTransformation(request)
             this.logging.log('Received transformation job Id: ' + response?.transformationJobId)
             return getCWStartTransformResponse(
                 response,
@@ -122,7 +119,7 @@ export class TransformHandler {
         const sha256 = await ArtifactManager.getSha256Async(payloadFileName)
         let response: CreateUploadUrlResponse
         try {
-            response = await this.client.codeModernizerCreateUploadUrl({
+            response = await this.serviceManager.getCodewhispererService().codeModernizerCreateUploadUrl({
                 contentChecksum: sha256,
                 contentChecksumType: 'SHA_256',
                 uploadIntent: 'TRANSFORMATION',
@@ -192,7 +189,9 @@ export class TransformHandler {
             const getCodeTransformationRequest = {
                 transformationJobId: request.TransformationJobId,
             } as GetTransformationRequest
-            const response = await this.client.codeModernizerGetCodeTransformation(getCodeTransformationRequest)
+            const response = await this.serviceManager
+                .getCodewhispererService()
+                .codeModernizerGetCodeTransformation(getCodeTransformationRequest)
             this.logging.log('Transformation status: ' + response.transformationJob?.status)
             return {
                 TransformationJob: response.transformationJob,
@@ -211,9 +210,9 @@ export class TransformHandler {
                 const getCodeTransformationPlanRequest = {
                     transformationJobId: request.TransformationJobId,
                 } as GetTransformationRequest
-                const response = await this.client.codeModernizerGetCodeTransformationPlan(
-                    getCodeTransformationPlanRequest
-                )
+                const response = await this.serviceManager
+                    .getCodewhispererService()
+                    .codeModernizerGetCodeTransformationPlan(getCodeTransformationPlanRequest)
                 return {
                     TransformationPlan: response.transformationPlan,
                 } as GetTransformPlanResponse
@@ -247,7 +246,9 @@ export class TransformHandler {
                 this.logging.log(
                     'Sending CancelTransformRequest with job Id: ' + stopCodeTransformationRequest.transformationJobId
                 )
-                const response = await this.client.codeModernizerStopCodeTransformation(stopCodeTransformationRequest)
+                const response = await this.serviceManager
+                    .getCodewhispererService()
+                    .codeModernizerStopCodeTransformation(stopCodeTransformationRequest)
                 this.logging.log('Transformation status: ' + response.transformationStatus)
                 let status: CancellationJobStatus
                 switch (response.transformationStatus) {
@@ -293,7 +294,9 @@ export class TransformHandler {
         const getCodeTransformationRequest = {
             transformationJobId: request.TransformationJobId,
         } as GetTransformationRequest
-        let response = await this.client.codeModernizerGetCodeTransformation(getCodeTransformationRequest)
+        let response = await this.serviceManager
+            .getCodewhispererService()
+            .codeModernizerGetCodeTransformation(getCodeTransformationRequest)
         this.logging.log('Start polling for transformation plan.')
         this.logging.log('The valid status to exit polling are: ' + validExitStatus)
         this.logging.log('The failure status are: ' + failureStates)
@@ -308,7 +311,9 @@ export class TransformHandler {
                 const getCodeTransformationRequest = {
                     transformationJobId: request.TransformationJobId,
                 } as GetTransformationRequest
-                response = await this.client.codeModernizerGetCodeTransformation(getCodeTransformationRequest)
+                response = await this.serviceManager
+                    .getCodewhispererService()
+                    .codeModernizerGetCodeTransformation(getCodeTransformationRequest)
                 this.logging.log('Transformation status: ' + response.transformationJob?.status)
 
                 if (validExitStatus.includes(status)) {
@@ -350,10 +355,10 @@ export class TransformHandler {
         } as GetTransformResponse
     }
 
-    async downloadExportResultArchive(cwStreamingClient: CodeWhispererStreaming, exportId: string, saveToDir: string) {
+    async downloadExportResultArchive(exportId: string, saveToDir: string) {
         let result
         try {
-            result = await cwStreamingClient.exportResultArchive({
+            result = await this.serviceManager.getStreamingClient().client.exportResultArchive({
                 exportId,
                 exportIntent: ExportIntent.TRANSFORMATION,
             })

@@ -3,8 +3,10 @@ build
 .gradle
 .idea
 **/*.tgz
-!core/codewhisperer-streaming/amzn-codewhisperer-streaming-1.0.0.tgz
-!core/q-developer-streaming-client/amzn-amazon-q-developer-streaming-client-1.0.0.tgz
+!core/codewhisperer-streaming/amzn-codewhisperer-streaming-*.tgz
+!core/q-developer-streaming-client/amzn-amazon-q-developer-streaming-client-*.tgz
+!server/aws-lsp-codewhisperer/types/types-local-indexing-*.tgz
+
 .testresults/**
 
 # Visual Studio Related

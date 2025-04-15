@@ -6,6 +6,7 @@ import {
     QChatServerTokenProxy,
     QConfigurationServerTokenProxy,
     QNetTransformServerTokenProxy,
+    QLocalProjectContextServerTokenProxy,
 } from '@aws/lsp-codewhisperer'
 import { IdentityServer } from '@aws/lsp-identity'
 
@@ -23,6 +24,7 @@ const props: RuntimeProps = {
         QNetTransformServerTokenProxy,
         QChatServerTokenProxy,
         IdentityServer.create,
+        QLocalProjectContextServerTokenProxy,
     ],
     name: 'AWS CodeWhisperer',
 }

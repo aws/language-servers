@@ -1,6 +1,6 @@
 import { TriggerType } from '@aws/chat-client-ui-types'
-import { ChatTriggerType, UserIntent } from '@amzn/codewhisperer-streaming'
-import { ChatParams, CursorState, InlineChatParams } from '@aws/language-server-runtimes/server-interface'
+import { ChatTriggerType, UserIntent, Tool, ToolResult } from '@amzn/codewhisperer-streaming'
+import { BedrockTools, ChatParams, CursorState, InlineChatParams } from '@aws/language-server-runtimes/server-interface'
 import { Features } from '../../types'
 import { DocumentContext, DocumentContextExtractor } from './documentContext'
 import { SendMessageCommandInput } from '../../../shared/streamingClientService'
@@ -35,7 +35,8 @@ export class QChatTriggerContext {
         triggerContext: TriggerContext,
         chatTriggerType: ChatTriggerType,
         customizationArn?: string,
-        profileArn?: string
+        profileArn?: string,
+        tools: BedrockTools = []
     ): SendMessageCommandInput {
         const { prompt } = params
 
@@ -56,9 +57,13 @@ export class QChatTriggerContext {
                                               relativeFilePath: triggerContext.relativeFilePath,
                                           },
                                       },
+                                      tools,
                                   }
-                                : undefined,
+                                : {
+                                      tools,
+                                  },
                         userIntent: triggerContext.userIntent,
+                        origin: 'IDE',
                     },
                 },
                 customizationArn,
