@@ -1,4 +1,4 @@
-// VSC Port from https://github.com/aws/aws-toolkit-vscode/blob/741c2c481bcf0dca2d9554e32dc91d8514b1b1d1/packages/core/src/codewhispererChat/tools/listDirectory.ts#L19
+// Port from VSChttps://github.com/aws/aws-toolkit-vscode/blob/0eea1d8ca6e25243609a07dc2a2c31886b224baa/packages/core/src/codewhispererChat/tools/listDirectory.ts#L19
 import { CommandValidation, InvokeOutput, validatePath } from './toolShared'
 import { workspaceUtils } from '@aws/lsp-core'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
