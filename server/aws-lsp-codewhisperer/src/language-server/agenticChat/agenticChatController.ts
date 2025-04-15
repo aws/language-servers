@@ -74,6 +74,8 @@ type ChatHandlers = Omit<
     | 'onCreatePrompt'
     | 'onListConversations'
     | 'onConversationClick'
+    | 'onTabBarAction'
+    | 'getSerializedChat'
 >
 
 export class AgenticChatController implements ChatHandlers {
