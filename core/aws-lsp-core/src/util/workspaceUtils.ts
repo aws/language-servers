@@ -82,6 +82,5 @@ export function getEntryPath(entry: Dirent) {
 
 // TODO: port this to runtimes?
 export async function inWorkspace(workspace: Features['workspace'], filepath: string) {
-    const r = await workspace.getTextDocument(filepath)
-    return r !== undefined
+    return (await workspace.getTextDocument(filepath)) !== undefined
 }
