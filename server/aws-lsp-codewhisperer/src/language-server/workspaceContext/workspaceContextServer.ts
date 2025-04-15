@@ -16,6 +16,8 @@ import { DependencyDiscoverer } from './dependency/dependencyDiscoverer'
 import { getCodeWhispererLanguageIdFromPath } from '../../shared/languageDetection'
 import { CodeWhispererServiceToken } from '../../shared/codeWhispererService'
 import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../../shared/constants'
+import { makeUserContextObject } from '../../shared/telemetryUtils'
+import { safeGet } from '../../shared/utils'
 
 const Q_CONTEXT_CONFIGURATION_SECTION = 'aws.q.workspaceContext'
 
@@ -37,6 +39,8 @@ export const WorkspaceContextServer =
         let workspaceFolderManager: WorkspaceFolderManager
         let isWorkflowInitialized: boolean = false
         let isOptedIn: boolean = false
+        let abTestingEvaluated = false
+        let abTestingEnabled = false
 
         const awsQRegion = runtime.getConfiguration('AWS_Q_REGION') ?? DEFAULT_AWS_Q_REGION
         const awsQEndpointUrl = runtime.getConfiguration('AWS_Q_ENDPOINT_URL') ?? DEFAULT_AWS_Q_ENDPOINT_URL
@@ -133,48 +137,46 @@ export const WorkspaceContextServer =
             }
         }
 
-        let abTestingEvaluated = false
-        let abTestingEnabled = false
-
-        const isUserEligibleForWorkspaceContext = async () => {
-            // Early return if A/B testing was previously checked and user was not part of test
-            if (abTestingEvaluated && !abTestingEnabled) {
-                return false
+        const evaluateABTesting = async () => {
+            if (abTestingEvaluated) {
+                return
             }
 
-            // Check basic conditions first to avoid unnecessary API calls
-            if (
-                !isOptedIn ||
-                !isLoggedInUsingBearerToken(credentialsProvider) ||
-                workspaceFolderManager.getOptOutStatus()
-            ) {
-                return false
-            }
-
-            // Perform A/B testing check if not already done
-            if (!abTestingEvaluated) {
-                try {
-                    const featureEvaluations = await cwsprClient.listFeatureEvaluations({
-                        userContext: {
-                            ideCategory: 'VSCODE',
-                            operatingSystem: 'MAC',
-                            product: 'CodeWhisperer',
-                        },
-                    })
-                    // todo, use the result
-                    abTestingEnabled = true //featureEvaluations.some(feature => feature.enabled)
-                    abTestingEvaluated = true
-                } catch (error: any) {
-                    console.error('Error checking A/B status:', error.code)
-                    return false
+            try {
+                const clientParams = safeGet(lsp.getClientInitializeParams())
+                const userContext = makeUserContextObject(clientParams, runtime.platform, 'CodeWhisperer') ?? {
+                    ideCategory: 'VSCODE',
+                    operatingSystem: 'MAC',
+                    product: 'CodeWhisperer',
                 }
-            }
 
-            return abTestingEnabled
+                const result = await cwsprClient.listFeatureEvaluations({ userContext })
+                abTestingEnabled =
+                    result.featureEvaluations?.some(
+                        feature =>
+                            feature.feature === 'ServiceSideWorkspaceContext' && feature.variation === 'TREATMENT'
+                    ) ?? false
+                logging.log(`A/B testing enabled: ${abTestingEnabled}`)
+                abTestingEvaluated = true
+            } catch (error: any) {
+                logging.error(`Error while checking A/B status: ${error.code}`)
+                abTestingEnabled = false
+                abTestingEvaluated = true
+            }
+        }
+
+        const isUserEligibleForWorkspaceContext = () => {
+            return (
+                isOptedIn &&
+                isLoggedInUsingBearerToken(credentialsProvider) &&
+                abTestingEnabled &&
+                !workspaceFolderManager.getOptOutStatus()
+            )
         }
 
         lsp.onInitialized(async params => {
             await updateConfiguration()
+
             lsp.workspace.onDidChangeWorkspaceFolders(async params => {
                 const addedFolders = params.event.added
 
@@ -194,11 +196,11 @@ export const WorkspaceContextServer =
 
                 workspaceFolderManager.updateWorkspaceFolders(workspaceFolders)
 
-                if (!isOptedIn) {
+                if (!isUserEligibleForWorkspaceContext()) {
                     return
                 }
 
-                if (addedFolders.length > 0 && isLoggedInUsingBearerToken(credentialsProvider)) {
+                if (addedFolders.length > 0) {
                     await workspaceFolderManager.processNewWorkspaceFolders(addedFolders)
                 }
                 if (removedFolders.length > 0) {
@@ -220,6 +222,12 @@ export const WorkspaceContextServer =
                 const isLoggedIn = isLoggedInUsingBearerToken(credentialsProvider)
                 if (isLoggedIn && !isWorkflowInitialized) {
                     isWorkflowInitialized = true
+
+                    await evaluateABTesting()
+                    if (!isUserEligibleForWorkspaceContext()) {
+                        return
+                    }
+
                     logging.log(`Workspace context workflow initialized`)
                     artifactManager.updateWorkspaceFolders(workspaceFolders)
                     workspaceFolderManager.processNewWorkspaceFolders(workspaceFolders).catch(error => {
@@ -239,7 +247,7 @@ export const WorkspaceContextServer =
         lsp.didChangeConfiguration(updateConfiguration)
 
         lsp.onDidSaveTextDocument(async event => {
-            if (!(await isUserEligibleForWorkspaceContext())) {
+            if (!isUserEligibleForWorkspaceContext()) {
                 return
             }
 
@@ -282,7 +290,7 @@ export const WorkspaceContextServer =
         })
 
         lsp.workspace.onDidCreateFiles(async event => {
-            if (!(await isUserEligibleForWorkspaceContext())) {
+            if (!isUserEligibleForWorkspaceContext()) {
                 return
             }
 
@@ -337,7 +345,7 @@ export const WorkspaceContextServer =
         })
 
         lsp.workspace.onDidDeleteFiles(async event => {
-            if (!(await isUserEligibleForWorkspaceContext())) {
+            if (!isUserEligibleForWorkspaceContext()) {
                 return
             }
 
@@ -384,7 +392,7 @@ export const WorkspaceContextServer =
         })
 
         lsp.workspace.onDidRenameFiles(async event => {
-            if (!(await isUserEligibleForWorkspaceContext())) {
+            if (!isUserEligibleForWorkspaceContext()) {
                 return
             }
 
@@ -430,10 +438,7 @@ export const WorkspaceContextServer =
         })
 
         lsp.extensions.onDidChangeDependencyPaths(async params => {
-            if (!(await isUserEligibleForWorkspaceContext())) {
-                return
-            }
-            if (!isOptedIn) {
+            if (!isUserEligibleForWorkspaceContext()) {
                 return
             }
             const workspaceFolder = workspaceFolderManager.getWorkspaceFolder(params.moduleName)
