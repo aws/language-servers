@@ -32,25 +32,30 @@ export class FsRead {
         this.logging.debug(`Validation succeeded for path: ${params.path}`)
     }
 
-    public async queueDescription(params: FsReadParams, updates: WritableStream) {
+    public async queueDescription(params: FsReadParams, updates: WritableStream, requiresAcceptance: boolean) {
         const updateWriter = updates.getWriter()
-        await updateWriter.write(`Reading file: ${params.path}]`)
+        const closeWriter = async (w: WritableStreamDefaultWriter) => {
+            await w.close()
+            w.releaseLock()
+        }
+        if (!requiresAcceptance) {
+            await closeWriter(updateWriter)
+            return
+        }
+        await updateWriter.write(`Reading file: [${params.path}]`)
 
         const [start, end] = params.readRange ?? []
 
         if (start && end) {
             await updateWriter.write(`from line ${start} to ${end}`)
         } else if (start) {
-            if (start > 0) {
-                await updateWriter.write(`from line ${start} to end of file`)
-            } else {
-                await updateWriter.write(`${start} line from the end of file to end of file`)
-            }
+            const msg =
+                start > 0 ? `from line ${start} to end of file` : `${start} line from the end of file to end of file`
+            await updateWriter.write(msg)
         } else {
             await updateWriter.write('all lines')
         }
-        await updateWriter.close()
-        updateWriter.releaseLock()
+        await closeWriter(updateWriter)
     }
 
     public async invoke(params: FsReadParams): Promise<InvokeOutput> {
