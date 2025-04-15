@@ -165,9 +165,6 @@ export const createChat = (
                     }))
                     tabFactory.updateQuickActionCommands(quickActionCommandGroups)
                 }
-                if (params?.history) {
-                    tabFactory.enableHistory()
-                }
 
                 if (params?.history) {
                     tabFactory.enableHistory()

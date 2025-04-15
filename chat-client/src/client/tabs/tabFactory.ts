@@ -95,27 +95,6 @@ export class TabFactory {
         }
     }
 
-    private getTabBarActions(): TabBarMainAction[] {
-        const tabBarActions = []
-
-        if (this.history) {
-            tabBarActions.push({
-                id: ChatHistory.TabBarButtonId,
-                icon: MynahIcons.HISTORY,
-                description: 'View chat history',
-            })
-        }
-
-        if (this.export) {
-            tabBarActions.push({
-                id: 'export',
-                icon: MynahIcons.EXTERNAL,
-                description: 'Export chat',
-            })
-        }
-
-        return tabBarActions
-    }
     private getTabBarButtons(): TabBarMainAction[] | undefined {
         const tabBarButtons = [...(this.defaultTabData.tabBarButtons ?? [])]
 

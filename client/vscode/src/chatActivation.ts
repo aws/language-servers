@@ -404,7 +404,7 @@ function generateJS(webView: Webview, extensionUri: Uri): string {
     <script type="text/javascript" src="${entrypoint.toString()}" defer onload="init()"></script>
     <script type="text/javascript">
         const init = () => {
-            amazonQChat.createChat(acquireVsCodeApi(), {disclaimerAcknowledged: false, enableConversationExport: true});
+            amazonQChat.createChat(acquireVsCodeApi(), {disclaimerAcknowledged: false});
         }
     </script>
     `

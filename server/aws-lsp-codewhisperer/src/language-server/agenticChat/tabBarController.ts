@@ -134,8 +134,6 @@ export class TabBarController {
         } else if (params.action === 'delete') {
             this.#chatHistoryDb.deleteHistory(historyID)
         } else if (params.action === 'export') {
-            // 1. Get or restore Chat Client tab, if not opened
-
             let openTabID = this.#chatHistoryDb.getOpenTabId(historyID)
 
             // Restore tab if it is not open in Chat Client, this is needed to request serialized content from Chat Client later on.
@@ -184,7 +182,6 @@ export class TabBarController {
             defaultUri = URI.file(defaultFileName)
         }
 
-        // TODO: make it URI instead of filepath?
         const { targetUri } = await this.#features.lsp.window.showSaveFileDialog({
             supportedFormats: ['markdown', 'html'],
             defaultUri: defaultUri.toString(),
