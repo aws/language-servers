@@ -78,7 +78,7 @@ describe('LocalProjectContextController', () => {
         it('should handle initialization errors', async () => {
             vectorLibMock.start.rejects(new Error('Init failed'))
 
-            await controller.init(vectorLibMock)
+            await controller.init({ vectLib: vectorLibMock })
 
             sinonAssert.called(logging.error)
         })
@@ -86,7 +86,7 @@ describe('LocalProjectContextController', () => {
 
     describe('queryVectorIndex', () => {
         beforeEach(async () => {
-            await controller.init(vectorLibMock)
+            await controller.init({ vectLib: vectorLibMock })
         })
 
         it('should return empty array when vector library is not initialized', async () => {
