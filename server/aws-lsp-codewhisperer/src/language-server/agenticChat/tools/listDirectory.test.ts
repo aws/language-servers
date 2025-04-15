@@ -87,8 +87,8 @@ describe('ListDirectory Tool', () => {
     })
 
     it('lists directory contents with ignored pattern', async () => {
-        await tempFolder.nest('node_modules')
-        await tempFolder.write('fileC.md', '# fileC')
+        const nestedFolder = await tempFolder.nest('node_modules')
+        await nestedFolder.write('fileC.md', '# fileC')
 
         const listDirectory = new ListDirectory(testFeatures)
         await listDirectory.validate({ path: tempFolder.path })
