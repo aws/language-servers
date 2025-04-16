@@ -13,10 +13,6 @@ export const LocalProjectContextServer = (): Server => features => {
     let telemetryService: TelemetryService
 
     lsp.addInitializer((params: InitializeParams) => {
-        if (!params.workspaceFolders) {
-            throw new Error('Workspace folders are required')
-        }
-
         amazonQServiceManager = AmazonQTokenServiceManager.getInstance(features)
         telemetryService = new TelemetryService(amazonQServiceManager, credentialsProvider, telemetry, logging)
 
