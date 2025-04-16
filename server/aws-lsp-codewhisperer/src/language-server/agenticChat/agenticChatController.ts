@@ -222,7 +222,7 @@ export class AgenticChatController implements ChatHandlers {
         let finalResult: Result<AgenticChatResultWithMetadata, string> | null = null
         let iterationCount = 0
         const maxIterations = 10 // Safety limit to prevent infinite loops
-
+        const intermediateResults: Result<AgenticChatResultWithMetadata, string>[] = []
         metric.recordStart()
 
         while (iterationCount < maxIterations) {
@@ -249,6 +249,7 @@ export class AgenticChatController implements ChatHandlers {
                 }),
                 partialResultToken
             )
+            intermediateResults.push(result)
 
             // Store the conversation ID from the first response
             if (iterationCount === 1 && result.data?.conversationId) {
@@ -261,6 +262,12 @@ export class AgenticChatController implements ChatHandlers {
             if (pendingToolUses.length === 0) {
                 // No more tool uses, we're done
                 finalResult = result
+                if (finalResult.data) {
+                    finalResult.data.toolUses = intermediateResults
+                        .map(r => r.data?.toolUses)
+                        .filter(i => i !== undefined)
+                        .reduce((acc, curr) => ({ ...acc, ...curr }), {})
+                }
                 break
             }
 
@@ -399,7 +406,6 @@ export class AgenticChatController implements ChatHandlers {
         if (!result.success) {
             return new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, result.error)
         }
-
         const conversationId = session.conversationId
         this.#debug('Final session conversation id:', conversationId || '')
 
@@ -451,7 +457,10 @@ export class AgenticChatController implements ChatHandlers {
                         : undefined,
             })
         }
-
+        const toolUseLog = Object.values(result.data.toolUses)
+            .map(t => `- \`\`\`${JSON.stringify({ name: t.name, input: JSON.stringify(t.input) })}\`\`\`}`)
+            .join('\n')
+        result.data.chatResult.body = result.data.chatResult.body + '\n\n\nTools Used: \n' + toolUseLog
         return result.data.chatResult
     }
 
