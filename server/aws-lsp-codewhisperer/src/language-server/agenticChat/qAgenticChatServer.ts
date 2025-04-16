@@ -18,7 +18,7 @@ import { TabBarController } from './tabBarController'
 export const QAgenticChatServer =
     // prettier-ignore
     (): Server => features => {
-        const { chat, credentialsProvider, telemetry, logging, lsp, runtime } = features
+        const { chat, credentialsProvider, telemetry, logging, lsp, runtime, agent } = features
 
         let amazonQServiceManager: AmazonQTokenServiceManager
         let chatController: AgenticChatController
@@ -104,6 +104,22 @@ export const QAgenticChatServer =
         chat.onEndChat((...params) => {
             logging.log('Received end chat request')
             return chatController.onEndChat(...params)
+        })
+
+        agent.addTool({
+            name: 'count_input',
+            description: 'Count the length of the prompt',
+            inputSchema: {
+                type: 'object',
+                properties: {
+                    prompt: {
+                        type: 'string',
+                    },
+                },
+                required: ['prompt'],
+            },
+        } as const, async input => {
+            return input.prompt?.length
         })
 
         chat.onChatPrompt((...params) => {

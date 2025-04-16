@@ -154,6 +154,13 @@ describe('AgenticChatController', () => {
             rm: sinon.stub().resolves(),
         }
 
+        // Add agent with runTool method to testFeatures
+        testFeatures.agent = {
+            runTool: sinon.stub().resolves({}),
+            getTools: sinon.stub().returns([]),
+            addTool: sinon.stub().resolves(),
+        }
+
         // @ts-ignore
         const cachedInitializeParams: InitializeParams = {
             initializationOptions: {
@@ -302,6 +309,326 @@ describe('AgenticChatController', () => {
             const chatResult = await chatResultPromise
 
             sinon.assert.callCount(testFeatures.lsp.sendProgress, 0)
+            assert.deepStrictEqual(chatResult, expectedCompleteChatResult)
+        })
+
+        it('handles tool use responses and makes multiple requests', async () => {
+            // First response includes a tool use request
+            const mockToolUseId = 'mock-tool-use-id'
+            const mockToolName = 'mock-tool-name'
+            const mockToolInput = JSON.stringify({ param1: 'value1' })
+            const mockToolResult = { result: 'tool execution result' }
+
+            const mockToolUseResponseList: ChatResponseStream[] = [
+                {
+                    messageMetadataEvent: {
+                        conversationId: mockConversationId,
+                    },
+                },
+                {
+                    assistantResponseEvent: {
+                        content: 'I need to use a tool. ',
+                    },
+                },
+                {
+                    toolUseEvent: {
+                        toolUseId: mockToolUseId,
+                        name: mockToolName,
+                        input: mockToolInput,
+                        stop: true,
+                    },
+                },
+            ]
+
+            // Second response after tool execution
+            const mockFinalResponseList: ChatResponseStream[] = [
+                {
+                    messageMetadataEvent: {
+                        conversationId: mockConversationId,
+                    },
+                },
+                {
+                    assistantResponseEvent: {
+                        content: 'Hello ',
+                    },
+                },
+                {
+                    assistantResponseEvent: {
+                        content: 'World',
+                    },
+                },
+                {
+                    assistantResponseEvent: {
+                        content: '!',
+                    },
+                },
+            ]
+
+            // Reset the stub and set up to return different responses on consecutive calls
+            generateAssistantResponseStub.restore()
+            generateAssistantResponseStub = sinon.stub(CodeWhispererStreaming.prototype, 'generateAssistantResponse')
+
+            generateAssistantResponseStub.onFirstCall().returns(
+                Promise.resolve({
+                    $metadata: {
+                        requestId: mockMessageId,
+                    },
+                    generateAssistantResponseResponse: createIterableResponse(mockToolUseResponseList),
+                })
+            )
+
+            generateAssistantResponseStub.onSecondCall().returns(
+                Promise.resolve({
+                    $metadata: {
+                        requestId: mockMessageId,
+                    },
+                    generateAssistantResponseResponse: createIterableResponse(mockFinalResponseList),
+                })
+            )
+
+            // Reset the runTool stub
+            const runToolStub = testFeatures.agent.runTool as sinon.SinonStub
+            runToolStub.reset()
+            runToolStub.resolves(mockToolResult)
+
+            // Make the request
+            const chatResultPromise = chatController.onChatPrompt(
+                { tabId: mockTabId, prompt: { prompt: 'Hello with tool' } },
+                mockCancellationToken
+            )
+
+            const chatResult = await chatResultPromise
+
+            // Verify that generateAssistantResponse was called twice
+            sinon.assert.calledTwice(generateAssistantResponseStub)
+
+            // Verify that the tool was executed
+            sinon.assert.calledOnce(runToolStub)
+            sinon.assert.calledWith(runToolStub, mockToolName, JSON.parse(mockToolInput))
+
+            // Verify that the second request included the tool results in the userInputMessageContext
+            const secondCallArgs = generateAssistantResponseStub.secondCall.args[0]
+            assert.ok(
+                secondCallArgs.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext?.toolResults
+            )
+            assert.strictEqual(
+                secondCallArgs.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext?.toolResults
+                    .length,
+                1
+            )
+            assert.strictEqual(
+                secondCallArgs.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext
+                    ?.toolResults[0].toolUseId,
+                mockToolUseId
+            )
+            assert.strictEqual(
+                secondCallArgs.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext
+                    ?.toolResults[0].status,
+                'success'
+            )
+            assert.deepStrictEqual(
+                secondCallArgs.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext
+                    ?.toolResults[0].content[0].json,
+                { result: mockToolResult }
+            )
+
+            // Verify that the history was updated correctly
+            assert.ok(secondCallArgs.conversationState?.history)
+            assert.strictEqual(secondCallArgs.conversationState?.history.length, 2)
+            assert.ok(secondCallArgs.conversationState?.history[0].userInputMessage)
+            assert.ok(secondCallArgs.conversationState?.history[1].assistantResponseMessage)
+
+            // Verify the final result
+            assert.deepStrictEqual(chatResult, expectedCompleteChatResult)
+        })
+
+        it('handles multiple iterations of tool uses with proper history updates', async () => {
+            // First response includes a tool use request
+            const mockToolUseId1 = 'mock-tool-use-id-1'
+            const mockToolName1 = 'mock-tool-name-1'
+            const mockToolInput1 = JSON.stringify({ param1: 'value1' })
+            const mockToolResult1 = { result: 'tool execution result 1' }
+
+            // Second tool use in a subsequent response
+            const mockToolUseId2 = 'mock-tool-use-id-2'
+            const mockToolName2 = 'mock-tool-name-2'
+            const mockToolInput2 = JSON.stringify({ param2: 'value2' })
+            const mockToolResult2 = { result: 'tool execution result 2' }
+
+            // First response with first tool use
+            const mockFirstToolUseResponseList: ChatResponseStream[] = [
+                {
+                    messageMetadataEvent: {
+                        conversationId: mockConversationId,
+                    },
+                },
+                {
+                    assistantResponseEvent: {
+                        content: 'I need to use tool 1. ',
+                    },
+                },
+                {
+                    toolUseEvent: {
+                        toolUseId: mockToolUseId1,
+                        name: mockToolName1,
+                        input: mockToolInput1,
+                        stop: true,
+                    },
+                },
+            ]
+
+            // Second response with second tool use
+            const mockSecondToolUseResponseList: ChatResponseStream[] = [
+                {
+                    messageMetadataEvent: {
+                        conversationId: mockConversationId,
+                    },
+                },
+                {
+                    assistantResponseEvent: {
+                        content: 'Now I need to use tool 2. ',
+                    },
+                },
+                {
+                    toolUseEvent: {
+                        toolUseId: mockToolUseId2,
+                        name: mockToolName2,
+                        input: mockToolInput2,
+                        stop: true,
+                    },
+                },
+            ]
+
+            // Final response with complete answer
+            const mockFinalResponseList: ChatResponseStream[] = [
+                {
+                    messageMetadataEvent: {
+                        conversationId: mockConversationId,
+                    },
+                },
+                {
+                    assistantResponseEvent: {
+                        content: 'Hello ',
+                    },
+                },
+                {
+                    assistantResponseEvent: {
+                        content: 'World',
+                    },
+                },
+                {
+                    assistantResponseEvent: {
+                        content: '!',
+                    },
+                },
+            ]
+
+            // Reset the stub and set up to return different responses on consecutive calls
+            generateAssistantResponseStub.restore()
+            generateAssistantResponseStub = sinon.stub(CodeWhispererStreaming.prototype, 'generateAssistantResponse')
+
+            generateAssistantResponseStub.onFirstCall().returns(
+                Promise.resolve({
+                    $metadata: {
+                        requestId: mockMessageId,
+                    },
+                    generateAssistantResponseResponse: createIterableResponse(mockFirstToolUseResponseList),
+                })
+            )
+
+            generateAssistantResponseStub.onSecondCall().returns(
+                Promise.resolve({
+                    $metadata: {
+                        requestId: mockMessageId,
+                    },
+                    generateAssistantResponseResponse: createIterableResponse(mockSecondToolUseResponseList),
+                })
+            )
+
+            generateAssistantResponseStub.onThirdCall().returns(
+                Promise.resolve({
+                    $metadata: {
+                        requestId: mockMessageId,
+                    },
+                    generateAssistantResponseResponse: createIterableResponse(mockFinalResponseList),
+                })
+            )
+
+            // Reset the runTool stub
+            const runToolStub = testFeatures.agent.runTool as sinon.SinonStub
+            runToolStub.reset()
+            runToolStub.withArgs(mockToolName1, JSON.parse(mockToolInput1)).resolves(mockToolResult1)
+            runToolStub.withArgs(mockToolName2, JSON.parse(mockToolInput2)).resolves(mockToolResult2)
+
+            // Make the request
+            const chatResultPromise = chatController.onChatPrompt(
+                { tabId: mockTabId, prompt: { prompt: 'Hello with multiple tools' } },
+                mockCancellationToken
+            )
+
+            const chatResult = await chatResultPromise
+
+            // Verify that generateAssistantResponse was called three times
+            sinon.assert.calledThrice(generateAssistantResponseStub)
+
+            // Verify that the tools were executed
+            sinon.assert.calledTwice(runToolStub)
+            sinon.assert.calledWith(runToolStub, mockToolName1, JSON.parse(mockToolInput1))
+            sinon.assert.calledWith(runToolStub, mockToolName2, JSON.parse(mockToolInput2))
+
+            // Verify that the second request included the first tool results
+            const secondCallArgs = generateAssistantResponseStub.secondCall.args[0]
+            assert.ok(
+                secondCallArgs.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext?.toolResults
+            )
+            assert.strictEqual(
+                secondCallArgs.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext?.toolResults
+                    .length,
+                1
+            )
+            assert.strictEqual(
+                secondCallArgs.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext
+                    ?.toolResults[0].toolUseId,
+                mockToolUseId1
+            )
+
+            // Verify that the history was updated correctly after first tool use
+            assert.ok(secondCallArgs.conversationState?.history)
+            assert.strictEqual(secondCallArgs.conversationState?.history.length, 2)
+            assert.ok(secondCallArgs.conversationState?.history[0].userInputMessage)
+            assert.ok(secondCallArgs.conversationState?.history[1].assistantResponseMessage)
+            assert.strictEqual(
+                secondCallArgs.conversationState?.history[1].assistantResponseMessage?.content,
+                'I need to use tool 1. '
+            )
+
+            // Verify that the third request included the second tool results
+            const thirdCallArgs = generateAssistantResponseStub.thirdCall.args[0]
+            assert.ok(
+                thirdCallArgs.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext?.toolResults
+            )
+            assert.strictEqual(
+                thirdCallArgs.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext?.toolResults
+                    .length,
+                1
+            )
+            assert.strictEqual(
+                thirdCallArgs.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext
+                    ?.toolResults[0].toolUseId,
+                mockToolUseId2
+            )
+
+            // Verify that the history was updated correctly after second tool use
+            assert.ok(thirdCallArgs.conversationState?.history)
+            assert.strictEqual(thirdCallArgs.conversationState?.history.length, 4)
+            assert.ok(thirdCallArgs.conversationState?.history[2].userInputMessage)
+            assert.ok(thirdCallArgs.conversationState?.history[3].assistantResponseMessage)
+            assert.strictEqual(
+                thirdCallArgs.conversationState?.history[3].assistantResponseMessage?.content,
+                'Now I need to use tool 2. '
+            )
+
+            // Verify the final result
             assert.deepStrictEqual(chatResult, expectedCompleteChatResult)
         })
 
