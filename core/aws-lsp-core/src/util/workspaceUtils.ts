@@ -1,4 +1,5 @@
 import * as path from 'path'
+import { URI } from 'vscode-uri'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 
 type ElementType<T> = T extends (infer U)[] ? U : never
@@ -86,6 +87,5 @@ export function getEntryPath(entry: Dirent) {
 
 // TODO: port this to runtimes?
 export async function inWorkspace(workspace: Features['workspace'], filepath: string) {
-    const r = await workspace.getTextDocument(filepath)
-    return r !== undefined
+    return (await workspace.getTextDocument(URI.file(filepath).toString())) !== undefined
 }
