@@ -294,7 +294,7 @@ describe('TabBarController', () => {
             )
 
             // Write serialized content to file
-            sinon.assert.calledWith(fsWriteFileStub, '/testworkspace/test.md', 'Test Serialized Content')
+            sinon.assert.calledWith(fsWriteFileStub, 'file:///testworkspace/test.md', 'Test Serialized Content')
 
             assert.strictEqual(result.success, true)
         })
@@ -362,7 +362,7 @@ describe('TabBarController', () => {
             )
 
             // Write serialized content to file
-            sinon.assert.calledWith(fsWriteFileStub, '/testworkspace/test.md', 'Test Serialized Content')
+            sinon.assert.calledWith(fsWriteFileStub, 'file:///testworkspace/test.md', 'Test Serialized Content')
 
             assert.strictEqual(result.success, true)
         })
