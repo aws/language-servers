@@ -13,6 +13,7 @@ import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/A
 import { safeGet } from '../../shared/utils'
 import { AmazonQServiceInitializationError } from '../../shared/amazonQServiceManager/errors'
 import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
+import { TabBarController } from './tabBarController'
 
 export const QAgenticChatServer =
     // prettier-ignore
@@ -36,6 +37,8 @@ export const QAgenticChatServer =
                                 },
                             ],
                         },
+                        history: true,
+                        export: TabBarController.enableChatExport(params)
                     },
                 },
             }
@@ -131,6 +134,10 @@ export const QAgenticChatServer =
 
         chat.onConversationClick(params => {
             return chatController.onConversationClick(params)
+        })
+
+        chat.onTabBarAction(params => {
+            return chatController.onTabBarAction(params)
         })
 
         logging.log('Q Chat server has been initialized')

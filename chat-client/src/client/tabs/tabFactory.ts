@@ -12,8 +12,11 @@ import { ChatHistory } from '../features/history'
 
 export type DefaultTabData = MynahUIDataModel
 
+export const ExportTabBarButtonId = 'export'
+
 export class TabFactory {
     private history: boolean = false
+    private export: boolean = false
 
     public static generateUniqueId() {
         // from https://github.com/aws/mynah-ui/blob/a3799f47ca4b7c02850264e328539a40709a6858/src/helper/guid.ts#L6
@@ -63,6 +66,10 @@ export class TabFactory {
         this.history = true
     }
 
+    public enableExport() {
+        this.export = true
+    }
+
     public getDefaultTabData(): DefaultTabData {
         const tabData = {
             ...this.defaultTabData,
@@ -91,15 +98,24 @@ export class TabFactory {
     }
 
     private getTabBarButtons(): TabBarMainAction[] | undefined {
-        const historyButton = this.history
-            ? {
-                  id: ChatHistory.TabBarButtonId,
-                  icon: MynahIcons.HISTORY,
-                  description: 'View chat history',
-              }
-            : null
+        const tabBarButtons = [...(this.defaultTabData.tabBarButtons ?? [])]
 
-        const tabBarButtons = [...(this.defaultTabData.tabBarButtons ?? []), ...(historyButton ? [historyButton] : [])]
+        if (this.history) {
+            tabBarButtons.push({
+                id: ChatHistory.TabBarButtonId,
+                icon: MynahIcons.HISTORY,
+                description: 'View chat history',
+            })
+        }
+
+        if (this.export) {
+            tabBarButtons.push({
+                id: ExportTabBarButtonId,
+                icon: MynahIcons.EXTERNAL,
+                description: 'Export chat',
+            })
+        }
+
         return tabBarButtons.length ? tabBarButtons : undefined
     }
 }

@@ -59,5 +59,26 @@ describe('tabFactory', () => {
             }
             assert.deepEqual(result, expected)
         })
+
+        it('enabling export sets export tab bar button', () => {
+            const data = {
+                tabTitle: 'Chat',
+            }
+            const tabFactory = new TabFactory(data)
+            tabFactory.enableExport()
+            const result = tabFactory.getDefaultTabData()
+
+            const expected = {
+                ...data,
+                tabBarButtons: [
+                    {
+                        description: 'Export chat',
+                        icon: 'external',
+                        id: 'export',
+                    },
+                ],
+            }
+            assert.deepEqual(result, expected)
+        })
     })
 })

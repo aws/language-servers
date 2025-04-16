@@ -58,8 +58,8 @@ type ChatHandlers = Omit<
     | 'onCreatePrompt'
     | 'onListConversations'
     | 'onConversationClick'
-    | 'onTabBarAction'
     | 'getSerializedChat'
+    | 'onTabBarAction'
 >
 
 export class ChatController implements ChatHandlers {
