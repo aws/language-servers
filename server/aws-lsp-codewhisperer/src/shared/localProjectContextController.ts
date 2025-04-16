@@ -211,13 +211,15 @@ export class LocalProjectContextController {
         }
 
         const filter = ignore().add(ignoreFilePatterns ?? [])
-
-        maxFileSizeMb = Math.min(maxFileSizeMb !== undefined ? maxFileSizeMb : Infinity, this.DEFAULT_MAX_FILE_SIZE)
-        maxIndexSizeMb = Math.min(maxIndexSizeMb !== undefined ? maxIndexSizeMb : Infinity, this.DEFAULT_MAX_INDEX_SIZE)
-
         const sizeConstraints: SizeConstraints = {
-            maxFileSize: maxFileSizeMb * this.MB_TO_BYTES,
-            remainingIndexSize: maxIndexSizeMb * this.MB_TO_BYTES,
+            maxFileSize: Math.min(
+                (maxFileSizeMb ?? this.DEFAULT_MAX_FILE_SIZE) * this.MB_TO_BYTES,
+                this.DEFAULT_MAX_FILE_SIZE * this.MB_TO_BYTES
+            ),
+            remainingIndexSize: Math.min(
+                (maxIndexSizeMb ?? this.DEFAULT_MAX_FILE_SIZE) * this.MB_TO_BYTES,
+                this.DEFAULT_MAX_FILE_SIZE * this.MB_TO_BYTES
+            ),
         }
 
         const controller = new AbortController()
