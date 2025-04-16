@@ -46,7 +46,8 @@ export class LocalProjectContextController {
     private maxIndexSizeMb?: number
     private respectUserGitIgnores?: boolean
 
-    private readonly TWO_GB_IN_MB = 2048
+    private readonly DEFAULT_MAX_INDEX_SIZE = 2048
+    private readonly DEFAULT_MAX_FILE_SIZE = 10
     private readonly MB_TO_BYTES = 1024 * 1024
 
     constructor(
@@ -213,11 +214,12 @@ export class LocalProjectContextController {
 
         const filter = ignore().add(ignoreFilePatterns ?? [])
 
+        maxFileSizeMb = Math.min(maxFileSizeMb !== undefined ? maxFileSizeMb : Infinity, this.DEFAULT_MAX_FILE_SIZE)
+        maxIndexSizeMb = Math.min(maxIndexSizeMb !== undefined ? maxIndexSizeMb : Infinity, this.DEFAULT_MAX_INDEX_SIZE)
+
         const sizeConstraints: SizeConstraints = {
-            maxFileSize:
-                maxFileSizeMb !== undefined ? maxFileSizeMb * this.MB_TO_BYTES : this.TWO_GB_IN_MB * this.MB_TO_BYTES,
-            remainingIndexSize:
-                maxIndexSizeMb !== undefined ? maxIndexSizeMb * this.MB_TO_BYTES : this.TWO_GB_IN_MB * this.MB_TO_BYTES,
+            maxFileSize: maxFileSizeMb * this.MB_TO_BYTES,
+            remainingIndexSize: maxIndexSizeMb * this.MB_TO_BYTES,
         }
 
         const controller = new AbortController()
