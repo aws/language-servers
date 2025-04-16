@@ -15,7 +15,6 @@ const ignore = require('ignore')
 const { fdir } = require('fdir')
 const fs = require('fs')
 const path = require('path')
-const readline = require('readline')
 const LIBRARY_DIR = path.join(dirname(require.main!.filename), 'indexing')
 
 export interface SizeConstraints {
@@ -46,6 +45,9 @@ export class LocalProjectContextController {
     private maxFileSizeMb?: number
     private maxIndexSizeMb?: number
     private respectUserGitIgnores?: boolean
+
+    private readonly TWO_GB_IN_MB = 2048
+    private readonly MB_TO_BYTES = 1024 * 1024
 
     constructor(
         clientName: string,
@@ -210,9 +212,12 @@ export class LocalProjectContextController {
         }
 
         const filter = ignore().add(ignoreFilePatterns ?? [])
+
         const sizeConstraints: SizeConstraints = {
-            maxFileSize: maxFileSizeMb !== undefined ? maxFileSizeMb * 1024 * 1024 : Infinity,
-            remainingIndexSize: maxIndexSizeMb !== undefined ? maxIndexSizeMb * 1024 * 1024 : Infinity,
+            maxFileSize:
+                maxFileSizeMb !== undefined ? maxFileSizeMb * this.MB_TO_BYTES : this.TWO_GB_IN_MB * this.MB_TO_BYTES,
+            remainingIndexSize:
+                maxIndexSizeMb !== undefined ? maxIndexSizeMb * this.MB_TO_BYTES : this.TWO_GB_IN_MB * this.MB_TO_BYTES,
         }
 
         const workspaceSourceFiles = await Promise.all(
@@ -249,33 +254,26 @@ export class LocalProjectContextController {
                         const userGitIgnoreFilterByFile = new Map(
                             await Promise.all(
                                 localGitIgnoreFiles.map(async filePath => {
-                                    const lines: string[] = []
+                                    const filteredLines: string[] = []
                                     try {
-                                        const fileStream = fs.createReadStream(filePath)
-                                        const rl = readline.createInterface({
-                                            input: fileStream,
-                                            crlfDelay: Infinity,
-                                        })
+                                        const content: string = await fs.promises.readFile(filePath, 'utf-8')
+                                        const lines: string[] = content.split(/\r?\n/)
 
-                                        for await (const line of rl) {
+                                        for (const line of lines) {
                                             if (line && !line.startsWith('#')) {
-                                                lines.push(line.trim())
+                                                filteredLines.push(line.trim())
                                             }
                                         }
                                     } catch (error) {
                                         this.log?.error(`Error reading .gitignore file ${filePath}: ${error}`)
                                     }
-                                    return [filePath, ignore().add(lines)] as const
+                                    return [filePath, ignore().add(filteredLines)] as const
                                 })
                             )
                         )
 
                         return sourceFiles.reduce((filteredSourceFiles, filePath) => {
-                            if (
-                                maxFileSizeMb !== undefined &&
-                                maxIndexSizeMb !== undefined &&
-                                sizeConstraints.remainingIndexSize <= 0
-                            ) {
+                            if (sizeConstraints.remainingIndexSize <= 0) {
                                 return filteredSourceFiles
                             }
 
@@ -288,11 +286,7 @@ export class LocalProjectContextController {
                                 }
                             )
 
-                            if (
-                                !isIgnored &&
-                                ((maxFileSizeMb === undefined && maxIndexSizeMb === undefined) ||
-                                    this.fileMeetsFileSizeConstraints(filePath, sizeConstraints))
-                            ) {
+                            if (!isIgnored && this.fileMeetsFileSizeConstraints(filePath, sizeConstraints)) {
                                 filteredSourceFiles.push(filePath)
                             }
 
