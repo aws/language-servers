@@ -202,7 +202,7 @@ export class TabBarController {
             format,
         })
 
-        await this.#features.workspace.fs.writeFile(targetPath.toString(), content)
+        await this.#features.workspace.fs.writeFile(targetPath.path, content)
     }
 
     /**
