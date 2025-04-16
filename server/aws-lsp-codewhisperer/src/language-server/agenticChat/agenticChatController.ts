@@ -9,6 +9,7 @@ import {
     GenerateAssistantResponseCommandOutput,
     SendMessageCommandInput,
     SendMessageCommandOutput,
+    ToolResultContentBlock,
     ToolUse,
 } from '@amzn/codewhisperer-streaming'
 import { chatRequestType } from '@aws/language-server-runtimes/protocol'
@@ -213,7 +214,7 @@ export class AgenticChatController implements ChatHandlers {
         let currentRequestInput = { ...initialRequestInput }
         let finalResult: Result<AgenticChatResultWithMetadata, string> | null = null
         let iterationCount = 0
-        const maxIterations = 3 // Safety limit to prevent infinite loops
+        const maxIterations = 10 // Safety limit to prevent infinite loops
 
         metric.recordStart()
 
@@ -279,12 +280,9 @@ export class AgenticChatController implements ChatHandlers {
                 assistantResponseMessage: {
                     content: result.data?.chatResult.body,
                     toolUses: Object.keys(result.data?.toolUses!).map(k => ({
-                        input:
-                            typeof result.data!.toolUses[k].input === 'string'
-                                ? JSON.parse(result.data!.toolUses[k].input)
-                                : result.data!.toolUses[k].input,
-                        name: result.data!.toolUses[k].name,
                         toolUseId: result.data!.toolUses[k].toolUseId,
+                        name: result.data!.toolUses[k].name,
+                        input: result.data!.toolUses[k].input,
                     })),
                 },
             })
@@ -326,10 +324,9 @@ export class AgenticChatController implements ChatHandlers {
             if (!toolUse.name || !toolUse.toolUseId) continue
 
             try {
-                const input = typeof toolUse.input === 'string' ? JSON.parse(toolUse.input) : toolUse.input
-                this.#log(`Running tool ${toolUse.name} with input:`, JSON.stringify(input))
+                this.#log(`Running tool ${toolUse.name} with input:`, JSON.stringify(toolUse.input))
 
-                const result = await this.#features.agent.runTool(toolUse.name, input)
+                const result = await this.#features.agent.runTool(toolUse.name, toolUse.input)
                 results.push({
                     toolUseId: toolUse.toolUseId,
                     name: toolUse.name,
@@ -366,15 +363,22 @@ export class AgenticChatController implements ChatHandlers {
         updatedRequestInput.conversationState!.currentMessage!.userInputMessage!.content = ''
 
         for (const toolResult of toolResults) {
+            let toolResultContent: ToolResultContentBlock
+
+            if (typeof toolResult.result === 'string') {
+                toolResultContent = { text: toolResult.result }
+            } else if (Array.isArray(toolResult.result)) {
+                toolResultContent = { json: { items: toolResult.result } }
+            } else if (typeof toolResult.result === 'object') {
+                toolResultContent = { json: toolResult.result }
+            } else toolResultContent = { text: JSON.stringify(toolResult.result) }
+
+            this.#log(`ToolResult: ${JSON.stringify(toolResultContent)}`)
             updatedRequestInput.conversationState!.currentMessage!.userInputMessage!.userInputMessageContext!.toolResults.push(
                 {
                     toolUseId: toolResult.toolUseId,
                     status: 'success',
-                    content: [
-                        {
-                            json: { result: toolResult.result },
-                        },
-                    ],
+                    content: [toolResultContent],
                 }
             )
         }
@@ -487,6 +491,8 @@ export class AgenticChatController implements ChatHandlers {
         }
 
         this.#log(`Q api request error ${err instanceof Error ? JSON.stringify(err) : 'unknown'}`)
+        this.#log(`Q api request error stack ${err instanceof Error ? JSON.stringify(err.stack) : 'unknown'}`)
+        this.#log(`Q api request error cause ${err instanceof Error ? JSON.stringify(err.cause) : 'unknown'}`)
         return new ResponseError<ChatResult>(
             LSPErrorCodes.RequestFailed,
             err instanceof Error ? err.message : 'Unknown request error'
