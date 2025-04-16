@@ -35,6 +35,7 @@ import * as utils from '../chat/utils'
 import { DEFAULT_HELP_FOLLOW_UP_PROMPT, HELP_MESSAGE } from '../chat/constants'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
+import { TabBarController } from './tabBarController'
 
 describe('AgenticChatController', () => {
     const mockTabId = 'tab-1'
@@ -1182,5 +1183,13 @@ ${' '.repeat(8)}}
                 },
             })
         })
+    })
+
+    it('calls TabBarControlled when tabBarAction request is received', async () => {
+        const tabBarActionStub = sinon.stub(TabBarController.prototype, 'onTabBarAction')
+
+        await chatController.onTabBarAction({ tabId: mockTabId, action: 'export' })
+
+        sinon.assert.calledOnce(tabBarActionStub)
     })
 })

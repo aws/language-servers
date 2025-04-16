@@ -24,12 +24,24 @@ import {
     ErrorCodes,
     openTabRequestType,
     ResponseError,
+    getSerializedChatRequestType,
+    ShowSaveFileDialogRequestType,
+    ShowSaveFileDialogParams,
+    tabBarActionRequestType,
 } from '@aws/language-server-runtimes/protocol'
 import { v4 as uuidv4 } from 'uuid'
 import { Uri, Webview, WebviewView, commands, window } from 'vscode'
-import { Disposable, LanguageClient, Position, State, TextDocumentIdentifier } from 'vscode-languageclient/node'
+import {
+    Disposable,
+    LanguageClient,
+    LSPErrorCodes,
+    Position,
+    State,
+    TextDocumentIdentifier,
+} from 'vscode-languageclient/node'
 import * as jose from 'jose'
 import * as vscode from 'vscode'
+import * as fs from 'fs'
 
 export function registerChat(languageClient: LanguageClient, extensionUri: Uri, encryptionKey?: Buffer) {
     const webviewInitialized: Promise<Webview> = new Promise(resolveWebview => {
@@ -151,6 +163,14 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri, 
                                 conversationClickRequestType.method
                             )
                             break
+                        case tabBarActionRequestType.method:
+                            await handleRequest(
+                                languageClient,
+                                message.params,
+                                webviewView,
+                                tabBarActionRequestType.method
+                            )
+                            break
                         case followUpClickNotificationType.method:
                             if (!isValidAuthFollowUpType(message.params.followUp.type))
                                 languageClient.sendNotification(followUpClickNotificationType, message.params)
@@ -169,51 +189,58 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri, 
                     })
                 })
 
-                languageClient.onRequest(openTabRequestType.method, async (params, _) => {
-                    const mapErrorType = (type: string | undefined): number => {
-                        switch (type) {
-                            case 'InvalidRequest':
-                                return ErrorCodes.InvalidRequest
-                            case 'InternalError':
-                                return ErrorCodes.InternalError
-                            case 'UnknownError':
-                            default:
-                                return ErrorCodes.UnknownErrorCode
+                const registerHandlerWithResponseRouter = (command: string) => {
+                    const handler = async (params: any, _: any) => {
+                        const mapErrorType = (type: string | undefined): number => {
+                            switch (type) {
+                                case 'InvalidRequest':
+                                    return ErrorCodes.InvalidRequest
+                                case 'InternalError':
+                                    return ErrorCodes.InternalError
+                                case 'UnknownError':
+                                default:
+                                    return ErrorCodes.UnknownErrorCode
+                            }
+                        }
+                        const requestId = uuidv4()
+
+                        webviewView.webview.postMessage({
+                            requestId: requestId,
+                            command: command,
+                            params: params,
+                        })
+                        const responsePromise = new Promise<UiMessageResultParams | undefined>((resolve, reject) => {
+                            const timeout = setTimeout(() => {
+                                disposable.dispose()
+                                reject(new Error('Request timed out'))
+                            }, 30000)
+
+                            const disposable = webviewView.webview.onDidReceiveMessage((message: any) => {
+                                if (message.requestId === requestId) {
+                                    clearTimeout(timeout)
+                                    disposable.dispose()
+                                    resolve(message.params)
+                                }
+                            })
+                        })
+
+                        const result = await responsePromise
+
+                        if (result?.success) {
+                            return result.result
+                        } else {
+                            return new ResponseError(
+                                mapErrorType(result?.error.type),
+                                result?.error.message ?? 'No response from client'
+                            )
                         }
                     }
-                    const requestId = uuidv4()
 
-                    webviewView.webview.postMessage({
-                        requestId: requestId,
-                        command: openTabRequestType.method,
-                        params: params,
-                    })
-                    const responsePromise = new Promise<UiMessageResultParams | undefined>((resolve, reject) => {
-                        const timeout = setTimeout(() => {
-                            disposable.dispose()
-                            reject(new Error('Request timed out'))
-                        }, 30000)
+                    languageClient.onRequest(command, handler)
+                }
 
-                        const disposable = webviewView.webview.onDidReceiveMessage((message: any) => {
-                            if (message.requestId === requestId) {
-                                clearTimeout(timeout)
-                                disposable.dispose()
-                                resolve(message.params)
-                            }
-                        })
-                    })
-
-                    const result = await responsePromise
-
-                    if (result?.success) {
-                        return { tabId: result.result.tabId }
-                    } else {
-                        return new ResponseError(
-                            mapErrorType(result?.error.type),
-                            result?.error.message ?? 'No response from client'
-                        )
-                    }
-                })
+                registerHandlerWithResponseRouter(openTabRequestType.method)
+                registerHandlerWithResponseRouter(getSerializedChatRequestType.method)
 
                 webviewView.webview.html = getWebviewContent(webviewView.webview, extensionUri)
 
@@ -269,6 +296,37 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri, 
 
     languageClient.onTelemetry(e => {
         languageClient.info(`[VSCode Client] Received telemetry event from server ${JSON.stringify(e)}`)
+    })
+
+    languageClient.onRequest(ShowSaveFileDialogRequestType.method, async (params: ShowSaveFileDialogParams) => {
+        // Show native Save File dialog
+        const filters: Record<string, string[]> = {}
+        const formatMappings = [
+            { format: 'markdown', key: 'Markdown', extensions: ['md'] },
+            { format: 'html', key: 'HTML', extensions: ['html'] },
+        ]
+        params.supportedFormats?.forEach(format => {
+            const mapping = formatMappings.find(m => m.format === format)
+            if (mapping) {
+                filters[mapping.key] = mapping.extensions
+            }
+        })
+
+        const saveAtUri = params.defaultUri ? vscode.Uri.parse(params.defaultUri) : vscode.Uri.file('export-chat.md')
+        const targetUri = await vscode.window.showSaveDialog({
+            filters,
+            defaultUri: saveAtUri,
+            title: 'Export',
+        })
+
+        // Send message to Chat Client to do Conversation Export
+        if (!targetUri) {
+            return new ResponseError(LSPErrorCodes.RequestFailed, 'Export failed')
+        }
+
+        return {
+            targetUri: targetUri.toString(),
+        }
     })
 
     commands.registerCommand('aws.sample-vscode-ext-amazonq.sendInlineChat', async () => {

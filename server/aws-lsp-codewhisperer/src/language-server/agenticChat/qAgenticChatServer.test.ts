@@ -127,4 +127,12 @@ describe('QAgenticChatServer', () => {
             mockCancellationToken
         )
     })
+
+    it('calls the corresponding controller when tabBarAction request is received', () => {
+        const tabBarActionStub = sinon.stub(AgenticChatController.prototype, 'onTabBarAction')
+
+        testFeatures.chat.onTabBarAction.firstCall.firstArg({ tabId: mockTabId, action: 'export' })
+
+        sinon.assert.calledOnce(tabBarActionStub)
+    })
 })

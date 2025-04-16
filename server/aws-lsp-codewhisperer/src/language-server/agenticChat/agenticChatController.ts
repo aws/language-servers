@@ -9,6 +9,7 @@ import {
     GenerateAssistantResponseCommandOutput,
     SendMessageCommandInput as SendMessageCommandInputCodeWhispererStreaming,
 } from '@amzn/codewhisperer-streaming'
+import { chatRequestType } from '@aws/language-server-runtimes/protocol'
 import {
     ApplyWorkspaceEditParams,
     ErrorCodes,
@@ -16,12 +17,10 @@ import {
     InsertToCursorPositionParams,
     TextDocumentEdit,
     TextEdit,
-    chatRequestType,
     InlineChatParams,
     ConversationClickParams,
     ListConversationsParams,
-} from '@aws/language-server-runtimes/protocol'
-import {
+    TabBarActionParams,
     CancellationToken,
     Chat,
     ChatParams,
@@ -66,16 +65,7 @@ import { AgenticChatEventParser } from './agenticChatEventParser'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
-    | 'openTab'
-    | 'sendChatUpdate'
-    | 'onFileClicked'
-    | 'onInlineChatPrompt'
-    | 'sendContextCommands'
-    | 'onCreatePrompt'
-    | 'onListConversations'
-    | 'onConversationClick'
-    | 'onTabBarAction'
-    | 'getSerializedChat'
+    'openTab' | 'sendChatUpdate' | 'onFileClicked' | 'sendContextCommands' | 'onCreatePrompt' | 'getSerializedChat'
 >
 
 export class AgenticChatController implements ChatHandlers {
@@ -549,6 +539,10 @@ export class AgenticChatController implements ChatHandlers {
             default:
                 return {}
         }
+    }
+
+    async onTabBarAction(params: TabBarActionParams) {
+        return this.#tabBarController.onTabBarAction(params)
     }
 
     async #getInlineChatTriggerContext(params: InlineChatParams) {
