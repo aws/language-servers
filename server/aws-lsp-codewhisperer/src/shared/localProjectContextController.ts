@@ -40,26 +40,22 @@ export class LocalProjectContextController {
     private readonly clientName: string
     private readonly log?: Logging
 
-    private readonly workspaceIndexConfiguration?: WorkspaceIndexConfiguration
+    private ignoreFilePatterns?: string[]
     private includeSymlinks?: boolean
     private maxFileSizeMb?: number
     private maxIndexSizeMb?: number
     private respectUserGitIgnores?: boolean
+    private readonly fileExtensions: string[]
 
     private readonly DEFAULT_MAX_INDEX_SIZE = 2048
     private readonly DEFAULT_MAX_FILE_SIZE = 10
     private readonly MB_TO_BYTES = 1024 * 1024
 
-    constructor(
-        clientName: string,
-        workspaceFolders: WorkspaceFolder[],
-        logging?: Logging,
-        workspaceIndexConfiguration?: WorkspaceIndexConfiguration
-    ) {
+    constructor(clientName: string, workspaceFolders: WorkspaceFolder[], logging?: Logging) {
         this.workspaceFolders = workspaceFolders
         this.clientName = clientName
         this.log = logging
-        this.workspaceIndexConfiguration = workspaceIndexConfiguration
+        this.fileExtensions = Object.keys(languageByExtension)
     }
 
     public static getInstance() {
@@ -71,16 +67,18 @@ export class LocalProjectContextController {
 
     public async init({
         vectorLib,
+        ignoreFilePatterns = [],
         respectUserGitIgnores = true,
         includeSymlinks = false,
-        maxFileSizeMb = 10,
-        maxIndexSizeMb = 100,
+        maxFileSizeMb = this.DEFAULT_MAX_FILE_SIZE,
+        maxIndexSizeMb = this.DEFAULT_MAX_INDEX_SIZE,
     }: LocalProjectContextInitializationOptions = {}): Promise<void> {
         try {
             this.includeSymlinks = includeSymlinks
             this.maxFileSizeMb = maxFileSizeMb
             this.maxIndexSizeMb = maxIndexSizeMb
             this.respectUserGitIgnores = respectUserGitIgnores
+            this.ignoreFilePatterns = ignoreFilePatterns
 
             const vecLib = vectorLib ?? (await import(path.join(LIBRARY_DIR, 'dist', 'extension.js')))
             const root = this.findCommonWorkspaceRoot(this.workspaceFolders)
@@ -116,10 +114,10 @@ export class LocalProjectContextController {
             if (this._vecLib) {
                 const sourceFiles = await this.processWorkspaceFolders(
                     this.workspaceFolders,
-                    this.workspaceIndexConfiguration?.ignoreFilePatterns,
+                    this.ignoreFilePatterns,
                     this.respectUserGitIgnores,
                     this.includeSymlinks,
-                    this.workspaceIndexConfiguration?.fileExtensions,
+                    this.fileExtensions,
                     this.maxFileSizeMb,
                     this.maxIndexSizeMb
                 )
