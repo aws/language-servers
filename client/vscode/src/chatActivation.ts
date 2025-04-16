@@ -28,6 +28,7 @@ import {
     ShowSaveFileDialogRequestType,
     ShowSaveFileDialogParams,
     tabBarActionRequestType,
+    chatOptionsUpdateType,
 } from '@aws/language-server-runtimes/protocol'
 import { v4 as uuidv4 } from 'uuid'
 import { Uri, Webview, WebviewView, commands, window } from 'vscode'
@@ -41,7 +42,6 @@ import {
 } from 'vscode-languageclient/node'
 import * as jose from 'jose'
 import * as vscode from 'vscode'
-import * as fs from 'fs'
 
 export function registerChat(languageClient: LanguageClient, extensionUri: Uri, encryptionKey?: Buffer) {
     const webviewInitialized: Promise<Webview> = new Promise(resolveWebview => {
@@ -181,6 +181,14 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri, 
                             break
                     }
                 }, undefined)
+
+                languageClient.onNotification(chatOptionsUpdateType, params => {
+                    languageClient.info(`banner notif`)
+                    webviewView.webview.postMessage({
+                        command: chatOptionsUpdateType.method,
+                        params: params,
+                    })
+                })
 
                 languageClient.onNotification(contextCommandsNotificationType, params => {
                     webviewView.webview.postMessage({

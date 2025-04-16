@@ -30,10 +30,12 @@ import {
     UiResultMessage,
 } from '@aws/chat-client-ui-types'
 import {
+    CHAT_OPTIONS_UPDATE_NOTIFICATION_METHOD,
     CHAT_REQUEST_METHOD,
     CONTEXT_COMMAND_NOTIFICATION_METHOD,
     CONVERSATION_CLICK_REQUEST_METHOD,
     CREATE_PROMPT_NOTIFICATION_METHOD,
+    ChatOptionsUpdateParams,
     ChatParams,
     ContextCommandParams,
     ConversationClickParams,
@@ -153,6 +155,10 @@ export const createChat = (
                 break
             case GET_SERIALIZED_CHAT_REQUEST_METHOD:
                 mynahApi.getSerializedChat(message.requestId, message.params as GetSerializedChatParams)
+                break
+            case CHAT_OPTIONS_UPDATE_NOTIFICATION_METHOD:
+                tabFactory.setProfileBanner((message.params as ChatOptionsUpdateParams).chatNotifications)
+                break
             case CHAT_OPTIONS: {
                 const params = (message as ChatOptionsMessage).params
                 if (params?.quickActions?.quickActionsCommandGroups) {
@@ -174,6 +180,10 @@ export const createChat = (
                     tabFactory.enableExport()
                 }
 
+                if (params?.chatNotifications) {
+                    tabFactory.setProfileBanner(params.chatNotifications)
+                }
+
                 const allExistingTabs: MynahUITabStoreModel = mynahUi.getAllTabs()
                 for (const tabId in allExistingTabs) {
                     mynahUi.updateStore(tabId, tabFactory.getDefaultTabData())
@@ -181,6 +191,14 @@ export const createChat = (
                 break
             }
             default:
+                tabFactory.setProfileBanner([
+                    {
+                        type: 'answer',
+                        messageId: 'regionProfile',
+                        body: 'default banner',
+                    },
+                ])
+
                 // TODO: Report error?
                 break
         }

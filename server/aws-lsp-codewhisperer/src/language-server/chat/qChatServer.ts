@@ -73,10 +73,20 @@ export const QChatServer =
 
         chat.onTabAdd(params => {
             logging.log(`Adding tab: ${params.tabId}`)
-
             return chatController.onTabAdd(params)
         })
 
+        chat.onReady(_ => {
+            chat.chatOptionsUpdate({
+                chatNotifications: [
+                    {
+                        type: 'answer',
+                        messageId: 'regionProfile',
+                        body: "You are using Vidhi's dev profile"
+                    }
+                ]
+            })
+        })
         chat.onTabChange(params => {
             logging.log(`Changing to tab: ${params.tabId}`)
 

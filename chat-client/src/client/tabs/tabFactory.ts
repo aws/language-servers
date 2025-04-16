@@ -27,7 +27,8 @@ export class TabFactory {
 
     constructor(
         private defaultTabData: DefaultTabData,
-        private quickActionCommands?: QuickActionCommandGroup[]
+        private quickActionCommands?: QuickActionCommandGroup[],
+        private bannerMessage?: ChatMessage
     ) {}
 
     public createTab(
@@ -39,6 +40,7 @@ export class TabFactory {
             ...this.getDefaultTabData(),
             chatItems: needWelcomeMessages
                 ? [
+                      ...this.getProfileBanner(),
                       {
                           type: ChatItemType.ANSWER,
                           body: `Hi, I'm Amazon Q. I can answer your software development questions. 
@@ -78,6 +80,27 @@ export class TabFactory {
 
         tabData.tabBarButtons = this.getTabBarButtons()
         return tabData
+    }
+
+    public setProfileBanner(messages: ChatMessage[] | undefined) {
+        if (messages?.length) {
+            // For now this messages array is only populated with banner data hence we use the first item
+            this.bannerMessage = messages[0]
+        }
+    }
+
+    public getProfileBanner(): ChatItem[] {
+        if (this.bannerMessage) {
+            return [
+                {
+                    type: ChatItemType.ANSWER,
+                    status: 'info',
+                    messageId: 'regionProfile',
+                    ...this.bannerMessage, // Spread existing banner message properties last to override defaults
+                } as ChatItem,
+            ]
+        }
+        return []
     }
 
     private getWelcomeBlock() {
