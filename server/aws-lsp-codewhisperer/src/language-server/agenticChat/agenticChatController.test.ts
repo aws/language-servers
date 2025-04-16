@@ -442,6 +442,141 @@ describe('AgenticChatController', () => {
             assert.deepStrictEqual(chatResult, expectedCompleteChatResult)
         })
 
+        it('propagates tool execution errors to the model in toolResults', async () => {
+            // First response includes a tool use request
+            const mockToolUseId = 'mock-tool-use-id-error'
+            const mockToolName = 'mock-tool-name'
+            const mockToolInput = JSON.stringify({ param1: 'value1' })
+            const mockErrorMessage = 'Tool execution failed with an error'
+
+            const mockToolUseResponseList: ChatResponseStream[] = [
+                {
+                    messageMetadataEvent: {
+                        conversationId: mockConversationId,
+                    },
+                },
+                {
+                    assistantResponseEvent: {
+                        content: 'I need to use a tool that will fail. ',
+                    },
+                },
+                {
+                    toolUseEvent: {
+                        toolUseId: mockToolUseId,
+                        name: mockToolName,
+                        input: mockToolInput,
+                        stop: true,
+                    },
+                },
+            ]
+
+            // Second response after tool execution error
+            const mockFinalResponseList: ChatResponseStream[] = [
+                {
+                    messageMetadataEvent: {
+                        conversationId: mockConversationId,
+                    },
+                },
+                {
+                    assistantResponseEvent: {
+                        content: 'I see the tool failed with error: ',
+                    },
+                },
+                {
+                    assistantResponseEvent: {
+                        content: mockErrorMessage,
+                    },
+                },
+            ]
+
+            // Reset the stub and set up to return different responses on consecutive calls
+            generateAssistantResponseStub.restore()
+            generateAssistantResponseStub = sinon.stub(CodeWhispererStreaming.prototype, 'generateAssistantResponse')
+
+            generateAssistantResponseStub.onFirstCall().returns(
+                Promise.resolve({
+                    $metadata: {
+                        requestId: mockMessageId,
+                    },
+                    generateAssistantResponseResponse: createIterableResponse(mockToolUseResponseList),
+                })
+            )
+
+            generateAssistantResponseStub.onSecondCall().returns(
+                Promise.resolve({
+                    $metadata: {
+                        requestId: mockMessageId,
+                    },
+                    generateAssistantResponseResponse: createIterableResponse(mockFinalResponseList),
+                })
+            )
+
+            // Reset the runTool stub and make it throw an error
+            const runToolStub = testFeatures.agent.runTool as sinon.SinonStub
+            runToolStub.reset()
+            runToolStub.rejects(new Error(mockErrorMessage))
+
+            // Make the request
+            const chatResultPromise = chatController.onChatPrompt(
+                { tabId: mockTabId, prompt: { prompt: 'Hello with failing tool' } },
+                mockCancellationToken
+            )
+
+            const chatResult = await chatResultPromise
+
+            // Verify that generateAssistantResponse was called twice
+            sinon.assert.calledTwice(generateAssistantResponseStub)
+
+            // Verify that the tool was executed
+            sinon.assert.calledOnce(runToolStub)
+            sinon.assert.calledWith(runToolStub, mockToolName, JSON.parse(mockToolInput))
+
+            // Verify that the second request included the tool error in the toolResults with status 'error'
+            const secondCallArgs = generateAssistantResponseStub.secondCall.args[0]
+            assert.ok(
+                secondCallArgs.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext?.toolResults
+            )
+            assert.strictEqual(
+                secondCallArgs.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext?.toolResults
+                    .length,
+                1
+            )
+            assert.strictEqual(
+                secondCallArgs.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext
+                    ?.toolResults[0].toolUseId,
+                mockToolUseId
+            )
+            assert.strictEqual(
+                secondCallArgs.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext
+                    ?.toolResults[0].status,
+                'error'
+            )
+            assert.deepStrictEqual(
+                secondCallArgs.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext
+                    ?.toolResults[0].content[0].json,
+                { error: mockErrorMessage }
+            )
+
+            // Verify that the history was updated correctly
+            assert.ok(secondCallArgs.conversationState?.history)
+            assert.strictEqual(secondCallArgs.conversationState?.history.length, 2)
+            assert.ok(secondCallArgs.conversationState?.history[0].userInputMessage)
+            assert.ok(secondCallArgs.conversationState?.history[1].assistantResponseMessage)
+
+            // Create expected result format matching the actual format
+            const expectedErrorChatResult: ChatResult = {
+                messageId: mockMessageId,
+                body: 'I see the tool failed with error: Tool execution failed with an error',
+                canBeVoted: true,
+                codeReference: undefined,
+                followUp: undefined,
+                relatedContent: undefined,
+            }
+
+            // Verify the final result includes both messages
+            assert.deepStrictEqual(chatResult, expectedErrorChatResult)
+        })
+
         it('handles multiple iterations of tool uses with proper history updates', async () => {
             // First response includes a tool use request
             const mockToolUseId1 = 'mock-tool-use-id-1'
