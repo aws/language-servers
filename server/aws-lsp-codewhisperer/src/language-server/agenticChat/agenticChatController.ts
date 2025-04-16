@@ -9,6 +9,7 @@ import {
     GenerateAssistantResponseCommandOutput,
     SendMessageCommandInput,
     SendMessageCommandOutput,
+    ToolResult,
     ToolResultContentBlock,
     ToolUse,
 } from '@amzn/codewhisperer-streaming'
@@ -317,14 +318,8 @@ export class AgenticChatController implements ChatHandlers {
     /**
      * Processes tool uses by running the tools and collecting results
      */
-    async #processToolUses(toolUses: Array<ToolUse & { stop: boolean }>): Promise<
-        Array<{
-            toolUseId: string
-            name: string
-            result: any
-        }>
-    > {
-        const results = []
+    async #processToolUses(toolUses: Array<ToolUse & { stop: boolean }>): Promise<ToolResult[]> {
+        const results: ToolResult[] = []
 
         for (const toolUse of toolUses) {
             if (!toolUse.name || !toolUse.toolUseId) continue
@@ -333,10 +328,20 @@ export class AgenticChatController implements ChatHandlers {
                 this.#debug(`Running tool ${toolUse.name} with input:`, JSON.stringify(toolUse.input))
 
                 const result = await this.#features.agent.runTool(toolUse.name, toolUse.input)
+                let toolResultContent: ToolResultContentBlock
+
+                if (typeof result === 'string') {
+                    toolResultContent = { text: result }
+                } else if (Array.isArray(result)) {
+                    toolResultContent = { json: { items: result } }
+                } else if (typeof result === 'object') {
+                    toolResultContent = { json: result }
+                } else toolResultContent = { text: JSON.stringify(result) }
+
                 results.push({
                     toolUseId: toolUse.toolUseId,
-                    name: toolUse.name,
-                    result,
+                    status: 'success',
+                    content: [toolResultContent],
                 })
 
                 this.#debug(`Tool ${toolUse.name} completed with result:`, JSON.stringify(result))
@@ -344,8 +349,8 @@ export class AgenticChatController implements ChatHandlers {
                 this.#log(`Error running tool ${toolUse.name}:`, err instanceof Error ? err.message : 'unknown error')
                 results.push({
                     toolUseId: toolUse.toolUseId,
-                    name: toolUse.name,
-                    result: { error: err instanceof Error ? err.message : 'Unknown error' },
+                    status: 'error',
+                    content: [{ json: { error: err instanceof Error ? err.message : 'Unknown error' } }],
                 })
             }
         }
@@ -358,7 +363,7 @@ export class AgenticChatController implements ChatHandlers {
      */
     #updateRequestInputWithToolResults(
         requestInput: GenerateAssistantResponseCommandInput,
-        toolResults: Array<{ toolUseId: string; name: string; result: any }>
+        toolResults: ToolResult[]
     ): GenerateAssistantResponseCommandInput {
         // Create a deep copy of the request input
         const updatedRequestInput = JSON.parse(JSON.stringify(requestInput)) as GenerateAssistantResponseCommandInput
@@ -369,22 +374,10 @@ export class AgenticChatController implements ChatHandlers {
         updatedRequestInput.conversationState!.currentMessage!.userInputMessage!.content = ''
 
         for (const toolResult of toolResults) {
-            let toolResultContent: ToolResultContentBlock
-
-            if (typeof toolResult.result === 'string') {
-                toolResultContent = { text: toolResult.result }
-            } else if (Array.isArray(toolResult.result)) {
-                toolResultContent = { json: { items: toolResult.result } }
-            } else if (typeof toolResult.result === 'object') {
-                toolResultContent = { json: toolResult.result }
-            } else toolResultContent = { text: JSON.stringify(toolResult.result) }
-
-            this.#debug(`ToolResult: ${JSON.stringify(toolResultContent)}`)
+            this.#debug(`ToolResult: ${JSON.stringify(toolResult)}`)
             updatedRequestInput.conversationState!.currentMessage!.userInputMessage!.userInputMessageContext!.toolResults.push(
                 {
-                    toolUseId: toolResult.toolUseId,
-                    status: 'success',
-                    content: [toolResultContent],
+                    ...toolResult,
                 }
             )
         }
