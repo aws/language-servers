@@ -41,7 +41,6 @@
         "diff": "^7.0.0",
         "fastest-levenshtein": "^1.0.16",
         "fdir": "^6.4.3",
-        "gitignore-parser": "^0.0.2",
         "got": "^11.8.5",
         "hpagent": "^1.2.0",
         "ignore": "^7.0.3",
