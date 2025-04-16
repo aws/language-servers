@@ -153,6 +153,7 @@ export const createChat = (
                 break
             case GET_SERIALIZED_CHAT_REQUEST_METHOD:
                 mynahApi.getSerializedChat(message.requestId, message.params as GetSerializedChatParams)
+                break
             case CHAT_OPTIONS: {
                 const params = (message as ChatOptionsMessage).params
                 if (params?.quickActions?.quickActionsCommandGroups) {
