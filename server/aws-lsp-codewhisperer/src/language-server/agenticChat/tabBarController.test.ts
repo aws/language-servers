@@ -7,7 +7,7 @@ import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import sinon from 'ts-sinon'
 import * as assert from 'assert'
 import { TabBarController } from './tabBarController'
-import { ChatDatabase } from './tools/chatDb/chatDb'
+import { ChatDatabase, EMPTY_CONVERSATION_LIST_ID } from './tools/chatDb/chatDb'
 import { Tab } from './tools/chatDb/util'
 import { ConversationItemGroup, OpenTabParams, OpenTabResult } from '@aws/language-server-runtimes-types'
 import { InitializeParams } from '@aws/language-server-runtimes/protocol'
@@ -243,6 +243,23 @@ describe('TabBarController', () => {
 
             sinon.assert.calledWith(chatHistoryDb.deleteHistory as sinon.SinonStub, historyId)
             assert.strictEqual(result.success, true)
+        })
+
+        it('should not perform actions when item with `empty` historyId is clicked', async () => {
+            const historyId = EMPTY_CONVERSATION_LIST_ID
+            const openTabId = 'tab1'
+            ;(chatHistoryDb.getOpenTabId as sinon.SinonStub).withArgs(historyId).returns(openTabId)
+
+            const openTabStub = sinon.stub<[OpenTabParams], Promise<OpenTabResult>>()
+            testFeatures.chat.openTab = openTabStub
+
+            const result = await tabBarController.onConversationClick({ id: historyId })
+
+            sinon.assert.notCalled(openTabStub)
+            assert.deepStrictEqual(result, {
+                id: EMPTY_CONVERSATION_LIST_ID,
+                success: true,
+            })
         })
     })
 

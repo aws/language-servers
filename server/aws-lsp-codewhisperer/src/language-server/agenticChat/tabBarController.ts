@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ChatDatabase } from './tools/chatDb/chatDb'
+import { ChatDatabase, EMPTY_CONVERSATION_LIST_ID } from './tools/chatDb/chatDb'
 import { Conversation, messageToChatMessage, Tab } from './tools/chatDb/util'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 import {
@@ -58,7 +58,9 @@ export class TabBarController {
                 const items =
                     group.items?.map(item => ({
                         ...item,
-                        ...(item.id !== 'empty' ? { actions: this.getConversationActions(item.id) } : {}),
+                        ...(item.id !== EMPTY_CONVERSATION_LIST_ID
+                            ? { actions: this.getConversationActions(item.id) }
+                            : {}),
                     })) || []
 
                 return {
@@ -127,6 +129,11 @@ export class TabBarController {
      */
     async onConversationClick(params: ConversationClickParams): Promise<ConversationClickResult> {
         const historyID = params.id
+
+        if (historyID === EMPTY_CONVERSATION_LIST_ID) {
+            this.#features.logging.debug('Empty conversation history list item clicked')
+            return { ...params, success: true }
+        }
 
         // Handle user click on conversation in history
         if (!params.action) {
