@@ -187,7 +187,7 @@ export class AgenticChatController implements ChatHandlers {
         session: ChatSessionService,
         triggerContext: TriggerContext
     ): Promise<GenerateAssistantResponseCommandInput> {
-        this.#log('Preparing request input')
+        this.#debug('Preparing request input')
         const profileArn = AmazonQTokenServiceManager.getInstance(this.#features).getActiveProfileArn()
         const requestInput = this.#triggerContext.getChatParamsFromTrigger(
             params,
@@ -226,18 +226,18 @@ export class AgenticChatController implements ChatHandlers {
 
         while (iterationCount < maxIterations) {
             iterationCount++
-            this.#log(`Agent loop iteration ${iterationCount} for conversation id:`, conversationIdentifier || '')
+            this.#debug(`Agent loop iteration ${iterationCount} for conversation id:`, conversationIdentifier || '')
 
             // Check for cancellation
             if (token?.isCancellationRequested) {
-                this.#log('Request cancelled during agent loop')
+                this.#debug('Request cancelled during agent loop')
                 break
             }
 
             // Phase 3: Request Execution
-            this.#log(`Request Input: ${JSON.stringify(currentRequestInput)}`)
+            this.#debug(`Request Input: ${JSON.stringify(currentRequestInput)}`)
             const response = await session.generateAssistantResponse(currentRequestInput)
-            this.#log(`Response received for iteration ${iterationCount}:`, JSON.stringify(response.$metadata))
+            this.#debug(`Response received for iteration ${iterationCount}:`, JSON.stringify(response.$metadata))
 
             // Phase 4: Response Processing
             const result = await this.#processGenerateAssistantResponseResponse(
@@ -330,7 +330,7 @@ export class AgenticChatController implements ChatHandlers {
             if (!toolUse.name || !toolUse.toolUseId) continue
 
             try {
-                this.#log(`Running tool ${toolUse.name} with input:`, JSON.stringify(toolUse.input))
+                this.#debug(`Running tool ${toolUse.name} with input:`, JSON.stringify(toolUse.input))
 
                 const result = await this.#features.agent.runTool(toolUse.name, toolUse.input)
                 results.push({
@@ -339,7 +339,7 @@ export class AgenticChatController implements ChatHandlers {
                     result,
                 })
 
-                this.#log(`Tool ${toolUse.name} completed with result:`, JSON.stringify(result))
+                this.#debug(`Tool ${toolUse.name} completed with result:`, JSON.stringify(result))
             } catch (err) {
                 this.#log(`Error running tool ${toolUse.name}:`, err instanceof Error ? err.message : 'unknown error')
                 results.push({
@@ -379,7 +379,7 @@ export class AgenticChatController implements ChatHandlers {
                 toolResultContent = { json: toolResult.result }
             } else toolResultContent = { text: JSON.stringify(toolResult.result) }
 
-            this.#log(`ToolResult: ${JSON.stringify(toolResultContent)}`)
+            this.#debug(`ToolResult: ${JSON.stringify(toolResultContent)}`)
             updatedRequestInput.conversationState!.currentMessage!.userInputMessage!.userInputMessageContext!.toolResults.push(
                 {
                     toolUseId: toolResult.toolUseId,
@@ -408,7 +408,7 @@ export class AgenticChatController implements ChatHandlers {
         }
 
         const conversationId = session.conversationId
-        this.#log('Final session conversation id:', conversationId || '')
+        this.#debug('Final session conversation id:', conversationId || '')
 
         if (conversationId) {
             this.#telemetryController.setConversationId(params.tabId, conversationId)
@@ -497,8 +497,8 @@ export class AgenticChatController implements ChatHandlers {
         }
 
         this.#log(`Q api request error ${err instanceof Error ? JSON.stringify(err) : 'unknown'}`)
-        this.#log(`Q api request error stack ${err instanceof Error ? JSON.stringify(err.stack) : 'unknown'}`)
-        this.#log(`Q api request error cause ${err instanceof Error ? JSON.stringify(err.cause) : 'unknown'}`)
+        this.#debug(`Q api request error stack ${err instanceof Error ? JSON.stringify(err.stack) : 'unknown'}`)
+        this.#debug(`Q api request error cause ${err instanceof Error ? JSON.stringify(err.cause) : 'unknown'}`)
         return new ResponseError<ChatResult>(
             LSPErrorCodes.RequestFailed,
             err instanceof Error ? err.message : 'Unknown request error'
@@ -870,5 +870,9 @@ export class AgenticChatController implements ChatHandlers {
 
     #log(...messages: string[]) {
         this.#features.logging.log(messages.join(' '))
+    }
+
+    #debug(...messages: string[]) {
+        this.#features.logging.debug(messages.join(' '))
     }
 }
