@@ -1,4 +1,5 @@
 import { sanitize } from '@aws/lsp-core/out/util/path'
+import { URI } from 'vscode-uri'
 import { CommandValidation, InvokeOutput } from './toolShared'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 
@@ -61,7 +62,7 @@ export class FsRead {
 
     public async requiresAcceptance(params: FsReadParams): Promise<CommandValidation> {
         // true when the file is not resolvable within our workspace. i.e. is outside of our workspace.
-        return { requiresAcceptance: !(await this.workspace.getTextDocument(params.path)) }
+        return { requiresAcceptance: !(await this.workspace.getTextDocument(URI.file(params.path).toString())) }
     }
 
     public async invoke(params: FsReadParams): Promise<InvokeOutput> {
