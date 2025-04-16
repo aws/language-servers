@@ -4,14 +4,14 @@ import sinon from 'ts-sinon'
 import { ChatController } from './chatController'
 import { ChatSessionManagementService } from './chatSessionManagementService'
 import { QChatServerFactory } from './qChatServer'
-import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
+import { TestAmazonQServiceManager } from '../../shared/amazonQServiceManager/testUtils'
 
-describe('QChatServerToken', () => {
+describe('QChatServer', () => {
     const mockTabId = 'mockTabId'
     let disposeStub: sinon.SinonStub
     let withAmazonQServiceManagerSpy: sinon.SinonSpy
     let testFeatures: TestFeatures
-    let amazonQServiceManager: AmazonQTokenServiceManager
+    let amazonQServiceManager: TestAmazonQServiceManager
     let disposeServer: () => void
     let chatSessionManagementService: ChatSessionManagementService
 
@@ -31,8 +31,7 @@ describe('QChatServerToken', () => {
         }
         testFeatures.lsp.getClientInitializeParams.returns(cachedInitializeParams)
 
-        amazonQServiceManager = AmazonQTokenServiceManager.getInstance(testFeatures)
-
+        amazonQServiceManager = TestAmazonQServiceManager.getInstance(testFeatures)
         disposeStub = sinon.stub(ChatSessionManagementService.prototype, 'dispose')
         chatSessionManagementService = ChatSessionManagementService.getInstance()
         withAmazonQServiceManagerSpy = sinon.spy(chatSessionManagementService, 'withAmazonQServiceManager')
