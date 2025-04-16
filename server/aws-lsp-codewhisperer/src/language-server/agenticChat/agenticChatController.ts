@@ -10,7 +10,7 @@ import {
     SendMessageCommandInput,
     SendMessageCommandOutput,
 } from '@amzn/codewhisperer-streaming'
-import { chatRequestType } from '@aws/language-server-runtimes/protocol'
+import { chatRequestType, InlineChatResultParams } from '@aws/language-server-runtimes/protocol'
 import {
     ApplyWorkspaceEditParams,
     ErrorCodes,
@@ -364,6 +364,8 @@ export class AgenticChatController implements ChatHandlers {
             )
         }
     }
+
+    async onInlineChatResult(handler: InlineChatResultParams) {}
 
     async onCodeInsertToCursorPosition(params: InsertToCursorPositionParams) {
         // Implementation based on https://github.com/aws/aws-toolkit-vscode/blob/1814cc84228d4bf20270574c5980b91b227f31cf/packages/core/src/amazonq/commons/controllers/contentController.ts#L38
