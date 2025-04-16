@@ -272,9 +272,9 @@ describe('ChatDb Utilities', () => {
 
             const result = groupTabsByDate(tabs)
 
-            assert.strictEqual(result[0].items?.[0]?.id, 'today1')
-            assert.strictEqual(result[1].items?.[0]?.id, 'today2')
-            assert.strictEqual(result[2].items?.[0]?.id, 'today3')
+            assert.strictEqual(result[0].items?.[0].id, 'today1')
+            assert.strictEqual(result[0].items?.[1].id, 'today2')
+            assert.strictEqual(result[0].items?.[2].id, 'today3')
         })
     })
 
