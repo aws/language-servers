@@ -65,6 +65,11 @@ export class ChatHistoryList {
         if (!item.id) {
             throw new Error('Conversation id is not defined')
         }
+
+        if (item.id === 'empty') {
+            return
+        }
+
         this.messager.onConversationClick(item.id)
     }
 

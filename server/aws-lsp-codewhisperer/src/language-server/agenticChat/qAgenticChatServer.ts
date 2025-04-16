@@ -13,11 +13,12 @@ import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/A
 import { safeGet } from '../../shared/utils'
 import { AmazonQServiceInitializationError } from '../../shared/amazonQServiceManager/errors'
 import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
+import { TabBarController } from './tabBarController'
 
 export const QAgenticChatServer =
     // prettier-ignore
     (): Server => features => {
-        const { chat, credentialsProvider, telemetry, logging, lsp, runtime } = features
+        const { chat, credentialsProvider, telemetry, logging, lsp, runtime, agent } = features
 
         let amazonQServiceManager: AmazonQTokenServiceManager
         let chatController: AgenticChatController
@@ -36,6 +37,8 @@ export const QAgenticChatServer =
                                 },
                             ],
                         },
+                        history: true,
+                        export: TabBarController.enableChatExport(params)
                     },
                 },
             }
@@ -103,6 +106,66 @@ export const QAgenticChatServer =
             return chatController.onEndChat(...params)
         })
 
+        agent.addTool({
+            name: 'count_input',
+            description: 'Count the length of the prompt',
+            inputSchema: {
+                type: 'object',
+                properties: {
+                    prompt: {
+                        type: 'string',
+                    },
+                },
+                required: ['prompt'],
+            },
+        } as const, async input => {
+            return input.prompt?.length
+        })
+
+        agent.addTool({
+            name: 'get_open_workspace_files',
+            description: 'Use the LSP document synchronization to read a list of all open documents in the current workspace',
+            inputSchema: {
+                type: 'object',
+                properties: {
+                    filter: {
+                        type: 'string',
+                        description: 'An optional case-insensitive string to filter on. Does not support wildcards, so only exact substrings match.'
+                    }
+                }
+            }
+        } as const, async (input) => 
+            (await features.workspace.getAllTextDocuments()).map(td => td.uri).filter(uri => input.filter === undefined || uri.includes(input.filter))
+        )
+
+        agent.addTool({
+            name: 'get_workspace_file_contents',
+            description: `Use the LSP document synchronization to read the contents of one or more files in the workspace. Use \`get_open_workspace_files\` first to get a list of available document URIs.
+If a file is not open, use the \`fsRead\` tool to read from disk. Use this tool if the user might have local edits that are not yet saved on disk.`,
+            inputSchema: {
+                type: 'object',
+                properties: {
+                    paths: {
+                        type: 'array',
+                        description: 'A list of URIs to read.',
+                        items: {
+                            type: 'string',
+                            description: 'The URI of a document to read'
+                        }
+                    }
+                },
+                required: ['paths']
+            }
+        } as const, async (input) => 
+            input.paths.reduce(async (acc, path) => {
+                const doc = await features.workspace.getTextDocument(path)
+                if (doc) {
+                    (await acc)[path] = doc.getText()
+                }
+                return acc
+            }, Promise.resolve<Record<string, string>>({}))
+        )
+
         chat.onChatPrompt((...params) => {
             logging.log('Received chat prompt')
             return chatController.onChatPrompt(...params)
@@ -131,6 +194,10 @@ export const QAgenticChatServer =
 
         chat.onConversationClick(params => {
             return chatController.onConversationClick(params)
+        })
+
+        chat.onTabBarAction(params => {
+            return chatController.onTabBarAction(params)
         })
 
         logging.log('Q Chat server has been initialized')

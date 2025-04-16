@@ -14,14 +14,14 @@ export const FsToolsServer: Server = ({ workspace, logging, agent }) => {
         // TODO: fill in logic for handling invalid tool invocations
         // TODO: implement chat streaming via queueDescription.
         await fsReadTool.validate(input)
-        await fsReadTool.invoke(input)
+        return await fsReadTool.invoke(input)
     })
 
     agent.addTool(fsWriteTool.getSpec(), async (input: FsWriteParams) => {
         // TODO: fill in logic for handling invalid tool invocations
         // TODO: implement chat streaming via queueDescription.
         await fsWriteTool.validate(input)
-        await fsWriteTool.invoke(input)
+        return await fsWriteTool.invoke(input)
     })
 
     agent.addTool(listDirectoryTool.getSpec(), (input: ListDirectoryParams) => listDirectoryTool.invoke(input))

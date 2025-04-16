@@ -20,6 +20,7 @@ import {
     ConversationClickResult,
     FeedbackParams,
     FollowUpClickParams,
+    GetSerializedChatParams,
     InfoLinkClickParams,
     LinkClickParams,
     ListConversationsResult,
@@ -38,7 +39,7 @@ import {
 } from '@aws/mynah-ui'
 import { VoteParams } from '../contracts/telemetry'
 import { Messager } from './messager'
-import { TabFactory } from './tabs/tabFactory'
+import { ExportTabBarButtonId, TabFactory } from './tabs/tabFactory'
 import { disclaimerAcknowledgeButtonId, disclaimerCard } from './texts/disclaimer'
 import { ChatClientAdapter, ChatEventHandler } from '../contracts/chatClientAdapter'
 import { withAdapter } from './withAdapter'
@@ -54,6 +55,7 @@ export interface InboundChatApi {
     sendContextCommands(params: ContextCommandParams): void
     listConversations(params: ListConversationsResult): void
     conversationClicked(params: ConversationClickResult): void
+    getSerializedChat(requestId: string, params: GetSerializedChatParams): void
 }
 
 type ContextCommandGroups = MynahUIDataModel['contextCommands']
@@ -184,8 +186,10 @@ export const createMynahUi = (
             messager.onFileClick({ tabId, filePath })
         },
         onTabAdd: (tabId: string) => {
+            const defaultTabBarData = tabFactory.getDefaultTabData()
             const defaultTabConfig: Partial<MynahUIDataModel> = {
-                quickActionCommands: tabFactory.getDefaultTabData().quickActionCommands,
+                quickActionCommands: defaultTabBarData.quickActionCommands,
+                tabBarButtons: defaultTabBarData.tabBarButtons,
                 contextCommands: contextCommandGroups,
                 ...(disclaimerCardActive ? { promptInputStickyCard: disclaimerCard } : {}),
             }
@@ -339,6 +343,15 @@ export const createMynahUi = (
                 messager.onListConversations()
                 return
             }
+
+            if (buttonId === ExportTabBarButtonId) {
+                messager.onTabBarAction({
+                    tabId,
+                    action: 'export',
+                })
+                return
+            }
+
             throw new Error(`Unhandled tab bar button id: ${buttonId}`)
         },
     }
@@ -604,6 +617,37 @@ ${params.message}`,
         }
     }
 
+    const getSerializedChat = (requestId: string, params: GetSerializedChatParams) => {
+        const supportedFormats = ['markdown', 'html']
+
+        if (!supportedFormats.includes(params.format)) {
+            mynahUi.notify({
+                content: `Failed to export chat`,
+                type: NotificationType.ERROR,
+            })
+
+            messager.onGetSerializedChat(requestId, {
+                type: 'InvalidRequest',
+                message: `Failed to get serialized chat content, ${params.format} is not supported`,
+            })
+
+            return
+        }
+
+        try {
+            const serializedChat = mynahUi.serializeChat(params.tabId, params.format)
+
+            messager.onGetSerializedChat(requestId, {
+                content: serializedChat,
+            })
+        } catch (err) {
+            messager.onGetSerializedChat(requestId, {
+                type: 'InternalError',
+                message: 'Failed to get serialized chat content',
+            })
+        }
+    }
+
     const api = {
         addChatResponse: addChatResponse,
         sendToPrompt: sendToPrompt,
@@ -613,6 +657,7 @@ ${params.message}`,
         sendContextCommands: sendContextCommands,
         listConversations: listConversations,
         conversationClicked: conversationClicked,
+        getSerializedChat: getSerializedChat,
     }
 
     return [mynahUi, api]

@@ -1,6 +1,6 @@
 import { Logging, WorkspaceFolder } from '@aws/language-server-runtimes/server-interface'
 import { dirname } from 'path'
-import { languageByExtension } from '../../shared/languageDetection'
+import { languageByExtension } from './languageDetection'
 import type {
     Chunk,
     InlineProjectContext,
@@ -13,7 +13,7 @@ import { URI } from 'vscode-uri'
 
 const fs = require('fs').promises
 const path = require('path')
-const LIBRARY_DIR = path.join(dirname(require.main!.filename), 'indexing')
+const LIBRARY_DIR = path.join('//TODO FIXME', 'indexing')
 
 export class LocalProjectContextController {
     private static instance: LocalProjectContextController | undefined
