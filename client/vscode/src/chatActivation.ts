@@ -29,6 +29,7 @@ import {
     ShowSaveFileDialogRequestType,
     ShowSaveFileDialogParams,
     tabBarActionRequestType,
+    chatOptionsUpdateType,
     buttonClickRequestType,
     chatUpdateNotificationType,
 } from '@aws/language-server-runtimes/protocol'
@@ -192,6 +193,13 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri, 
                             break
                     }
                 }, undefined)
+
+                languageClient.onNotification(chatOptionsUpdateType, params => {
+                    webviewView.webview.postMessage({
+                        command: chatOptionsUpdateType.method,
+                        params: params,
+                    })
+                })
 
                 languageClient.onNotification(contextCommandsNotificationType, params => {
                     webviewView.webview.postMessage({

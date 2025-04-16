@@ -35,11 +35,13 @@ import {
 } from '@aws/chat-client-ui-types'
 import {
     BUTTON_CLICK_REQUEST_METHOD,
+    CHAT_OPTIONS_UPDATE_NOTIFICATION_METHOD,
     CHAT_REQUEST_METHOD,
     CHAT_UPDATE_NOTIFICATION_METHOD,
     CONTEXT_COMMAND_NOTIFICATION_METHOD,
     CONVERSATION_CLICK_REQUEST_METHOD,
     CREATE_PROMPT_NOTIFICATION_METHOD,
+    ChatOptionsUpdateParams,
     ChatParams,
     ChatUpdateParams,
     ContextCommandParams,
@@ -181,8 +183,16 @@ export const createChat = (
             case GET_SERIALIZED_CHAT_REQUEST_METHOD:
                 mynahApi.getSerializedChat(message.requestId, message.params as GetSerializedChatParams)
                 break
+            case CHAT_OPTIONS_UPDATE_NOTIFICATION_METHOD:
+                tabFactory.setInfoMessages((message.params as ChatOptionsUpdateParams).chatNotifications)
+                break
             case CHAT_OPTIONS: {
                 const params = (message as ChatOptionsMessage).params
+
+                if (params?.chatNotifications) {
+                    tabFactory.setInfoMessages((message.params as ChatOptionsUpdateParams).chatNotifications)
+                }
+
                 if (params?.quickActions?.quickActionsCommandGroups) {
                     const quickActionCommandGroups = params.quickActions.quickActionsCommandGroups.map(group => ({
                         ...group,
@@ -201,6 +211,9 @@ export const createChat = (
                 if (params?.export) {
                     tabFactory.enableExport()
                 }
+
+                const initialTabId = mynahApi.createTabId()
+                if (initialTabId) mynahUi.selectTab(initialTabId)
 
                 const allExistingTabs: MynahUITabStoreModel = mynahUi.getAllTabs()
                 const highlightCommand = featureConfig.get('highlightCommand')
