@@ -429,7 +429,7 @@ describe('AgenticChatController', () => {
             assert.deepStrictEqual(
                 secondCallArgs.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext
                     ?.toolResults[0].content[0].json,
-                { result: mockToolResult }
+                mockToolResult
             )
 
             // Verify that the history was updated correctly
