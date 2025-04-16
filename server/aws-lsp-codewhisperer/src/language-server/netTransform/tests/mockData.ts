@@ -4,6 +4,7 @@ export const EXAMPLE_REQUEST: StartTransformRequest = {
     SolutionFilePath: 'D:\\TestProjects-master\\TestProjects-master\\netcoreapp3.1\\CoreMVC\CoreMVC.sln',
     SolutionConfigPaths: [],
     TransformNetStandardProjects: true,
+    EnableRazorViewTransform: true,
     SolutionRootPath: 'D:\\TestProjects-master\\TestProjects-master\\netcoreapp3.1\\CoreMVC',
     TargetFramework: 'net8.0',
     ProgramLanguage: 'csharp',

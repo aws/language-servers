@@ -7,7 +7,6 @@ import {
     Workspace,
     Logging,
 } from '@aws/language-server-runtimes/server-interface'
-import { StreamingClient } from '../../client/streamingClient/codewhispererStreamingClient'
 import { CodeWhispererServiceToken } from '../../shared/codeWhispererService'
 import {
     emitTransformationJobArtifactsDownloadedFailure,
@@ -33,8 +32,6 @@ import {
     StartTransformRequest,
 } from './models'
 import { TransformHandler } from './transformHandler'
-import { CodeWhispererStreamingClientConfig } from '@amzn/codewhisperer-streaming'
-import { getUserAgent } from '../../shared/telemetryUtils'
 
 export const validStatesForGettingPlan = ['COMPLETED', 'PARTIALLY_COMPLETED', 'PLANNED', 'TRANSFORMING', 'TRANSFORMED']
 export const validStatesForComplete = ['COMPLETED']
@@ -46,13 +43,8 @@ const PollTransformForPlanCommand = 'aws/qNetTransform/pollTransformForPlan'
 const GetTransformPlanCommand = 'aws/qNetTransform/getTransformPlan'
 const CancelTransformCommand = 'aws/qNetTransform/cancelTransform'
 const DownloadArtifactsCommand = 'aws/qNetTransform/downloadArtifacts'
-import {
-    DEFAULT_AWS_Q_REGION,
-    DEFAULT_AWS_Q_ENDPOINT_URL,
-    AWS_Q_REGION_ENV_VAR,
-    AWS_Q_ENDPOINT_URL_ENV_VAR,
-} from '../../shared/constants'
 import { SDKInitializator } from '@aws/language-server-runtimes/server-interface'
+import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 
 /**
  *
@@ -71,15 +63,8 @@ export const QNetTransformServerToken =
         ) => CodeWhispererServiceToken
     ): Server =>
     ({ credentialsProvider, workspace, logging, lsp, telemetry, runtime, sdkInitializator }) => {
-        const codewhispererclient = service(
-            credentialsProvider,
-            workspace,
-            logging,
-            runtime.getConfiguration(AWS_Q_REGION_ENV_VAR) ?? DEFAULT_AWS_Q_REGION,
-            runtime.getConfiguration(AWS_Q_ENDPOINT_URL_ENV_VAR) ?? DEFAULT_AWS_Q_ENDPOINT_URL,
-            sdkInitializator
-        )
-        const transformHandler = new TransformHandler(codewhispererclient, workspace, logging, runtime)
+        let amazonQServiceManager: AmazonQTokenServiceManager
+        let transformHandler: TransformHandler
         const runTransformCommand = async (params: ExecuteCommandParams, _token: CancellationToken) => {
             try {
                 switch (params.command) {
@@ -131,18 +116,8 @@ export const QNetTransformServerToken =
                     }
                     case DownloadArtifactsCommand: {
                         const request = params as DownloadArtifactsRequest
-                        const cwStreamingClientInstance = new StreamingClient()
-                        const cwStreamingClient = await cwStreamingClientInstance.getStreamingClient(
-                            credentialsProvider,
-                            runtime.getConfiguration(AWS_Q_REGION_ENV_VAR) ?? DEFAULT_AWS_Q_REGION,
-                            runtime.getConfiguration(AWS_Q_ENDPOINT_URL_ENV_VAR) ?? DEFAULT_AWS_Q_ENDPOINT_URL,
-                            sdkInitializator,
-                            logging,
-                            customCWClientConfig
-                        )
 
                         const response = await transformHandler.downloadExportResultArchive(
-                            cwStreamingClient,
                             request.TransformationJobId,
                             request.SolutionRootPath
                         )
@@ -206,14 +181,24 @@ export const QNetTransformServerToken =
             return runTransformCommand(params, _token)
         }
 
-        const customCWClientConfig: CodeWhispererStreamingClientConfig = {}
-        const onInitializeHandler = (params: InitializeParams) => {
-            // Cache user agent to reuse between commands calls
-            customCWClientConfig.customUserAgent = getUserAgent(params, runtime.serverInfo)
-
-            codewhispererclient.updateClientConfig({
-                customUserAgent: customCWClientConfig.customUserAgent,
+        const onInitializeHandler = async (params: InitializeParams) => {
+            amazonQServiceManager = AmazonQTokenServiceManager.getInstance({
+                lsp,
+                logging,
+                runtime,
+                credentialsProvider,
+                sdkInitializator,
+                workspace,
             })
+
+            transformHandler = new TransformHandler(amazonQServiceManager, workspace, logging, runtime)
+
+            /* 
+                    Calling handleDidChangeConfiguration once to ensure we get configuration atleast once at start up
+                    
+                    TODO: TODO: consider refactoring such responsibilities to common service manager config/initialisation server
+                */
+            await amazonQServiceManager.handleDidChangeConfiguration()
 
             return {
                 capabilities: {

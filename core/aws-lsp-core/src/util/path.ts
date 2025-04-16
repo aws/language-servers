@@ -91,3 +91,7 @@ export function sanitize(inputPath: string): string {
     }
     return sanitized
 }
+
+export function getUserHomeDir(): string {
+    return os.homedir()
+}

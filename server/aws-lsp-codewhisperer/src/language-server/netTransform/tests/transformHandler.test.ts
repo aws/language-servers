@@ -32,6 +32,7 @@ import { Readable } from 'stream'
 import { ArtifactManager } from '../artifactManager'
 import path = require('path')
 import { IZipEntry } from 'adm-zip'
+import { AmazonQTokenServiceManager } from '../../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 
 const mocked$Response = {
     $response: {
@@ -62,7 +63,12 @@ describe('Test Transform handler ', () => {
         client = stubInterface<CodeWhispererServiceToken>()
         workspace = stubInterface<Workspace>()
         runtime = stubInterface<Runtime>()
-        transformHandler = new TransformHandler(client, workspace, mockedLogging, runtime)
+
+        const serviceManager = stubInterface<AmazonQTokenServiceManager>()
+        client = stubInterface<CodeWhispererServiceToken>()
+        serviceManager.getCodewhispererService.returns(client)
+
+        transformHandler = new TransformHandler(serviceManager, workspace, mockedLogging, runtime)
     })
 
     describe('test upload artifact', () => {

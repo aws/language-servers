@@ -110,4 +110,81 @@ describe('StreamingClientService', () => {
         sinon.assert.calledOnce(sendMessageStub)
         sinon.assert.match(sendMessageStub.firstCall.firstArg, expectedRequest)
     })
+
+    describe('generateAssistantResponse', () => {
+        const MOCKED_GENERATE_RESPONSE_REQUEST = {
+            conversationState: {
+                chatTriggerType: 'MANUAL' as const,
+                currentMessage: {
+                    userInputMessage: {
+                        content: 'some-content',
+                    },
+                },
+            },
+        }
+
+        const MOCKED_GENERATE_RESPONSE_RESPONSE = {
+            generateAssistantResponse: {
+                conversationId: 'some-conversation-id',
+                generateAssistantResponseResponse: undefined,
+            },
+        }
+
+        it('calls generate assistant response with correct parameters', async () => {
+            const generateAssistantResponseStub = sinon
+                .stub(CodeWhispererStreaming.prototype, 'generateAssistantResponse')
+                .callsFake(() => Promise.resolve(MOCKED_GENERATE_RESPONSE_RESPONSE))
+
+            const promise = streamingClientService.generateAssistantResponse(MOCKED_GENERATE_RESPONSE_REQUEST)
+
+            await clock.tickAsync(TIME_TO_ADVANCE_MS)
+            await promise
+
+            sinon.assert.calledOnce(generateAssistantResponseStub)
+            sinon.assert.match(generateAssistantResponseStub.firstCall.firstArg, MOCKED_GENERATE_RESPONSE_REQUEST)
+        })
+
+        it('attaches known profileArn to generate assistant response request', async () => {
+            const mockedProfileArn = 'some-profile-arn'
+            const generateAssistantResponseStub = sinon
+                .stub(CodeWhispererStreaming.prototype, 'generateAssistantResponse')
+                .callsFake(() => Promise.resolve(MOCKED_GENERATE_RESPONSE_RESPONSE))
+
+            streamingClientService.profileArn = mockedProfileArn
+            const expectedRequest = {
+                ...MOCKED_GENERATE_RESPONSE_REQUEST,
+                profileArn: mockedProfileArn,
+            }
+            const promise = streamingClientService.generateAssistantResponse(MOCKED_GENERATE_RESPONSE_REQUEST)
+
+            await clock.tickAsync(TIME_TO_ADVANCE_MS)
+            await promise
+
+            sinon.assert.calledOnce(generateAssistantResponseStub)
+            sinon.assert.match(generateAssistantResponseStub.firstCall.firstArg, expectedRequest)
+        })
+
+        it('aborts in flight generate assistant response requests', async () => {
+            streamingClientService.generateAssistantResponse(MOCKED_GENERATE_RESPONSE_REQUEST)
+            streamingClientService.generateAssistantResponse(MOCKED_GENERATE_RESPONSE_REQUEST)
+
+            streamingClientService.abortInflightRequests()
+
+            sinon.assert.calledTwice(abortStub)
+            expect(streamingClientService['inflightRequests'].size).to.eq(0)
+        })
+
+        it('aborts in flight generate assistant response requests with explicit abort controller', async () => {
+            const abort = sinon.stub()
+            const signal = sinon.createStubInstance(AbortSignal)
+
+            streamingClientService.generateAssistantResponse(MOCKED_GENERATE_RESPONSE_REQUEST, { abort, signal })
+            streamingClientService.generateAssistantResponse(MOCKED_GENERATE_RESPONSE_REQUEST, { abort, signal })
+
+            streamingClientService.abortInflightRequests()
+
+            sinon.assert.calledTwice(abort)
+            expect(streamingClientService['inflightRequests'].size).to.eq(0)
+        })
+    })
 })

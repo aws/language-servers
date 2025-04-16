@@ -8,7 +8,7 @@ import {
 } from './qConfigurationServer'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import { CodeWhispererServiceToken } from '../../shared/codeWhispererService'
-import { InitializeParams, Server } from '@aws/language-server-runtimes/server-interface'
+import { CancellationTokenSource, InitializeParams, Server } from '@aws/language-server-runtimes/server-interface'
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 import { setCredentialsForAmazonQTokenServiceManagerFactory } from '../../shared/testUtils'
 import { Q_CONFIGURATION_SECTION } from '../../shared/constants'
@@ -96,6 +96,7 @@ describe('ServerConfigurationProvider', () => {
     let codeWhispererService: StubbedInstance<CodeWhispererServiceToken>
     let testFeatures: TestFeatures
     let listAvailableProfilesHandlerSpy: sinon.SinonSpy
+    let tokenSource: CancellationTokenSource
 
     const setCredentials = setCredentialsForAmazonQTokenServiceManagerFactory(() => testFeatures)
 
@@ -119,6 +120,7 @@ describe('ServerConfigurationProvider', () => {
     }
 
     beforeEach(() => {
+        tokenSource = new CancellationTokenSource()
         codeWhispererService = stubInterface<CodeWhispererServiceToken>()
         codeWhispererService.listAvailableCustomizations.resolves({
             customizations: [],
@@ -152,14 +154,14 @@ describe('ServerConfigurationProvider', () => {
     it(`does not use listAvailableProfiles handler when developer profiles is disabled`, async () => {
         setupServerConfigurationProvider(false)
 
-        const result = await serverConfigurationProvider.listAvailableProfiles()
+        const result = await serverConfigurationProvider.listAvailableProfiles(tokenSource.token)
 
         sinon.assert.notCalled(listAvailableProfilesHandlerSpy)
         assert.deepStrictEqual(result, [])
     })
 
     it(`uses listAvailableProfiles handler when developer profiles is enabled`, async () => {
-        await serverConfigurationProvider.listAvailableProfiles()
+        await serverConfigurationProvider.listAvailableProfiles(tokenSource.token)
 
         sinon.assert.calledOnce(listAvailableProfilesHandlerSpy)
     })

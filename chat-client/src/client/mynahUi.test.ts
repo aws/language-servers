@@ -4,9 +4,10 @@ import { assert } from 'sinon'
 import { createMynahUi, InboundChatApi, handleChatPrompt, DEFAULT_HELP_PROMPT } from './mynahUi'
 import { Messager, OutboundChatApi } from './messager'
 import { TabFactory } from './tabs/tabFactory'
-import { ChatItemType, MynahUI, MynahUIProps } from '@aws/mynah-ui'
-import { ChatEventHandler, ChatClientAdapter } from '../contracts/chatClientAdapter'
-import { withAdapter } from './withAdapter'
+import { ChatItemType, MynahUI, NotificationType } from '@aws/mynah-ui'
+import { ChatClientAdapter } from '../contracts/chatClientAdapter'
+import { ChatMessage } from '@aws/language-server-runtimes-types'
+import { ChatHistory } from './features/history'
 
 describe('MynahUI', () => {
     let messager: Messager
@@ -23,6 +24,9 @@ describe('MynahUI', () => {
     let onQuickActionSpy: sinon.SinonSpy
     let onOpenTabSpy: sinon.SinonSpy
     let selectTabSpy: sinon.SinonSpy
+    let serializeChatStub: sinon.SinonStub
+    let notifySpy: sinon.SinonSpy
+    const requestId = '1234'
 
     beforeEach(() => {
         outboundChatApi = {
@@ -44,6 +48,11 @@ describe('MynahUI', () => {
             disclaimerAcknowledged: sinon.stub(),
             onOpenTab: sinon.stub(),
             createPrompt: sinon.stub(),
+            fileClick: sinon.stub(),
+            listConversations: sinon.stub(),
+            conversationClick: sinon.stub(),
+            tabBarAction: sinon.stub(),
+            onGetSerializedChat: sinon.stub(),
         }
 
         messager = new Messager(outboundChatApi)
@@ -62,6 +71,8 @@ describe('MynahUI', () => {
         updateStoreSpy = sinon.spy(mynahUi, 'updateStore')
         addChatItemSpy = sinon.spy(mynahUi, 'addChatItem')
         selectTabSpy = sinon.spy(mynahUi, 'selectTab')
+        serializeChatStub = sinon.stub(mynahUi, 'serializeChat')
+        notifySpy = sinon.spy(mynahUi, 'notify')
     })
 
     afterEach(() => {
@@ -116,12 +127,41 @@ describe('MynahUI', () => {
     })
 
     describe('openTab', () => {
-        it('should create a new tab if tabId not passed', () => {
+        it('should create a new tab with welcome messages if tabId not passed and previous messages not passed', () => {
             createTabStub.resetHistory()
 
-            inboundChatApi.openTab({})
+            inboundChatApi.openTab(requestId, {})
 
-            sinon.assert.calledOnceWithExactly(createTabStub, true, false)
+            sinon.assert.calledOnceWithExactly(createTabStub, true, false, undefined)
+            sinon.assert.notCalled(selectTabSpy)
+            sinon.assert.calledOnce(onOpenTabSpy)
+        })
+
+        it('should create a new tab with messages if tabId is not passed and previous messages are passed', () => {
+            const mockMessages: ChatMessage[] = [
+                {
+                    messageId: 'msg1',
+                    body: 'Test message 1',
+                    type: ChatItemType.PROMPT,
+                },
+                {
+                    messageId: 'msg2',
+                    body: 'Test message 2',
+                    type: ChatItemType.ANSWER,
+                },
+            ]
+
+            createTabStub.resetHistory()
+
+            inboundChatApi.openTab(requestId, {
+                newTabOptions: {
+                    data: {
+                        messages: mockMessages,
+                    },
+                },
+            })
+
+            sinon.assert.calledOnceWithExactly(createTabStub, false, false, mockMessages)
             sinon.assert.notCalled(selectTabSpy)
             sinon.assert.calledOnce(onOpenTabSpy)
         })
@@ -131,11 +171,11 @@ describe('MynahUI', () => {
             updateStoreSpy.restore()
             sinon.stub(mynahUi, 'updateStore').returns(undefined)
 
-            inboundChatApi.openTab({})
+            inboundChatApi.openTab(requestId, {})
 
-            sinon.assert.calledOnceWithExactly(createTabStub, true, false)
+            sinon.assert.calledOnceWithExactly(createTabStub, true, false, undefined)
             sinon.assert.notCalled(selectTabSpy)
-            sinon.assert.calledOnceWithMatch(onOpenTabSpy, { type: 'InvalidRequest' })
+            sinon.assert.calledOnceWithMatch(onOpenTabSpy, requestId, { type: 'InvalidRequest' })
         })
 
         it('should open existing tab if tabId passed and tabId not selected', () => {
@@ -144,11 +184,11 @@ describe('MynahUI', () => {
             getSelectedTabIdStub.returns('1')
             const tabId = '2'
 
-            inboundChatApi.openTab({ tabId })
+            inboundChatApi.openTab(requestId, { tabId })
 
             sinon.assert.notCalled(createTabStub)
             sinon.assert.calledOnceWithExactly(selectTabSpy, tabId)
-            sinon.assert.calledOnceWithExactly(onOpenTabSpy, { tabId })
+            sinon.assert.calledOnceWithExactly(onOpenTabSpy, requestId, { tabId })
         })
 
         it('should not open existing tab if tabId passed but tabId already selected', () => {
@@ -157,11 +197,11 @@ describe('MynahUI', () => {
             const tabId = '1'
             getSelectedTabIdStub.returns(tabId)
 
-            inboundChatApi.openTab({ tabId })
+            inboundChatApi.openTab(requestId, { tabId })
 
             sinon.assert.notCalled(createTabStub)
             sinon.assert.notCalled(selectTabSpy)
-            sinon.assert.calledOnceWithExactly(onOpenTabSpy, { tabId })
+            sinon.assert.calledOnceWithExactly(onOpenTabSpy, requestId, { tabId })
         })
     })
 
@@ -176,7 +216,7 @@ describe('MynahUI', () => {
             getSelectedTabIdStub.returns(undefined)
             inboundChatApi.sendGenericCommand({ genericCommand, selection, tabId, triggerType })
 
-            sinon.assert.calledOnceWithExactly(createTabStub, false, false)
+            sinon.assert.calledOnceWithExactly(createTabStub, false, false, undefined)
             sinon.assert.calledThrice(updateStoreSpy)
         })
 
@@ -192,7 +232,7 @@ describe('MynahUI', () => {
             getSelectedTabIdStub.returns(tabId)
             inboundChatApi.sendGenericCommand({ genericCommand, selection, tabId, triggerType })
 
-            sinon.assert.calledOnceWithExactly(createTabStub, false, false)
+            sinon.assert.calledOnceWithExactly(createTabStub, false, false, undefined)
             sinon.assert.calledThrice(updateStoreSpy)
         })
 
@@ -238,6 +278,90 @@ describe('MynahUI', () => {
             sinon.assert.calledOnceWithMatch(updateStoreSpy, tabId, {
                 loadingChat: true,
                 promptInputDisabledState: true,
+            })
+        })
+    })
+
+    describe('onTabBarButtonClick', () => {
+        it('should list conversations when Chat History button is clicked', () => {
+            const listConversationsSpy = sinon.spy(messager, 'onListConversations')
+
+            // @ts-ignore
+            mynahUi.props.onTabBarButtonClick('tab-123', ChatHistory.TabBarButtonId)
+
+            sinon.assert.calledOnce(listConversationsSpy)
+        })
+
+        it('should export conversation when Export button is clicked', () => {
+            const listConversationsSpy = sinon.spy(messager, 'onTabBarAction')
+
+            // @ts-ignore
+            mynahUi.props.onTabBarButtonClick('tab-123', 'export')
+
+            sinon.assert.calledOnceWithExactly(listConversationsSpy, {
+                tabId: 'tab-123',
+                action: 'export',
+            })
+        })
+    })
+
+    describe('conversationClicked result', () => {
+        it('should list conversations if successfully deleted conversation', () => {
+            const listConversationsSpy = sinon.spy(messager, 'onListConversations')
+
+            // Successful conversation deletion
+            inboundChatApi.conversationClicked({
+                success: true,
+                action: 'delete',
+                id: 'test-conversation-id',
+            })
+
+            sinon.assert.calledOnce(listConversationsSpy)
+        })
+        it('should not list conversarions if conversartion click processing failed', () => {
+            const listConversationsSpy = sinon.spy(messager, 'onListConversations')
+
+            // Unsuccessful conversation deletion
+            inboundChatApi.conversationClicked({
+                success: false,
+                action: 'delete',
+                id: 'test-conversation-id',
+            })
+
+            sinon.assert.neverCalledWith(listConversationsSpy)
+        })
+    })
+
+    describe('getSerializedChat', () => {
+        it('should return serialized chat content for supported formats', () => {
+            const onGetSerializedChatSpy = sinon.spy(messager, 'onGetSerializedChat')
+            serializeChatStub.returns('Test Serialized Chat')
+
+            inboundChatApi.getSerializedChat(requestId, {
+                format: 'markdown',
+                tabId: 'tab-1',
+            })
+
+            sinon.assert.calledWith(onGetSerializedChatSpy, requestId, { content: 'Test Serialized Chat' })
+        })
+
+        it('should show an error if requested format is not supported', () => {
+            const onGetSerializedChatSpy = sinon.spy(messager, 'onGetSerializedChat')
+            serializeChatStub.returns('Test Serialized Chat')
+
+            inboundChatApi.getSerializedChat(requestId, {
+                // @ts-ignore
+                format: 'unsupported-format',
+                tabId: 'tab-1',
+            })
+
+            sinon.assert.calledWith(onGetSerializedChatSpy, requestId, {
+                type: 'InvalidRequest',
+                message: 'Failed to get serialized chat content, unsupported-format is not supported',
+            })
+            sinon.assert.calledWith(notifySpy, {
+                content: `Failed to export chat`,
+                type: NotificationType.ERROR,
             })
         })
     })

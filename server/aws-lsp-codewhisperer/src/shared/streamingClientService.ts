@@ -1,5 +1,7 @@
 import {
     CodeWhispererStreaming,
+    GenerateAssistantResponseCommandInput,
+    GenerateAssistantResponseCommandOutput,
     SendMessageCommandInput,
     SendMessageCommandOutput,
 } from '@amzn/codewhisperer-streaming'
@@ -47,6 +49,26 @@ export class StreamingClientService {
         this.inflightRequests.add(controller)
 
         const response = await this.client.sendMessage(
+            { ...request, profileArn: this.profileArn },
+            {
+                abortSignal: controller.signal,
+            }
+        )
+
+        this.inflightRequests.delete(controller)
+
+        return response
+    }
+
+    public async generateAssistantResponse(
+        request: GenerateAssistantResponseCommandInput,
+        abortController?: AbortController
+    ): Promise<GenerateAssistantResponseCommandOutput> {
+        const controller: AbortController = abortController ?? new AbortController()
+
+        this.inflightRequests.add(controller)
+
+        const response = await this.client.generateAssistantResponse(
             { ...request, profileArn: this.profileArn },
             {
                 abortSignal: controller.signal,

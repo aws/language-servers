@@ -32,18 +32,29 @@ import {
 import {
     CHAT_REQUEST_METHOD,
     CONTEXT_COMMAND_NOTIFICATION_METHOD,
+    CONVERSATION_CLICK_REQUEST_METHOD,
     CREATE_PROMPT_NOTIFICATION_METHOD,
     ChatParams,
     ContextCommandParams,
+    ConversationClickParams,
+    ConversationClickResult,
     CreatePromptParams,
     FEEDBACK_NOTIFICATION_METHOD,
+    FILE_CLICK_NOTIFICATION_METHOD,
     FOLLOW_UP_CLICK_NOTIFICATION_METHOD,
     FeedbackParams,
+    FileClickParams,
     FollowUpClickParams,
+    GET_SERIALIZED_CHAT_REQUEST_METHOD,
+    GetSerializedChatParams,
+    GetSerializedChatResult,
     INFO_LINK_CLICK_NOTIFICATION_METHOD,
     InfoLinkClickParams,
     LINK_CLICK_NOTIFICATION_METHOD,
+    LIST_CONVERSATIONS_REQUEST_METHOD,
     LinkClickParams,
+    ListConversationsParams,
+    ListConversationsResult,
     OPEN_TAB_REQUEST_METHOD,
     OpenTabParams,
     OpenTabResult,
@@ -53,9 +64,11 @@ import {
     SOURCE_LINK_CLICK_NOTIFICATION_METHOD,
     SourceLinkClickParams,
     TAB_ADD_NOTIFICATION_METHOD,
+    TAB_BAR_ACTION_REQUEST_METHOD,
     TAB_CHANGE_NOTIFICATION_METHOD,
     TAB_REMOVE_NOTIFICATION_METHOD,
     TabAddParams,
+    TabBarActionParams,
     TabChangeParams,
     TabRemoveParams,
 } from '@aws/language-server-runtimes-types'
@@ -118,7 +131,7 @@ export const createChat = (
                 mynahApi.addChatResponse(message.params, message.tabId, message.isPartialResult)
                 break
             case OPEN_TAB_REQUEST_METHOD:
-                mynahApi.openTab(message.params as OpenTabParams)
+                mynahApi.openTab(message.requestId, message.params as OpenTabParams)
                 break
             case SEND_TO_PROMPT:
                 mynahApi.sendToPrompt((message as SendToPromptMessage).params)
@@ -132,6 +145,14 @@ export const createChat = (
             case CONTEXT_COMMAND_NOTIFICATION_METHOD:
                 mynahApi.sendContextCommands(message.params as ContextCommandParams)
                 break
+            case LIST_CONVERSATIONS_REQUEST_METHOD:
+                mynahApi.listConversations(message.params as ListConversationsResult)
+                break
+            case CONVERSATION_CLICK_REQUEST_METHOD:
+                mynahApi.conversationClicked(message.params as ConversationClickResult)
+                break
+            case GET_SERIALIZED_CHAT_REQUEST_METHOD:
+                mynahApi.getSerializedChat(message.requestId, message.params as GetSerializedChatParams)
             case CHAT_OPTIONS: {
                 const params = (message as ChatOptionsMessage).params
                 if (params?.quickActions?.quickActionsCommandGroups) {
@@ -143,6 +164,14 @@ export const createChat = (
                         })),
                     }))
                     tabFactory.updateQuickActionCommands(quickActionCommandGroups)
+                }
+
+                if (params?.history) {
+                    tabFactory.enableHistory()
+                }
+
+                if (params?.export) {
+                    tabFactory.enableExport()
                 }
 
                 const allExistingTabs: MynahUITabStoreModel = mynahUi.getAllTabs()
@@ -210,9 +239,10 @@ export const createChat = (
         disclaimerAcknowledged: () => {
             sendMessageToClient({ command: DISCLAIMER_ACKNOWLEDGED })
         },
-        onOpenTab: (params: OpenTabResult | ErrorResult) => {
+        onOpenTab: (requestId: string, params: OpenTabResult | ErrorResult) => {
             if ('tabId' in params) {
                 sendMessageToClient({
+                    requestId: requestId,
                     command: OPEN_TAB_REQUEST_METHOD,
                     params: {
                         success: true,
@@ -221,6 +251,7 @@ export const createChat = (
                 })
             } else {
                 sendMessageToClient({
+                    requestId: requestId,
                     command: OPEN_TAB_REQUEST_METHOD,
                     params: {
                         success: false,
@@ -231,6 +262,39 @@ export const createChat = (
         },
         createPrompt: (params: CreatePromptParams) => {
             sendMessageToClient({ command: CREATE_PROMPT_NOTIFICATION_METHOD, params })
+        },
+        fileClick: (params: FileClickParams) => {
+            sendMessageToClient({ command: FILE_CLICK_NOTIFICATION_METHOD, params: params })
+        },
+        listConversations: (params: ListConversationsParams) => {
+            sendMessageToClient({ command: LIST_CONVERSATIONS_REQUEST_METHOD, params })
+        },
+        conversationClick: (params: ConversationClickParams) => {
+            sendMessageToClient({ command: CONVERSATION_CLICK_REQUEST_METHOD, params })
+        },
+        tabBarAction: (params: TabBarActionParams) => {
+            sendMessageToClient({ command: TAB_BAR_ACTION_REQUEST_METHOD, params })
+        },
+        onGetSerializedChat: (requestId: string, params: GetSerializedChatResult | ErrorResult) => {
+            if ('content' in params) {
+                sendMessageToClient({
+                    requestId: requestId,
+                    command: GET_SERIALIZED_CHAT_REQUEST_METHOD,
+                    params: {
+                        success: true,
+                        result: params as GetSerializedChatResult,
+                    },
+                })
+            } else {
+                sendMessageToClient({
+                    requestId: requestId,
+                    command: GET_SERIALIZED_CHAT_REQUEST_METHOD,
+                    params: {
+                        success: false,
+                        error: params as ErrorResult,
+                    },
+                })
+            }
         },
     }
 
