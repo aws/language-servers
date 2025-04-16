@@ -220,6 +220,8 @@ export class LocalProjectContextController {
                 maxIndexSizeMb !== undefined ? maxIndexSizeMb * this.MB_TO_BYTES : this.TWO_GB_IN_MB * this.MB_TO_BYTES,
         }
 
+        const controller = new AbortController()
+
         const workspaceSourceFiles = await Promise.all(
             workspaceFolders.map(async (folder: WorkspaceFolder) => {
                 const absolutePath = path.resolve(URI.parse(folder.uri).fsPath)
@@ -227,6 +229,7 @@ export class LocalProjectContextController {
 
                 const crawler = new fdir()
                     .withSymlinks({ resolvePaths: !includeSymLinks })
+                    .withAbortSignal(controller.signal)
                     .exclude((dirName: string, dirPath: string) => {
                         return filter.ignores(path.relative(absolutePath, dirPath))
                     })
@@ -236,12 +239,17 @@ export class LocalProjectContextController {
                             return false
                         }
 
+                        if (!respectUserGitIgnores && sizeConstraints.remainingIndexSize <= 0) {
+                            controller.abort()
+                            return false
+                        }
+
                         if (path.basename(filePath) === '.gitignore') {
                             localGitIgnoreFiles.push(filePath)
                             return false
                         }
 
-                        return true
+                        return respectUserGitIgnores || this.fileMeetsFileSizeConstraints(filePath, sizeConstraints)
                     })
 
                 return crawler
