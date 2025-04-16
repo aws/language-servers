@@ -60,6 +60,7 @@ type ChatHandlers = Omit<
     | 'onConversationClick'
     | 'getSerializedChat'
     | 'onTabBarAction'
+    | 'chatOptionsUpdate'
 >
 
 export class ChatController implements ChatHandlers {
