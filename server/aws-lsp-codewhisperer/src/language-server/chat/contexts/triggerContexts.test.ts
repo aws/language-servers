@@ -1,9 +1,12 @@
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
-import { QChatTriggerContext } from './triggerContext'
+import { QChatTriggerContext, TriggerContext } from './triggerContext'
 import assert = require('assert')
 import { TextDocument } from 'vscode-languageserver-textdocument'
 import { DocumentContext, DocumentContextExtractor } from './documentContext'
 import sinon = require('sinon')
+import { ChatParams, InitializeParams } from '@aws/language-server-runtimes/protocol'
+import { ChatTriggerType, CursorState } from '@amzn/codewhisperer-streaming'
+import { URI } from 'vscode-uri'
 
 describe('QChatTriggerContext', () => {
     let testFeatures: TestFeatures
@@ -20,6 +23,9 @@ describe('QChatTriggerContext', () => {
 
     beforeEach(() => {
         testFeatures = new TestFeatures()
+        testFeatures.lsp.getClientInitializeParams.returns({
+            workspaceFolders: [{ uri: URI.file('/path/to/my/workspace/').toString(), name: 'myWorkspace' }],
+        } as InitializeParams)
         sinon.stub(DocumentContextExtractor.prototype, 'extractDocumentContext').resolves(mockDocumentContext)
     })
 
@@ -90,5 +96,30 @@ describe('QChatTriggerContext', () => {
         })
 
         assert.deepStrictEqual(documentContext, mockDocumentContext)
+    })
+
+    it('includes workspace folders as part of editor state in chat params', async () => {
+        const triggerContext = new QChatTriggerContext(testFeatures)
+        const chatParams = triggerContext.getChatParamsFromTrigger(
+            { tabId: 'tab', prompt: {} },
+            {},
+            ChatTriggerType.MANUAL
+        )
+        const chatParamsWithMore = triggerContext.getChatParamsFromTrigger(
+            { tabId: 'tab', prompt: {} },
+            { cursorState: {} as CursorState, relativeFilePath: '' },
+            ChatTriggerType.MANUAL
+        )
+
+        assert.deepStrictEqual(
+            chatParams.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext?.editorState
+                ?.workspaceFolders,
+            ['/path/to/my/workspace/']
+        )
+        assert.deepStrictEqual(
+            chatParamsWithMore.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext?.editorState
+                ?.workspaceFolders,
+            ['/path/to/my/workspace/']
+        )
     })
 })
