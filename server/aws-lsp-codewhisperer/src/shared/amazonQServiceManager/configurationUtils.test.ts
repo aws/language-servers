@@ -23,6 +23,7 @@ describe('getAmazonQRelatedWorkspaceConfigs', () => {
                 ignoreFilePatterns: [],
                 maxFileSizeMb: 10,
                 maxIndexSizeMb: 2048,
+                indexCacheDirPath: undefined,
             },
         },
     }
@@ -99,6 +100,7 @@ describe('AmazonQConfigurationCache', () => {
                     ignoreFilePatterns: [],
                     maxFileSizeMb: 10,
                     maxIndexSizeMb: 2048,
+                    indexCacheDirPath: undefined,
                 },
             },
         }

@@ -36,6 +36,7 @@ export interface LocalProjectContextInitializationOptions {
     includeSymlinks?: boolean
     maxFileSizeMb?: number
     maxIndexSizeMb?: number
+    indexCacheDirPath?: string
 }
 
 export class LocalProjectContextController {
@@ -51,8 +52,9 @@ export class LocalProjectContextController {
     private maxFileSizeMb?: number
     private maxIndexSizeMb?: number
     private respectUserGitIgnores?: boolean
-    private readonly fileExtensions: string[]
+    private indexCacheDirPath: string = path.join(fs.getUserHomeDir(), '.aws', 'amazonq', 'cache')
 
+    private readonly fileExtensions: string[] = Object.keys(languageByExtension)
     private readonly DEFAULT_MAX_INDEX_SIZE = 2048
     private readonly DEFAULT_MAX_FILE_SIZE = 10
     private readonly MB_TO_BYTES = 1024 * 1024
@@ -61,7 +63,6 @@ export class LocalProjectContextController {
         this.workspaceFolders = workspaceFolders
         this.clientName = clientName
         this.log = logging
-        this.fileExtensions = Object.keys(languageByExtension)
     }
 
     public static getInstance() {
@@ -78,6 +79,7 @@ export class LocalProjectContextController {
         includeSymlinks = false,
         maxFileSizeMb = this.DEFAULT_MAX_FILE_SIZE,
         maxIndexSizeMb = this.DEFAULT_MAX_INDEX_SIZE,
+        indexCacheDirPath = path.join(fs.getUserHomeDir(), '.aws', 'amazonq', 'cache'),
     }: LocalProjectContextInitializationOptions = {}): Promise<void> {
         try {
             this.includeSymlinks = includeSymlinks
@@ -85,12 +87,13 @@ export class LocalProjectContextController {
             this.maxIndexSizeMb = maxIndexSizeMb
             this.respectUserGitIgnores = respectUserGitIgnores
             this.ignoreFilePatterns = ignoreFilePatterns
-
+            if (indexCacheDirPath?.length > 0 && path.parse(indexCacheDirPath)) {
+                this.indexCacheDirPath = indexCacheDirPath
+            }
             const libraryPath = path.join(LIBRARY_DIR, 'dist', 'extension.js')
             const vecLib = vectorLib ?? (await import(libraryPath))
             if (vecLib) {
-                const root = this.findCommonWorkspaceRoot(this.workspaceFolders)
-                this._vecLib = await vecLib.start(LIBRARY_DIR, this.clientName, root)
+                this._vecLib = await vecLib.start(LIBRARY_DIR, this.clientName, this.indexCacheDirPath)
                 await this.buildIndex()
                 LocalProjectContextController.instance = this
             } else {
@@ -132,8 +135,7 @@ export class LocalProjectContextController {
                     this.maxFileSizeMb,
                     this.maxIndexSizeMb
                 )
-                const rootDir = this.findCommonWorkspaceRoot(this.workspaceFolders)
-                await this._vecLib?.buildIndex(sourceFiles, rootDir, 'all')
+                await this._vecLib?.buildIndex(sourceFiles, this.indexCacheDirPath, 'all')
             }
         } catch (error) {
             this.log?.error(`Error building index: ${error}`)
@@ -313,34 +315,6 @@ export class LocalProjectContextController {
 
         this.log?.info(`Indexing complete: found ${workspaceSourceFiles.length} files.`)
         return workspaceSourceFiles
-    }
-
-    private findCommonWorkspaceRoot(workspaceFolders: WorkspaceFolder[]): string {
-        if (!workspaceFolders.length) {
-            throw new Error('No workspace folders provided')
-        }
-        if (workspaceFolders.length === 1) {
-            return new URL(workspaceFolders[0].uri).pathname
-        }
-
-        const paths = workspaceFolders.map(folder => new URL(folder.uri).pathname)
-        const splitPaths = paths.map(p => p.split(path.sep).filter(Boolean))
-        const minLength = Math.min(...splitPaths.map(p => p.length))
-
-        let lastMatchingIndex = -1
-        for (let i = 0; i < minLength; i++) {
-            const segment = splitPaths[0][i]
-            if (splitPaths.every(p => p[i] === segment)) {
-                lastMatchingIndex = i
-            } else {
-                break
-            }
-        }
-
-        if (lastMatchingIndex === -1) {
-            return new URL(workspaceFolders[0].uri).pathname
-        }
-        return path.sep + splitPaths[0].slice(0, lastMatchingIndex + 1).join(path.sep)
     }
 
     private areWorkspaceFoldersEqual(a: WorkspaceFolder, b: WorkspaceFolder): boolean {

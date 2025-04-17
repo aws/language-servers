@@ -71,6 +71,7 @@ interface LocalIndexConfig {
     ignoreFilePatterns?: string[]
     maxFileSizeMb?: number
     maxIndexSizeMb?: number
+    indexCacheDirPath?: string
 }
 
 interface QProjectContextConfig {
@@ -123,6 +124,7 @@ export async function getAmazonQRelatedWorkspaceConfigs(
                         ignoreFilePatterns: newQConfig.projectContext?.localIndexing?.ignoreFilePatterns ?? [],
                         maxFileSizeMb: newQConfig.projectContext?.localIndexing?.maxFileSizeMb ?? 10,
                         maxIndexSizeMb: newQConfig.projectContext?.localIndexing?.maxIndexSizeMb ?? 2048,
+                        indexCacheDirPath: newQConfig.projectContext?.localIndexing?.indexCacheDirPath ?? undefined,
                     },
                 },
             }
@@ -176,6 +178,7 @@ export const defaultAmazonQWorkspaceConfigFactory = (): AmazonQWorkspaceConfig =
                 ignoreFilePatterns: [],
                 maxFileSizeMb: 10,
                 maxIndexSizeMb: 2048,
+                indexCacheDirPath: undefined,
             },
         },
     }
