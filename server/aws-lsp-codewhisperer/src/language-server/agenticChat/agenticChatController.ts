@@ -131,9 +131,9 @@ export class AgenticChatController implements ChatHandlers {
     }
 
     #getChatResultStream(partialResultToken?: string | number): AgenticChatResultStream {
-        return new AgenticChatResultStream(this.#features.logging, async (chunk: ChatResult | string) => {
-            await this.#sendProgressToClient(chunk, partialResultToken)
-        })
+        return new AgenticChatResultStream(async (chunk: ChatResult | string) =>
+            this.#sendProgressToClient(chunk, partialResultToken)
+        )
     }
 
     async onChatPrompt(params: ChatParams, token: CancellationToken): Promise<ChatResult | ResponseError<ChatResult>> {

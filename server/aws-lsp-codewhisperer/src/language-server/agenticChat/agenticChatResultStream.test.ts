@@ -11,7 +11,7 @@ describe('agenticChatResponse', function () {
 
     beforeEach(function () {
         output = []
-        chatResultStream = new AgenticChatResultStream(logging, sendProgress)
+        chatResultStream = new AgenticChatResultStream(sendProgress)
     })
 
     it('combines all previous results on write', async function () {

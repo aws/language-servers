@@ -3,13 +3,7 @@
  * Will be deleted or merged.
  */
 
-import {
-    ChatResponseStream,
-    Reference,
-    SupplementaryWebLink,
-    ToolUse,
-    ToolUseEvent,
-} from '@amzn/codewhisperer-streaming'
+import { ChatResponseStream, Reference, SupplementaryWebLink, ToolUse } from '@amzn/codewhisperer-streaming'
 import {
     ChatItemAction,
     ChatResult,
@@ -84,37 +78,6 @@ export class AgenticChatEventParser implements ChatResult {
         return this.#totalEvents
     }
 
-    private processToolEvent(toolUseEvent: ToolUseEvent) {
-        this.#totalEvents.toolUserEvent += 1
-
-        // what about no tool use id?
-        if (toolUseEvent.toolUseId) {
-            const toolUseId = toolUseEvent.toolUseId
-            const name = toolUseEvent.name
-            const input = toolUseEvent.input
-
-            this.toolUses[toolUseId] = {
-                ...this.toolUses[toolUseId],
-                toolUseId,
-                name,
-                input: `${this.toolUses[toolUseId]?.input || ''}${input || ''}`,
-                stop: !!toolUseEvent.stop,
-            }
-
-            if (toolUseEvent.stop) {
-                const parsedInput =
-                    typeof this.toolUses[toolUseId].input === 'string'
-                        ? JSON.parse(this.toolUses[toolUseId].input === '' ? '{}' : this.toolUses[toolUseId].input)
-                        : this.toolUses[toolUseId].input
-                this.toolUses[toolUseId] = {
-                    ...this.toolUses[toolUseId],
-                    input: parsedInput,
-                }
-                console.log(`ToolUseEvent: ${toolUseId} ${name} ${this.toolUses[toolUseId].input}`)
-            }
-        }
-    }
-
     public processPartialEvent(chatEvent: ChatResponseStream): Result<ChatResultWithMetadata, string> {
         const {
             messageMetadataEvent,
@@ -148,7 +111,34 @@ export class AgenticChatEventParser implements ChatResult {
             this.#totalEvents.assistantResponseEvent += 1
             this.body = (this.body ?? '') + assistantResponseEvent.content
         } else if (toolUseEvent) {
-            this.processToolEvent(toolUseEvent)
+            this.#totalEvents.toolUserEvent += 1
+
+            // what about no tool use id?
+            if (toolUseEvent.toolUseId) {
+                const toolUseId = toolUseEvent.toolUseId
+                const name = toolUseEvent.name
+                const input = toolUseEvent.input
+
+                this.toolUses[toolUseId] = {
+                    ...this.toolUses[toolUseId],
+                    toolUseId,
+                    name,
+                    input: `${this.toolUses[toolUseId]?.input || ''}${input || ''}`,
+                    stop: !!toolUseEvent.stop,
+                }
+
+                if (toolUseEvent.stop) {
+                    const parsedInput =
+                        typeof this.toolUses[toolUseId].input === 'string'
+                            ? JSON.parse(this.toolUses[toolUseId].input === '' ? '{}' : this.toolUses[toolUseId].input)
+                            : this.toolUses[toolUseId].input
+                    this.toolUses[toolUseId] = {
+                        ...this.toolUses[toolUseId],
+                        input: parsedInput,
+                    }
+                    console.log(`ToolUseEvent: ${toolUseId} ${name} ${this.toolUses[toolUseId].input}`)
+                }
+            }
         } else if (followupPromptEvent?.followupPrompt) {
             this.#totalEvents.followupPromptEvent += 1
             const { content } = followupPromptEvent.followupPrompt

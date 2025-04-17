@@ -1,4 +1,3 @@
-import { Features } from '../types'
 import { ChatResult } from '@aws/language-server-runtimes/protocol'
 
 interface ResultStreamWriter {
@@ -7,9 +6,8 @@ interface ResultStreamWriter {
 }
 
 /**
- * Abstraction for streaming intermediate ChatResults to the client.
- * Each result block is seperated by the resultDelimiter in a single message.
- * Result blocks can be written directly or streamed in.
+ * This class wraps around lsp.sendProgress to provide a more helpful interface for streaming a ChatResult to the client.
+ * ChatResults are grouped into blocks that can be written directly, or streamed in.
  */
 export class AgenticChatResultStream {
     static readonly resultDelimiter = '\n\n'
@@ -18,11 +16,9 @@ export class AgenticChatResultStream {
         isLocked: false,
     }
     readonly #sendProgress: (newChatResult: ChatResult | string) => Promise<void>
-    readonly #logging: Features['logging']
 
-    constructor(logging: Features['logging'], sendProgress: (newChatResult: ChatResult | string) => Promise<void>) {
+    constructor(sendProgress: (newChatResult: ChatResult | string) => Promise<void>) {
         this.#sendProgress = sendProgress
-        this.#logging = logging
     }
 
     getResult(): ChatResult {
@@ -39,10 +35,11 @@ export class AgenticChatResultStream {
         this.#state.chatResultBlocks.push(result)
         await this.#sendProgress(this.getResult())
     }
-    // Note: if write calls are not awaited, stream can be out-of-order.
+
     getResultStreamWriter(): ResultStreamWriter {
+        // Note: if write calls are not awaited, stream can be out-of-order.
         if (this.#state.isLocked) {
-            throw new Error('Stream Writer is already locked')
+            throw new Error('AgenticChatResultStream: already locked')
         }
         this.#state.isLocked = true
         let lastResult: ChatResult | undefined
