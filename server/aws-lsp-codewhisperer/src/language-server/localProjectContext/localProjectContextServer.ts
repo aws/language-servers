@@ -12,6 +12,8 @@ export const LocalProjectContextServer = (): Server => features => {
     let amazonQServiceManager: AmazonQTokenServiceManager
     let telemetryService: TelemetryService
 
+    let projectContextEnabled: boolean = false
+
     lsp.addInitializer((params: InitializeParams) => {
         amazonQServiceManager = AmazonQTokenServiceManager.getInstance(features)
         telemetryService = new TelemetryService(amazonQServiceManager, credentialsProvider, telemetry, logging)
@@ -117,10 +119,14 @@ export const LocalProjectContextServer = (): Server => features => {
     const updateConfigurationHandler = async (updatedConfig: AmazonQWorkspaceConfig) => {
         logging.log('Updating configuration of local context server')
         try {
-            logging.log(`Setting project context enabled to ${updatedConfig.projectContext?.enableLocalIndexing}`)
-            updatedConfig.projectContext?.enableLocalIndexing
-                ? await localProjectContextController.init()
-                : await localProjectContextController.dispose()
+            const newSetting = updatedConfig.projectContext?.enableLocalIndexing
+            if (projectContextEnabled !== newSetting) {
+                projectContextEnabled = newSetting
+                logging.log(`Setting project context enabled to ${newSetting}`)
+                updatedConfig.projectContext?.enableLocalIndexing
+                    ? await localProjectContextController.init()
+                    : await localProjectContextController.dispose()
+            }
         } catch (error) {
             logging.error(`Error handling configuration change: ${error}`)
         }
