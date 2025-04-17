@@ -82,6 +82,7 @@ export class LocalProjectContextController {
             await this._vecLib?.clear?.()
             this._vecLib = undefined
         }
+        this.contextCommandsProvider?.dispose()
     }
 
     public getRootDirectory() {
