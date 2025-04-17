@@ -49,7 +49,7 @@ export class LocalProjectContextController {
             const vecLib = vectorLib ?? (await import(libraryPath))
             if (vecLib) {
                 const root = this.findCommonWorkspaceRoot(this.workspaceFolders)
-                this._vecLib = await vecLib.start(libraryPath, this.clientName, root)
+                this._vecLib = await vecLib.start(LIBRARY_DIR, this.clientName, root)
                 await this.buildIndex()
                 LocalProjectContextController.instance = this
             } else {
