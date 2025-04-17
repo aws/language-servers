@@ -94,7 +94,7 @@ export class LocalProjectContextController {
                 await this.buildIndex()
                 LocalProjectContextController.instance = this
             } else {
-                this.log.warn(`Vector library could not be imported from: ${libraryPath}`)
+                this.log?.warn(`Vector library could not be imported from: ${libraryPath}`)
             }
         } catch (error) {
             this.log?.error('Vector library failed to initialize:' + error)
