@@ -19,6 +19,12 @@ describe('getAmazonQRelatedWorkspaceConfigs', () => {
         },
         projectContext: {
             enableLocalIndexing: true,
+            localIndexing: {
+                ignoreFilePatterns: [],
+                maxFileSizeMB: 10,
+                maxIndexSizeMB: 2048,
+                indexCacheDirPath: undefined,
+            },
         },
     }
 
@@ -43,7 +49,10 @@ describe('getAmazonQRelatedWorkspaceConfigs', () => {
             inlineSuggestions: { extraContext: MOCKED_AWS_Q_SECTION.inlineSuggestions.extraContext },
             includeSuggestionsWithCodeReferences: MOCKED_AWS_CODEWHISPERER_SECTION.includeSuggestionsWithCodeReferences,
             shareCodeWhispererContentWithAWS: MOCKED_AWS_CODEWHISPERER_SECTION.shareCodeWhispererContentWithAWS,
-            projectContext: { enableLocalIndexing: MOCKED_AWS_Q_SECTION.projectContext.enableLocalIndexing },
+            projectContext: {
+                enableLocalIndexing: MOCKED_AWS_Q_SECTION.projectContext.enableLocalIndexing,
+                localIndexing: MOCKED_AWS_Q_SECTION.projectContext.localIndexing,
+            },
         }
 
         const amazonQConfig = await getAmazonQRelatedWorkspaceConfigs(features.lsp, features.logging)
@@ -87,6 +96,12 @@ describe('AmazonQConfigurationCache', () => {
             shareCodeWhispererContentWithAWS: true,
             projectContext: {
                 enableLocalIndexing: true,
+                localIndexing: {
+                    ignoreFilePatterns: [],
+                    maxFileSizeMB: 10,
+                    maxIndexSizeMB: 2048,
+                    indexCacheDirPath: undefined,
+                },
             },
         }
     })
