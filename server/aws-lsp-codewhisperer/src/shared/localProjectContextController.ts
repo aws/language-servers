@@ -15,7 +15,13 @@ const ignore = require('ignore')
 const { fdir } = require('fdir')
 const fs = require('fs')
 const path = require('path')
-const LIBRARY_DIR = path.join(dirname(require.main!.filename), 'indexing')
+
+const LIBRARY_DIR = (() => {
+    if (require.main) {
+        return path.join(dirname(require.main.filename), 'indexing')
+    }
+    return path.join(__dirname, 'indexing')
+})()
 
 export interface SizeConstraints {
     maxFileSize: number
@@ -80,11 +86,16 @@ export class LocalProjectContextController {
             this.respectUserGitIgnores = respectUserGitIgnores
             this.ignoreFilePatterns = ignoreFilePatterns
 
-            const vecLib = vectorLib ?? (await import(path.join(LIBRARY_DIR, 'dist', 'extension.js')))
-            const root = this.findCommonWorkspaceRoot(this.workspaceFolders)
-            this._vecLib = await vecLib.start(LIBRARY_DIR, this.clientName, root)
-            await this.buildIndex()
-            LocalProjectContextController.instance = this
+            const libraryPath = path.join(LIBRARY_DIR, 'dist', 'extension.js')
+            const vecLib = vectorLib ?? (await import(libraryPath))
+            if (vecLib) {
+                const root = this.findCommonWorkspaceRoot(this.workspaceFolders)
+                this._vecLib = await vecLib.start(LIBRARY_DIR, this.clientName, root)
+                await this.buildIndex()
+                LocalProjectContextController.instance = this
+            } else {
+                this.log.warn(`Vector library could not be imported from: ${libraryPath}`)
+            }
         } catch (error) {
             this.log?.error('Vector library failed to initialize:' + error)
         }

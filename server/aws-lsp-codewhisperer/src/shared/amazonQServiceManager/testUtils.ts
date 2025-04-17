@@ -1,13 +1,16 @@
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import { CodeWhispererServiceBase } from '../codeWhispererService'
 import { AmazonQBaseServiceManager, BaseAmazonQServiceManager } from './BaseAmazonQServiceManager'
-
+import { StreamingClientServiceBase } from '../streamingClientService'
 /**
  * A reusable test class that extends the abstract base class and allows for injecting features and service mocks.
  *
  * Note: it is the responsibility of the test suite to correctly reset/restore the injected mocks.
  */
-export class TestAmazonQServiceManager extends BaseAmazonQServiceManager<CodeWhispererServiceBase> {
+export class TestAmazonQServiceManager extends BaseAmazonQServiceManager<
+    CodeWhispererServiceBase,
+    StreamingClientServiceBase
+> {
     private static instance: TestAmazonQServiceManager | null = null
 
     private constructor(features: TestFeatures) {
@@ -29,6 +32,15 @@ export class TestAmazonQServiceManager extends BaseAmazonQServiceManager<CodeWhi
         }
 
         return this.cachedCodewhispererService
+    }
+
+    public getStreamingClient(): StreamingClientServiceBase {
+        if (!this.cachedStreamingClient) {
+            throw new Error(
+                'Found undefined cached streaming client, make sure to setup TestAmazonQServiceManager class correctly'
+            )
+        }
+        return this.cachedStreamingClient
     }
 
     public withCodeWhispererService<C extends CodeWhispererServiceBase>(service: C) {
