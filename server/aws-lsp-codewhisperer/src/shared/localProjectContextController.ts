@@ -207,8 +207,11 @@ export class LocalProjectContextController {
         maxIndexSizeMb?: number
     ): Promise<string[]> {
         if (!workspaceFolders?.length) {
+            this.log?.info(`Skipping indexing: no workspace folders available`)
             return []
         }
+
+        this.log?.info(`Indexing ${workspaceFolders.length} workspace folders...`)
 
         const filter = ignore().add(ignoreFilePatterns ?? [])
 
@@ -302,8 +305,9 @@ export class LocalProjectContextController {
                         }, [] as string[])
                     })
             })
-        ).then(nestedFilePaths => nestedFilePaths.flat())
+        ).then((nestedFilePaths: string[][]) => nestedFilePaths.flat())
 
+        this.log?.info(`Indexing complete: found ${workspaceSourceFiles.length} files.`)
         return workspaceSourceFiles
     }
 
