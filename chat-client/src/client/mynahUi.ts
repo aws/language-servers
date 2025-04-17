@@ -98,7 +98,10 @@ export const handleChatPrompt = (
         }
     } else {
         // Send chat prompt to server
-        messager.onChatPrompt({ prompt, tabId }, triggerType)
+        messager.onChatPrompt(
+            { prompt, tabId, context: prompt.context?.filter(c => typeof c != 'string') },
+            triggerType
+        )
     }
     // Add user prompt to UI
     mynahUi.addChatItem(tabId, {

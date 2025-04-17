@@ -38,6 +38,7 @@ import {
     InlineChatResult,
 } from '@aws/language-server-runtimes/server-interface'
 import { v4 as uuid } from 'uuid'
+import * as path from 'path'
 import {
     AddMessageEvent,
     ChatInteractionType,
@@ -69,6 +70,8 @@ import {
     ChatResultWithMetadata as AgenticChatResultWithMetadata,
 } from './agenticChatEventParser'
 import { ChatSessionService } from '../chat/chatSessionService'
+import { LocalProjectContextController } from '../../shared/localProjectContextController'
+import { RelevantTextDocumentAddition } from '../types'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -188,15 +191,20 @@ export class AgenticChatController implements ChatHandlers {
         session: ChatSessionService,
         triggerContext: TriggerContext
     ): Promise<GenerateAssistantResponseCommandInput> {
-        this.#debug('Preparing request input')
         const profileArn = AmazonQTokenServiceManager.getInstance(this.#features).getActiveProfileArn()
+        const useRelevantDocuments = params.context?.some(c => c.command === '@workspace')
+        const relevantDocuments = useRelevantDocuments
+            ? await this.#getRelevantDocuments(params.prompt.prompt ?? '')
+            : undefined
         const requestInput = this.#triggerContext.getChatParamsFromTrigger(
             params,
             triggerContext,
             ChatTriggerType.MANUAL,
             this.#customizationArn,
             profileArn,
-            this.#features.agent.getTools({ format: 'bedrock' })
+            this.#features.agent.getTools({ format: 'bedrock' }),
+            useRelevantDocuments,
+            relevantDocuments
         )
 
         if (!session.localHistoryHydrated && requestInput.conversationState) {
@@ -682,7 +690,6 @@ export class AgenticChatController implements ChatHandlers {
 
     onTabAdd(params: TabAddParams) {
         this.#telemetryController.activeTabId = params.tabId
-
         this.#chatSessionManagementService.createSession(params.tabId)
     }
 
@@ -865,5 +872,37 @@ export class AgenticChatController implements ChatHandlers {
 
     #debug(...messages: string[]) {
         this.#features.logging.debug(messages.join(' '))
+    }
+
+    async #getRelevantDocuments(prompt: string): Promise<RelevantTextDocumentAddition[]> {
+        try {
+            this.#log('Querying relevant documents from local project index')
+            const localProjectContextController = LocalProjectContextController.getInstance()
+            const chunks = await localProjectContextController.queryVectorIndex({ query: prompt })
+            // adapted from vscode toolkit
+            const relevantTextDocuments = chunks.map(chunk => ({
+                text: chunk.context ? chunk.context : chunk.content,
+                relativeFilePath: chunk.relativePath ? chunk.relativePath : path.basename(chunk.filePath),
+                programmingLanguage:
+                    chunk.programmingLanguage && chunk.programmingLanguage !== 'unknown'
+                        ? { languageName: chunk.programmingLanguage }
+                        : undefined,
+                startLine: chunk.startLine ?? -1,
+                endLine: chunk.endLine ?? -1,
+            }))
+            return relevantTextDocuments
+        } catch (e) {
+            this.#log(`Error: cannot query vector index to get relevant documents. ${e}`)
+            // TODO: trigger a server event to warn the user that error happened.
+            //
+            // There are two possibilities:
+            //
+            //   1. the local project index is not yet initialized, this should not happen
+            //      if the user is using just UI because the `@workspace` context option is
+            //      only available after the local project index server is initialized.
+            //   2. querying vector index caused error. Might be worthy of handling the two
+            //      types of exceptions differently.
+            return []
+        }
     }
 }
