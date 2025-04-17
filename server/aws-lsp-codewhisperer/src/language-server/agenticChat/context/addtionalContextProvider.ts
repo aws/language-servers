@@ -22,9 +22,7 @@ export class AdditionalContextProvider {
         if (!folder) {
             return rulesFiles
         }
-        const workspaceRoot = folder.uri
-            ? URI.parse(folder.uri).fsPath
-            : LocalProjectContextController.getInstance().getRootDirectory()
+        const workspaceRoot = folder.uri ? URI.parse(folder.uri).fsPath : process.cwd()
         const rulesPath = path.join(workspaceRoot, '.amazonq', 'rules')
         const folderExists = await this.workspace.fs.exists(rulesPath)
 
@@ -59,7 +57,7 @@ export class AdditionalContextProvider {
         const workspaceRules = await this.collectWorkspaceRules(triggerContext)
         let workspaceFolderPath = triggerContext.workspaceFolder?.uri
             ? URI.parse(triggerContext.workspaceFolder.uri).fsPath
-            : LocalProjectContextController.getInstance().getRootDirectory()
+            : process.cwd()
 
         if (workspaceRules.length > 0) {
             additionalContextCommands.push(

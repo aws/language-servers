@@ -26,7 +26,6 @@ describe('AdditionalContextProvider', () => {
         provider = new AdditionalContextProvider(testFeatures.workspace)
         localProjectContextControllerInstanceStub = sinon.stub(LocalProjectContextController, 'getInstance').returns({
             getContextCommandPrompt: getContextCommandPromptStub,
-            getRootDirectory: sinon.stub().resolves('/'),
         } as unknown as LocalProjectContextController)
     })
 

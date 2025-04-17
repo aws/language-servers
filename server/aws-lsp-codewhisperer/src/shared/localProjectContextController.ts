@@ -1,6 +1,7 @@
-import { Chat, Logging, Workspace, WorkspaceFolder } from '@aws/language-server-runtimes/server-interface'
+import { Logging, WorkspaceFolder, Chat, Workspace } from '@aws/language-server-runtimes/server-interface'
 import { dirname } from 'path'
 import { languageByExtension } from './languageDetection'
+import { homedir } from 'os'
 import type {
     AdditionalContextPrompt,
     Chunk,
@@ -15,14 +16,34 @@ import { URI } from 'vscode-uri'
 import { waitUntil } from '@aws/lsp-core/out/util/timeoutUtils'
 import { ContextCommandsProvider } from '../language-server/agenticChat/context/contextCommandsProvider'
 
-const fs = require('fs').promises
-const path = require('path')
+import * as fs from 'fs'
+import * as path from 'path'
+
+import * as ignore from 'ignore'
+import { fdir } from 'fdir'
+
 const LIBRARY_DIR = (() => {
     if (require.main) {
         return path.join(dirname(require.main.filename), 'indexing')
     }
     return path.join(__dirname, 'indexing')
 })()
+
+export interface SizeConstraints {
+    maxFileSize: number
+    remainingIndexSize: number
+}
+
+export interface LocalProjectContextInitializationOptions {
+    vectorLib?: any
+    ignoreFilePatterns?: string[]
+    respectUserGitIgnores?: boolean
+    fileExtensions?: string[]
+    includeSymlinks?: boolean
+    maxFileSizeMB?: number
+    maxIndexSizeMB?: number
+    indexCacheDirPath?: string
+}
 
 export class LocalProjectContextController {
     private static instance: LocalProjectContextController | undefined
@@ -31,9 +52,20 @@ export class LocalProjectContextController {
     private _vecLib?: VectorLibAPI
     private _contextCommandSymbolsUpdated = false
     private readonly contextCommandsProvider: ContextCommandsProvider
-    private readonly fileExtensions: string[]
     private readonly clientName: string
     private readonly log: Logging
+
+    private ignoreFilePatterns?: string[]
+    private includeSymlinks?: boolean
+    private maxFileSizeMB?: number
+    private maxIndexSizeMB?: number
+    private respectUserGitIgnores?: boolean
+    private indexCacheDirPath: string = path.join(homedir(), '.aws', 'amazonq', 'cache')
+
+    private readonly fileExtensions: string[] = Object.keys(languageByExtension)
+    private readonly DEFAULT_MAX_INDEX_SIZE_MB = 2048
+    private readonly DEFAULT_MAX_FILE_SIZE_MB = 10
+    private readonly MB_TO_BYTES = 1024 * 1024
 
     constructor(
         clientName: string,
@@ -42,7 +74,6 @@ export class LocalProjectContextController {
         chat: Chat,
         workspace: Workspace
     ) {
-        this.fileExtensions = Object.keys(languageByExtension)
         this.workspaceFolders = workspaceFolders
         this.clientName = clientName
         this.log = logging
@@ -56,13 +87,28 @@ export class LocalProjectContextController {
         return this.instance
     }
 
-    public async init(vectorLib?: any): Promise<void> {
+    public async init({
+        vectorLib,
+        ignoreFilePatterns = [],
+        respectUserGitIgnores = true,
+        includeSymlinks = false,
+        maxFileSizeMB = this.DEFAULT_MAX_FILE_SIZE_MB,
+        maxIndexSizeMB = this.DEFAULT_MAX_INDEX_SIZE_MB,
+        indexCacheDirPath = path.join(homedir(), '.aws', 'amazonq', 'cache'),
+    }: LocalProjectContextInitializationOptions = {}): Promise<void> {
         try {
+            this.includeSymlinks = includeSymlinks
+            this.maxFileSizeMB = maxFileSizeMB
+            this.maxIndexSizeMB = maxIndexSizeMB
+            this.respectUserGitIgnores = respectUserGitIgnores
+            this.ignoreFilePatterns = ignoreFilePatterns
+            if (indexCacheDirPath?.length > 0 && path.parse(indexCacheDirPath)) {
+                this.indexCacheDirPath = indexCacheDirPath
+            }
             const libraryPath = path.join(LIBRARY_DIR, 'dist', 'extension.js')
             const vecLib = vectorLib ?? (await import(libraryPath))
             if (vecLib) {
-                const root = this.findCommonWorkspaceRoot(this.workspaceFolders)
-                this._vecLib = await vecLib.start(LIBRARY_DIR, this.clientName, root)
+                this._vecLib = await vecLib.start(LIBRARY_DIR, this.clientName, this.indexCacheDirPath)
                 await this.buildIndex()
                 LocalProjectContextController.instance = this
 
@@ -85,10 +131,6 @@ export class LocalProjectContextController {
         this.contextCommandsProvider?.dispose()
     }
 
-    public getRootDirectory() {
-        return this.findCommonWorkspaceRoot(this.workspaceFolders)
-    }
-
     public async updateIndex(filePaths: string[], operation: UpdateMode): Promise<void> {
         if (!this._vecLib) {
             return
@@ -104,9 +146,16 @@ export class LocalProjectContextController {
     private async buildIndex(): Promise<void> {
         try {
             if (this._vecLib) {
-                const sourceFiles = await this.processWorkspaceFolders(this.workspaceFolders)
-                const rootDir = this.findCommonWorkspaceRoot(this.workspaceFolders)
-                await this._vecLib?.buildIndex(sourceFiles, rootDir, 'all')
+                const sourceFiles = await this.processWorkspaceFolders(
+                    this.workspaceFolders,
+                    this.ignoreFilePatterns,
+                    this.respectUserGitIgnores,
+                    this.includeSymlinks,
+                    this.fileExtensions,
+                    this.maxFileSizeMB,
+                    this.maxIndexSizeMB
+                )
+                await this._vecLib?.buildIndex(sourceFiles, this.indexCacheDirPath, 'all')
             }
         } catch (error) {
             this.log.error(`Error building index: ${error}`)
@@ -228,71 +277,130 @@ export class LocalProjectContextController {
         }
     }
 
-    private async processWorkspaceFolders(workspaceFolders?: WorkspaceFolder[] | null): Promise<string[]> {
-        const workspaceSourceFiles: string[] = []
-        if (workspaceFolders) {
-            for (const folder of workspaceFolders) {
-                const folderPath = URI.parse(folder.uri).fsPath
-                this.log.info(`Processing workspace: ${folder.name}`)
+    private fileMeetsFileSizeConstraints(filePath: string, sizeConstraints: SizeConstraints): boolean {
+        let fileSize
 
-                try {
-                    const sourceFiles = await this.getCodeSourceFiles(folderPath)
-                    workspaceSourceFiles.push(...sourceFiles)
-                } catch (error) {
-                    this.log.error(`Error processing ${folder.name}: ${error}`)
-                }
-            }
+        try {
+            fileSize = fs.statSync(filePath).size
+        } catch (error) {
+            this.log.error(`Error reading file size for ${filePath}: ${error}`)
+            return false
         }
-        this.log.info(`Found ${workspaceSourceFiles.length} source files`)
-        return workspaceSourceFiles
+
+        if (fileSize > sizeConstraints.maxFileSize || fileSize > sizeConstraints.remainingIndexSize) {
+            return false
+        }
+
+        sizeConstraints.remainingIndexSize -= fileSize
+        return true
     }
 
-    private async getCodeSourceFiles(dir: string): Promise<string[]> {
-        try {
-            const files = await fs.readdir(dir, { withFileTypes: true })
-            const sourceFiles: string[] = []
-
-            for (const file of files) {
-                const filePath = path.join(dir, file.name)
-                if (file.isDirectory()) {
-                    sourceFiles.push(...(await this.getCodeSourceFiles(filePath)))
-                } else if (this.fileExtensions.includes(path.extname(file.name).toLowerCase())) {
-                    sourceFiles.push(filePath)
-                }
-            }
-            return sourceFiles
-        } catch (error) {
-            this.log.error(`Error reading directory ${dir}: ${error}`)
+    private async processWorkspaceFolders(
+        workspaceFolders?: WorkspaceFolder[] | null,
+        ignoreFilePatterns?: string[],
+        respectUserGitIgnores?: boolean,
+        includeSymLinks?: boolean,
+        fileExtensions?: string[],
+        maxFileSizeMB?: number,
+        maxIndexSizeMB?: number
+    ): Promise<string[]> {
+        if (!workspaceFolders?.length) {
+            this.log.info(`Skipping indexing: no workspace folders available`)
             return []
         }
-    }
 
-    private findCommonWorkspaceRoot(workspaceFolders: WorkspaceFolder[]): string {
-        if (!workspaceFolders.length) {
-            throw new Error('No workspace folders provided')
-        }
-        if (workspaceFolders.length === 1) {
-            return new URL(workspaceFolders[0].uri).pathname
-        }
+        this.log.info(`Indexing ${workspaceFolders.length} workspace folders...`)
 
-        const paths = workspaceFolders.map(folder => new URL(folder.uri).pathname)
-        const splitPaths = paths.map(p => p.split(path.sep).filter(Boolean))
-        const minLength = Math.min(...splitPaths.map(p => p.length))
+        const filter = ignore().add(ignoreFilePatterns ?? [])
 
-        let lastMatchingIndex = -1
-        for (let i = 0; i < minLength; i++) {
-            const segment = splitPaths[0][i]
-            if (splitPaths.every(p => p[i] === segment)) {
-                lastMatchingIndex = i
-            } else {
-                break
-            }
+        maxFileSizeMB = Math.min(maxFileSizeMB ?? Infinity, this.DEFAULT_MAX_FILE_SIZE_MB)
+        maxIndexSizeMB = Math.min(maxIndexSizeMB ?? Infinity, this.DEFAULT_MAX_INDEX_SIZE_MB)
+
+        const sizeConstraints: SizeConstraints = {
+            maxFileSize: maxFileSizeMB * this.MB_TO_BYTES,
+            remainingIndexSize: maxIndexSizeMB * this.MB_TO_BYTES,
         }
 
-        if (lastMatchingIndex === -1) {
-            return new URL(workspaceFolders[0].uri).pathname
-        }
-        return path.sep + splitPaths[0].slice(0, lastMatchingIndex + 1).join(path.sep)
+        const controller = new AbortController()
+
+        const workspaceSourceFiles = await Promise.all(
+            workspaceFolders.map(async (folder: WorkspaceFolder) => {
+                const absolutePath = path.resolve(URI.parse(folder.uri).fsPath)
+                const localGitIgnoreFiles: string[] = []
+
+                const crawler = new fdir()
+                    .withSymlinks({ resolvePaths: !includeSymLinks })
+                    .withAbortSignal(controller.signal)
+                    .exclude((dirName: string, dirPath: string) => {
+                        return filter.ignores(path.relative(absolutePath, dirPath))
+                    })
+                    .glob(...(fileExtensions?.map(ext => `**/*${ext}`) ?? []), '**/.gitignore')
+                    .filter((filePath: string, isDirectory: boolean) => {
+                        if (isDirectory || filter.ignores(path.relative(absolutePath, filePath))) {
+                            return false
+                        }
+
+                        if (!respectUserGitIgnores && sizeConstraints.remainingIndexSize <= 0) {
+                            controller.abort()
+                            return false
+                        }
+
+                        if (path.basename(filePath) === '.gitignore') {
+                            localGitIgnoreFiles.push(filePath)
+                            return false
+                        }
+
+                        return respectUserGitIgnores || this.fileMeetsFileSizeConstraints(filePath, sizeConstraints)
+                    })
+
+                return crawler
+                    .crawl(absolutePath)
+                    .withPromise()
+                    .then(async (sourceFiles: string[]) => {
+                        if (!respectUserGitIgnores) {
+                            return sourceFiles
+                        }
+
+                        const userGitIgnoreFilterByFile = new Map(
+                            await Promise.all(
+                                localGitIgnoreFiles.map(async filePath => {
+                                    const filter = ignore()
+                                    try {
+                                        filter.add((await fs.promises.readFile(filePath)).toString())
+                                    } catch (error) {
+                                        this.log.error(`Error reading .gitignore file ${filePath}: ${error}`)
+                                    }
+                                    return [filePath, filter] as const
+                                })
+                            )
+                        )
+
+                        return sourceFiles.reduce((filteredSourceFiles, filePath) => {
+                            if (sizeConstraints.remainingIndexSize <= 0) {
+                                return filteredSourceFiles
+                            }
+
+                            const isIgnored = [...userGitIgnoreFilterByFile].some(
+                                ([gitIgnorePath, filter]: [string, any]) => {
+                                    const gitIgnoreDir = path.dirname(path.resolve(gitIgnorePath))
+                                    const relativePath = path.relative(gitIgnoreDir, filePath)
+
+                                    return !relativePath.startsWith('..') && filter.ignores(relativePath)
+                                }
+                            )
+
+                            if (!isIgnored && this.fileMeetsFileSizeConstraints(filePath, sizeConstraints)) {
+                                filteredSourceFiles.push(filePath)
+                            }
+
+                            return filteredSourceFiles
+                        }, [] as string[])
+                    })
+            })
+        ).then((nestedFilePaths: string[][]) => nestedFilePaths.flat())
+
+        this.log.info(`Indexing complete: found ${workspaceSourceFiles.length} files.`)
+        return workspaceSourceFiles
     }
 
     private areWorkspaceFoldersEqual(a: WorkspaceFolder, b: WorkspaceFolder): boolean {
