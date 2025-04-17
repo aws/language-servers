@@ -8,7 +8,7 @@ interface ResultStreamWriter {
 
 /**
  * Abstraction for streaming intermediate ChatResults to the client.
- * Each result is seperated by the resultDeliter in a single message.
+ * Each result is seperated by the resultDelimiter in a single message.
  */
 export class AgenticChatResponse {
     static readonly resultDelimiter = '\n\n'
@@ -24,17 +24,19 @@ export class AgenticChatResponse {
         this.#logging = logging
     }
 
-    getCombinedResult(chatResult?: ChatResult): ChatResult {
-        return { ...chatResult, body: this.#combineResults(this.#state.chatResults) }
+    getResponse(): ChatResult {
+        return this.#joinResults(this.#state.chatResults)
     }
 
-    #combineResults(chatResults: ChatResult[]): string {
-        return chatResults.map(c => c.body).join(AgenticChatResponse.resultDelimiter)
+    #joinResults(chatResults: ChatResult[]): ChatResult {
+        return chatResults.reduce((acc, c) => {
+            return { ...acc, body: acc.body + AgenticChatResponse.resultDelimiter + c.body }
+        })
     }
 
-    async addResult(result: ChatResult) {
+    async appendResult(result: ChatResult) {
         this.#state.chatResults.push(result)
-        await this.#sendProgress(this.getCombinedResult(result))
+        await this.#sendProgress(this.getResponse())
     }
     // Note: if write calls are not awaited, stream can be out-of-order.
     getResultStreamWriter(): ResultStreamWriter {
@@ -46,10 +48,7 @@ export class AgenticChatResponse {
 
         return {
             write: async (intermediateChatResult: ChatResult) => {
-                const combinedResult = {
-                    ...intermediateChatResult,
-                    body: this.#combineResults([...this.#state.chatResults, intermediateChatResult]),
-                }
+                const combinedResult = this.#joinResults([...this.#state.chatResults, intermediateChatResult])
                 lastResult = intermediateChatResult
                 return await this.#sendProgress(combinedResult)
             },

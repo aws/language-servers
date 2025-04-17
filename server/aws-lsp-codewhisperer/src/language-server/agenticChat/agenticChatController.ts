@@ -344,7 +344,7 @@ export class AgenticChatController implements ChatHandlers {
 
             try {
                 const toolUseMsg = executeToolMessage(toolUse)
-                await responseStream.addResult({ body: `${toolUseMsg}` })
+                await responseStream.appendResult({ body: `${toolUseMsg}` })
 
                 const result = await this.#features.agent.runTool(toolUse.name, toolUse.input)
                 let toolResultContent: ToolResultContentBlock
@@ -362,10 +362,10 @@ export class AgenticChatController implements ChatHandlers {
                     status: 'success',
                     content: [toolResultContent],
                 })
-                await responseStream.addResult({ body: toolResultMessage(toolUse, result) })
+                await responseStream.appendResult({ body: toolResultMessage(toolUse, result) })
             } catch (err) {
                 const errMsg = err instanceof Error ? err.message : 'unknown error'
-                await responseStream.addResult({
+                await responseStream.appendResult({
                     body: toolErrorMessage(toolUse, errMsg),
                 })
                 this.#log(`Error running tool ${toolUse.name}:`, errMsg)
@@ -474,7 +474,7 @@ export class AgenticChatController implements ChatHandlers {
             })
         }
 
-        return responseStream.getCombinedResult(result.data.chatResult)
+        return responseStream.getResponse()
     }
 
     /**
