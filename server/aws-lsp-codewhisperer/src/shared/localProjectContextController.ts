@@ -53,7 +53,11 @@ export class LocalProjectContextController {
     private maxFileSizeMb?: number
     private maxIndexSizeMb?: number
     private respectUserGitIgnores?: boolean
+<<<<<<< HEAD
     private indexCacheDirPath: string = path.join(homedir, '.aws', 'amazonq', 'cache')
+=======
+    private indexCacheDirPath: string = path.join(homedir(), '.aws', 'amazonq', 'cache').toString()
+>>>>>>> 3239e41 (fix: user homedir resolution)
 
     private readonly fileExtensions: string[] = Object.keys(languageByExtension)
     private readonly DEFAULT_MAX_INDEX_SIZE = 2048
@@ -80,7 +84,11 @@ export class LocalProjectContextController {
         includeSymlinks = false,
         maxFileSizeMb = this.DEFAULT_MAX_FILE_SIZE,
         maxIndexSizeMb = this.DEFAULT_MAX_INDEX_SIZE,
+<<<<<<< HEAD
         indexCacheDirPath = path.join(homedir, '.aws', 'amazonq', 'cache'),
+=======
+        indexCacheDirPath = path.join(homedir(), '.aws', 'amazonq', 'cache'),
+>>>>>>> 3239e41 (fix: user homedir resolution)
     }: LocalProjectContextInitializationOptions = {}): Promise<void> {
         try {
             this.includeSymlinks = includeSymlinks
