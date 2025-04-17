@@ -124,10 +124,16 @@ export class StreamingClientServiceIAM extends StreamingClientServiceBase {
     constructor(
         credentialsProvider: CredentialsProvider,
         sdkInitializator: SDKInitializator,
+        logging: Logging,
         region: string,
         endpoint: string
     ) {
         super(region, endpoint)
+
+        logging.log(
+            `Passing client for class QDeveloperStreaming to sdkInitializator (v3) for additional setup (e.g. proxy)`
+        )
+
         this.client = sdkInitializator(QDeveloperStreaming, {
             region: region,
             endpoint: endpoint,

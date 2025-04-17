@@ -52,6 +52,7 @@ export class AmazonQIAMServiceManager extends BaseAmazonQServiceManager<
             this.cachedStreamingClient = new StreamingClientServiceIAM(
                 this.features.credentialsProvider,
                 this.features.sdkInitializator,
+                this.features.logging,
                 this.region,
                 this.endpoint
             )
