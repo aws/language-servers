@@ -69,7 +69,7 @@ import {
     ChatResultWithMetadata as AgenticChatResultWithMetadata,
 } from './agenticChatEventParser'
 import { ChatSessionService } from '../chat/chatSessionService'
-import { ResponseStream } from './responseStream'
+import { AgenticChatResponse } from './agenticChatResponse'
 import { executeToolMessage, toolErrorMessage, toolResultMessage } from './textFormatting'
 
 type ChatHandlers = Omit<
@@ -130,8 +130,8 @@ export class AgenticChatController implements ChatHandlers {
         }
     }
 
-    #getResponseStream(partialResultToken?: string | number): ResponseStream {
-        return new ResponseStream(this.#features.logging, async (chunk: ChatResult | string) => {
+    #getResponseStream(partialResultToken?: string | number): AgenticChatResponse {
+        return new AgenticChatResponse(this.#features.logging, async (chunk: ChatResult | string) => {
             await this.#sendProgressToClient(chunk, partialResultToken)
         })
     }
@@ -169,7 +169,6 @@ export class AgenticChatController implements ChatHandlers {
             // Get the initial request input
             const initialRequestInput = await this.#prepareRequestInput(params, session, triggerContext)
 
-            this.#log(`response stream of length: ${responseStream.length}`)
             // Start the agent loop
             const finalResult = await this.#runAgentLoop(
                 initialRequestInput,
@@ -229,7 +228,7 @@ export class AgenticChatController implements ChatHandlers {
         initialRequestInput: GenerateAssistantResponseCommandInput,
         session: ChatSessionService,
         metric: Metric<CombinedConversationEvent>,
-        responseStream: ResponseStream,
+        responseStream: AgenticChatResponse,
         conversationIdentifier?: string,
         token?: CancellationToken
     ): Promise<Result<AgenticChatResultWithMetadata, string>> {
@@ -336,7 +335,7 @@ export class AgenticChatController implements ChatHandlers {
      */
     async #processToolUses(
         toolUses: Array<ToolUse & { stop: boolean }>,
-        responseStream: ResponseStream
+        responseStream: AgenticChatResponse
     ): Promise<ToolResult[]> {
         const results: ToolResult[] = []
 
@@ -345,7 +344,7 @@ export class AgenticChatController implements ChatHandlers {
 
             try {
                 const toolUseMsg = executeToolMessage(toolUse)
-                await responseStream.writeResult({ body: `${toolUseMsg}` })
+                await responseStream.addResult({ body: `${toolUseMsg}` })
 
                 const result = await this.#features.agent.runTool(toolUse.name, toolUse.input)
                 let toolResultContent: ToolResultContentBlock
@@ -363,10 +362,10 @@ export class AgenticChatController implements ChatHandlers {
                     status: 'success',
                     content: [toolResultContent],
                 })
-                await responseStream.writeResult({ body: toolResultMessage(toolUse, result) })
+                await responseStream.addResult({ body: toolResultMessage(toolUse, result) })
             } catch (err) {
                 const errMsg = err instanceof Error ? err.message : 'unknown error'
-                await responseStream.writeResult({
+                await responseStream.addResult({
                     body: toolErrorMessage(toolUse, errMsg),
                 })
                 this.#log(`Error running tool ${toolUse.name}:`, errMsg)
@@ -418,7 +417,7 @@ export class AgenticChatController implements ChatHandlers {
         metric: Metric<CombinedConversationEvent>,
         triggerContext: TriggerContext,
         isNewConversation: boolean,
-        responseStream: ResponseStream
+        responseStream: AgenticChatResponse
     ): Promise<ChatResult | ResponseError<ChatResult>> {
         if (!result.success) {
             return new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, result.error)
@@ -475,7 +474,7 @@ export class AgenticChatController implements ChatHandlers {
             })
         }
 
-        return responseStream.nextResult(result.data.chatResult)
+        return responseStream.getCombinedResult(result.data.chatResult)
     }
 
     /**
@@ -817,11 +816,11 @@ export class AgenticChatController implements ChatHandlers {
     async #processGenerateAssistantResponseResponse(
         response: GenerateAssistantResponseCommandOutput,
         metric: Metric<AddMessageEvent>,
-        responseStream: ResponseStream
+        responseStream: AgenticChatResponse
     ): Promise<Result<AgenticChatResultWithMetadata, string>> {
         const requestId = response.$metadata.requestId!
         const chatEventParser = new AgenticChatEventParser(requestId, metric)
-        const streamWriter = responseStream.getStreamWriter()
+        const streamWriter = responseStream.getResultStreamWriter()
         for await (const chatEvent of response.generateAssistantResponseResponse!) {
             const result = chatEventParser.processPartialEvent(chatEvent)
 
