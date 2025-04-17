@@ -34,6 +34,7 @@
         "@aws/chat-client-ui-types": "^0.1.16",
         "@aws/language-server-runtimes": "^0.2.63",
         "@aws/lsp-core": "^0.0.3",
+        "@modelcontextprotocol/sdk": "^1.9.0",
         "@smithy/node-http-handler": "^2.5.0",
         "adm-zip": "^0.5.10",
         "archiver": "^7.0.1",

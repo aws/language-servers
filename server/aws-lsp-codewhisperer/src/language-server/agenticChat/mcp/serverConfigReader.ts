@@ -1,11 +1,5 @@
 import { Logger, Workspace } from '@aws/language-server-runtimes/server-interface'
-
-type ServerConfig = {
-    command: string
-    args?: string[]
-    env?: Record<string, string>
-    timeout?: number
-}
+import { ServerConfig } from './serverConfig'
 
 export class ServerConfigReader {
     constructor(
