@@ -69,8 +69,8 @@ interface QInlineSuggestionsConfig {
 
 interface LocalIndexConfig {
     ignoreFilePatterns?: string[]
-    maxFileSizeMb?: number
-    maxIndexSizeMb?: number
+    maxFileSizeMB?: number
+    maxIndexSizeMB?: number
     indexCacheDirPath?: string
 }
 
@@ -122,8 +122,8 @@ export async function getAmazonQRelatedWorkspaceConfigs(
                     enableLocalIndexing: newQConfig.projectContext?.enableLocalIndexing === true,
                     localIndexing: {
                         ignoreFilePatterns: newQConfig.projectContext?.localIndexing?.ignoreFilePatterns ?? [],
-                        maxFileSizeMb: newQConfig.projectContext?.localIndexing?.maxFileSizeMb ?? 10,
-                        maxIndexSizeMb: newQConfig.projectContext?.localIndexing?.maxIndexSizeMb ?? 2048,
+                        maxFileSizeMB: newQConfig.projectContext?.localIndexing?.maxFileSizeMb ?? 10,
+                        maxIndexSizeMB: newQConfig.projectContext?.localIndexing?.maxIndexSizeMb ?? 2048,
                         indexCacheDirPath: newQConfig.projectContext?.localIndexing?.indexCacheDirPath ?? undefined,
                     },
                 },
@@ -176,8 +176,8 @@ export const defaultAmazonQWorkspaceConfigFactory = (): AmazonQWorkspaceConfig =
             enableLocalIndexing: false,
             localIndexing: {
                 ignoreFilePatterns: [],
-                maxFileSizeMb: 10,
-                maxIndexSizeMb: 2048,
+                maxFileSizeMB: 10,
+                maxIndexSizeMB: 2048,
                 indexCacheDirPath: undefined,
             },
         },

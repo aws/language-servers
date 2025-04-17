@@ -35,8 +35,8 @@ export interface LocalProjectContextInitializationOptions {
     respectUserGitIgnores?: boolean
     fileExtensions?: string[]
     includeSymlinks?: boolean
-    maxFileSizeMb?: number
-    maxIndexSizeMb?: number
+    maxFileSizeMB?: number
+    maxIndexSizeMB?: number
     indexCacheDirPath?: string
 }
 
@@ -50,14 +50,14 @@ export class LocalProjectContextController {
 
     private ignoreFilePatterns?: string[]
     private includeSymlinks?: boolean
-    private maxFileSizeMb?: number
-    private maxIndexSizeMb?: number
+    private maxFileSizeMB?: number
+    private maxIndexSizeMB?: number
     private respectUserGitIgnores?: boolean
     private indexCacheDirPath: string = path.join(homedir(), '.aws', 'amazonq', 'cache')
 
     private readonly fileExtensions: string[] = Object.keys(languageByExtension)
-    private readonly DEFAULT_MAX_INDEX_SIZE = 2048
-    private readonly DEFAULT_MAX_FILE_SIZE = 10
+    private readonly DEFAULT_MAX_INDEX_SIZE_MB = 2048
+    private readonly DEFAULT_MAX_FILE_SIZE_MB = 10
     private readonly MB_TO_BYTES = 1024 * 1024
 
     constructor(clientName: string, workspaceFolders: WorkspaceFolder[], logging?: Logging) {
@@ -78,14 +78,14 @@ export class LocalProjectContextController {
         ignoreFilePatterns = [],
         respectUserGitIgnores = true,
         includeSymlinks = false,
-        maxFileSizeMb = this.DEFAULT_MAX_FILE_SIZE,
-        maxIndexSizeMb = this.DEFAULT_MAX_INDEX_SIZE,
+        maxFileSizeMB = this.DEFAULT_MAX_FILE_SIZE_MB,
+        maxIndexSizeMB = this.DEFAULT_MAX_INDEX_SIZE_MB,
         indexCacheDirPath = path.join(homedir(), '.aws', 'amazonq', 'cache'),
     }: LocalProjectContextInitializationOptions = {}): Promise<void> {
         try {
             this.includeSymlinks = includeSymlinks
-            this.maxFileSizeMb = maxFileSizeMb
-            this.maxIndexSizeMb = maxIndexSizeMb
+            this.maxFileSizeMB = maxFileSizeMB
+            this.maxIndexSizeMB = maxIndexSizeMB
             this.respectUserGitIgnores = respectUserGitIgnores
             this.ignoreFilePatterns = ignoreFilePatterns
             if (indexCacheDirPath?.length > 0 && path.parse(indexCacheDirPath)) {
@@ -133,8 +133,8 @@ export class LocalProjectContextController {
                     this.respectUserGitIgnores,
                     this.includeSymlinks,
                     this.fileExtensions,
-                    this.maxFileSizeMb,
-                    this.maxIndexSizeMb
+                    this.maxFileSizeMB,
+                    this.maxIndexSizeMB
                 )
                 await this._vecLib?.buildIndex(sourceFiles, this.indexCacheDirPath, 'all')
             }
@@ -217,8 +217,8 @@ export class LocalProjectContextController {
         respectUserGitIgnores?: boolean,
         includeSymLinks?: boolean,
         fileExtensions?: string[],
-        maxFileSizeMb?: number,
-        maxIndexSizeMb?: number
+        maxFileSizeMB?: number,
+        maxIndexSizeMB?: number
     ): Promise<string[]> {
         if (!workspaceFolders?.length) {
             this.log?.info(`Skipping indexing: no workspace folders available`)
@@ -229,12 +229,12 @@ export class LocalProjectContextController {
 
         const filter = ignore().add(ignoreFilePatterns ?? [])
 
-        maxFileSizeMb = Math.min(maxFileSizeMb ?? Infinity, this.DEFAULT_MAX_FILE_SIZE)
-        maxIndexSizeMb = Math.min(maxIndexSizeMb ?? Infinity, this.DEFAULT_MAX_INDEX_SIZE)
+        maxFileSizeMB = Math.min(maxFileSizeMB ?? Infinity, this.DEFAULT_MAX_FILE_SIZE_MB)
+        maxIndexSizeMB = Math.min(maxIndexSizeMB ?? Infinity, this.DEFAULT_MAX_INDEX_SIZE_MB)
 
         const sizeConstraints: SizeConstraints = {
-            maxFileSize: maxFileSizeMb * this.MB_TO_BYTES,
-            remainingIndexSize: maxIndexSizeMb * this.MB_TO_BYTES,
+            maxFileSize: maxFileSizeMB * this.MB_TO_BYTES,
+            remainingIndexSize: maxIndexSizeMB * this.MB_TO_BYTES,
         }
 
         const controller = new AbortController()

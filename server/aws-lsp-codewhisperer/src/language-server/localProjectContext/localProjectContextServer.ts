@@ -126,8 +126,8 @@ export const LocalProjectContextServer = (): Server => features => {
                 localProjectContextEnabled
                     ? await localProjectContextController.init({
                           ignoreFilePatterns: updatedConfig.projectContext?.localIndexing?.ignoreFilePatterns,
-                          maxFileSizeMb: updatedConfig.projectContext?.localIndexing?.maxFileSizeMb,
-                          maxIndexSizeMb: updatedConfig.projectContext?.localIndexing?.maxIndexSizeMb,
+                          maxFileSizeMB: updatedConfig.projectContext?.localIndexing?.maxFileSizeMB,
+                          maxIndexSizeMB: updatedConfig.projectContext?.localIndexing?.maxIndexSizeMB,
                       })
                     : await localProjectContextController.dispose()
             }

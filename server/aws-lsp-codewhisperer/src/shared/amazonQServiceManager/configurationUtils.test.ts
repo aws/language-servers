@@ -21,8 +21,8 @@ describe('getAmazonQRelatedWorkspaceConfigs', () => {
             enableLocalIndexing: true,
             localIndexing: {
                 ignoreFilePatterns: [],
-                maxFileSizeMb: 10,
-                maxIndexSizeMb: 2048,
+                maxFileSizeMB: 10,
+                maxIndexSizeMB: 2048,
                 indexCacheDirPath: undefined,
             },
         },
@@ -98,8 +98,8 @@ describe('AmazonQConfigurationCache', () => {
                 enableLocalIndexing: true,
                 localIndexing: {
                     ignoreFilePatterns: [],
-                    maxFileSizeMb: 10,
-                    maxIndexSizeMb: 2048,
+                    maxFileSizeMB: 10,
+                    maxIndexSizeMB: 2048,
                     indexCacheDirPath: undefined,
                 },
             },
