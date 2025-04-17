@@ -1,15 +1,28 @@
 import { CodeWhispererServiceBase, CodeWhispererServiceIAM } from '../codeWhispererService'
-import { AmazonQBaseServiceManager, BaseAmazonQServiceManager, Features } from './BaseAmazonQServiceManager'
+import {
+    AmazonQBaseServiceManager,
+    BaseAmazonQServiceManager,
+    QServiceManagerFeatures,
+} from './BaseAmazonQServiceManager'
 import { getAmazonQRegionAndEndpoint } from './configurationUtils'
+import { StreamingClientServiceIAM } from '../streamingClientService'
 
-export class AmazonQIAMServiceManager extends BaseAmazonQServiceManager<CodeWhispererServiceIAM> {
+export class AmazonQIAMServiceManager extends BaseAmazonQServiceManager<
+    CodeWhispererServiceIAM,
+    StreamingClientServiceIAM
+> {
     private static instance: AmazonQIAMServiceManager | null = null
+    private region: string
+    private endpoint: string
 
-    private constructor(features: Features) {
+    private constructor(features: QServiceManagerFeatures) {
         super(features)
+        const amazonQRegionAndEndpoint = getAmazonQRegionAndEndpoint(features.runtime, features.logging)
+        this.region = amazonQRegionAndEndpoint.region
+        this.endpoint = amazonQRegionAndEndpoint.endpoint
     }
 
-    public static getInstance(features: Features): AmazonQIAMServiceManager {
+    public static getInstance(features: QServiceManagerFeatures): AmazonQIAMServiceManager {
         if (!AmazonQIAMServiceManager.instance) {
             AmazonQIAMServiceManager.instance = new AmazonQIAMServiceManager(features)
         }
@@ -19,12 +32,11 @@ export class AmazonQIAMServiceManager extends BaseAmazonQServiceManager<CodeWhis
 
     public getCodewhispererService(): CodeWhispererServiceBase {
         if (!this.cachedCodewhispererService) {
-            const { region, endpoint } = getAmazonQRegionAndEndpoint(this.features.runtime, this.features.logging)
             this.cachedCodewhispererService = new CodeWhispererServiceIAM(
                 this.features.credentialsProvider,
                 this.features.workspace,
-                region,
-                endpoint,
+                this.region,
+                this.endpoint,
                 this.features.sdkInitializator
             )
 
@@ -33,8 +45,20 @@ export class AmazonQIAMServiceManager extends BaseAmazonQServiceManager<CodeWhis
 
         return this.cachedCodewhispererService
     }
+
+    public getStreamingClient() {
+        if (!this.cachedStreamingClient) {
+            this.cachedStreamingClient = new StreamingClientServiceIAM(
+                this.features.credentialsProvider,
+                this.features.sdkInitializator,
+                this.region,
+                this.endpoint
+            )
+        }
+        return this.cachedStreamingClient
+    }
 }
 
-export const initBaseIAMServiceManager = (features: Features): AmazonQBaseServiceManager => {
+export const initBaseIAMServiceManager = (features: QServiceManagerFeatures): AmazonQBaseServiceManager => {
     return AmazonQIAMServiceManager.getInstance(features)
 }

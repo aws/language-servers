@@ -13,8 +13,8 @@ import {
     getAmazonQRelatedWorkspaceConfigs,
 } from './configurationUtils'
 import { AmazonQServiceInitializationError } from './errors'
-
-export interface Features {
+import { StreamingClientServiceBase } from '../streamingClientService'
+export interface QServiceManagerFeatures {
     lsp: Lsp
     logging: Logging
     runtime: Runtime
@@ -23,14 +23,14 @@ export interface Features {
     workspace: Workspace
 }
 
-export type AmazonQBaseServiceManager = BaseAmazonQServiceManager<CodeWhispererServiceBase>
+export type AmazonQBaseServiceManager = BaseAmazonQServiceManager<CodeWhispererServiceBase, StreamingClientServiceBase>
 
 export const CONFIGURATION_CHANGE_IN_PROGRESS_MSG = 'handleDidChangeConfiguration already in progress, exiting.'
 type DidChangeConfigurationListener = (updatedConfig: AmazonQWorkspaceConfig) => void | Promise<void>
 
 /**
  * BaseAmazonQServiceManager is a base abstract class that can be generically extended
- * to manage a centralized CodeWhispererService that extends CodeWhispererServiceBase.
+ * to manage a centralized CodeWhispererService that extends CodeWhispererServiceBase and a centralized StreamingClientService that extends StreamingClientServiceBase.
  *
  * It implements `handleDidChangeConfiguration` and hooks it into the passed LSP server's
  * `didChangeConfiguration` notification. Servers can listen to the completion of these
@@ -48,16 +48,21 @@ type DidChangeConfigurationListener = (updatedConfig: AmazonQWorkspaceConfig) =>
  * // configuration is updated and listener invoked with updatedConfig
  * ```
  */
-export abstract class BaseAmazonQServiceManager<C extends CodeWhispererServiceBase> {
-    protected features!: Features
+export abstract class BaseAmazonQServiceManager<
+    C extends CodeWhispererServiceBase,
+    S extends StreamingClientServiceBase,
+> {
+    protected features!: QServiceManagerFeatures
     protected logging!: Logging
     protected configurationCache = new AmazonQConfigurationCache()
     protected cachedCodewhispererService?: C
+    protected cachedStreamingClient?: S
 
     private handleDidChangeConfigurationListeners = new Set<DidChangeConfigurationListener>()
     private isConfigChangeInProgress = false
 
     abstract getCodewhispererService(): CodeWhispererServiceBase
+    abstract getStreamingClient(): StreamingClientServiceBase
 
     /**
      * This method calls `getAmazonQRelatedWorkspaceConfigs`, updates the configurationCache and
@@ -140,7 +145,7 @@ export abstract class BaseAmazonQServiceManager<C extends CodeWhispererServiceBa
         await Promise.allSettled(listenPromises)
     }
 
-    constructor(features: Features) {
+    constructor(features: QServiceManagerFeatures) {
         if (!features || !features.logging || !features.lsp) {
             throw new AmazonQServiceInitializationError(
                 'Service features not initialized. Please ensure proper initialization.'
