@@ -70,6 +70,7 @@ import {
 } from './agenticChatEventParser'
 import { ChatSessionService } from '../chat/chatSessionService'
 import { ResponseStream } from './responseStream'
+import { executeToolMessage, toolErrorMessage, toolResultMessage } from './textFormatting'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -343,7 +344,7 @@ export class AgenticChatController implements ChatHandlers {
             if (!toolUse.name || !toolUse.toolUseId) continue
 
             try {
-                const toolUseMsg = `tool ${toolUse.name} with input:\n \`\`\`${JSON.stringify(toolUse.input)}\`\`\``
+                const toolUseMsg = executeToolMessage(toolUse)
                 await responseStream.writeResult({ body: `${toolUseMsg}` })
 
                 const result = await this.#features.agent.runTool(toolUse.name, toolUse.input)
@@ -362,14 +363,13 @@ export class AgenticChatController implements ChatHandlers {
                     status: 'success',
                     content: [toolResultContent],
                 })
-                await responseStream.writeResult({
-                    body: `Tool ${toolUse.name} completed with result: \`\`\`${JSON.stringify(result)}\`\`\``,
-                })
+                await responseStream.writeResult({ body: toolResultMessage(toolUse, result) })
             } catch (err) {
+                const errMsg = err instanceof Error ? err.message : 'unknown error'
                 await responseStream.writeResult({
-                    body: `Error running tool ${toolUse.name}: ${err instanceof Error ? err.message : 'unknown error'}`,
+                    body: toolErrorMessage(toolUse, errMsg),
                 })
-                this.#log(`Error running tool ${toolUse.name}:`, err instanceof Error ? err.message : 'unknown error')
+                this.#log(`Error running tool ${toolUse.name}:`, errMsg)
                 results.push({
                     toolUseId: toolUse.toolUseId,
                     status: 'error',
@@ -474,9 +474,6 @@ export class AgenticChatController implements ChatHandlers {
                         : undefined,
             })
         }
-        // const toolUseLog = Object.values(result.data.toolUses)
-        //     .map(t => `- \`\`\`${JSON.stringify({ name: t.name, input: JSON.stringify(t.input) })}\`\`\`}`)
-        //     .join('\n')
 
         return responseStream.nextResult(result.data.chatResult)
     }

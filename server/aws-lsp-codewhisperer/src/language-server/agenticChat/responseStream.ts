@@ -37,7 +37,7 @@ export class ResponseStream {
                 // TODO: error if another writer has this locked.
                 const r = this.#sendProgress({
                     ...chunk,
-                    body: [...this.#chatResults, chunk].map(chunk => chunk.body).join(''),
+                    body: [...this.#chatResults, chunk].map(chunk => chunk.body).join('\n\n'),
                 })
                 pendingResults.push(r)
                 finalChunk = chunk
