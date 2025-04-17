@@ -481,6 +481,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         const service = new CodeWhispererServiceToken(
             this.features.credentialsProvider,
             this.features.workspace,
+            this.features.logging,
             region,
             endpoint,
             this.features.sdkInitializator
@@ -508,6 +509,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         const streamingClient = new StreamingClientServiceToken(
             this.features.credentialsProvider,
             this.features.sdkInitializator,
+            this.features.logging,
             region,
             endpoint,
             this.getCustomUserAgent()

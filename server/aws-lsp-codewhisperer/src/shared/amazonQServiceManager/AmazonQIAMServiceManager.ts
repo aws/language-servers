@@ -35,6 +35,7 @@ export class AmazonQIAMServiceManager extends BaseAmazonQServiceManager<
             this.cachedCodewhispererService = new CodeWhispererServiceIAM(
                 this.features.credentialsProvider,
                 this.features.workspace,
+                this.features.logging,
                 this.region,
                 this.endpoint,
                 this.features.sdkInitializator
@@ -51,6 +52,7 @@ export class AmazonQIAMServiceManager extends BaseAmazonQServiceManager<
             this.cachedStreamingClient = new StreamingClientServiceIAM(
                 this.features.credentialsProvider,
                 this.features.sdkInitializator,
+                this.features.logging,
                 this.region,
                 this.endpoint
             )

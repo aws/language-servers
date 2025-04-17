@@ -10,7 +10,7 @@ import {
     SendMessageCommandInput as SendMessageCommandInputQDeveloperStreaming,
     SendMessageCommandOutput as SendMessageCommandOutputQDeveloperStreaming,
 } from '@amzn/amazon-q-developer-streaming-client'
-import { CredentialsProvider, SDKInitializator } from '@aws/language-server-runtimes/server-interface'
+import { CredentialsProvider, SDKInitializator, Logging } from '@aws/language-server-runtimes/server-interface'
 import { getBearerTokenFromProvider } from './utils'
 import { ConfiguredRetryStrategy } from '@aws-sdk/util-retry'
 import { CredentialProviderChain, Credentials } from 'aws-sdk'
@@ -54,6 +54,7 @@ export class StreamingClientServiceToken extends StreamingClientServiceBase {
     constructor(
         credentialsProvider: CredentialsProvider,
         sdkInitializator: SDKInitializator,
+        logging: Logging,
         region: string,
         endpoint: string,
         customUserAgent: string
@@ -65,6 +66,9 @@ export class StreamingClientServiceToken extends StreamingClientServiceBase {
             return { token, expiration: new Date() }
         }
 
+        logging.log(
+            `Passing client for class CodeWhispererStreaming to sdkInitializator (v3) for additional setup (e.g. proxy)`
+        )
         this.client = sdkInitializator(CodeWhispererStreaming, {
             region,
             endpoint,
@@ -120,10 +124,16 @@ export class StreamingClientServiceIAM extends StreamingClientServiceBase {
     constructor(
         credentialsProvider: CredentialsProvider,
         sdkInitializator: SDKInitializator,
+        logging: Logging,
         region: string,
         endpoint: string
     ) {
         super(region, endpoint)
+
+        logging.log(
+            `Passing client for class QDeveloperStreaming to sdkInitializator (v3) for additional setup (e.g. proxy)`
+        )
+
         this.client = sdkInitializator(QDeveloperStreaming, {
             region: region,
             endpoint: endpoint,

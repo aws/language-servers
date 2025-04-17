@@ -3,6 +3,7 @@ import {
     CredentialsProvider,
     CredentialsType,
     Workspace,
+    Logging,
     SDKInitializator,
 } from '@aws/language-server-runtimes/server-interface'
 import { AWSError, ConfigurationOptions, CredentialProviderChain, Credentials } from 'aws-sdk'
@@ -97,6 +98,7 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
     constructor(
         credentialsProvider: CredentialsProvider,
         workspace: Workspace,
+        logging: Logging,
         codeWhispererRegion: string,
         codeWhispererEndpoint: string,
         sdkInitializator: SDKInitializator
@@ -109,7 +111,7 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
                 () => credentialsProvider.getCredentials('iam') as Credentials,
             ]),
         }
-        this.client = createCodeWhispererSigv4Client(options, sdkInitializator)
+        this.client = createCodeWhispererSigv4Client(options, sdkInitializator, logging)
         // Avoid overwriting any existing client listeners
         const clientRequestListeners = this.client.setupRequestListeners
         this.client.setupRequestListeners = (request: Request<unknown, AWSError>) => {
@@ -153,6 +155,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     constructor(
         credentialsProvider: CredentialsProvider,
         workspace: Workspace,
+        logging: Logging,
         codeWhispererRegion: string,
         codeWhispererEndpoint: string,
         sdkInitializator: SDKInitializator
@@ -178,7 +181,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
                 },
             ],
         }
-        this.client = createCodeWhispererTokenClient(options, sdkInitializator)
+        this.client = createCodeWhispererTokenClient(options, sdkInitializator, logging)
     }
 
     getCredentialsType(): CredentialsType {

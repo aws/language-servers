@@ -16,10 +16,11 @@ export const CodeWhispererServerIAMProxy = CodewhispererServerFactory(initBaseIA
 export const CodeWhispererSecurityScanServerTokenProxy = SecurityScanServerToken()
 
 export const QNetTransformServerTokenProxy = QNetTransformServerToken(
-    (credentialsProvider, workspace, awsQRegion, awsQEndpointUrl, sdkInitializator) => {
+    (credentialsProvider, workspace, logging, awsQRegion, awsQEndpointUrl, sdkInitializator) => {
         return new CodeWhispererServiceToken(
             credentialsProvider,
             workspace,
+            logging,
             awsQRegion,
             awsQEndpointUrl,
             sdkInitializator
