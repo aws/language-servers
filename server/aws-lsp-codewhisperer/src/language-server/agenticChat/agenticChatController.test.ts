@@ -439,7 +439,7 @@ describe('AgenticChatController', () => {
             assert.ok(secondCallArgs.conversationState?.history[1].assistantResponseMessage)
 
             // Verify the final result
-            assert.deepStrictEqual(chatResult, expectedCompleteChatResult)
+            assertChatResultsMatch(chatResult, expectedCompleteChatResult)
         })
 
         it('propagates tool execution errors to the model in toolResults', async () => {
@@ -574,7 +574,7 @@ describe('AgenticChatController', () => {
             }
 
             // Verify the final result includes both messages
-            assert.deepStrictEqual(chatResult, expectedErrorChatResult)
+            assertChatResultsMatch(chatResult, expectedErrorChatResult)
         })
 
         it('handles multiple iterations of tool uses with proper history updates', async () => {
@@ -764,7 +764,7 @@ describe('AgenticChatController', () => {
             )
 
             // Verify the final result
-            assert.deepStrictEqual(chatResult, expectedCompleteChatResult)
+            assertChatResultsMatch(chatResult, expectedCompleteChatResult)
         })
 
         it('returns help message if it is a help follow up action', async () => {
@@ -1655,3 +1655,16 @@ ${' '.repeat(8)}}
         sinon.assert.calledOnce(tabBarActionStub)
     })
 })
+
+// The body may include text-based progress updates from tool invocations.
+// We want to ignore these in the tests.
+function assertChatResultsMatch(actual: any, expected: ChatResult) {
+    if (actual?.body && expected?.body) {
+        assert.ok(
+            actual.body.endsWith(expected.body),
+            `Body should end with "${expected.body}"\nActual: "${actual.body}"`
+        )
+    }
+
+    assert.deepStrictEqual({ ...actual, body: undefined }, { ...expected, body: undefined })
+}
