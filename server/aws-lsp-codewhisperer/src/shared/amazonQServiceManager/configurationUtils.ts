@@ -67,13 +67,15 @@ interface QInlineSuggestionsConfig {
     extraContext: string | undefined // aws.q.inlineSuggestions.extraContext
 }
 
+interface LocalIndexConfig {
+    ignoreFilePatterns?: string[]
+    maxFileSizeMb?: number
+    maxIndexSizeMb?: number
+}
+
 interface QProjectContextConfig {
     enableLocalIndexing: boolean // aws.q.projectContext.enableLocalIndexing
-    localIndexing?: {
-        ignoreFilePatterns?: string[]
-        maxFileSizeMb?: number
-        maxIndexSizeMb?: number
-    }
+    localIndexing?: LocalIndexConfig
 }
 
 interface QConfigSection {
@@ -117,6 +119,11 @@ export async function getAmazonQRelatedWorkspaceConfigs(
                 },
                 projectContext: {
                     enableLocalIndexing: newQConfig.projectContext?.enableLocalIndexing === true,
+                    localIndexing: {
+                        ignoreFilePatterns: newQConfig.projectContext?.localIndexing?.ignoreFilePatterns,
+                        maxFileSizeMb: newQConfig.projectContext?.localIndexing?.maxFileSizeMb,
+                        maxIndexSizeMb: newQConfig.projectContext?.localIndexing?.maxIndexSizeMb,
+                    },
                 },
             }
 
