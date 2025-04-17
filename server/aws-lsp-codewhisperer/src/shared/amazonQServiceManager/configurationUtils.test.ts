@@ -19,6 +19,11 @@ describe('getAmazonQRelatedWorkspaceConfigs', () => {
         },
         projectContext: {
             enableLocalIndexing: true,
+            localIndexing: {
+                ignoreFilePatterns: [],
+                maxFileSizeMb: 10,
+                maxIndexSizeMb: 2048,
+            },
         },
     }
 

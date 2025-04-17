@@ -120,9 +120,9 @@ export async function getAmazonQRelatedWorkspaceConfigs(
                 projectContext: {
                     enableLocalIndexing: newQConfig.projectContext?.enableLocalIndexing === true,
                     localIndexing: {
-                        ignoreFilePatterns: newQConfig.projectContext?.localIndexing?.ignoreFilePatterns,
-                        maxFileSizeMb: newQConfig.projectContext?.localIndexing?.maxFileSizeMb,
-                        maxIndexSizeMb: newQConfig.projectContext?.localIndexing?.maxIndexSizeMb,
+                        ignoreFilePatterns: newQConfig.projectContext?.localIndexing?.ignoreFilePatterns ?? [],
+                        maxFileSizeMb: newQConfig.projectContext?.localIndexing?.maxFileSizeMb ?? 10,
+                        maxIndexSizeMb: newQConfig.projectContext?.localIndexing?.maxIndexSizeMb ?? 2048,
                     },
                 },
             }
@@ -172,6 +172,11 @@ export const defaultAmazonQWorkspaceConfigFactory = (): AmazonQWorkspaceConfig =
         shareCodeWhispererContentWithAWS: false,
         projectContext: {
             enableLocalIndexing: false,
+            localIndexing: {
+                ignoreFilePatterns: [],
+                maxFileSizeMb: 10,
+                maxIndexSizeMb: 2048,
+            },
         },
     }
 }
