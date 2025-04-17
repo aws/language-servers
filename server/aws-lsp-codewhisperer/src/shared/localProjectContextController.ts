@@ -12,10 +12,11 @@ import type {
 } from 'local-indexing'
 import { URI } from 'vscode-uri'
 
-const ignore = require('ignore')
-const { fdir } = require('fdir')
-const fs = require('fs')
-const path = require('path')
+import * as fs from 'fs'
+import * as path from 'path'
+
+import * as ignore from 'ignore'
+import { fdir } from 'fdir'
 
 const LIBRARY_DIR = (() => {
     if (require.main) {
@@ -250,7 +251,7 @@ export class LocalProjectContextController {
                     .exclude((dirName: string, dirPath: string) => {
                         return filter.ignores(path.relative(absolutePath, dirPath))
                     })
-                    .glob([...(fileExtensions?.map(ext => `**/*${ext}`) ?? []), '**/.gitignore'])
+                    .glob(...(fileExtensions?.map(ext => `**/*${ext}`) ?? []), '**/.gitignore')
                     .filter((filePath: string, isDirectory: boolean) => {
                         if (isDirectory || filter.ignores(path.relative(absolutePath, filePath))) {
                             return false
