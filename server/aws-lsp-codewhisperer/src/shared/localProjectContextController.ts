@@ -265,20 +265,13 @@ export class LocalProjectContextController {
                         const userGitIgnoreFilterByFile = new Map(
                             await Promise.all(
                                 localGitIgnoreFiles.map(async filePath => {
-                                    const filteredLines: string[] = []
+                                    const filter = ignore()
                                     try {
-                                        const content: string = await fs.promises.readFile(filePath, 'utf-8')
-                                        const lines: string[] = content.split(/\r?\n/)
-
-                                        for (const line of lines) {
-                                            if (line && !line.startsWith('#')) {
-                                                filteredLines.push(line.trim())
-                                            }
-                                        }
+                                        filter.add((await fs.promises.readFile(filePath)).toString())
                                     } catch (error) {
                                         this.log?.error(`Error reading .gitignore file ${filePath}: ${error}`)
                                     }
-                                    return [filePath, ignore().add(filteredLines)] as const
+                                    return [filePath, filter] as const
                                 })
                             )
                         )
