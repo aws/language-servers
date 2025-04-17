@@ -60,11 +60,11 @@ export const QConfigurationServerToken =
                 logging
             )
 
-            /* 
-                            Calling handleDidChangeConfiguration once to ensure we get configuration atleast once at start up
-                            
-                            TODO: TODO: consider refactoring such responsibilities to common service manager config/initialisation server
-                        */
+            /*
+                        Calling handleDidChangeConfiguration once to ensure we get configuration atleast once at start up
+                        
+                        TODO: TODO: consider refactoring such responsibilities to common service manager config/initialisation server
+                    */
             await amazonQServiceManager.handleDidChangeConfiguration()
         })
 

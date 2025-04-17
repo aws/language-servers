@@ -91,7 +91,7 @@ describe('MynahUI', () => {
             handleChatPrompt(mynahUi, tabId, prompt, messager)
 
             assert.notCalled(onQuickActionSpy)
-            assert.calledWith(onChatPromptSpy, { prompt, tabId })
+            assert.calledWith(onChatPromptSpy, { prompt, tabId, context: undefined })
             assert.calledWith(addChatItemSpy, tabId, { type: ChatItemType.PROMPT, body: prompt.escapedPrompt })
             assert.calledWith(updateStoreSpy, tabId, { loadingChat: true, promptInputDisabledState: true })
             assert.calledWith(addChatItemSpy, tabId, { type: ChatItemType.ANSWER_STREAM })

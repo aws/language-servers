@@ -81,8 +81,8 @@ export const LocalProjectContextServer = (): Server => features => {
             return
         }
         try {
-            await deps.amazonQServiceManager.handleDidChangeConfiguration()
             await deps.amazonQServiceManager.addDidChangeConfigurationListener(updateConfigurationHandler)
+            await deps.amazonQServiceManager.handleDidChangeConfiguration()
             chat.sendContextCommands({
                 contextCommandGroups: [
                     // announce that @workspace context is ready

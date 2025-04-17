@@ -191,7 +191,6 @@ export class AgenticChatController implements ChatHandlers {
         session: ChatSessionService,
         triggerContext: TriggerContext
     ): Promise<GenerateAssistantResponseCommandInput> {
-        this.#debug('Preparing request input')
         const profileArn = AmazonQTokenServiceManager.getInstance(this.#features).getActiveProfileArn()
         const useRelevantDocuments = params.context?.some(c => c.command === '@workspace')
         const relevantDocuments = useRelevantDocuments
@@ -877,6 +876,7 @@ export class AgenticChatController implements ChatHandlers {
 
     async #getRelevantDocuments(prompt: string): Promise<RelevantTextDocumentAddition[]> {
         try {
+            this.#log('Querying relevant documents from local project index')
             const localProjectContextController = LocalProjectContextController.getInstance()
             const chunks = await localProjectContextController.queryVectorIndex({ query: prompt })
             // adapted from vscode toolkit

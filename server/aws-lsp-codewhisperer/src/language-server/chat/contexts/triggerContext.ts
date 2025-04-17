@@ -1,10 +1,5 @@
 import { TriggerType } from '@aws/chat-client-ui-types'
-import {
-    ChatTriggerType,
-    UserIntent,
-    RelevantTextDocument,
-    EditorState,
-} from '@amzn/codewhisperer-streaming'
+import { ChatTriggerType, UserIntent, RelevantTextDocument, EditorState } from '@amzn/codewhisperer-streaming'
 import { BedrockTools, ChatParams, CursorState, InlineChatParams } from '@aws/language-server-runtimes/server-interface'
 import { Features } from '../../types'
 import { DocumentContext, DocumentContextExtractor } from './documentContext'
@@ -97,11 +92,11 @@ export class QChatTriggerContext {
 
         return textDocument
             ? this.#documentContextExtractor.extractDocumentContext(
-                textDocument,
-                // we want to include a default position if a text document is found so users can still ask questions about the opened file
-                // the range will be expanded up to the max characters downstream
-                cursorState?.[0] ?? QChatTriggerContext.DEFAULT_CURSOR_STATE
-            )
+                  textDocument,
+                  // we want to include a default position if a text document is found so users can still ask questions about the opened file
+                  // the range will be expanded up to the max characters downstream
+                  cursorState?.[0] ?? QChatTriggerContext.DEFAULT_CURSOR_STATE
+              )
             : undefined
     }
 
