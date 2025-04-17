@@ -128,7 +128,15 @@ export class AgenticChatEventParser implements ChatResult {
                 }
 
                 if (toolUseEvent.stop) {
-                    console.log(`ToolUseEvent: ${toolUseId} ${name} ${this.toolUses[toolUseId]?.input}`)
+                    const parsedInput =
+                        typeof this.toolUses[toolUseId].input === 'string'
+                            ? JSON.parse(this.toolUses[toolUseId].input === '' ? '{}' : this.toolUses[toolUseId].input)
+                            : this.toolUses[toolUseId].input
+                    this.toolUses[toolUseId] = {
+                        ...this.toolUses[toolUseId],
+                        input: parsedInput,
+                    }
+                    console.log(`ToolUseEvent: ${toolUseId} ${name} ${this.toolUses[toolUseId].input}`)
                 }
             }
         } else if (followupPromptEvent?.followupPrompt) {

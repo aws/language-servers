@@ -30,7 +30,10 @@ import { textUtils } from '@aws/lsp-core'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import { AcceptedSuggestionEntry, CodeDiffTracker } from './codeDiffTracker'
 import { AmazonQError, AmazonQServiceInitializationError } from '../../shared/amazonQServiceManager/errors'
-import { AmazonQBaseServiceManager, Features } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
+import {
+    AmazonQBaseServiceManager,
+    QServiceManagerFeatures,
+} from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
 import { initBaseTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
 import { initBaseIAMServiceManager } from '../../shared/amazonQServiceManager/AmazonQIAMServiceManager'
@@ -238,7 +241,7 @@ interface AcceptedInlineSuggestionEntry extends AcceptedSuggestionEntry {
 }
 
 export const CodewhispererServerFactory =
-    (serviceManager: (features: Features) => AmazonQBaseServiceManager): Server =>
+    (serviceManager: (features: QServiceManagerFeatures) => AmazonQBaseServiceManager): Server =>
     ({ credentialsProvider, lsp, workspace, telemetry, logging, runtime, sdkInitializator }) => {
         let lastUserModificationTime: number
         let timeSinceLastUserModification: number = 0
@@ -366,12 +369,12 @@ export const CodewhispererServerFactory =
                         customizationArn: textUtils.undefinedIfEmpty(codeWhispererService.customizationArn),
                     })
 
-                // Add extra context to request context
-                const {extraContext} = amazonQServiceManager.getConfiguration().inlineSuggestions
-                if (extraContext) {
-                    requestContext.fileContext.leftFileContent = extraContext + '\n' + requestContext.fileContext.leftFileContent
-                }
-                return codeWhispererService.generateSuggestions({
+                    // Add extra context to request context
+                    const { extraContext } = amazonQServiceManager.getConfiguration().inlineSuggestions
+                    if (extraContext) {
+                        requestContext.fileContext.leftFileContent = extraContext + '\n' + requestContext.fileContext.leftFileContent
+                    }
+                    return codeWhispererService.generateSuggestions({
                         ...requestContext,
                         fileContext: {
                             ...requestContext.fileContext,
@@ -432,7 +435,7 @@ export const CodewhispererServerFactory =
                                     // the response. No locking or concurrency controls, filtering is done
                                     // right before returning and is only guaranteed to be consistent within
                                     // the context of a single response.
-                                    const {includeSuggestionsWithCodeReferences} = amazonQServiceManager.getConfiguration()
+                                    const { includeSuggestionsWithCodeReferences } = amazonQServiceManager.getConfiguration()
                                     if (includeSuggestionsWithCodeReferences) {
                                         return true
                                     }
@@ -586,9 +589,9 @@ export const CodewhispererServerFactory =
             codePercentageTracker.customizationArn = customizationArn
             logging.debug(`CodePercentageTracker customizationArn updated to ${customizationArn}`)
             /*
-                The flag enableTelemetryEventsToDestination is set to true temporarily. It's value will be determined through destination
-                configuration post all events migration to STE. It'll be replaced by qConfig['enableTelemetryEventsToDestination'] === true
-            */
+                            The flag enableTelemetryEventsToDestination is set to true temporarily. It's value will be determined through destination
+                            configuration post all events migration to STE. It'll be replaced by qConfig['enableTelemetryEventsToDestination'] === true
+                        */
             // const enableTelemetryEventsToDestination = true
             // telemetryService.updateEnableTelemetryEventsToDestination(enableTelemetryEventsToDestination)
             telemetryService.updateOptOutPreference(optOutTelemetryPreference)
@@ -634,10 +637,10 @@ export const CodewhispererServerFactory =
             )
 
             /* 
-                Calling handleDidChangeConfiguration once to ensure we get configuration atleast once at start up
-                
-                TODO: TODO: consider refactoring such responsibilities to common service manager config/initialisation server
-            */
+                            Calling handleDidChangeConfiguration once to ensure we get configuration atleast once at start up
+                            
+                            TODO: TODO: consider refactoring such responsibilities to common service manager config/initialisation server
+                        */
             await amazonQServiceManager.handleDidChangeConfiguration()
             await amazonQServiceManager.addDidChangeConfigurationListener(updateConfiguration)
         }

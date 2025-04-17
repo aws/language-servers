@@ -1,19 +1,56 @@
 import {
     CodeWhispererStreaming,
-    GenerateAssistantResponseCommandInput,
-    GenerateAssistantResponseCommandOutput,
-    SendMessageCommandInput,
-    SendMessageCommandOutput,
+    GenerateAssistantResponseCommandInput as GenerateAssistantResponseCommandInputCodeWhispererStreaming,
+    GenerateAssistantResponseCommandOutput as GenerateAssistantResponseCommandOutputCodeWhispererStreaming,
+    SendMessageCommandInput as SendMessageCommandInputCodeWhispererStreaming,
+    SendMessageCommandOutput as SendMessageCommandOutputCodeWhispererStreaming,
 } from '@amzn/codewhisperer-streaming'
+import {
+    QDeveloperStreaming,
+    SendMessageCommandInput as SendMessageCommandInputQDeveloperStreaming,
+    SendMessageCommandOutput as SendMessageCommandOutputQDeveloperStreaming,
+} from '@amzn/amazon-q-developer-streaming-client'
 import { CredentialsProvider, SDKInitializator } from '@aws/language-server-runtimes/server-interface'
 import { getBearerTokenFromProvider } from './utils'
 import { ConfiguredRetryStrategy } from '@aws-sdk/util-retry'
+import { CredentialProviderChain, Credentials } from 'aws-sdk'
 
-export class StreamingClientService {
+export type SendMessageCommandInput =
+    | SendMessageCommandInputCodeWhispererStreaming
+    | SendMessageCommandInputQDeveloperStreaming
+export type SendMessageCommandOutput =
+    | SendMessageCommandOutputCodeWhispererStreaming
+    | SendMessageCommandOutputQDeveloperStreaming
+
+export abstract class StreamingClientServiceBase {
+    protected readonly region
+    protected readonly endpoint
+
+    inflightRequests: Set<AbortController> = new Set()
+
+    abstract client: CodeWhispererStreaming | QDeveloperStreaming
+
+    constructor(region: string, endpoint: string) {
+        this.region = region
+        this.endpoint = endpoint
+    }
+
+    abstract sendMessage(
+        request: SendMessageCommandInput,
+        abortController?: AbortController
+    ): Promise<SendMessageCommandOutput>
+
+    public abortInflightRequests() {
+        this.inflightRequests.forEach(abortController => {
+            abortController.abort()
+        })
+        this.inflightRequests.clear()
+    }
+}
+
+export class StreamingClientServiceToken extends StreamingClientServiceBase {
     client: CodeWhispererStreaming
-    private inflightRequests = new Set<AbortController>()
     public profileArn?: string
-
     constructor(
         credentialsProvider: CredentialsProvider,
         sdkInitializator: SDKInitializator,
@@ -21,6 +58,7 @@ export class StreamingClientService {
         endpoint: string,
         customUserAgent: string
     ) {
+        super(region, endpoint)
         const tokenProvider = async () => {
             const token = getBearerTokenFromProvider(credentialsProvider)
             // without setting expiration, the tokenProvider will only be called once
@@ -37,9 +75,9 @@ export class StreamingClientService {
     }
 
     public async sendMessage(
-        request: SendMessageCommandInput,
+        request: SendMessageCommandInputCodeWhispererStreaming,
         abortController?: AbortController
-    ): Promise<SendMessageCommandOutput> {
+    ): Promise<SendMessageCommandOutputCodeWhispererStreaming> {
         const controller: AbortController = abortController ?? new AbortController()
 
         this.inflightRequests.add(controller)
@@ -57,9 +95,9 @@ export class StreamingClientService {
     }
 
     public async generateAssistantResponse(
-        request: GenerateAssistantResponseCommandInput,
+        request: GenerateAssistantResponseCommandInputCodeWhispererStreaming,
         abortController?: AbortController
-    ): Promise<GenerateAssistantResponseCommandOutput> {
+    ): Promise<GenerateAssistantResponseCommandOutputCodeWhispererStreaming> {
         const controller: AbortController = abortController ?? new AbortController()
 
         this.inflightRequests.add(controller)
@@ -75,11 +113,41 @@ export class StreamingClientService {
 
         return response
     }
+}
 
-    public abortInflightRequests() {
-        this.inflightRequests.forEach(abortController => {
-            abortController.abort()
+export class StreamingClientServiceIAM extends StreamingClientServiceBase {
+    client: QDeveloperStreaming
+    constructor(
+        credentialsProvider: CredentialsProvider,
+        sdkInitializator: SDKInitializator,
+        region: string,
+        endpoint: string
+    ) {
+        super(region, endpoint)
+        this.client = sdkInitializator(QDeveloperStreaming, {
+            region: region,
+            endpoint: endpoint,
+            credentialProvider: new CredentialProviderChain([
+                () => credentialsProvider.getCredentials('iam') as Credentials,
+            ]),
+            retryStrategy: new ConfiguredRetryStrategy(0, (attempt: number) => 500 + attempt ** 10),
         })
-        this.inflightRequests.clear()
+    }
+
+    public async sendMessage(
+        request: SendMessageCommandInputQDeveloperStreaming,
+        abortController?: AbortController
+    ): Promise<SendMessageCommandOutputQDeveloperStreaming> {
+        const controller: AbortController = abortController ?? new AbortController()
+
+        this.inflightRequests.add(controller)
+
+        const response = await this.client.sendMessage(request, {
+            abortSignal: controller.signal,
+        })
+
+        this.inflightRequests.delete(controller)
+
+        return response
     }
 }

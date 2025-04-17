@@ -20,6 +20,8 @@ import { Features } from '@aws/language-server-runtimes/server-interface/server'
 import { ConversationItemGroup } from '@aws/language-server-runtimes/protocol'
 import { getUserHomeDir } from '@aws/lsp-core/out/util/path'
 
+export const EMPTY_CONVERSATION_LIST_ID = 'empty'
+
 /**
  * A singleton database class that manages chat history persistence using LokiJS.
  * This class handles storage and retrieval of chat conversations, messages, and tab states
@@ -212,7 +214,7 @@ export class ChatDatabase {
         }
         if (searchResults.length === 0) {
             this.#features.logging.log(`No matches found`)
-            searchResults = [{ items: [{ id: 'empty', description: 'No matches found' }] }]
+            searchResults = [{ items: [{ id: EMPTY_CONVERSATION_LIST_ID, description: 'No matches found' }] }]
         }
         return searchResults
     }
@@ -253,7 +255,7 @@ export class ChatDatabase {
             let groupedTabs = groupTabsByDate(tabs)
             this.#features.logging.log(`Found ${tabs.length} conversations from history`)
             if (groupedTabs.length === 0) {
-                return [{ items: [{ id: 'empty', description: 'No chat history found' }] }]
+                return [{ items: [{ id: EMPTY_CONVERSATION_LIST_ID, description: 'No chat history found' }] }]
             } else {
                 return groupedTabs
             }

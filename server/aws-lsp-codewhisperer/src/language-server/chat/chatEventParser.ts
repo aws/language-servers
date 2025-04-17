@@ -1,4 +1,9 @@
-import { ChatResponseStream, Reference, SupplementaryWebLink } from '@amzn/codewhisperer-streaming'
+import {
+    ChatResponseStream as ChatResponseStreamCodeWhispererStreaming,
+    Reference,
+    SupplementaryWebLink,
+} from '@amzn/codewhisperer-streaming'
+import { ChatResponseStream as ChatResponseStreamQDeveloperStreaming } from '@amzn/amazon-q-developer-streaming-client'
 import {
     ChatItemAction,
     ChatResult,
@@ -8,6 +13,7 @@ import {
 import { Result } from '../types'
 import { AddMessageEvent } from '../../shared/telemetry/types'
 import { Metric } from '../../shared/telemetry/metric'
+export type ChatResponseStream = ChatResponseStreamCodeWhispererStreaming | ChatResponseStreamQDeveloperStreaming
 
 export type ChatResultWithMetadata = {
     chatResult: ChatResult
