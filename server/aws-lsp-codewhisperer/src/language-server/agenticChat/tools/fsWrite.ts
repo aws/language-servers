@@ -290,7 +290,8 @@ export class FsWrite {
                         type: 'string',
                     },
                     path: {
-                        description: 'Absolute path to file or directory, e.g. `/repo/file.py` or `/repo`.',
+                        description:
+                            'Path to a file, e.g. `/path/to/repo/file.py`. If you want to access a path relative to the current workspace, use relative paths e.g. `./src/file.py`.',
                         type: 'string',
                     },
                 },
