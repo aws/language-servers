@@ -14,10 +14,10 @@ import { WorkspaceFolderManager } from './workspaceFolderManager'
 import { URI } from 'vscode-uri'
 import { DependencyDiscoverer } from './dependency/dependencyDiscoverer'
 import { getCodeWhispererLanguageIdFromPath } from '../../shared/languageDetection'
-import { CodeWhispererServiceToken } from '../../shared/codeWhispererService'
-import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../../shared/constants'
 import { makeUserContextObject } from '../../shared/telemetryUtils'
 import { safeGet } from '../../shared/utils'
+import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
+import { CodeWhispererServiceToken } from '../../shared/codeWhispererService'
 
 const Q_CONTEXT_CONFIGURATION_SECTION = 'aws.q.workspaceContext'
 
@@ -31,8 +31,7 @@ export const WorkspaceContextServer =
             sdkInitializator: SDKInitializator
         ) => CodeWhispererServiceToken
     ): Server =>
-    features => {
-        const { logging, lsp, workspace, runtime, credentialsProvider, sdkInitializator } = features
+    ({ credentialsProvider, workspace, logging, lsp, runtime, sdkInitializator }) => {
         let workspaceFolders: WorkspaceFolder[] = []
         let artifactManager: ArtifactManager
         let dependencyDiscoverer: DependencyDiscoverer
@@ -41,10 +40,8 @@ export const WorkspaceContextServer =
         let isOptedIn: boolean = false
         let abTestingEvaluated = false
         let abTestingEnabled = false
+        let amazonQServiceManager: AmazonQTokenServiceManager
 
-        const awsQRegion = runtime.getConfiguration('AWS_Q_REGION') ?? DEFAULT_AWS_Q_REGION
-        const awsQEndpointUrl = runtime.getConfiguration('AWS_Q_ENDPOINT_URL') ?? DEFAULT_AWS_Q_ENDPOINT_URL
-        const cwsprClient = service(credentialsProvider, workspace, awsQRegion, awsQEndpointUrl, sdkInitializator)
         lsp.addInitializer((params: InitializeParams) => {
             workspaceFolders = params.workspaceFolders || []
             if (params.workspaceFolders) {
@@ -52,17 +49,6 @@ export const WorkspaceContextServer =
             } else {
                 logging.warn(`No workspace folders set during initialization`)
             }
-
-            artifactManager = new ArtifactManager(workspace, logging, workspaceFolders)
-            dependencyDiscoverer = new DependencyDiscoverer(workspace, logging, workspaceFolders, artifactManager)
-            workspaceFolderManager = WorkspaceFolderManager.createInstance(
-                cwsprClient,
-                logging,
-                artifactManager,
-                dependencyDiscoverer,
-                workspaceFolders,
-                credentialsProvider
-            )
 
             return {
                 capabilities: {
@@ -126,7 +112,10 @@ export const WorkspaceContextServer =
                 if (configJetBrains) {
                     workspaceContextConfig = workspaceContextConfig || configJetBrains['workspaceContext']
                 }
-                isOptedIn = workspaceContextConfig === true
+
+                // TODO, removing client side opt in temporarily
+                isOptedIn = true
+                // isOptedIn = workspaceContextConfig === true
 
                 if (!isOptedIn) {
                     isWorkflowInitialized = false
@@ -150,7 +139,10 @@ export const WorkspaceContextServer =
                     product: 'CodeWhisperer',
                 }
 
-                const result = await cwsprClient.listFeatureEvaluations({ userContext })
+                const result = await amazonQServiceManager
+                    .getCodewhispererService()
+                    .listFeatureEvaluations({ userContext })
+                logging.log(`${JSON.stringify(result)}`)
                 abTestingEnabled =
                     result.featureEvaluations?.some(
                         feature =>
@@ -175,6 +167,25 @@ export const WorkspaceContextServer =
         }
 
         lsp.onInitialized(async params => {
+            amazonQServiceManager = AmazonQTokenServiceManager.getInstance({
+                credentialsProvider,
+                lsp,
+                logging,
+                runtime,
+                sdkInitializator,
+                workspace,
+            })
+
+            artifactManager = new ArtifactManager(workspace, logging, workspaceFolders)
+            dependencyDiscoverer = new DependencyDiscoverer(workspace, logging, workspaceFolders, artifactManager)
+            workspaceFolderManager = WorkspaceFolderManager.createInstance(
+                amazonQServiceManager,
+                logging,
+                artifactManager,
+                dependencyDiscoverer,
+                workspaceFolders,
+                credentialsProvider
+            )
             await updateConfiguration()
 
             lsp.workspace.onDidChangeWorkspaceFolders(async params => {
@@ -221,9 +232,17 @@ export const WorkspaceContextServer =
                 }
                 const isLoggedIn = isLoggedInUsingBearerToken(credentialsProvider)
                 if (isLoggedIn && !isWorkflowInitialized) {
-                    isWorkflowInitialized = true
+                    try {
+                        // getCodewhispererService only returns the cwspr client if the service manager was initialized i.e. profile was selected otherwise it throws an error
+                        // we will not evaluate a/b status until profile is selected and service manager is fully initialized
+                        amazonQServiceManager.getCodewhispererService()
+                    } catch (e) {
+                        return
+                    }
 
                     await evaluateABTesting()
+                    isWorkflowInitialized = true
+
                     if (!isUserEligibleForWorkspaceContext()) {
                         return
                     }

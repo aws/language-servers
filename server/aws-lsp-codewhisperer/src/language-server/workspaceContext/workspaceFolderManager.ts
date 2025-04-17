@@ -16,7 +16,7 @@ import {
     uploadArtifactToS3,
 } from './util'
 import { DependencyDiscoverer } from './dependency/dependencyDiscoverer'
-import { CodeWhispererServiceToken } from '../../shared/codeWhispererService'
+import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 
 interface WorkspaceState {
     remoteWorkspaceState: WorkspaceStatus
@@ -29,7 +29,7 @@ interface WorkspaceState {
 type WorkspaceRoot = string
 
 export class WorkspaceFolderManager {
-    private cwsprClient: CodeWhispererServiceToken
+    private serviceManager: AmazonQTokenServiceManager
     private logging: Logging
     private artifactManager: ArtifactManager
     private dependencyDiscoverer: DependencyDiscoverer
@@ -44,7 +44,7 @@ export class WorkspaceFolderManager {
     private isOptedOut: boolean = false
 
     static createInstance(
-        cwsprClient: CodeWhispererServiceToken,
+        serviceManager: AmazonQTokenServiceManager,
         logging: Logging,
         artifactManager: ArtifactManager,
         dependencyDiscoverer: DependencyDiscoverer,
@@ -53,7 +53,7 @@ export class WorkspaceFolderManager {
     ): WorkspaceFolderManager {
         if (!this.instance) {
             this.instance = new WorkspaceFolderManager(
-                cwsprClient,
+                serviceManager,
                 logging,
                 artifactManager,
                 dependencyDiscoverer,
@@ -69,14 +69,14 @@ export class WorkspaceFolderManager {
     }
 
     private constructor(
-        cwsprClient: CodeWhispererServiceToken,
+        serviceManager: AmazonQTokenServiceManager,
         logging: Logging,
         artifactManager: ArtifactManager,
         dependencyDiscoverer: DependencyDiscoverer,
         workspaceFolders: WorkspaceFolder[],
         credentialsProvider: CredentialsProvider
     ) {
-        this.cwsprClient = cwsprClient
+        this.serviceManager = serviceManager
         this.logging = logging
         this.artifactManager = artifactManager
         this.dependencyDiscoverer = dependencyDiscoverer
@@ -233,7 +233,7 @@ export class WorkspaceFolderManager {
                     },
                 },
             }
-            const response = await this.cwsprClient.createUploadUrl(request)
+            const response = await this.serviceManager.getCodewhispererService().createUploadUrl(request)
             s3Url = response.uploadUrl
             // Override upload id to be workspace id
             await uploadArtifactToS3(
@@ -880,7 +880,7 @@ export class WorkspaceFolderManager {
     private async deleteWorkspace(workspaceId: string) {
         try {
             if (isLoggedInUsingBearerToken(this.credentialsProvider)) {
-                await this.cwsprClient.deleteWorkspace({
+                await this.serviceManager.getCodewhispererService().deleteWorkspace({
                     workspaceId: workspaceId,
                 })
                 this.logging.log(`Workspace (${workspaceId}) deleted successfully`)
@@ -906,7 +906,7 @@ export class WorkspaceFolderManager {
         let optOut = false
         try {
             const params = workspaceRoot ? { workspaceRoot } : {}
-            const response = await this.cwsprClient.listWorkspaceMetadata(params)
+            const response = await this.serviceManager.getCodewhispererService().listWorkspaceMetadata(params)
             metadata = response && response.workspaces.length ? response.workspaces[0] : null
         } catch (e: any) {
             this.logging.warn(`Error while fetching workspace (${workspaceRoot}) metadata: ${e?.message}`)
@@ -924,7 +924,7 @@ export class WorkspaceFolderManager {
     private async createWorkspace(workspaceRoot: WorkspaceRoot) {
         let response: CreateWorkspaceResponse | undefined | null
         try {
-            response = await this.cwsprClient.createWorkspace({
+            response = await this.serviceManager.getCodewhispererService().createWorkspace({
                 workspaceRoot: workspaceRoot,
             })
             return { response, error: null }
