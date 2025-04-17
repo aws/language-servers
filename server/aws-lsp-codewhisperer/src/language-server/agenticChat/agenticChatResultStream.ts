@@ -8,6 +8,7 @@ interface ResultStreamWriter {
 /**
  * This class wraps around lsp.sendProgress to provide a more helpful interface for streaming a ChatResult to the client.
  * ChatResults are grouped into blocks that can be written directly, or streamed in.
+ * In the final message, blocks are seperated by resultDelimiter defined below.
  */
 export class AgenticChatResultStream {
     static readonly resultDelimiter = '\n\n'
