@@ -8,12 +8,13 @@ interface ResultStreamWriter {
 
 /**
  * Abstraction for streaming intermediate ChatResults to the client.
- * Each result is seperated by the resultDelimiter in a single message.
+ * Each result block is seperated by the resultDelimiter in a single message.
+ * Result blocks can be written directly or streamed in.
  */
-export class AgenticChatResponse {
+export class AgenticChatResultStream {
     static readonly resultDelimiter = '\n\n'
     #state = {
-        chatResults: [] as ChatResult[],
+        chatResultBlocks: [] as ChatResult[],
         isLocked: false,
     }
     readonly #sendProgress: (newChatResult: ChatResult | string) => Promise<void>
@@ -24,19 +25,19 @@ export class AgenticChatResponse {
         this.#logging = logging
     }
 
-    getResponse(): ChatResult {
-        return this.#joinResults(this.#state.chatResults)
+    getResult(): ChatResult {
+        return this.#joinResults(this.#state.chatResultBlocks)
     }
 
     #joinResults(chatResults: ChatResult[]): ChatResult {
         return chatResults.reduce((acc, c) => {
-            return { ...acc, body: acc.body + AgenticChatResponse.resultDelimiter + c.body }
+            return { ...acc, body: acc.body + AgenticChatResultStream.resultDelimiter + c.body }
         })
     }
 
-    async appendResult(result: ChatResult) {
-        this.#state.chatResults.push(result)
-        await this.#sendProgress(this.getResponse())
+    async writeResultBlock(result: ChatResult) {
+        this.#state.chatResultBlocks.push(result)
+        await this.#sendProgress(this.getResult())
     }
     // Note: if write calls are not awaited, stream can be out-of-order.
     getResultStreamWriter(): ResultStreamWriter {
@@ -48,13 +49,13 @@ export class AgenticChatResponse {
 
         return {
             write: async (intermediateChatResult: ChatResult) => {
-                const combinedResult = this.#joinResults([...this.#state.chatResults, intermediateChatResult])
+                const combinedResult = this.#joinResults([...this.#state.chatResultBlocks, intermediateChatResult])
                 lastResult = intermediateChatResult
                 return await this.#sendProgress(combinedResult)
             },
             close: async () => {
                 if (lastResult) {
-                    this.#state.chatResults.push(lastResult)
+                    this.#state.chatResultBlocks.push(lastResult)
                 }
                 this.#state.isLocked = false
             },
