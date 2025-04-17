@@ -11,6 +11,7 @@ export const LocalProjectContextServer = (): Server => features => {
     let localProjectContextController: LocalProjectContextController
     let amazonQServiceManager: AmazonQTokenServiceManager
     let telemetryService: TelemetryService
+    let isLocalProjectContextEnabled: boolean = false
 
     lsp.addInitializer((params: InitializeParams) => {
         amazonQServiceManager = AmazonQTokenServiceManager.getInstance(features)
@@ -117,14 +118,18 @@ export const LocalProjectContextServer = (): Server => features => {
     const updateConfigurationHandler = async (updatedConfig: AmazonQWorkspaceConfig) => {
         logging.log('Updating configuration of local context server')
         try {
-            logging.log(`Setting project context enabled to ${updatedConfig.projectContext?.enableLocalIndexing}`)
-            updatedConfig.projectContext?.enableLocalIndexing
-                ? await localProjectContextController.init({
-                      ignoreFilePatterns: updatedConfig.projectContext?.localIndexing?.ignoreFilePatterns,
-                      maxFileSizeMb: updatedConfig.projectContext?.localIndexing?.maxFileSizeMb,
-                      maxIndexSizeMb: updatedConfig.projectContext?.localIndexing?.maxIndexSizeMb,
-                  })
-                : await localProjectContextController.dispose()
+            if (isLocalProjectContextEnabled !== updatedConfig.projectContext?.enableLocalIndexing) {
+                logging.log(`Setting project context enabled to ${updatedConfig.projectContext?.enableLocalIndexing}`)
+                updatedConfig.projectContext?.enableLocalIndexing
+                    ? await localProjectContextController.init({
+                          ignoreFilePatterns: updatedConfig.projectContext?.localIndexing?.ignoreFilePatterns,
+                          maxFileSizeMb: updatedConfig.projectContext?.localIndexing?.maxFileSizeMb,
+                          maxIndexSizeMb: updatedConfig.projectContext?.localIndexing?.maxIndexSizeMb,
+                      })
+                    : await localProjectContextController.dispose()
+
+                isLocalProjectContextEnabled = updatedConfig.projectContext?.enableLocalIndexing
+            }
         } catch (error) {
             logging.error(`Error handling configuration change: ${error}`)
         }
