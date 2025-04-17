@@ -210,7 +210,7 @@ export class LocalProjectContextController {
         return true
     }
 
-    public async processWorkspaceFolders(
+    private async processWorkspaceFolders(
         workspaceFolders?: WorkspaceFolder[] | null,
         ignoreFilePatterns?: string[],
         respectUserGitIgnores?: boolean,
@@ -275,6 +275,7 @@ export class LocalProjectContextController {
                         if (!respectUserGitIgnores) {
                             return sourceFiles
                         }
+
                         const userGitIgnoreFilterByFile = new Map(
                             await Promise.all(
                                 localGitIgnoreFiles.map(async filePath => {
