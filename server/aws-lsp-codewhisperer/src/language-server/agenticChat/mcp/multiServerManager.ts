@@ -1,7 +1,9 @@
-import { Logging } from '@aws/language-server-runtimes/server-interface'
+import { Logging, ToolSpec } from '@aws/language-server-runtimes/server-interface'
 import { ServerConfig } from './serverConfig'
 import { ServerClient } from './serverClient'
 import { Client } from '@modelcontextprotocol/sdk/client/index'
+
+const TOOL_NAME_DELIMITER = '::'
 
 export class MultiServerManager {
     private servers: Map<
@@ -10,7 +12,7 @@ export class MultiServerManager {
             client: Client
             config: ServerConfig
             capabilities: {
-                tools: any[]
+                tools: ToolSpec[]
             }
         }
     > = new Map()
@@ -23,6 +25,20 @@ export class MultiServerManager {
         await Promise.all(Array.from(serversConfig.entries()).map(([id, config]) => manager.addServer(id, config)))
 
         return manager
+    }
+
+    getTools(): ToolSpec[] {
+        const tools: ToolSpec[] = []
+
+        for (const [serverName, server] of this.servers.entries()) {
+            const serverTools = server.capabilities.tools.map(tool => ({
+                ...tool,
+                name: `${serverName}${TOOL_NAME_DELIMITER}${tool.name}`,
+            }))
+            tools.push(...serverTools)
+        }
+
+        return tools
     }
 
     async close(): Promise<void> {
@@ -48,12 +64,15 @@ export class MultiServerManager {
 
         try {
             const tools = await client.listTools()
+            const toolSpecs = tools.tools
+                .map(tool => tool as ToolSpec)
+                .filter(tool => tool.name && tool.description && tool.inputSchema)
 
             this.servers.set(name, {
                 client,
                 config,
                 capabilities: {
-                    tools: tools.tools,
+                    tools: toolSpecs,
                 },
             })
 

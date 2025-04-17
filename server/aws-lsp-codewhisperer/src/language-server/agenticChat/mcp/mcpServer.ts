@@ -10,12 +10,18 @@ export const McpServer: Server = ({ lsp, workspace, logging, agent }) => {
 
     lsp.onInitialized(async () => {
         serverConfigReader = new ServerConfigReader(workspace, logging)
+        const serversConfig = await readServersConfig(serverConfigReader)
 
-        const serversConfig = await readServersConfig()
         serversManager = await MultiServerManager.init(serversConfig, logging)
+
+        for (const tool of serversManager.getTools()) {
+            agent.addTool(tool, async (input: any) => {
+                logging.log(`Invoking MCP with input: ${JSON.stringify(input)}`)
+            })
+        }
     })
 
-    const readServersConfig = async () => {
+    const readServersConfig = async (serverConfigReader: ServerConfigReader) => {
         const wsConfigs = lsp
             .getClientInitializeParams()
             ?.workspaceFolders?.map(folder => path.join(folder.uri, '.amazonq/mcp.json'))
