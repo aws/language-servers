@@ -28,22 +28,22 @@ import { StreamingClientServiceToken } from '../streamingClientService'
 
 export const mockedProfiles: qDeveloperProfilesFetcherModule.AmazonQDeveloperProfile[] = [
     {
-        arn: 'profile-iad',
-        name: 'profile-iad',
+        arn: 'arn:aws:testprofilearn:us-east-1:11111111111111:profile/QQQQQQQQQQQQ',
+        name: 'arn:aws:testprofilearn:us-east-1:11111111111111:profile/QQQQQQQQQQQQ',
         identityDetails: {
             region: 'us-east-1',
         },
     },
     {
-        arn: 'profile-iad-2',
-        name: 'profile-iad',
+        arn: 'arn:aws:testprofilearn:us-east-1:11111111111111:profile/QQQQQQQQQQQQ-2',
+        name: 'arn:aws:testprofilearn:us-east-1:11111111111111:profile/QQQQQQQQQQQQ-2',
         identityDetails: {
             region: 'us-east-1',
         },
     },
     {
-        arn: 'profile-fra',
-        name: 'profile-fra',
+        arn: 'arn:aws:testprofilearn:eu-central-1:11111111111111:profile/QQQQQQQQQQQQ',
+        name: 'arn:aws:testprofilearn:eu-central-1:11111111111111:profile/QQQQQQQQQQQQ',
         identityDetails: {
             region: 'eu-central-1',
         },
@@ -57,6 +57,7 @@ describe('AmazonQTokenServiceManager', () => {
     let codewhispererServiceStub: StubbedInstance<CodeWhispererServiceToken>
     let codewhispererStubFactory: sinon.SinonStub<any[], StubbedInstance<CodeWhispererServiceToken>>
     let sdkInitializatorSpy: sinon.SinonSpy
+    let getListAllAvailableProfilesHandlerStub: sinon.SinonStub
 
     let amazonQTokenServiceManager: AmazonQTokenServiceManager
     let features: TestFeatures
@@ -66,17 +67,17 @@ describe('AmazonQTokenServiceManager', () => {
         AWS_Q_ENDPOINTS.set('us-east-1', TEST_ENDPOINT_US_EAST_1)
         AWS_Q_ENDPOINTS.set('eu-central-1', TEST_ENDPOINT_EU_CENTRAL_1)
 
+        getListAllAvailableProfilesHandlerStub = sinon
+            .stub()
+            .resolves(
+                Promise.resolve(mockedProfiles).then(() =>
+                    new Promise(resolve => setTimeout(resolve, 1)).then(() => mockedProfiles)
+                )
+            )
+
         sinon
             .stub(qDeveloperProfilesFetcherModule, 'getListAllAvailableProfilesHandler')
-            .returns(
-                sinon
-                    .stub()
-                    .resolves(
-                        Promise.resolve(mockedProfiles).then(() =>
-                            new Promise(resolve => setTimeout(resolve, 1)).then(() => mockedProfiles)
-                        )
-                    )
-            )
+            .returns(getListAllAvailableProfilesHandlerStub)
 
         AmazonQTokenServiceManager.resetInstance()
 
@@ -131,7 +132,9 @@ describe('AmazonQTokenServiceManager', () => {
         features.credentialsProvider.getConnectionType.returns('none')
     }
 
-    const setupServiceManagerWithProfile = async (profileArn = 'profile-iad'): Promise<CodeWhispererServiceToken> => {
+    const setupServiceManagerWithProfile = async (
+        profileArn = 'arn:aws:testprofilearn:us-east-1:11111111111111:profile/QQQQQQQQQQQQ'
+    ): Promise<CodeWhispererServiceToken> => {
         setupServiceManager(true)
         assert.strictEqual(amazonQTokenServiceManager.getState(), 'PENDING_CONNECTION')
 
@@ -356,7 +359,7 @@ describe('AmazonQTokenServiceManager', () => {
                     {
                         section: 'aws.q',
                         settings: {
-                            profileArn: 'profile-iad',
+                            profileArn: 'arn:aws:testprofilearn:us-east-1:11111111111111:profile/QQQQQQQQQQQQ',
                         },
                     },
                     {} as CancellationToken
@@ -391,7 +394,7 @@ describe('AmazonQTokenServiceManager', () => {
                     {
                         section: 'aws.q',
                         settings: {
-                            profileArn: 'profile-iad',
+                            profileArn: 'arn:aws:testprofilearn:us-east-1:11111111111111:profile/QQQQQQQQQQQQ',
                         },
                     },
                     {} as CancellationToken
@@ -403,7 +406,7 @@ describe('AmazonQTokenServiceManager', () => {
                     {
                         section: 'aws.q',
                         settings: {
-                            profileArn: 'profile-fra',
+                            profileArn: 'arn:aws:testprofilearn:eu-central-1:11111111111111:profile/QQQQQQQQQQQQ',
                         },
                     },
                     {} as CancellationToken
@@ -431,7 +434,7 @@ describe('AmazonQTokenServiceManager', () => {
                     {
                         section: 'aws.q',
                         settings: {
-                            profileArn: 'profile-iad',
+                            profileArn: 'arn:aws:testprofilearn:us-east-1:11111111111111:profile/QQQQQQQQQQQQ',
                         },
                     },
                     {} as CancellationToken
@@ -443,7 +446,10 @@ describe('AmazonQTokenServiceManager', () => {
 
                 assert.strictEqual(amazonQTokenServiceManager.getState(), 'INITIALIZED')
                 assert.strictEqual(amazonQTokenServiceManager.getConnectionType(), 'identityCenter')
-                assert.strictEqual(amazonQTokenServiceManager.getActiveProfileArn(), 'profile-iad')
+                assert.strictEqual(
+                    amazonQTokenServiceManager.getActiveProfileArn(),
+                    'arn:aws:testprofilearn:us-east-1:11111111111111:profile/QQQQQQQQQQQQ'
+                )
 
                 assert(codewhispererStubFactory.calledOnceWithExactly('us-east-1', TEST_ENDPOINT_US_EAST_1))
                 assert(streamingClient1 instanceof StreamingClientServiceToken)
@@ -455,7 +461,7 @@ describe('AmazonQTokenServiceManager', () => {
                     {
                         section: 'aws.q',
                         settings: {
-                            profileArn: 'profile-iad-2',
+                            profileArn: 'arn:aws:testprofilearn:us-east-1:11111111111111:profile/QQQQQQQQQQQQ-2',
                         },
                     },
                     {} as CancellationToken
@@ -465,7 +471,10 @@ describe('AmazonQTokenServiceManager', () => {
 
                 assert.strictEqual(amazonQTokenServiceManager.getState(), 'INITIALIZED')
                 assert.strictEqual(amazonQTokenServiceManager.getConnectionType(), 'identityCenter')
-                assert.strictEqual(amazonQTokenServiceManager.getActiveProfileArn(), 'profile-iad-2')
+                assert.strictEqual(
+                    amazonQTokenServiceManager.getActiveProfileArn(),
+                    'arn:aws:testprofilearn:us-east-1:11111111111111:profile/QQQQQQQQQQQQ-2'
+                )
 
                 // CodeWhisperer Service was not recreated
                 assert(codewhispererStubFactory.calledOnceWithExactly('us-east-1', TEST_ENDPOINT_US_EAST_1))
@@ -485,7 +494,7 @@ describe('AmazonQTokenServiceManager', () => {
                     {
                         section: 'aws.q',
                         settings: {
-                            profileArn: 'profile-iad',
+                            profileArn: 'arn:aws:testprofilearn:us-east-1:11111111111111:profile/QQQQQQQQQQQQ',
                         },
                     },
                     {} as CancellationToken
@@ -497,7 +506,10 @@ describe('AmazonQTokenServiceManager', () => {
 
                 assert.strictEqual(amazonQTokenServiceManager.getState(), 'INITIALIZED')
                 assert.strictEqual(amazonQTokenServiceManager.getConnectionType(), 'identityCenter')
-                assert.strictEqual(amazonQTokenServiceManager.getActiveProfileArn(), 'profile-iad')
+                assert.strictEqual(
+                    amazonQTokenServiceManager.getActiveProfileArn(),
+                    'arn:aws:testprofilearn:us-east-1:11111111111111:profile/QQQQQQQQQQQQ'
+                )
                 assert(codewhispererStubFactory.calledOnceWithExactly('us-east-1', TEST_ENDPOINT_US_EAST_1))
 
                 assert(streamingClient1 instanceof StreamingClientServiceToken)
@@ -509,7 +521,7 @@ describe('AmazonQTokenServiceManager', () => {
                     {
                         section: 'aws.q',
                         settings: {
-                            profileArn: 'profile-fra',
+                            profileArn: 'arn:aws:testprofilearn:eu-central-1:11111111111111:profile/QQQQQQQQQQQQ',
                         },
                     },
                     {} as CancellationToken
@@ -519,7 +531,10 @@ describe('AmazonQTokenServiceManager', () => {
 
                 assert.strictEqual(amazonQTokenServiceManager.getState(), 'INITIALIZED')
                 assert.strictEqual(amazonQTokenServiceManager.getConnectionType(), 'identityCenter')
-                assert.strictEqual(amazonQTokenServiceManager.getActiveProfileArn(), 'profile-fra')
+                assert.strictEqual(
+                    amazonQTokenServiceManager.getActiveProfileArn(),
+                    'arn:aws:testprofilearn:eu-central-1:11111111111111:profile/QQQQQQQQQQQQ'
+                )
 
                 // CodeWhisperer Service was recreated
                 assert(codewhispererStubFactory.calledTwice)
@@ -544,7 +559,7 @@ describe('AmazonQTokenServiceManager', () => {
                     {
                         section: 'aws.q',
                         settings: {
-                            profileArn: 'profile-iad',
+                            profileArn: 'arn:aws:testprofilearn:us-east-1:11111111111111:profile/QQQQQQQQQQQQ',
                         },
                     },
                     {} as CancellationToken
@@ -556,7 +571,10 @@ describe('AmazonQTokenServiceManager', () => {
 
                 assert.strictEqual(amazonQTokenServiceManager.getState(), 'INITIALIZED')
                 assert.strictEqual(amazonQTokenServiceManager.getConnectionType(), 'identityCenter')
-                assert.strictEqual(amazonQTokenServiceManager.getActiveProfileArn(), 'profile-iad')
+                assert.strictEqual(
+                    amazonQTokenServiceManager.getActiveProfileArn(),
+                    'arn:aws:testprofilearn:us-east-1:11111111111111:profile/QQQQQQQQQQQQ'
+                )
                 assert(codewhispererStubFactory.calledOnceWithExactly('us-east-1', TEST_ENDPOINT_US_EAST_1))
 
                 assert(streamingClient instanceof StreamingClientServiceToken)
@@ -569,7 +587,8 @@ describe('AmazonQTokenServiceManager', () => {
                         {
                             section: 'aws.q',
                             settings: {
-                                profileArn: 'invalid-profile-arn',
+                                profileArn:
+                                    'arn:aws:testprofilearn:us-east-1:11111111111111:profile/invalid-profile-arn',
                             },
                         },
                         {} as CancellationToken
@@ -594,7 +613,7 @@ describe('AmazonQTokenServiceManager', () => {
                 assert.deepStrictEqual(codewhispererStubFactory.lastCall.args, ['us-east-1', TEST_ENDPOINT_US_EAST_1])
             })
 
-            it('handles invalid profile selection', async () => {
+            it('handles non-existing profile selection', async () => {
                 setupServiceManager(true)
                 assert.strictEqual(amazonQTokenServiceManager.getState(), 'PENDING_CONNECTION')
 
@@ -605,7 +624,8 @@ describe('AmazonQTokenServiceManager', () => {
                         {
                             section: 'aws.q',
                             settings: {
-                                profileArn: 'invalid-profile-arn',
+                                profileArn:
+                                    'arn:aws:testprofilearn:us-east-1:11111111111111:profile/invalid-profile-arn',
                             },
                         },
                         {} as CancellationToken
@@ -644,7 +664,7 @@ describe('AmazonQTokenServiceManager', () => {
                     {
                         section: 'aws.q',
                         settings: {
-                            profileArn: 'profile-iad',
+                            profileArn: 'arn:aws:testprofilearn:us-east-1:11111111111111:profile/QQQQQQQQQQQQ',
                         },
                     },
                     {} as CancellationToken
@@ -654,7 +674,7 @@ describe('AmazonQTokenServiceManager', () => {
                     {
                         section: 'aws.q',
                         settings: {
-                            profileArn: 'profile-fra',
+                            profileArn: 'arn:aws:testprofilearn:eu-central-1:11111111111111:profile/QQQQQQQQQQQQ',
                         },
                     },
                     {} as CancellationToken
@@ -678,7 +698,10 @@ describe('AmazonQTokenServiceManager', () => {
 
                 assert.strictEqual(amazonQTokenServiceManager.getState(), 'INITIALIZED')
                 assert.strictEqual(amazonQTokenServiceManager.getConnectionType(), 'identityCenter')
-                assert.strictEqual(amazonQTokenServiceManager.getActiveProfileArn(), 'profile-fra')
+                assert.strictEqual(
+                    amazonQTokenServiceManager.getActiveProfileArn(),
+                    'arn:aws:testprofilearn:eu-central-1:11111111111111:profile/QQQQQQQQQQQQ'
+                )
                 assert.deepStrictEqual(codewhispererStubFactory.lastCall.args, [
                     'eu-central-1',
                     TEST_ENDPOINT_EU_CENTRAL_1,
@@ -704,7 +727,7 @@ describe('AmazonQTokenServiceManager', () => {
                     {
                         section: 'aws.q',
                         settings: {
-                            profileArn: 'profile-iad',
+                            profileArn: 'arn:aws:testprofilearn:us-east-1:11111111111111:profile/QQQQQQQQQQQQ',
                         },
                     },
                     {} as CancellationToken
@@ -716,7 +739,10 @@ describe('AmazonQTokenServiceManager', () => {
 
                 assert.strictEqual(amazonQTokenServiceManager.getState(), 'INITIALIZED')
                 assert.strictEqual(amazonQTokenServiceManager.getConnectionType(), 'identityCenter')
-                assert.strictEqual(amazonQTokenServiceManager.getActiveProfileArn(), 'profile-iad')
+                assert.strictEqual(
+                    amazonQTokenServiceManager.getActiveProfileArn(),
+                    'arn:aws:testprofilearn:us-east-1:11111111111111:profile/QQQQQQQQQQQQ'
+                )
                 assert.deepStrictEqual(codewhispererStubFactory.lastCall.args, ['us-east-1', TEST_ENDPOINT_US_EAST_1])
 
                 assert(streamingClient instanceof StreamingClientServiceToken)
@@ -727,7 +753,7 @@ describe('AmazonQTokenServiceManager', () => {
                     {
                         section: 'aws.q',
                         settings: {
-                            profileArn: 'profile-fra',
+                            profileArn: 'arn:aws:testprofilearn:eu-central-1:11111111111111:profile/QQQQQQQQQQQQ',
                         },
                     },
                     {} as CancellationToken
@@ -771,7 +797,7 @@ describe('AmazonQTokenServiceManager', () => {
                     {
                         section: 'aws.q',
                         settings: {
-                            profileArn: 'profile-fra',
+                            profileArn: 'arn:aws:testprofilearn:eu-central-1:11111111111111:profile/QQQQQQQQQQQQ',
                         },
                     },
                     {} as CancellationToken
@@ -804,7 +830,7 @@ describe('AmazonQTokenServiceManager', () => {
                     {
                         section: 'aws.q',
                         settings: {
-                            profileArn: 'profile-fra',
+                            profileArn: 'arn:aws:testprofilearn:eu-central-1:11111111111111:profile/QQQQQQQQQQQQ',
                         },
                     },
                     {} as CancellationToken
@@ -824,55 +850,26 @@ describe('AmazonQTokenServiceManager', () => {
                 assert.throws(() => amazonQTokenServiceManager.getCodewhispererService())
             })
 
-            it.skip('cancels profile change request when new request comes in', async () => {
+            it('fetches profiles only from 1 region associated with requested profileArn', async () => {
                 setupServiceManager(true)
                 assert.strictEqual(amazonQTokenServiceManager.getState(), 'PENDING_CONNECTION')
 
                 setCredentials('identityCenter')
 
-                // TODO - race condition during updating profiles
-                const profileUpdate1 = features.doUpdateConfiguration(
+                await features.doUpdateConfiguration(
                     {
                         section: 'aws.q',
                         settings: {
-                            profileArn: 'profile-iad',
+                            profileArn: 'arn:aws:testprofilearn:us-east-1:11111111111111:profile/QQQQQQQQQQQQ',
                         },
                     },
                     {} as CancellationToken
                 )
 
-                const profileUpdate2 = await features.doUpdateConfiguration(
-                    {
-                        section: 'aws.q',
-                        settings: {
-                            profileArn: 'profile-fra',
-                        },
-                    },
-                    {} as CancellationToken
-                )
-
-                await assert.rejects(
-                    profileUpdate1,
-                    new ResponseError(LSPErrorCodes.ServerCancelled, 'Cancelled', {
-                        awsErrorCode: 'E_AMAZON_Q_PROFILE_UPDATE_CANCELLED',
-                    })
-                )
-
-                await profileUpdate2
-
-                const service = amazonQTokenServiceManager.getCodewhispererService()
-                await service.generateSuggestions({} as GenerateSuggestionsRequest)
-
-                assert.strictEqual(amazonQTokenServiceManager.getState(), 'INITIALIZED')
-                assert.strictEqual(amazonQTokenServiceManager.getConnectionType(), 'identityCenter')
-                assert.strictEqual(amazonQTokenServiceManager.getActiveProfileArn(), 'profile-fra')
-                assert.deepStrictEqual(codewhispererStubFactory.lastCall.args, [
-                    'eu-central-1',
-                    TEST_ENDPOINT_EU_CENTRAL_1,
-                ])
+                sinon.assert.calledOnceWithMatch(getListAllAvailableProfilesHandlerStub, {
+                    endpoints: new Map([['us-east-1', TEST_ENDPOINT_US_EAST_1]]),
+                })
             })
-
-            it.skip('cancels inflight API requests to CodeWhisperer when selected region changes')
         })
     })
 
@@ -888,7 +885,7 @@ describe('AmazonQTokenServiceManager', () => {
                     {
                         section: 'aws.q',
                         settings: {
-                            profileArn: 'invalid-profile-arn',
+                            profileArn: 'arn:aws:testprofilearn:us-east-1:11111111111111:profile/QQQQQQQQQQQQ',
                         },
                     },
                     {} as CancellationToken
@@ -910,7 +907,7 @@ describe('AmazonQTokenServiceManager', () => {
                     {
                         section: 'aws.q',
                         settings: {
-                            profileArn: 'invalid-profile-arn',
+                            profileArn: 'arn:aws:testprofilearn:us-east-1:11111111111111:profile/QQQQQQQQQQQQ',
                         },
                     },
                     {} as CancellationToken
@@ -1023,10 +1020,6 @@ describe('AmazonQTokenServiceManager', () => {
                 assert(streamingClient2 instanceof StreamingClientServiceToken)
                 assert.strictEqual(await streamingClient2.client.config.region(), 'us-east-1')
             })
-        })
-
-        describe('sign out event support', () => {
-            it.skip('should handle sign out event and reset service connection')
         })
     })
 

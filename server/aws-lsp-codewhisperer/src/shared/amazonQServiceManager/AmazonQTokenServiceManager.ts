@@ -25,7 +25,7 @@ import {
     BaseAmazonQServiceManager,
     QServiceManagerFeatures,
 } from './BaseAmazonQServiceManager'
-import { Q_CONFIGURATION_SECTION } from '../constants'
+import { AWS_Q_ENDPOINTS, Q_CONFIGURATION_SECTION } from '../constants'
 import {
     AmazonQDeveloperProfile,
     getListAllAvailableProfilesHandler,
@@ -35,6 +35,7 @@ import { isStringOrNull } from '../utils'
 import { getAmazonQRegionAndEndpoint } from './configurationUtils'
 import { getUserAgent } from '../telemetryUtils'
 import { StreamingClientServiceToken } from '../streamingClientService'
+import { parse } from '@aws-sdk/util-arn-parser'
 
 /**
  * AmazonQTokenServiceManager manages state and provides centralized access to
@@ -308,10 +309,17 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
             return
         }
 
+        const parsedArn = parse(newProfileArn)
+        const endpoint = AWS_Q_ENDPOINTS.get(parsedArn.region)
+        if (!endpoint) {
+            throw new Error('Requested profileArn region is not supported')
+        }
+
         const profiles = await getListAllAvailableProfilesHandler(this.serviceFactory)({
             connectionType: 'identityCenter',
             logging: this.logging,
             token: token,
+            endpoints: new Map([[parsedArn.region, endpoint]]),
         })
 
         this.handleTokenCancellationRequest(token)
