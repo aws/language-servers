@@ -161,7 +161,6 @@ export class ContextCommandsProvider implements Disposable {
         }
         const userPromptsItem = await this.getUserPromptsCommand()
         promptCmds.push(...userPromptsItem)
-        this.chat.sendContextCommands({ contextCommandGroups: allCommands })
         return allCommands
     }
 

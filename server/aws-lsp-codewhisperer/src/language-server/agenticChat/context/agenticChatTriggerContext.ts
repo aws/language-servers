@@ -1,3 +1,8 @@
+/**
+ * Copied from chat/contexts/triggerContext.ts for the purpose of developing a divergent implementation.
+ * Will be deleted or merged.
+ */
+
 import { TriggerType } from '@aws/chat-client-ui-types'
 import {
     ChatTriggerType,

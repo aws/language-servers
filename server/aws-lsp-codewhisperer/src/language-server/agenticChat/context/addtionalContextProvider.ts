@@ -63,12 +63,15 @@ export class AdditionalContextProvider {
 
         if (workspaceRules.length > 0) {
             additionalContextCommands.push(
-                ...workspaceRules.map(file => ({
-                    workspaceFolder: workspaceFolderPath,
-                    type: 'file' as ContextCommandItemType,
-                    relativePath: path.relative(workspaceFolderPath, file),
-                    id: '',
-                }))
+                ...workspaceRules.map(
+                    file =>
+                        ({
+                            workspaceFolder: workspaceFolderPath,
+                            type: 'file',
+                            relativePath: path.relative(workspaceFolderPath, file),
+                            id: '',
+                        }) as ContextCommandItem
+                )
             )
         }
         triggerContext.workspaceRulesCount = workspaceRules.length

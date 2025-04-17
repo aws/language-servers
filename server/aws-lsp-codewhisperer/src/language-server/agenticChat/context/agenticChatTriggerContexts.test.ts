@@ -1,3 +1,8 @@
+/**
+ * Copied from chat/contexts/triggerContext.test.ts for the purpose of developing a divergent implementation.
+ * Will be deleted or merged.
+ */
+
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import assert = require('assert')
 import { TextDocument } from 'vscode-languageserver-textdocument'
