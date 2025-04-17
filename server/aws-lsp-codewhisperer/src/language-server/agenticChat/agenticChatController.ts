@@ -236,7 +236,6 @@ export class AgenticChatController implements ChatHandlers {
         let finalResult: Result<AgenticChatResultWithMetadata, string> | null = null
         let iterationCount = 0
         const maxIterations = 10 // Safety limit to prevent infinite loops
-        const intermediateResults: Result<AgenticChatResultWithMetadata, string>[] = []
         metric.recordStart()
 
         while (iterationCount < maxIterations) {
@@ -263,7 +262,6 @@ export class AgenticChatController implements ChatHandlers {
                 }),
                 responseStream
             )
-            intermediateResults.push(result)
 
             // Store the conversation ID from the first response
             if (iterationCount === 1 && result.data?.conversationId) {
@@ -343,8 +341,7 @@ export class AgenticChatController implements ChatHandlers {
             if (!toolUse.name || !toolUse.toolUseId) continue
 
             try {
-                const toolUseMsg = executeToolMessage(toolUse)
-                await responseStream.appendResult({ body: `${toolUseMsg}` })
+                await responseStream.appendResult({ body: `${executeToolMessage(toolUse)}` })
 
                 const result = await this.#features.agent.runTool(toolUse.name, toolUse.input)
                 let toolResultContent: ToolResultContentBlock
