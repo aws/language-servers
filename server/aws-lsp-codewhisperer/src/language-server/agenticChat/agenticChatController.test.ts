@@ -21,11 +21,12 @@ import {
     InsertToCursorPositionParams,
     TextDocumentEdit,
     InlineChatResult,
+    ChatParams,
 } from '@aws/language-server-runtimes/server-interface'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import * as assert from 'assert'
 import { createIterableResponse, setCredentialsForAmazonQTokenServiceManagerFactory } from '../../shared/testUtils'
-import sinon from 'ts-sinon'
+import sinon, { stubInterface } from 'ts-sinon'
 import { AgenticChatController } from './agenticChatController'
 import { ChatSessionManagementService } from '../chat/chatSessionManagementService'
 import { ChatSessionService } from '../chat/chatSessionService'
@@ -36,6 +37,7 @@ import { DEFAULT_HELP_FOLLOW_UP_PROMPT, HELP_MESSAGE } from '../chat/constants'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 import { TabBarController } from './tabBarController'
+import { LocalProjectContextController } from '../../shared/localProjectContextController'
 
 describe('AgenticChatController', () => {
     const mockTabId = 'tab-1'
@@ -296,19 +298,68 @@ describe('AgenticChatController', () => {
     })
 
     describe('onChatPrompt', () => {
+        let queryVectorIndexStub: sinon.SinonStubbedMember<
+            typeof LocalProjectContextController.prototype.queryVectorIndex
+        >
+
         beforeEach(() => {
             chatController.onTabAdd({ tabId: mockTabId })
+            const localProjectContextController = new LocalProjectContextController('client-name', [], logging)
+            queryVectorIndexStub = sinon.stub(localProjectContextController, 'queryVectorIndex')
+            sinon.stub(LocalProjectContextController, 'getInstance').returns(localProjectContextController)
         })
 
         it('read all the response streams and return compiled results', async () => {
             const chatResultPromise = chatController.onChatPrompt(
-                { tabId: mockTabId, prompt: { prompt: 'Hello' } },
+                {
+                    tabId: mockTabId,
+                    prompt: { prompt: 'Hello' },
+                },
                 mockCancellationToken
             )
 
             const chatResult = await chatResultPromise
 
             sinon.assert.callCount(testFeatures.lsp.sendProgress, 0)
+            assert.deepStrictEqual(chatResult, expectedCompleteChatResult)
+        })
+
+        it('handles the @workspace context by querying from local project index', async () => {
+            const chatParams: ChatParams = {
+                tabId: mockTabId,
+                prompt: {
+                    prompt: 'Refactor the unit tests in my @workspace so that they are only concerned with a single unit.',
+                },
+                context: [
+                    {
+                        command: '@workspace',
+                        description: 'Include the workspace index',
+                    },
+                ],
+            }
+            queryVectorIndexStub.resolves([
+                { filePath: '/test/1.ts', content: '', id: 'id-1', index: 0, vec: [1] },
+                { filePath: '/test/2.ts', content: '', id: 'id-2', index: 0, vec: [1] },
+                { filePath: '/test/3.ts', content: '', id: 'id-3', index: 0, vec: [1] },
+            ])
+            const expectedPaths = ['1.ts', '2.ts', '3.ts']
+            const chatResult = await chatController.onChatPrompt(chatParams, mockCancellationToken)
+            assert(chatParams.prompt.prompt)
+            sinon.assert.calledOnceWithExactly(queryVectorIndexStub, { query: chatParams.prompt.prompt })
+            sinon.assert.calledWith(
+                generateAssistantResponseStub,
+                sinon.match((req: GenerateAssistantResponseCommandInput) => {
+                    const editorState =
+                        req.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext?.editorState
+                    assert(editorState)
+                    return (
+                        editorState.useRelevantDocuments === true &&
+                        editorState.relevantDocuments
+                            ?.map(d => d.relativeFilePath)
+                            .every((p, i) => p === expectedPaths[i])
+                    )
+                })
+            )
             assert.deepStrictEqual(chatResult, expectedCompleteChatResult)
         })
 
