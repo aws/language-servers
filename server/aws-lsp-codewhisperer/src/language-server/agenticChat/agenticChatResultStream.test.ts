@@ -15,9 +15,9 @@ describe('agenticChatResponse', function () {
     })
 
     it('combines all previous results on write', async function () {
-        chatResultStream.writeResultBlock({ body: 'first' })
-        chatResultStream.writeResultBlock({ body: 'second' })
-        chatResultStream.writeResultBlock({ body: 'third' })
+        await chatResultStream.writeResultBlock({ body: 'first' })
+        await chatResultStream.writeResultBlock({ body: 'second' })
+        await chatResultStream.writeResultBlock({ body: 'third' })
 
         assert.deepStrictEqual(chatResultStream.getResult(), {
             body: `first${AgenticChatResultStream.resultDelimiter}second${AgenticChatResultStream.resultDelimiter}third`,
@@ -25,13 +25,13 @@ describe('agenticChatResponse', function () {
     })
 
     it('inherits properties from the last result', async function () {
-        chatResultStream.writeResultBlock({ body: 'first', messageId: '1' })
-        chatResultStream.writeResultBlock({ body: 'second', messageId: '2' })
-        chatResultStream.writeResultBlock({ body: 'third', messageId: '3' })
+        await chatResultStream.writeResultBlock({ body: 'first', messageId: '1' })
+        await chatResultStream.writeResultBlock({ body: 'second', messageId: '2' })
+        await chatResultStream.writeResultBlock({ body: 'third', messageId: '3' })
 
         assert.deepStrictEqual(chatResultStream.getResult(), {
             body: `first${AgenticChatResultStream.resultDelimiter}second${AgenticChatResultStream.resultDelimiter}third`,
-            messageId: '1',
+            messageId: '3',
         })
     })
 

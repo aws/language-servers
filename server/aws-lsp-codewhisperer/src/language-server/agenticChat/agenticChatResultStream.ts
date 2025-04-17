@@ -26,9 +26,11 @@ export class AgenticChatResultStream {
     }
 
     #joinResults(chatResults: ChatResult[]): ChatResult {
-        return chatResults.reduce((acc, c) => {
-            return { ...acc, body: acc.body + AgenticChatResultStream.resultDelimiter + c.body }
-        })
+        // TODO: if we add ui elements to ChatResult in the response, we need to be more aware of how we combine them.
+        return chatResults.reduceRight((acc, c) => ({
+            ...acc,
+            body: c.body + AgenticChatResultStream.resultDelimiter + acc.body,
+        }))
     }
 
     async writeResultBlock(result: ChatResult) {
