@@ -12,7 +12,6 @@ export const LocalProjectContextServer = (): Server => features => {
     let amazonQServiceManager: AmazonQTokenServiceManager
     let telemetryService: TelemetryService
     let localProjectContextEnabled: boolean = false
-    const configLock = new Object()
 
     lsp.addInitializer((params: InitializeParams) => {
         amazonQServiceManager = AmazonQTokenServiceManager.getInstance(features)
