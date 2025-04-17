@@ -20,8 +20,12 @@ import {
     AmazonQServicePendingSigninError,
     AmazonQServiceProfileUpdateCancelled,
 } from './errors'
-import { AmazonQBaseServiceManager, BaseAmazonQServiceManager, Features } from './BaseAmazonQServiceManager'
-import { Q_CONFIGURATION_SECTION } from '../constants'
+import {
+    AmazonQBaseServiceManager,
+    BaseAmazonQServiceManager,
+    QServiceManagerFeatures,
+} from './BaseAmazonQServiceManager'
+import { AWS_Q_ENDPOINTS, Q_CONFIGURATION_SECTION } from '../constants'
 import {
     AmazonQDeveloperProfile,
     getListAllAvailableProfilesHandler,
@@ -30,7 +34,8 @@ import {
 import { isStringOrNull } from '../utils'
 import { getAmazonQRegionAndEndpoint } from './configurationUtils'
 import { getUserAgent } from '../telemetryUtils'
-import { StreamingClientService } from '../streamingClientService'
+import { StreamingClientServiceToken } from '../streamingClientService'
+import { parse } from '@aws-sdk/util-arn-parser'
 
 /**
  * AmazonQTokenServiceManager manages state and provides centralized access to
@@ -58,9 +63,11 @@ import { StreamingClientService } from '../streamingClientService'
  * const AmazonQServiceManager = AmazonQTokenServiceManager.getInstance(features);
  * const codewhispererService = AmazonQServiceManager.getCodewhispererService();
  */
-export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<CodeWhispererServiceToken> {
+export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
+    CodeWhispererServiceToken,
+    StreamingClientServiceToken
+> {
     private static instance: AmazonQTokenServiceManager | null = null
-    private cachedStreamingClient?: StreamingClientService
     private enableDeveloperProfileSupport?: boolean
     private activeIdcProfile?: AmazonQDeveloperProfile
     private connectionType?: SsoConnectionType
@@ -78,11 +85,11 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<CodeWh
     private state: 'PENDING_CONNECTION' | 'PENDING_Q_PROFILE' | 'PENDING_Q_PROFILE_UPDATE' | 'INITIALIZED' =
         'PENDING_CONNECTION'
 
-    private constructor(features: Features) {
+    private constructor(features: QServiceManagerFeatures) {
         super(features)
     }
 
-    public static getInstance(features: Features): AmazonQTokenServiceManager {
+    public static getInstance(features: QServiceManagerFeatures): AmazonQTokenServiceManager {
         if (!AmazonQTokenServiceManager.instance) {
             AmazonQTokenServiceManager.instance = new AmazonQTokenServiceManager(features)
             AmazonQTokenServiceManager.instance.initialize()
@@ -302,10 +309,17 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<CodeWh
             return
         }
 
+        const parsedArn = parse(newProfileArn)
+        const endpoint = AWS_Q_ENDPOINTS.get(parsedArn.region)
+        if (!endpoint) {
+            throw new Error('Requested profileArn region is not supported')
+        }
+
         const profiles = await getListAllAvailableProfilesHandler(this.serviceFactory)({
             connectionType: 'identityCenter',
             logging: this.logging,
             token: token,
+            endpoints: new Map([[parsedArn.region, endpoint]]),
         })
 
         this.handleTokenCancellationRequest(token)
@@ -467,6 +481,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<CodeWh
         const service = new CodeWhispererServiceToken(
             this.features.credentialsProvider,
             this.features.workspace,
+            this.features.logging,
             region,
             endpoint,
             this.features.sdkInitializator
@@ -490,10 +505,11 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<CodeWh
         return service
     }
 
-    private streamingClientFactory(region: string, endpoint: string): StreamingClientService {
-        const streamingClient = new StreamingClientService(
+    private streamingClientFactory(region: string, endpoint: string): StreamingClientServiceToken {
+        const streamingClient = new StreamingClientServiceToken(
             this.features.credentialsProvider,
             this.features.sdkInitializator,
+            this.features.logging,
             region,
             endpoint,
             this.getCustomUserAgent()
@@ -552,6 +568,6 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<CodeWh
     }
 }
 
-export const initBaseTokenServiceManager = (features: Features): AmazonQBaseServiceManager => {
+export const initBaseTokenServiceManager = (features: QServiceManagerFeatures): AmazonQBaseServiceManager => {
     return AmazonQTokenServiceManager.getInstance(features)
 }

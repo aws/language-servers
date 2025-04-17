@@ -1,4 +1,4 @@
-import { ChatTriggerType, SendMessageCommandInput, SendMessageCommandOutput } from '@amzn/codewhisperer-streaming'
+import { ChatTriggerType } from '@amzn/codewhisperer-streaming'
 import {
     ApplyWorkspaceEditParams,
     ErrorCodes,
@@ -47,7 +47,8 @@ import {
 } from '../../shared/amazonQServiceManager/errors'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
-import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
+import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
+import { SendMessageCommandInput, SendMessageCommandOutput } from '../../shared/streamingClientService'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -71,13 +72,13 @@ export class ChatController implements ChatHandlers {
     #triggerContext: QChatTriggerContext
     #customizationArn?: string
     #telemetryService: TelemetryService
-    #amazonQServiceManager: AmazonQTokenServiceManager
+    #amazonQServiceManager: AmazonQBaseServiceManager
 
     constructor(
         chatSessionManagementService: ChatSessionManagementService,
         features: Features,
         telemetryService: TelemetryService,
-        amazonQServiceManager: AmazonQTokenServiceManager
+        amazonQServiceManager: AmazonQBaseServiceManager
     ) {
         this.#features = features
         this.#chatSessionManagementService = chatSessionManagementService

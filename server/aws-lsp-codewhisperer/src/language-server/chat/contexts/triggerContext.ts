@@ -1,9 +1,10 @@
 import { TriggerType } from '@aws/chat-client-ui-types'
-import { ChatTriggerType, SendMessageCommandInput, UserIntent, Tool, ToolResult } from '@amzn/codewhisperer-streaming'
+import { ChatTriggerType, UserIntent, Tool, ToolResult } from '@amzn/codewhisperer-streaming'
 import { BedrockTools, ChatParams, CursorState, InlineChatParams } from '@aws/language-server-runtimes/server-interface'
 import { Features } from '../../types'
 import { DocumentContext, DocumentContextExtractor } from './documentContext'
 import { workspaceUtils } from '@aws/lsp-core'
+import { SendMessageCommandInput } from '../../../shared/streamingClientService'
 
 export interface TriggerContext extends Partial<DocumentContext> {
     userIntent?: UserIntent

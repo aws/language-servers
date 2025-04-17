@@ -7,8 +7,7 @@ import {
     ChatTriggerType,
     GenerateAssistantResponseCommandInput,
     GenerateAssistantResponseCommandOutput,
-    SendMessageCommandInput,
-    SendMessageCommandOutput,
+    SendMessageCommandInput as SendMessageCommandInputCodeWhispererStreaming,
     ToolResult,
     ToolResultContentBlock,
     ToolUse,
@@ -64,6 +63,7 @@ import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/A
 import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
 import { TabBarController } from './tabBarController'
 import { ChatDatabase } from './tools/chatDb/chatDb'
+import { SendMessageCommandInput, SendMessageCommandOutput } from '../../shared/streamingClientService'
 import {
     AgenticChatEventParser,
     ChatResultWithMetadata as AgenticChatResultWithMetadata,
@@ -512,13 +512,11 @@ export class AgenticChatController implements ChatHandlers {
         let requestInput: SendMessageCommandInput
 
         try {
-            const profileArn = AmazonQTokenServiceManager.getInstance(this.#features).getActiveProfileArn()
             requestInput = this.#triggerContext.getChatParamsFromTrigger(
                 params,
                 triggerContext,
                 ChatTriggerType.INLINE_CHAT,
-                this.#customizationArn,
-                profileArn
+                this.#customizationArn
             )
 
             if (!this.#amazonQServiceManager) {
@@ -526,7 +524,7 @@ export class AgenticChatController implements ChatHandlers {
             }
 
             const client = this.#amazonQServiceManager.getStreamingClient()
-            response = await client.sendMessage(requestInput)
+            response = await client.sendMessage(requestInput as SendMessageCommandInputCodeWhispererStreaming)
             this.#log('Response for inline chat', JSON.stringify(response.$metadata), JSON.stringify(response))
         } catch (err) {
             if (err instanceof AmazonQServicePendingSigninError || err instanceof AmazonQServicePendingProfileError) {

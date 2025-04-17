@@ -3,15 +3,15 @@ import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import sinon from 'ts-sinon'
 import { ChatController } from './chatController'
 import { ChatSessionManagementService } from './chatSessionManagementService'
-import { QChatServer } from './qChatServer'
-import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
+import { QChatServerFactory } from './qChatServer'
+import { TestAmazonQServiceManager } from '../../shared/amazonQServiceManager/testUtils'
 
 describe('QChatServer', () => {
     const mockTabId = 'mockTabId'
     let disposeStub: sinon.SinonStub
     let withAmazonQServiceManagerSpy: sinon.SinonSpy
     let testFeatures: TestFeatures
-    let amazonQServiceManager: AmazonQTokenServiceManager
+    let amazonQServiceManager: TestAmazonQServiceManager
     let disposeServer: () => void
     let chatSessionManagementService: ChatSessionManagementService
 
@@ -31,13 +31,12 @@ describe('QChatServer', () => {
         }
         testFeatures.lsp.getClientInitializeParams.returns(cachedInitializeParams)
 
-        amazonQServiceManager = AmazonQTokenServiceManager.getInstance(testFeatures)
-
+        amazonQServiceManager = TestAmazonQServiceManager.getInstance(testFeatures)
         disposeStub = sinon.stub(ChatSessionManagementService.prototype, 'dispose')
         chatSessionManagementService = ChatSessionManagementService.getInstance()
         withAmazonQServiceManagerSpy = sinon.spy(chatSessionManagementService, 'withAmazonQServiceManager')
 
-        const chatServerFactory: Server = QChatServer()
+        const chatServerFactory: Server = QChatServerFactory(() => amazonQServiceManager)
 
         disposeServer = chatServerFactory(testFeatures)
 

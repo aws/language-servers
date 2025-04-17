@@ -5,6 +5,7 @@ import {
     InitializeParams,
     Server,
     Workspace,
+    Logging,
 } from '@aws/language-server-runtimes/server-interface'
 import { CodeWhispererServiceToken } from '../../shared/codeWhispererService'
 import {
@@ -55,6 +56,7 @@ export const QNetTransformServerToken =
         service: (
             credentialsProvider: CredentialsProvider,
             workspace: Workspace,
+            logging: Logging,
             awsQRegion: string,
             awsQEndpointUrl: string,
             sdkInitializator: SDKInitializator
@@ -192,10 +194,10 @@ export const QNetTransformServerToken =
             transformHandler = new TransformHandler(amazonQServiceManager, workspace, logging, runtime)
 
             /* 
-                Calling handleDidChangeConfiguration once to ensure we get configuration atleast once at start up
-                
-                TODO: TODO: consider refactoring such responsibilities to common service manager config/initialisation server
-            */
+                    Calling handleDidChangeConfiguration once to ensure we get configuration atleast once at start up
+                    
+                    TODO: TODO: consider refactoring such responsibilities to common service manager config/initialisation server
+                */
             await amazonQServiceManager.handleDidChangeConfiguration()
 
             return {
