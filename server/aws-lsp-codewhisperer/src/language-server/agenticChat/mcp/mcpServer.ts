@@ -5,11 +5,10 @@ import { MultiServerManager } from './multiServerManager'
 
 // TODO: configure this server through InitializeParams enable/disable
 export const McpServer: Server = ({ lsp, workspace, logging, agent }) => {
-    let serverConfigReader: ServerConfigReader
     let serversManager: MultiServerManager
 
     lsp.onInitialized(async () => {
-        serverConfigReader = new ServerConfigReader(workspace, logging)
+        const serverConfigReader = new ServerConfigReader(workspace, logging)
         const serversConfig = await readServersConfig(serverConfigReader)
 
         serversManager = await MultiServerManager.init(serversConfig, logging)
