@@ -86,7 +86,6 @@ export const QAgenticChatServer =
 
         chat.onTabAdd(params => {
             logging.log(`Adding tab: ${params.tabId}`)
-
             return chatController.onTabAdd(params)
         })
         chat.onReady(() => {

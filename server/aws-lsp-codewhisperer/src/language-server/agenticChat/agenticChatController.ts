@@ -691,7 +691,6 @@ export class AgenticChatController implements ChatHandlers {
 
     onTabAdd(params: TabAddParams) {
         this.#telemetryController.activeTabId = params.tabId
-
         this.#chatSessionManagementService.createSession(params.tabId)
     }
 
@@ -886,9 +885,7 @@ export class AgenticChatController implements ChatHandlers {
                 relativeFilePath: chunk.relativePath ? chunk.relativePath : path.basename(chunk.filePath),
                 programmingLanguage:
                     chunk.programmingLanguage && chunk.programmingLanguage !== 'unknown'
-                        ? {
-                              languageName: chunk.programmingLanguage,
-                          }
+                        ? { languageName: chunk.programmingLanguage }
                         : undefined,
                 startLine: chunk.startLine ?? -1,
                 endLine: chunk.endLine ?? -1,

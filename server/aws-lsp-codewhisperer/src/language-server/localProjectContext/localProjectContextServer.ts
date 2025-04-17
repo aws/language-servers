@@ -35,29 +35,12 @@ export const LocalProjectContextServer = (): Server => features => {
             params.workspaceFolders ?? [],
             logging
         )
-        await localProjectContextController.init()
         deps = {
             amazonQServiceManager,
             telemetryService,
             localProjectContextController,
         }
-
         const supportedFilePatterns = Object.keys(languageByExtension).map(ext => `**/*${ext}`)
-        chat.sendContextCommands({
-            contextCommandGroups: [
-                // announce that @workspace context is ready
-                // https://github.com/aws/aws-toolkit-vscode/blob/413ce4b5c0d35dbc9c854c9bbcc2dbbc3977193e/packages/core/src/codewhispererChat/controllers/chat/controller.ts#L473
-                {
-                    groupName: 'Mention code',
-                    commands: [
-                        {
-                            command: '@workspace',
-                            description: 'Reference all code in workspace.',
-                        },
-                    ],
-                },
-            ],
-        })
         logging.info('Initialized local project context server')
 
         return {
@@ -90,13 +73,6 @@ export const LocalProjectContextServer = (): Server => features => {
                     },
                 },
             },
-            // awsServerCapabilities: {
-            //     chatOptions: {
-            //         quickActions: {
-            //             quickActionsCommandGroups: [],
-            //         }
-            //     }
-            // }
         }
     })
 
@@ -107,6 +83,21 @@ export const LocalProjectContextServer = (): Server => features => {
         try {
             await deps.amazonQServiceManager.handleDidChangeConfiguration()
             await deps.amazonQServiceManager.addDidChangeConfigurationListener(updateConfigurationHandler)
+            chat.sendContextCommands({
+                contextCommandGroups: [
+                    // announce that @workspace context is ready
+                    // https://github.com/aws/aws-toolkit-vscode/blob/413ce4b5c0d35dbc9c854c9bbcc2dbbc3977193e/packages/core/src/codewhispererChat/controllers/chat/controller.ts#L473
+                    {
+                        groupName: 'Mention code',
+                        commands: [
+                            {
+                                command: '@workspace',
+                                description: 'Reference all code in workspace.',
+                            },
+                        ],
+                    },
+                ],
+            })
             logging.log('Local context server has been initialized')
         } catch (error) {
             logging.error(`Failed to initialize local context server: ${error}`)
