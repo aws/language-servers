@@ -45,12 +45,15 @@ export class LocalProjectContextController {
 
     public async init(vectorLib?: any): Promise<void> {
         try {
-            const vecLib = vectorLib ?? (await import(path.join(LIBRARY_DIR, 'dist', 'extension.js')))
+            const libraryPath = path.join(LIBRARY_DIR, 'dist', 'extension.js')
+            const vecLib = vectorLib ?? (await import(libraryPath))
             if (vecLib) {
                 const root = this.findCommonWorkspaceRoot(this.workspaceFolders)
                 this._vecLib = await vecLib.start(LIBRARY_DIR, this.clientName, root)
                 await this.buildIndex()
                 LocalProjectContextController.instance = this
+            } else {
+                this.log.warn(`Vector library could not be imported from: ${libraryPath}`)
             }
         } catch (error) {
             this.log.error('Vector library failed to initialize:' + error)
