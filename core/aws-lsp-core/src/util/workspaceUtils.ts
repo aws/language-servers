@@ -1,5 +1,6 @@
 import * as path from 'path'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
+import { URI } from 'vscode-uri'
 
 type ElementType<T> = T extends (infer U)[] ? U : never
 type Dirent = ElementType<Awaited<ReturnType<Features['workspace']['fs']['readdir']>>>
@@ -78,4 +79,10 @@ export function formatListing(entry: Dirent): string {
 
 export function getEntryPath(entry: Dirent) {
     return path.join(entry.parentPath, entry.name)
+}
+
+// TODO: port this to runtimes
+export function getWorkspaceFolders(lsp: Features['lsp']) {
+    const initParams = lsp.getClientInitializeParams()
+    return initParams?.workspaceFolders?.map(({ uri }) => URI.parse(uri).fsPath) ?? []
 }

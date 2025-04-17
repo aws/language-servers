@@ -3,6 +3,7 @@ import { ChatTriggerType, SendMessageCommandInput, UserIntent, Tool, ToolResult 
 import { BedrockTools, ChatParams, CursorState, InlineChatParams } from '@aws/language-server-runtimes/server-interface'
 import { Features } from '../../types'
 import { DocumentContext, DocumentContextExtractor } from './documentContext'
+import { workspaceUtils } from '@aws/lsp-core'
 
 export interface TriggerContext extends Partial<DocumentContext> {
     userIntent?: UserIntent
@@ -13,11 +14,18 @@ export class QChatTriggerContext {
     private static readonly DEFAULT_CURSOR_STATE: CursorState = { position: { line: 0, character: 0 } }
 
     #workspace: Features['workspace']
+    #logging: Features['logging']
+    #lsp: Features['lsp']
     #documentContextExtractor: DocumentContextExtractor
 
-    constructor(workspace: Features['workspace'], logger: Features['logging']) {
-        this.#workspace = workspace
-        this.#documentContextExtractor = new DocumentContextExtractor({ logger, workspace })
+    constructor(features: Pick<Features, 'lsp' | 'workspace' | 'logging'> & Partial<Features>) {
+        this.#workspace = features.workspace
+        this.#logging = features.logging
+        this.#lsp = features.lsp
+        this.#documentContextExtractor = new DocumentContextExtractor({
+            workspace: this.#workspace,
+            logger: this.#logging,
+        })
     }
 
     async getNewTriggerContext(params: ChatParams | InlineChatParams): Promise<TriggerContext> {
@@ -38,7 +46,6 @@ export class QChatTriggerContext {
         tools: BedrockTools = []
     ): SendMessageCommandInput {
         const { prompt } = params
-
         const data: SendMessageCommandInput = {
             conversationState: {
                 chatTriggerType: chatTriggerType,
@@ -55,10 +62,14 @@ export class QChatTriggerContext {
                                               programmingLanguage: triggerContext.programmingLanguage,
                                               relativeFilePath: triggerContext.relativeFilePath,
                                           },
+                                          workspaceFolders: workspaceUtils.getWorkspaceFolders(this.#lsp),
                                       },
                                       tools,
                                   }
                                 : {
+                                      editorState: {
+                                          workspaceFolders: workspaceUtils.getWorkspaceFolders(this.#lsp),
+                                      },
                                       tools,
                                   },
                         userIntent: triggerContext.userIntent,

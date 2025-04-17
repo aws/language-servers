@@ -28,7 +28,7 @@ describe('QChatTriggerContext', () => {
     })
 
     it('returns null if text document is not defined in params', async () => {
-        const triggerContext = new QChatTriggerContext(testFeatures.workspace, testFeatures.logging)
+        const triggerContext = new QChatTriggerContext(testFeatures)
 
         const documentContext = await triggerContext.extractDocumentContext({
             cursorState: [
@@ -46,7 +46,7 @@ describe('QChatTriggerContext', () => {
     })
 
     it('returns null if text document is not found', async () => {
-        const triggerContext = new QChatTriggerContext(testFeatures.workspace, testFeatures.logging)
+        const triggerContext = new QChatTriggerContext(testFeatures)
 
         const documentContext = await triggerContext.extractDocumentContext({
             cursorState: [
@@ -66,7 +66,7 @@ describe('QChatTriggerContext', () => {
     })
 
     it('passes default cursor state if no cursor is found', async () => {
-        const triggerContext = new QChatTriggerContext(testFeatures.workspace, testFeatures.logging)
+        const triggerContext = new QChatTriggerContext(testFeatures)
 
         const documentContext = await triggerContext.extractDocumentContext({
             cursorState: [],
@@ -79,7 +79,7 @@ describe('QChatTriggerContext', () => {
     })
 
     it('includes cursor state from the parameters and text document if found', async () => {
-        const triggerContext = new QChatTriggerContext(testFeatures.workspace, testFeatures.logging)
+        const triggerContext = new QChatTriggerContext(testFeatures)
 
         testFeatures.openDocument(mockTSDocument)
         const documentContext = await triggerContext.extractDocumentContext({

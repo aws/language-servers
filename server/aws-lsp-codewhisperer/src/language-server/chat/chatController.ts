@@ -81,7 +81,7 @@ export class ChatController implements ChatHandlers {
     ) {
         this.#features = features
         this.#chatSessionManagementService = chatSessionManagementService
-        this.#triggerContext = new QChatTriggerContext(features.workspace, features.logging)
+        this.#triggerContext = new QChatTriggerContext(features)
         this.#telemetryController = new ChatTelemetryController(features, telemetryService)
         this.#telemetryService = telemetryService
         this.#amazonQServiceManager = amazonQServiceManager
