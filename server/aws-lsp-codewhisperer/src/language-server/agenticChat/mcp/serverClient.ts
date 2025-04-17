@@ -12,11 +12,13 @@ export class ServerClient {
         )
 
         try {
+            // TODO: reconnect/disconnect handling
             const transport = new StdioClientTransport({
                 command: config.command,
-                args: config.args || [],
+                args: config.args,
+                env: config.env,
             })
-            await client.connect(transport)
+            await client.connect(transport, { timeout: config.timeout })
             return client
         } catch (e) {
             logging.error(`Failed to connect to server: ${e}`)
