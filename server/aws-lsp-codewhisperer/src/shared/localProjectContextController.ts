@@ -46,7 +46,7 @@ export class LocalProjectContextController {
     private workspaceFolders: WorkspaceFolder[]
     private _vecLib?: VectorLibAPI
     private readonly clientName: string
-    private readonly log?: Logging
+    private readonly log: Logging
 
     private ignoreFilePatterns?: string[]
     private includeSymlinks?: boolean
@@ -60,7 +60,7 @@ export class LocalProjectContextController {
     private readonly DEFAULT_MAX_FILE_SIZE_MB = 10
     private readonly MB_TO_BYTES = 1024 * 1024
 
-    constructor(clientName: string, workspaceFolders: WorkspaceFolder[], logging?: Logging) {
+    constructor(clientName: string, workspaceFolders: WorkspaceFolder[], logging: Logging) {
         this.workspaceFolders = workspaceFolders
         this.clientName = clientName
         this.log = logging
@@ -98,10 +98,10 @@ export class LocalProjectContextController {
                 await this.buildIndex()
                 LocalProjectContextController.instance = this
             } else {
-                this.log?.warn(`Vector library could not be imported from: ${libraryPath}`)
+                this.log.warn(`Vector library could not be imported from: ${libraryPath}`)
             }
         } catch (error) {
-            this.log?.error('Vector library failed to initialize:' + error)
+            this.log.error('Vector library failed to initialize:' + error)
         }
     }
 
@@ -120,7 +120,7 @@ export class LocalProjectContextController {
         try {
             await this._vecLib?.updateIndexV2(filePaths, operation)
         } catch (error) {
-            this.log?.error(`Error updating index: ${error}`)
+            this.log.error(`Error updating index: ${error}`)
         }
     }
 
@@ -139,7 +139,7 @@ export class LocalProjectContextController {
                 await this._vecLib?.buildIndex(sourceFiles, this.indexCacheDirPath, 'all')
             }
         } catch (error) {
-            this.log?.error(`Error building index: ${error}`)
+            this.log.error(`Error building index: ${error}`)
         }
     }
 
@@ -159,7 +159,7 @@ export class LocalProjectContextController {
                 await this.buildIndex()
             }
         } catch (error) {
-            this.log?.error(`Error in updateWorkspaceFolders: ${error}`)
+            this.log.error(`Error in updateWorkspaceFolders: ${error}`)
         }
     }
 
@@ -174,7 +174,7 @@ export class LocalProjectContextController {
             const resp = await this._vecLib?.queryInlineProjectContext(request.query, request.filePath, request.target)
             return resp ?? []
         } catch (error) {
-            this.log?.error(`Error in queryInlineProjectContext: ${error}`)
+            this.log.error(`Error in queryInlineProjectContext: ${error}`)
             return []
         }
     }
@@ -188,7 +188,7 @@ export class LocalProjectContextController {
             const resp = await this._vecLib?.queryVectorIndex(request.query)
             return resp ?? []
         } catch (error) {
-            this.log?.error(`Error in queryVectorIndex: ${error}`)
+            this.log.error(`Error in queryVectorIndex: ${error}`)
             return []
         }
     }
@@ -199,7 +199,7 @@ export class LocalProjectContextController {
         try {
             fileSize = fs.statSync(filePath).size
         } catch (error) {
-            this.log?.error(`Error reading file size for ${filePath}: ${error}`)
+            this.log.error(`Error reading file size for ${filePath}: ${error}`)
             return false
         }
 
@@ -221,11 +221,11 @@ export class LocalProjectContextController {
         maxIndexSizeMB?: number
     ): Promise<string[]> {
         if (!workspaceFolders?.length) {
-            this.log?.info(`Skipping indexing: no workspace folders available`)
+            this.log.info(`Skipping indexing: no workspace folders available`)
             return []
         }
 
-        this.log?.info(`Indexing ${workspaceFolders.length} workspace folders...`)
+        this.log.info(`Indexing ${workspaceFolders.length} workspace folders...`)
 
         const filter = ignore().add(ignoreFilePatterns ?? [])
 
@@ -284,7 +284,7 @@ export class LocalProjectContextController {
                                     try {
                                         filter.add((await fs.promises.readFile(filePath)).toString())
                                     } catch (error) {
-                                        this.log?.error(`Error reading .gitignore file ${filePath}: ${error}`)
+                                        this.log.error(`Error reading .gitignore file ${filePath}: ${error}`)
                                     }
                                     return [filePath, filter] as const
                                 })
@@ -315,7 +315,7 @@ export class LocalProjectContextController {
             })
         ).then((nestedFilePaths: string[][]) => nestedFilePaths.flat())
 
-        this.log?.info(`Indexing complete: found ${workspaceSourceFiles.length} files.`)
+        this.log.info(`Indexing complete: found ${workspaceSourceFiles.length} files.`)
         return workspaceSourceFiles
     }
 
