@@ -7,10 +7,12 @@ import {
     ChatTriggerType,
     GenerateAssistantResponseCommandInput,
     GenerateAssistantResponseCommandOutput,
-    SendMessageCommandInput,
-    SendMessageCommandOutput,
+    SendMessageCommandInput as SendMessageCommandInputCodeWhispererStreaming,
+    ToolResult,
+    ToolResultContentBlock,
+    ToolUse,
 } from '@amzn/codewhisperer-streaming'
-import { chatRequestType } from '@aws/language-server-runtimes/protocol'
+import { chatRequestType, InlineChatResultParams } from '@aws/language-server-runtimes/protocol'
 import {
     ApplyWorkspaceEditParams,
     ErrorCodes,
@@ -61,11 +63,22 @@ import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/A
 import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
 import { TabBarController } from './tabBarController'
 import { ChatDatabase } from './tools/chatDb/chatDb'
-import { AgenticChatEventParser } from './agenticChatEventParser'
+import { SendMessageCommandInput, SendMessageCommandOutput } from '../../shared/streamingClientService'
+import {
+    AgenticChatEventParser,
+    ChatResultWithMetadata as AgenticChatResultWithMetadata,
+} from './agenticChatEventParser'
+import { ChatSessionService } from '../chat/chatSessionService'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
-    'openTab' | 'sendChatUpdate' | 'onFileClicked' | 'sendContextCommands' | 'onCreatePrompt' | 'getSerializedChat'
+    | 'openTab'
+    | 'sendChatUpdate'
+    | 'onFileClicked'
+    | 'sendContextCommands'
+    | 'onCreatePrompt'
+    | 'getSerializedChat'
+    | 'chatOptionsUpdate'
 >
 
 export class AgenticChatController implements ChatHandlers {
@@ -93,25 +106,6 @@ export class AgenticChatController implements ChatHandlers {
         this.#amazonQServiceManager = amazonQServiceManager
         this.#chatHistoryDb = new ChatDatabase(features)
         this.#tabBarController = new TabBarController(features, this.#chatHistoryDb)
-
-        features.agent.addTool(
-            {
-                name: 'count_input',
-                description: 'Count the length of the prompt',
-                inputSchema: {
-                    type: 'object',
-                    properties: {
-                        prompt: {
-                            type: 'string',
-                        },
-                    },
-                    required: ['prompt'],
-                },
-            },
-            async input => {
-                return input.prompt?.length
-            }
-        )
     }
 
     dispose() {
@@ -129,6 +123,7 @@ export class AgenticChatController implements ChatHandlers {
     }
 
     async onChatPrompt(params: ChatParams, token: CancellationToken): Promise<ChatResult | ResponseError<ChatResult>> {
+        // Phase 1: Initial Setup - This happens only once
         const maybeDefaultResponse = getDefaultChatResponse(params.prompt.prompt)
 
         if (maybeDefaultResponse) {
@@ -155,141 +150,352 @@ export class AgenticChatController implements ChatHandlers {
             session.abortRequest()
         })
 
-        let response: GenerateAssistantResponseCommandOutput
-        let requestInput: GenerateAssistantResponseCommandInput
-
         const conversationIdentifier = session?.conversationId ?? 'New conversation'
+
         try {
-            this.#log('Request for conversation id:', conversationIdentifier)
-            const profileArn = AmazonQTokenServiceManager.getInstance(this.#features).getActiveProfileArn()
-            requestInput = this.#triggerContext.getChatParamsFromTrigger(
+            // Get the initial request input
+            const initialRequestInput = await this.#prepareRequestInput(params, session, triggerContext)
+
+            // Start the agent loop
+            const finalResult = await this.#runAgentLoop(
+                initialRequestInput,
+                session,
+                metric,
+                params.partialResultToken,
+                conversationIdentifier,
+                token
+            )
+
+            // Phase 5: Result Handling - This happens only once
+            return await this.#handleFinalResult(
+                finalResult,
+                session,
                 params,
+                metric,
                 triggerContext,
-                ChatTriggerType.MANUAL,
-                this.#customizationArn,
-                profileArn,
-                this.#features.agent.getTools({ format: 'bedrock' })
+                isNewConversation
             )
-
-            if (!session.localHistoryHydrated && requestInput.conversationState) {
-                requestInput.conversationState.history = this.#chatHistoryDb.getMessages(params.tabId, 10)
-                session.localHistoryHydrated = true
-            }
-
-            metric.recordStart()
-            response = await session.generateAssistantResponse(requestInput)
-            this.#log('Response for conversation id:', conversationIdentifier, JSON.stringify(response.$metadata))
         } catch (err) {
-            if (isAwsError(err) || (isObject(err) && 'statusCode' in err && typeof err.statusCode === 'number')) {
-                metric.setDimension('cwsprChatRepsonseCode', err.statusCode ?? 400)
-                this.#telemetryController.emitMessageResponseError(params.tabId, metric.metric)
-            }
+            return this.#handleRequestError(err, params.tabId, metric)
+        }
+    }
 
-            if (err instanceof AmazonQServicePendingSigninError) {
-                this.#log(`Q Chat SSO Connection error: ${getErrorMessage(err)}`)
+    /**
+     * Prepares the initial request input for the chat prompt
+     */
+    async #prepareRequestInput(
+        params: ChatParams,
+        session: ChatSessionService,
+        triggerContext: TriggerContext
+    ): Promise<GenerateAssistantResponseCommandInput> {
+        this.#debug('Preparing request input')
+        const profileArn = AmazonQTokenServiceManager.getInstance(this.#features).getActiveProfileArn()
+        const requestInput = this.#triggerContext.getChatParamsFromTrigger(
+            params,
+            triggerContext,
+            ChatTriggerType.MANUAL,
+            this.#customizationArn,
+            profileArn,
+            this.#features.agent.getTools({ format: 'bedrock' })
+        )
 
-                return createAuthFollowUpResult('full-auth')
-            }
-
-            if (err instanceof AmazonQServicePendingProfileError) {
-                this.#log(`Q Chat SSO Connection error: ${getErrorMessage(err)}`)
-
-                const followUpResult = createAuthFollowUpResult('use-supported-auth')
-                // Access first element in array
-                if (followUpResult.followUp?.options) {
-                    followUpResult.followUp.options[0].pillText = 'Select Q Developer Profile'
-                }
-
-                return followUpResult
-            }
-
-            const authFollowType = getAuthFollowUpType(err)
-
-            if (authFollowType) {
-                this.#log(`Q auth error: ${getErrorMessage(err)}`)
-
-                return createAuthFollowUpResult(authFollowType)
-            }
-
-            this.#log(`Q api request error ${err instanceof Error ? err.message : 'unknown'}`)
-            return new ResponseError<ChatResult>(
-                LSPErrorCodes.RequestFailed,
-                err instanceof Error ? err.message : 'Unknown request error'
-            )
+        if (!session.localHistoryHydrated && requestInput.conversationState) {
+            requestInput.conversationState.history = this.#chatHistoryDb.getMessages(params.tabId, 10)
+            session.localHistoryHydrated = true
         }
 
-        try {
+        return requestInput
+    }
+
+    /**
+     * Runs the agent loop, making requests and processing tool uses until completion
+     */
+    async #runAgentLoop(
+        initialRequestInput: GenerateAssistantResponseCommandInput,
+        session: ChatSessionService,
+        metric: Metric<CombinedConversationEvent>,
+        partialResultToken?: string | number,
+        conversationIdentifier?: string,
+        token?: CancellationToken
+    ): Promise<Result<AgenticChatResultWithMetadata, string>> {
+        let currentRequestInput = { ...initialRequestInput }
+        let finalResult: Result<AgenticChatResultWithMetadata, string> | null = null
+        let iterationCount = 0
+        const maxIterations = 10 // Safety limit to prevent infinite loops
+
+        metric.recordStart()
+
+        while (iterationCount < maxIterations) {
+            iterationCount++
+            this.#debug(`Agent loop iteration ${iterationCount} for conversation id:`, conversationIdentifier || '')
+
+            // Check for cancellation
+            if (token?.isCancellationRequested) {
+                this.#debug('Request cancelled during agent loop')
+                break
+            }
+
+            // Phase 3: Request Execution
+            this.#debug(`Request Input: ${JSON.stringify(currentRequestInput)}`)
+            const response = await session.generateAssistantResponse(currentRequestInput)
+            this.#debug(`Response received for iteration ${iterationCount}:`, JSON.stringify(response.$metadata))
+
+            // Phase 4: Response Processing
             const result = await this.#processGenerateAssistantResponseResponse(
                 response,
                 metric.mergeWith({
                     cwsprChatResponseCode: response.$metadata.httpStatusCode,
                     cwsprChatMessageId: response.$metadata.requestId,
                 }),
-                params.partialResultToken
+                partialResultToken
             )
 
-            session.conversationId = result.data?.conversationId
-            this.#log('Session conversation id:', session.conversationId || '')
-
-            if (session.conversationId) {
-                this.#telemetryController.setConversationId(params.tabId, session.conversationId)
-
-                if (isNewConversation) {
-                    this.#telemetryController.updateTriggerInfo(params.tabId, {
-                        startTrigger: {
-                            hasUserSnippet: metric.metric.cwsprChatHasCodeSnippet ?? false,
-                            triggerType: triggerContext.triggerType,
-                        },
-                    })
-
-                    this.#telemetryController.emitStartConversationMetric(params.tabId, metric.metric)
-                }
+            // Store the conversation ID from the first response
+            if (iterationCount === 1 && result.data?.conversationId) {
+                session.conversationId = result.data.conversationId
             }
 
-            metric.setDimension('codewhispererCustomizationArn', requestInput.conversationState?.customizationArn)
-            await this.#telemetryController.emitAddMessageMetric(params.tabId, metric.metric)
+            // Check if we have any tool uses that need to be processed
+            const pendingToolUses = this.#getPendingToolUses(result.data?.toolUses || {})
 
-            this.#telemetryController.updateTriggerInfo(params.tabId, {
-                lastMessageTrigger: {
-                    ...triggerContext,
-                    messageId: response.$metadata.requestId,
-                    followUpActions: new Set(
-                        result.data?.chatResult.followUp?.options
-                            ?.map(option => option.prompt ?? '')
-                            .filter(prompt => prompt.length > 0)
-                    ),
+            if (pendingToolUses.length === 0) {
+                // No more tool uses, we're done
+                finalResult = result
+                break
+            }
+
+            const currentMessage = currentRequestInput.conversationState?.currentMessage
+
+            // Process tool uses and update the request input for the next iteration
+            const toolResults = await this.#processToolUses(pendingToolUses)
+            currentRequestInput = this.#updateRequestInputWithToolResults(currentRequestInput, toolResults)
+
+            if (!currentRequestInput.conversationState!.history) {
+                currentRequestInput.conversationState!.history = []
+            }
+
+            currentRequestInput.conversationState!.history.push({
+                userInputMessage: {
+                    content: currentMessage?.userInputMessage?.content,
+                    origin: currentMessage?.userInputMessage?.origin,
+                    userIntent: currentMessage?.userInputMessage?.userIntent,
+                    userInputMessageContext: currentMessage?.userInputMessage?.userInputMessageContext,
                 },
             })
-            // Save question/answer interaction to chat history
-            if (params.prompt.prompt && session.conversationId && result.data?.chatResult.body) {
-                this.#chatHistoryDb.addMessage(params.tabId, 'cwc', session.conversationId, {
-                    body: params.prompt.prompt,
-                    type: 'prompt' as any,
+
+            currentRequestInput.conversationState!.history.push({
+                assistantResponseMessage: {
+                    content: result.data?.chatResult.body,
+                    toolUses: Object.keys(result.data?.toolUses!).map(k => ({
+                        toolUseId: result.data!.toolUses[k].toolUseId,
+                        name: result.data!.toolUses[k].name,
+                        input: result.data!.toolUses[k].input,
+                    })),
+                },
+            })
+        }
+
+        if (iterationCount >= maxIterations) {
+            this.#log('Agent loop reached maximum iterations limit')
+        }
+
+        return (
+            finalResult || {
+                success: false,
+                error: 'Agent loop failed to produce a final result',
+                data: { chatResult: {}, toolUses: {} },
+            }
+        )
+    }
+
+    /**
+     * Extracts tool uses that need to be processed
+     */
+    #getPendingToolUses(toolUses: Record<string, ToolUse & { stop: boolean }>): Array<ToolUse & { stop: boolean }> {
+        return Object.values(toolUses).filter(toolUse => toolUse.stop)
+    }
+
+    /**
+     * Processes tool uses by running the tools and collecting results
+     */
+    async #processToolUses(toolUses: Array<ToolUse & { stop: boolean }>): Promise<ToolResult[]> {
+        const results: ToolResult[] = []
+
+        for (const toolUse of toolUses) {
+            if (!toolUse.name || !toolUse.toolUseId) continue
+
+            try {
+                this.#debug(`Running tool ${toolUse.name} with input:`, JSON.stringify(toolUse.input))
+
+                const result = await this.#features.agent.runTool(toolUse.name, toolUse.input)
+                let toolResultContent: ToolResultContentBlock
+
+                if (typeof result === 'string') {
+                    toolResultContent = { text: result }
+                } else if (Array.isArray(result)) {
+                    toolResultContent = { json: { items: result } }
+                } else if (typeof result === 'object') {
+                    toolResultContent = { json: result }
+                } else toolResultContent = { text: JSON.stringify(result) }
+
+                results.push({
+                    toolUseId: toolUse.toolUseId,
+                    status: 'success',
+                    content: [toolResultContent],
                 })
 
-                this.#chatHistoryDb.addMessage(params.tabId, 'cwc', session.conversationId, {
-                    body: result.data.chatResult.body,
-                    type: 'answer' as any,
-                    codeReference: result.data.chatResult.codeReference,
-                    relatedContent:
-                        result.data.chatResult.relatedContent?.content &&
-                        result.data.chatResult.relatedContent.content.length > 0
-                            ? result.data?.chatResult.relatedContent
-                            : undefined,
+                this.#debug(`Tool ${toolUse.name} completed with result:`, JSON.stringify(result))
+            } catch (err) {
+                this.#log(`Error running tool ${toolUse.name}:`, err instanceof Error ? err.message : 'unknown error')
+                results.push({
+                    toolUseId: toolUse.toolUseId,
+                    status: 'error',
+                    content: [{ json: { error: err instanceof Error ? err.message : 'Unknown error' } }],
                 })
             }
+        }
 
-            return result.success
-                ? result.data.chatResult
-                : new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, result.error)
-        } catch (err) {
-            this.#log('Error encountered during response streaming:', err instanceof Error ? err.message : 'unknown')
+        return results
+    }
 
-            return new ResponseError<ChatResult>(
-                LSPErrorCodes.RequestFailed,
-                err instanceof Error ? err.message : 'Unknown error occured during response stream'
+    /**
+     * Updates the request input with tool results for the next iteration
+     */
+    #updateRequestInputWithToolResults(
+        requestInput: GenerateAssistantResponseCommandInput,
+        toolResults: ToolResult[]
+    ): GenerateAssistantResponseCommandInput {
+        // Create a deep copy of the request input
+        const updatedRequestInput = JSON.parse(JSON.stringify(requestInput)) as GenerateAssistantResponseCommandInput
+
+        // Add tool results to the request
+        updatedRequestInput.conversationState!.currentMessage!.userInputMessage!.userInputMessageContext!.toolResults =
+            []
+        updatedRequestInput.conversationState!.currentMessage!.userInputMessage!.content = ''
+
+        for (const toolResult of toolResults) {
+            this.#debug(`ToolResult: ${JSON.stringify(toolResult)}`)
+            updatedRequestInput.conversationState!.currentMessage!.userInputMessage!.userInputMessageContext!.toolResults.push(
+                {
+                    ...toolResult,
+                }
             )
         }
+
+        return updatedRequestInput
+    }
+
+    /**
+     * Handles the final result after the agent loop completes
+     */
+    async #handleFinalResult(
+        result: Result<AgenticChatResultWithMetadata, string>,
+        session: ChatSessionService,
+        params: ChatParams,
+        metric: Metric<CombinedConversationEvent>,
+        triggerContext: TriggerContext,
+        isNewConversation: boolean
+    ): Promise<ChatResult | ResponseError<ChatResult>> {
+        if (!result.success) {
+            return new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, result.error)
+        }
+
+        const conversationId = session.conversationId
+        this.#debug('Final session conversation id:', conversationId || '')
+
+        if (conversationId) {
+            this.#telemetryController.setConversationId(params.tabId, conversationId)
+
+            if (isNewConversation) {
+                this.#telemetryController.updateTriggerInfo(params.tabId, {
+                    startTrigger: {
+                        hasUserSnippet: metric.metric.cwsprChatHasCodeSnippet ?? false,
+                        triggerType: triggerContext.triggerType,
+                    },
+                })
+
+                this.#telemetryController.emitStartConversationMetric(params.tabId, metric.metric)
+            }
+        }
+
+        metric.setDimension('codewhispererCustomizationArn', this.#customizationArn)
+        await this.#telemetryController.emitAddMessageMetric(params.tabId, metric.metric)
+
+        this.#telemetryController.updateTriggerInfo(params.tabId, {
+            lastMessageTrigger: {
+                ...triggerContext,
+                messageId: result.data?.chatResult.messageId,
+                followUpActions: new Set(
+                    result.data?.chatResult.followUp?.options
+                        ?.map(option => option.prompt ?? '')
+                        .filter(prompt => prompt.length > 0)
+                ),
+            },
+        })
+
+        // Save question/answer interaction to chat history
+        if (params.prompt.prompt && conversationId && result.data?.chatResult.body) {
+            this.#chatHistoryDb.addMessage(params.tabId, 'cwc', conversationId, {
+                body: params.prompt.prompt,
+                type: 'prompt' as any,
+            })
+
+            this.#chatHistoryDb.addMessage(params.tabId, 'cwc', conversationId, {
+                body: result.data.chatResult.body,
+                type: 'answer' as any,
+                codeReference: result.data.chatResult.codeReference,
+                relatedContent:
+                    result.data.chatResult.relatedContent?.content &&
+                    result.data.chatResult.relatedContent.content.length > 0
+                        ? result.data?.chatResult.relatedContent
+                        : undefined,
+            })
+        }
+
+        return result.data.chatResult
+    }
+
+    /**
+     * Handles errors that occur during the request
+     */
+    #handleRequestError(
+        err: any,
+        tabId: string,
+        metric: Metric<CombinedConversationEvent>
+    ): ChatResult | ResponseError<ChatResult> {
+        if (isAwsError(err) || (isObject(err) && 'statusCode' in err && typeof err.statusCode === 'number')) {
+            metric.setDimension('cwsprChatRepsonseCode', err.statusCode ?? 400)
+            this.#telemetryController.emitMessageResponseError(tabId, metric.metric)
+        }
+
+        if (err instanceof AmazonQServicePendingSigninError) {
+            this.#log(`Q Chat SSO Connection error: ${getErrorMessage(err)}`)
+            return createAuthFollowUpResult('full-auth')
+        }
+
+        if (err instanceof AmazonQServicePendingProfileError) {
+            this.#log(`Q Chat SSO Connection error: ${getErrorMessage(err)}`)
+            const followUpResult = createAuthFollowUpResult('use-supported-auth')
+            // Access first element in array
+            if (followUpResult.followUp?.options) {
+                followUpResult.followUp.options[0].pillText = 'Select Q Developer Profile'
+            }
+            return followUpResult
+        }
+
+        const authFollowType = getAuthFollowUpType(err)
+        if (authFollowType) {
+            this.#log(`Q auth error: ${getErrorMessage(err)}`)
+            return createAuthFollowUpResult(authFollowType)
+        }
+
+        this.#log(`Q api request error ${err instanceof Error ? JSON.stringify(err) : 'unknown'}`)
+        this.#debug(`Q api request error stack ${err instanceof Error ? JSON.stringify(err.stack) : 'unknown'}`)
+        this.#debug(`Q api request error cause ${err instanceof Error ? JSON.stringify(err.cause) : 'unknown'}`)
+        return new ResponseError<ChatResult>(
+            LSPErrorCodes.RequestFailed,
+            err instanceof Error ? err.message : 'Unknown request error'
+        )
     }
 
     async onInlineChatPrompt(
@@ -306,13 +512,11 @@ export class AgenticChatController implements ChatHandlers {
         let requestInput: SendMessageCommandInput
 
         try {
-            const profileArn = AmazonQTokenServiceManager.getInstance(this.#features).getActiveProfileArn()
             requestInput = this.#triggerContext.getChatParamsFromTrigger(
                 params,
                 triggerContext,
                 ChatTriggerType.INLINE_CHAT,
-                this.#customizationArn,
-                profileArn
+                this.#customizationArn
             )
 
             if (!this.#amazonQServiceManager) {
@@ -320,14 +524,14 @@ export class AgenticChatController implements ChatHandlers {
             }
 
             const client = this.#amazonQServiceManager.getStreamingClient()
-            response = await client.sendMessage(requestInput)
+            response = await client.sendMessage(requestInput as SendMessageCommandInputCodeWhispererStreaming)
             this.#log('Response for inline chat', JSON.stringify(response.$metadata), JSON.stringify(response))
         } catch (err) {
             if (err instanceof AmazonQServicePendingSigninError || err instanceof AmazonQServicePendingProfileError) {
                 this.#log(`Q Inline Chat SSO Connection error: ${getErrorMessage(err)}`)
                 return new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, err.message)
             }
-            this.#log(`Q api request error ${err instanceof Error ? err.message : 'unknown'}`)
+            this.#log(`Q api request error ${err instanceof Error ? JSON.stringify(err) : 'unknown'}`)
             return new ResponseError<ChatResult>(
                 LSPErrorCodes.RequestFailed,
                 err instanceof Error ? err.message : 'Unknown request error'
@@ -358,6 +562,8 @@ export class AgenticChatController implements ChatHandlers {
             )
         }
     }
+
+    async onInlineChatResult(handler: InlineChatResultParams) {}
 
     async onCodeInsertToCursorPosition(params: InsertToCursorPositionParams) {
         // Implementation based on https://github.com/aws/aws-toolkit-vscode/blob/1814cc84228d4bf20270574c5980b91b227f31cf/packages/core/src/amazonq/commons/controllers/contentController.ts#L38
@@ -587,7 +793,7 @@ export class AgenticChatController implements ChatHandlers {
         response: GenerateAssistantResponseCommandOutput,
         metric: Metric<AddMessageEvent>,
         partialResultToken?: string | number
-    ): Promise<Result<ChatResultWithMetadata, string>> {
+    ): Promise<Result<AgenticChatResultWithMetadata, string>> {
         const requestId = response.$metadata.requestId!
         const chatEventParser = new AgenticChatEventParser(requestId, metric)
 
@@ -655,5 +861,9 @@ export class AgenticChatController implements ChatHandlers {
 
     #log(...messages: string[]) {
         this.#features.logging.log(messages.join(' '))
+    }
+
+    #debug(...messages: string[]) {
+        this.#features.logging.debug(messages.join(' '))
     }
 }
