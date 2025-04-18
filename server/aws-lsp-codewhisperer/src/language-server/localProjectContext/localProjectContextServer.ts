@@ -21,9 +21,7 @@ export const LocalProjectContextServer = (): Server => features => {
         localProjectContextController = new LocalProjectContextController(
             params.clientInfo?.name ?? 'unknown',
             params.workspaceFolders ?? [],
-            logging,
-            chat,
-            workspace
+            logging
         )
 
         const supportedFilePatterns = Object.keys(languageByExtension).map(ext => `**/*${ext}`)
