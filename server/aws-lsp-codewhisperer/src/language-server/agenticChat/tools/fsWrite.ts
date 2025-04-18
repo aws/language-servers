@@ -3,7 +3,7 @@ import { Features } from '@aws/language-server-runtimes/server-interface/server'
 import { sanitize } from '@aws/lsp-core/out/util/path'
 import { Change, diffLines } from 'diff'
 
-// Port of https://github.com/aws/aws-toolkit-vscode/blob/4cc64fcf279f47b1bd2ecd64de803abfed623c6d/packages/core/src/codewhispererChat/tools/fsWrite.ts#L42
+// Port of https://github.com/aws/aws-toolkit-vscode/blob/16aa8768834f41ae512522473a6a962bb96abe51/packages/core/src/codewhispererChat/tools/fsWrite.ts#L42
 
 interface BaseParams {
     path: string
@@ -12,8 +12,7 @@ interface BaseParams {
 
 export interface CreateParams extends BaseParams {
     command: 'create'
-    fileText?: string
-    newStr?: string
+    fileText: string
 }
 
 export interface StrReplaceParams extends BaseParams {
@@ -42,33 +41,49 @@ export interface FsWriteBackup {
 }
 
 export class FsWrite {
-    private readonly logging: Features['logging']
     private readonly workspace: Features['workspace']
 
-    constructor(features: Pick<Features, 'workspace' | 'logging'> & Partial<Features>) {
-        this.logging = features.logging
+    constructor(features: Pick<Features, 'workspace'> & Partial<Features>) {
         this.workspace = features.workspace
     }
 
     public async validate(params: FsWriteParams): Promise<void> {
+        if (!params.path) {
+            throw new Error('Path must not be empty')
+        }
+        const sanitizedPath = sanitize(params.path)
         switch (params.command) {
-            case 'create':
-                if (!params.path) {
-                    throw new Error('Path must not be empty')
+            case 'create': {
+                if (params.fileText === undefined) {
+                    throw new Error('fileText must be provided for create command')
+                }
+                const fileExists = await this.workspace.fs.exists(sanitizedPath)
+                if (fileExists) {
+                    const oldContent = await this.workspace.fs.readFile(sanitizedPath)
+                    if (oldContent === params.fileText) {
+                        throw new Error('The file already exists with the same content')
+                    }
                 }
                 break
-            case 'strReplace':
-            case 'insert': {
-                const fileExists = await this.workspace.fs.exists(params.path)
+            }
+            case 'strReplace': {
+                if (params.oldStr === params.newStr) {
+                    throw new Error('The provided oldStr and newStr are the exact same, this is a no-op')
+                }
+                const fileExists = await this.workspace.fs.exists(sanitizedPath)
                 if (!fileExists) {
-                    throw new Error('The provided path must exist in order to replace or insert contents into it')
+                    throw new Error('The provided path must exist in order to replace contents into it')
+                }
+                break
+            }
+            case 'insert': {
+                const fileExists = await this.workspace.fs.exists(sanitizedPath)
+                if (!fileExists) {
+                    throw new Error('The provided path must exist in order to insert contents into it')
                 }
                 break
             }
             case 'append':
-                if (!params.path) {
-                    throw new Error('Path must not be empty')
-                }
                 if (!params.newStr) {
                     throw new Error('Content to append must not be empty')
                 }
@@ -115,7 +130,7 @@ export class FsWrite {
         const { filePath: sanitizedPath, content: oldContent } = await this.getBackup(params)
         switch (params.command) {
             case 'create':
-                newContent = this.getCreateCommandText(params)
+                newContent = params.fileText
                 break
             case 'strReplace':
                 newContent = await this.getStrReplaceContent(params, sanitizedPath)
@@ -188,7 +203,7 @@ export class FsWrite {
     }
 
     private async handleCreate(params: CreateParams, sanitizedPath: string): Promise<void> {
-        const content = this.getCreateCommandText(params)
+        const content = params.fileText
 
         await this.workspace.fs.writeFile(sanitizedPath, content)
     }
@@ -237,18 +252,6 @@ export class FsWrite {
 
         const newContent = fileContent + contentToAppend
         await this.workspace.fs.writeFile(sanitizedPath, newContent)
-    }
-
-    private getCreateCommandText(params: CreateParams): string {
-        if (params.fileText) {
-            return params.fileText
-        }
-        if (params.newStr) {
-            this.logging.warn('Required field `fileText` is missing, use the provided `newStr` instead')
-            return params.newStr
-        }
-        this.logging.warn('No content provided for the create command')
-        return ''
     }
 
     private escapeRegExp(string: string): string {
