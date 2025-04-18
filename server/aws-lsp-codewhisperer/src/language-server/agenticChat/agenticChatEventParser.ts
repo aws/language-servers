@@ -188,7 +188,7 @@ export class AgenticChatEventParser implements ChatResult {
     public getResult(): Result<ChatResultWithMetadata, string> {
         const chatResult: ChatResult = {
             messageId: this.messageId,
-            body: this.body,
+            body: this.body || '',
             canBeVoted: this.canBeVoted ?? true,
             relatedContent: this.relatedContent,
             followUp: this.followUp,
