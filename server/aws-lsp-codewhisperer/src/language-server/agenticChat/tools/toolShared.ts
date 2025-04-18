@@ -22,3 +22,8 @@ export async function validatePath(path: string, exists: (p: string) => Promise<
         throw new Error(`Path "${path}" does not exist or cannot be accessed.`)
     }
 }
+
+export interface CommandValidation {
+    requiresAcceptance: boolean
+    warning?: string
+}

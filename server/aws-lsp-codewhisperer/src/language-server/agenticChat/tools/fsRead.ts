@@ -1,8 +1,9 @@
 import { sanitize } from '@aws/lsp-core/out/util/path'
-import { InvokeOutput, validatePath } from './toolShared'
+import { URI } from 'vscode-uri'
+import { CommandValidation, InvokeOutput, validatePath } from './toolShared'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 
-// Port of https://github.com/aws/aws-toolkit-vscode/blob/8e00eefa33f4eee99eed162582c32c270e9e798e/packages/core/src/codewhispererChat/tools/fsRead.ts#L17
+// Port of https://github.com/aws/aws-toolkit-vscode/blob/5a0404eb0e2c637ca3bd119714f5c7a24634f746/packages/core/src/codewhispererChat/tools/fsRead.ts#L17
 
 export interface FsReadParams {
     path: string
@@ -10,6 +11,7 @@ export interface FsReadParams {
 }
 
 export class FsRead {
+    static maxResponseSize = 200_000
     private readonly logging: Features['logging']
     private readonly workspace: Features['workspace']
 
@@ -22,25 +24,35 @@ export class FsRead {
         await validatePath(params.path, this.workspace.fs.exists)
     }
 
-    public async queueDescription(params: FsReadParams, updates: WritableStream) {
+    public async queueDescription(params: FsReadParams, updates: WritableStream, requiresAcceptance: boolean) {
         const updateWriter = updates.getWriter()
-        await updateWriter.write(`Reading file: ${params.path}]`)
+        const closeWriter = async (w: WritableStreamDefaultWriter) => {
+            await w.close()
+            w.releaseLock()
+        }
+        if (!requiresAcceptance) {
+            await closeWriter(updateWriter)
+            return
+        }
+        await updateWriter.write(`Reading file: [${params.path}]`)
 
         const [start, end] = params.readRange ?? []
 
         if (start && end) {
             await updateWriter.write(`from line ${start} to ${end}`)
         } else if (start) {
-            if (start > 0) {
-                await updateWriter.write(`from line ${start} to end of file`)
-            } else {
-                await updateWriter.write(`${start} line from the end of file to end of file`)
-            }
+            const msg =
+                start > 0 ? `from line ${start} to end of file` : `${start} line from the end of file to end of file`
+            await updateWriter.write(msg)
         } else {
             await updateWriter.write('all lines')
         }
-        await updateWriter.close()
-        updateWriter.releaseLock()
+        await closeWriter(updateWriter)
+    }
+
+    public async requiresAcceptance(params: FsReadParams): Promise<CommandValidation> {
+        // true when the file is not resolvable within our workspace. i.e. is outside of our workspace.
+        return { requiresAcceptance: !(await this.workspace.getTextDocument(URI.file(params.path).toString())) }
     }
 
     public async invoke(params: FsReadParams): Promise<InvokeOutput> {
@@ -91,10 +103,18 @@ export class FsRead {
     }
 
     private createOutput(content: string): InvokeOutput {
+        const exceedsMaxSize = content.length > FsRead.maxResponseSize
+        if (exceedsMaxSize) {
+            this.logging.info(`FsRead: truncating response to first ${FsRead.maxResponseSize} characters`)
+            content = content.substring(0, FsRead.maxResponseSize - 3) + '...'
+        }
         return {
             output: {
-                kind: 'text',
-                content: content,
+                kind: 'json',
+                content: {
+                    content,
+                    truncated: exceedsMaxSize,
+                },
             },
         }
     }
@@ -103,7 +123,7 @@ export class FsRead {
         return {
             name: 'fsRead',
             description:
-                'A tool for reading a file.\n * This tool returns the contents of a file, and the optional `readRange` determines what range of lines will be read from the specified file',
+                'A tool for reading a file.\n * This tool returns the contents of a file, and the optional `readRange` determines what range of lines will be read from the specified file.\n * If the file exceeds 200K characters, this tool will only read the first 200K characters of the file with a `truncated=true` in the output',
             inputSchema: {
                 type: 'object',
                 properties: {
