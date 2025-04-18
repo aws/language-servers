@@ -23,7 +23,7 @@ import * as ignore from 'ignore'
 import { fdir } from 'fdir'
 
 const LIBRARY_DIR = (() => {
-    if (require.main) {
+    if (require.main?.filename) {
         return path.join(dirname(require.main.filename), 'indexing')
     }
     return path.join(__dirname, 'indexing')
