@@ -61,10 +61,10 @@ export const QConfigurationServerToken =
             )
 
             /* 
-                Calling handleDidChangeConfiguration once to ensure we get configuration atleast once at start up
-                
-                TODO: TODO: consider refactoring such responsibilities to common service manager config/initialisation server
-            */
+                            Calling handleDidChangeConfiguration once to ensure we get configuration atleast once at start up
+                            
+                            TODO: TODO: consider refactoring such responsibilities to common service manager config/initialisation server
+                        */
             await amazonQServiceManager.handleDidChangeConfiguration()
         })
 
@@ -80,8 +80,10 @@ export const QConfigurationServerToken =
                         case Q_CONFIGURATION_SECTION:
                             ;[customizations, developerProfiles] = await Promise.all([
                                 serverConfigurationProvider.listAvailableCustomizations(),
-                                serverConfigurationProvider.listAvailableProfiles(),
+                                serverConfigurationProvider.listAvailableProfiles(token),
                             ])
+
+                            throwIfCancelled(token)
 
                             return amazonQServiceManager.getEnableDeveloperProfileSupport()
                                 ? { customizations, developerProfiles }
@@ -91,7 +93,9 @@ export const QConfigurationServerToken =
 
                             return customizations
                         case Q_DEVELOPER_PROFILES_CONFIGURATION_SECTION:
-                            developerProfiles = await serverConfigurationProvider.listAvailableProfiles()
+                            developerProfiles = await serverConfigurationProvider.listAvailableProfiles(token)
+
+                            throwIfCancelled(token)
 
                             return developerProfiles
                         default:
@@ -115,6 +119,12 @@ export const QConfigurationServerToken =
         return () => {}
     }
 
+function throwIfCancelled(token: CancellationToken) {
+    if (token.isCancellationRequested) {
+        throw new ResponseError(LSPErrorCodes.RequestCancelled, 'Request cancelled')
+    }
+}
+
 const ON_GET_CONFIGURATION_FROM_SERVER_ERROR_PREFIX = 'Failed to fetch: '
 
 export class ServerConfigurationProvider {
@@ -130,7 +140,7 @@ export class ServerConfigurationProvider {
         )
     }
 
-    async listAvailableProfiles(): Promise<AmazonQDeveloperProfile[]> {
+    async listAvailableProfiles(token: CancellationToken): Promise<AmazonQDeveloperProfile[]> {
         if (!this.serviceManager.getEnableDeveloperProfileSupport()) {
             this.logging.debug('Q developer profiles disabled - returning empty list')
             return []
@@ -140,6 +150,7 @@ export class ServerConfigurationProvider {
             const profiles = await this.listAllAvailableProfilesHandler({
                 connectionType: this.credentialsProvider.getConnectionType(),
                 logging: this.logging,
+                token: token,
             })
 
             return profiles

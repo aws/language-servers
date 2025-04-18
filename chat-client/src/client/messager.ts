@@ -29,6 +29,7 @@ import {
     FileClickParams,
     FilterValue,
     FollowUpClickParams,
+    GetSerializedChatResult,
     InfoLinkClickParams,
     LinkClickParams,
     ListConversationsParams,
@@ -36,6 +37,7 @@ import {
     QuickActionParams,
     SourceLinkClickParams,
     TabAddParams,
+    TabBarActionParams,
     TabChangeParams,
     TabRemoveParams,
 } from '@aws/language-server-runtimes-types'
@@ -83,6 +85,8 @@ export interface OutboundChatApi {
     fileClick(params: FileClickParams): void
     listConversations(params: ListConversationsParams): void
     conversationClick(params: ConversationClickParams): void
+    tabBarAction(params: TabBarActionParams): void
+    onGetSerializedChat(requestId: string, result: GetSerializedChatResult | ErrorResult): void
 }
 
 export class Messager {
@@ -196,5 +200,13 @@ export class Messager {
 
     onConversationClick = (conversationId: string, action?: ConversationAction): void => {
         this.chatApi.conversationClick({ id: conversationId, action })
+    }
+
+    onTabBarAction = (params: TabBarActionParams): void => {
+        this.chatApi.tabBarAction(params)
+    }
+
+    onGetSerializedChat = (requestId: string, result: GetSerializedChatResult | ErrorResult): void => {
+        this.chatApi.onGetSerializedChat(requestId, result)
     }
 }

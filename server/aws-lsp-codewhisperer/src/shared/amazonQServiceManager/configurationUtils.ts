@@ -67,10 +67,23 @@ interface QInlineSuggestionsConfig {
     extraContext: string | undefined // aws.q.inlineSuggestions.extraContext
 }
 
+interface LocalIndexConfig {
+    ignoreFilePatterns?: string[]
+    maxFileSizeMB?: number
+    maxIndexSizeMB?: number
+    indexCacheDirPath?: string
+}
+
+interface QProjectContextConfig {
+    enableLocalIndexing: boolean // aws.q.projectContext.enableLocalIndexing
+    localIndexing?: LocalIndexConfig
+}
+
 interface QConfigSection {
     customizationArn: string | undefined // aws.q.customization - selected customization
     optOutTelemetryPreference: 'OPTOUT' | 'OPTIN' // aws.q.optOutTelemetry - telemetry optout option
     inlineSuggestions: QInlineSuggestionsConfig
+    projectContext: QProjectContextConfig
 }
 
 interface CodeWhispererConfigSection {
@@ -104,6 +117,15 @@ export async function getAmazonQRelatedWorkspaceConfigs(
                 optOutTelemetryPreference: newQConfig['optOutTelemetry'] === true ? 'OPTOUT' : 'OPTIN',
                 inlineSuggestions: {
                     extraContext: textUtils.undefinedIfEmpty(newQConfig.inlineSuggestions?.extraContext),
+                },
+                projectContext: {
+                    enableLocalIndexing: newQConfig.projectContext?.enableLocalIndexing === true,
+                    localIndexing: {
+                        ignoreFilePatterns: newQConfig.projectContext?.localIndexing?.ignoreFilePatterns ?? [],
+                        maxFileSizeMB: newQConfig.projectContext?.localIndexing?.maxFileSizeMB ?? 10,
+                        maxIndexSizeMB: newQConfig.projectContext?.localIndexing?.maxIndexSizeMB ?? 2048,
+                        indexCacheDirPath: newQConfig.projectContext?.localIndexing?.indexCacheDirPath ?? undefined,
+                    },
                 },
             }
 
@@ -150,6 +172,15 @@ export const defaultAmazonQWorkspaceConfigFactory = (): AmazonQWorkspaceConfig =
         },
         includeSuggestionsWithCodeReferences: false,
         shareCodeWhispererContentWithAWS: false,
+        projectContext: {
+            enableLocalIndexing: false,
+            localIndexing: {
+                ignoreFilePatterns: [],
+                maxFileSizeMB: 10,
+                maxIndexSizeMB: 2048,
+                indexCacheDirPath: undefined,
+            },
+        },
     }
 }
 

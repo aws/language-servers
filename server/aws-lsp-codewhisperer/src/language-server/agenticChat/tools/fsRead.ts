@@ -1,6 +1,6 @@
 import { sanitize } from '@aws/lsp-core/out/util/path'
 import { URI } from 'vscode-uri'
-import { CommandValidation, InvokeOutput } from './toolShared'
+import { CommandValidation, InvokeOutput, validatePath } from './toolShared'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 
 // Port of https://github.com/aws/aws-toolkit-vscode/blob/5a0404eb0e2c637ca3bd119714f5c7a24634f746/packages/core/src/codewhispererChat/tools/fsRead.ts#L17
@@ -21,17 +21,7 @@ export class FsRead {
     }
 
     public async validate(params: FsReadParams): Promise<void> {
-        this.logging.debug(`Validating path: ${params.path}`)
-        if (!params.path || params.path.trim().length === 0) {
-            throw new Error('Path cannot be empty.')
-        }
-
-        const fileExists = await this.workspace.fs.exists(params.path)
-        if (!fileExists) {
-            throw new Error(`Path: "${params.path}" does not exist or cannot be accessed.`)
-        }
-
-        this.logging.debug(`Validation succeeded for path: ${params.path}`)
+        await validatePath(params.path, this.workspace.fs.exists)
     }
 
     public async queueDescription(params: FsReadParams, updates: WritableStream, requiresAcceptance: boolean) {
@@ -138,7 +128,8 @@ export class FsRead {
                 type: 'object',
                 properties: {
                     path: {
-                        description: 'Absolute path to a file, e.g. `/repo/file.py`.',
+                        description:
+                            'Path to a file, e.g. `/path/to/repo/file.py`. If you want to access a path relative to the current workspace, use relative paths e.g. `./src/file.py`.',
                         type: 'string',
                     },
                     readRange: {

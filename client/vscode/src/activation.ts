@@ -24,6 +24,7 @@ import { registerIdentity } from './identityActivation'
 import { registerNotification } from './notificationActivation'
 import { registerQProfileSelection } from './selectQProfileActivation'
 import { registerAwsQSection } from './awsQSectionActivation'
+import { AWSInitializationOptions } from '@aws/language-server-runtimes/protocol'
 
 export async function activateDocumentsLanguageServer(extensionContext: ExtensionContext) {
     /**
@@ -160,9 +161,10 @@ export async function activateDocumentsLanguageServer(extensionContext: Extensio
                     },
                     window: {
                         notifications: true,
+                        showSaveFileDialog: true,
                     },
                 },
-            },
+            } as AWSInitializationOptions,
         },
         synchronize: {
             fileEvents: workspace.createFileSystemWatcher(

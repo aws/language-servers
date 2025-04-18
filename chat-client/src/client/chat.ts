@@ -45,6 +45,9 @@ import {
     FeedbackParams,
     FileClickParams,
     FollowUpClickParams,
+    GET_SERIALIZED_CHAT_REQUEST_METHOD,
+    GetSerializedChatParams,
+    GetSerializedChatResult,
     INFO_LINK_CLICK_NOTIFICATION_METHOD,
     InfoLinkClickParams,
     LINK_CLICK_NOTIFICATION_METHOD,
@@ -61,9 +64,11 @@ import {
     SOURCE_LINK_CLICK_NOTIFICATION_METHOD,
     SourceLinkClickParams,
     TAB_ADD_NOTIFICATION_METHOD,
+    TAB_BAR_ACTION_REQUEST_METHOD,
     TAB_CHANGE_NOTIFICATION_METHOD,
     TAB_REMOVE_NOTIFICATION_METHOD,
     TabAddParams,
+    TabBarActionParams,
     TabChangeParams,
     TabRemoveParams,
 } from '@aws/language-server-runtimes-types'
@@ -146,6 +151,9 @@ export const createChat = (
             case CONVERSATION_CLICK_REQUEST_METHOD:
                 mynahApi.conversationClicked(message.params as ConversationClickResult)
                 break
+            case GET_SERIALIZED_CHAT_REQUEST_METHOD:
+                mynahApi.getSerializedChat(message.requestId, message.params as GetSerializedChatParams)
+                break
             case CHAT_OPTIONS: {
                 const params = (message as ChatOptionsMessage).params
                 if (params?.quickActions?.quickActionsCommandGroups) {
@@ -157,6 +165,14 @@ export const createChat = (
                         })),
                     }))
                     tabFactory.updateQuickActionCommands(quickActionCommandGroups)
+                }
+
+                if (params?.history) {
+                    tabFactory.enableHistory()
+                }
+
+                if (params?.export) {
+                    tabFactory.enableExport()
                 }
 
                 const allExistingTabs: MynahUITabStoreModel = mynahUi.getAllTabs()
@@ -256,6 +272,30 @@ export const createChat = (
         },
         conversationClick: (params: ConversationClickParams) => {
             sendMessageToClient({ command: CONVERSATION_CLICK_REQUEST_METHOD, params })
+        },
+        tabBarAction: (params: TabBarActionParams) => {
+            sendMessageToClient({ command: TAB_BAR_ACTION_REQUEST_METHOD, params })
+        },
+        onGetSerializedChat: (requestId: string, params: GetSerializedChatResult | ErrorResult) => {
+            if ('content' in params) {
+                sendMessageToClient({
+                    requestId: requestId,
+                    command: GET_SERIALIZED_CHAT_REQUEST_METHOD,
+                    params: {
+                        success: true,
+                        result: params as GetSerializedChatResult,
+                    },
+                })
+            } else {
+                sendMessageToClient({
+                    requestId: requestId,
+                    command: GET_SERIALIZED_CHAT_REQUEST_METHOD,
+                    params: {
+                        success: false,
+                        error: params as ErrorResult,
+                    },
+                })
+            }
         },
     }
 
