@@ -113,7 +113,7 @@ export class LocalProjectContextController {
                 LocalProjectContextController.instance = this
 
                 const contextItems = await this.getContextCommandItems()
-                await this.contextCommandsProvider?.processContextCommandUpdate(contextItems)
+                await this.contextCommandsProvider.processContextCommandUpdate(contextItems)
                 void this.maybeUpdateCodeSymbols()
             } else {
                 this.log.warn(`Vector library could not be imported from: ${libraryPath}`)
@@ -128,7 +128,7 @@ export class LocalProjectContextController {
             await this._vecLib?.clear?.()
             this._vecLib = undefined
         }
-        this.contextCommandsProvider?.dispose()
+        this.contextCommandsProvider.dispose()
     }
 
     public async updateIndex(filePaths: string[], operation: UpdateMode): Promise<void> {
@@ -273,7 +273,7 @@ export class LocalProjectContextController {
         const needUpdate = await LocalProjectContextController.getInstance().shouldUpdateContextCommandSymbolsOnce()
         if (needUpdate) {
             const items = await this.getContextCommandItems()
-            await this.contextCommandsProvider?.processContextCommandUpdate(items)
+            await this.contextCommandsProvider.processContextCommandUpdate(items)
         }
     }
 
