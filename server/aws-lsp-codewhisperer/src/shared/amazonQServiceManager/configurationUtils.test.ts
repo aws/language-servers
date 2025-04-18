@@ -21,6 +21,12 @@ describe('getAmazonQRelatedWorkspaceConfigs', () => {
             enableLocalIndexing: true,
             enableGpuAcceleration: true,
             indexWorkerThreads: 1,
+            localIndexing: {
+                ignoreFilePatterns: [],
+                maxFileSizeMB: 10,
+                maxIndexSizeMB: 2048,
+                indexCacheDirPath: undefined,
+            },
         },
     }
 
@@ -49,6 +55,7 @@ describe('getAmazonQRelatedWorkspaceConfigs', () => {
                 enableLocalIndexing: MOCKED_AWS_Q_SECTION.projectContext.enableLocalIndexing,
                 enableGpuAcceleration: MOCKED_AWS_Q_SECTION.projectContext?.enableGpuAcceleration,
                 indexWorkerThreads: MOCKED_AWS_Q_SECTION.projectContext?.indexWorkerThreads,
+                localIndexing: MOCKED_AWS_Q_SECTION.projectContext.localIndexing,
             },
         }
 
@@ -95,6 +102,12 @@ describe('AmazonQConfigurationCache', () => {
                 enableLocalIndexing: true,
                 enableGpuAcceleration: true,
                 indexWorkerThreads: 1,
+                localIndexing: {
+                    ignoreFilePatterns: [],
+                    maxFileSizeMB: 10,
+                    maxIndexSizeMB: 2048,
+                    indexCacheDirPath: undefined,
+                },
             },
         }
     })

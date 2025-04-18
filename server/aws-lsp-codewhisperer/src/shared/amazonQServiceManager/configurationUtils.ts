@@ -67,10 +67,18 @@ interface QInlineSuggestionsConfig {
     extraContext: string | undefined // aws.q.inlineSuggestions.extraContext
 }
 
+interface LocalIndexConfig {
+    ignoreFilePatterns?: string[]
+    maxFileSizeMB?: number
+    maxIndexSizeMB?: number
+    indexCacheDirPath?: string
+}
+
 interface QProjectContextConfig {
     enableLocalIndexing: boolean // aws.q.projectContext.enableLocalIndexing
     enableGpuAcceleration: boolean // aws.q.projectContext.enableGpuAcceleration
     indexWorkerThreads: number // aws.q.projectContext.indexWorkerThreads
+    localIndexing?: LocalIndexConfig
 }
 
 interface QConfigSection {
@@ -116,6 +124,12 @@ export async function getAmazonQRelatedWorkspaceConfigs(
                     enableLocalIndexing: newQConfig.projectContext?.enableLocalIndexing === true,
                     enableGpuAcceleration: newQConfig.projectContext?.enableGpuAcceleration === true,
                     indexWorkerThreads: newQConfig.projectContext?.indexWorkerThreads ?? -1,
+                    localIndexing: {
+                        ignoreFilePatterns: newQConfig.projectContext?.localIndexing?.ignoreFilePatterns ?? [],
+                        maxFileSizeMB: newQConfig.projectContext?.localIndexing?.maxFileSizeMB ?? 10,
+                        maxIndexSizeMB: newQConfig.projectContext?.localIndexing?.maxIndexSizeMB ?? 2048,
+                        indexCacheDirPath: newQConfig.projectContext?.localIndexing?.indexCacheDirPath ?? undefined,
+                    },
                 },
             }
 
@@ -166,6 +180,12 @@ export const defaultAmazonQWorkspaceConfigFactory = (): AmazonQWorkspaceConfig =
             enableLocalIndexing: false,
             enableGpuAcceleration: false,
             indexWorkerThreads: -1,
+            localIndexing: {
+                ignoreFilePatterns: [],
+                maxFileSizeMB: 10,
+                maxIndexSizeMB: 2048,
+                indexCacheDirPath: undefined,
+            },
         },
     }
 }
