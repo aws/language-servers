@@ -29,8 +29,8 @@ export const FsToolsServer: Server = ({ workspace, logging, agent }) => {
     return () => {}
 }
 
-export const BashToolsServer: Server = ({ logging, agent }) => {
-    const bashTool = new ExecuteBash(logging)
+export const BashToolsServer: Server = ({ logging, workspace, agent }) => {
+    const bashTool = new ExecuteBash({ logging, workspace })
     agent.addTool(bashTool.getSpec(), (input: ExecuteBashParams) => bashTool.invoke(input))
     return () => {}
 }

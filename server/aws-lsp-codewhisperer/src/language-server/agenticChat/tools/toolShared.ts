@@ -1,13 +1,11 @@
+interface Output<Kind, Content> {
+    kind: Kind
+    content: Content
+    success?: boolean
+}
+
 export interface InvokeOutput {
-    output:
-        | {
-              kind: 'text'
-              content: string
-          }
-        | {
-              kind: 'json'
-              content: object
-          }
+    output: Output<'text', string> | Output<'json', object>
 }
 
 export interface CommandValidation {
