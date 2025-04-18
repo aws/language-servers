@@ -128,7 +128,7 @@ export class LocalProjectContextController {
             await this._vecLib?.clear?.()
             this._vecLib = undefined
         }
-        this.contextCommandsProvider.dispose()
+        this.contextCommandsProvider?.dispose()
     }
 
     public async updateIndex(filePaths: string[], operation: UpdateMode): Promise<void> {
@@ -295,7 +295,7 @@ export class LocalProjectContextController {
         return true
     }
 
-    public async processWorkspaceFolders(
+    private async processWorkspaceFolders(
         workspaceFolders?: WorkspaceFolder[] | null,
         ignoreFilePatterns?: string[],
         respectUserGitIgnores?: boolean,
