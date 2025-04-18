@@ -113,7 +113,7 @@ export class LocalProjectContextController {
                 LocalProjectContextController.instance = this
 
                 const contextItems = await this.getContextCommandItems()
-                await this.contextCommandsProvider.processContextCommandUpdate(contextItems)
+                await this.contextCommandsProvider?.processContextCommandUpdate(contextItems)
                 void this.maybeUpdateCodeSymbols()
             } else {
                 this.log.warn(`Vector library could not be imported from: ${libraryPath}`)
@@ -273,7 +273,7 @@ export class LocalProjectContextController {
         const needUpdate = await LocalProjectContextController.getInstance().shouldUpdateContextCommandSymbolsOnce()
         if (needUpdate) {
             const items = await this.getContextCommandItems()
-            await this.contextCommandsProvider.processContextCommandUpdate(items)
+            await this.contextCommandsProvider?.processContextCommandUpdate(items)
         }
     }
 
@@ -295,7 +295,7 @@ export class LocalProjectContextController {
         return true
     }
 
-    private async processWorkspaceFolders(
+    public async processWorkspaceFolders(
         workspaceFolders?: WorkspaceFolder[] | null,
         ignoreFilePatterns?: string[],
         respectUserGitIgnores?: boolean,
@@ -332,11 +332,14 @@ export class LocalProjectContextController {
                     .withSymlinks({ resolvePaths: !includeSymLinks })
                     .withAbortSignal(controller.signal)
                     .exclude((dirName: string, dirPath: string) => {
-                        return filter.ignores(path.relative(absolutePath, dirPath))
+                        const relativePath = path.relative(absolutePath, dirPath)
+                        return relativePath.startsWith('..') || filter.ignores(relativePath)
                     })
                     .glob(...(fileExtensions?.map(ext => `**/*${ext}`) ?? []), '**/.gitignore')
                     .filter((filePath: string, isDirectory: boolean) => {
-                        if (isDirectory || filter.ignores(path.relative(absolutePath, filePath))) {
+                        const relativePath = path.relative(absolutePath, filePath)
+
+                        if (isDirectory || relativePath.startsWith('..') || filter.ignores(relativePath)) {
                             return false
                         }
 
