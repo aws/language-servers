@@ -122,8 +122,8 @@ export async function getAmazonQRelatedWorkspaceConfigs(
                     enableLocalIndexing: newQConfig.projectContext?.enableLocalIndexing === true,
                     localIndexing: {
                         ignoreFilePatterns: newQConfig.projectContext?.localIndexing?.ignoreFilePatterns ?? [],
-                        maxFileSizeMB: newQConfig.projectContext?.localIndexing?.maxFileSizeMb ?? 10,
-                        maxIndexSizeMB: newQConfig.projectContext?.localIndexing?.maxIndexSizeMb ?? 2048,
+                        maxFileSizeMB: newQConfig.projectContext?.localIndexing?.maxFileSizeMB ?? 10,
+                        maxIndexSizeMB: newQConfig.projectContext?.localIndexing?.maxIndexSizeMB ?? 2048,
                         indexCacheDirPath: newQConfig.projectContext?.localIndexing?.indexCacheDirPath ?? undefined,
                     },
                 },
