@@ -26,7 +26,7 @@ export class AgenticChatEventParser implements ChatResult {
 
     error?: string
     messageId?: string
-    body?: string
+    body: string = ''
     canBeVoted?: boolean
     relatedContent?: { title?: string; content: SourceLink[] }
     followUp?: { text?: string; options?: ChatItemAction[] }
@@ -117,7 +117,7 @@ export class AgenticChatEventParser implements ChatResult {
                 this.contextList = contextList
             }
             this.#totalEvents.assistantResponseEvent += 1
-            this.body = (this.body ?? '') + assistantResponseEvent.content
+            this.body = this.body + assistantResponseEvent.content
         } else if (toolUseEvent) {
             this.#totalEvents.toolUserEvent += 1
 
