@@ -17,6 +17,7 @@ describe('AgenticChatTriggerContext', () => {
     let testFeatures: TestFeatures
 
     const filePath = 'file://test.ts'
+    const mockWorkspaceFolders = [{ uri: URI.file('/path/to/my/workspace/').toString(), name: 'myWorkspace' }]
     const mockTSDocument = TextDocument.create(filePath, 'typescript', 1, '')
     const mockDocumentContext: DocumentContext = {
         text: '',
@@ -29,7 +30,7 @@ describe('AgenticChatTriggerContext', () => {
     beforeEach(() => {
         testFeatures = new TestFeatures()
         testFeatures.lsp.getClientInitializeParams.returns({
-            workspaceFolders: [{ uri: URI.file('/path/to/my/workspace/').toString(), name: 'myWorkspace' }],
+            workspaceFolders: mockWorkspaceFolders,
         } as InitializeParams)
         sinon.stub(DocumentContextExtractor.prototype, 'extractDocumentContext').resolves(mockDocumentContext)
     })
@@ -119,12 +120,12 @@ describe('AgenticChatTriggerContext', () => {
         assert.deepStrictEqual(
             chatParams.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext?.editorState
                 ?.workspaceFolders,
-            ['/path/to/my/workspace/']
+            mockWorkspaceFolders.map(f => URI.parse(f.uri).fsPath)
         )
         assert.deepStrictEqual(
             chatParamsWithMore.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext?.editorState
                 ?.workspaceFolders,
-            ['/path/to/my/workspace/']
+            mockWorkspaceFolders.map(f => URI.parse(f.uri).fsPath)
         )
     })
 })
