@@ -11,12 +11,6 @@ describe('FsRead Tool', () => {
     let features: TestFeatures
     let tempFolder: testFolder.TestFolder
 
-    const stdout = new WritableStream({
-        write(chunk) {
-            process.stdout.write(chunk)
-        },
-    })
-
     before(async () => {
         features = new TestFeatures()
         features.workspace = {
@@ -69,12 +63,8 @@ describe('FsRead Tool', () => {
         const fsRead = new FsRead(features)
         await fsRead.validate({ path: filePath })
         const result = await fsRead.invoke({ path: filePath })
-        assert.strictEqual(result.output.kind, 'text', 'Output kind should be "text"')
-        assert.strictEqual(
-            result.output.content.length,
-            FsRead.maxResponseSize,
-            'Output should be truncated to the max size'
-        )
+
+        verifyResult(result, { truncated: true }, ({ content }) => content.length === FsRead.maxResponseSize)
     })
 
     it('reads entire file', async () => {
@@ -83,9 +73,7 @@ describe('FsRead Tool', () => {
 
         const fsRead = new FsRead(features)
         const result = await fsRead.invoke({ path: filePath })
-
-        assert.strictEqual(result.output.kind, 'text', 'Output kind should be "text"')
-        assert.strictEqual(result.output.content, fileContent, 'File content should match exactly')
+        verifyResult(result, { content: fileContent, truncated: false })
     })
 
     it('reads partial lines of a file', async () => {
@@ -94,9 +82,7 @@ describe('FsRead Tool', () => {
 
         const fsRead = new FsRead(features)
         const result = await fsRead.invoke({ path: filePath, readRange: [2, 4] })
-
-        assert.strictEqual(result.output.kind, 'text')
-        assert.strictEqual(result.output.content, 'B\nC\nD')
+        verifyResult(result, { content: 'B\nC\nD', truncated: false })
     })
 
     it('invalid line range', async () => {
@@ -105,8 +91,7 @@ describe('FsRead Tool', () => {
 
         await fsRead.invoke({ path: filePath, readRange: [3, 2] })
         const result = await fsRead.invoke({ path: filePath, readRange: [3, 2] })
-        assert.strictEqual(result.output.kind, 'text')
-        assert.strictEqual(result.output.content, '')
+        verifyResult(result, { content: '', truncated: false })
     })
 
     it('updates the stream', async () => {
@@ -154,3 +139,21 @@ describe('FsRead Tool', () => {
         )
     })
 })
+
+function verifyResult(
+    result: any,
+    expected: { content?: string; truncated: boolean },
+    customChecks?: (r: { content: string; truncated: boolean }) => boolean
+) {
+    assert.strictEqual(result.output.kind, 'json', 'Output kind should be "json"')
+    const resultContent = result.output.content as { content: string; truncated: boolean }
+    if (expected.content) {
+        assert.strictEqual(resultContent.content, expected.content, 'File content should match exactly')
+    }
+    if (expected.truncated !== undefined) {
+        assert.strictEqual(resultContent.truncated, expected.truncated, 'Truncated flag should match')
+    }
+    if (customChecks) {
+        assert.ok(customChecks(resultContent), 'Custom checks failed in verifyResult')
+    }
+}
