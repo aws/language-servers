@@ -263,7 +263,7 @@ describe('crossFileContextUtil', function () {
                 1,
                 'line_1\nline_2\nline_3\nline_4\nline_5\nline_6\nline_7'
             )
-            sandbox.stub(LocalProjectContextController, 'getInstance').returns({
+            sandbox.stub(LocalProjectContextController, 'getInstance').resolves({
                 queryInlineProjectContext: sandbox.stub().resolves([]),
             } as unknown as LocalProjectContextController)
 
@@ -286,7 +286,7 @@ describe('crossFileContextUtil', function () {
                 'line_1\nline_2\nline_3\nline_4\nline_5\nline_6\nline_7'
             )
 
-            sandbox.stub(LocalProjectContextController, 'getInstance').returns({
+            sandbox.stub(LocalProjectContextController, 'getInstance').resolves({
                 queryInlineProjectContext: sandbox
                     .stub()
                     .resolves([{ content: 'someOtherContet', filePath: '/path/', score: 29.879 }]),
@@ -313,7 +313,7 @@ describe('crossFileContextUtil', function () {
             // Open files for openTabsContext to find
             features.openDocument(TextDocument.create('file:///OpenFile.java', 'java', 1, 'sample-content'))
             // Return [] for fetchProjectContext
-            sandbox.stub(LocalProjectContextController, 'getInstance').returns({
+            sandbox.stub(LocalProjectContextController, 'getInstance').resolves({
                 queryInlineProjectContext: sandbox.stub().resolves([]),
             } as unknown as LocalProjectContextController)
 

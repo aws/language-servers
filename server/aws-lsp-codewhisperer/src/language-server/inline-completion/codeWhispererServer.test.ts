@@ -547,7 +547,7 @@ describe('CodeWhisperer Server', () => {
                     })
                 )
 
-                sandbox.stub(LocalProjectContextController, 'getInstance').returns({
+                sandbox.stub(LocalProjectContextController, 'getInstance').resolves({
                     queryInlineProjectContext: sandbox.stub().resolves([]),
                 } as unknown as LocalProjectContextController)
 
