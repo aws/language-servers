@@ -164,4 +164,4 @@ const mainWebpageConfig = {
     },
 }
 
-module.exports = [nodeJsBearerTokenBundleConfig, nodeJsIamBundleConfig, webworkerConfig, mainWebpageConfig]
+module.exports = [nodeJsBearerTokenBundleConfig, nodeJsIamBundleConfig]

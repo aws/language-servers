@@ -56,6 +56,7 @@ export interface InboundChatApi {
     listConversations(params: ListConversationsResult): void
     conversationClicked(params: ConversationClickResult): void
     getSerializedChat(requestId: string, params: GetSerializedChatParams): void
+    createTabId(needWelcomeMessages?: boolean, chatMessages?: ChatMessage[]): string | undefined
 }
 
 type ContextCommandGroups = MynahUIDataModel['contextCommands']
@@ -180,17 +181,18 @@ export const createMynahUi = (
         },
         onReady: () => {
             messager.onUiReady()
-            messager.onTabAdd(initialTabId)
         },
         onFileClick: (tabId: string, filePath: string) => {
             messager.onFileClick({ tabId, filePath })
         },
         onTabAdd: (tabId: string) => {
+            const chatMessages = tabFactory.getChatItems(true, [])
             const defaultTabBarData = tabFactory.getDefaultTabData()
             const defaultTabConfig: Partial<MynahUIDataModel> = {
                 quickActionCommands: defaultTabBarData.quickActionCommands,
                 tabBarButtons: defaultTabBarData.tabBarButtons,
                 contextCommands: contextCommandGroups,
+                chatItems: chatMessages,
                 ...(disclaimerCardActive ? { promptInputStickyCard: disclaimerCard } : {}),
             }
             mynahUi.updateStore(tabId, defaultTabConfig)
@@ -357,12 +359,7 @@ export const createMynahUi = (
     }
 
     const mynahUiProps: MynahUIProps = {
-        tabs: {
-            [initialTabId]: {
-                isSelected: true,
-                store: tabFactory.createTab(true, disclaimerCardActive),
-            },
-        },
+        tabs: {},
         defaults: {
             store: tabFactory.createTab(true, false),
         },
@@ -658,6 +655,7 @@ ${params.message}`,
         listConversations: listConversations,
         conversationClicked: conversationClicked,
         getSerializedChat: getSerializedChat,
+        createTabId: createTabId,
     }
 
     return [mynahUi, api]

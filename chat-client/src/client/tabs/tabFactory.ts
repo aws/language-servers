@@ -27,7 +27,8 @@ export class TabFactory {
 
     constructor(
         private defaultTabData: DefaultTabData,
-        private quickActionCommands?: QuickActionCommandGroup[]
+        private quickActionCommands?: QuickActionCommandGroup[],
+        private bannerMessage?: ChatMessage
     ) {}
 
     public createTab(
@@ -37,7 +38,15 @@ export class TabFactory {
     ): MynahUIDataModel {
         const tabData: MynahUIDataModel = {
             ...this.getDefaultTabData(),
-            chatItems: needWelcomeMessages
+            ...(disclaimerCardActive ? { promptInputStickyCard: disclaimerCard } : {}),
+        }
+        return tabData
+    }
+
+    public getChatItems(needWelcomeMessages: boolean, chatMessages?: ChatMessage[]): ChatItem[] {
+        return [
+            ...(this.bannerMessage ? [this.getProfileBanner() as ChatItem] : []),
+            ...(needWelcomeMessages
                 ? [
                       {
                           type: ChatItemType.ANSWER,
@@ -52,10 +61,8 @@ export class TabFactory {
                   ]
                 : chatMessages
                   ? (chatMessages as ChatItem[])
-                  : [],
-            ...(disclaimerCardActive ? { promptInputStickyCard: disclaimerCard } : {}),
-        }
-        return tabData
+                  : []),
+        ]
     }
 
     public updateQuickActionCommands(quickActionCommands: QuickActionCommandGroup[]) {
@@ -78,6 +85,25 @@ export class TabFactory {
 
         tabData.tabBarButtons = this.getTabBarButtons()
         return tabData
+    }
+
+    public setProfileBanner(messages: ChatMessage[] | undefined) {
+        if (messages?.length) {
+            // For now this messages array is only populated with banner data hence we use the first item
+            this.bannerMessage = messages[0]
+        }
+    }
+
+    public getProfileBanner(): ChatItem | undefined {
+        if (this.bannerMessage) {
+            return {
+                type: ChatItemType.ANSWER,
+                status: 'info',
+                messageId: 'regionProfile',
+                ...this.bannerMessage,
+            } as ChatItem
+        }
+        return undefined
     }
 
     private getWelcomeBlock() {

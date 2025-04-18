@@ -30,10 +30,12 @@ import {
     UiResultMessage,
 } from '@aws/chat-client-ui-types'
 import {
+    CHAT_OPTIONS_UPDATE_NOTIFICATION_METHOD,
     CHAT_REQUEST_METHOD,
     CONTEXT_COMMAND_NOTIFICATION_METHOD,
     CONVERSATION_CLICK_REQUEST_METHOD,
     CREATE_PROMPT_NOTIFICATION_METHOD,
+    ChatOptionsUpdateParams,
     ChatParams,
     ContextCommandParams,
     ConversationClickParams,
@@ -72,7 +74,7 @@ import {
     TabChangeParams,
     TabRemoveParams,
 } from '@aws/language-server-runtimes-types'
-import { MynahUIDataModel, MynahUITabStoreModel } from '@aws/mynah-ui'
+import { MynahUIDataModel } from '@aws/mynah-ui'
 import { ServerMessage, TELEMETRY, TelemetryParams } from '../contracts/serverContracts'
 import { Messager, OutboundChatApi } from './messager'
 import { InboundChatApi, createMynahUi } from './mynahUi'
@@ -154,8 +156,16 @@ export const createChat = (
             case GET_SERIALIZED_CHAT_REQUEST_METHOD:
                 mynahApi.getSerializedChat(message.requestId, message.params as GetSerializedChatParams)
                 break
+            case CHAT_OPTIONS_UPDATE_NOTIFICATION_METHOD:
+                tabFactory.setProfileBanner((message.params as ChatOptionsUpdateParams).chatNotifications)
+                break
             case CHAT_OPTIONS: {
                 const params = (message as ChatOptionsMessage).params
+
+                if (params?.chatNotifications) {
+                    tabFactory.setProfileBanner((message.params as ChatOptionsUpdateParams).chatNotifications)
+                }
+
                 if (params?.quickActions?.quickActionsCommandGroups) {
                     const quickActionCommandGroups = params.quickActions.quickActionsCommandGroups.map(group => ({
                         ...group,
@@ -175,10 +185,8 @@ export const createChat = (
                     tabFactory.enableExport()
                 }
 
-                const allExistingTabs: MynahUITabStoreModel = mynahUi.getAllTabs()
-                for (const tabId in allExistingTabs) {
-                    mynahUi.updateStore(tabId, tabFactory.getDefaultTabData())
-                }
+                const initialTabId = mynahApi.createTabId(true)
+                if (initialTabId) mynahUi.selectTab(initialTabId)
                 break
             }
             default:
