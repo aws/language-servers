@@ -72,21 +72,7 @@ export async function fetchSupplementalContextForSrc(
     if (supplementalContextConfig === undefined) {
         return supplementalContextConfig
     }
-
-    if (supplementalContextConfig === 'OpenTabs_BM25') {
-        const opentabsContextPromise = waitUntil(
-            async function () {
-                return await fetchOpenTabsContext(document, position, workspace, cancellationToken)
-            },
-            { timeout: supplementalContextTimeoutInMs, interval: 5, truthy: false }
-        )
-        const supContext = (await opentabsContextPromise) ?? []
-        return {
-            supplementalContextItems: supContext,
-            strategy: supContext.length === 0 ? 'Empty' : 'OpenTabs_BM25',
-        }
-    }
-
+    //TODO: add logic for other strategies once available
     if (supplementalContextConfig === 'codemap') {
         return await codemapContext(document, position, workspace, cancellationToken)
     }
@@ -151,13 +137,18 @@ export async function fetchProjectContext(
 ): Promise<CodeWhispererSupplementalContextItem[]> {
     const inputChunk: Chunk = getInputChunk(document, position, crossFileContextConfig.numberOfLinesEachChunk)
     const fsPath = URI.parse(document.uri).fsPath
+    let controller: LocalProjectContextController
     const inlineProjectContextRequest: QueryInlineProjectContextRequestV2 = {
         query: inputChunk.content,
         filePath: fsPath,
         target,
     }
 
-    const controller = LocalProjectContextController.getInstance()
+    try {
+        controller = LocalProjectContextController.getInstance()
+    } catch (e) {
+        return []
+    }
     return controller.queryInlineProjectContext(inlineProjectContextRequest)
 }
 
