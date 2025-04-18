@@ -48,7 +48,6 @@ export async function readDirectoryRecursively(
             features.logging.warn(errMsg)
             continue
         }
-        // TODO: add tests here
         for (const entry of entries) {
             const childPath = getEntryPath(entry)
             if (options?.excludePatterns?.some(pattern => new RegExp(pattern).test(childPath))) {
@@ -65,18 +64,18 @@ export async function readDirectoryRecursively(
 }
 
 /**
- * Returns a prefix for a directory ('[DIR]'), symlink ('[LINK]'), or file ('[FILE]').
+ * Returns a prefix for a directory ('[D]'), symlink ('[L]'), or file ('[F]').
  */
 export function formatListing(entry: Dirent): string {
     let typeChar: string
     if (entry.isDirectory()) {
-        typeChar = '[DIR]'
+        typeChar = '[D]'
     } else if (entry.isSymbolicLink()) {
-        typeChar = '[LINK]'
+        typeChar = '[L]'
     } else if (entry.isFile()) {
-        typeChar = '[FILE]'
+        typeChar = '[F]'
     } else {
-        typeChar = '[UNKNOWN]'
+        typeChar = '[?]'
     }
     return `${typeChar} ${path.join(entry.parentPath, entry.name)}`
 }
