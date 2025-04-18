@@ -269,7 +269,7 @@ export class LocalProjectContextController {
         }
     }
 
-    private async maybeUpdateCodeSymbols() {
+    async maybeUpdateCodeSymbols() {
         const needUpdate = await LocalProjectContextController.getInstance().shouldUpdateContextCommandSymbolsOnce()
         if (needUpdate) {
             const items = await this.getContextCommandItems()

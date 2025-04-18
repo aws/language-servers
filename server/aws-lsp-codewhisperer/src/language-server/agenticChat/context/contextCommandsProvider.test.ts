@@ -1,6 +1,7 @@
 import { ContextCommandsProvider } from './contextCommandsProvider'
 import * as sinon from 'sinon'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
+import * as chokidar from 'chokidar'
 
 describe('ContextCommandsProvider', () => {
     let provider: ContextCommandsProvider
@@ -9,6 +10,10 @@ describe('ContextCommandsProvider', () => {
     let fsReadDirStub: sinon.SinonStub
 
     beforeEach(() => {
+        sinon.stub(chokidar, 'watch').returns({
+            on: sinon.stub(),
+            close: sinon.stub(),
+        } as unknown as chokidar.FSWatcher)
         testFeatures = new TestFeatures()
         fsExistsStub = sinon.stub()
         fsReadDirStub = sinon.stub()

@@ -1,11 +1,12 @@
 import { LocalProjectContextController } from './localProjectContextController'
-import { SinonStub, stub, assert as sinonAssert, match } from 'sinon'
+import { SinonStub, stub, assert as sinonAssert, match, restore } from 'sinon'
 import * as assert from 'assert'
 import * as fs from 'fs'
 import { Dirent } from 'fs'
 import * as path from 'path'
 import { URI } from 'vscode-uri'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
+import * as chokidar from 'chokidar'
 
 class LoggingMock {
     public error: SinonStub
@@ -40,6 +41,10 @@ describe('LocalProjectContextController', () => {
                 name: 'workspace1',
             },
         ]
+        stub(chokidar, 'watch').returns({
+            on: stub(),
+            close: stub(),
+        } as unknown as chokidar.FSWatcher)
 
         vectorLibMock = {
             start: stub().resolves({
@@ -72,10 +77,12 @@ describe('LocalProjectContextController', () => {
             testFeatures.chat,
             testFeatures.workspace
         )
+        stub(controller, 'maybeUpdateCodeSymbols').resolves()
     })
 
     afterEach(() => {
         fsStub.restore()
+        restore()
     })
 
     describe('init', () => {
