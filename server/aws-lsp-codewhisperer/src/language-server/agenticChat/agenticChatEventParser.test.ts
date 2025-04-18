@@ -34,6 +34,7 @@ describe('AgenticChatEventParser', () => {
                         codeReference: undefined,
                         followUp: undefined,
                         relatedContent: undefined,
+                        contextList: undefined,
                     },
                     conversationId: undefined,
                 },

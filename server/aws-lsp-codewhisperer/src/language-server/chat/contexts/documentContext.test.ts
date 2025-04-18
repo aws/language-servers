@@ -9,10 +9,13 @@ describe('DocumentContext', () => {
     const mockTypescriptCodeBlock = `function test() {
     console.log('test')
 }`
+
+    const mockWorkspaceFolder = {
+        uri: 'file://mock/workspace',
+        name: 'test',
+    }
     const mockWorkspace = {
-        getWorkspaceFolder: sinon.stub().returns({
-            uri: 'file://mock/workspace',
-        }),
+        getWorkspaceFolder: sinon.stub().returns(mockWorkspaceFolder),
         fs: {
             existsSync: sinon.stub().returns(true),
         },
@@ -48,6 +51,7 @@ describe('DocumentContext', () => {
                         },
                     },
                 },
+                workspaceFolder: mockWorkspaceFolder,
             }
 
             const result = await documentContextExtractor.extractDocumentContext(mockTSDocument, {
@@ -90,6 +94,7 @@ describe('DocumentContext', () => {
                         },
                     },
                 },
+                workspaceFolder: mockWorkspaceFolder,
             }
 
             const result = await documentContextExtractor.extractDocumentContext(mockTSDocument, {
@@ -131,6 +136,7 @@ describe('DocumentContext', () => {
                     end: { line: 0, character: 19 },
                 },
             },
+            workspaceFolder: mockWorkspaceFolder,
         }
         const result = await documentContextExtractor.extractDocumentContext(mockDocument, {
             range: {

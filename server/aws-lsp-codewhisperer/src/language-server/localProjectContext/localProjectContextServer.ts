@@ -6,7 +6,7 @@ import { languageByExtension } from '../../shared/languageDetection'
 import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
 
 export const LocalProjectContextServer = (): Server => features => {
-    const { credentialsProvider, telemetry, logging, lsp } = features
+    const { credentialsProvider, telemetry, logging, lsp, chat, workspace } = features
 
     let localProjectContextController: LocalProjectContextController
     let amazonQServiceManager: AmazonQTokenServiceManager
@@ -20,7 +20,9 @@ export const LocalProjectContextServer = (): Server => features => {
         localProjectContextController = new LocalProjectContextController(
             params.clientInfo?.name ?? 'unknown',
             params.workspaceFolders ?? [],
-            logging
+            logging,
+            chat,
+            workspace
         )
 
         const supportedFilePatterns = Object.keys(languageByExtension).map(ext => `**/*${ext}`)

@@ -171,9 +171,9 @@ If a file is not open, use the \`fsRead\` tool to read from disk. Use this tool 
             }, Promise.resolve<Record<string, string>>({}))
         )
 
-        chat.onChatPrompt((...params) => {
+        chat.onChatPrompt((params, token) => {
             logging.log('Received chat prompt')
-            return chatController.onChatPrompt(...params)
+            return chatController.onChatPrompt(params, token)
         })
 
         chat.onInlineChatPrompt((...params) => {
@@ -199,6 +199,14 @@ If a file is not open, use the \`fsRead\` tool to read from disk. Use this tool 
 
         chat.onConversationClick(params => {
             return chatController.onConversationClick(params)
+        })
+       
+        chat.onCreatePrompt((params) => {
+            return chatController.onCreatePrompt(params)
+        })
+
+        chat.onFileClicked((params) => {
+            return chatController.onFileClicked(params)
         })
 
         chat.onTabBarAction(params => {
