@@ -9,6 +9,9 @@ import { TextDocument } from 'vscode-languageserver-textdocument'
 import sinon = require('sinon')
 import { AgenticChatTriggerContext } from './agenticChatTriggerContext'
 import { DocumentContext, DocumentContextExtractor } from '../../chat/contexts/documentContext'
+import { ChatTriggerType, CursorState } from '@amzn/codewhisperer-streaming'
+import { URI } from 'vscode-uri'
+import { InitializeParams } from '@aws/language-server-runtimes/protocol'
 
 describe('AgenticChatTriggerContext', () => {
     let testFeatures: TestFeatures
@@ -25,6 +28,9 @@ describe('AgenticChatTriggerContext', () => {
 
     beforeEach(() => {
         testFeatures = new TestFeatures()
+        testFeatures.lsp.getClientInitializeParams.returns({
+            workspaceFolders: [{ uri: URI.file('/path/to/my/workspace/').toString(), name: 'myWorkspace' }],
+        } as InitializeParams)
         sinon.stub(DocumentContextExtractor.prototype, 'extractDocumentContext').resolves(mockDocumentContext)
     })
 
@@ -95,5 +101,30 @@ describe('AgenticChatTriggerContext', () => {
         })
 
         assert.deepStrictEqual(documentContext, mockDocumentContext)
+    })
+
+    it('includes workspace folders as part of editor state in chat params', async () => {
+        const triggerContext = new AgenticChatTriggerContext(testFeatures)
+        const chatParams = triggerContext.getChatParamsFromTrigger(
+            { tabId: 'tab', prompt: {} },
+            {},
+            ChatTriggerType.MANUAL
+        )
+        const chatParamsWithMore = triggerContext.getChatParamsFromTrigger(
+            { tabId: 'tab', prompt: {} },
+            { cursorState: {} as CursorState, relativeFilePath: '' },
+            ChatTriggerType.MANUAL
+        )
+
+        assert.deepStrictEqual(
+            chatParams.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext?.editorState
+                ?.workspaceFolders,
+            ['/path/to/my/workspace/']
+        )
+        assert.deepStrictEqual(
+            chatParamsWithMore.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext?.editorState
+                ?.workspaceFolders,
+            ['/path/to/my/workspace/']
+        )
     })
 })

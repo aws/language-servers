@@ -918,7 +918,7 @@ describe('AgenticChatController', () => {
                 extractDocumentContextStub.restore()
             })
 
-            it('leaves editor state as undefined if cursorState is not passed', async () => {
+            it('leaves cursorState as undefined if cursorState is not passed', async () => {
                 const documentContextObject = {
                     programmingLanguage: 'typescript',
                     cursorState: undefined,
@@ -941,12 +941,12 @@ describe('AgenticChatController', () => {
 
                 assert.strictEqual(
                     calledRequestInput.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext
-                        ?.editorState,
+                        ?.editorState?.cursorState,
                     undefined
                 )
             })
 
-            it('leaves editor state as undefined if relative file path is undefined', async () => {
+            it('leaves document as undefined if relative file path is undefined', async () => {
                 const documentContextObject = {
                     programmingLanguage: 'typescript',
                     cursorState: [],
@@ -968,7 +968,7 @@ describe('AgenticChatController', () => {
 
                 assert.strictEqual(
                     calledRequestInput.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext
-                        ?.editorState,
+                        ?.editorState?.document,
                     undefined
                 )
             })
@@ -1004,6 +1004,7 @@ describe('AgenticChatController', () => {
                             relativeFilePath: 'file:///test.ts',
                             text: undefined,
                         },
+                        workspaceFolders: [],
                     }
                 )
             })
@@ -1169,7 +1170,7 @@ describe('AgenticChatController', () => {
                 extractDocumentContextStub.restore()
             })
 
-            it('leaves editor state as undefined if cursorState is not passed', async () => {
+            it('leaves cursorState as undefined if cursorState is not passed', async () => {
                 const documentContextObject = {
                     programmingLanguage: 'typescript',
                     cursorState: undefined,
@@ -1190,12 +1191,12 @@ describe('AgenticChatController', () => {
 
                 assert.strictEqual(
                     calledRequestInput.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext
-                        ?.editorState,
+                        ?.editorState?.cursorState,
                     undefined
                 )
             })
 
-            it('leaves editor state as undefined if relative file path is undefined', async () => {
+            it('leaves document as undefined if relative file path is undefined', async () => {
                 const documentContextObject = {
                     programmingLanguage: 'typescript',
                     cursorState: [],
@@ -1215,7 +1216,7 @@ describe('AgenticChatController', () => {
 
                 assert.strictEqual(
                     calledRequestInput.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext
-                        ?.editorState,
+                        ?.editorState?.document,
                     undefined
                 )
             })
@@ -1249,6 +1250,7 @@ describe('AgenticChatController', () => {
                             relativeFilePath: 'file:///test.ts',
                             text: undefined,
                         },
+                        workspaceFolders: [],
                     }
                 )
             })
