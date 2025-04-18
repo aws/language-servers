@@ -6,7 +6,6 @@ import { Dirent } from 'fs'
 import * as path from 'path'
 import { URI } from 'vscode-uri'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
-import * as chokidar from 'chokidar'
 
 class LoggingMock {
     public error: SinonStub
@@ -41,10 +40,6 @@ describe('LocalProjectContextController', () => {
                 name: 'workspace1',
             },
         ]
-        stub(chokidar, 'watch').returns({
-            on: stub(),
-            close: stub(),
-        } as unknown as chokidar.FSWatcher)
 
         vectorLibMock = {
             start: stub().resolves({
@@ -70,14 +65,7 @@ describe('LocalProjectContextController', () => {
             }
         })
 
-        controller = new LocalProjectContextController(
-            'testClient',
-            mockWorkspaceFolders,
-            logging as any,
-            testFeatures.chat,
-            testFeatures.workspace
-        )
-        stub(controller, 'maybeUpdateCodeSymbols').resolves()
+        controller = new LocalProjectContextController('testClient', mockWorkspaceFolders, logging as any)
     })
 
     afterEach(() => {
@@ -113,9 +101,7 @@ describe('LocalProjectContextController', () => {
             const uninitializedController = new LocalProjectContextController(
                 'testClient',
                 mockWorkspaceFolders,
-                logging as any,
-                testFeatures.chat,
-                testFeatures.workspace
+                logging as any
             )
 
             const result = await uninitializedController.queryVectorIndex({ query: 'test' })
@@ -146,9 +132,7 @@ describe('LocalProjectContextController', () => {
             const uninitializedController = new LocalProjectContextController(
                 'testClient',
                 mockWorkspaceFolders,
-                logging as any,
-                testFeatures.chat,
-                testFeatures.workspace
+                logging as any
             )
 
             const result = await uninitializedController.queryInlineProjectContext({
@@ -191,9 +175,7 @@ describe('LocalProjectContextController', () => {
             const uninitializedController = new LocalProjectContextController(
                 'testClient',
                 mockWorkspaceFolders,
-                logging as any,
-                testFeatures.chat,
-                testFeatures.workspace
+                logging as any
             )
 
             await uninitializedController.updateIndex(['test.java'], 'add')

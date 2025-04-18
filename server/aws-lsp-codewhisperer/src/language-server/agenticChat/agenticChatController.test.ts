@@ -4,6 +4,7 @@
  */
 
 import * as path from 'path'
+import * as chokidar from 'chokidar'
 import {
     ChatResponseStream,
     CodeWhispererStreaming,
@@ -39,6 +40,7 @@ import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/A
 import { TabBarController } from './tabBarController'
 import { getUserPromptsDirectory } from './context/contextUtils'
 import { AdditionalContextProvider } from './context/addtionalContextProvider'
+import { ContextCommandsProvider } from './context/contextCommandsProvider'
 
 describe('AgenticChatController', () => {
     const mockTabId = 'tab-1'
@@ -120,6 +122,11 @@ describe('AgenticChatController', () => {
     const setCredentials = setCredentialsForAmazonQTokenServiceManagerFactory(() => testFeatures)
 
     beforeEach(() => {
+        sinon.stub(chokidar, 'watch').returns({
+            on: sinon.stub(),
+            close: sinon.stub(),
+        } as unknown as chokidar.FSWatcher)
+
         sendMessageStub = sinon.stub(CodeWhispererStreaming.prototype, 'sendMessage').callsFake(() => {
             return new Promise(resolve =>
                 setTimeout(() => {
@@ -190,6 +197,7 @@ describe('AgenticChatController', () => {
         emitConversationMetricStub = sinon.stub(ChatTelemetryController.prototype, 'emitConversationMetric')
 
         disposeStub = sinon.stub(ChatSessionService.prototype, 'dispose')
+        sinon.stub(ContextCommandsProvider.prototype, 'maybeUpdateCodeSymbols').resolves()
 
         AmazonQTokenServiceManager.resetInstance()
 

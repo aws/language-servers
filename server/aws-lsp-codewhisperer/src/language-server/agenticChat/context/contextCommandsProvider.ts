@@ -5,6 +5,7 @@ import { Disposable } from 'vscode-languageclient/node'
 import { Chat, Logging, Workspace } from '@aws/language-server-runtimes/server-interface'
 import { getUserPromptsDirectory, promptFileExtension } from './contextUtils'
 import { ContextCommandItem } from 'local-indexing'
+import { LocalProjectContextController } from '../../../shared/localProjectContextController'
 
 export class ContextCommandsProvider implements Disposable {
     private promptFileWatcher?: FSWatcher
@@ -162,6 +163,16 @@ export class ContextCommandsProvider implements Disposable {
         const userPromptsItem = await this.getUserPromptsCommand()
         promptCmds.push(...userPromptsItem)
         return allCommands
+    }
+
+    async maybeUpdateCodeSymbols() {
+        const needUpdate = await (
+            await LocalProjectContextController.getInstance()
+        ).shouldUpdateContextCommandSymbolsOnce()
+        if (needUpdate) {
+            const items = await (await LocalProjectContextController.getInstance()).getContextCommandItems()
+            await this.processContextCommandUpdate(items)
+        }
     }
 
     dispose() {
