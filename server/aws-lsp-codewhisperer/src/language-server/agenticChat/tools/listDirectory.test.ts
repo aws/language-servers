@@ -56,9 +56,9 @@ describe('ListDirectory Tool', () => {
 
         assert.strictEqual(result.output.kind, 'text')
         const lines = result.output.content.split('\n')
-        const hasFileA = lines.some((line: string | string[]) => line.includes('[FILE] ') && line.includes('fileA.txt'))
+        const hasFileA = lines.some((line: string | string[]) => line.includes('[F] ') && line.includes('fileA.txt'))
         const hasSubfolder = lines.some(
-            (line: string | string[]) => line.includes('[DIR] ') && line.includes('subfolder')
+            (line: string | string[]) => line.includes('[D] ') && line.includes('subfolder')
         )
 
         assert.ok(hasFileA, 'Should list fileA.txt in the directory output')
@@ -75,11 +75,11 @@ describe('ListDirectory Tool', () => {
 
         assert.strictEqual(result.output.kind, 'text')
         const lines = result.output.content.split('\n')
-        const hasFileA = lines.some((line: string | string[]) => line.includes('[FILE] ') && line.includes('fileA.txt'))
+        const hasFileA = lines.some((line: string | string[]) => line.includes('[F] ') && line.includes('fileA.txt'))
         const hasSubfolder = lines.some(
-            (line: string | string[]) => line.includes('[DIR] ') && line.includes('subfolder')
+            (line: string | string[]) => line.includes('[D] ') && line.includes('subfolder')
         )
-        const hasFileB = lines.some((line: string | string[]) => line.includes('[FILE] ') && line.includes('fileB.md'))
+        const hasFileB = lines.some((line: string | string[]) => line.includes('[F] ') && line.includes('fileB.md'))
 
         assert.ok(hasFileA, 'Should list fileA.txt in the directory output')
         assert.ok(hasSubfolder, 'Should list the subfolder in the directory output')
@@ -97,9 +97,9 @@ describe('ListDirectory Tool', () => {
         assert.strictEqual(result.output.kind, 'text')
         const lines = result.output.content.split('\n')
         const hasNodeModules = lines.some(
-            (line: string | string[]) => line.includes('[DIR] ') && line.includes('node_modules')
+            (line: string | string[]) => line.includes('[D] ') && line.includes('node_modules')
         )
-        const hasFileC = lines.some((line: string | string[]) => line.includes('[FILE] ') && line.includes('fileC.md'))
+        const hasFileC = lines.some((line: string | string[]) => line.includes('[F] ') && line.includes('fileC.md'))
 
         assert.ok(!hasNodeModules, 'Should not list node_modules in the directory output')
         assert.ok(!hasFileC, 'Should not list fileC.md under node_modules in the directory output')

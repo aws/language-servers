@@ -85,9 +85,10 @@ describe('workspaceUtils', function () {
             await fs.symlink(tempFolder.path, linkPath, 'dir')
 
             const results = (await readDirectoryRecursively(testFeatures, tempFolder.path, undefined)).sort()
-            assert.deepStrictEqual(results, [`[DIR] ${subdir.path}`, `[FILE] ${file}`, `[LINK] ${linkPath}`])
+            assert.deepStrictEqual(results, [`[D] ${subdir.path}`, `[F] ${file}`, `[L] ${linkPath}`])
         })
 
+        // This test doesn't work on windows since it modifies file permissions
         if (process.platform !== 'win32') {
             it('respects the failOnError flag', async function () {
                 const subdir1 = await tempFolder.nest('subdir1')
