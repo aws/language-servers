@@ -3,7 +3,7 @@ import { URI } from 'vscode-uri'
 import { CommandValidation, InvokeOutput } from './toolShared'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 
-// Port of https://github.com/aws/aws-toolkit-vscode/blob/741c2c481bcf0dca2d9554e32dc91d8514b1b1d1/packages/core/src/codewhispererChat/tools/fsRead.ts#L17
+// Port of https://github.com/aws/aws-toolkit-vscode/blob/5a0404eb0e2c637ca3bd119714f5c7a24634f746/packages/core/src/codewhispererChat/tools/fsRead.ts#L17
 
 export interface FsReadParams {
     path: string
@@ -113,10 +113,18 @@ export class FsRead {
     }
 
     private createOutput(content: string): InvokeOutput {
+        const exceedsMaxSize = content.length > FsRead.maxResponseSize
+        if (exceedsMaxSize) {
+            this.logging.info(`FsRead: truncating response to first ${FsRead.maxResponseSize} characters`)
+            content = content.substring(0, FsRead.maxResponseSize - 3) + '...'
+        }
         return {
             output: {
-                kind: 'text',
-                content: content.substring(0, FsRead.maxResponseSize),
+                kind: 'json',
+                content: {
+                    content,
+                    truncated: exceedsMaxSize,
+                },
             },
         }
     }
@@ -125,7 +133,7 @@ export class FsRead {
         return {
             name: 'fsRead',
             description:
-                'A tool for reading a file.\n * This tool returns the contents of a file, and the optional `readRange` determines what range of lines will be read from the specified file.\n * If the file exceeds 200K characters, this tool will only read the first 200K characters of the file.',
+                'A tool for reading a file.\n * This tool returns the contents of a file, and the optional `readRange` determines what range of lines will be read from the specified file.\n * If the file exceeds 200K characters, this tool will only read the first 200K characters of the file with a `truncated=true` in the output',
             inputSchema: {
                 type: 'object',
                 properties: {
