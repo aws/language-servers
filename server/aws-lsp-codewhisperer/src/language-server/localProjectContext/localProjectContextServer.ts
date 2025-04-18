@@ -4,6 +4,7 @@ import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import { LocalProjectContextController } from '../../shared/localProjectContextController'
 import { languageByExtension } from '../../shared/languageDetection'
 import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
+import { URI } from 'vscode-uri'
 
 export const LocalProjectContextServer = (): Server => features => {
     const { credentialsProvider, telemetry, logging, lsp, chat, workspace } = features
@@ -80,7 +81,7 @@ export const LocalProjectContextServer = (): Server => features => {
 
     lsp.workspace.onDidCreateFiles(async event => {
         try {
-            const filePaths = event.files.map(file => file.uri.replace('file:', ''))
+            const filePaths = event.files.map(file => URI.parse(file.uri).fsPath)
             await localProjectContextController.updateIndex(filePaths, 'add')
         } catch (error) {
             logging.error(`Error handling create event: ${error}`)
@@ -89,7 +90,7 @@ export const LocalProjectContextServer = (): Server => features => {
 
     lsp.workspace.onDidDeleteFiles(async event => {
         try {
-            const filePaths = event.files.map(file => file.uri.replace('file:', ''))
+            const filePaths = event.files.map(file => URI.parse(file.uri).fsPath)
             await localProjectContextController.updateIndex(filePaths, 'remove')
         } catch (error) {
             logging.error(`Error handling delete event: ${error}`)
@@ -98,8 +99,8 @@ export const LocalProjectContextServer = (): Server => features => {
 
     lsp.workspace.onDidRenameFiles(async event => {
         try {
-            const oldPaths = event.files.map(file => file.oldUri.replace('file:', ''))
-            const newPaths = event.files.map(file => file.oldUri.replace('file:', ''))
+            const oldPaths = event.files.map(file => URI.parse(file.oldUri).fsPath)
+            const newPaths = event.files.map(file => URI.parse(file.newUri).fsPath)
 
             await localProjectContextController.updateIndex(oldPaths, 'remove')
             await localProjectContextController.updateIndex(newPaths, 'add')
@@ -110,7 +111,7 @@ export const LocalProjectContextServer = (): Server => features => {
 
     lsp.onDidSaveTextDocument(async event => {
         try {
-            const filePaths = [event.textDocument.uri.replace('file:', '')]
+            const filePaths = [URI.parse(event.textDocument.uri).fsPath]
             await localProjectContextController.updateIndex(filePaths, 'update')
         } catch (error) {
             logging.error(`Error handling save event: ${error}`)
