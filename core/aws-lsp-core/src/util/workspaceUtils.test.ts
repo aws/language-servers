@@ -85,9 +85,10 @@ describe('workspaceUtils', function () {
             await fs.symlink(tempFolder.path, linkPath, 'dir')
 
             const results = (await readDirectoryRecursively(testFeatures, tempFolder.path, undefined)).sort()
-            assert.deepStrictEqual(results, [`[DIR] ${subdir.path}`, `[FILE] ${file}`, `[LINK] ${linkPath}`])
+            assert.deepStrictEqual(results, [`[D] ${subdir.path}`, `[F] ${file}`, `[L] ${linkPath}`])
         })
 
+        // This test doesn't work on windows since it modifies file permissions
         if (process.platform !== 'win32') {
             it('respects the failOnError flag', async function () {
                 const subdir1 = await tempFolder.nest('subdir1')
@@ -116,6 +117,54 @@ describe('workspaceUtils', function () {
                 readDirectoryRecursively(testFeatures, path.join(tempFolder.path, 'notReal'), {
                     customFormatCallback: getEntryPath,
                 })
+            )
+        })
+
+        it('ignores patterns in the exclude pattern', async function () {
+            const subdir1 = await tempFolder.nest('subdir1')
+            const file1 = await subdir1.write('file1', 'this is content')
+            const subdir2 = await tempFolder.nest('subdir2')
+            await subdir2.write('file2-bad', 'this is other content')
+
+            const subdir11 = await subdir1.nest('subdir11')
+            const file3 = await subdir11.write('file3', 'this is also content')
+            const subdir12 = await subdir1.nest('subdir12')
+            await subdir12.write('file4-bad', 'this is even more content')
+            const file5 = await subdir12.write('file5', 'and this is it')
+
+            const result = (
+                await readDirectoryRecursively(testFeatures, tempFolder.path, {
+                    customFormatCallback: getEntryPath,
+                    excludePatterns: [/.*-bad/],
+                })
+            ).sort()
+            assert.deepStrictEqual(
+                result,
+                [subdir1.path, file1, subdir11.path, file3, subdir12.path, file5, subdir2.path].sort()
+            )
+        })
+
+        it('ignores files in the exclude pattern', async function () {
+            const subdir1 = await tempFolder.nest('subdir1')
+            const file1 = await subdir1.write('file1', 'this is content')
+            const subdir2 = await tempFolder.nest('subdir2')
+            await subdir2.write('file2-bad', 'this is other content')
+
+            const subdir11 = await subdir1.nest('subdir11')
+            const file3 = await subdir11.write('file3', 'this is also content')
+            const subdir12 = await subdir1.nest('subdir12')
+            await subdir12.write('file4-bad', 'this is even more content')
+            const file5 = await subdir12.write('file5', 'and this is it')
+
+            const result = (
+                await readDirectoryRecursively(testFeatures, tempFolder.path, {
+                    customFormatCallback: getEntryPath,
+                    excludePatterns: ['-bad'],
+                })
+            ).sort()
+            assert.deepStrictEqual(
+                result,
+                [subdir1.path, file1, subdir11.path, file3, subdir12.path, file5, subdir2.path].sort()
             )
         })
     })

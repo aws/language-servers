@@ -1,5 +1,5 @@
 import { sanitize } from '@aws/lsp-core/out/util/path'
-import { InvokeOutput } from './toolShared'
+import { InvokeOutput, validatePath } from './toolShared'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 
 // Port of https://github.com/aws/aws-toolkit-vscode/blob/8e00eefa33f4eee99eed162582c32c270e9e798e/packages/core/src/codewhispererChat/tools/fsRead.ts#L17
@@ -19,17 +19,7 @@ export class FsRead {
     }
 
     public async validate(params: FsReadParams): Promise<void> {
-        this.logging.debug(`Validating path: ${params.path}`)
-        if (!params.path || params.path.trim().length === 0) {
-            throw new Error('Path cannot be empty.')
-        }
-
-        const fileExists = await this.workspace.fs.exists(params.path)
-        if (!fileExists) {
-            throw new Error(`Path: "${params.path}" does not exist or cannot be accessed.`)
-        }
-
-        this.logging.debug(`Validation succeeded for path: ${params.path}`)
+        await validatePath(params.path, this.workspace.fs.exists)
     }
 
     public async queueDescription(params: FsReadParams, updates: WritableStream) {
