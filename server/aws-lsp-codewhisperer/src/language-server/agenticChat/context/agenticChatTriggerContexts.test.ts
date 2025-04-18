@@ -33,7 +33,7 @@ describe('AgenticChatTriggerContext', () => {
     })
 
     it('returns null if text document is not defined in params', async () => {
-        const triggerContext = new AgenticChatTriggerContext(testFeatures.workspace, testFeatures.logging)
+        const triggerContext = new AgenticChatTriggerContext(testFeatures)
 
         const documentContext = await triggerContext.extractDocumentContext({
             cursorState: [
@@ -51,7 +51,7 @@ describe('AgenticChatTriggerContext', () => {
     })
 
     it('returns null if text document is not found', async () => {
-        const triggerContext = new AgenticChatTriggerContext(testFeatures.workspace, testFeatures.logging)
+        const triggerContext = new AgenticChatTriggerContext(testFeatures)
 
         const documentContext = await triggerContext.extractDocumentContext({
             cursorState: [
@@ -71,7 +71,7 @@ describe('AgenticChatTriggerContext', () => {
     })
 
     it('passes default cursor state if no cursor is found', async () => {
-        const triggerContext = new AgenticChatTriggerContext(testFeatures.workspace, testFeatures.logging)
+        const triggerContext = new AgenticChatTriggerContext(testFeatures)
 
         const documentContext = await triggerContext.extractDocumentContext({
             cursorState: [],
@@ -84,7 +84,7 @@ describe('AgenticChatTriggerContext', () => {
     })
 
     it('includes cursor state from the parameters and text document if found', async () => {
-        const triggerContext = new AgenticChatTriggerContext(testFeatures.workspace, testFeatures.logging)
+        const triggerContext = new AgenticChatTriggerContext(testFeatures)
 
         testFeatures.openDocument(mockTSDocument)
         const documentContext = await triggerContext.extractDocumentContext({

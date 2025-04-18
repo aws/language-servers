@@ -116,7 +116,7 @@ export class AgenticChatController implements ChatHandlers {
     ) {
         this.#features = features
         this.#chatSessionManagementService = chatSessionManagementService
-        this.#triggerContext = new AgenticChatTriggerContext(features.workspace, features.logging)
+        this.#triggerContext = new AgenticChatTriggerContext(features)
         this.#telemetryController = new ChatTelemetryController(features, telemetryService)
         this.#telemetryService = telemetryService
         this.#amazonQServiceManager = amazonQServiceManager
