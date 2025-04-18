@@ -5,18 +5,10 @@
 import * as path from 'path'
 import * as nodeUrl from 'url'
 import { BM25Document, BM25Okapi } from './rankBm25'
-import {
-    crossFileContextConfig,
-    supplementalContextMaxTotalLength,
-    supplementalContextTimeoutInMs,
-} from '../models/constants'
+import { crossFileContextConfig } from '../models/constants'
 import { isTestFile } from './codeParsingUtil'
 import { fileSystemUtils } from '@aws/lsp-core'
-import {
-    CodeWhispererSupplementalContext,
-    CodeWhispererSupplementalContextItem,
-    SupplementalContextStrategy,
-} from '../models/model'
+import { CodeWhispererSupplementalContext, CodeWhispererSupplementalContextItem } from '../models/model'
 import {
     CancellationToken,
     Position,
@@ -25,10 +17,6 @@ import {
     Range,
 } from '@aws/language-server-runtimes/server-interface'
 import { CancellationError } from './supplementalContextUtil'
-import { LocalProjectContextController } from '../../shared/localProjectContextController'
-import { QueryInlineProjectContextRequestV2 } from 'local-indexing'
-import { URI } from 'vscode-uri'
-import { waitUntil } from '@aws/lsp-core/out/util/timeoutUtils'
 
 type CrossFileSupportedLanguage =
     | 'java'
@@ -67,97 +55,17 @@ export async function fetchSupplementalContextForSrc(
     workspace: Workspace,
     cancellationToken: CancellationToken
 ): Promise<Pick<CodeWhispererSupplementalContext, 'supplementalContextItems' | 'strategy'> | undefined> {
-    const supplementalContextConfig = getSupplementalContextConfig(document.languageId)
+    const shouldProceed = shouldFetchCrossFileContext(document.languageId)
 
-    if (supplementalContextConfig === undefined) {
-        return supplementalContextConfig
-    }
-    //TODO: add logic for other strategies once available
-    if (supplementalContextConfig === 'codemap') {
-        return await codemapContext(document, position, workspace, cancellationToken)
-    }
-}
-
-export async function codemapContext(
-    document: TextDocument,
-    position: Position,
-    workspace: Workspace,
-    cancellationToken: CancellationToken
-): Promise<Pick<CodeWhispererSupplementalContext, 'supplementalContextItems' | 'strategy'> | undefined> {
-    let strategy: SupplementalContextStrategy = 'Empty'
-
-    const openTabsContextPromise = waitUntil(
-        async function () {
-            return await fetchOpenTabsContext(document, position, workspace, cancellationToken)
-        },
-        { timeout: supplementalContextTimeoutInMs, interval: 5, truthy: false }
-    )
-
-    const projectContextPromise = waitUntil(
-        async function () {
-            return await fetchProjectContext(document, position, 'codemap')
-        },
-        { timeout: supplementalContextTimeoutInMs, interval: 5, truthy: false }
-    )
-
-    const supContext: CodeWhispererSupplementalContextItem[] = []
-    const [openTabsContext, projectContext] = await Promise.all([openTabsContextPromise, projectContextPromise])
-
-    function addToResult(items: CodeWhispererSupplementalContextItem[]) {
-        for (const item of items) {
-            const curLen = supContext.reduce((acc, i) => acc + i.content.length, 0)
-            if (curLen + item.content.length < supplementalContextMaxTotalLength) {
-                supContext.push(item)
-            }
-        }
+    if (!shouldProceed) {
+        return shouldProceed === undefined
+            ? undefined
+            : {
+                  supplementalContextItems: [],
+                  strategy: 'Empty',
+              }
     }
 
-    if (projectContext && projectContext.length > 0) {
-        addToResult(projectContext)
-        strategy = 'codemap'
-    }
-
-    if (openTabsContext && openTabsContext.length > 0) {
-        addToResult(openTabsContext)
-        if (strategy === 'Empty') {
-            strategy = 'OpenTabs_BM25'
-        }
-    }
-
-    return {
-        supplementalContextItems: supContext ?? [],
-        strategy,
-    }
-}
-
-export async function fetchProjectContext(
-    document: TextDocument,
-    position: Position,
-    target: 'default' | 'codemap' | 'bm25'
-): Promise<CodeWhispererSupplementalContextItem[]> {
-    const inputChunk: Chunk = getInputChunk(document, position, crossFileContextConfig.numberOfLinesEachChunk)
-    const fsPath = URI.parse(document.uri).fsPath
-    let controller: LocalProjectContextController
-    const inlineProjectContextRequest: QueryInlineProjectContextRequestV2 = {
-        query: inputChunk.content,
-        filePath: fsPath,
-        target,
-    }
-
-    try {
-        controller = LocalProjectContextController.getInstance()
-    } catch (e) {
-        return []
-    }
-    return controller.queryInlineProjectContext(inlineProjectContextRequest)
-}
-
-export async function fetchOpenTabsContext(
-    document: TextDocument,
-    position: Position,
-    workspace: Workspace,
-    cancellationToken: CancellationToken
-): Promise<CodeWhispererSupplementalContextItem[]> {
     const codeChunksCalculated = crossFileContextConfig.numberOfChunkToFetch
 
     // Step 1: Get relevant cross files to refer
@@ -190,14 +98,8 @@ export async function fetchOpenTabsContext(
 
     // Step 4: Transform best chunks to supplemental contexts
     const supplementalContexts: CodeWhispererSupplementalContextItem[] = []
-    let totalLength = 0
     for (const chunk of bestChunks) {
         throwIfCancelled(cancellationToken)
-        totalLength += chunk.nextContent.length
-
-        if (totalLength > crossFileContextConfig.maximumTotalLength) {
-            break
-        }
 
         supplementalContexts.push({
             filePath: chunk.fileName,
@@ -207,7 +109,10 @@ export async function fetchOpenTabsContext(
     }
 
     // DO NOT send code chunk with empty content
-    return supplementalContexts.filter(item => item.content.trim().length !== 0)
+    return {
+        supplementalContextItems: supplementalContexts.filter(item => item.content.trim().length !== 0),
+        strategy: 'OpenTabs_BM25',
+    }
 }
 
 function findBestKChunkMatches(chunkInput: Chunk, chunkReferences: Chunk[], k: number): Chunk[] {
@@ -252,11 +157,12 @@ function getInputChunk(document: TextDocument, cursorPosition: Position, chunkSi
  * @returns specifically returning undefined if the langueage is not supported,
  * otherwise true/false depending on if the language is fully supported or not belonging to the user group
  */
-function getSupplementalContextConfig(
-    languageId: TextDocument['languageId'],
-    _userGroup?: any
-): SupplementalContextStrategy | undefined {
-    return isCrossFileSupported(languageId) ? 'codemap' : undefined
+function shouldFetchCrossFileContext(languageId: TextDocument['languageId'], _userGroup?: any): boolean | undefined {
+    if (!isCrossFileSupported(languageId)) {
+        return undefined
+    }
+
+    return true
 }
 
 /**

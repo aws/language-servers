@@ -11,7 +11,6 @@ import { CancellationToken } from '@aws/language-server-runtimes/server-interfac
 import { SAMPLE_FILE_OF_60_LINES_IN_JAVA, shuffleList } from '../testUtils'
 import { supportedLanguageToDialects } from './crossFileContextUtil'
 import { crossFileContextConfig } from '../models/constants'
-import { LocalProjectContextController } from '../localProjectContextController'
 
 describe('crossFileContextUtil', function () {
     const fakeCancellationToken: CancellationToken = {
@@ -245,91 +244,6 @@ describe('crossFileContextUtil', function () {
 
             const chunks = crossFile.splitFileToChunks(document, crossFileContextConfig.numberOfLinesEachChunk)
             assert.strictEqual(chunks.length, 6)
-        })
-    })
-    describe('codemapContext', () => {
-        let sandbox: sinon.SinonSandbox
-        beforeEach(() => {
-            sandbox = sinon.createSandbox()
-        })
-        afterEach(() => {
-            sandbox.restore()
-        })
-
-        it('should return Empty strategy when no contexts are found', async () => {
-            const document = TextDocument.create(
-                'file:///testfile.java',
-                'java',
-                1,
-                'line_1\nline_2\nline_3\nline_4\nline_5\nline_6\nline_7'
-            )
-            sandbox.stub(LocalProjectContextController, 'getInstance').returns({
-                queryInlineProjectContext: sandbox.stub().resolves([]),
-            } as unknown as LocalProjectContextController)
-
-            const result = await crossFile.codemapContext(
-                document,
-                { line: 0, character: 0 },
-                features.workspace,
-                fakeCancellationToken
-            )
-            assert.deepStrictEqual(result, {
-                supplementalContextItems: [],
-                strategy: 'Empty',
-            })
-        })
-        it('should return codemap strategy when project context exists', async () => {
-            const document = TextDocument.create(
-                'file:///testfile.java',
-                'java',
-                1,
-                'line_1\nline_2\nline_3\nline_4\nline_5\nline_6\nline_7'
-            )
-
-            sandbox.stub(LocalProjectContextController, 'getInstance').returns({
-                queryInlineProjectContext: sandbox
-                    .stub()
-                    .resolves([{ content: 'someOtherContet', filePath: '/path/', score: 29.879 }]),
-            } as unknown as LocalProjectContextController)
-
-            const result = await crossFile.codemapContext(
-                document,
-                { line: 0, character: 0 },
-                features.workspace,
-                fakeCancellationToken
-            )
-            assert.deepStrictEqual(result, {
-                supplementalContextItems: [{ content: 'someOtherContet', filePath: '/path/', score: 29.879 }],
-                strategy: 'codemap',
-            })
-        })
-        it('should return OpenTabs_BM25 strategy when only open tabs context exists', async () => {
-            const document = TextDocument.create(
-                'file:///testfile.java',
-                'java',
-                1,
-                'line_1\nline_2\nline_3\nline_4\nline_5\nline_6\nline_7'
-            )
-            // Open files for openTabsContext to find
-            features.openDocument(TextDocument.create('file:///OpenFile.java', 'java', 1, 'sample-content'))
-            // Return [] for fetchProjectContext
-            sandbox.stub(LocalProjectContextController, 'getInstance').returns({
-                queryInlineProjectContext: sandbox.stub().resolves([]),
-            } as unknown as LocalProjectContextController)
-
-            const result = await crossFile.codemapContext(
-                document,
-                { line: 0, character: 0 },
-                features.workspace,
-                fakeCancellationToken
-            )
-            assert.deepStrictEqual(result, {
-                supplementalContextItems: [
-                    { content: 'sample-content', filePath: '/OpenFile.java', score: 0 },
-                    { content: 'sample-content', filePath: '/OpenFile.java', score: 0 },
-                ],
-                strategy: 'OpenTabs_BM25',
-            })
         })
     })
 })

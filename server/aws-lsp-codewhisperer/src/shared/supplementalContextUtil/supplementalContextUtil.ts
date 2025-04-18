@@ -11,8 +11,6 @@ import {
     TextDocument,
     Workspace,
 } from '@aws/language-server-runtimes/server-interface'
-import { crossFileContextConfig } from '../models/constants'
-import * as os from 'os'
 
 export class CancellationError extends Error {}
 
@@ -47,12 +45,10 @@ export async function fetchSupplementalContext(
         }
 
         if (supplementalContextValue) {
-            const resBeforeTruncation = {
+            return {
                 isUtg: isUtg,
                 isProcessTimeout: false,
-                supplementalContextItems: supplementalContextValue.supplementalContextItems.filter(
-                    item => item.content.trim().length !== 0
-                ),
+                supplementalContextItems: supplementalContextValue.supplementalContextItems,
                 contentsLength: supplementalContextValue.supplementalContextItems.reduce(
                     (acc, curr) => acc + curr.content.length,
                     0
@@ -60,8 +56,6 @@ export async function fetchSupplementalContext(
                 latency: performance.now() - timesBeforeFetching,
                 strategy: supplementalContextValue.strategy,
             }
-
-            return truncateSupplementalContext(resBeforeTruncation)
         } else {
             return undefined
         }
@@ -79,68 +73,5 @@ export async function fetchSupplementalContext(
             logging.log(`Fail to fetch supplemental context for target file ${document.uri}: ${err}`)
             return undefined
         }
-    }
-}
-
-/**
- * Requirement
- * - Maximum 5 supplemental context.
- * - Each chunk can't exceed 10240 characters
- * - Sum of all chunks can't exceed 20480 characters
- */
-export function truncateSupplementalContext(
-    context: CodeWhispererSupplementalContext
-): CodeWhispererSupplementalContext {
-    let c = context.supplementalContextItems.map(item => {
-        if (item.content.length > crossFileContextConfig.maxLengthEachChunk) {
-            return {
-                ...item,
-                content: truncateLineByLine(item.content, crossFileContextConfig.maxLengthEachChunk),
-            }
-        } else {
-            return item
-        }
-    })
-
-    if (c.length > crossFileContextConfig.maxContextCount) {
-        c = c.slice(0, crossFileContextConfig.maxContextCount)
-    }
-
-    let curTotalLength = c.reduce((acc, cur) => {
-        return acc + cur.content.length
-    }, 0)
-    while (curTotalLength >= 20480 && c.length - 1 >= 0) {
-        const last = c[c.length - 1]
-        c = c.slice(0, -1)
-        curTotalLength -= last.content.length
-    }
-
-    return {
-        ...context,
-        supplementalContextItems: c,
-        contentsLength: curTotalLength,
-    }
-}
-
-export function truncateLineByLine(input: string, l: number): string {
-    const maxLength = l > 0 ? l : -1 * l
-    if (input.length === 0) {
-        return ''
-    }
-
-    const shouldAddNewLineBack = input.endsWith(os.EOL)
-    let lines = input.trim().split(os.EOL)
-    let curLen = input.length
-    while (curLen > maxLength && lines.length - 1 >= 0) {
-        const last = lines[lines.length - 1]
-        lines = lines.slice(0, -1)
-        curLen -= last.length + 1
-    }
-
-    const r = lines.join(os.EOL)
-    if (shouldAddNewLineBack) {
-        return r + os.EOL
-    } else {
-        return r
     }
 }

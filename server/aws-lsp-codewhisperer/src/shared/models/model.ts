@@ -5,9 +5,7 @@ export type UtgStrategy = 'ByName' | 'ByContent'
 
 export type CrossFileStrategy = 'OpenTabs_BM25'
 
-export type ProjectContextStrategy = 'codemap'
-
-export type SupplementalContextStrategy = CrossFileStrategy | ProjectContextStrategy | UtgStrategy | 'Empty'
+export type SupplementalContextStrategy = CrossFileStrategy | UtgStrategy | 'Empty'
 
 export interface CodeWhispererSupplementalContext {
     isUtg: boolean
