@@ -50,6 +50,12 @@ export const encryptionKey = crypto.randomBytes(32)
  */
 let activeBuilderIdConnection: SsoConnection | undefined
 
+/**
+ * Cached bearer token request for reuse after server restart
+ */
+let cachedBearerTokenRequest: UpdateCredentialsRequest | undefined
+let cachedLoginType: LoginType | undefined
+
 // See core\aws-lsp-core\src\credentials\credentialsProvider.ts for the server's
 // custom method names and intents.
 const lspMethodNames = {
@@ -145,6 +151,22 @@ export async function registerBearerTokenProviderSupport(
             commands.registerCommand('awslsp.clearBearerToken', createClearTokenCommand(languageClient)),
         ]
     )
+
+    // Listen for client state changes to detect server restarts
+    languageClient.onDidChangeState(async ({ oldState, newState }) => {
+        // Check if the client was restarted (was running, then starting, now running again)
+        if (newState === 3 && cachedBearerTokenRequest) {
+            // State.Running = 3
+            console.log('Detected server restart, restoring bearer token...')
+            try {
+                // Re-send the cached bearer token
+                await sendBearerTokenUpdate(cachedBearerTokenRequest, languageClient)
+                console.log('Bearer token restored successfully')
+            } catch (error) {
+                console.error('Failed to restore bearer token after restart:', error)
+            }
+        }
+    })
 }
 
 /**
@@ -261,6 +283,11 @@ function createResolveBearerTokenCommand(
             },
             encrypted
         )
+
+        // Cache the request and login type for potential server restarts
+        cachedBearerTokenRequest = request
+        cachedLoginType = loginType
+
         await sendBearerTokenUpdate(request, languageClient)
 
         languageClient.info(`Client: The language server is now using a bearer token`)
@@ -275,6 +302,8 @@ function createResolveBearerTokenCommand(
 function createClearTokenCommand(languageClient: LanguageClient) {
     return async () => {
         activeBuilderIdConnection = undefined
+        cachedBearerTokenRequest = undefined
+        cachedLoginType = undefined
 
         await languageClient.sendNotification(notificationTypes.deleteBearerToken)
     }
