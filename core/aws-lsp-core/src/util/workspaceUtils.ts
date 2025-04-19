@@ -98,5 +98,5 @@ export function isParentFolder(parentPath: string, childPath: string): boolean {
 }
 
 export function isInWorkspace(workspaceFolderPaths: string[], filepath: string) {
-    return workspaceFolderPaths.some(wsFolder => isParentFolder(wsFolder, filepath))
+    return workspaceFolderPaths.some(wsFolder => isParentFolder(wsFolder, filepath) || wsFolder === filepath)
 }

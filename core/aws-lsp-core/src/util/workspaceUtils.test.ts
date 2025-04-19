@@ -24,7 +24,7 @@ describe('workspaceUtils', function () {
         })
     })
 
-    describe('inWorkspace', function () {
+    describe('isInWorkspace', function () {
         it('finds the file within the workspace', function () {
             const workspaceFolders = ['/foo']
 
@@ -45,6 +45,12 @@ describe('workspaceUtils', function () {
             assert.ok(isInWorkspace(workspaceFolders, positiveFilePath), 'file is within the workspace')
             assert.ok(isInWorkspace(workspaceFolders, secondPositiveFilePath), 'file is within the workspace')
             assert.ok(!isInWorkspace(workspaceFolders, negativeFilePath), 'file is not within the workspace')
+        })
+
+        it('handles the case where its the workspace itself', function () {
+            const workspaceFolders = ['/foo']
+
+            assert.ok(isInWorkspace(workspaceFolders, '/foo'), 'workspace is inside itself')
         })
     })
 
