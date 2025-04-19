@@ -56,7 +56,6 @@ export const withAdapter = (
         onShowMoreWebResultsClick: addDefaultRouting('onShowMoreWebResultsClick'),
         onChatPromptProgressActionButtonClicked: addDefaultRouting('onChatPromptProgressActionButtonClicked'),
         onTabbedContentTabChange: addDefaultRouting('onTabbedContentTabChange'),
-        onTabBarButtonClick: addDefaultRouting('onTabBarButtonClick'),
 
         /**
          * Handler with special routing logic
@@ -127,6 +126,11 @@ export const withAdapter = (
             }
 
             defaultEventHandler.onFormLinkClick?.(link, mouseEvent, eventId)
+        },
+
+        onTabBarButtonClick(tabId, buttonId) {
+            // Always route tab bar actions to original handler
+            defaultEventHandler.onTabBarButtonClick?.(tabId, buttonId)
         },
 
         onReady() {

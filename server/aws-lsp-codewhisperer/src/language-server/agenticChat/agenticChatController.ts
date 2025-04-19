@@ -83,6 +83,8 @@ import {
 } from './context/agenticChatTriggerContext'
 import { AdditionalContextProvider } from './context/addtionalContextProvider'
 import { getNewPromptFilePath } from './context/contextUtils'
+import { ContextCommandsProvider } from './context/contextCommandsProvider'
+import { LocalProjectContextController } from '../../shared/localProjectContextController'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -107,6 +109,7 @@ export class AgenticChatController implements ChatHandlers {
     #tabBarController: TabBarController
     #chatHistoryDb: ChatDatabase
     #additionalContextProvider: AdditionalContextProvider
+    #contextCommandsProvider: ContextCommandsProvider
 
     constructor(
         chatSessionManagementService: ChatSessionManagementService,
@@ -123,6 +126,11 @@ export class AgenticChatController implements ChatHandlers {
         this.#chatHistoryDb = new ChatDatabase(features)
         this.#tabBarController = new TabBarController(features, this.#chatHistoryDb)
         this.#additionalContextProvider = new AdditionalContextProvider(features.workspace)
+        this.#contextCommandsProvider = new ContextCommandsProvider(
+            this.#features.logging,
+            this.#features.chat,
+            this.#features.workspace
+        )
     }
 
     async onCreatePrompt(params: CreatePromptParams): Promise<void> {
@@ -140,6 +148,7 @@ export class AgenticChatController implements ChatHandlers {
         this.#chatSessionManagementService.dispose()
         this.#telemetryController.dispose()
         this.#chatHistoryDb.close()
+        this.#contextCommandsProvider?.dispose()
     }
 
     async onListConversations(params: ListConversationsParams) {
@@ -727,6 +736,9 @@ export class AgenticChatController implements ChatHandlers {
 
     async onReady() {
         await this.#tabBarController.loadChats()
+        const contextItems = await (await LocalProjectContextController.getInstance()).getContextCommandItems()
+        await this.#contextCommandsProvider.processContextCommandUpdate(contextItems)
+        void this.#contextCommandsProvider.maybeUpdateCodeSymbols()
     }
 
     onSendFeedback({ tabId, feedbackPayload }: FeedbackParams) {

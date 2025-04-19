@@ -14,7 +14,6 @@ import type {
 } from 'local-indexing'
 import { URI } from 'vscode-uri'
 import { waitUntil } from '@aws/lsp-core/out/util/timeoutUtils'
-import { ContextCommandsProvider } from '../language-server/agenticChat/context/contextCommandsProvider'
 
 import * as fs from 'fs'
 import * as path from 'path'
@@ -23,7 +22,7 @@ import * as ignore from 'ignore'
 import { fdir } from 'fdir'
 
 const LIBRARY_DIR = (() => {
-    if (require.main) {
+    if (require.main?.filename) {
         return path.join(dirname(require.main.filename), 'indexing')
     }
     return path.join(__dirname, 'indexing')
@@ -51,7 +50,6 @@ export class LocalProjectContextController {
     private workspaceFolders: WorkspaceFolder[]
     private _vecLib?: VectorLibAPI
     private _contextCommandSymbolsUpdated = false
-    private readonly contextCommandsProvider: ContextCommandsProvider
     private readonly clientName: string
     private readonly log: Logging
 
@@ -67,24 +65,28 @@ export class LocalProjectContextController {
     private readonly DEFAULT_MAX_FILE_SIZE_MB = 10
     private readonly MB_TO_BYTES = 1024 * 1024
 
-    constructor(
-        clientName: string,
-        workspaceFolders: WorkspaceFolder[],
-        logging: Logging,
-        chat: Chat,
-        workspace: Workspace
-    ) {
+    constructor(clientName: string, workspaceFolders: WorkspaceFolder[], logging: Logging) {
         this.workspaceFolders = workspaceFolders
         this.clientName = clientName
         this.log = logging
-        this.contextCommandsProvider = new ContextCommandsProvider(logging, chat, workspace)
     }
 
-    public static getInstance() {
-        if (!this.instance) {
-            throw new Error('LocalProjectContextController not initialized')
+    public static async getInstance(): Promise<LocalProjectContextController> {
+        try {
+            await waitUntil(async () => this.instance, {
+                interval: 1000,
+                timeout: 60_000,
+                truthy: true,
+            })
+
+            if (!this.instance) {
+                throw new Error('LocalProjectContextController initialization timeout after 60 seconds')
+            }
+
+            return this.instance
+        } catch (error) {
+            throw new Error(`Failed to get LocalProjectContextController instance: ${error}`)
         }
-        return this.instance
     }
 
     public async init({
@@ -111,10 +113,6 @@ export class LocalProjectContextController {
                 this._vecLib = await vecLib.start(LIBRARY_DIR, this.clientName, this.indexCacheDirPath)
                 await this.buildIndex()
                 LocalProjectContextController.instance = this
-
-                const contextItems = await this.getContextCommandItems()
-                await this.contextCommandsProvider.processContextCommandUpdate(contextItems)
-                void this.maybeUpdateCodeSymbols()
             } else {
                 this.log.warn(`Vector library could not be imported from: ${libraryPath}`)
             }
@@ -128,7 +126,6 @@ export class LocalProjectContextController {
             await this._vecLib?.clear?.()
             this._vecLib = undefined
         }
-        this.contextCommandsProvider?.dispose()
     }
 
     public async updateIndex(filePaths: string[], operation: UpdateMode): Promise<void> {
@@ -266,14 +263,6 @@ export class LocalProjectContextController {
         } catch (error) {
             this.log.error(`Error in getContextCommandPrompt: ${error}`)
             return []
-        }
-    }
-
-    async maybeUpdateCodeSymbols() {
-        const needUpdate = await LocalProjectContextController.getInstance().shouldUpdateContextCommandSymbolsOnce()
-        if (needUpdate) {
-            const items = await this.getContextCommandItems()
-            await this.contextCommandsProvider.processContextCommandUpdate(items)
         }
     }
 

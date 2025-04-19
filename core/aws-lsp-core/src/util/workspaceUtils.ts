@@ -1,4 +1,5 @@
 import * as path from 'path'
+import { URI } from 'vscode-uri'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 import { URI } from 'vscode-uri'
 
@@ -11,6 +12,7 @@ export async function readDirectoryRecursively(
     folderPath: string,
     options?: {
         maxDepth?: number
+        excludePatterns?: (string | RegExp)[]
         customFormatCallback?: (entry: Dirent) => string
         failOnError?: boolean
     }
@@ -47,10 +49,12 @@ export async function readDirectoryRecursively(
             features.logging.warn(errMsg)
             continue
         }
-
         for (const entry of entries) {
-            results.push(formatter(entry))
             const childPath = getEntryPath(entry)
+            if (options?.excludePatterns?.some(pattern => new RegExp(pattern).test(childPath))) {
+                continue
+            }
+            results.push(formatter(entry))
             if (entry.isDirectory() && (options?.maxDepth === undefined || depth < options?.maxDepth)) {
                 queue.push({ filepath: childPath, depth: depth + 1 })
             }
@@ -61,18 +65,18 @@ export async function readDirectoryRecursively(
 }
 
 /**
- * Returns a prefix for a directory ('[DIR]'), symlink ('[LINK]'), or file ('[FILE]').
+ * Returns a prefix for a directory ('[D]'), symlink ('[L]'), or file ('[F]').
  */
 export function formatListing(entry: Dirent): string {
     let typeChar: string
     if (entry.isDirectory()) {
-        typeChar = '[DIR]'
+        typeChar = '[D]'
     } else if (entry.isSymbolicLink()) {
-        typeChar = '[LINK]'
+        typeChar = '[L]'
     } else if (entry.isFile()) {
-        typeChar = '[FILE]'
+        typeChar = '[F]'
     } else {
-        typeChar = '[UNKNOWN]'
+        typeChar = '[?]'
     }
     return `${typeChar} ${path.join(entry.parentPath, entry.name)}`
 }
@@ -84,4 +88,8 @@ export function getEntryPath(entry: Dirent) {
 // TODO: port this to runtimes?
 export function getWorkspaceFolders(lsp: Features['lsp']): string[] {
     return lsp.getClientInitializeParams()?.workspaceFolders?.map(({ uri }) => URI.parse(uri).fsPath) ?? []
+
+export async function inWorkspace(workspace: Features['workspace'], filepath: string) {
+    return (await workspace.getTextDocument(URI.file(filepath).toString())) !== undefined
+
 }
