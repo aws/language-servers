@@ -195,7 +195,7 @@ export const SecurityScanServerToken =
                 logging.log(`Security scan failed. ${error}`)
                 securityScanTelemetryEntry.result = 'Failed'
                 const err = getErrorMessage(error)
-                const authFollowType = getAuthFollowUpType(err)
+                const authFollowType = getAuthFollowUpType(error)
                 if (authFollowType == 're-auth') {
                     throw new ResponseError(LSPErrorCodes.RequestFailed, err, {
                         awsErrorCode: 'E_AMAZON_Q_AUTHENTICATION_EXPIRED',
