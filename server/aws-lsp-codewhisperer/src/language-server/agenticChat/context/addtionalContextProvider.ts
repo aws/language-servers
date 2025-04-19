@@ -81,9 +81,13 @@ export class AdditionalContextProvider {
             return []
         }
 
-        const prompts = await (
-            await LocalProjectContextController.getInstance()
-        ).getContextCommandPrompt(additionalContextCommands)
+        let prompts: AdditionalContextPrompt[] = []
+        try {
+            const localProjectContextController = await LocalProjectContextController.getInstance()
+            prompts = await localProjectContextController.getContextCommandPrompt(additionalContextCommands)
+        } catch (error) {
+            // do nothing
+        }
 
         const contextEntry: AdditionalContentEntryAddition[] = []
         for (const prompt of prompts.slice(0, 20)) {
