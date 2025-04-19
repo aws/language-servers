@@ -192,13 +192,18 @@ export class AgenticChatController implements ChatHandlers {
 
         const triggerContext = await this.#getTriggerContext(params, metric)
         const isNewConversation = !session.conversationId
+        if (isNewConversation) {
+            // agentic chat does not support conversationId in API response,
+            // so we set it to random UUID per session, as other chat functionality
+            // depends on it
+            session.conversationId = uuid()
+        }
 
         token.onCancellationRequested(() => {
             this.#log('cancellation requested')
             session.abortRequest()
         })
 
-        const conversationIdentifier = session?.conversationId ?? 'New conversation'
         const chatResultStream = this.#getChatResultStream(params.partialResultToken)
         try {
             const additionalContext = await this.#additionalContextProvider.getAdditionalContext(
@@ -223,7 +228,7 @@ export class AgenticChatController implements ChatHandlers {
                 session,
                 metric,
                 chatResultStream,
-                conversationIdentifier,
+                session.conversationId,
                 token,
                 triggerContext.documentReference
             )
