@@ -30,7 +30,7 @@ describe('ListDirectory Tool', () => {
     })
 
     it('invalidates empty path', async () => {
-        const listDirectory = new ListDirectory(testFeatures, [])
+        const listDirectory = new ListDirectory(testFeatures)
         await assert.rejects(
             listDirectory.validate({ path: '', maxDepth: 0 }),
             /Path cannot be empty/i,
@@ -39,7 +39,7 @@ describe('ListDirectory Tool', () => {
     })
 
     it('invalidates negative maxDepth', async () => {
-        const listDirectory = new ListDirectory(testFeatures, [])
+        const listDirectory = new ListDirectory(testFeatures)
         await assert.rejects(
             listDirectory.validate({ path: '~', maxDepth: -1 }),
             /MaxDepth cannot be negative/i,
@@ -51,7 +51,7 @@ describe('ListDirectory Tool', () => {
         await tempFolder.nest('subfolder')
         await tempFolder.write('fileA.txt', 'fileA content')
 
-        const listDirectory = new ListDirectory(testFeatures, [])
+        const listDirectory = new ListDirectory(testFeatures)
         const result = await listDirectory.invoke({ path: tempFolder.path, maxDepth: 0 })
 
         assert.strictEqual(result.output.kind, 'text')
@@ -70,7 +70,7 @@ describe('ListDirectory Tool', () => {
         await tempFolder.write('fileA.txt', 'fileA content')
         await tempFolder.write(path.join('subfolder', 'fileB.md'), '# fileB')
 
-        const listDirectory = new ListDirectory(testFeatures, [])
+        const listDirectory = new ListDirectory(testFeatures)
         const result = await listDirectory.invoke({ path: tempFolder.path })
 
         assert.strictEqual(result.output.kind, 'text')
@@ -90,7 +90,7 @@ describe('ListDirectory Tool', () => {
         const nestedFolder = await tempFolder.nest('node_modules')
         await nestedFolder.write('fileC.md', '# fileC')
 
-        const listDirectory = new ListDirectory(testFeatures, [])
+        const listDirectory = new ListDirectory(testFeatures)
         await listDirectory.validate({ path: tempFolder.path })
         const result = await listDirectory.invoke({ path: tempFolder.path })
 
@@ -107,13 +107,13 @@ describe('ListDirectory Tool', () => {
 
     it('throws error if path does not exist', async () => {
         const missingPath = path.join(tempFolder.path, 'no_such_file.txt')
-        const listDirectory = new ListDirectory(testFeatures, [])
+        const listDirectory = new ListDirectory(testFeatures)
 
         await assert.rejects(listDirectory.invoke({ path: missingPath, maxDepth: 0 }))
     })
 
     it('expands ~ path', async () => {
-        const listDirectory = new ListDirectory(testFeatures, [])
+        const listDirectory = new ListDirectory(testFeatures)
         const result = await listDirectory.invoke({ path: '~', maxDepth: 0 })
 
         assert.strictEqual(result.output.kind, 'text')

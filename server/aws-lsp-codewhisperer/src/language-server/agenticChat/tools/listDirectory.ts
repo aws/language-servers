@@ -4,6 +4,7 @@ import { workspaceUtils } from '@aws/lsp-core'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 import { sanitize } from '@aws/lsp-core/out/util/path'
 import { DEFAULT_EXCLUDE_PATTERNS } from '../../chat/constants'
+import { getWorkspaceFolderPaths } from '@aws/lsp-core/out/util/workspaceUtils'
 
 export interface ListDirectoryParams {
     path: string
@@ -13,13 +14,12 @@ export interface ListDirectoryParams {
 export class ListDirectory {
     private readonly logging: Features['logging']
     private readonly workspace: Features['workspace']
+    private readonly lsp: Features['lsp']
 
-    constructor(
-        features: Pick<Features, 'logging' | 'workspace'>,
-        private readonly workspacePaths: string[]
-    ) {
+    constructor(features: Pick<Features, 'logging' | 'workspace' | 'lsp'>) {
         this.logging = features.logging
         this.workspace = features.workspace
+        this.lsp = features.lsp
     }
 
     public async validate(params: ListDirectoryParams): Promise<void> {
@@ -52,7 +52,7 @@ export class ListDirectory {
     }
 
     public async requiresAcceptance(path: string): Promise<CommandValidation> {
-        return { requiresAcceptance: !workspaceUtils.isInWorkspace(this.workspacePaths, path) }
+        return { requiresAcceptance: !workspaceUtils.isInWorkspace(getWorkspaceFolderPaths(this.lsp), path) }
     }
 
     public async invoke(params: ListDirectoryParams): Promise<InvokeOutput> {
