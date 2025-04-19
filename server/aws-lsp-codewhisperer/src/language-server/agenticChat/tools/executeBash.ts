@@ -122,10 +122,11 @@ interface TimestampedChunk {
 
 export class ExecuteBash {
     private childProcess?: ChildProcess
-    private readonly workspace: Features['workspace']
     private readonly logging: Features['logging']
-    constructor(features: Pick<Features, 'logging' | 'workspace'> & Partial<Features>) {
-        this.workspace = features.workspace
+    constructor(
+        features: Pick<Features, 'logging' | 'workspace'> & Partial<Features>,
+        private readonly workspaceFolderPaths: string[]
+    ) {
         this.logging = features.logging
     }
 
@@ -195,7 +196,7 @@ export class ExecuteBash {
                     if (this.looksLikePath(arg)) {
                         // If not absolute, resolve using workingDirectory if available.
                         const fullPath = !isAbsolute(arg) && params.cwd ? join(params.cwd, arg) : arg
-                        const isInWorkspace = await workspaceUtils.inWorkspace(this.workspace, fullPath)
+                        const isInWorkspace = await workspaceUtils.isInWorkspace(this.workspaceFolderPaths, fullPath)
                         if (!isInWorkspace) {
                             return { requiresAcceptance: true, warning: destructiveCommandWarningMessage }
                         }

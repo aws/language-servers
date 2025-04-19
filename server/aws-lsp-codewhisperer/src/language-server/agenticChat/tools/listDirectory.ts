@@ -14,7 +14,10 @@ export class ListDirectory {
     private readonly logging: Features['logging']
     private readonly workspace: Features['workspace']
 
-    constructor(features: Pick<Features, 'logging' | 'workspace'>) {
+    constructor(
+        features: Pick<Features, 'logging' | 'workspace'>,
+        private readonly workspacePaths: string[]
+    ) {
         this.logging = features.logging
         this.workspace = features.workspace
     }
@@ -49,7 +52,7 @@ export class ListDirectory {
     }
 
     public async requiresAcceptance(path: string): Promise<CommandValidation> {
-        return { requiresAcceptance: !(await workspaceUtils.inWorkspace(this.workspace, path)) }
+        return { requiresAcceptance: !workspaceUtils.isInWorkspace(this.workspacePaths, path) }
     }
 
     public async invoke(params: ListDirectoryParams): Promise<InvokeOutput> {

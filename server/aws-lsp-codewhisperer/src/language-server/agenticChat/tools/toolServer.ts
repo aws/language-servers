@@ -3,12 +3,13 @@ import { FsRead, FsReadParams } from './fsRead'
 import { FsWrite, FsWriteParams } from './fsWrite'
 import { ListDirectory, ListDirectoryParams } from './listDirectory'
 import { ExecuteBash, ExecuteBashParams } from './executeBash'
+import { getWorkspaceFolderPaths } from '@aws/lsp-core/out/util/workspaceUtils'
 
-export const FsToolsServer: Server = ({ workspace, logging, agent }) => {
+export const FsToolsServer: Server = ({ workspace, logging, agent, lsp }) => {
     const fsReadTool = new FsRead({ workspace, logging })
     const fsWriteTool = new FsWrite({ workspace, logging })
 
-    const listDirectoryTool = new ListDirectory({ workspace, logging })
+    const listDirectoryTool = new ListDirectory({ workspace, logging }, getWorkspaceFolderPaths(lsp))
 
     agent.addTool(fsReadTool.getSpec(), async (input: FsReadParams) => {
         // TODO: fill in logic for handling invalid tool invocations
@@ -30,7 +31,7 @@ export const FsToolsServer: Server = ({ workspace, logging, agent }) => {
 }
 
 export const BashToolsServer: Server = ({ logging, workspace, agent }) => {
-    const bashTool = new ExecuteBash({ logging, workspace })
+    const bashTool = new ExecuteBash({ logging, workspace }, [])
     agent.addTool(bashTool.getSpec(), (input: ExecuteBashParams) => bashTool.invoke(input))
     return () => {}
 }

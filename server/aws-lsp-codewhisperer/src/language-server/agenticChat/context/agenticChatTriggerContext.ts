@@ -66,7 +66,7 @@ export class AgenticChatTriggerContext {
         additionalContent?: AdditionalContentEntryAddition[]
     ): GenerateAssistantResponseCommandInput {
         const { prompt } = params
-        const defaultEditorState = { workspaceFolders: workspaceUtils.getWorkspaceFolders(this.#lsp) }
+        const defaultEditorState = { workspaceFolders: workspaceUtils.getWorkspaceFolderPaths(this.#lsp) }
         const data: GenerateAssistantResponseCommandInput = {
             conversationState: {
                 chatTriggerType: chatTriggerType,

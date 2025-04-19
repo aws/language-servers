@@ -85,10 +85,18 @@ export function getEntryPath(entry: Dirent) {
 }
 
 // TODO: port this to runtimes?
-export function getWorkspaceFolders(lsp: Features['lsp']): string[] {
+export function getWorkspaceFolderPaths(lsp: Features['lsp']): string[] {
     return lsp.getClientInitializeParams()?.workspaceFolders?.map(({ uri }) => URI.parse(uri).fsPath) ?? []
 }
 
-export async function inWorkspace(workspace: Features['workspace'], filepath: string) {
-    return (await workspace.getTextDocument(URI.file(filepath).toString())) !== undefined
+export function isParentFolder(parentPath: string, childPath: string): boolean {
+    const normalizedParentPath = path.normalize(parentPath)
+    const normalizedChildPath = path.normalize(childPath)
+
+    const relative = path.relative(normalizedParentPath, normalizedChildPath)
+    return relative !== '' && !relative.startsWith('..') && !path.isAbsolute(relative)
+}
+
+export function isInWorkspace(workspaceFolderPaths: string[], filepath: string) {
+    return workspaceFolderPaths.some(wsFolder => isParentFolder(wsFolder, filepath))
 }
