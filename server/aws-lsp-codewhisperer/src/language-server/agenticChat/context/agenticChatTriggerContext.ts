@@ -22,6 +22,7 @@ import {
 } from '@aws/language-server-runtimes/server-interface'
 import { Features } from '../../types'
 import { DocumentContext, DocumentContextExtractor } from '../../chat/contexts/documentContext'
+import { workspaceUtils } from '@aws/lsp-core'
 
 export interface TriggerContext extends Partial<DocumentContext> {
     userIntent?: UserIntent
@@ -37,11 +38,13 @@ export class AgenticChatTriggerContext {
     private static readonly DEFAULT_CURSOR_STATE: CursorState = { position: { line: 0, character: 0 } }
 
     #workspace: Features['workspace']
+    #lsp: Features['lsp']
     #documentContextExtractor: DocumentContextExtractor
 
-    constructor(workspace: Features['workspace'], logger: Features['logging']) {
+    constructor({ workspace, lsp, logging }: Pick<Features, 'workspace' | 'lsp' | 'logging'> & Partial<Features>) {
         this.#workspace = workspace
-        this.#documentContextExtractor = new DocumentContextExtractor({ logger, workspace })
+        this.#lsp = lsp
+        this.#documentContextExtractor = new DocumentContextExtractor({ logger: logging, workspace })
     }
 
     async getNewTriggerContext(params: ChatParams | InlineChatParams): Promise<TriggerContext> {
@@ -63,7 +66,7 @@ export class AgenticChatTriggerContext {
         additionalContent?: AdditionalContentEntryAddition[]
     ): GenerateAssistantResponseCommandInput {
         const { prompt } = params
-
+        const defaultEditorState = { workspaceFolders: workspaceUtils.getWorkspaceFolders(this.#lsp) }
         const data: GenerateAssistantResponseCommandInput = {
             conversationState: {
                 chatTriggerType: chatTriggerType,
@@ -80,6 +83,7 @@ export class AgenticChatTriggerContext {
                                               programmingLanguage: triggerContext.programmingLanguage,
                                               relativeFilePath: triggerContext.relativeFilePath,
                                           },
+                                          ...defaultEditorState,
                                       },
                                       tools,
                                       additionalContext: additionalContent,
@@ -87,6 +91,9 @@ export class AgenticChatTriggerContext {
                                 : {
                                       tools,
                                       additionalContext: additionalContent,
+                                      editorState: {
+                                          ...defaultEditorState,
+                                      },
                                   },
                         userIntent: triggerContext.userIntent,
                         origin: 'IDE',

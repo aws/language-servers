@@ -85,6 +85,10 @@ export function getEntryPath(entry: Dirent) {
 }
 
 // TODO: port this to runtimes?
+export function getWorkspaceFolders(lsp: Features['lsp']): string[] {
+    return lsp.getClientInitializeParams()?.workspaceFolders?.map(({ uri }) => URI.parse(uri).fsPath) ?? []
+}
+
 export async function inWorkspace(workspace: Features['workspace'], filepath: string) {
     return (await workspace.getTextDocument(URI.file(filepath).toString())) !== undefined
 }

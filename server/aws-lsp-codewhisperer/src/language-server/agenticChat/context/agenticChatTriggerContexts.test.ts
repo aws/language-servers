@@ -9,11 +9,15 @@ import { TextDocument } from 'vscode-languageserver-textdocument'
 import sinon = require('sinon')
 import { AgenticChatTriggerContext } from './agenticChatTriggerContext'
 import { DocumentContext, DocumentContextExtractor } from '../../chat/contexts/documentContext'
+import { ChatTriggerType, CursorState } from '@amzn/codewhisperer-streaming'
+import { URI } from 'vscode-uri'
+import { InitializeParams } from '@aws/language-server-runtimes/protocol'
 
 describe('AgenticChatTriggerContext', () => {
     let testFeatures: TestFeatures
 
     const filePath = 'file://test.ts'
+    const mockWorkspaceFolders = [{ uri: URI.file('/path/to/my/workspace/').toString(), name: 'myWorkspace' }]
     const mockTSDocument = TextDocument.create(filePath, 'typescript', 1, '')
     const mockDocumentContext: DocumentContext = {
         text: '',
@@ -25,6 +29,9 @@ describe('AgenticChatTriggerContext', () => {
 
     beforeEach(() => {
         testFeatures = new TestFeatures()
+        testFeatures.lsp.getClientInitializeParams.returns({
+            workspaceFolders: mockWorkspaceFolders,
+        } as InitializeParams)
         sinon.stub(DocumentContextExtractor.prototype, 'extractDocumentContext').resolves(mockDocumentContext)
     })
 
@@ -33,7 +40,7 @@ describe('AgenticChatTriggerContext', () => {
     })
 
     it('returns null if text document is not defined in params', async () => {
-        const triggerContext = new AgenticChatTriggerContext(testFeatures.workspace, testFeatures.logging)
+        const triggerContext = new AgenticChatTriggerContext(testFeatures)
 
         const documentContext = await triggerContext.extractDocumentContext({
             cursorState: [
@@ -51,7 +58,7 @@ describe('AgenticChatTriggerContext', () => {
     })
 
     it('returns null if text document is not found', async () => {
-        const triggerContext = new AgenticChatTriggerContext(testFeatures.workspace, testFeatures.logging)
+        const triggerContext = new AgenticChatTriggerContext(testFeatures)
 
         const documentContext = await triggerContext.extractDocumentContext({
             cursorState: [
@@ -71,7 +78,7 @@ describe('AgenticChatTriggerContext', () => {
     })
 
     it('passes default cursor state if no cursor is found', async () => {
-        const triggerContext = new AgenticChatTriggerContext(testFeatures.workspace, testFeatures.logging)
+        const triggerContext = new AgenticChatTriggerContext(testFeatures)
 
         const documentContext = await triggerContext.extractDocumentContext({
             cursorState: [],
@@ -84,7 +91,7 @@ describe('AgenticChatTriggerContext', () => {
     })
 
     it('includes cursor state from the parameters and text document if found', async () => {
-        const triggerContext = new AgenticChatTriggerContext(testFeatures.workspace, testFeatures.logging)
+        const triggerContext = new AgenticChatTriggerContext(testFeatures)
 
         testFeatures.openDocument(mockTSDocument)
         const documentContext = await triggerContext.extractDocumentContext({
@@ -95,5 +102,30 @@ describe('AgenticChatTriggerContext', () => {
         })
 
         assert.deepStrictEqual(documentContext, mockDocumentContext)
+    })
+
+    it('includes workspace folders as part of editor state in chat params', async () => {
+        const triggerContext = new AgenticChatTriggerContext(testFeatures)
+        const chatParams = triggerContext.getChatParamsFromTrigger(
+            { tabId: 'tab', prompt: {} },
+            {},
+            ChatTriggerType.MANUAL
+        )
+        const chatParamsWithMore = triggerContext.getChatParamsFromTrigger(
+            { tabId: 'tab', prompt: {} },
+            { cursorState: {} as CursorState, relativeFilePath: '' },
+            ChatTriggerType.MANUAL
+        )
+
+        assert.deepStrictEqual(
+            chatParams.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext?.editorState
+                ?.workspaceFolders,
+            mockWorkspaceFolders.map(f => URI.parse(f.uri).fsPath)
+        )
+        assert.deepStrictEqual(
+            chatParamsWithMore.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext?.editorState
+                ?.workspaceFolders,
+            mockWorkspaceFolders.map(f => URI.parse(f.uri).fsPath)
+        )
     })
 })
