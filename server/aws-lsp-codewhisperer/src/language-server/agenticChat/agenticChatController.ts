@@ -736,9 +736,14 @@ export class AgenticChatController implements ChatHandlers {
 
     async onReady() {
         await this.#tabBarController.loadChats()
-        const contextItems = await (await LocalProjectContextController.getInstance()).getContextCommandItems()
-        await this.#contextCommandsProvider.processContextCommandUpdate(contextItems)
-        void this.#contextCommandsProvider.maybeUpdateCodeSymbols()
+        try {
+            const localProjectContextController = await LocalProjectContextController.getInstance()
+            const contextItems = await localProjectContextController.getContextCommandItems()
+            await this.#contextCommandsProvider.processContextCommandUpdate(contextItems)
+            void this.#contextCommandsProvider.maybeUpdateCodeSymbols()
+        } catch (error) {
+            this.#log('Error initializing context commands: ' + error)
+        }
     }
 
     onSendFeedback({ tabId, feedbackPayload }: FeedbackParams) {

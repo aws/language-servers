@@ -25,6 +25,7 @@ const props: RuntimeProps = {
         QAgenticChatServerTokenProxy,
         IdentityServer.create,
         FsToolsServer,
+        // LspToolsServer,
     ],
     name: 'AWS CodeWhisperer',
 }
