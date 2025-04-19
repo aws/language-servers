@@ -2,6 +2,8 @@ import {
     CancellationToken,
     ExecuteCommandParams,
     InitializeParams,
+    LSPErrorCodes,
+    ResponseError,
     Server,
 } from '@aws/language-server-runtimes/server-interface'
 import { performance } from 'perf_hooks'
@@ -16,6 +18,7 @@ import { SecurityScanEvent } from '../../shared/telemetry/types'
 import { getErrorMessage, parseJson } from '../../shared/utils'
 import { v4 as uuidv4 } from 'uuid'
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
+import { getAuthFollowUpType } from '../chat/utils'
 
 const RunSecurityScanCommand = 'aws/codewhisperer/runSecurityScan'
 const CancelSecurityScanCommand = 'aws/codewhisperer/cancelSecurityScan'
@@ -192,6 +195,12 @@ export const SecurityScanServerToken =
                 logging.log(`Security scan failed. ${error}`)
                 securityScanTelemetryEntry.result = 'Failed'
                 const err = getErrorMessage(error)
+                const authFollowType = getAuthFollowUpType(err)
+                if (authFollowType == 're-auth') {
+                    throw new ResponseError(LSPErrorCodes.RequestFailed, err, {
+                        awsErrorCode: 'E_AMAZON_Q_AUTHENTICATION_EXPIRED',
+                    })
+                }
                 return {
                     status: 'Failed',
                     error: err,
