@@ -26,7 +26,7 @@ describe('workspaceUtils', function () {
 
     describe('inWorkspace', function () {
         it('finds the file within the workspace', function () {
-            const workspaceFolders = ['foo']
+            const workspaceFolders = ['/foo']
 
             const positiveFilePath = '/foo/bar/baz.txt'
             const negativeFilePath = '/notfoo/bar/baz.txt'
