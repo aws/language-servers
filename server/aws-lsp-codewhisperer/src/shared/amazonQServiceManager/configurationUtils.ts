@@ -68,10 +68,10 @@ interface QInlineSuggestionsConfig {
 }
 
 interface LocalIndexConfig {
-    ignoreFilePatterns?: string[]
+    ignoreFilePatterns?: string[] // patterns must follow .gitignore convention
     maxFileSizeMB?: number
     maxIndexSizeMB?: number
-    indexCacheDirPath?: string
+    indexCacheDirPath?: string // defaults to homedir/.aws/amazonq/cache
 }
 
 interface QProjectContextConfig {

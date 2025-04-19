@@ -322,11 +322,14 @@ export class LocalProjectContextController {
                     .withSymlinks({ resolvePaths: !includeSymLinks })
                     .withAbortSignal(controller.signal)
                     .exclude((dirName: string, dirPath: string) => {
-                        return filter.ignores(path.relative(absolutePath, dirPath))
+                        const relativePath = path.relative(absolutePath, dirPath)
+                        return relativePath.startsWith('..') || filter.ignores(relativePath)
                     })
                     .glob(...(fileExtensions?.map(ext => `**/*${ext}`) ?? []), '**/.gitignore')
                     .filter((filePath: string, isDirectory: boolean) => {
-                        if (isDirectory || filter.ignores(path.relative(absolutePath, filePath))) {
+                        const relativePath = path.relative(absolutePath, filePath)
+
+                        if (isDirectory || relativePath.startsWith('..') || filter.ignores(relativePath)) {
                             return false
                         }
 
