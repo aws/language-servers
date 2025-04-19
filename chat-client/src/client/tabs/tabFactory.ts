@@ -54,6 +54,7 @@ export class TabFactory {
                   ? (chatMessages as ChatItem[])
                   : [],
             ...(disclaimerCardActive ? { promptInputStickyCard: disclaimerCard } : {}),
+            cancelButtonWhenLoading: false,
         }
         return tabData
     }
