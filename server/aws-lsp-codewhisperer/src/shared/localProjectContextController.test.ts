@@ -1,5 +1,5 @@
 import { LocalProjectContextController } from './localProjectContextController'
-import { SinonStub, stub, assert as sinonAssert, match, restore } from 'sinon'
+import { SinonStub, stub, assert as sinonAssert, match, restore, spy } from 'sinon'
 import * as assert from 'assert'
 import * as fs from 'fs'
 import { Dirent } from 'fs'
@@ -75,12 +75,13 @@ describe('LocalProjectContextController', () => {
 
     describe('init', () => {
         it('should initialize vector library successfully', async () => {
+            const buildIndexSpy = spy(controller, 'buildIndex')
             await controller.init({ vectorLib: vectorLibMock })
 
             sinonAssert.notCalled(logging.error)
             sinonAssert.called(vectorLibMock.start)
             const vecLib = await vectorLibMock.start()
-            sinonAssert.called(vecLib.buildIndex)
+            sinonAssert.called(buildIndexSpy)
         })
 
         it('should handle initialization errors', async () => {
@@ -89,6 +90,15 @@ describe('LocalProjectContextController', () => {
             await controller.init({ vectorLib: vectorLibMock })
 
             sinonAssert.called(logging.error)
+        })
+    })
+
+    describe('buildIndex', () => {
+        it('should build Index with vectorLib', async () => {
+            await controller.init({ vectorLib: vectorLibMock })
+            const vecLib = await vectorLibMock.start()
+            await controller.buildIndex()
+            sinonAssert.called(vecLib.buildIndex)
         })
     })
 
