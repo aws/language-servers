@@ -26,6 +26,7 @@ const props: RuntimeProps = {
         IdentityServer.create,
         FsToolsServer,
         BashToolsServer,
+        // LspToolsServer,
     ],
     name: 'AWS CodeWhisperer',
 }
