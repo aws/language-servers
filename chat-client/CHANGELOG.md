@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.1.5](https://github.com/aws/language-servers/compare/chat-client/v0.1.4...chat-client/v0.1.5) (2025-04-19)
+
+
+### Features
+
+* **chat-client:** history list and conversation actions ([#929](https://github.com/aws/language-servers/issues/929)) ([5b8e83c](https://github.com/aws/language-servers/commit/5b8e83cacc56d854623a6e2b59f2f920538f5b85))
+* **chat-client:** implement export conversation flow ([#944](https://github.com/aws/language-servers/issues/944)) ([63fd2dc](https://github.com/aws/language-servers/commit/63fd2dc773e742c47040fd66aac4912664d91dd0))
+* configure history button based on history enabled/disabled ([#957](https://github.com/aws/language-servers/issues/957)) ([eded88f](https://github.com/aws/language-servers/commit/eded88fae2311c2a73d377a479933f9f66df137d))
+* handle fileClick events ([#919](https://github.com/aws/language-servers/issues/919)) ([511be2e](https://github.com/aws/language-servers/commit/511be2e2e6f527039a99f53cb76fbfc180ef9b55))
+* implement restore tab ([#933](https://github.com/aws/language-servers/issues/933)) ([ad2c5d7](https://github.com/aws/language-servers/commit/ad2c5d77e497e9f8a2019eb547b164f5c5992160))
+
+
+### Bug Fixes
+
+* **amazonq:** hide stop generating button in hybrid chat ([#1006](https://github.com/aws/language-servers/issues/1006)) ([c2b7c25](https://github.com/aws/language-servers/commit/c2b7c2549ead850a7c568a64830b2f151bee005a))
+* **chat-client:** disable click event for empty history list item ([#973](https://github.com/aws/language-servers/issues/973)) ([bc20a04](https://github.com/aws/language-servers/commit/bc20a04277a7b603e0d0c5e623c87b2a5c4dc4d4))
+* **chat-client:** do not route onTabBarButtonClick to custom handler ([08a5a5b](https://github.com/aws/language-servers/commit/08a5a5b76432aa370ef2ae3fc2ac70f922458c36))
+* **chat-client:** missing break in getSerializedChat request handling ([#978](https://github.com/aws/language-servers/issues/978)) ([5555d09](https://github.com/aws/language-servers/commit/5555d09f2c024621ae706e01a8cac70f5582a7d8))
+* remove duplicate property ([#928](https://github.com/aws/language-servers/issues/928)) ([c1aaec0](https://github.com/aws/language-servers/commit/c1aaec06b70f4ef9d5e2a7ad0d1cc4d5d6955087))
+* replaced icon for history and added tests ([#951](https://github.com/aws/language-servers/issues/951)) ([da3b664](https://github.com/aws/language-servers/commit/da3b66414514740f514d96279b826aebc4e86077))
+
 ## [0.1.4](https://github.com/aws/language-servers/compare/chat-client/v0.1.3...chat-client/v0.1.4) (2025-04-08)
 
 
