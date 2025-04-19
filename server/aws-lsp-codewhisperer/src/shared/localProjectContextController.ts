@@ -111,7 +111,7 @@ export class LocalProjectContextController {
             const vecLib = vectorLib ?? (await import(libraryPath))
             if (vecLib) {
                 this._vecLib = await vecLib.start(LIBRARY_DIR, this.clientName, this.indexCacheDirPath)
-                await this.buildIndex()
+                void this.buildIndex()
                 LocalProjectContextController.instance = this
             } else {
                 this.log.warn(`Vector library could not be imported from: ${libraryPath}`)
@@ -140,7 +140,8 @@ export class LocalProjectContextController {
         }
     }
 
-    private async buildIndex(): Promise<void> {
+    // public for test
+    async buildIndex(): Promise<void> {
         try {
             if (this._vecLib) {
                 const sourceFiles = await this.processWorkspaceFolders(
