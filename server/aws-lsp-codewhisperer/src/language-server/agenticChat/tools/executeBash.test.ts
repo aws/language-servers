@@ -5,12 +5,18 @@ import { ExecuteBash } from './executeBash'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import { TextDocument } from 'vscode-languageserver-textdocument'
+import { URI } from 'vscode-uri'
+import { InitializeParams } from '@aws/language-server-runtimes/protocol'
 
 describe('ExecuteBash Tool', () => {
-    let features: Features
+    let features: TestFeatures
+    const workspaceFolder = '/workspace/folder'
 
     before(function () {
         features = new TestFeatures()
+        features.lsp.getClientInitializeParams.returns({
+            workspaceFolders: [{ uri: URI.file(workspaceFolder).toString(), name: 'test' }],
+        } as InitializeParams)
     })
 
     beforeEach(() => {
@@ -76,7 +82,7 @@ describe('ExecuteBash Tool', () => {
         })
         const result = await execBash.requiresAcceptance({
             command: 'cat /not/in/workspace/file.txt',
-            cwd: '/workspace/folder',
+            cwd: workspaceFolder,
         })
 
         assert.equal(
@@ -95,7 +101,7 @@ describe('ExecuteBash Tool', () => {
                 getTextDocument: async s => ({}) as TextDocument,
             },
         })
-        const result = await execBash.requiresAcceptance({ command: 'cat ./file.txt', cwd: '/workspace/folder' })
+        const result = await execBash.requiresAcceptance({ command: 'cat ./file.txt', cwd: workspaceFolder })
 
         assert.equal(result.requiresAcceptance, false, 'Relative path inside workspace should not require acceptance')
     })
@@ -108,7 +114,7 @@ describe('ExecuteBash Tool', () => {
                 getTextDocument: async s => ({}) as TextDocument,
             },
         })
-        const result = await execBash.requiresAcceptance({ command: 'echo hello world', cwd: '/workspace/folder' })
+        const result = await execBash.requiresAcceptance({ command: 'echo hello world', cwd: workspaceFolder })
 
         assert.equal(
             result.requiresAcceptance,

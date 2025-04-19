@@ -3,12 +3,55 @@ import * as fs from 'fs/promises'
 import * as assert from 'assert'
 import * as path from 'path'
 import { TestFolder } from '../test/testFolder'
-import { readDirectoryRecursively, getEntryPath } from './workspaceUtils'
+import { readDirectoryRecursively, getEntryPath, isParentFolder, isInWorkspace } from './workspaceUtils'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 
 describe('workspaceUtils', function () {
     beforeEach(function () {
         mockfs.restore()
+    })
+
+    describe('isParentFolder', function () {
+        it('handles different cases', function () {
+            assert.ok(isParentFolder('/foo', '/foo/bar'), 'simple case')
+            assert.ok(isParentFolder('/foo', '/foo/bar/'), 'trailing slash in child')
+            assert.ok(isParentFolder('/foo', '/foo/bar.txt'), 'files')
+            assert.ok(isParentFolder('/foo', '/foo/bar/baz'), 'neseted directory')
+            assert.ok(!isParentFolder('/foo', '/foo'), 'duplicates')
+            assert.ok(!isParentFolder('/foo', '/foobar'), 'prefixing')
+            assert.ok(!isParentFolder('/foo/bar', '/foo'), 'reverse')
+            assert.ok(isParentFolder('/foo/', '/foo/bar/baz/'), 'trailing slash in both')
+        })
+    })
+
+    describe('isInWorkspace', function () {
+        it('finds the file within the workspace', function () {
+            const workspaceFolders = ['/foo']
+
+            const positiveFilePath = '/foo/bar/baz.txt'
+            const negativeFilePath = '/notfoo/bar/baz.txt'
+
+            assert.ok(isInWorkspace(workspaceFolders, positiveFilePath), 'file is within the workspace')
+            assert.ok(!isInWorkspace(workspaceFolders, negativeFilePath), 'file is not within the workspace')
+        })
+
+        it('handles multi-root workspaces', function () {
+            const workspaceFolders = ['/foo', '/bar']
+
+            const positiveFilePath = '/foo/bar/baz.txt'
+            const secondPositiveFilePath = '/bar/bax.txt'
+            const negativeFilePath = '/notfoo/bar/baz.txt'
+
+            assert.ok(isInWorkspace(workspaceFolders, positiveFilePath), 'file is within the workspace')
+            assert.ok(isInWorkspace(workspaceFolders, secondPositiveFilePath), 'file is within the workspace')
+            assert.ok(!isInWorkspace(workspaceFolders, negativeFilePath), 'file is not within the workspace')
+        })
+
+        it('handles the case where its the workspace itself', function () {
+            const workspaceFolders = ['/foo']
+
+            assert.ok(isInWorkspace(workspaceFolders, '/foo'), 'workspace is inside itself')
+        })
     })
 
     describe('readDirectoryRecursively', function () {

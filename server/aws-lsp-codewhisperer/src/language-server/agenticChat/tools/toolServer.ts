@@ -7,11 +7,11 @@ import { LspGetDocuments, LspGetDocumentsParams } from './lspGetDocuments'
 import { LspReadDocumentContents, LspReadDocumentContentsParams } from './lspReadDocumentContents'
 import { LspApplyWorkspaceEdit, LspApplyWorkspaceEditParams } from './lspApplyWorkspaceEdit'
 
-export const FsToolsServer: Server = ({ workspace, logging, agent }) => {
+export const FsToolsServer: Server = ({ workspace, logging, agent, lsp }) => {
     const fsReadTool = new FsRead({ workspace, logging })
     const fsWriteTool = new FsWrite({ workspace, logging })
 
-    const listDirectoryTool = new ListDirectory({ workspace, logging })
+    const listDirectoryTool = new ListDirectory({ workspace, logging, lsp })
 
     agent.addTool(fsReadTool.getSpec(), async (input: FsReadParams) => {
         // TODO: fill in logic for handling invalid tool invocations
@@ -32,8 +32,8 @@ export const FsToolsServer: Server = ({ workspace, logging, agent }) => {
     return () => {}
 }
 
-export const BashToolsServer: Server = ({ logging, workspace, agent }) => {
-    const bashTool = new ExecuteBash({ logging, workspace })
+export const BashToolsServer: Server = ({ logging, workspace, agent, lsp }) => {
+    const bashTool = new ExecuteBash({ logging, workspace, lsp })
     agent.addTool(bashTool.getSpec(), (input: ExecuteBashParams) => bashTool.invoke(input))
     return () => {}
 }
