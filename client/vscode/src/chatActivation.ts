@@ -41,7 +41,6 @@ import {
 } from 'vscode-languageclient/node'
 import * as jose from 'jose'
 import * as vscode from 'vscode'
-import * as fs from 'fs'
 
 export function registerChat(languageClient: LanguageClient, extensionUri: Uri, encryptionKey?: Buffer) {
     const webviewInitialized: Promise<Webview> = new Promise(resolveWebview => {
@@ -80,42 +79,73 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri, 
                         case AUTH_FOLLOW_UP_CLICKED:
                             languageClient.info('[VSCode Client] AuthFollowUp clicked')
                             break
-                        case chatRequestType.method: {
-                            const partialResultToken = uuidv4()
-                            const chatDisposable = languageClient.onProgress(
-                                chatRequestType,
-                                partialResultToken,
-                                partialResult =>
-                                    handlePartialResult<ChatResult>(
-                                        partialResult,
+                        case chatRequestType.method:
+                            {
+                                const partialResultToken = uuidv4()
+                                let lastPartialResult: ChatResult | undefined
+                                const chatDisposable = languageClient.onProgress(
+                                    chatRequestType,
+                                    partialResultToken,
+                                    partialResult => {
+                                        // Store the latest partial result
+                                        if (typeof partialResult === 'string' && encryptionKey) {
+                                            decodeRequest<ChatResult>(partialResult, encryptionKey).then(
+                                                decoded => (lastPartialResult = decoded)
+                                            )
+                                        } else {
+                                            lastPartialResult = partialResult as ChatResult
+                                        }
+
+                                        handlePartialResult<ChatResult>(
+                                            partialResult,
+                                            encryptionKey,
+                                            webviewView.webview,
+                                            message.params.tabId
+                                        )
+                                    }
+                                )
+
+                                const editor =
+                                    window.activeTextEditor ||
+                                    window.visibleTextEditors.find(editor => editor.document.languageId != 'Log')
+                                if (editor) {
+                                    message.params.cursorPosition = [editor.selection.active]
+                                    message.params.textDocument = { uri: editor.document.uri.toString() }
+                                }
+
+                                const chatRequest = await encryptRequest<ChatParams>(message.params, encryptionKey)
+                                try {
+                                    const chatResult = await languageClient.sendRequest(chatRequestType, {
+                                        ...chatRequest,
+                                        partialResultToken,
+                                    })
+                                    handleCompleteResult<ChatResult>(
+                                        chatResult,
                                         encryptionKey,
                                         webviewView.webview,
-                                        message.params.tabId
+                                        message.params.tabId,
+                                        chatDisposable
                                     )
-                            )
+                                } catch (e) {
+                                    languageClient.info(`Error occurred during chat request: ${e}`)
+                                    // Use the last partial result if available, append error message
+                                    const errorResult: ChatResult = {
+                                        ...lastPartialResult,
+                                        body: lastPartialResult?.body
+                                            ? `${lastPartialResult.body}\n\n ❌ Error: Request failed to complete`
+                                            : '❌ An error occurred while processing your request',
+                                    }
 
-                            const editor =
-                                window.activeTextEditor ||
-                                window.visibleTextEditors.find(editor => editor.document.languageId != 'Log')
-                            if (editor) {
-                                message.params.cursorPosition = [editor.selection.active]
-                                message.params.textDocument = { uri: editor.document.uri.toString() }
+                                    handleCompleteResult<ChatResult>(
+                                        errorResult,
+                                        encryptionKey,
+                                        webviewView.webview,
+                                        message.params.tabId,
+                                        chatDisposable
+                                    )
+                                }
                             }
-
-                            const chatRequest = await encryptRequest<ChatParams>(message.params, encryptionKey)
-                            const chatResult = await languageClient.sendRequest(chatRequestType, {
-                                ...chatRequest,
-                                partialResultToken,
-                            })
-                            handleCompleteResult<ChatResult>(
-                                chatResult,
-                                encryptionKey,
-                                webviewView.webview,
-                                message.params.tabId,
-                                chatDisposable
-                            )
                             break
-                        }
                         case quickActionRequestType.method: {
                             const quickActionPartialResultToken = uuidv4()
                             const quickActionDisposable = languageClient.onProgress(
