@@ -196,10 +196,7 @@ export class ExecuteBash {
                     if (this.looksLikePath(arg)) {
                         // If not absolute, resolve using workingDirectory if available.
                         const fullPath = !isAbsolute(arg) && params.cwd ? join(params.cwd, arg) : arg
-                        const isInWorkspace = await workspaceUtils.isInWorkspace(
-                            getWorkspaceFolderPaths(this.lsp),
-                            fullPath
-                        )
+                        const isInWorkspace = workspaceUtils.isInWorkspace(getWorkspaceFolderPaths(this.lsp), fullPath)
                         if (!isInWorkspace) {
                             return { requiresAcceptance: true, warning: destructiveCommandWarningMessage }
                         }
