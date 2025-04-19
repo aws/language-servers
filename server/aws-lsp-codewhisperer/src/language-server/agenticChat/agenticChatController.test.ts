@@ -41,6 +41,7 @@ import { TabBarController } from './tabBarController'
 import { getUserPromptsDirectory } from './context/contextUtils'
 import { AdditionalContextProvider } from './context/addtionalContextProvider'
 import { ContextCommandsProvider } from './context/contextCommandsProvider'
+import { ChatDatabase } from './tools/chatDb/chatDb'
 
 describe('AgenticChatController', () => {
     const mockTabId = 'tab-1'
@@ -118,6 +119,7 @@ describe('AgenticChatController', () => {
     let chatController: AgenticChatController
     let telemetryService: TelemetryService
     let telemetry: Telemetry
+    let getMessagesStub: sinon.SinonStub
 
     const setCredentials = setCredentialsForAmazonQTokenServiceManagerFactory(() => testFeatures)
 
@@ -221,6 +223,8 @@ describe('AgenticChatController', () => {
             emitMetric: sinon.stub(),
             onClientTelemetry: sinon.stub(),
         }
+
+        getMessagesStub = sinon.stub(ChatDatabase.prototype, 'getMessages')
 
         telemetryService = new TelemetryService(amazonQServiceManager, mockCredentialsProvider, telemetry, logging)
         chatController = new AgenticChatController(
@@ -327,6 +331,48 @@ describe('AgenticChatController', () => {
 
             sinon.assert.callCount(testFeatures.lsp.sendProgress, 0)
             assert.deepStrictEqual(chatResult, expectedCompleteChatResult)
+        })
+
+        it('creates a new conversationId if missing in the session', async () => {
+            // Create a session without a conversationId
+            chatController.onTabAdd({ tabId: mockTabId })
+            const session = chatSessionManagementService.getSession(mockTabId).data
+
+            // Verify session exists but has no conversationId initially
+            assert.ok(session)
+            assert.strictEqual(session.conversationId, undefined)
+
+            // Make the request
+            await chatController.onChatPrompt({ tabId: mockTabId, prompt: { prompt: 'Hello' } }, mockCancellationToken)
+
+            // Verify that a conversationId was created
+            assert.ok(session.conversationId)
+            assert.strictEqual(typeof session.conversationId, 'string')
+        })
+
+        it('includes chat history from the database in the request input', async () => {
+            // Mock chat history
+            const mockHistory = [
+                { type: 'prompt', body: 'Previous question' },
+                { type: 'answer', body: 'Previous answer' },
+            ]
+
+            getMessagesStub.returns(mockHistory)
+
+            // Make the request
+            const result = await chatController.onChatPrompt(
+                { tabId: mockTabId, prompt: { prompt: 'Hello' } },
+                mockCancellationToken
+            )
+
+            // Verify that history was requested from the db
+            sinon.assert.calledWith(getMessagesStub, mockTabId, 10)
+
+            assert.ok(generateAssistantResponseStub.calledOnce)
+
+            // Verify that the history was passed to the request
+            const requestInput: GenerateAssistantResponseCommandInput = generateAssistantResponseStub.firstCall.firstArg
+            assert.deepStrictEqual(requestInput.conversationState?.history, mockHistory)
         })
 
         it('handles tool use responses and makes multiple requests', async () => {
