@@ -120,21 +120,29 @@ export class AgenticChatTriggerContext {
         }
         const textDocument = await this.getTextDocument(textDocumentIdentifier.uri)
 
-        return this.#documentContextExtractor.extractDocumentContext(
-            textDocument,
-            // we want to include a default position if a text document is found so users can still ask questions about the opened file
-            // the range will be expanded up to the max characters downstream
-            cursorState?.[0] ?? AgenticChatTriggerContext.DEFAULT_CURSOR_STATE
-        )
+        return textDocument
+            ? this.#documentContextExtractor.extractDocumentContext(
+                  textDocument,
+                  // we want to include a default position if a text document is found so users can still ask questions about the opened file
+                  // the range will be expanded up to the max characters downstream
+                  cursorState?.[0] ?? AgenticChatTriggerContext.DEFAULT_CURSOR_STATE
+              )
+            : undefined
     }
 
     async getTextDocument(uri: string) {
-        // default to reading text document from fs if not synced with LSP.
+        // default to reading text document from fs if not synced with LSP. If we can't read file, return undefined.
         // Note: version is unused, and languageId can be determined from file extension.
-        return (
-            (await this.#workspace.getTextDocument(uri)) ??
-            TextDocument.create(uri, '', 0, await this.#workspace.fs.readFile(URI.parse(uri).fsPath))
-        )
+        const syncedTextDocument = await this.#workspace.getTextDocument(uri)
+        if (syncedTextDocument) {
+            return syncedTextDocument
+        }
+        try {
+            const content = await this.#workspace.fs.readFile(URI.parse(uri).fsPath)
+            return TextDocument.create(uri, '', 0, content)
+        } catch {
+            return
+        }
     }
 
     #guessIntentFromPrompt(prompt?: string): UserIntent | undefined {
