@@ -3,6 +3,7 @@
  * Will be deleted or merged.
  */
 
+import * as path from 'path'
 import {
     ChatTriggerType,
     GenerateAssistantResponseCommandInput,
@@ -82,9 +83,10 @@ import {
     TriggerContext,
 } from './context/agenticChatTriggerContext'
 import { AdditionalContextProvider } from './context/addtionalContextProvider'
-import { getNewPromptFilePath } from './context/contextUtils'
+import { getNewPromptFilePath, getUserPromptsDirectory, promptFileExtension } from './context/contextUtils'
 import { ContextCommandsProvider } from './context/contextCommandsProvider'
 import { LocalProjectContextController } from '../../shared/localProjectContextController'
+import { workspaceUtils } from '@aws/lsp-core'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -125,7 +127,7 @@ export class AgenticChatController implements ChatHandlers {
         this.#amazonQServiceManager = amazonQServiceManager
         this.#chatHistoryDb = new ChatDatabase(features)
         this.#tabBarController = new TabBarController(features, this.#chatHistoryDb)
-        this.#additionalContextProvider = new AdditionalContextProvider(features.workspace)
+        this.#additionalContextProvider = new AdditionalContextProvider(features.workspace, features.lsp)
         this.#contextCommandsProvider = new ContextCommandsProvider(
             this.#features.logging,
             this.#features.chat,
@@ -721,7 +723,16 @@ export class AgenticChatController implements ChatHandlers {
 
     async onFileClicked(params: FileClickParams) {
         // TODO: also pass in selection and handle on client side
-        await this.#features.lsp.window.showDocument({ uri: params.filePath })
+        const workspaceRoot = workspaceUtils.getWorkspaceFolderPaths(this.#features.lsp)[0]
+        let absolutePath = path.join(workspaceRoot, params.filePath)
+        // handle prompt file outside of workspace
+        if (params.filePath.endsWith(promptFileExtension)) {
+            const existsInWorkspace = await this.#features.workspace.fs.exists(absolutePath)
+            if (!existsInWorkspace) {
+                absolutePath = path.join(getUserPromptsDirectory(), params.filePath)
+            }
+        }
+        await this.#features.lsp.window.showDocument({ uri: absolutePath })
     }
 
     onFollowUpClicked() {}

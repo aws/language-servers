@@ -1,10 +1,10 @@
-import { FileDetails, QuickActionCommand, FileList } from '@aws/language-server-runtimes/protocol'
+import { FileDetails, QuickActionCommand, FileList, ContextCommand } from '@aws/language-server-runtimes/protocol'
 import { AdditionalContextPrompt, ContextCommandItem, ContextCommandItemType } from 'local-indexing'
 import * as path from 'path'
 import { AdditionalContentEntryAddition, TriggerContext } from './agenticChatTriggerContext'
 import { URI } from 'vscode-uri'
-import { Workspace } from '@aws/language-server-runtimes/server-interface'
-import { pathUtils } from '@aws/lsp-core'
+import { Lsp, Workspace } from '@aws/language-server-runtimes/server-interface'
+import { pathUtils, workspaceUtils } from '@aws/lsp-core'
 import {
     additionalContentInnerContextLimit,
     additionalContentNameLimit,
@@ -14,7 +14,10 @@ import {
 import { LocalProjectContextController } from '../../../shared/localProjectContextController'
 
 export class AdditionalContextProvider {
-    constructor(private readonly workspace: Workspace) {}
+    constructor(
+        private readonly workspace: Workspace,
+        private readonly lsp: Lsp
+    ) {}
 
     async collectWorkspaceRules(triggerContext: TriggerContext): Promise<string[]> {
         const rulesFiles: string[] = []
@@ -22,7 +25,9 @@ export class AdditionalContextProvider {
         if (!folder) {
             return rulesFiles
         }
-        const workspaceRoot = folder.uri ? URI.parse(folder.uri).fsPath : process.cwd()
+        const workspaceRoot = folder.uri
+            ? URI.parse(folder.uri).fsPath
+            : workspaceUtils.getWorkspaceFolderPaths(this.lsp)[0]
         const rulesPath = path.join(workspaceRoot, '.amazonq', 'rules')
         const folderExists = await this.workspace.fs.exists(rulesPath)
 
@@ -51,13 +56,13 @@ export class AdditionalContextProvider {
 
     async getAdditionalContext(
         triggerContext: TriggerContext,
-        context?: any[]
+        context?: ContextCommand[]
     ): Promise<AdditionalContentEntryAddition[]> {
         const additionalContextCommands: ContextCommandItem[] = []
         const workspaceRules = await this.collectWorkspaceRules(triggerContext)
         let workspaceFolderPath = triggerContext.workspaceFolder?.uri
             ? URI.parse(triggerContext.workspaceFolder.uri).fsPath
-            : process.cwd()
+            : workspaceUtils.getWorkspaceFolderPaths(this.lsp)[0]
 
         if (workspaceRules.length > 0) {
             additionalContextCommands.push(
@@ -135,24 +140,16 @@ export class AdditionalContextProvider {
         return fileList
     }
 
-    mapToContextCommandItems(context: any[], workspaceFolderPath: string): ContextCommandItem[] {
+    mapToContextCommandItems(context: ContextCommand[], workspaceFolderPath: string): ContextCommandItem[] {
         const contextCommands: ContextCommandItem[] = []
         for (const item of context) {
-            let itemType: ContextCommandItemType | undefined
-            if (item.icon === 'file') {
-                itemType = 'file'
-            } else if (item.icon === 'folder') {
-                itemType = 'folder'
-            } else if (item.icon === 'code-block') {
-                itemType = 'code'
-            }
-            if (itemType) {
+            if (item.route && item.route.length === 2) {
                 contextCommands.push({
-                    workspaceFolder: workspaceFolderPath,
-                    type: itemType,
-                    relativePath: item.command,
-                    id: item.id,
-                })
+                    workspaceFolder: item.route?.[0] ?? workspaceFolderPath,
+                    type: item.label ?? '',
+                    relativePath: item.route?.[1] ?? '',
+                    id: item.id ?? '',
+                } as ContextCommandItem)
             }
         }
         return contextCommands
