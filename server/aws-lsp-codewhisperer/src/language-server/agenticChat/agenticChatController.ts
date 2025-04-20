@@ -269,14 +269,10 @@ export class AgenticChatController implements ChatHandlers {
             ChatTriggerType.MANUAL,
             this.#customizationArn,
             profileArn,
+            this.#chatHistoryDb.getMessages(params.tabId, 10),
             this.#getTools(session),
             additionalContext
         )
-
-        if (!session.localHistoryHydrated && requestInput.conversationState) {
-            requestInput.conversationState.history = this.#chatHistoryDb.getMessages(params.tabId, 10)
-            session.localHistoryHydrated = true
-        }
 
         return requestInput
     }
@@ -324,11 +320,6 @@ export class AgenticChatController implements ChatHandlers {
                 chatResultStream,
                 documentReference
             )
-
-            // Store the conversation ID from the first response
-            if (iterationCount === 1 && result.data?.conversationId) {
-                session.conversationId = result.data.conversationId
-            }
 
             // Check if we have any tool uses that need to be processed
             const pendingToolUses = this.#getPendingToolUses(result.data?.toolUses || {})

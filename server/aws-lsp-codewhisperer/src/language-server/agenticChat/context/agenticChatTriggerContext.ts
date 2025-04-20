@@ -11,6 +11,7 @@ import {
     ToolResult,
     AdditionalContentEntry,
     GenerateAssistantResponseCommandInput,
+    ChatMessage,
 } from '@amzn/codewhisperer-streaming'
 import {
     BedrockTools,
@@ -62,6 +63,7 @@ export class AgenticChatTriggerContext {
         chatTriggerType: ChatTriggerType,
         customizationArn?: string,
         profileArn?: string,
+        history: ChatMessage[] = [],
         tools: BedrockTools = [],
         additionalContent?: AdditionalContentEntryAddition[]
     ): GenerateAssistantResponseCommandInput {
@@ -100,6 +102,7 @@ export class AgenticChatTriggerContext {
                     },
                 },
                 customizationArn,
+                history,
             },
             profileArn,
         }
