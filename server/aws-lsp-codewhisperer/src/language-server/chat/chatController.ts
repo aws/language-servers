@@ -567,6 +567,8 @@ export class ChatController implements ChatHandlers {
         return chatEventParser.getResult()
     }
 
+    onPromptInputOptionChange() {}
+
     updateConfiguration = (newConfig: AmazonQWorkspaceConfig) => {
         this.#customizationArn = newConfig.customizationArn
         this.#log(`Chat configuration updated customizationArn to ${this.#customizationArn}`)

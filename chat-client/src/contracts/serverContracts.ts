@@ -33,6 +33,7 @@ import {
     TAB_BAR_ACTION_REQUEST_METHOD,
     TabBarActionParams,
     GetSerializedChatResult,
+    PROMPT_INPUT_OPTION_CHANGE_METHOD,
 } from '@aws/language-server-runtimes-types'
 
 export const TELEMETRY = 'telemetry/event'
@@ -57,6 +58,7 @@ export type ServerMessageCommand =
     | typeof CONVERSATION_CLICK_REQUEST_METHOD
     | typeof TAB_BAR_ACTION_REQUEST_METHOD
     | typeof GET_SERIALIZED_CHAT_REQUEST_METHOD
+    | typeof PROMPT_INPUT_OPTION_CHANGE_METHOD
 
 export interface ServerMessage {
     command: ServerMessageCommand

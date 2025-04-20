@@ -45,6 +45,7 @@ import { ChatClientAdapter, ChatEventHandler } from '../contracts/chatClientAdap
 import { withAdapter } from './withAdapter'
 import { toMynahIcon } from './utils'
 import { ChatHistory, ChatHistoryList } from './features/history'
+import { pairProgrammingModeOff, pairProgrammingModeOn } from './texts/pairProgramming'
 
 export interface InboundChatApi {
     addChatResponse(params: ChatResult, tabId: string, isPartialResult: boolean): void
@@ -66,6 +67,15 @@ const ContextPrompt = {
     SubmitButtonId: 'submit-create-prompt',
     PromptNameFieldId: 'prompt-name',
 } as const
+
+export const handlePromptInputChange = (mynahUi: MynahUI, tabId: string, optionsValues: Record<string, string>) => {
+    const promptTypeValue = optionsValues['pair-programmer-mode']
+    if (promptTypeValue === 'true') {
+        mynahUi.addChatItem(tabId, pairProgrammingModeOn)
+    } else {
+        mynahUi.addChatItem(tabId, pairProgrammingModeOff)
+    }
+}
 
 export const handleChatPrompt = (
     mynahUi: MynahUI,
@@ -353,6 +363,10 @@ export const createMynahUi = (
             }
 
             throw new Error(`Unhandled tab bar button id: ${buttonId}`)
+        },
+        onPromptInputOptionChange: (tabId, optionsValues) => {
+            handlePromptInputChange(mynahUi, tabId, optionsValues)
+            messager.onPromptInputOptionChange({ tabId, optionsValues })
         },
     }
 

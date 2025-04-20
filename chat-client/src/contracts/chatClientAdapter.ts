@@ -35,6 +35,7 @@ export interface ChatEventHandler
         | 'onFocusStateChanged'
         | 'onResetStore'
         | 'onReady'
+        | 'onPromptInputOptionChange'
     > {}
 
 /**

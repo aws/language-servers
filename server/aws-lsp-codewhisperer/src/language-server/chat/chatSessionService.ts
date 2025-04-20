@@ -15,6 +15,7 @@ export type ChatSessionServiceConfig = CodeWhispererStreamingClientConfig
 export class ChatSessionService {
     public shareCodeWhispererContentWithAWS = false
     public localHistoryHydrated: boolean = false
+    public pairProgrammingMode: boolean = true
     #abortController?: AbortController
     #conversationId?: string
     #amazonQServiceManager?: AmazonQBaseServiceManager

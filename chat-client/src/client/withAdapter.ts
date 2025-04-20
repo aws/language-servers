@@ -56,6 +56,7 @@ export const withAdapter = (
         onShowMoreWebResultsClick: addDefaultRouting('onShowMoreWebResultsClick'),
         onChatPromptProgressActionButtonClicked: addDefaultRouting('onChatPromptProgressActionButtonClicked'),
         onTabbedContentTabChange: addDefaultRouting('onTabbedContentTabChange'),
+        onPromptInputOptionChange: addDefaultRouting('onPromptInputOptionChange'),
 
         /**
          * Handler with special routing logic

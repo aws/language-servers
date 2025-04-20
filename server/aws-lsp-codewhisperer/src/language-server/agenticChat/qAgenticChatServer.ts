@@ -153,6 +153,10 @@ export const QAgenticChatServer =
             return chatController.onTabBarAction(params)
         })
 
+        chat.onPromptInputOptionChange(params => {
+            return chatController.onPromptInputOptionChange(params)
+        })
+
         logging.log('Q Chat server has been initialized')
 
         return () => {

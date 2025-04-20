@@ -34,6 +34,7 @@ import {
     LinkClickParams,
     ListConversationsParams,
     OpenTabResult,
+    PromptInputOptionChangeParams,
     QuickActionParams,
     SourceLinkClickParams,
     TabAddParams,
@@ -87,6 +88,7 @@ export interface OutboundChatApi {
     conversationClick(params: ConversationClickParams): void
     tabBarAction(params: TabBarActionParams): void
     onGetSerializedChat(requestId: string, result: GetSerializedChatResult | ErrorResult): void
+    promptInputOptionChange(params: PromptInputOptionChangeParams): void
 }
 
 export class Messager {
@@ -208,5 +210,9 @@ export class Messager {
 
     onGetSerializedChat = (requestId: string, result: GetSerializedChatResult | ErrorResult): void => {
         this.chatApi.onGetSerializedChat(requestId, result)
+    }
+
+    onPromptInputOptionChange = (params: PromptInputOptionChangeParams): void => {
+        this.chatApi.promptInputOptionChange(params)
     }
 }

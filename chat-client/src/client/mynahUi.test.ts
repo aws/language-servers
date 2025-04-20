@@ -53,6 +53,7 @@ describe('MynahUI', () => {
             conversationClick: sinon.stub(),
             tabBarAction: sinon.stub(),
             onGetSerializedChat: sinon.stub(),
+            promptInputOptionChange: sinon.stub(),
         }
 
         messager = new Messager(outboundChatApi)
