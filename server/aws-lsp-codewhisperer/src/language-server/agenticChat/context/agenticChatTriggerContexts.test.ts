@@ -60,15 +60,6 @@ describe('AgenticChatTriggerContext', () => {
     })
 
     it('returns null if text document is not found', async () => {
-        testFeatures.workspace = {
-            ...testFeatures.workspace,
-            fs: {
-                ...testFeatures.workspace.fs,
-                readFile: (_path, _options?) => {
-                    throw new Error('File not found')
-                },
-            },
-        }
         const triggerContext = new AgenticChatTriggerContext(testFeatures)
         const documentContext = await triggerContext.extractDocumentContext({
             cursorState: [
