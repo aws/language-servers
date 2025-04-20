@@ -361,8 +361,15 @@ export class AgenticChatController implements ChatHandlers {
             })
 
             // Maximum iterations reached - store partial result as final output
+            // We already know pendingToolUses.length != 0 because it was checked above
             if (iterationCount === maxIterations) {
                 finalResult = result
+                // Add extra log information to the existing body
+                const streamWriter = chatResultStream.getResultStreamWriter()
+                await streamWriter.write({
+                    body: `⚠️ Q Agent has reached maximum number of tool uses and a complete response has not been generated`,
+                })
+                await streamWriter.close()
             }
         }
 
