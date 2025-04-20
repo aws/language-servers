@@ -294,7 +294,7 @@ export class AgenticChatController implements ChatHandlers {
         let currentRequestInput = { ...initialRequestInput }
         let finalResult: Result<AgenticChatResultWithMetadata, string> | null = null
         let iterationCount = 0
-        const maxIterations = 10 // Safety limit to prevent infinite loops
+        const maxIterations = 100 // Safety limit to prevent infinite loops
         metric.recordStart()
 
         while (iterationCount < maxIterations) {
