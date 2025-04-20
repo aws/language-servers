@@ -43,7 +43,7 @@ import { ExportTabBarButtonId, TabFactory } from './tabs/tabFactory'
 import { disclaimerAcknowledgeButtonId, disclaimerCard } from './texts/disclaimer'
 import { ChatClientAdapter, ChatEventHandler } from '../contracts/chatClientAdapter'
 import { withAdapter } from './withAdapter'
-import { toMynahIcon } from './utils'
+import { toMynahButtons, toMynahHeader, toMynahIcon } from './utils'
 import { ChatHistory, ChatHistoryList } from './features/history'
 import { pairProgrammingModeOff, pairProgrammingModeOn } from './texts/pairProgramming'
 
@@ -426,7 +426,8 @@ export const createMynahUi = (
 
     const addChatResponse = (chatResult: ChatResult, tabId: string, isPartialResult: boolean) => {
         const { type, ...chatResultWithoutType } = chatResult
-        let header = undefined
+        let header = toMynahHeader(chatResult.header)
+        const buttons = toMynahButtons(chatResult.buttons)
 
         if (chatResult.contextList !== undefined) {
             header = {
@@ -460,7 +461,7 @@ export const createMynahUi = (
 
         if (isPartialResult) {
             // type for MynahUI differs from ChatResult types so we ignore it
-            mynahUi.updateLastChatAnswer(tabId, { ...chatResultWithoutType, header: header })
+            mynahUi.updateLastChatAnswer(tabId, { ...chatResultWithoutType, header: header, buttons: buttons })
             return
         }
 
@@ -480,6 +481,8 @@ export const createMynahUi = (
             mynahUi.addChatItem(tabId, {
                 type: ChatItemType.SYSTEM_PROMPT,
                 ...chatResultWithoutType, // type for MynahUI differs from ChatResult types so we ignore it
+                header: header,
+                buttons: buttons,
             })
 
             // TODO, prompt should be disabled until user is authenticated
@@ -515,6 +518,7 @@ export const createMynahUi = (
         mynahUi.updateLastChatAnswer(tabId, {
             type: ChatItemType.ANSWER,
             header: header,
+            buttons: buttons,
             body: chatResult.body,
             followUp: followUps,
             relatedContent: chatResult.relatedContent,
