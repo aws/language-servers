@@ -495,11 +495,11 @@ export const createMynahUi = (
               }
             : {}
 
-        // TODO: fix this on MynahUI side.
+        // TODO: ensure all card item types are supported for export on MynahUI side.
         // Chat export does not work with 'ANSWER_STREAM' cards, so at the end of the streaming
         // we convert 'ANSWER_STREAM' to 'ANSWER' card.
         // First, we unset all the properties and then insert all the data as card item type 'ANSWER'.
-        // This approach works, because 'addChatResponse' reveives aggregated/joined data send in every next progress update.
+        // It works, because 'addChatResponse' receives aggregated/joined data send in every next progress update.
         mynahUi.updateLastChatAnswer(tabId, {
             header: undefined,
             body: '',
