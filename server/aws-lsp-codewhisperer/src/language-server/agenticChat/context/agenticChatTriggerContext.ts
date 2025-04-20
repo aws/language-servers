@@ -130,8 +130,15 @@ export class AgenticChatTriggerContext {
             : undefined
     }
 
+    /**
+     * Fetch the current textDocument such that:
+     * 1. If the document is synced with LSP, return the synced textDocument
+     * 2. If the document is not synced with LSP, read the file from the file system
+     * 3. If the file cannot be read, return undefined
+     * @param uri
+     * @returns
+     */
     async getTextDocument(uri: string) {
-        // default to reading text document from fs if not synced with LSP. If we can't read file, return undefined.
         // Note: version is unused, and languageId can be determined from file extension.
         const syncedTextDocument = await this.#workspace.getTextDocument(uri)
         if (syncedTextDocument) {
