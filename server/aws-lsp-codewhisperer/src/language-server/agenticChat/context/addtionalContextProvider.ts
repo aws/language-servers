@@ -9,6 +9,7 @@ import {
     additionalContentInnerContextLimit,
     additionalContentNameLimit,
     getUserPromptsDirectory,
+    initialContextInfo,
     promptFileExtension,
 } from './contextUtils'
 import { LocalProjectContextController } from '../../../shared/localProjectContextController'
@@ -58,6 +59,9 @@ export class AdditionalContextProvider {
         triggerContext: TriggerContext,
         context?: ContextCommand[]
     ): Promise<AdditionalContentEntryAddition[]> {
+        if (!triggerContext.contextInfo) {
+            triggerContext.contextInfo = initialContextInfo
+        }
         const additionalContextCommands: ContextCommandItem[] = []
         const workspaceRules = await this.collectWorkspaceRules(triggerContext)
         let workspaceFolderPath = triggerContext.workspaceFolder?.uri
@@ -77,9 +81,11 @@ export class AdditionalContextProvider {
                 )
             )
         }
-        triggerContext.workspaceRulesCount = workspaceRules.length
+        triggerContext.contextInfo.contextCount.ruleContextCount = workspaceRules.length
         if (context) {
-            additionalContextCommands.push(...this.mapToContextCommandItems(context, workspaceFolderPath))
+            additionalContextCommands.push(
+                ...this.mapToContextCommandItems(context, workspaceFolderPath, triggerContext)
+            )
         }
 
         if (additionalContextCommands.length === 0) {
@@ -95,6 +101,9 @@ export class AdditionalContextProvider {
         }
 
         const contextEntry: AdditionalContentEntryAddition[] = []
+        let ruleContextLength = 0
+        let fileContextLength = 0
+        let promptContextLength = 0
         for (const prompt of prompts.slice(0, 20)) {
             const contextType = this.getContextType(prompt)
             const description =
@@ -105,7 +114,6 @@ export class AdditionalContextProvider {
             const relativePath = prompt.filePath.startsWith(getUserPromptsDirectory())
                 ? path.basename(prompt.filePath)
                 : path.relative(workspaceFolderPath, prompt.filePath)
-
             const entry = {
                 name: prompt.name.substring(0, additionalContentNameLimit),
                 description: description.substring(0, additionalContentNameLimit),
@@ -115,8 +123,20 @@ export class AdditionalContextProvider {
                 startLine: prompt.startLine,
                 endLine: prompt.endLine,
             }
-
             contextEntry.push(entry)
+
+            if (contextType === 'rule') {
+                fileContextLength += prompt.content.length
+            } else if (contextType === 'prompt') {
+                promptContextLength += prompt.content.length
+            } else {
+                ruleContextLength += prompt.content.length
+            }
+        }
+        triggerContext.contextInfo.contextLength = {
+            ruleContextLength,
+            fileContextLength,
+            promptContextLength,
         }
         return contextEntry
     }
@@ -140,8 +160,15 @@ export class AdditionalContextProvider {
         return fileList
     }
 
-    mapToContextCommandItems(context: ContextCommand[], workspaceFolderPath: string): ContextCommandItem[] {
+    mapToContextCommandItems(
+        context: ContextCommand[],
+        workspaceFolderPath: string,
+        triggerContext: TriggerContext
+    ): ContextCommandItem[] {
         const contextCommands: ContextCommandItem[] = []
+        let fileContextCount = 0
+        let folderContextCount = 0
+        let promptContextCount = 0
         for (const item of context) {
             if (item.route && item.route.length === 2) {
                 contextCommands.push({
@@ -151,6 +178,12 @@ export class AdditionalContextProvider {
                     id: item.id ?? '',
                 } as ContextCommandItem)
             }
+        }
+        triggerContext.contextInfo!.contextCount = {
+            ...triggerContext.contextInfo!.contextCount,
+            fileContextCount,
+            folderContextCount,
+            promptContextCount,
         }
         return contextCommands
     }

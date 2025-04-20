@@ -24,11 +24,12 @@ import {
 import { Features } from '../../types'
 import { DocumentContext, DocumentContextExtractor } from '../../chat/contexts/documentContext'
 import { workspaceUtils } from '@aws/lsp-core'
+import { ContextInfo, initialContextInfo } from './contextUtils'
 
 export interface TriggerContext extends Partial<DocumentContext> {
     userIntent?: UserIntent
     triggerType?: TriggerType
-    workspaceRulesCount?: number
+    contextInfo?: ContextInfo
     documentReference?: FileList
 }
 export type LineInfo = { startLine: number; endLine: number }
@@ -54,6 +55,7 @@ export class AgenticChatTriggerContext {
         return {
             ...documentContext,
             userIntent: this.#guessIntentFromPrompt(params.prompt.prompt),
+            contextInfo: initialContextInfo,
         }
     }
 

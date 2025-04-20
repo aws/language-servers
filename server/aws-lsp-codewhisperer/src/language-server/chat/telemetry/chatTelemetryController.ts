@@ -199,6 +199,14 @@ export class ChatTelemetryController {
                 chatFollowUpCount: metric.cwsprChatFollowUpCount,
                 chatConversationType: metric.cwsprChatConversationType,
                 chatActiveEditorImportCount: metric.cwsprChatActiveEditorImportCount,
+                cwsprChatHasContextList: metric.cwsprChatHasContextList,
+                cwsprChatFolderContextCount: metric.cwsprChatFolderContextCount,
+                cwsprChatFileContextCount: metric.cwsprChatFileContextCount,
+                cwsprChatRuleContextCount: metric.cwsprChatRuleContextCount,
+                cwsprChatPromptContextCount: metric.cwsprChatPromptContextCount,
+                cwsprChatFileContextLength: metric.cwsprChatFileContextLength,
+                cwsprChatRuleContextLength: metric.cwsprChatRuleContextLength,
+                cwsprChatPromptContextLength: metric.cwsprChatPromptContextLength,
             }
         )
     }

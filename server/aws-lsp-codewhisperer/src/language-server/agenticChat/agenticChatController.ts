@@ -307,6 +307,7 @@ export class AgenticChatController implements ChatHandlers {
             this.#debug(`Request Input: ${JSON.stringify(currentRequestInput)}`)
             const response = await session.generateAssistantResponse(currentRequestInput)
             this.#debug(`Response received for iteration ${iterationCount}:`, JSON.stringify(response.$metadata))
+            this.#debug(`Document reference: ${JSON.stringify(documentReference)}`)
 
             // Phase 4: Response Processing
             const result = await this.#processGenerateAssistantResponseResponse(
@@ -318,6 +319,7 @@ export class AgenticChatController implements ChatHandlers {
                 chatResultStream,
                 documentReference
             )
+            this.#debug(`Chat Result: ${JSON.stringify(result)}`)
 
             // Check if we have any tool uses that need to be processed
             const pendingToolUses = this.#getPendingToolUses(result.data?.toolUses || {})
@@ -489,6 +491,18 @@ export class AgenticChatController implements ChatHandlers {
         }
 
         metric.setDimension('codewhispererCustomizationArn', this.#customizationArn)
+        if (triggerContext.contextInfo) {
+            metric.mergeWith({
+                cwsprChatHasContextList: triggerContext.documentReference?.filePaths?.length ? true : false,
+                cwsprChatFolderContextCount: triggerContext.contextInfo.contextCount.folderContextCount,
+                cwsprChatFileContextCount: triggerContext.contextInfo.contextCount.fileContextCount,
+                cwsprChatRuleContextCount: triggerContext.contextInfo.contextCount.ruleContextCount,
+                cwsprChatPromptContextCount: triggerContext.contextInfo.contextCount.promptContextCount,
+                cwsprChatFileContextLength: triggerContext.contextInfo.contextLength.fileContextLength,
+                cwsprChatRuleContextLength: triggerContext.contextInfo.contextLength.ruleContextLength,
+                cwsprChatPromptContextLength: triggerContext.contextInfo.contextLength.promptContextLength,
+            })
+        }
         await this.#telemetryController.emitAddMessageMetric(params.tabId, metric.metric)
 
         this.#telemetryController.updateTriggerInfo(params.tabId, {

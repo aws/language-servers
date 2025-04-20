@@ -193,7 +193,7 @@ export class AgenticChatEventParser implements ChatResult {
             relatedContent: this.relatedContent,
             followUp: this.followUp,
             codeReference: this.codeReference,
-            ...(this.contextList && { contextList: { ...this.contextList } }),
+            ...(this.contextList && { contextList: this.contextList }),
         }
 
         const chatResultWithMetadata = {
