@@ -58,6 +58,8 @@ import {
     OPEN_TAB_REQUEST_METHOD,
     OpenTabParams,
     OpenTabResult,
+    PROMPT_INPUT_OPTION_CHANGE_METHOD,
+    PromptInputOptionChangeParams,
     QUICK_ACTION_REQUEST_METHOD,
     QuickActionParams,
     READY_NOTIFICATION_METHOD,
@@ -296,6 +298,9 @@ export const createChat = (
                     },
                 })
             }
+        },
+        promptInputOptionChange: (params: PromptInputOptionChangeParams) => {
+            sendMessageToClient({ command: PROMPT_INPUT_OPTION_CHANGE_METHOD, params })
         },
     }
 

@@ -17,7 +17,6 @@ import {
 import {
     chatRequestType,
     InlineChatResultParams,
-    NotificationHandler,
     PromptInputOptionChangeParams,
 } from '@aws/language-server-runtimes/protocol'
 import {
@@ -271,7 +270,7 @@ export class AgenticChatController implements ChatHandlers {
             this.#customizationArn,
             profileArn,
             this.#chatHistoryDb.getMessages(params.tabId, 10),
-            this.#features.agent.getTools({ format: 'bedrock' }),
+            this.#getTools(session),
             additionalContext
         )
 
@@ -929,7 +928,17 @@ export class AgenticChatController implements ChatHandlers {
         return chatEventParser.getResult()
     }
 
-    onPromptInputOptionChange: NotificationHandler<PromptInputOptionChangeParams> = () => {}
+    onPromptInputOptionChange(params: PromptInputOptionChangeParams) {
+        const sessionResult = this.#chatSessionManagementService.getSession(params.tabId)
+        const { data: session, success } = sessionResult
+
+        if (!success) {
+            this.#log('onPromptInputOptionChange: on valid session found')
+            return
+        }
+
+        session.pairProgrammingMode = !session.pairProgrammingMode
+    }
 
     updateConfiguration = (newConfig: AmazonQWorkspaceConfig) => {
         this.#customizationArn = newConfig.customizationArn
@@ -943,6 +952,16 @@ export class AgenticChatController implements ChatHandlers {
         const updatedOptOutPreference = newConfig.optOutTelemetryPreference
         this.#telemetryService.updateOptOutPreference(updatedOptOutPreference)
         this.#log(`Chat configuration telemetry preference to ${updatedOptOutPreference}`)
+    }
+
+    #getTools(session: ChatSessionService) {
+        const tools = this.#features.agent.getTools({ format: 'bedrock' })
+
+        // it's disabled so filter out the write tools
+        if (!session.pairProgrammingMode) {
+            return tools.filter(tool => !['fsWrite', 'executeBash'].includes(tool.toolSpecification?.name || ''))
+        }
+        return tools
     }
 
     #log(...messages: string[]) {

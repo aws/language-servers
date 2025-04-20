@@ -9,6 +9,7 @@ import {
 import { disclaimerCard } from '../texts/disclaimer'
 import { ChatMessage } from '@aws/language-server-runtimes-types'
 import { ChatHistory } from '../features/history'
+import { pairProgrammingPromptInput } from '../texts/pairProgramming'
 
 export type DefaultTabData = MynahUIDataModel
 
@@ -55,6 +56,7 @@ export class TabFactory {
                   : [],
             ...(disclaimerCardActive ? { promptInputStickyCard: disclaimerCard } : {}),
             cancelButtonWhenLoading: false,
+            promptInputOptions: [pairProgrammingPromptInput],
         }
         return tabData
     }
