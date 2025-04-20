@@ -14,7 +14,12 @@ import {
     ToolResultContentBlock,
     ToolUse,
 } from '@amzn/codewhisperer-streaming'
-import { chatRequestType, InlineChatResultParams } from '@aws/language-server-runtimes/protocol'
+import {
+    chatRequestType,
+    InlineChatResultParams,
+    NotificationHandler,
+    PromptInputOptionChangeParams,
+} from '@aws/language-server-runtimes/protocol'
 import {
     ApplyWorkspaceEditParams,
     ErrorCodes,
@@ -923,6 +928,8 @@ export class AgenticChatController implements ChatHandlers {
 
         return chatEventParser.getResult()
     }
+
+    onPromptInputOptionChange: NotificationHandler<PromptInputOptionChangeParams> = () => {}
 
     updateConfiguration = (newConfig: AmazonQWorkspaceConfig) => {
         this.#customizationArn = newConfig.customizationArn

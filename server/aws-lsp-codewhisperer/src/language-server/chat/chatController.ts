@@ -9,6 +9,8 @@ import {
     TextEdit,
     chatRequestType,
     InlineChatResultParams,
+    NotificationHandler,
+    PromptInputOptionChangeParams,
 } from '@aws/language-server-runtimes/protocol'
 import {
     CancellationToken,
@@ -566,6 +568,8 @@ export class ChatController implements ChatHandlers {
 
         return chatEventParser.getResult()
     }
+
+    onPromptInputOptionChange() {}
 
     updateConfiguration = (newConfig: AmazonQWorkspaceConfig) => {
         this.#customizationArn = newConfig.customizationArn
