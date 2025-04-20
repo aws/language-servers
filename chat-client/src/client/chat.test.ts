@@ -243,7 +243,11 @@ describe('Chat', () => {
         })
         window.dispatchEvent(chatEvent)
 
-        assert.calledOnceWithExactly(updateLastChatAnswerStub, tabId, { body, header: undefined })
+        assert.calledOnceWithExactly(updateLastChatAnswerStub, tabId, {
+            body,
+            header: { icon: undefined, buttons: undefined },
+            buttons: undefined,
+        })
         assert.notCalled(endMessageStreamStub)
         assert.notCalled(updateStoreStub)
     })
@@ -296,6 +300,7 @@ describe('Chat', () => {
         assert.calledOnceWithExactly(updateLastChatAnswerStub, tabId, {
             ...params,
             header: mockHeader,
+            buttons: undefined,
         })
         assert.notCalled(endMessageStreamStub)
         assert.notCalled(updateStoreStub)
