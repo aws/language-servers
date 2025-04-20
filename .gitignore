@@ -6,6 +6,7 @@ build
 !core/codewhisperer-streaming/amzn-codewhisperer-streaming-*.tgz
 !core/q-developer-streaming-client/amzn-amazon-q-developer-streaming-client-*.tgz
 !server/aws-lsp-codewhisperer/types/types-local-indexing-*.tgz
+!chat-client/lib/aws-mynah-ui-4.31.0-beta.6.tgz
 
 .testresults/**
 
