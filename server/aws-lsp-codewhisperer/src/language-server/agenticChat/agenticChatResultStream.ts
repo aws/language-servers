@@ -1,4 +1,4 @@
-import { ChatResult } from '@aws/language-server-runtimes/protocol'
+import { ChatResult, FileDetails } from '@aws/language-server-runtimes/protocol'
 
 interface ResultStreamWriter {
     write(chunk: ChatResult): Promise<void>
@@ -10,11 +10,16 @@ interface ResultStreamWriter {
  * ChatResults are grouped into blocks that can be written directly, or streamed in.
  * In the final message, blocks are seperated by resultDelimiter defined below.
  */
+
+interface FileDetailsWithPath extends FileDetails {
+    relativeFilePath: string
+}
 export class AgenticChatResultStream {
     static readonly resultDelimiter = '\n\n'
     #state = {
         chatResultBlocks: [] as ChatResult[],
         isLocked: false,
+        fileList: {} as Record<string, FileDetailsWithPath[]>,
     }
     readonly #sendProgress: (newChatResult: ChatResult | string) => Promise<void>
 
@@ -26,11 +31,33 @@ export class AgenticChatResultStream {
         return this.#joinResults(this.#state.chatResultBlocks)
     }
 
+    getFileList(toolUseId: string): FileDetailsWithPath[] {
+        return this.#state.fileList[toolUseId] ?? []
+    }
+
+    addFileList(toolUseId: string, fileDetails: FileDetailsWithPath) {
+        if (!this.#state.fileList[toolUseId]) {
+            this.#state.fileList[toolUseId] = []
+        }
+        this.#state.fileList[toolUseId].push(fileDetails)
+    }
+
     #joinResults(chatResults: ChatResult[]): ChatResult {
         // TODO: if we add ui elements to ChatResult in the response, we need to be more aware of how we combine them.
+
+        // TODO: the combining of contextList is temporary just so we can see them
+        // they should be different messages once we support multiple messages
         return chatResults.reduceRight((acc, c) => ({
             ...acc,
             body: c.body + AgenticChatResultStream.resultDelimiter + acc.body,
+            ...((c.contextList || acc.contextList) && {
+                contextList: {
+                    filePaths: [...(acc.contextList?.filePaths ?? []), ...(c.contextList?.filePaths ?? [])],
+                    rootFolderTitle: c.contextList?.rootFolderTitle
+                        ? c.contextList.rootFolderTitle
+                        : (acc.contextList?.rootFolderTitle ?? ''),
+                },
+            }),
         }))
     }
 

@@ -434,7 +434,7 @@ export const createMynahUi = (
                 fileList: {
                     fileTreeTitle: '',
                     filePaths: chatResult.contextList.filePaths?.map(file => file),
-                    rootFolderTitle: 'Context',
+                    rootFolderTitle: chatResult.contextList.rootFolderTitle ?? 'Context',
                     flatList: true,
                     collapsed: true,
                     hideFileCount: true,

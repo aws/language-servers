@@ -17,6 +17,7 @@ import {
 } from '@amzn/codewhisperer-streaming'
 import {
     chatRequestType,
+    FileDetails,
     InlineChatResultParams,
     PromptInputOptionChangeParams,
 } from '@aws/language-server-runtimes/protocol'
@@ -394,9 +395,17 @@ export class AgenticChatController implements ChatHandlers {
 
         for (const toolUse of toolUses) {
             if (!toolUse.name || !toolUse.toolUseId) continue
+            if (toolUse.name === 'fsRead' || toolUse.name === 'listDirectory') {
+                const initialReadOrListResult = this.#processReadOrList(toolUse, chatResultStream)
+                if (initialReadOrListResult) {
+                    await chatResultStream.writeResultBlock(initialReadOrListResult)
+                }
+            }
 
             try {
-                await chatResultStream.writeResultBlock({ body: `${executeToolMessage(toolUse)}` })
+                if (toolUse.name !== 'fsRead' && toolUse.name !== 'listDirectory') {
+                    await chatResultStream.writeResultBlock({ body: `${executeToolMessage(toolUse)}` })
+                }
 
                 const result = await this.#features.agent.runTool(toolUse.name, toolUse.input)
                 let toolResultContent: ToolResultContentBlock
@@ -414,7 +423,11 @@ export class AgenticChatController implements ChatHandlers {
                     status: 'success',
                     content: [toolResultContent],
                 })
-                await chatResultStream.writeResultBlock({ body: toolResultMessage(toolUse, result) })
+
+                // no need to write tool result for listDir and fsRead into chat stream
+                if (toolUse.name !== 'fsRead' && toolUse.name !== 'listDirectory') {
+                    await chatResultStream.writeResultBlock({ body: toolResultMessage(toolUse, result) })
+                }
             } catch (err) {
                 const errMsg = err instanceof Error ? err.message : 'unknown error'
                 await chatResultStream.writeResultBlock({
@@ -430,6 +443,50 @@ export class AgenticChatController implements ChatHandlers {
         }
 
         return results
+    }
+
+    #processReadOrList(toolUse: ToolUse, chatResultStream: AgenticChatResultStream): ChatResult | undefined {
+        // return initial message about fsRead or listDir
+        const toolUseId = toolUse.toolUseId!
+        const currentPath = (toolUse.input as any)?.path
+        if (!currentPath) return
+        const currentFileList = chatResultStream.getFileList(toolUseId)
+        if (!currentFileList.some(path => path.relativeFilePath === currentPath)) {
+            const currentFileDetail = {
+                relativeFilePath: (toolUse.input as any)?.path,
+                lineRanges: [{ first: -1, second: -1 }],
+            }
+            chatResultStream.addFileList(toolUseId, currentFileDetail)
+            currentFileList.push(currentFileDetail)
+        }
+
+        let title: string
+        const itemCount = currentFileList.length
+        if (!itemCount) {
+            title = 'Gathering context'
+        } else {
+            title =
+                toolUse.name === 'fsRead'
+                    ? `${itemCount} file${itemCount > 1 ? 's' : ''} read`
+                    : `${itemCount} ${itemCount === 1 ? 'directory' : 'directories'} listed`
+        }
+        const fileDetails: Record<string, FileDetails> = {}
+        for (const item of currentFileList) {
+            fileDetails[item.relativeFilePath] = {
+                lineRanges: item.lineRanges,
+            }
+        }
+
+        const contextList: FileList = {
+            rootFolderTitle: title,
+            filePaths: currentFileList.map(item => item.relativeFilePath),
+            details: fileDetails,
+        }
+
+        // TODO: handle confirmation use case
+        return {
+            contextList,
+        }
     }
 
     /**
