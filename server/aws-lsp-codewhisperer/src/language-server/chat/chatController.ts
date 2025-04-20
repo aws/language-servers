@@ -9,6 +9,8 @@ import {
     TextEdit,
     chatRequestType,
     InlineChatResultParams,
+    NotificationHandler,
+    PromptInputOptionChangeParams,
 } from '@aws/language-server-runtimes/protocol'
 import {
     CancellationToken,
