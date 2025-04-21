@@ -10,10 +10,17 @@ export enum UserGroup {
 
 export const supplemetalContextFetchingTimeoutMsg = 'Amazon Q supplemental context fetching timeout'
 
+export const supplementalContextMaxTotalLength = 20480
+
+export const supplementalContextTimeoutInMs = 100
+
 export const crossFileContextConfig = {
     numberOfChunkToFetch: 60,
     topK: 3,
     numberOfLinesEachChunk: 10,
+    maximumTotalLength: 20480,
+    maxLengthEachChunk: 10240,
+    maxContextCount: 5,
 }
 
 export const utgConfig = {

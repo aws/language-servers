@@ -28,6 +28,7 @@ import {
     DISCLAIMER_ACKNOWLEDGED,
     ErrorResult,
     UiResultMessage,
+    CHAT_PROMPT_OPTION_ACKNOWLEDGED,
 } from '@aws/chat-client-ui-types'
 import {
     CHAT_REQUEST_METHOD,
@@ -45,6 +46,9 @@ import {
     FeedbackParams,
     FileClickParams,
     FollowUpClickParams,
+    GET_SERIALIZED_CHAT_REQUEST_METHOD,
+    GetSerializedChatParams,
+    GetSerializedChatResult,
     INFO_LINK_CLICK_NOTIFICATION_METHOD,
     InfoLinkClickParams,
     LINK_CLICK_NOTIFICATION_METHOD,
@@ -55,15 +59,19 @@ import {
     OPEN_TAB_REQUEST_METHOD,
     OpenTabParams,
     OpenTabResult,
+    PROMPT_INPUT_OPTION_CHANGE_METHOD,
+    PromptInputOptionChangeParams,
     QUICK_ACTION_REQUEST_METHOD,
     QuickActionParams,
     READY_NOTIFICATION_METHOD,
     SOURCE_LINK_CLICK_NOTIFICATION_METHOD,
     SourceLinkClickParams,
     TAB_ADD_NOTIFICATION_METHOD,
+    TAB_BAR_ACTION_REQUEST_METHOD,
     TAB_CHANGE_NOTIFICATION_METHOD,
     TAB_REMOVE_NOTIFICATION_METHOD,
     TabAddParams,
+    TabBarActionParams,
     TabChangeParams,
     TabRemoveParams,
 } from '@aws/language-server-runtimes-types'
@@ -82,7 +90,10 @@ const DEFAULT_TAB_DATA = {
     promptInputPlaceholder: 'Ask a question or enter "/" for quick actions',
 }
 
-type ChatClientConfig = Pick<MynahUIDataModel, 'quickActionCommands'> & { disclaimerAcknowledged?: boolean }
+type ChatClientConfig = Pick<MynahUIDataModel, 'quickActionCommands'> & {
+    disclaimerAcknowledged?: boolean
+    pairProgrammingAcknowledged?: boolean
+}
 
 export const createChat = (
     clientApi: { postMessage: (msg: UiMessage | UiResultMessage | ServerMessage) => void },
@@ -146,6 +157,9 @@ export const createChat = (
             case CONVERSATION_CLICK_REQUEST_METHOD:
                 mynahApi.conversationClicked(message.params as ConversationClickResult)
                 break
+            case GET_SERIALIZED_CHAT_REQUEST_METHOD:
+                mynahApi.getSerializedChat(message.requestId, message.params as GetSerializedChatParams)
+                break
             case CHAT_OPTIONS: {
                 const params = (message as ChatOptionsMessage).params
                 if (params?.quickActions?.quickActionsCommandGroups) {
@@ -158,8 +172,13 @@ export const createChat = (
                     }))
                     tabFactory.updateQuickActionCommands(quickActionCommandGroups)
                 }
+
                 if (params?.history) {
                     tabFactory.enableHistory()
+                }
+
+                if (params?.export) {
+                    tabFactory.enableExport()
                 }
 
                 const allExistingTabs: MynahUITabStoreModel = mynahUi.getAllTabs()
@@ -227,6 +246,14 @@ export const createChat = (
         disclaimerAcknowledged: () => {
             sendMessageToClient({ command: DISCLAIMER_ACKNOWLEDGED })
         },
+        chatPromptOptionAcknowledged: (messageId: string) => {
+            sendMessageToClient({
+                command: CHAT_PROMPT_OPTION_ACKNOWLEDGED,
+                params: {
+                    messageId,
+                },
+            })
+        },
         onOpenTab: (requestId: string, params: OpenTabResult | ErrorResult) => {
             if ('tabId' in params) {
                 sendMessageToClient({
@@ -260,6 +287,33 @@ export const createChat = (
         conversationClick: (params: ConversationClickParams) => {
             sendMessageToClient({ command: CONVERSATION_CLICK_REQUEST_METHOD, params })
         },
+        tabBarAction: (params: TabBarActionParams) => {
+            sendMessageToClient({ command: TAB_BAR_ACTION_REQUEST_METHOD, params })
+        },
+        onGetSerializedChat: (requestId: string, params: GetSerializedChatResult | ErrorResult) => {
+            if ('content' in params) {
+                sendMessageToClient({
+                    requestId: requestId,
+                    command: GET_SERIALIZED_CHAT_REQUEST_METHOD,
+                    params: {
+                        success: true,
+                        result: params as GetSerializedChatResult,
+                    },
+                })
+            } else {
+                sendMessageToClient({
+                    requestId: requestId,
+                    command: GET_SERIALIZED_CHAT_REQUEST_METHOD,
+                    params: {
+                        success: false,
+                        error: params as ErrorResult,
+                    },
+                })
+            }
+        },
+        promptInputOptionChange: (params: PromptInputOptionChangeParams) => {
+            sendMessageToClient({ command: PROMPT_INPUT_OPTION_CHANGE_METHOD, params })
+        },
     }
 
     const messager = new Messager(chatApi)
@@ -271,6 +325,7 @@ export const createChat = (
         messager,
         tabFactory,
         config?.disclaimerAcknowledged ?? false,
+        config?.pairProgrammingAcknowledged ?? false,
         chatClientAdapter
     )
 

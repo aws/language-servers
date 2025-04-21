@@ -2,19 +2,22 @@ import {
     CodeWhispererStreamingClientConfig,
     GenerateAssistantResponseCommandInput,
     GenerateAssistantResponseCommandOutput,
-    SendMessageCommandInput,
-    SendMessageCommandOutput,
 } from '@amzn/codewhisperer-streaming'
 
-import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
+import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
+import {
+    StreamingClientServiceToken,
+    SendMessageCommandInput,
+    SendMessageCommandOutput,
+} from '../../shared/streamingClientService'
 
 export type ChatSessionServiceConfig = CodeWhispererStreamingClientConfig
 export class ChatSessionService {
     public shareCodeWhispererContentWithAWS = false
-    public localHistoryHydrated: boolean = false
+    public pairProgrammingMode: boolean = true
     #abortController?: AbortController
     #conversationId?: string
-    #amazonQServiceManager?: AmazonQTokenServiceManager
+    #amazonQServiceManager?: AmazonQBaseServiceManager
 
     public get conversationId(): string | undefined {
         return this.#conversationId
@@ -24,7 +27,7 @@ export class ChatSessionService {
         this.#conversationId = value
     }
 
-    constructor(amazonQServiceManager?: AmazonQTokenServiceManager) {
+    constructor(amazonQServiceManager?: AmazonQBaseServiceManager) {
         this.#amazonQServiceManager = amazonQServiceManager
     }
 
@@ -61,9 +64,15 @@ export class ChatSessionService {
 
         const client = this.#amazonQServiceManager.getStreamingClient()
 
-        const response = await client.generateAssistantResponse(request, this.#abortController)
-
-        return response
+        if (client instanceof StreamingClientServiceToken) {
+            const response = await client.generateAssistantResponse(request, this.#abortController)
+            return response
+        } else {
+            // error
+            return Promise.reject(
+                'Client is not instance of StreamingClientServiceToken, generateAssistantResponse not available for IAM client.'
+            )
+        }
     }
 
     public clear(): void {

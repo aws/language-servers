@@ -29,11 +29,12 @@ describe('AgenticChatEventParser', () => {
                 data: {
                     chatResult: {
                         messageId: mockMessageId,
-                        body: undefined,
+                        body: '',
                         canBeVoted: true,
                         codeReference: undefined,
                         followUp: undefined,
                         relatedContent: undefined,
+                        contextList: undefined,
                     },
                     conversationId: undefined,
                 },
@@ -60,7 +61,7 @@ describe('AgenticChatEventParser', () => {
                 data: {
                     chatResult: {
                         messageId: mockMessageId,
-                        body: undefined,
+                        body: '',
                         canBeVoted: true,
                         codeReference: undefined,
                         followUp: undefined,
@@ -154,6 +155,22 @@ describe('AgenticChatEventParser', () => {
                 toolUses: {},
             },
         })
+    })
+
+    it('ensures body is an empty string instead of undefined when adding to history', () => {
+        const chatEventParser = new AgenticChatEventParser(mockMessageId, new Metric<AddMessageEvent>())
+
+        // Only add messageMetadataEvent but no assistantResponseEvent
+        chatEventParser.processPartialEvent({
+            messageMetadataEvent: {
+                conversationId: 'id-2345',
+            },
+        })
+
+        // Get the result - body should be an empty string, not undefined
+        const result = chatEventParser.getResult()
+
+        assert.strictEqual(result.data?.chatResult.body, '')
     })
 
     it('getResult returns the accumulated result', () => {

@@ -2,9 +2,10 @@ import { injectJSDOM } from '../test/jsDomInjector'
 // This needs to be run before all other imports so that mynah ui gets loaded inside of jsdom
 injectJSDOM()
 
-import { ERROR_MESSAGE, GENERIC_COMMAND, SEND_TO_PROMPT } from '@aws/chat-client-ui-types'
+import { CHAT_OPTIONS, ERROR_MESSAGE, GENERIC_COMMAND, SEND_TO_PROMPT } from '@aws/chat-client-ui-types'
 import {
     CHAT_REQUEST_METHOD,
+    GET_SERIALIZED_CHAT_REQUEST_METHOD,
     OPEN_TAB_REQUEST_METHOD,
     READY_NOTIFICATION_METHOD,
     TAB_ADD_NOTIFICATION_METHOD,
@@ -21,7 +22,7 @@ import {
     SEND_TO_PROMPT_TELEMETRY_EVENT,
     TAB_ADD_TELEMETRY_EVENT,
 } from '../contracts/telemetry'
-import { MynahUI } from '@aws/mynah-ui'
+import { ChatItemType, MynahUI } from '@aws/mynah-ui'
 import { TabFactory } from './tabs/tabFactory'
 import { ChatClientAdapter } from '../contracts/chatClientAdapter'
 
@@ -41,6 +42,8 @@ describe('Chat', () => {
 
     beforeEach(() => {
         sandbox.stub(TabFactory, 'generateUniqueId').returns(initialTabId)
+        sandbox.stub(TabFactory.prototype, 'enableHistory')
+        sandbox.stub(TabFactory.prototype, 'enableExport')
 
         clientApi = {
             postMessage: sandbox.stub(),
@@ -215,7 +218,9 @@ describe('Chat', () => {
         window.dispatchEvent(chatEvent)
 
         assert.calledOnceWithExactly(endMessageStreamStub, tabId, '')
-        assert.calledOnceWithMatch(updateLastChatAnswerStub, tabId, { body })
+        assert.calledTwice(updateLastChatAnswerStub)
+        assert.calledWithMatch(updateLastChatAnswerStub, tabId, { body: '' })
+        assert.calledWithMatch(updateLastChatAnswerStub, tabId, { body, type: ChatItemType.ANSWER })
         assert.calledOnceWithExactly(updateStoreStub, tabId, {
             loadingChat: false,
             promptInputDisabledState: false,
@@ -238,7 +243,11 @@ describe('Chat', () => {
         })
         window.dispatchEvent(chatEvent)
 
-        assert.calledOnceWithExactly(updateLastChatAnswerStub, tabId, { body, header: undefined })
+        assert.calledOnceWithExactly(updateLastChatAnswerStub, tabId, {
+            body,
+            header: { icon: undefined, buttons: undefined },
+            buttons: undefined,
+        })
         assert.notCalled(endMessageStreamStub)
         assert.notCalled(updateStoreStub)
     })
@@ -291,9 +300,73 @@ describe('Chat', () => {
         assert.calledOnceWithExactly(updateLastChatAnswerStub, tabId, {
             ...params,
             header: mockHeader,
+            buttons: undefined,
         })
         assert.notCalled(endMessageStreamStub)
         assert.notCalled(updateStoreStub)
+    })
+
+    describe('chatOptions', () => {
+        it('enables history and export features support', () => {
+            const chatOptionsRequest = createInboundEvent({
+                command: CHAT_OPTIONS,
+                params: {
+                    history: true,
+                    export: true,
+                },
+            })
+            window.dispatchEvent(chatOptionsRequest)
+
+            // @ts-ignore
+            assert.called(TabFactory.prototype.enableHistory)
+            // @ts-ignore
+            assert.called(TabFactory.prototype.enableExport)
+        })
+
+        it('does not enable history and export features support if flags are falsy', () => {
+            const chatOptionsRequest = createInboundEvent({
+                command: CHAT_OPTIONS,
+                params: {
+                    history: false,
+                    export: false,
+                },
+            })
+            window.dispatchEvent(chatOptionsRequest)
+
+            // @ts-ignore
+            assert.notCalled(TabFactory.prototype.enableHistory)
+            // @ts-ignore
+            assert.notCalled(TabFactory.prototype.enableExport)
+        })
+    })
+
+    describe('onGetSerializedChat', () => {
+        it('getSerializedChat requestId was propagated from inbound to outbound message', () => {
+            const requestId = 'request-1234'
+            const tabId = mynahUi.updateStore('', {})
+
+            const setSerializedChatEvent = createInboundEvent({
+                command: GET_SERIALIZED_CHAT_REQUEST_METHOD,
+                params: {
+                    tabId: tabId,
+                    format: 'markdown',
+                },
+                requestId: requestId,
+            })
+            window.dispatchEvent(setSerializedChatEvent)
+
+            // Verify that postMessage was called with the correct requestId
+            assert.calledWithExactly(clientApi.postMessage, {
+                requestId,
+                command: GET_SERIALIZED_CHAT_REQUEST_METHOD,
+                params: {
+                    success: true,
+                    result: sinon.match({
+                        content: sinon.match.string,
+                    }),
+                },
+            })
+        })
     })
 
     function createInboundEvent(params: any) {

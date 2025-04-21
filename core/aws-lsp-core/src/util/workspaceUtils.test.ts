@@ -3,12 +3,55 @@ import * as fs from 'fs/promises'
 import * as assert from 'assert'
 import * as path from 'path'
 import { TestFolder } from '../test/testFolder'
-import { readDirectoryRecursively, getEntryPath } from './workspaceUtils'
+import { readDirectoryRecursively, getEntryPath, isParentFolder, isInWorkspace } from './workspaceUtils'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 
 describe('workspaceUtils', function () {
     beforeEach(function () {
         mockfs.restore()
+    })
+
+    describe('isParentFolder', function () {
+        it('handles different cases', function () {
+            assert.ok(isParentFolder('/foo', '/foo/bar'), 'simple case')
+            assert.ok(isParentFolder('/foo', '/foo/bar/'), 'trailing slash in child')
+            assert.ok(isParentFolder('/foo', '/foo/bar.txt'), 'files')
+            assert.ok(isParentFolder('/foo', '/foo/bar/baz'), 'neseted directory')
+            assert.ok(!isParentFolder('/foo', '/foo'), 'duplicates')
+            assert.ok(!isParentFolder('/foo', '/foobar'), 'prefixing')
+            assert.ok(!isParentFolder('/foo/bar', '/foo'), 'reverse')
+            assert.ok(isParentFolder('/foo/', '/foo/bar/baz/'), 'trailing slash in both')
+        })
+    })
+
+    describe('isInWorkspace', function () {
+        it('finds the file within the workspace', function () {
+            const workspaceFolders = ['/foo']
+
+            const positiveFilePath = '/foo/bar/baz.txt'
+            const negativeFilePath = '/notfoo/bar/baz.txt'
+
+            assert.ok(isInWorkspace(workspaceFolders, positiveFilePath), 'file is within the workspace')
+            assert.ok(!isInWorkspace(workspaceFolders, negativeFilePath), 'file is not within the workspace')
+        })
+
+        it('handles multi-root workspaces', function () {
+            const workspaceFolders = ['/foo', '/bar']
+
+            const positiveFilePath = '/foo/bar/baz.txt'
+            const secondPositiveFilePath = '/bar/bax.txt'
+            const negativeFilePath = '/notfoo/bar/baz.txt'
+
+            assert.ok(isInWorkspace(workspaceFolders, positiveFilePath), 'file is within the workspace')
+            assert.ok(isInWorkspace(workspaceFolders, secondPositiveFilePath), 'file is within the workspace')
+            assert.ok(!isInWorkspace(workspaceFolders, negativeFilePath), 'file is not within the workspace')
+        })
+
+        it('handles the case where its the workspace itself', function () {
+            const workspaceFolders = ['/foo']
+
+            assert.ok(isInWorkspace(workspaceFolders, '/foo'), 'workspace is inside itself')
+        })
     })
 
     describe('readDirectoryRecursively', function () {
@@ -85,9 +128,10 @@ describe('workspaceUtils', function () {
             await fs.symlink(tempFolder.path, linkPath, 'dir')
 
             const results = (await readDirectoryRecursively(testFeatures, tempFolder.path, undefined)).sort()
-            assert.deepStrictEqual(results, [`[DIR] ${subdir.path}`, `[FILE] ${file}`, `[LINK] ${linkPath}`])
+            assert.deepStrictEqual(results, [`[D] ${subdir.path}`, `[F] ${file}`, `[L] ${linkPath}`])
         })
 
+        // This test doesn't work on windows since it modifies file permissions
         if (process.platform !== 'win32') {
             it('respects the failOnError flag', async function () {
                 const subdir1 = await tempFolder.nest('subdir1')
@@ -116,6 +160,54 @@ describe('workspaceUtils', function () {
                 readDirectoryRecursively(testFeatures, path.join(tempFolder.path, 'notReal'), {
                     customFormatCallback: getEntryPath,
                 })
+            )
+        })
+
+        it('ignores patterns in the exclude pattern', async function () {
+            const subdir1 = await tempFolder.nest('subdir1')
+            const file1 = await subdir1.write('file1', 'this is content')
+            const subdir2 = await tempFolder.nest('subdir2')
+            await subdir2.write('file2-bad', 'this is other content')
+
+            const subdir11 = await subdir1.nest('subdir11')
+            const file3 = await subdir11.write('file3', 'this is also content')
+            const subdir12 = await subdir1.nest('subdir12')
+            await subdir12.write('file4-bad', 'this is even more content')
+            const file5 = await subdir12.write('file5', 'and this is it')
+
+            const result = (
+                await readDirectoryRecursively(testFeatures, tempFolder.path, {
+                    customFormatCallback: getEntryPath,
+                    excludePatterns: [/.*-bad/],
+                })
+            ).sort()
+            assert.deepStrictEqual(
+                result,
+                [subdir1.path, file1, subdir11.path, file3, subdir12.path, file5, subdir2.path].sort()
+            )
+        })
+
+        it('ignores files in the exclude pattern', async function () {
+            const subdir1 = await tempFolder.nest('subdir1')
+            const file1 = await subdir1.write('file1', 'this is content')
+            const subdir2 = await tempFolder.nest('subdir2')
+            await subdir2.write('file2-bad', 'this is other content')
+
+            const subdir11 = await subdir1.nest('subdir11')
+            const file3 = await subdir11.write('file3', 'this is also content')
+            const subdir12 = await subdir1.nest('subdir12')
+            await subdir12.write('file4-bad', 'this is even more content')
+            const file5 = await subdir12.write('file5', 'and this is it')
+
+            const result = (
+                await readDirectoryRecursively(testFeatures, tempFolder.path, {
+                    customFormatCallback: getEntryPath,
+                    excludePatterns: ['-bad'],
+                })
+            ).sort()
+            assert.deepStrictEqual(
+                result,
+                [subdir1.path, file1, subdir11.path, file3, subdir12.path, file5, subdir2.path].sort()
             )
         })
     })

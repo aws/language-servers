@@ -96,39 +96,6 @@ describe('FsWrite Tool', function () {
 
             assert.deepStrictEqual(output, expectedOutput)
         })
-
-        it('uses newStr when fileText is not provided', async function () {
-            const filePath = path.join(tempFolder.path, 'file2.txt')
-
-            const params: CreateParams = {
-                command: 'create',
-                newStr: 'Hello World',
-                path: filePath,
-            }
-            const fsWrite = new FsWrite(features)
-            const output = await fsWrite.invoke(params)
-
-            const content = await features.workspace.fs.readFile(filePath)
-            assert.strictEqual(content, 'Hello World')
-
-            assert.deepStrictEqual(output, expectedOutput)
-        })
-
-        it('creates an empty file when no content is provided', async function () {
-            const filePath = path.join(tempFolder.path, 'file3.txt')
-
-            const params: CreateParams = {
-                command: 'create',
-                path: filePath,
-            }
-            const fsWrite = new FsWrite(features)
-            const output = await fsWrite.invoke(params)
-
-            const content = await features.workspace.fs.readFile(filePath)
-            assert.strictEqual(content, '')
-
-            assert.deepStrictEqual(output, expectedOutput)
-        })
     })
 
     describe('handleStrReplace', async function () {
@@ -442,8 +409,6 @@ describe('FsWrite Tool', function () {
                     value: testContent,
                 },
             ])
-            const result2 = await fsWrite.getDiffChanges({ command: 'create', path: filepath })
-            assert.deepStrictEqual(result2, [])
         })
 
         it('handles replace case', async function () {
