@@ -125,6 +125,8 @@ export const LocalProjectContextServer = (): Server => features => {
                 logging.log(`Setting project context enabled to ${updatedConfig.projectContext?.enableLocalIndexing}`)
                 localProjectContextEnabled
                     ? await localProjectContextController.init({
+                          enableGpuAcceleration: updatedConfig?.projectContext?.enableGpuAcceleration,
+                          indexWorkerThreads: updatedConfig?.projectContext?.indexWorkerThreads,
                           ignoreFilePatterns: updatedConfig.projectContext?.localIndexing?.ignoreFilePatterns,
                           maxFileSizeMB: updatedConfig.projectContext?.localIndexing?.maxFileSizeMB,
                           maxIndexSizeMB: updatedConfig.projectContext?.localIndexing?.maxIndexSizeMB,
