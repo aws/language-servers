@@ -71,6 +71,10 @@ export class LocalProjectContextController {
         this.log = logging
     }
 
+    get isEnabled(): boolean {
+        return this._vecLib !== undefined && this._vecLib !== null
+    }
+
     public static async getInstance(): Promise<LocalProjectContextController> {
         try {
             await waitUntil(async () => this.instance, {
