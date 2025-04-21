@@ -16,6 +16,7 @@ import {
     ToolUse,
 } from '@amzn/codewhisperer-streaming'
 import {
+    Button,
     chatRequestType,
     FileDetails,
     InlineChatResultParams,
@@ -95,6 +96,7 @@ import { workspaceUtils } from '@aws/lsp-core'
 import { FsReadParams } from './tools/fsRead'
 import { ListDirectoryParams } from './tools/listDirectory'
 import { FsWrite, FsWriteParams } from './tools/fsWrite'
+import { ExecuteBash, ExecuteBashParams } from './tools/executeBash'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -405,6 +407,15 @@ export class AgenticChatController implements ChatHandlers {
                     if (initialReadOrListResult) {
                         await chatResultStream.writeResultBlock(initialReadOrListResult)
                     }
+                } else if (toolUse.name === 'executeBash') {
+                    const bashTool = new ExecuteBash(this.#features)
+                    const { requiresAcceptance, warning } = await bashTool.requiresAcceptance(
+                        toolUse.input as unknown as ExecuteBashParams
+                    )
+                    if (requiresAcceptance) {
+                        const confirmationResult = this.#processExecuteBashConfirmation(toolUse, warning)
+                        await chatResultStream.writeResultBlock(confirmationResult)
+                    }
                 } else {
                     await chatResultStream.writeResultBlock({ body: `${executeToolMessage(toolUse)}` })
                 }
@@ -454,6 +465,32 @@ export class AgenticChatController implements ChatHandlers {
         }
 
         return results
+    }
+
+    #processExecuteBashConfirmation(toolUse: ToolUse, warning?: string): ChatResult {
+        const buttons: Button[] = [
+            {
+                id: 'reject-shell-command',
+                text: 'Reject',
+                icon: 'cancel',
+            },
+            {
+                id: 'run-shell-command',
+                text: 'Run',
+                icon: 'play',
+            },
+        ]
+        const header = {
+            body: 'shell',
+        }
+
+        const commandString = (toolUse.input as unknown as ExecuteBashParams).command
+        const body = '```shell\n' + commandString + '\n```'
+        return {
+            buttons,
+            header,
+            body: warning ? warning + body : body,
+        }
     }
 
     async #getFsWriteChatResult(toolUse: ToolUse): Promise<ChatResult> {

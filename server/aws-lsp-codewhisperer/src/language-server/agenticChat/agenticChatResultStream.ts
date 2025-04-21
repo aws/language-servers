@@ -58,6 +58,7 @@ export class AgenticChatResultStream {
                         : (acc.contextList?.rootFolderTitle ?? ''),
                 },
             }),
+            buttons: [...(acc.buttons ?? []), ...(c.buttons ?? [])],
         }))
     }
 
