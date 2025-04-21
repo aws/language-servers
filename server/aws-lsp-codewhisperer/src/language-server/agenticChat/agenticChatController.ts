@@ -16,6 +16,8 @@ import {
     ToolUse,
 } from '@amzn/codewhisperer-streaming'
 import {
+    ButtonClickParams,
+    ButtonClickResult,
     chatRequestType,
     FileDetails,
     InlineChatResultParams,
@@ -140,6 +142,13 @@ export class AgenticChatController implements ChatHandlers {
             this.#features.chat,
             this.#features.workspace
         )
+    }
+
+    async onButtonClick(params: ButtonClickParams): Promise<ButtonClickResult> {
+        return {
+            success: false,
+            failureReason: 'not implemented',
+        }
     }
 
     async onCreatePrompt(params: CreatePromptParams): Promise<void> {
