@@ -75,7 +75,7 @@ export class ArtifactManager {
                 )
             }
         } catch (error) {
-            this.logging.log('Failed to remove duplicate nugget package folder: ' + error)
+            this.logging.log('Failed to remove packages folder: ' + error)
         }
     }
 
