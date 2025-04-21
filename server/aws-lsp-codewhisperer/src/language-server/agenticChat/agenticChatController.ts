@@ -94,6 +94,7 @@ import { LocalProjectContextController } from '../../shared/localProjectContextC
 import { workspaceUtils } from '@aws/lsp-core'
 import { FsReadParams } from './tools/fsRead'
 import { ListDirectoryParams } from './tools/listDirectory'
+import { FsWrite, FsWriteParams } from './tools/fsWrite'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -425,9 +426,18 @@ export class AgenticChatController implements ChatHandlers {
                     content: [toolResultContent],
                 })
 
-                // no need to write tool result for listDir and fsRead into chat stream
-                if (toolUse.name !== 'fsRead' && toolUse.name !== 'listDirectory') {
-                    await chatResultStream.writeResultBlock({ body: toolResultMessage(toolUse, result) })
+                switch (toolUse.name) {
+                    case 'fsRead':
+                    case 'listDirectory':
+                        // no need to write tool result for listDir and fsRead into chat stream
+                        break
+                    case 'fsWrite':
+                        const chatResult = await this.#getFsWriteChatResult(toolUse)
+                        await chatResultStream.writeResultBlock(chatResult)
+                        break
+                    default:
+                        await chatResultStream.writeResultBlock({ body: toolResultMessage(toolUse, result) })
+                        break
                 }
             } catch (err) {
                 const errMsg = err instanceof Error ? err.message : 'unknown error'
@@ -444,6 +454,36 @@ export class AgenticChatController implements ChatHandlers {
         }
 
         return results
+    }
+
+    async #getFsWriteChatResult(toolUse: ToolUse): Promise<ChatResult> {
+        const input = toolUse.input as unknown as FsWriteParams
+        const fileName = path.basename(input.path)
+        // TODO: right now diff changes is coupled with fsWrite class, we should move it to shared utils
+        const fsWrite = new FsWrite(this.#features)
+        const diffChanges = await fsWrite.getDiffChanges(input)
+        const changes = diffChanges.reduce(
+            (acc, { count = 0, added, removed }) => {
+                if (added) {
+                    acc.added += count
+                } else if (removed) {
+                    acc.deleted += count
+                }
+                return acc
+            },
+            { added: 0, deleted: 0 }
+        )
+        return {
+            type: 'tool',
+            messageId: toolUse.toolUseId,
+            header: {
+                fileList: {
+                    filePaths: [fileName],
+                    details: { [fileName]: { changes } },
+                },
+                buttons: [{ id: 'undo-changes', text: 'Undo', icon: 'undo' }],
+            },
+        }
     }
 
     #processReadOrList(toolUse: ToolUse, chatResultStream: AgenticChatResultStream): ChatResult | undefined {

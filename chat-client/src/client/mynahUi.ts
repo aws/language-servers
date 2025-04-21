@@ -461,7 +461,24 @@ export const createMynahUi = (
 
         if (isPartialResult) {
             // type for MynahUI differs from ChatResult types so we ignore it
-            mynahUi.updateLastChatAnswer(tabId, { ...chatResultWithoutType, header: header, buttons: buttons })
+            mynahUi.updateLastChatAnswer(tabId, {
+                ...chatResultWithoutType,
+                header: header,
+                buttons: buttons,
+                // TODO: this won't be needed once we have multiple message support
+                ...(type === 'tool'
+                    ? {
+                          header: {
+                              ...header,
+                              // TODO: this is specific to fsWrite tool, modify for other tools as needed
+                              fileList: { ...header?.fileList, fileTreeTitle: '', hideFileCount: true },
+                              buttons: header?.buttons?.map(button => ({ ...button, status: 'clear' })),
+                          },
+                          fullWidth: true,
+                          padding: false,
+                      }
+                    : {}),
+            })
             return
         }
 
