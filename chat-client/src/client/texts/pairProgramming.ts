@@ -1,5 +1,19 @@
 import { ChatItem, ChatItemFormItem, ChatItemType } from '@aws/mynah-ui'
 
+export const programmerModeCard: ChatItem = {
+    type: ChatItemType.ANSWER,
+    title: 'NEW FEATURE',
+    header: {
+        icon: 'code-block',
+        iconStatus: 'primary',
+        body: '## Pair Programmer',
+    },
+    messageId: 'programmerModeCardId',
+    fullWidth: true,
+    canBeDismissed: true,
+    body: 'Amazon Q Developer chat can now write code and run shell commands on your behalf. Disable Pair Programmer if you prefer a read-only experience.',
+}
+
 export const pairProgrammingPromptInput: ChatItemFormItem = {
     type: 'switch',
     id: 'pair-programmer-mode',
