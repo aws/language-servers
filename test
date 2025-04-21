@@ -1,0 +1,205 @@
+diff --git a/server/aws-lsp-codewhisperer/src/language-server/agenticChat/tools/mcp/mcpManager.ts b/server/aws-lsp-codewhisperer/src/language-server/agenticChat/tools/mcp/mcpManager.ts
+index e8928b9..778c19d 100644
+--- a/server/aws-lsp-codewhisperer/src/language-server/agenticChat/tools/mcp/mcpManager.ts
++++ b/server/aws-lsp-codewhisperer/src/language-server/agenticChat/tools/mcp/mcpManager.ts
+@@ -6,11 +6,15 @@
+ import type { Features } from '@aws/language-server-runtimes/server-interface/server'
+ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
+ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
+-import type { MCPConfig, MCPServerConfig, McpToolDefinition, ListToolsResponse } from './mcpTypes'
++import type {
++    MCPServerConfig,
++    McpToolDefinition,
++    ListToolsResponse
++} from './mcpTypes'
++import { loadMcpServerConfigs } from './mcpUtils'
+ 
+ export class McpManager {
+     static #instance?: McpManager
+-
+     private clients = new Map<string, Client>()
+     private mcpTools: McpToolDefinition[] = []
+ 
+@@ -27,27 +31,32 @@ export class McpManager {
+             const mgr = new McpManager(configPaths, features)
+             McpManager.#instance = mgr
+             await mgr.discoverAllServers()
+-            features.logging.info(`MCP: discovered ${mgr.mcpTools.length} tools across all servers`)
++            features.logging.info(
++                `MCP: discovered ${mgr.mcpTools.length} tools across all servers`
++            )
+         }
+         return McpManager.#instance
+     }
+ 
+     public static get instance(): McpManager {
+         if (!McpManager.#instance) {
+-            throw new Error('McpManager not initialized—call McpManager.init(...) first')
++            throw new Error(
++                'McpManager not initialized—call McpManager.init(...) first'
++            )
+         }
+         return McpManager.#instance
+     }
+ 
+-    /** Close underlying clients and reset singleton */
+     public async close(): Promise<void> {
+         this.features.logging.info('MCP: closing all clients')
+         for (const [name, client] of this.clients.entries()) {
+             try {
+                 await client.close()
+-                this.features.logging.info(`MCP: closed client for server ${name}`)
++                this.features.logging.info(`MCP: closed client for ${name}`)
+             } catch (e: any) {
+-                this.features.logging.error(`MCP: error closing client ${name}: ${e.message}`)
++                this.features.logging.error(
++                    `MCP: error closing client ${name}: ${e.message}`
++                )
+             }
+         }
+         this.clients.clear()
+@@ -56,56 +65,56 @@ export class McpManager {
+     }
+ 
+     private async discoverAllServers(): Promise<void> {
+-        // merge workspace + global configs
+-        const aggregated: Record<string, MCPServerConfig> = {}
+-        for (const cfgPath of this.configPaths) {
+-            try {
+-                if (!(await this.features.workspace.fs.exists(cfgPath))) {
+-                    this.features.logging.warn(`MCP config not found at ${cfgPath}, skipping`)
+-                    continue
+-                }
+-                this.features.logging.debug(`Reading MCP config at ${cfgPath}`)
+-                const raw = await this.features.workspace.fs.readFile(cfgPath)
+-                const { mcpServers } = JSON.parse(raw) as MCPConfig
+-                Object.assign(aggregated, mcpServers)
+-            } catch (e: any) {
+-                this.features.logging.error(`MCP: failed reading config ${cfgPath}: ${e.message}`)
+-            }
+-        }
++        const configs = await loadMcpServerConfigs(
++            this.features.workspace,
++            this.features.logging,
++            this.configPaths
++        )
+ 
+-        for (const [name, cfg] of Object.entries(aggregated)) {
++        for (const [name, cfg] of configs.entries()) {
+             if (cfg.disabled) {
+-                this.features.logging.info(`MCP server [${name}] is disabled, skipping`)
++                this.features.logging.info(`MCP: server '${name}' is disabled, skipping`)
+                 continue
+             }
+             await this.initOneServer(name, cfg)
+         }
+     }
+ 
+-    private async initOneServer(serverName: string, cfg: MCPServerConfig): Promise<void> {
++    private async initOneServer(
++        serverName: string,
++        cfg: MCPServerConfig
++    ): Promise<void> {
+         try {
+-            this.features.logging.debug(`Init MCP server [${serverName}]…`)
++            this.features.logging.debug(`MCP: initializing server [${serverName}]`)
+             const transport = new StdioClientTransport({
+                 command: cfg.command,
+                 args: cfg.args ?? [],
+-                env: cfg.env ?? (process.env as Record<string, string>),
++                env: cfg.env ?? (process.env as any)
++            })
++            const client = new Client({
++                name: `mcp-client-${serverName}`,
++                version: '1.0.0'
+             })
+-            const client = new Client({ name: `mcp-client-${serverName}`, version: '1.0.0' })
+             await client.connect(transport)
+             this.clients.set(serverName, client)
+ 
+             const resp = (await client.listTools()) as ListToolsResponse
+             for (const t of resp.tools) {
+-                this.features.logging.info(`MCP: discovered tool ${serverName}::${t.name}`)
++                const toolName = t.name!
++                this.features.logging.info(
++                    `MCP: discovered tool ${serverName}::${toolName}`
++                )
+                 this.mcpTools.push({
+                     serverName,
+-                    toolName: t.name!,
++                    toolName,
+                     description: t.description ?? '',
+-                    inputSchema: t.inputSchema ?? {},
++                    inputSchema: t.inputSchema ?? {}
+                 })
+             }
+         } catch (e: any) {
+-            this.features.logging.error(`MCP ${serverName} init failed: ${e.message}`)
++            this.features.logging.warn(
++                `MCP: server [${serverName}] init failed: ${e.message}`
++            )
+         }
+     }
+ 
+@@ -113,9 +122,14 @@ export class McpManager {
+         return [...this.mcpTools]
+     }
+ 
+-    public async callTool(server: string, tool: string, args: any): Promise<any> {
++    public async callTool(
++        server: string,
++        tool: string,
++        args: any
++    ): Promise<any> {
+         const c = this.clients.get(server)
+-        if (!c) throw new Error(`Server ${server} not connected`)
+-        return await c.callTool({ name: tool, arguments: args })
++        if (!c) throw new Error(`MCP: server '${server}' not connected`)
++        return c.callTool({ name: tool, arguments: args })
+     }
+ }
++
+diff --git a/server/aws-lsp-codewhisperer/src/language-server/agenticChat/tools/mcp/mcpTypes.ts b/server/aws-lsp-codewhisperer/src/language-server/agenticChat/tools/mcp/mcpTypes.ts
+index 8a58182..1162377 100644
+--- a/server/aws-lsp-codewhisperer/src/language-server/agenticChat/tools/mcp/mcpTypes.ts
++++ b/server/aws-lsp-codewhisperer/src/language-server/agenticChat/tools/mcp/mcpTypes.ts
+@@ -2,6 +2,7 @@
+  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+  * SPDX-License-Identifier: Apache-2.0
+  */
++
+ export interface McpToolDefinition {
+     serverName: string
+     toolName: string
+diff --git a/server/aws-lsp-codewhisperer/src/language-server/agenticChat/tools/toolServer.ts b/server/aws-lsp-codewhisperer/src/language-server/agenticChat/tools/toolServer.ts
+index a086735..306687c 100644
+--- a/server/aws-lsp-codewhisperer/src/language-server/agenticChat/tools/toolServer.ts
++++ b/server/aws-lsp-codewhisperer/src/language-server/agenticChat/tools/toolServer.ts
+@@ -9,6 +9,7 @@ import { LspApplyWorkspaceEdit, LspApplyWorkspaceEditParams } from './lspApplyWo
+ import path = require('path')
+ import { McpManager } from './mcp/mcpManager'
+ import { McpTool } from './mcp/mcpTool'
++import { loadMcpServerConfigs } from './mcp/mcpUtils'
+ 
+ export const FsToolsServer: Server = ({ workspace, logging, agent, lsp }) => {
+     const fsReadTool = new FsRead({ workspace, logging })
+@@ -58,12 +59,14 @@ export const LspToolsServer: Server = ({ workspace, logging, lsp, agent }) => {
+ export const McpToolsServer: Server = ({ workspace, logging, lsp, agent }) => {
+     lsp.onInitialized(async () => {
+         // todo: move to constants
+-        const wsConfigs = lsp
++        const wsUris = lsp
+             .getClientInitializeParams()
+-            ?.workspaceFolders?.map(folder => path.join(folder.uri, '.amazonq/mcp.json'))
+-        const globalConfig = path.join(workspace.fs.getUserHomeDir(), '/.aws/amazonq/mcp.json')
+-        const configs = wsConfigs ? wsConfigs.concat(globalConfig) : [globalConfig]
+-        const mgr = await McpManager.init(configs, { logging, workspace, lsp })
++            ?.workspaceFolders?.map(f => f.uri) ?? []
++        const wsConfigPaths = wsUris.map(uri => `${uri}/.amazonq/mcp.json`)
++        const globalConfigPath = `${workspace.fs.getUserHomeDir()}/.aws/amazonq/mcp.json`
++        const allPaths = [...wsConfigPaths, globalConfigPath]
++
++        const mgr = await McpManager.init(allPaths, { logging, workspace, lsp })
+ 
+         for (const def of mgr.getAllTools()) {
+             const baseSpec = def
