@@ -131,7 +131,7 @@ export class LocalProjectContextController {
             )
 
             const libraryPath = path.join(LIBRARY_DIR, 'dist', 'extension.js')
-            const vecLib = vectorLib ?? (await import(libraryPath))
+            const vecLib = vectorLib ?? (await eval(`import("${libraryPath}")`))
             if (vecLib) {
                 this._vecLib = await vecLib.start(LIBRARY_DIR, this.clientName, this.indexCacheDirPath)
                 void this.buildIndex()
