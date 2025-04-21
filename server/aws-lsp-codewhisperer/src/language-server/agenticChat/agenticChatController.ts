@@ -92,6 +92,8 @@ import { getNewPromptFilePath, getUserPromptsDirectory, promptFileExtension } fr
 import { ContextCommandsProvider } from './context/contextCommandsProvider'
 import { LocalProjectContextController } from '../../shared/localProjectContextController'
 import { workspaceUtils } from '@aws/lsp-core'
+import { FsReadParams } from './tools/fsRead'
+import { ListDirectoryParams } from './tools/listDirectory'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -395,15 +397,14 @@ export class AgenticChatController implements ChatHandlers {
 
         for (const toolUse of toolUses) {
             if (!toolUse.name || !toolUse.toolUseId) continue
-            if (toolUse.name === 'fsRead' || toolUse.name === 'listDirectory') {
-                const initialReadOrListResult = this.#processReadOrList(toolUse, chatResultStream)
-                if (initialReadOrListResult) {
-                    await chatResultStream.writeResultBlock(initialReadOrListResult)
-                }
-            }
 
             try {
-                if (toolUse.name !== 'fsRead' && toolUse.name !== 'listDirectory') {
+                if (toolUse.name === 'fsRead' || toolUse.name === 'listDirectory') {
+                    const initialReadOrListResult = this.#processReadOrList(toolUse, chatResultStream)
+                    if (initialReadOrListResult) {
+                        await chatResultStream.writeResultBlock(initialReadOrListResult)
+                    }
+                } else {
                     await chatResultStream.writeResultBlock({ body: `${executeToolMessage(toolUse)}` })
                 }
 
@@ -448,15 +449,15 @@ export class AgenticChatController implements ChatHandlers {
     #processReadOrList(toolUse: ToolUse, chatResultStream: AgenticChatResultStream): ChatResult | undefined {
         // return initial message about fsRead or listDir
         const toolUseId = toolUse.toolUseId!
-        const currentPath = (toolUse.input as any)?.path
+        const currentPath = (toolUse.input as unknown as FsReadParams | ListDirectoryParams).path
         if (!currentPath) return
-        const currentFileList = chatResultStream.getFileList(toolUseId)
+        const currentFileList = chatResultStream.getContextFileList(toolUseId)
         if (!currentFileList.some(path => path.relativeFilePath === currentPath)) {
             const currentFileDetail = {
                 relativeFilePath: (toolUse.input as any)?.path,
                 lineRanges: [{ first: -1, second: -1 }],
             }
-            chatResultStream.addFileList(toolUseId, currentFileDetail)
+            chatResultStream.addContextFileList(toolUseId, currentFileDetail)
             currentFileList.push(currentFileDetail)
         }
 
@@ -483,9 +484,9 @@ export class AgenticChatController implements ChatHandlers {
             details: fileDetails,
         }
 
-        // TODO: handle confirmation use case
         return {
             contextList,
+            body: '',
         }
     }
 

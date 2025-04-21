@@ -19,7 +19,7 @@ export class AgenticChatResultStream {
     #state = {
         chatResultBlocks: [] as ChatResult[],
         isLocked: false,
-        fileList: {} as Record<string, FileDetailsWithPath[]>,
+        contextFileList: {} as Record<string, FileDetailsWithPath[]>,
     }
     readonly #sendProgress: (newChatResult: ChatResult | string) => Promise<void>
 
@@ -31,15 +31,15 @@ export class AgenticChatResultStream {
         return this.#joinResults(this.#state.chatResultBlocks)
     }
 
-    getFileList(toolUseId: string): FileDetailsWithPath[] {
-        return this.#state.fileList[toolUseId] ?? []
+    getContextFileList(toolUseId: string): FileDetailsWithPath[] {
+        return this.#state.contextFileList[toolUseId] ?? []
     }
 
-    addFileList(toolUseId: string, fileDetails: FileDetailsWithPath) {
-        if (!this.#state.fileList[toolUseId]) {
-            this.#state.fileList[toolUseId] = []
+    addContextFileList(toolUseId: string, fileDetails: FileDetailsWithPath) {
+        if (!this.#state.contextFileList[toolUseId]) {
+            this.#state.contextFileList[toolUseId] = []
         }
-        this.#state.fileList[toolUseId].push(fileDetails)
+        this.#state.contextFileList[toolUseId].push(fileDetails)
     }
 
     #joinResults(chatResults: ChatResult[]): ChatResult {
