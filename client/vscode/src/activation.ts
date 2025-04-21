@@ -9,6 +9,7 @@ import * as path from 'path'
 import { ExtensionContext, env, version } from 'vscode'
 
 import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind } from 'vscode-languageclient/node'
+import { watchServerModule } from './serverWatcher'
 import { registerChat } from './chatActivation'
 import {
     configureCredentialsCapabilities,
@@ -123,6 +124,14 @@ export async function activateDocumentsLanguageServer(extensionContext: Extensio
 
     // Create the language client and start the client.
     const client = new LanguageClient('awsDocuments', 'AWS Documents Language Server', serverOptions, clientOptions)
+
+    // Set up file watcher to restart the language server when the server module changes
+    // Only enable if ENABLE_HOT_RELOAD is set to "true"
+    const enableHotReload = process.env.ENABLE_HOT_RELOAD === 'true'
+    if (enableHotReload) {
+        console.log('Hot reload enabled for server module:', serverModule)
+        watchServerModule(serverModule, client, extensionContext)
+    }
 
     if (enableIamProvider) {
         await registerIamCredentialsProviderSupport(client, extensionContext, enableEncryptionInit)
