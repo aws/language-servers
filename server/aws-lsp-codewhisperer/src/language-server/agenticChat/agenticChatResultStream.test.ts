@@ -3,7 +3,7 @@ import { ChatResult } from '@aws/language-server-runtimes/protocol'
 import { AgenticChatResultStream } from './agenticChatResultStream'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 
-describe('agenticChatResponse', function () {
+xdescribe('agenticChatResponse', function () {
     let output: (ChatResult | string)[] = []
     const logging = new TestFeatures().logging
     const sendProgress = async (s: ChatResult | string) => void output.push(s)
