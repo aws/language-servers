@@ -7,8 +7,6 @@ import { TriggerType } from '@aws/chat-client-ui-types'
 import {
     ChatTriggerType,
     UserIntent,
-    Tool,
-    ToolResult,
     AdditionalContentEntry,
     GenerateAssistantResponseCommandInput,
     ChatMessage,
@@ -18,7 +16,6 @@ import {
     ChatParams,
     CursorState,
     InlineChatParams,
-    QuickActionCommand,
     FileList,
     TextDocument,
 } from '@aws/language-server-runtimes/server-interface'
@@ -26,6 +23,9 @@ import { Features } from '../../types'
 import { DocumentContext, DocumentContextExtractor } from '../../chat/contexts/documentContext'
 import { workspaceUtils } from '@aws/lsp-core'
 import { URI } from 'vscode-uri'
+import { LocalProjectContextController } from '../../../shared/localProjectContextController'
+import * as path from 'path'
+import { RelevantTextDocument } from '@amzn/codewhisperer-streaming'
 
 export interface TriggerContext extends Partial<DocumentContext> {
     userIntent?: UserIntent
@@ -37,16 +37,28 @@ export type LineInfo = { startLine: number; endLine: number }
 
 export type AdditionalContentEntryAddition = AdditionalContentEntry & { type: string; relativePath: string } & LineInfo
 
+export type RelevantTextDocumentAddition = RelevantTextDocument & LineInfo
+
+// limit for each chunk of @workspace
+export const workspaceChunkMaxSize = 40_960
+
+export interface DocumentReference {
+    readonly relativeFilePath: string
+    readonly lineRanges: Array<{ first: number; second: number }>
+}
+
 export class AgenticChatTriggerContext {
     private static readonly DEFAULT_CURSOR_STATE: CursorState = { position: { line: 0, character: 0 } }
 
     #workspace: Features['workspace']
     #lsp: Features['lsp']
+    #logging: Features['logging']
     #documentContextExtractor: DocumentContextExtractor
 
     constructor({ workspace, lsp, logging }: Pick<Features, 'workspace' | 'lsp' | 'logging'> & Partial<Features>) {
         this.#workspace = workspace
         this.#lsp = lsp
+        this.#logging = logging
         this.#documentContextExtractor = new DocumentContextExtractor({ logger: logging, workspace })
     }
 
@@ -59,7 +71,7 @@ export class AgenticChatTriggerContext {
         }
     }
 
-    getChatParamsFromTrigger(
+    async getChatParamsFromTrigger(
         params: ChatParams | InlineChatParams,
         triggerContext: TriggerContext,
         chatTriggerType: ChatTriggerType,
@@ -68,15 +80,27 @@ export class AgenticChatTriggerContext {
         history: ChatMessage[] = [],
         tools: BedrockTools = [],
         additionalContent?: AdditionalContentEntryAddition[]
-    ): GenerateAssistantResponseCommandInput {
+    ): Promise<GenerateAssistantResponseCommandInput> {
         const { prompt } = params
         const defaultEditorState = { workspaceFolders: workspaceUtils.getWorkspaceFolderPaths(this.#lsp) }
+
+        const useRelevantDocuments = 'context' in params ? params.context?.some(c => c.command === '@workspace') : false
+
+        let promptContent = prompt.escapedPrompt ?? prompt.prompt
+        if (useRelevantDocuments) {
+            promptContent = promptContent?.replace(/^@workspace\/?/, '')
+        }
+
+        const relevantDocuments = useRelevantDocuments
+            ? await this.#getRelevantDocuments(promptContent ?? '')
+            : undefined
+
         const data: GenerateAssistantResponseCommandInput = {
             conversationState: {
                 chatTriggerType: chatTriggerType,
                 currentMessage: {
                     userInputMessage: {
-                        content: prompt.escapedPrompt ?? prompt.prompt,
+                        content: promptContent,
                         userInputMessageContext:
                             triggerContext.cursorState && triggerContext.relativeFilePath
                                 ? {
@@ -87,6 +111,8 @@ export class AgenticChatTriggerContext {
                                               programmingLanguage: triggerContext.programmingLanguage,
                                               relativeFilePath: triggerContext.relativeFilePath,
                                           },
+                                          relevantDocuments: relevantDocuments,
+                                          useRelevantDocuments: useRelevantDocuments,
                                           ...defaultEditorState,
                                       },
                                       tools,
@@ -96,6 +122,8 @@ export class AgenticChatTriggerContext {
                                       tools,
                                       additionalContext: additionalContent,
                                       editorState: {
+                                          relevantDocuments: relevantDocuments,
+                                          useRelevantDocuments: useRelevantDocuments,
                                           ...defaultEditorState,
                                       },
                                   },
@@ -169,5 +197,63 @@ export class AgenticChatTriggerContext {
         }
 
         return undefined
+    }
+
+    async #getRelevantDocuments(prompt: string): Promise<RelevantTextDocumentAddition[]> {
+        const localProjectContextController = await LocalProjectContextController.getInstance()
+        if (!localProjectContextController.isEnabled) {
+            // TODO: Prompt user to enable indexing
+            return []
+        }
+
+        let relevantTextDocuments = await this.#queryRelevantDocuments(prompt, localProjectContextController)
+        relevantTextDocuments = relevantTextDocuments.filter(doc => doc.text && doc.text.length > 0)
+        for (const relevantDocument of relevantTextDocuments) {
+            if (relevantDocument.text && relevantDocument.text.length > workspaceChunkMaxSize) {
+                relevantDocument.text = relevantDocument.text.substring(0, workspaceChunkMaxSize)
+                this.#logging.debug(`Truncating @workspace chunk: ${relevantDocument.relativeFilePath} `)
+            }
+        }
+
+        return relevantTextDocuments
+    }
+
+    async #queryRelevantDocuments(
+        prompt: string,
+        localProjectContextController: LocalProjectContextController
+    ): Promise<RelevantTextDocumentAddition[]> {
+        try {
+            const chunks = await localProjectContextController.queryVectorIndex({ query: prompt })
+            const relevantTextDocuments: RelevantTextDocumentAddition[] = []
+            if (!chunks) {
+                return relevantTextDocuments
+            }
+
+            for (const chunk of chunks) {
+                const text = chunk.context ?? chunk.content
+                const baseDocument = {
+                    text,
+                    relativeFilePath: chunk.relativePath ?? path.basename(chunk.filePath),
+                    startLine: chunk.startLine ?? -1,
+                    endLine: chunk.endLine ?? -1,
+                }
+
+                if (chunk.programmingLanguage && chunk.programmingLanguage !== 'unknown') {
+                    relevantTextDocuments.push({
+                        ...baseDocument,
+                        programmingLanguage: {
+                            languageName: chunk.programmingLanguage,
+                        },
+                    })
+                } else {
+                    relevantTextDocuments.push(baseDocument)
+                }
+            }
+
+            return relevantTextDocuments
+        } catch (e) {
+            this.#logging.error(`Error querying query vector index to get relevant documents: ${e}`)
+            return []
+        }
     }
 }

@@ -279,7 +279,7 @@ export class AgenticChatController implements ChatHandlers {
     ): Promise<GenerateAssistantResponseCommandInput> {
         this.#debug('Preparing request input')
         const profileArn = AmazonQTokenServiceManager.getInstance(this.#features).getActiveProfileArn()
-        const requestInput = this.#triggerContext.getChatParamsFromTrigger(
+        const requestInput = await this.#triggerContext.getChatParamsFromTrigger(
             params,
             triggerContext,
             ChatTriggerType.MANUAL,
@@ -701,7 +701,7 @@ export class AgenticChatController implements ChatHandlers {
         let requestInput: SendMessageCommandInput
 
         try {
-            requestInput = this.#triggerContext.getChatParamsFromTrigger(
+            requestInput = await this.#triggerContext.getChatParamsFromTrigger(
                 params,
                 triggerContext,
                 ChatTriggerType.INLINE_CHAT,
