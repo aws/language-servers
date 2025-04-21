@@ -55,6 +55,7 @@ describe('MynahUI', () => {
             tabBarAction: sinon.stub(),
             onGetSerializedChat: sinon.stub(),
             promptInputOptionChange: sinon.stub(),
+            stopChatResponse: sinon.stub(),
         }
 
         messager = new Messager(outboundChatApi)

@@ -264,6 +264,17 @@ export class AgenticChatController implements ChatHandlers {
                 chatResultStream
             )
         } catch (err) {
+            if (token?.isCancellationRequested) {
+                /**
+                 * when the session is aborted it generates an error.
+                 * we need to resolve this error with an answer so the
+                 * stream stops
+                 */
+                return {
+                    type: 'answer',
+                    body: '',
+                }
+            }
             return this.#handleRequestError(err, params.tabId, metric)
         }
     }
