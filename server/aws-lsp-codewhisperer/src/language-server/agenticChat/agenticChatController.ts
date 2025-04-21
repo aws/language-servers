@@ -3,6 +3,7 @@
  * Will be deleted or merged.
  */
 
+import * as path from 'path'
 import {
     ChatTriggerType,
     GenerateAssistantResponseCommandInput,
@@ -14,7 +15,15 @@ import {
     ToolResultContentBlock,
     ToolUse,
 } from '@amzn/codewhisperer-streaming'
-import { chatRequestType, InlineChatResultParams } from '@aws/language-server-runtimes/protocol'
+import {
+    ButtonClickParams,
+    ButtonClickResult,
+    ChatMessage,
+    chatRequestType,
+    FileDetails,
+    InlineChatResultParams,
+    PromptInputOptionChangeParams,
+} from '@aws/language-server-runtimes/protocol'
 import {
     ApplyWorkspaceEditParams,
     ErrorCodes,
@@ -82,9 +91,13 @@ import {
     TriggerContext,
 } from './context/agenticChatTriggerContext'
 import { AdditionalContextProvider } from './context/addtionalContextProvider'
-import { getNewPromptFilePath } from './context/contextUtils'
+import { getNewPromptFilePath, getUserPromptsDirectory, promptFileExtension } from './context/contextUtils'
 import { ContextCommandsProvider } from './context/contextCommandsProvider'
 import { LocalProjectContextController } from '../../shared/localProjectContextController'
+import { workspaceUtils } from '@aws/lsp-core'
+import { FsReadParams } from './tools/fsRead'
+import { ListDirectoryParams } from './tools/listDirectory'
+import { FsWrite, FsWriteParams } from './tools/fsWrite'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -125,12 +138,19 @@ export class AgenticChatController implements ChatHandlers {
         this.#amazonQServiceManager = amazonQServiceManager
         this.#chatHistoryDb = new ChatDatabase(features)
         this.#tabBarController = new TabBarController(features, this.#chatHistoryDb)
-        this.#additionalContextProvider = new AdditionalContextProvider(features.workspace)
+        this.#additionalContextProvider = new AdditionalContextProvider(features.workspace, features.lsp)
         this.#contextCommandsProvider = new ContextCommandsProvider(
             this.#features.logging,
             this.#features.chat,
             this.#features.workspace
         )
+    }
+
+    async onButtonClick(params: ButtonClickParams): Promise<ButtonClickResult> {
+        return {
+            success: false,
+            failureReason: 'not implemented',
+        }
     }
 
     async onCreatePrompt(params: CreatePromptParams): Promise<void> {
@@ -166,9 +186,9 @@ export class AgenticChatController implements ChatHandlers {
     }
 
     #getChatResultStream(partialResultToken?: string | number): AgenticChatResultStream {
-        return new AgenticChatResultStream(async (chunk: ChatResult | string) =>
-            this.#sendProgressToClient(chunk, partialResultToken)
-        )
+        return new AgenticChatResultStream(async (result: ChatResult | string) => {
+            return this.#sendProgressToClient(result, partialResultToken)
+        })
     }
 
     async onChatPrompt(params: ChatParams, token: CancellationToken): Promise<ChatResult | ResponseError<ChatResult>> {
@@ -192,13 +212,18 @@ export class AgenticChatController implements ChatHandlers {
 
         const triggerContext = await this.#getTriggerContext(params, metric)
         const isNewConversation = !session.conversationId
+        if (isNewConversation) {
+            // agentic chat does not support conversationId in API response,
+            // so we set it to random UUID per session, as other chat functionality
+            // depends on it
+            session.conversationId = uuid()
+        }
 
         token.onCancellationRequested(() => {
             this.#log('cancellation requested')
             session.abortRequest()
         })
 
-        const conversationIdentifier = session?.conversationId ?? 'New conversation'
         const chatResultStream = this.#getChatResultStream(params.partialResultToken)
         try {
             const additionalContext = await this.#additionalContextProvider.getAdditionalContext(
@@ -223,7 +248,7 @@ export class AgenticChatController implements ChatHandlers {
                 session,
                 metric,
                 chatResultStream,
-                conversationIdentifier,
+                session.conversationId,
                 token,
                 triggerContext.documentReference
             )
@@ -254,20 +279,16 @@ export class AgenticChatController implements ChatHandlers {
     ): Promise<GenerateAssistantResponseCommandInput> {
         this.#debug('Preparing request input')
         const profileArn = AmazonQTokenServiceManager.getInstance(this.#features).getActiveProfileArn()
-        const requestInput = this.#triggerContext.getChatParamsFromTrigger(
+        const requestInput = await this.#triggerContext.getChatParamsFromTrigger(
             params,
             triggerContext,
             ChatTriggerType.MANUAL,
             this.#customizationArn,
             profileArn,
-            this.#features.agent.getTools({ format: 'bedrock' }),
+            this.#chatHistoryDb.getMessages(params.tabId, 10),
+            this.#getTools(session),
             additionalContext
         )
-
-        if (!session.localHistoryHydrated && requestInput.conversationState) {
-            requestInput.conversationState.history = this.#chatHistoryDb.getMessages(params.tabId, 10)
-            session.localHistoryHydrated = true
-        }
 
         return requestInput
     }
@@ -287,7 +308,7 @@ export class AgenticChatController implements ChatHandlers {
         let currentRequestInput = { ...initialRequestInput }
         let finalResult: Result<AgenticChatResultWithMetadata, string> | null = null
         let iterationCount = 0
-        const maxIterations = 10 // Safety limit to prevent infinite loops
+        const maxIterations = 100 // Safety limit to prevent infinite loops
         metric.recordStart()
 
         while (iterationCount < maxIterations) {
@@ -315,11 +336,6 @@ export class AgenticChatController implements ChatHandlers {
                 chatResultStream,
                 documentReference
             )
-
-            // Store the conversation ID from the first response
-            if (iterationCount === 1 && result.data?.conversationId) {
-                session.conversationId = result.data.conversationId
-            }
 
             // Check if we have any tool uses that need to be processed
             const pendingToolUses = this.#getPendingToolUses(result.data?.toolUses || {})
@@ -394,7 +410,19 @@ export class AgenticChatController implements ChatHandlers {
             if (!toolUse.name || !toolUse.toolUseId) continue
 
             try {
-                await chatResultStream.writeResultBlock({ body: `${executeToolMessage(toolUse)}` })
+                if (toolUse.name === 'fsRead' || toolUse.name === 'listDirectory') {
+                    const initialReadOrListResult = this.#processReadOrList(toolUse, chatResultStream)
+                    if (initialReadOrListResult) {
+                        await chatResultStream.writeResultBlock(initialReadOrListResult)
+                    }
+                } else if (toolUse.name === 'fsWrite' || toolUse.name === 'executeBash') {
+                    // todo: pending tool use cards?
+                } else {
+                    await chatResultStream.writeResultBlock({
+                        body: `${executeToolMessage(toolUse)}`,
+                        messageId: toolUse.toolUseId,
+                    })
+                }
 
                 const result = await this.#features.agent.runTool(toolUse.name, toolUse.input)
                 let toolResultContent: ToolResultContentBlock
@@ -412,7 +440,20 @@ export class AgenticChatController implements ChatHandlers {
                     status: 'success',
                     content: [toolResultContent],
                 })
-                await chatResultStream.writeResultBlock({ body: toolResultMessage(toolUse, result) })
+
+                switch (toolUse.name) {
+                    case 'fsRead':
+                    case 'listDirectory':
+                        // no need to write tool result for listDir and fsRead into chat stream
+                        break
+                    case 'fsWrite':
+                        const chatResult = await this.#getFsWriteChatResult(toolUse)
+                        await chatResultStream.writeResultBlock(chatResult)
+                        break
+                    default:
+                        await chatResultStream.writeResultBlock({ body: toolResultMessage(toolUse, result) })
+                        break
+                }
             } catch (err) {
                 const errMsg = err instanceof Error ? err.message : 'unknown error'
                 await chatResultStream.writeResultBlock({
@@ -428,6 +469,82 @@ export class AgenticChatController implements ChatHandlers {
         }
 
         return results
+    }
+
+    async #getFsWriteChatResult(toolUse: ToolUse): Promise<ChatMessage> {
+        const input = toolUse.input as unknown as FsWriteParams
+        const fileName = path.basename(input.path)
+        // TODO: right now diff changes is coupled with fsWrite class, we should move it to shared utils
+        const fsWrite = new FsWrite(this.#features)
+        const diffChanges = await fsWrite.getDiffChanges(input)
+        const changes = diffChanges.reduce(
+            (acc, { count = 0, added, removed }) => {
+                if (added) {
+                    acc.added += count
+                } else if (removed) {
+                    acc.deleted += count
+                }
+                return acc
+            },
+            { added: 0, deleted: 0 }
+        )
+        return {
+            type: 'tool',
+            messageId: toolUse.toolUseId,
+            header: {
+                fileList: {
+                    filePaths: [fileName],
+                    details: { [fileName]: { changes } },
+                },
+                buttons: [{ id: 'undo-changes', text: 'Undo', icon: 'undo' }],
+            },
+        }
+    }
+
+    #processReadOrList(toolUse: ToolUse, chatResultStream: AgenticChatResultStream): ChatMessage | undefined {
+        // return initial message about fsRead or listDir
+        const toolUseId = toolUse.toolUseId!
+        const currentPath = (toolUse.input as unknown as FsReadParams | ListDirectoryParams).path
+        if (!currentPath) return
+        const currentFileList = chatResultStream.getContextFileList(toolUseId)
+        if (!currentFileList.some(path => path.relativeFilePath === currentPath)) {
+            const currentFileDetail = {
+                relativeFilePath: (toolUse.input as any)?.path,
+                lineRanges: [{ first: -1, second: -1 }],
+            }
+            chatResultStream.addContextFileList(toolUseId, currentFileDetail)
+            currentFileList.push(currentFileDetail)
+        }
+
+        let title: string
+        const itemCount = currentFileList.length
+        if (!itemCount) {
+            title = 'Gathering context'
+        } else {
+            title =
+                toolUse.name === 'fsRead'
+                    ? `${itemCount} file${itemCount > 1 ? 's' : ''} read`
+                    : `${itemCount} ${itemCount === 1 ? 'directory' : 'directories'} listed`
+        }
+        const fileDetails: Record<string, FileDetails> = {}
+        for (const item of currentFileList) {
+            fileDetails[item.relativeFilePath] = {
+                lineRanges: item.lineRanges,
+            }
+        }
+
+        const contextList: FileList = {
+            rootFolderTitle: title,
+            filePaths: currentFileList.map(item => item.relativeFilePath),
+            details: fileDetails,
+        }
+
+        return {
+            type: 'tool',
+            contextList,
+            messageId: toolUseId,
+            body: '',
+        }
     }
 
     /**
@@ -584,7 +701,7 @@ export class AgenticChatController implements ChatHandlers {
         let requestInput: SendMessageCommandInput
 
         try {
-            requestInput = this.#triggerContext.getChatParamsFromTrigger(
+            requestInput = await this.#triggerContext.getChatParamsFromTrigger(
                 params,
                 triggerContext,
                 ChatTriggerType.INLINE_CHAT,
@@ -725,7 +842,16 @@ export class AgenticChatController implements ChatHandlers {
 
     async onFileClicked(params: FileClickParams) {
         // TODO: also pass in selection and handle on client side
-        await this.#features.lsp.window.showDocument({ uri: params.filePath })
+        const workspaceRoot = workspaceUtils.getWorkspaceFolderPaths(this.#features.lsp)[0]
+        let absolutePath = path.join(workspaceRoot, params.filePath)
+        // handle prompt file outside of workspace
+        if (params.filePath.endsWith(promptFileExtension)) {
+            const existsInWorkspace = await this.#features.workspace.fs.exists(absolutePath)
+            if (!existsInWorkspace) {
+                absolutePath = path.join(getUserPromptsDirectory(), params.filePath)
+            }
+        }
+        await this.#features.lsp.window.showDocument({ uri: absolutePath })
     }
 
     onFollowUpClicked() {}
@@ -736,9 +862,14 @@ export class AgenticChatController implements ChatHandlers {
 
     async onReady() {
         await this.#tabBarController.loadChats()
-        const contextItems = await (await LocalProjectContextController.getInstance()).getContextCommandItems()
-        await this.#contextCommandsProvider.processContextCommandUpdate(contextItems)
-        void this.#contextCommandsProvider.maybeUpdateCodeSymbols()
+        try {
+            const localProjectContextController = await LocalProjectContextController.getInstance()
+            const contextItems = await localProjectContextController.getContextCommandItems()
+            await this.#contextCommandsProvider.processContextCommandUpdate(contextItems)
+            void this.#contextCommandsProvider.maybeUpdateCodeSymbols()
+        } catch (error) {
+            this.#log('Error initializing context commands: ' + error)
+        }
     }
 
     onSendFeedback({ tabId, feedbackPayload }: FeedbackParams) {
@@ -923,6 +1054,18 @@ export class AgenticChatController implements ChatHandlers {
         return chatEventParser.getResult()
     }
 
+    onPromptInputOptionChange(params: PromptInputOptionChangeParams) {
+        const sessionResult = this.#chatSessionManagementService.getSession(params.tabId)
+        const { data: session, success } = sessionResult
+
+        if (!success) {
+            this.#log('onPromptInputOptionChange: on valid session found')
+            return
+        }
+
+        session.pairProgrammingMode = !session.pairProgrammingMode
+    }
+
     updateConfiguration = (newConfig: AmazonQWorkspaceConfig) => {
         this.#customizationArn = newConfig.customizationArn
         this.#log(`Chat configuration updated customizationArn to ${this.#customizationArn}`)
@@ -935,6 +1078,16 @@ export class AgenticChatController implements ChatHandlers {
         const updatedOptOutPreference = newConfig.optOutTelemetryPreference
         this.#telemetryService.updateOptOutPreference(updatedOptOutPreference)
         this.#log(`Chat configuration telemetry preference to ${updatedOptOutPreference}`)
+    }
+
+    #getTools(session: ChatSessionService) {
+        const tools = this.#features.agent.getTools({ format: 'bedrock' })
+
+        // it's disabled so filter out the write tools
+        if (!session.pairProgrammingMode) {
+            return tools.filter(tool => !['fsWrite', 'executeBash'].includes(tool.toolSpecification?.name || ''))
+        }
+        return tools
     }
 
     #log(...messages: string[]) {

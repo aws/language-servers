@@ -128,8 +128,7 @@ export class FsRead {
                 type: 'object',
                 properties: {
                     path: {
-                        description:
-                            'Path to a file, e.g. `/path/to/repo/file.py`. If you want to access a path relative to the current workspace, use relative paths e.g. `./src/file.py`.',
+                        description: 'Absolute path to a file, e.g. `/repo/file.py`.',
                         type: 'string',
                     },
                     readRange: {

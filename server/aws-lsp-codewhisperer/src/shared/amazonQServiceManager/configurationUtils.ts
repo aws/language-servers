@@ -68,14 +68,16 @@ interface QInlineSuggestionsConfig {
 }
 
 interface LocalIndexConfig {
-    ignoreFilePatterns?: string[]
+    ignoreFilePatterns?: string[] // patterns must follow .gitignore convention
     maxFileSizeMB?: number
     maxIndexSizeMB?: number
-    indexCacheDirPath?: string
+    indexCacheDirPath?: string // defaults to homedir/.aws/amazonq/cache
 }
 
 interface QProjectContextConfig {
     enableLocalIndexing: boolean // aws.q.projectContext.enableLocalIndexing
+    enableGpuAcceleration: boolean // aws.q.projectContext.enableGpuAcceleration
+    indexWorkerThreads: number // aws.q.projectContext.indexWorkerThreads
     localIndexing?: LocalIndexConfig
 }
 
@@ -120,6 +122,8 @@ export async function getAmazonQRelatedWorkspaceConfigs(
                 },
                 projectContext: {
                     enableLocalIndexing: newQConfig.projectContext?.enableLocalIndexing === true,
+                    enableGpuAcceleration: newQConfig.projectContext?.enableGpuAcceleration === true,
+                    indexWorkerThreads: newQConfig.projectContext?.indexWorkerThreads ?? -1,
                     localIndexing: {
                         ignoreFilePatterns: newQConfig.projectContext?.localIndexing?.ignoreFilePatterns ?? [],
                         maxFileSizeMB: newQConfig.projectContext?.localIndexing?.maxFileSizeMB ?? 10,
@@ -174,6 +178,8 @@ export const defaultAmazonQWorkspaceConfigFactory = (): AmazonQWorkspaceConfig =
         shareCodeWhispererContentWithAWS: false,
         projectContext: {
             enableLocalIndexing: false,
+            enableGpuAcceleration: false,
+            indexWorkerThreads: -1,
             localIndexing: {
                 ignoreFilePatterns: [],
                 maxFileSizeMB: 10,

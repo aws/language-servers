@@ -22,7 +22,7 @@ import {
     SEND_TO_PROMPT_TELEMETRY_EVENT,
     TAB_ADD_TELEMETRY_EVENT,
 } from '../contracts/telemetry'
-import { MynahUI } from '@aws/mynah-ui'
+import { ChatItemType, MynahUI } from '@aws/mynah-ui'
 import { TabFactory } from './tabs/tabFactory'
 import { ChatClientAdapter } from '../contracts/chatClientAdapter'
 
@@ -218,7 +218,9 @@ describe('Chat', () => {
         window.dispatchEvent(chatEvent)
 
         assert.calledOnceWithExactly(endMessageStreamStub, tabId, '')
-        assert.calledOnceWithMatch(updateLastChatAnswerStub, tabId, { body })
+        assert.calledTwice(updateLastChatAnswerStub)
+        assert.calledWithMatch(updateLastChatAnswerStub, tabId, { body: '' })
+        assert.calledWithMatch(updateLastChatAnswerStub, tabId, { body, type: ChatItemType.ANSWER })
         assert.calledOnceWithExactly(updateStoreStub, tabId, {
             loadingChat: false,
             promptInputDisabledState: false,
@@ -241,7 +243,11 @@ describe('Chat', () => {
         })
         window.dispatchEvent(chatEvent)
 
-        assert.calledOnceWithExactly(updateLastChatAnswerStub, tabId, { body, header: undefined })
+        assert.calledOnceWithExactly(updateLastChatAnswerStub, tabId, {
+            body,
+            header: { icon: undefined, buttons: undefined },
+            buttons: undefined,
+        })
         assert.notCalled(endMessageStreamStub)
         assert.notCalled(updateStoreStub)
     })
@@ -294,6 +300,7 @@ describe('Chat', () => {
         assert.calledOnceWithExactly(updateLastChatAnswerStub, tabId, {
             ...params,
             header: mockHeader,
+            buttons: undefined,
         })
         assert.notCalled(endMessageStreamStub)
         assert.notCalled(updateStoreStub)

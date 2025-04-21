@@ -1,4 +1,4 @@
-import { ChatResult } from '@aws/language-server-runtimes/protocol'
+import { ChatResult, FileDetails, ChatMessage } from '@aws/language-server-runtimes/protocol'
 
 interface ResultStreamWriter {
     write(chunk: ChatResult): Promise<void>
@@ -10,11 +10,16 @@ interface ResultStreamWriter {
  * ChatResults are grouped into blocks that can be written directly, or streamed in.
  * In the final message, blocks are seperated by resultDelimiter defined below.
  */
+
+interface FileDetailsWithPath extends FileDetails {
+    relativeFilePath: string
+}
 export class AgenticChatResultStream {
     static readonly resultDelimiter = '\n\n'
     #state = {
-        chatResultBlocks: [] as ChatResult[],
+        chatResultBlocks: [] as ChatMessage[],
         isLocked: false,
+        contextFileList: {} as Record<string, FileDetailsWithPath[]>,
     }
     readonly #sendProgress: (newChatResult: ChatResult | string) => Promise<void>
 
@@ -26,15 +31,76 @@ export class AgenticChatResultStream {
         return this.#joinResults(this.#state.chatResultBlocks)
     }
 
-    #joinResults(chatResults: ChatResult[]): ChatResult {
-        // TODO: if we add ui elements to ChatResult in the response, we need to be more aware of how we combine them.
-        return chatResults.reduceRight((acc, c) => ({
-            ...acc,
-            body: c.body + AgenticChatResultStream.resultDelimiter + acc.body,
-        }))
+    getContextFileList(toolUseId: string): FileDetailsWithPath[] {
+        return this.#state.contextFileList[toolUseId] ?? []
     }
 
-    async writeResultBlock(result: ChatResult) {
+    addContextFileList(toolUseId: string, fileDetails: FileDetailsWithPath) {
+        if (!this.#state.contextFileList[toolUseId]) {
+            this.#state.contextFileList[toolUseId] = []
+        }
+        this.#state.contextFileList[toolUseId].push(fileDetails)
+    }
+
+    #joinResults(chatResults: ChatMessage[]): ChatResult {
+        const tools: Record<string, boolean> = {}
+        let firstResponseMessageId: string | undefined
+
+        for (const result of chatResults) {
+            if (result.type === 'tool') {
+                tools[result.messageId || ''] = true
+            } else if (tools[result.messageId || '']) {
+                firstResponseMessageId = result.messageId
+                break
+            }
+        }
+
+        const result: ChatResult = {
+            body: '', // TODO: somehow doesn't stream unless there is content in the primary result message
+            additionalMessages: [],
+            messageId: firstResponseMessageId,
+        }
+
+        return chatResults.reduce<ChatResult>((acc, c) => {
+            if (c.messageId && c.messageId !== firstResponseMessageId) {
+                if (acc.additionalMessages!.some(am => am.messageId === c.messageId)) {
+                    return {
+                        ...acc,
+                        additionalMessages: acc.additionalMessages!.map(am => ({
+                            ...am,
+                            body:
+                                am.messageId === c.messageId
+                                    ? am.body + AgenticChatResultStream.resultDelimiter + c.body
+                                    : am.body,
+                            ...((c.contextList || acc.contextList) && {
+                                contextList: {
+                                    filePaths: [
+                                        ...(acc.contextList?.filePaths ?? []),
+                                        ...(c.contextList?.filePaths ?? []),
+                                    ],
+                                    rootFolderTitle: c.contextList?.rootFolderTitle
+                                        ? c.contextList.rootFolderTitle
+                                        : (acc.contextList?.rootFolderTitle ?? ''),
+                                },
+                            }),
+                        })),
+                    }
+                } else {
+                    return {
+                        ...acc,
+                        additionalMessages: [...acc.additionalMessages!, c],
+                    }
+                }
+            } else {
+                return {
+                    ...acc,
+                    body: c.body + AgenticChatResultStream.resultDelimiter + acc.body,
+                }
+            }
+        }, result)
+    }
+
+    async writeResultBlock(result: ChatMessage) {
         this.#state.chatResultBlocks.push(result)
         await this.#sendProgress(this.getResult())
     }

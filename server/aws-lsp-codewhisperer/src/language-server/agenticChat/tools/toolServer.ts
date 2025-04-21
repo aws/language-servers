@@ -3,12 +3,15 @@ import { FsRead, FsReadParams } from './fsRead'
 import { FsWrite, FsWriteParams } from './fsWrite'
 import { ListDirectory, ListDirectoryParams } from './listDirectory'
 import { ExecuteBash, ExecuteBashParams } from './executeBash'
+import { LspGetDocuments, LspGetDocumentsParams } from './lspGetDocuments'
+import { LspReadDocumentContents, LspReadDocumentContentsParams } from './lspReadDocumentContents'
+import { LspApplyWorkspaceEdit, LspApplyWorkspaceEditParams } from './lspApplyWorkspaceEdit'
 
-export const FsToolsServer: Server = ({ workspace, logging, agent }) => {
+export const FsToolsServer: Server = ({ workspace, logging, agent, lsp }) => {
     const fsReadTool = new FsRead({ workspace, logging })
     const fsWriteTool = new FsWrite({ workspace, logging })
 
-    const listDirectoryTool = new ListDirectory({ workspace, logging })
+    const listDirectoryTool = new ListDirectory({ workspace, logging, lsp })
 
     agent.addTool(fsReadTool.getSpec(), async (input: FsReadParams) => {
         // TODO: fill in logic for handling invalid tool invocations
@@ -29,8 +32,22 @@ export const FsToolsServer: Server = ({ workspace, logging, agent }) => {
     return () => {}
 }
 
-export const BashToolsServer: Server = ({ logging, workspace, agent }) => {
-    const bashTool = new ExecuteBash({ logging, workspace })
+export const BashToolsServer: Server = ({ logging, workspace, agent, lsp }) => {
+    const bashTool = new ExecuteBash({ logging, workspace, lsp })
     agent.addTool(bashTool.getSpec(), (input: ExecuteBashParams) => bashTool.invoke(input))
+    return () => {}
+}
+
+export const LspToolsServer: Server = ({ workspace, logging, lsp, agent }) => {
+    const lspGetDocuments = new LspGetDocuments({ workspace, logging })
+    const lspReadDocumentContents = new LspReadDocumentContents({ workspace, logging })
+    const lspApplyWorkspaceEdit = new LspApplyWorkspaceEdit({ lsp, logging })
+
+    agent.addTool(LspGetDocuments.getSpec(), (input: LspGetDocumentsParams) => lspGetDocuments.invoke(input))
+    agent.addTool(LspReadDocumentContents.getSpec(), (input: LspReadDocumentContentsParams) =>
+        lspReadDocumentContents.invoke(input)
+    )
+    agent.addTool(LspApplyWorkspaceEdit.getSpec(), input => lspApplyWorkspaceEdit.invoke(input))
+
     return () => {}
 }

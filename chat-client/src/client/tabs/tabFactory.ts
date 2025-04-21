@@ -9,6 +9,7 @@ import {
 import { disclaimerCard } from '../texts/disclaimer'
 import { ChatMessage } from '@aws/language-server-runtimes-types'
 import { ChatHistory } from '../features/history'
+import { pairProgrammingPromptInput, programmerModeCard } from '../texts/pairProgramming'
 
 export type DefaultTabData = MynahUIDataModel
 
@@ -33,12 +34,14 @@ export class TabFactory {
     public createTab(
         needWelcomeMessages: boolean,
         disclaimerCardActive: boolean,
+        pairProgrammingCardActive: boolean,
         chatMessages?: ChatMessage[]
     ): MynahUIDataModel {
         const tabData: MynahUIDataModel = {
             ...this.getDefaultTabData(),
             chatItems: needWelcomeMessages
                 ? [
+                      ...(pairProgrammingCardActive ? [programmerModeCard] : []),
                       {
                           type: ChatItemType.ANSWER,
                           body: `Hi, I'm Amazon Q. I can answer your software development questions. 
@@ -54,6 +57,8 @@ export class TabFactory {
                   ? (chatMessages as ChatItem[])
                   : [],
             ...(disclaimerCardActive ? { promptInputStickyCard: disclaimerCard } : {}),
+            cancelButtonWhenLoading: false,
+            promptInputOptions: [pairProgrammingPromptInput],
         }
         return tabData
     }

@@ -28,6 +28,7 @@ import {
     DISCLAIMER_ACKNOWLEDGED,
     ErrorResult,
     UiResultMessage,
+    CHAT_PROMPT_OPTION_ACKNOWLEDGED,
 } from '@aws/chat-client-ui-types'
 import {
     CHAT_REQUEST_METHOD,
@@ -58,6 +59,8 @@ import {
     OPEN_TAB_REQUEST_METHOD,
     OpenTabParams,
     OpenTabResult,
+    PROMPT_INPUT_OPTION_CHANGE_METHOD,
+    PromptInputOptionChangeParams,
     QUICK_ACTION_REQUEST_METHOD,
     QuickActionParams,
     READY_NOTIFICATION_METHOD,
@@ -87,7 +90,10 @@ const DEFAULT_TAB_DATA = {
     promptInputPlaceholder: 'Ask a question or enter "/" for quick actions',
 }
 
-type ChatClientConfig = Pick<MynahUIDataModel, 'quickActionCommands'> & { disclaimerAcknowledged?: boolean }
+type ChatClientConfig = Pick<MynahUIDataModel, 'quickActionCommands'> & {
+    disclaimerAcknowledged?: boolean
+    pairProgrammingAcknowledged?: boolean
+}
 
 export const createChat = (
     clientApi: { postMessage: (msg: UiMessage | UiResultMessage | ServerMessage) => void },
@@ -240,6 +246,14 @@ export const createChat = (
         disclaimerAcknowledged: () => {
             sendMessageToClient({ command: DISCLAIMER_ACKNOWLEDGED })
         },
+        chatPromptOptionAcknowledged: (messageId: string) => {
+            sendMessageToClient({
+                command: CHAT_PROMPT_OPTION_ACKNOWLEDGED,
+                params: {
+                    messageId,
+                },
+            })
+        },
         onOpenTab: (requestId: string, params: OpenTabResult | ErrorResult) => {
             if ('tabId' in params) {
                 sendMessageToClient({
@@ -297,6 +311,9 @@ export const createChat = (
                 })
             }
         },
+        promptInputOptionChange: (params: PromptInputOptionChangeParams) => {
+            sendMessageToClient({ command: PROMPT_INPUT_OPTION_CHANGE_METHOD, params })
+        },
     }
 
     const messager = new Messager(chatApi)
@@ -308,6 +325,7 @@ export const createChat = (
         messager,
         tabFactory,
         config?.disclaimerAcknowledged ?? false,
+        config?.pairProgrammingAcknowledged ?? false,
         chatClientAdapter
     )
 

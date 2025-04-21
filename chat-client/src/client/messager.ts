@@ -34,6 +34,7 @@ import {
     LinkClickParams,
     ListConversationsParams,
     OpenTabResult,
+    PromptInputOptionChangeParams,
     QuickActionParams,
     SourceLinkClickParams,
     TabAddParams,
@@ -80,6 +81,7 @@ export interface OutboundChatApi {
     infoLinkClick(params: InfoLinkClickParams): void
     uiReady(): void
     disclaimerAcknowledged(): void
+    chatPromptOptionAcknowledged(messageId: string): void
     onOpenTab(requestId: string, result: OpenTabResult | ErrorResult): void
     createPrompt(params: CreatePromptParams): void
     fileClick(params: FileClickParams): void
@@ -87,6 +89,7 @@ export interface OutboundChatApi {
     conversationClick(params: ConversationClickParams): void
     tabBarAction(params: TabBarActionParams): void
     onGetSerializedChat(requestId: string, result: GetSerializedChatResult | ErrorResult): void
+    promptInputOptionChange(params: PromptInputOptionChangeParams): void
 }
 
 export class Messager {
@@ -111,6 +114,10 @@ export class Messager {
 
     onDisclaimerAcknowledged = (): void => {
         this.chatApi.disclaimerAcknowledged()
+    }
+
+    onChatPromptOptionAcknowledged = (messageId: string): void => {
+        this.chatApi.chatPromptOptionAcknowledged(messageId)
     }
 
     onFocusStateChanged = (focusState: boolean): void => {
@@ -208,5 +215,9 @@ export class Messager {
 
     onGetSerializedChat = (requestId: string, result: GetSerializedChatResult | ErrorResult): void => {
         this.chatApi.onGetSerializedChat(requestId, result)
+    }
+
+    onPromptInputOptionChange = (params: PromptInputOptionChangeParams): void => {
+        this.chatApi.promptInputOptionChange(params)
     }
 }

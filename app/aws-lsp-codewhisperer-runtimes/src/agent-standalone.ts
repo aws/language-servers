@@ -5,10 +5,11 @@ import {
     CodeWhispererServerTokenProxy,
     QAgenticChatServerTokenProxy,
     QConfigurationServerTokenProxy,
+    QLocalProjectContextServerTokenProxy,
     QNetTransformServerTokenProxy,
 } from '@aws/lsp-codewhisperer'
 import { IdentityServer } from '@aws/lsp-identity'
-import { FsToolsServer } from '@aws/lsp-codewhisperer/out/language-server/agenticChat/tools/toolServer'
+import { BashToolsServer, FsToolsServer } from '@aws/lsp-codewhisperer/out/language-server/agenticChat/tools/toolServer'
 
 const MAJOR = 0
 const MINOR = 1
@@ -25,6 +26,9 @@ const props: RuntimeProps = {
         QAgenticChatServerTokenProxy,
         IdentityServer.create,
         FsToolsServer,
+        BashToolsServer,
+        QLocalProjectContextServerTokenProxy,
+        // LspToolsServer,
     ],
     name: 'AWS CodeWhisperer',
 }

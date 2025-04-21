@@ -23,7 +23,7 @@ describe('AdditionalContextProvider', () => {
         testFeatures.workspace.fs.exists = fsExistsStub
         testFeatures.workspace.fs.readdir = fsReadDirStub
         getContextCommandPromptStub = sinon.stub()
-        provider = new AdditionalContextProvider(testFeatures.workspace)
+        provider = new AdditionalContextProvider(testFeatures.workspace, testFeatures.lsp)
         localProjectContextControllerInstanceStub = sinon.stub(LocalProjectContextController, 'getInstance').resolves({
             getContextCommandPrompt: getContextCommandPromptStub,
         } as unknown as LocalProjectContextController)

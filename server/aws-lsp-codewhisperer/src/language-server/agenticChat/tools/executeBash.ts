@@ -9,6 +9,7 @@ import { ChildProcess, ChildProcessOptions } from '@aws/lsp-core/out/util/proces
 // eslint-disable-next-line import/no-nodejs-modules
 import { isAbsolute, join } from 'path' // Safe to import on web since this is part of path-browserify
 import { Features } from '../../types'
+import { getWorkspaceFolderPaths } from '@aws/lsp-core/out/util/workspaceUtils'
 
 export enum CommandCategory {
     ReadOnly,
@@ -122,11 +123,11 @@ interface TimestampedChunk {
 
 export class ExecuteBash {
     private childProcess?: ChildProcess
-    private readonly workspace: Features['workspace']
     private readonly logging: Features['logging']
-    constructor(features: Pick<Features, 'logging' | 'workspace'> & Partial<Features>) {
-        this.workspace = features.workspace
+    private readonly lsp: Features['lsp']
+    constructor(features: Pick<Features, 'logging' | 'lsp'> & Partial<Features>) {
         this.logging = features.logging
+        this.lsp = features.lsp
     }
 
     public async validate(command: string): Promise<void> {
@@ -195,7 +196,7 @@ export class ExecuteBash {
                     if (this.looksLikePath(arg)) {
                         // If not absolute, resolve using workingDirectory if available.
                         const fullPath = !isAbsolute(arg) && params.cwd ? join(params.cwd, arg) : arg
-                        const isInWorkspace = await workspaceUtils.inWorkspace(this.workspace, fullPath)
+                        const isInWorkspace = workspaceUtils.isInWorkspace(getWorkspaceFolderPaths(this.lsp), fullPath)
                         if (!isInWorkspace) {
                             return { requiresAcceptance: true, warning: destructiveCommandWarningMessage }
                         }

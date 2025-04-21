@@ -6,7 +6,7 @@
 import * as cp from 'child_process'
 import * as path from 'path'
 
-import { ExtensionContext, workspace, env, version } from 'vscode'
+import { ExtensionContext, env, version } from 'vscode'
 
 import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind } from 'vscode-languageclient/node'
 import { registerChat } from './chatActivation'
@@ -92,58 +92,9 @@ export async function activateDocumentsLanguageServer(extensionContext: Extensio
 
     // Options to control the language client
     const clientOptions: LanguageClientOptions = {
-        // Register the server for json documents
-        documentSelector: [
-            // yaml/json is illustrative of static filetype handling language servers
-            { scheme: 'file', language: 'yaml' },
-            { scheme: 'untitled', language: 'yaml' },
-            { scheme: 'file', language: 'json' },
-            { scheme: 'untitled', language: 'json' },
-            // typescript is illustrative of code-handling language servers
-            { scheme: 'file', language: 'typescript' },
-            { scheme: 'untitled', language: 'typescript' },
-            { scheme: 'file', language: 'javascript' },
-            { scheme: 'untitled', language: 'javascript' },
-            // java is illustrative of code-handling language servers
-            { scheme: 'file', language: 'java' },
-            { scheme: 'untitled', language: 'java' },
-            // partiql is illustrative of query-handling language servers
-            { scheme: 'file', language: 'partiql' },
-            { scheme: 'untitled', language: 'partiql' },
-            { scheme: 'file', language: 'go' },
-            { scheme: 'untitled', language: 'go' },
-            { scheme: 'file', language: 'php' },
-            { scheme: 'untitled', language: 'php' },
-            { scheme: 'file', language: 'rust' },
-            { scheme: 'untitled', language: 'rust' },
-            { scheme: 'file', language: 'kotlin' },
-            { scheme: 'untitled', language: 'kotlin' },
-            { scheme: 'file', language: 'terraform' },
-            { scheme: 'untitled', language: 'terraform' },
-            { scheme: 'file', language: 'ruby' },
-            { scheme: 'untitled', language: 'ruby' },
-            { scheme: 'file', language: 'shellscript' },
-            { scheme: 'untitled', language: 'shellscript' },
-            { scheme: 'file', language: 'scala' },
-            { scheme: 'untitled', language: 'scala' },
-            { scheme: 'file', language: 'dart' },
-            { scheme: 'untitled', language: 'dart' },
-            { scheme: 'file', language: 'lua' },
-            { scheme: 'untitled', language: 'lua' },
-            { scheme: 'file', language: 'powershell' },
-            { scheme: 'untitled', language: 'powershell' },
-            { scheme: 'file', language: 'r' },
-            { scheme: 'untitled', language: 'r' },
-            { scheme: 'file', language: 'swift' },
-            { scheme: 'untitled', language: 'swift' },
-            { scheme: 'file', language: 'systemverilog' },
-            { scheme: 'untitled', language: 'systemverilog' },
-            { scheme: 'file', language: 'vue' },
-            { scheme: 'untitled', language: 'vue' },
-            { scheme: 'file', language: 'csharp' },
-            { scheme: 'untitled', language: 'csharp' },
-        ],
+        documentSelector: [{ scheme: 'file', language: '*' }],
         initializationOptions: {
+            handledSchemaProtocols: ['file', 'untitled'],
             logLevel: 'debug',
             aws: {
                 clientInfo: {
@@ -165,11 +116,6 @@ export async function activateDocumentsLanguageServer(extensionContext: Extensio
                     },
                 },
             } as AWSInitializationOptions,
-        },
-        synchronize: {
-            fileEvents: workspace.createFileSystemWatcher(
-                '**/*.{json,java,yml,yaml,ts,pql,go,php,rs,kt,tf,hcl,rb,sh,scala,sv,svh,vh,dart,lua,wlua,swift,vue,ps1,psm1,r}'
-            ),
         },
     }
 

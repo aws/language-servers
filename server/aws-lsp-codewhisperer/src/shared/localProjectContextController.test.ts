@@ -1,5 +1,5 @@
 import { LocalProjectContextController } from './localProjectContextController'
-import { SinonStub, stub, assert as sinonAssert, match, restore } from 'sinon'
+import { SinonStub, stub, assert as sinonAssert, match, restore, spy } from 'sinon'
 import * as assert from 'assert'
 import * as fs from 'fs'
 import { Dirent } from 'fs'
@@ -75,12 +75,13 @@ describe('LocalProjectContextController', () => {
 
     describe('init', () => {
         it('should initialize vector library successfully', async () => {
+            const buildIndexSpy = spy(controller, 'buildIndex')
             await controller.init({ vectorLib: vectorLibMock })
 
             sinonAssert.notCalled(logging.error)
             sinonAssert.called(vectorLibMock.start)
             const vecLib = await vectorLibMock.start()
-            sinonAssert.called(vecLib.buildIndex)
+            sinonAssert.called(buildIndexSpy)
         })
 
         it('should handle initialization errors', async () => {
@@ -89,6 +90,15 @@ describe('LocalProjectContextController', () => {
             await controller.init({ vectorLib: vectorLibMock })
 
             sinonAssert.called(logging.error)
+        })
+    })
+
+    describe('buildIndex', () => {
+        it('should build Index with vectorLib', async () => {
+            await controller.init({ vectorLib: vectorLibMock })
+            const vecLib = await vectorLibMock.start()
+            await controller.buildIndex()
+            sinonAssert.called(vecLib.buildIndex)
         })
     })
 
@@ -194,6 +204,75 @@ describe('LocalProjectContextController', () => {
 
             await controller.updateIndex(['test.java'], 'add')
             sinonAssert.called(logging.error)
+        })
+    })
+
+    describe('configuration options', () => {
+        let processEnvBackup: NodeJS.ProcessEnv
+
+        beforeEach(() => {
+            processEnvBackup = { ...process.env }
+        })
+
+        afterEach(() => {
+            process.env = processEnvBackup
+        })
+
+        it('should set GPU acceleration environment variable when enabled', async () => {
+            await controller.init({
+                enableGpuAcceleration: true,
+                vectorLib: vectorLibMock,
+            })
+            assert.strictEqual(process.env.Q_ENABLE_GPU, 'true')
+            sinonAssert.called(vectorLibMock.start)
+        })
+
+        it('should remove GPU acceleration environment variable when disabled', async () => {
+            process.env.Q_ENABLE_GPU = 'true'
+            await controller.init({
+                enableGpuAcceleration: false,
+                vectorLib: vectorLibMock,
+            })
+            assert.strictEqual(process.env.Q_ENABLE_GPU, undefined)
+            sinonAssert.called(vectorLibMock.start)
+        })
+
+        it('should set worker threads environment variable when specified', async () => {
+            await controller.init({
+                indexWorkerThreads: 4,
+                vectorLib: vectorLibMock,
+            })
+            assert.strictEqual(process.env.Q_WORKER_THREADS, '4')
+            sinonAssert.called(vectorLibMock.start)
+        })
+
+        it('should remove worker threads environment variable when not specified', async () => {
+            process.env.Q_WORKER_THREADS = '4'
+            await controller.init({
+                vectorLib: vectorLibMock,
+            })
+            assert.strictEqual(process.env.Q_WORKER_THREADS, undefined)
+            sinonAssert.called(vectorLibMock.start)
+        })
+
+        it('should ignore invalid worker thread counts', async () => {
+            process.env.Q_WORKER_THREADS = '4'
+            await controller.init({
+                indexWorkerThreads: 101,
+                vectorLib: vectorLibMock,
+            })
+            assert.strictEqual(process.env.Q_WORKER_THREADS, undefined)
+            sinonAssert.called(vectorLibMock.start)
+        })
+
+        it('should ignore negative worker thread counts', async () => {
+            process.env.Q_WORKER_THREADS = '4'
+            await controller.init({
+                indexWorkerThreads: -1,
+                vectorLib: vectorLibMock,
+            })
+            assert.strictEqual(process.env.Q_WORKER_THREADS, undefined)
+            sinonAssert.called(vectorLibMock.start)
         })
     })
 

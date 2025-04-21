@@ -5,6 +5,7 @@
 
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import assert = require('assert')
+import * as fs from 'fs/promises'
 import { TextDocument } from 'vscode-languageserver-textdocument'
 import sinon = require('sinon')
 import { AgenticChatTriggerContext } from './agenticChatTriggerContext'
@@ -12,6 +13,7 @@ import { DocumentContext, DocumentContextExtractor } from '../../chat/contexts/d
 import { ChatTriggerType, CursorState } from '@amzn/codewhisperer-streaming'
 import { URI } from 'vscode-uri'
 import { InitializeParams } from '@aws/language-server-runtimes/protocol'
+import { TestFolder } from '@aws/lsp-core/out/test/testFolder'
 
 describe('AgenticChatTriggerContext', () => {
     let testFeatures: TestFeatures
@@ -59,7 +61,6 @@ describe('AgenticChatTriggerContext', () => {
 
     it('returns null if text document is not found', async () => {
         const triggerContext = new AgenticChatTriggerContext(testFeatures)
-
         const documentContext = await triggerContext.extractDocumentContext({
             cursorState: [
                 {
@@ -106,12 +107,12 @@ describe('AgenticChatTriggerContext', () => {
 
     it('includes workspace folders as part of editor state in chat params', async () => {
         const triggerContext = new AgenticChatTriggerContext(testFeatures)
-        const chatParams = triggerContext.getChatParamsFromTrigger(
+        const chatParams = await triggerContext.getChatParamsFromTrigger(
             { tabId: 'tab', prompt: {} },
             {},
             ChatTriggerType.MANUAL
         )
-        const chatParamsWithMore = triggerContext.getChatParamsFromTrigger(
+        const chatParamsWithMore = await triggerContext.getChatParamsFromTrigger(
             { tabId: 'tab', prompt: {} },
             { cursorState: {} as CursorState, relativeFilePath: '' },
             ChatTriggerType.MANUAL
@@ -127,5 +128,60 @@ describe('AgenticChatTriggerContext', () => {
                 ?.workspaceFolders,
             mockWorkspaceFolders.map(f => URI.parse(f.uri).fsPath)
         )
+    })
+    describe('getTextDocument', function () {
+        let tempFolder: TestFolder
+
+        before(async () => {
+            tempFolder = await TestFolder.create()
+        })
+
+        afterEach(async () => {
+            await tempFolder.clear()
+        })
+
+        after(async () => {
+            await tempFolder.delete()
+        })
+
+        it('returns text document if it is synced', async function () {
+            const mockDocument = {
+                uri: 'file://this/is/my/file.py',
+                languageId: 'python',
+                version: 0,
+            } as TextDocument
+            testFeatures.workspace.getTextDocument.resolves(mockDocument)
+
+            const result = await new AgenticChatTriggerContext(testFeatures).getTextDocument(mockDocument.uri)
+            assert.deepStrictEqual(result, mockDocument)
+        })
+
+        it('falls back to file system if it is not synced', async function () {
+            const pythonContent = 'print("hello")'
+            const pythonFilePath = await tempFolder.write('pythonFile.py', pythonContent)
+            const uri = URI.file(pythonFilePath).toString()
+            testFeatures.workspace.getTextDocument.resolves(undefined)
+            testFeatures.workspace = {
+                ...testFeatures.workspace,
+                fs: {
+                    ...testFeatures.workspace.fs,
+                    readFile: path => fs.readFile(path, { encoding: 'utf-8' }),
+                },
+            }
+            const result = await new AgenticChatTriggerContext(testFeatures).getTextDocument(uri)
+
+            assert.ok(result)
+            assert.strictEqual(result.uri, uri)
+            assert.strictEqual(result.getText(), pythonContent)
+        })
+
+        it('returns undefined if both sync and fs fails', async function () {
+            const uri = 'file://not/a/real/path'
+            testFeatures.workspace.getTextDocument.resolves(undefined)
+
+            const result = await new AgenticChatTriggerContext(testFeatures).getTextDocument(uri)
+
+            assert.deepStrictEqual(result, undefined)
+        })
     })
 })
