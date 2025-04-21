@@ -9,13 +9,11 @@ import { LspApplyWorkspaceEdit, LspApplyWorkspaceEditParams } from './lspApplyWo
 import path = require('path')
 import { McpManager } from './mcp/mcpManager'
 import { McpTool } from './mcp/mcpTool'
-import { loadMcpServerConfigs } from './mcp/mcpUtils'
 
 export const FsToolsServer: Server = ({ workspace, logging, agent, lsp }) => {
     const fsReadTool = new FsRead({ workspace, logging })
     const fsWriteTool = new FsWrite({ workspace, logging })
     const listDirectoryTool = new ListDirectory({ workspace, logging, lsp })
-    const globalMcpConfigPath = path.join(process.env.HOME ?? '', '.aws', 'amazonq', 'mcp.json')
 
     agent.addTool(fsReadTool.getSpec(), async (input: FsReadParams) => {
         // TODO: fill in logic for handling invalid tool invocations
@@ -72,7 +70,7 @@ export const McpToolsServer: Server = ({ workspace, logging, lsp, agent }) => {
 
         for (const def of mgr.getAllTools()) {
             const baseSpec = def
-            const namespaced = `${def.serverName}::${def.toolName}`
+            const namespaced = `${def.serverName}_${def.toolName}`
             const tool = new McpTool({ logging, workspace, lsp }, def)
 
             agent.addTool(

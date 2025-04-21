@@ -9,11 +9,7 @@ import {
     QNetTransformServerTokenProxy,
 } from '@aws/lsp-codewhisperer'
 import { IdentityServer } from '@aws/lsp-identity'
-import {
-    BashToolsServer,
-    FsToolsServer,
-    McpToolsServer,
-} from '@aws/lsp-codewhisperer/out/language-server/agenticChat/tools/toolServer'
+import { BashToolsServer, FsToolsServer } from '@aws/lsp-codewhisperer/out/language-server/agenticChat/tools/toolServer'
 
 const MAJOR = 0
 const MINOR = 1
@@ -32,7 +28,7 @@ const props: RuntimeProps = {
         FsToolsServer,
         BashToolsServer,
         QLocalProjectContextServerTokenProxy,
-        McpToolsServer,
+        // McpToolsServer,
         // LspToolsServer,
     ],
     name: 'AWS CodeWhisperer',

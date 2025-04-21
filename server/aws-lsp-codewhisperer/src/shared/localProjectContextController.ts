@@ -91,11 +91,7 @@ export class LocalProjectContextController {
 
             return this.instance
         } catch (error) {
-            return {
-                isEnabled: false,
-                shouldUpdateContextCommandSymbolsOnce: () => [],
-                getContextCommandItems: () => [],
-            } as unknown as LocalProjectContextController
+            throw new Error(`Failed to get LocalProjectContextController instance: ${error}`)
         }
     }
 
@@ -135,7 +131,7 @@ export class LocalProjectContextController {
             }
             this.log.info(
                 `Vector library initializing with GPU acceleration: ${enableGpuAcceleration}, ` +
-                `index worker thread count: ${indexWorkerThreads}`
+                    `index worker thread count: ${indexWorkerThreads}`
             )
 
             const libraryPath = path.join(LIBRARY_DIR, 'dist', 'extension.js')
