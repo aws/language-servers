@@ -1059,6 +1059,8 @@ describe('AgenticChatController', () => {
                             text: undefined,
                         },
                         workspaceFolders: [],
+                        relevantDocuments: undefined,
+                        useRelevantDocuments: false,
                     }
                 )
             })
@@ -1305,6 +1307,8 @@ describe('AgenticChatController', () => {
                             text: undefined,
                         },
                         workspaceFolders: [],
+                        relevantDocuments: undefined,
+                        useRelevantDocuments: false,
                     }
                 )
             })
