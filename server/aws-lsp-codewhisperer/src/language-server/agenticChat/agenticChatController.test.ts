@@ -42,6 +42,7 @@ import { getUserPromptsDirectory } from './context/contextUtils'
 import { AdditionalContextProvider } from './context/addtionalContextProvider'
 import { ContextCommandsProvider } from './context/contextCommandsProvider'
 import { ChatDatabase } from './tools/chatDb/chatDb'
+import { LocalProjectContextController } from '../../shared/localProjectContextController'
 
 describe('AgenticChatController', () => {
     const mockTabId = 'tab-1'
@@ -970,6 +971,65 @@ describe('AgenticChatController', () => {
 
             afterEach(() => {
                 extractDocumentContextStub.restore()
+            })
+
+            it('parses relevant document and includes as requestInput if @workspace context is included', async () => {
+                const localProjectContextController = new LocalProjectContextController('client-name', [], logging)
+                const mockRelevantDocs = [
+                    { filePath: '/test/1.ts', content: 'text', id: 'id-1', index: 0, vec: [1] },
+                    { filePath: '/test/2.ts', content: 'text2', id: 'id-2', index: 0, vec: [1] },
+                ]
+
+                sinon.stub(LocalProjectContextController, 'getInstance').resolves(localProjectContextController)
+
+                Object.defineProperty(localProjectContextController, 'isEnabled', {
+                    get: () => true,
+                })
+
+                sinon.stub(localProjectContextController, 'queryVectorIndex').resolves(mockRelevantDocs)
+
+                await chatController.onChatPrompt(
+                    {
+                        tabId: 'tab',
+                        prompt: {
+                            prompt: '@workspace help me understand this code',
+                            escapedPrompt: '@workspace help me understand this code',
+                        },
+                        context: [{ command: '@workspace' }],
+                    },
+                    mockCancellationToken
+                )
+
+                const calledRequestInput: GenerateAssistantResponseCommandInput =
+                    generateAssistantResponseStub.firstCall.firstArg
+
+                console.error(
+                    'OKS: ',
+                    calledRequestInput.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext
+                        ?.editorState
+                )
+                assert.deepStrictEqual(
+                    calledRequestInput.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext
+                        ?.editorState,
+                    {
+                        workspaceFolders: [],
+                        relevantDocuments: [
+                            {
+                                endLine: -1,
+                                relativeFilePath: '1.ts',
+                                startLine: -1,
+                                text: 'text',
+                            },
+                            {
+                                endLine: -1,
+                                relativeFilePath: '2.ts',
+                                startLine: -1,
+                                text: 'text2',
+                            },
+                        ],
+                        useRelevantDocuments: true,
+                    }
+                )
             })
 
             it('leaves cursorState as undefined if cursorState is not passed', async () => {

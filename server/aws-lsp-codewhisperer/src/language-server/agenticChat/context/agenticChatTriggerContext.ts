@@ -122,6 +122,8 @@ export class AgenticChatTriggerContext {
                                       tools,
                                       additionalContext: additionalContent,
                                       editorState: {
+                                          relevantDocuments: relevantDocuments,
+                                          useRelevantDocuments: useRelevantDocuments,
                                           ...defaultEditorState,
                                       },
                                   },
