@@ -81,6 +81,7 @@ export interface OutboundChatApi {
     infoLinkClick(params: InfoLinkClickParams): void
     uiReady(): void
     disclaimerAcknowledged(): void
+    chatPromptOptionAcknowledged(messageId: string): void
     onOpenTab(requestId: string, result: OpenTabResult | ErrorResult): void
     createPrompt(params: CreatePromptParams): void
     fileClick(params: FileClickParams): void
@@ -113,6 +114,10 @@ export class Messager {
 
     onDisclaimerAcknowledged = (): void => {
         this.chatApi.disclaimerAcknowledged()
+    }
+
+    onChatPromptOptionAcknowledged = (messageId: string): void => {
+        this.chatApi.chatPromptOptionAcknowledged(messageId)
     }
 
     onFocusStateChanged = (focusState: boolean): void => {

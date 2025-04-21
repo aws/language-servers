@@ -45,7 +45,7 @@ import { ChatClientAdapter, ChatEventHandler } from '../contracts/chatClientAdap
 import { withAdapter } from './withAdapter'
 import { toMynahButtons, toMynahHeader, toMynahIcon } from './utils'
 import { ChatHistory, ChatHistoryList } from './features/history'
-import { pairProgrammingModeOff, pairProgrammingModeOn } from './texts/pairProgramming'
+import { pairProgrammingModeOff, pairProgrammingModeOn, programmerModeCard } from './texts/pairProgramming'
 
 export interface InboundChatApi {
     addChatResponse(params: ChatResult, tabId: string, isPartialResult: boolean): void
@@ -132,10 +132,12 @@ export const createMynahUi = (
     messager: Messager,
     tabFactory: TabFactory,
     disclaimerAcknowledged: boolean,
+    pairProgrammingCardAcknowledged: boolean,
     customChatClientAdapter?: ChatClientAdapter
 ): [MynahUI, InboundChatApi] => {
     const initialTabId = TabFactory.generateUniqueId()
     let disclaimerCardActive = !disclaimerAcknowledged
+    let programmingModeCardActive = !pairProgrammingCardAcknowledged
     let contextCommandGroups: ContextCommandGroups | undefined
 
     let chatEventHandlers: ChatEventHandler = {
@@ -368,17 +370,30 @@ export const createMynahUi = (
             handlePromptInputChange(mynahUi, tabId, optionsValues)
             messager.onPromptInputOptionChange({ tabId, optionsValues })
         },
+        onMessageDismiss: (tabId, messageId) => {
+            if (messageId === programmerModeCard.messageId) {
+                programmingModeCardActive = false
+                messager.onChatPromptOptionAcknowledged(messageId)
+
+                // Update the tab defaults to hide the programmer mode card for new tabs
+                mynahUi.updateTabDefaults({
+                    store: {
+                        chatItems: tabFactory.createTab(true, disclaimerCardActive, false).chatItems,
+                    },
+                })
+            }
+        },
     }
 
     const mynahUiProps: MynahUIProps = {
         tabs: {
             [initialTabId]: {
                 isSelected: true,
-                store: tabFactory.createTab(true, disclaimerCardActive),
+                store: tabFactory.createTab(true, disclaimerCardActive, programmingModeCardActive),
             },
         },
         defaults: {
-            store: tabFactory.createTab(true, false),
+            store: tabFactory.createTab(true, false, programmingModeCardActive),
         },
         config: {
             maxTabs: 10,
@@ -405,7 +420,7 @@ export const createMynahUi = (
     const createTabId = (needWelcomeMessages: boolean = false, chatMessages?: ChatMessage[]) => {
         const tabId = mynahUi.updateStore(
             '',
-            tabFactory.createTab(needWelcomeMessages, disclaimerCardActive, chatMessages)
+            tabFactory.createTab(needWelcomeMessages, disclaimerCardActive, programmingModeCardActive, chatMessages)
         )
         if (tabId === undefined) {
             mynahUi.notify({
