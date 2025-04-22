@@ -365,16 +365,32 @@ export class AgenticChatController implements ChatHandlers {
                 this.#chatHistoryDb.fixHistory(tabId, currentMessage, session.conversationId ?? '')
             }
 
-            if (currentRequestInput.conversationState) {
-                currentRequestInput.conversationState.history = currentRequestInput.conversationState.currentMessage
-                    ?.userInputMessage?.userIntent
-                    ? []
-                    : this.#chatHistoryDb.getMessages(tabId).map(chat => chat)
-            }
-
             // Process tool uses and update the request input for the next iteration
             const toolResults = await this.#processToolUses(pendingToolUses, chatResultStream)
             currentRequestInput = this.#updateRequestInputWithToolResults(currentRequestInput, toolResults)
+            if (!currentRequestInput.conversationState!.history) {
+                currentRequestInput.conversationState!.history = []
+            }
+
+            currentRequestInput.conversationState!.history.push({
+                userInputMessage: {
+                    content: currentMessage?.userInputMessage?.content,
+                    origin: currentMessage?.userInputMessage?.origin,
+                    userIntent: currentMessage?.userInputMessage?.userIntent,
+                    userInputMessageContext: currentMessage?.userInputMessage?.userInputMessageContext,
+                },
+            })
+
+            currentRequestInput.conversationState!.history.push({
+                assistantResponseMessage: {
+                    content: result.data?.chatResult.body,
+                    toolUses: Object.keys(result.data?.toolUses!).map(k => ({
+                        toolUseId: result.data!.toolUses[k].toolUseId,
+                        name: result.data!.toolUses[k].name,
+                        input: result.data!.toolUses[k].input,
+                    })),
+                },
+            })
         }
 
         if (iterationCount >= maxIterations) {
