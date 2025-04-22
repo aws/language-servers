@@ -97,7 +97,7 @@ import { LocalProjectContextController } from '../../shared/localProjectContextC
 import { workspaceUtils } from '@aws/lsp-core'
 import { FsReadParams } from './tools/fsRead'
 import { ListDirectoryParams } from './tools/listDirectory'
-import { FsWrite, FsWriteParams } from './tools/fsWrite'
+import { FsWriteParams, getDiffChanges } from './tools/fsWrite'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -496,10 +496,11 @@ export class AgenticChatController implements ChatHandlers {
 
     async #getFsWriteChatResult(toolUse: ToolUse): Promise<ChatMessage> {
         const input = toolUse.input as unknown as FsWriteParams
-        const fileName = path.basename(input.path)
-        // TODO: right now diff changes is coupled with fsWrite class, we should move it to shared utils
-        const fsWrite = new FsWrite(this.#features)
-        const diffChanges = await fsWrite.getDiffChanges(input)
+        const oldContent = this.#triggerContext.getToolUseLookup().get(toolUse.toolUseId!)?.oldContent ?? ''
+        const diffChanges = getDiffChanges(input, oldContent)
+        // TODO: support multi folder workspaces
+        const workspaceRoot = workspaceUtils.getWorkspaceFolderPaths(this.#features.lsp)[0]
+        const relativeFilePath = path.relative(workspaceRoot, input.path)
         const changes = diffChanges.reduce(
             (acc, { count = 0, added, removed }) => {
                 if (added) {
@@ -516,8 +517,8 @@ export class AgenticChatController implements ChatHandlers {
             messageId: toolUse.toolUseId,
             header: {
                 fileList: {
-                    filePaths: [fileName],
-                    details: { [fileName]: { changes } },
+                    filePaths: [relativeFilePath],
+                    details: { [relativeFilePath]: { changes } },
                 },
                 buttons: [{ id: 'undo-changes', text: 'Undo', icon: 'undo' }],
             },
