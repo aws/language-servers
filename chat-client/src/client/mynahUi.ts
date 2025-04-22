@@ -26,6 +26,7 @@ import {
     InfoLinkClickParams,
     LinkClickParams,
     ListConversationsResult,
+    OPEN_WORKSPACE_INDEX_SETTINGS_BUTTON_ID,
     OpenTabParams,
     SourceLinkClickParams,
 } from '@aws/language-server-runtimes-types'
@@ -362,6 +363,8 @@ export const createMynahUi = (
         onCustomFormAction: (tabId, action) => {
             if (action.id === ContextPrompt.SubmitButtonId) {
                 messager.onCreatePrompt(action.formItemValues![ContextPrompt.PromptNameFieldId])
+            } else if (action.id === OPEN_WORKSPACE_INDEX_SETTINGS_BUTTON_ID) {
+                messager.onOpenSettings('amazonQ.workspaceIndex')
             }
         },
         onFormTextualItemKeyPress: (event: KeyboardEvent, formData: Record<string, string>, itemId: string) => {

@@ -19,6 +19,7 @@ import {
     InlineChatParams,
     FileList,
     TextDocument,
+    OPEN_WORKSPACE_INDEX_SETTINGS_BUTTON_ID,
 } from '@aws/language-server-runtimes/server-interface'
 import { Features } from '../../types'
 import { DocumentContext, DocumentContextExtractor } from '../../chat/contexts/documentContext'
@@ -27,6 +28,8 @@ import { URI } from 'vscode-uri'
 import { LocalProjectContextController } from '../../../shared/localProjectContextController'
 import * as path from 'path'
 import { RelevantTextDocument } from '@amzn/codewhisperer-streaming'
+import { AgenticChatResultStream } from '../agenticChatResultStream'
+import { randomUUID } from 'crypto'
 
 export interface TriggerContext extends Partial<DocumentContext> {
     userIntent?: UserIntent
@@ -79,6 +82,7 @@ export class AgenticChatTriggerContext {
         triggerContext: TriggerContext,
         chatTriggerType: ChatTriggerType,
         customizationArn?: string,
+        chatResultStream?: AgenticChatResultStream,
         profileArn?: string,
         history: ChatMessage[] = [],
         tools: BedrockTools = [],
@@ -102,7 +106,7 @@ export class AgenticChatTriggerContext {
         }
 
         const relevantDocuments = useRelevantDocuments
-            ? await this.#getRelevantDocuments(promptContent ?? '')
+            ? await this.#getRelevantDocuments(promptContent ?? '', chatResultStream)
             : undefined
 
         const data: GenerateAssistantResponseCommandInput = {
@@ -209,10 +213,25 @@ export class AgenticChatTriggerContext {
         return undefined
     }
 
-    async #getRelevantDocuments(prompt: string): Promise<RelevantTextDocumentAddition[]> {
+    async #getRelevantDocuments(
+        prompt: string,
+        chatResultStream?: AgenticChatResultStream
+    ): Promise<RelevantTextDocumentAddition[]> {
         const localProjectContextController = await LocalProjectContextController.getInstance()
-        if (!localProjectContextController.isEnabled) {
-            // TODO: Prompt user to enable indexing
+        if (!localProjectContextController.isEnabled && chatResultStream) {
+            await chatResultStream.writeResultBlock({
+                body: `To add your workspace as context, enable local indexing in your IDE settings. After enabling, add @workspace to your question, and I'll generate a response using your workspace as context.`,
+                // messageId: randomUUID(),
+                buttons: [
+                    {
+                        id: OPEN_WORKSPACE_INDEX_SETTINGS_BUTTON_ID,
+                        text: 'Open settings',
+                        icon: 'external',
+                        keepCardAfterClick: false,
+                        status: 'info',
+                    },
+                ],
+            })
             return []
         }
 
