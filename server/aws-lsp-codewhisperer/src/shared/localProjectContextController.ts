@@ -42,6 +42,8 @@ export interface LocalProjectContextInitializationOptions {
     maxFileSizeMB?: number
     maxIndexSizeMB?: number
     indexCacheDirPath?: string
+    enableGpuAcceleration?: boolean
+    indexWorkerThreads?: number
 }
 
 export class LocalProjectContextController {
@@ -71,6 +73,10 @@ export class LocalProjectContextController {
         this.log = logging
     }
 
+    get isEnabled(): boolean {
+        return this._vecLib !== undefined && this._vecLib !== null
+    }
+
     public static async getInstance(): Promise<LocalProjectContextController> {
         try {
             await waitUntil(async () => this.instance, {
@@ -97,8 +103,13 @@ export class LocalProjectContextController {
         maxFileSizeMB = this.DEFAULT_MAX_FILE_SIZE_MB,
         maxIndexSizeMB = this.DEFAULT_MAX_INDEX_SIZE_MB,
         indexCacheDirPath = path.join(homedir(), '.aws', 'amazonq', 'cache'),
+        enableGpuAcceleration = false,
+        indexWorkerThreads = 0,
     }: LocalProjectContextInitializationOptions = {}): Promise<void> {
         try {
+            if (this._vecLib) {
+                return
+            }
             this.includeSymlinks = includeSymlinks
             this.maxFileSizeMB = maxFileSizeMB
             this.maxIndexSizeMB = maxIndexSizeMB
@@ -107,8 +118,24 @@ export class LocalProjectContextController {
             if (indexCacheDirPath?.length > 0 && path.parse(indexCacheDirPath)) {
                 this.indexCacheDirPath = indexCacheDirPath
             }
+
+            if (enableGpuAcceleration) {
+                process.env.Q_ENABLE_GPU = 'true'
+            } else {
+                delete process.env.Q_ENABLE_GPU
+            }
+            if (indexWorkerThreads && indexWorkerThreads > 0 && indexWorkerThreads < 100) {
+                process.env.Q_WORKER_THREADS = indexWorkerThreads.toString()
+            } else {
+                delete process.env.Q_WORKER_THREADS
+            }
+            this.log.info(
+                `Vector library initializing with GPU acceleration: ${enableGpuAcceleration}, ` +
+                    `index worker thread count: ${indexWorkerThreads}`
+            )
+
             const libraryPath = path.join(LIBRARY_DIR, 'dist', 'extension.js')
-            const vecLib = vectorLib ?? (await import(libraryPath))
+            const vecLib = vectorLib ?? (await eval(`import("${libraryPath}")`))
             if (vecLib) {
                 this._vecLib = await vecLib.start(LIBRARY_DIR, this.clientName, this.indexCacheDirPath)
                 void this.buildIndex()
@@ -154,6 +181,7 @@ export class LocalProjectContextController {
                     this.maxIndexSizeMB
                 )
                 await this._vecLib?.buildIndex(sourceFiles, this.indexCacheDirPath, 'all')
+                this.log.info('Context index built successfully')
             }
         } catch (error) {
             this.log.error(`Error building index: ${error}`)

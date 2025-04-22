@@ -27,3 +27,7 @@ export interface CommandValidation {
     requiresAcceptance: boolean
     warning?: string
 }
+
+export interface ExplanatoryParams {
+    explanation?: string
+}

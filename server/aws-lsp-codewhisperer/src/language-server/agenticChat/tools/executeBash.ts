@@ -1,6 +1,6 @@
 // Port from VSC https://github.com/aws/aws-toolkit-vscode/blob/741c2c481bcf0dca2d9554e32dc91d8514b1b1d1/packages/core/src/codewhispererChat/tools/executeBash.ts#L134
 
-import { CommandValidation, InvokeOutput } from './toolShared'
+import { CommandValidation, ExplanatoryParams, InvokeOutput } from './toolShared'
 import { split } from 'shlex'
 import { Logging } from '@aws/language-server-runtimes/server-interface'
 import { processUtils, workspaceUtils } from '@aws/lsp-core'
@@ -108,10 +108,9 @@ export const lineCount: number = 1024
 export const destructiveCommandWarningMessage = '⚠️ WARNING: Destructive command detected:\n\n'
 export const mutateCommandWarningMessage = 'Mutation command:\n\n'
 
-export interface ExecuteBashParams {
+export interface ExecuteBashParams extends ExplanatoryParams {
     command: string
     cwd?: string
-    explanation?: string
 }
 
 interface TimestampedChunk {
@@ -119,6 +118,12 @@ interface TimestampedChunk {
     isStdout: boolean
     content: string
     isFirst: boolean
+}
+
+export interface ExecuteBashOutput {
+    exitStatus: string
+    stdout: string
+    stderr: string
 }
 
 export class ExecuteBash {
@@ -356,7 +361,7 @@ export class ExecuteBash {
                     maxBashToolResponseSize / 3
                 )
 
-                const outputJson = {
+                const outputJson: ExecuteBashOutput = {
                     exitStatus: exitStatus.toString(),
                     stdout: stdoutTrunc + (stdoutSuffix ? ' ... truncated' : ''),
                     stderr: stderrTrunc + (stderrSuffix ? ' ... truncated' : ''),

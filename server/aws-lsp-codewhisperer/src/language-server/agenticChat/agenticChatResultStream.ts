@@ -1,7 +1,8 @@
-import { ChatResult, FileDetails } from '@aws/language-server-runtimes/protocol'
+import { ChatResult, FileDetails, ChatMessage } from '@aws/language-server-runtimes/protocol'
+import { randomUUID } from 'crypto'
 
 interface ResultStreamWriter {
-    write(chunk: ChatResult): Promise<void>
+    write(chunk: ChatResult, final?: boolean): Promise<void>
     close(): Promise<void>
 }
 
@@ -17,9 +18,11 @@ interface FileDetailsWithPath extends FileDetails {
 export class AgenticChatResultStream {
     static readonly resultDelimiter = '\n\n'
     #state = {
-        chatResultBlocks: [] as ChatResult[],
+        chatResultBlocks: [] as ChatMessage[],
         isLocked: false,
         contextFileList: {} as Record<string, FileDetailsWithPath[]>,
+        uuid: randomUUID(),
+        messageId: undefined as string | undefined,
     }
     readonly #sendProgress: (newChatResult: ChatResult | string) => Promise<void>
 
@@ -27,8 +30,8 @@ export class AgenticChatResultStream {
         this.#sendProgress = sendProgress
     }
 
-    getResult(): ChatResult {
-        return this.#joinResults(this.#state.chatResultBlocks)
+    getResult(only?: string): ChatResult {
+        return this.#joinResults(this.#state.chatResultBlocks, only)
     }
 
     getContextFileList(toolUseId: string): FileDetailsWithPath[] {
@@ -42,28 +45,55 @@ export class AgenticChatResultStream {
         this.#state.contextFileList[toolUseId].push(fileDetails)
     }
 
-    #joinResults(chatResults: ChatResult[]): ChatResult {
-        // TODO: if we add ui elements to ChatResult in the response, we need to be more aware of how we combine them.
+    #joinResults(chatResults: ChatMessage[], only?: string): ChatResult {
+        const result: ChatResult = {
+            body: '',
+            additionalMessages: [],
+            messageId: this.#state.messageId || this.#state.uuid,
+        }
 
-        // TODO: the combining of contextList is temporary just so we can see them
-        // they should be different messages once we support multiple messages
-        return chatResults.reduceRight((acc, c) => ({
-            ...acc,
-            body: c.body + AgenticChatResultStream.resultDelimiter + acc.body,
-            ...((c.contextList || acc.contextList) && {
-                contextList: {
-                    filePaths: [...(acc.contextList?.filePaths ?? []), ...(c.contextList?.filePaths ?? [])],
-                    rootFolderTitle: c.contextList?.rootFolderTitle
-                        ? c.contextList.rootFolderTitle
-                        : (acc.contextList?.rootFolderTitle ?? ''),
-                },
-            }),
-        }))
+        return chatResults
+            .filter(cr => cr.messageId == this.#state.messageId || only === undefined || only === cr.messageId)
+            .reduce<ChatResult>((acc, c) => {
+                if (c.messageId === this.#state.messageId) {
+                    return {
+                        ...acc,
+                        body: acc.body + AgenticChatResultStream.resultDelimiter + c.body,
+                    }
+                } else if (acc.additionalMessages!.some(am => am.messageId === c.messageId)) {
+                    return {
+                        ...acc,
+                        additionalMessages: acc.additionalMessages!.map(am => ({
+                            ...am,
+                            body:
+                                am.messageId === c.messageId
+                                    ? am.body + AgenticChatResultStream.resultDelimiter + c.body
+                                    : am.body,
+                            ...((c.contextList || acc.contextList) && {
+                                contextList: {
+                                    filePaths: [
+                                        ...(acc.contextList?.filePaths ?? []),
+                                        ...(c.contextList?.filePaths ?? []),
+                                    ],
+                                    rootFolderTitle: c.contextList?.rootFolderTitle
+                                        ? c.contextList.rootFolderTitle
+                                        : (acc.contextList?.rootFolderTitle ?? ''),
+                                },
+                            }),
+                        })),
+                    }
+                } else {
+                    return {
+                        ...acc,
+                        additionalMessages: [...acc.additionalMessages!, c],
+                    }
+                }
+            }, result)
     }
 
-    async writeResultBlock(result: ChatResult) {
+    async writeResultBlock(result: ChatMessage) {
         this.#state.chatResultBlocks.push(result)
-        await this.#sendProgress(this.getResult())
+        await this.#sendProgress(this.getResult(result.messageId))
     }
 
     getResultStreamWriter(): ResultStreamWriter {
@@ -75,8 +105,12 @@ export class AgenticChatResultStream {
         let lastResult: ChatResult | undefined
 
         return {
-            write: async (intermediateChatResult: ChatResult) => {
-                const combinedResult = this.#joinResults([...this.#state.chatResultBlocks, intermediateChatResult])
+            write: async (intermediateChatResult: ChatMessage) => {
+                this.#state.messageId = intermediateChatResult.messageId
+                const combinedResult = this.#joinResults(
+                    [...this.#state.chatResultBlocks, intermediateChatResult],
+                    intermediateChatResult.messageId
+                )
                 lastResult = intermediateChatResult
                 return await this.#sendProgress(combinedResult)
             },
