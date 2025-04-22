@@ -152,7 +152,6 @@ describe('convertChunksToRelevantTextDocuments', () => {
         ]
 
         const result = convertChunksToRelevantTextDocuments(chunks)
-        // Assuming the function truncates the relative path to 4000 characters.
         assert.strictEqual(result[0].relativeFilePath?.length, 4000)
     })
 
