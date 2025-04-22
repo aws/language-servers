@@ -9,6 +9,7 @@ import * as os from 'os'
 import * as path from 'path'
 import { loadMcpServerConfigs } from './mcpUtils'
 import type { MCPServerConfig } from './mcpTypes'
+import { pathToFileURL } from 'url'
 
 describe('loadMcpServerConfigs', () => {
     let tmpDir: string
@@ -55,7 +56,7 @@ describe('loadMcpServerConfigs', () => {
         const cfg = { mcpServers: { B: { command: 'cmdB' } } }
         const p = path.join(tmpDir, 'u.json')
         fs.writeFileSync(p, JSON.stringify(cfg))
-        const uri = `file://${p}`
+        const uri = pathToFileURL(p).toString()
 
         const out = await loadMcpServerConfigs(workspace, logger, [uri])
         expect(out.has('B')).to.be.true

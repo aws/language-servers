@@ -6,7 +6,6 @@ import { ExecuteBash, ExecuteBashParams } from './executeBash'
 import { LspGetDocuments, LspGetDocumentsParams } from './lspGetDocuments'
 import { LspReadDocumentContents, LspReadDocumentContentsParams } from './lspReadDocumentContents'
 import { LspApplyWorkspaceEdit, LspApplyWorkspaceEditParams } from './lspApplyWorkspaceEdit'
-import path = require('path')
 import { McpManager } from './mcp/mcpManager'
 import { McpTool } from './mcp/mcpTool'
 
