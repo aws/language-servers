@@ -38,7 +38,7 @@ import { DEFAULT_HELP_FOLLOW_UP_PROMPT, HELP_MESSAGE } from '../chat/constants'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 import { TabBarController } from './tabBarController'
-import { getUserPromptsDirectory } from './context/contextUtils'
+import { getUserPromptsDirectory, promptFileExtension } from './context/contextUtils'
 import { AdditionalContextProvider } from './context/addtionalContextProvider'
 import { ContextCommandsProvider } from './context/contextCommandsProvider'
 import { ChatDatabase } from './tools/chatDb/chatDb'
@@ -1136,7 +1136,7 @@ describe('AgenticChatController', () => {
     describe('onCreatePrompt', () => {
         it('should create prompt file with given name', async () => {
             const promptName = 'testPrompt'
-            const expectedPath = path.join(getUserPromptsDirectory(), 'testPrompt.prompt.md')
+            const expectedPath = path.join(getUserPromptsDirectory(), `testPrompt${promptFileExtension}`)
 
             await chatController.onCreatePrompt({ promptName })
 
@@ -1144,7 +1144,7 @@ describe('AgenticChatController', () => {
         })
 
         it('should create default prompt file when no name provided', async () => {
-            const expectedPath = path.join(getUserPromptsDirectory(), 'default.prompt.md')
+            const expectedPath = path.join(getUserPromptsDirectory(), `default${promptFileExtension}`)
 
             await chatController.onCreatePrompt({ promptName: '' })
 
