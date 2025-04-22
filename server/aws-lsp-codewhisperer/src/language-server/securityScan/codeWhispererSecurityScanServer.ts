@@ -18,7 +18,8 @@ import { SecurityScanEvent } from '../../shared/telemetry/types'
 import { getErrorMessage, parseJson } from '../../shared/utils'
 import { v4 as uuidv4 } from 'uuid'
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
-import { getAuthFollowUpType } from '../chat/utils'
+import { hasConnectionExpired } from '../../shared/utils'
+import { AmazonQServiceInvalidConnectionError } from '../../shared/amazonQServiceManager/errors'
 
 const RunSecurityScanCommand = 'aws/codewhisperer/runSecurityScan'
 const CancelSecurityScanCommand = 'aws/codewhisperer/cancelSecurityScan'
@@ -195,15 +196,14 @@ export const SecurityScanServerToken =
                 logging.log(`Security scan failed. ${error}`)
                 securityScanTelemetryEntry.result = 'Failed'
                 const err = getErrorMessage(error)
-                const authFollowType = getAuthFollowUpType(error)
-                if (authFollowType == 're-auth') {
-                    throw new ResponseError(LSPErrorCodes.RequestFailed, err, {
-                        awsErrorCode: 'E_AMAZON_Q_AUTHENTICATION_EXPIRED',
-                    })
-                }
+                const exception = hasConnectionExpired(error as Error)
+                    ? new AmazonQServiceInvalidConnectionError(err)
+                    : null
+
                 return {
                     status: 'Failed',
                     error: err,
+                    exception: exception,
                 } as SecurityScanResponse
             } finally {
                 securityScanTelemetryEntry.duration = performance.now() - securityScanStartTime

@@ -4,6 +4,7 @@ import { distance } from 'fastest-levenshtein'
 import { Suggestion } from './codeWhispererService'
 import { CodewhispererCompletionType } from './telemetry/types'
 import { BUILDER_ID_START_URL, MISSING_BEARER_TOKEN_ERROR } from './constants'
+import { getAuthFollowUpType } from '../language-server/chat/utils'
 export type SsoConnectionType = 'builderId' | 'identityCenter' | 'none'
 
 export function isAwsError(error: unknown): error is AWSError {
@@ -138,4 +139,9 @@ export function safeGet<T, E extends Error>(object: T | undefined, customError?:
 
 export function isStringOrNull(object: any): object is string | null {
     return typeof object === 'string' || object === null
+}
+
+export function hasConnectionExpired(error: Error) {
+    const authFollowType = getAuthFollowUpType(error)
+    return authFollowType == 're-auth'
 }

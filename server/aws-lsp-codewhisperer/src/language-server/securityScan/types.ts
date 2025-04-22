@@ -61,6 +61,7 @@ export interface SecurityScanResponse {
     status: SecurityScanStatus
     findings?: SecurityScanFindings
     error?: string
+    exception?: Error
 }
 
 export interface SecurityScanFindings {

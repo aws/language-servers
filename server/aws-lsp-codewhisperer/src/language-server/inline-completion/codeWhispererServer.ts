@@ -36,7 +36,7 @@ import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import { AcceptedSuggestionEntry, CodeDiffTracker } from './codeDiffTracker'
 import {
     AmazonQError,
-    AmazonQServiceAuthenticationExpiredError,
+    AmazonQServiceInvalidConnectionError,
     AmazonQServiceInitializationError,
 } from '../../shared/amazonQServiceManager/errors'
 import {
@@ -46,7 +46,7 @@ import {
 import { initBaseTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
 import { initBaseIAMServiceManager } from '../../shared/amazonQServiceManager/AmazonQIAMServiceManager'
-import { getAuthFollowUpType } from '../chat/utils'
+import { hasConnectionExpired } from '../../shared/utils'
 
 const EMPTY_RESULT = { sessionId: '', items: [] }
 export const CONTEXT_CHARACTERS_LIMIT = 10240
@@ -491,9 +491,8 @@ export const CodewhispererServerFactory =
                                 throw error
                             }
 
-                            const authFollowType = getAuthFollowUpType(error)
-                            if (authFollowType == 're-auth') {
-                                throw new AmazonQServiceAuthenticationExpiredError(getErrorMessage(error))
+                            if (hasConnectionExpired(error)) {
+                                throw new AmazonQServiceInvalidConnectionError(getErrorMessage(error))
                             }
                             return EMPTY_RESULT
                         })
