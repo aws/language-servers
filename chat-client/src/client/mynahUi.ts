@@ -210,11 +210,11 @@ export const createMynahUi = (
                 tabBarButtons: defaultTabBarData.tabBarButtons,
                 contextCommands: [
                     ...(contextCommandGroups || []),
-                    ...(featureConfig?.get('highlightCommands')
+                    ...(featureConfig?.get('highlightCommand')
                         ? [
                               {
                                   groupName: 'Additional commands',
-                                  commands: [toMynahContextCommand(featureConfig.get('highlightCommands'))],
+                                  commands: [toMynahContextCommand(featureConfig.get('highlightCommand'))],
                               },
                           ]
                         : []),
@@ -748,11 +748,11 @@ ${params.message}`,
             mynahUi.updateStore(tabId, {
                 contextCommands: [
                     ...(contextCommandGroups || []),
-                    ...(featureConfig?.get('highlightCommands')
+                    ...(featureConfig?.get('highlightCommand')
                         ? [
                               {
                                   groupName: 'Additional commands',
-                                  commands: [toMynahContextCommand(featureConfig.get('highlightCommands'))],
+                                  commands: [toMynahContextCommand(featureConfig.get('highlightCommand'))],
                               },
                           ]
                         : []),

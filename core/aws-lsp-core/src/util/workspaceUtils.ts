@@ -1,6 +1,8 @@
 import * as path from 'path'
 import { URI } from 'vscode-uri'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
+import { CancellationToken } from '@aws/language-server-runtimes/server-interface'
+import { CancellationError } from './awsError'
 
 type ElementType<T> = T extends (infer U)[] ? U : never
 type Dirent = ElementType<Awaited<ReturnType<Features['workspace']['fs']['readdir']>>>
@@ -14,7 +16,8 @@ export async function readDirectoryRecursively(
         excludePatterns?: (string | RegExp)[]
         customFormatCallback?: (entry: Dirent) => string
         failOnError?: boolean
-    }
+    },
+    token?: CancellationToken
 ): Promise<string[]> {
     const dirExists = await features.workspace.fs.exists(folderPath)
     if (!dirExists) {
@@ -31,6 +34,11 @@ export async function readDirectoryRecursively(
     const formatter = options?.customFormatCallback ?? formatListing
 
     while (queue.length > 0) {
+        if (token?.isCancellationRequested) {
+            features.logging.info('cancelled readDirectoryRecursively')
+            throw new CancellationError('user')
+        }
+
         const { filepath, depth } = queue.shift()!
         if (options?.maxDepth !== undefined && depth > options?.maxDepth) {
             features.logging.info(`Skipping directory: ${filepath} (depth ${depth} > max ${options.maxDepth})`)
