@@ -147,7 +147,7 @@ export class AgenticChatController implements ChatHandlers {
     }
 
     async onButtonClick(params: ButtonClickParams): Promise<ButtonClickResult> {
-        this.#log(`onButtonClick event with params: ${params}`)
+        this.#log(`onButtonClick event with params: ${JSON.stringify(params)}`)
         return {
             success: false,
             failureReason: 'not implemented',
