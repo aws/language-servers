@@ -368,7 +368,7 @@ describe('AgenticChatController', () => {
             )
 
             // Verify that history was requested from the db
-            sinon.assert.calledWith(getMessagesStub, mockTabId, 10)
+            sinon.assert.calledWith(getMessagesStub, mockTabId)
 
             assert.ok(generateAssistantResponseStub.calledOnce)
 
