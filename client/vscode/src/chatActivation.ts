@@ -1,5 +1,6 @@
 import {
     isValidAuthFollowUpType,
+    FeatureContext,
     INSERT_TO_CURSOR_POSITION,
     AUTH_FOLLOW_UP_CLICKED,
     CHAT_OPTIONS,
@@ -399,6 +400,14 @@ function generateJS(webView: Webview, extensionUri: Uri): string {
     const chatUri = Uri.joinPath(assetsPath, 'build', 'amazonq-ui.js')
 
     const entrypoint = webView.asWebviewUri(chatUri)
+    const chatFeatures: Map<string, FeatureContext> = new Map()
+    chatFeatures.set('contextCommands', {
+        variation: 'Context commands for chat',
+        value: {
+            stringValue: '@sage',
+        },
+    })
+    const stringifiedContextCommands = JSON.stringify(Array.from(chatFeatures.entries()))
 
     return `
     <script type="text/javascript" src="${entrypoint.toString()}" defer onload="init()"></script>
@@ -407,7 +416,7 @@ function generateJS(webView: Webview, extensionUri: Uri): string {
             amazonQChat.createChat(acquireVsCodeApi(), 
                 {disclaimerAcknowledged: false}, 
                 undefined,
-                undefined,
+                JSON.stringify(${stringifiedContextCommands})
             );
         }
     </script>
