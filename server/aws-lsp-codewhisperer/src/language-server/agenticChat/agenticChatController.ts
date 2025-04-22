@@ -468,19 +468,18 @@ export class AgenticChatController implements ChatHandlers {
      * @param session
      */
     async waitForToolApproval(
-        toolUseId: string,
-        toolUseName: string,
+        toolUse: ToolUse,
         resultStream: AgenticChatResultStream,
         promptBlockId: number,
         session: ChatSessionService
     ) {
         const deferred = this.#createDeferred()
-        session.setDeferredToolExecution(toolUseId, deferred.resolve, deferred.reject)
-        this.#log(`Prompting for tool approval for tool: ${toolUseName}`)
+        session.setDeferredToolExecution(toolUse.toolUseId!, deferred.resolve, deferred.reject)
+        this.#log(`Prompting for tool approval for tool: ${toolUse.name}`)
         await deferred.promise
-        if (toolUseName === 'executeBash') {
+        if (toolUse.name === 'executeBash') {
             // Note: we want to overwrite the button block because it already exists in the stream.
-            await resultStream.overwriteResultBlock(this.#getUpdateBashConfirmResult(toolUseId, true), promptBlockId)
+            await resultStream.overwriteResultBlock(this.#getUpdateBashConfirmResult(toolUse, true), promptBlockId)
         }
     }
 
@@ -531,13 +530,7 @@ export class AgenticChatController implements ChatHandlers {
                         if (requiresAcceptance) {
                             const confirmationResult = this.#processExecuteBashConfirmation(toolUse, warning)
                             const buttonBlockId = await chatResultStream.writeResultBlock(confirmationResult)
-                            await this.waitForToolApproval(
-                                toolUse.toolUseId,
-                                toolUse.name,
-                                chatResultStream,
-                                buttonBlockId,
-                                session
-                            )
+                            await this.waitForToolApproval(toolUse, chatResultStream, buttonBlockId, session)
                         }
                         break
                     default:
@@ -590,10 +583,8 @@ export class AgenticChatController implements ChatHandlers {
             } catch (err) {
                 // If we did not approve a tool to be used or the user stopped the response, bubble this up to interrupt agentic loop
                 if (CancellationError.isUserCancelled(err) || err instanceof ToolApprovalException) {
-                    if (err instanceof ToolApprovalException) {
-                        await chatResultStream.writeResultBlock(
-                            this.#getUpdateBashConfirmResult(toolUse.toolUseId, false)
-                        )
+                    if (err instanceof ToolApprovalException && toolUse.name === 'executeBash') {
+                        await chatResultStream.writeResultBlock(this.#getUpdateBashConfirmResult(toolUse, false))
                     }
                     throw err
                 }
@@ -613,21 +604,18 @@ export class AgenticChatController implements ChatHandlers {
         return results
     }
 
-    #getUpdateBashConfirmResult(toolUseId: string, isAccept: boolean): ChatResult {
+    #getUpdateBashConfirmResult(toolUse: ToolUse, isAccept: boolean): ChatResult {
         return {
-            messageId: toolUseId,
+            messageId: toolUse.toolUseId,
             type: 'tool',
-            body: '',
+            body: '```shell\n' + (toolUse.input as unknown as ExecuteBashParams).command + '\n```',
             header: {
                 body: 'shell',
-                buttons: [
-                    {
-                        id: isAccept ? 'command-accepted' : 'command-rejected',
-                        icon: isAccept ? 'ok' : 'cancel',
-                        text: isAccept ? 'Accepted' : 'Rejected',
-                        disabled: true,
-                    },
-                ],
+                status: {
+                    status: isAccept ? 'success' : 'error',
+                    icon: isAccept ? 'ok' : 'cancel',
+                    text: isAccept ? 'Accepted' : 'Rejected',
+                },
             },
         }
     }
