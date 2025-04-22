@@ -51,11 +51,6 @@ describe('AgenticChatController', () => {
 
     const mockChatResponseList: ChatResponseStream[] = [
         {
-            messageMetadataEvent: {
-                conversationId: mockConversationId,
-            },
-        },
-        {
             assistantResponseEvent: {
                 content: 'Hello ',
             },
@@ -73,18 +68,13 @@ describe('AgenticChatController', () => {
     ]
 
     const expectedCompleteChatResult: ChatResult = {
-        body: '',
-        messageId: undefined,
-        additionalMessages: [
-            {
-                body: 'Hello World!',
-                canBeVoted: true,
-                messageId: 'mock-message-id',
-                codeReference: undefined,
-                followUp: undefined,
-                relatedContent: undefined,
-            },
-        ],
+        body: 'Hello World!',
+        canBeVoted: true,
+        messageId: 'mock-message-id',
+        codeReference: undefined,
+        followUp: undefined,
+        relatedContent: undefined,
+        additionalMessages: [],
     }
 
     const expectedCompleteInlineChatResult: InlineChatResult = {
@@ -337,7 +327,11 @@ describe('AgenticChatController', () => {
             const chatResult = await chatResultPromise
 
             sinon.assert.callCount(testFeatures.lsp.sendProgress, 0)
-            assert.deepStrictEqual(chatResult, expectedCompleteChatResult)
+            assert.deepStrictEqual(chatResult, {
+                additionalMessages: [],
+                body: '\n\nHello World!',
+                messageId: 'mock-message-id',
+            })
         })
 
         it('creates a new conversationId if missing in the session', async () => {
@@ -860,7 +854,11 @@ describe('AgenticChatController', () => {
             const chatResult = await chatResultPromise
 
             sinon.assert.callCount(testFeatures.lsp.sendProgress, mockChatResponseList.length)
-            assert.deepStrictEqual(chatResult, expectedCompleteChatResult)
+            assert.deepStrictEqual(chatResult, {
+                additionalMessages: [],
+                body: '\n\nHello World!',
+                messageId: 'mock-message-id',
+            })
         })
 
         it('can use 0 as progress token', async () => {
@@ -872,7 +870,11 @@ describe('AgenticChatController', () => {
             const chatResult = await chatResultPromise
 
             sinon.assert.callCount(testFeatures.lsp.sendProgress, mockChatResponseList.length)
-            assert.deepStrictEqual(chatResult, expectedCompleteChatResult)
+            assert.deepStrictEqual(chatResult, {
+                additionalMessages: [],
+                body: '\n\nHello World!',
+                messageId: 'mock-message-id',
+            })
         })
 
         it('returns a ResponseError if sendMessage returns an error', async () => {

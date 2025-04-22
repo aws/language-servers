@@ -1,3 +1,4 @@
+import { FeatureContext } from '@aws/chat-client-ui-types'
 import { Button, ChatMessage } from '@aws/language-server-runtimes-types'
 import { ChatItemButton, ChatItemContent, MynahIcons, TreeNodeDetails } from '@aws/mynah-ui'
 
@@ -19,4 +20,15 @@ export function toDetailsWithoutIcon(
     return Object.fromEntries(
         Object.entries(details || {}).map(([filePath, fileDetails]) => [filePath, { ...fileDetails, icon: null }])
     )
+}
+
+export function toMynahContextCommand(feature?: FeatureContext): any {
+    if (!feature || !feature.value.stringValue) {
+        return {}
+    }
+
+    return {
+        command: feature.value.stringValue,
+        description: feature.variation,
+    }
 }
