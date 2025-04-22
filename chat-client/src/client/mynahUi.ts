@@ -326,6 +326,8 @@ export const createMynahUi = (
                 Object.keys(mynahUi.getAllTabs()).forEach(storeTabKey => {
                     mynahUi.updateStore(storeTabKey, { promptInputStickyCard: null })
                 })
+            } else if (action.id === OPEN_WORKSPACE_INDEX_SETTINGS_BUTTON_ID) {
+                messager.onOpenSettings('amazonQ.workspaceIndex')
             } else {
                 const payload: ButtonClickParams = {
                     tabId,
@@ -363,8 +365,6 @@ export const createMynahUi = (
         onCustomFormAction: (tabId, action) => {
             if (action.id === ContextPrompt.SubmitButtonId) {
                 messager.onCreatePrompt(action.formItemValues![ContextPrompt.PromptNameFieldId])
-            } else if (action.id === OPEN_WORKSPACE_INDEX_SETTINGS_BUTTON_ID) {
-                messager.onOpenSettings('amazonQ.workspaceIndex')
             }
         },
         onFormTextualItemKeyPress: (event: KeyboardEvent, formData: Record<string, string>, itemId: string) => {
