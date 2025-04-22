@@ -98,7 +98,7 @@ import { LocalProjectContextController } from '../../shared/localProjectContextC
 import { workspaceUtils } from '@aws/lsp-core'
 import { FsReadParams } from './tools/fsRead'
 import { ListDirectoryParams } from './tools/listDirectory'
-import { FsWrite, FsWriteParams } from './tools/fsWrite'
+import { FsWrite, FsWriteParams, getDiffChanges } from './tools/fsWrite'
 import { ExecuteBash, ExecuteBashOutput, ExecuteBashParams } from './tools/executeBash'
 import { InvokeOutput } from './tools/toolShared'
 
@@ -167,7 +167,11 @@ export class AgenticChatController implements ChatHandlers {
                 success: true,
             }
         } else {
-            return { success: false, failureReason: 'not implemented' }
+            this.#log(`onButtonClick event with params: ${JSON.stringify(params)}`)
+            return {
+                success: false,
+                failureReason: 'not implemented',
+            }
         }
     }
 
@@ -282,6 +286,17 @@ export class AgenticChatController implements ChatHandlers {
                 chatResultStream
             )
         } catch (err) {
+            if (token?.isCancellationRequested) {
+                /**
+                 * when the session is aborted it generates an error.
+                 * we need to resolve this error with an answer so the
+                 * stream stops
+                 */
+                return {
+                    type: 'answer',
+                    body: '',
+                }
+            }
             return this.#handleRequestError(err, params.tabId, metric)
         }
     }
@@ -427,30 +442,43 @@ export class AgenticChatController implements ChatHandlers {
 
         for (const toolUse of toolUses) {
             if (!toolUse.name || !toolUse.toolUseId) continue
+            this.#triggerContext.getToolUseLookup().set(toolUse.toolUseId, toolUse)
             let needsConfirmation
+
             try {
-                if (toolUse.name === 'fsRead' || toolUse.name === 'listDirectory') {
-                    const initialReadOrListResult = this.#processReadOrList(toolUse, chatResultStream)
-                    if (initialReadOrListResult) {
-                        await chatResultStream.writeResultBlock(initialReadOrListResult)
-                    }
-                } else if (toolUse.name === 'executeBash') {
-                    const bashTool = new ExecuteBash(this.#features)
-                    const { requiresAcceptance, warning } = await bashTool.requiresAcceptance(
-                        toolUse.input as unknown as ExecuteBashParams
-                    )
-                    if (requiresAcceptance) {
-                        needsConfirmation = true
-                        const confirmationResult = this.#processExecuteBashConfirmation(toolUse, warning)
-                        await chatResultStream.writeResultBlock(confirmationResult)
-                    }
-                } else if (toolUse.name === 'fsWrite') {
-                    // todo: pending tool use cards?
-                } else {
-                    await chatResultStream.writeResultBlock({
-                        body: `${executeToolMessage(toolUse)}`,
-                        messageId: toolUse.toolUseId,
-                    })
+                switch (toolUse.name) {
+                    case 'fsRead':
+                    case 'listDirectory':
+                        const initialReadOrListResult = this.#processReadOrList(toolUse, chatResultStream)
+                        if (initialReadOrListResult) {
+                            await chatResultStream.writeResultBlock(initialReadOrListResult)
+                        }
+                        break
+                    case 'fsWrite':
+                        const input = toolUse.input as unknown as FsWriteParams
+                        const document = await this.#triggerContext.getTextDocument(input.path)
+                        this.#triggerContext
+                            .getToolUseLookup()
+                            .set(toolUse.toolUseId, { ...toolUse, oldContent: document?.getText() })
+                        break
+                    case 'executeBash':
+                        const bashTool = new ExecuteBash(this.#features)
+                        const { requiresAcceptance, warning } = await bashTool.requiresAcceptance(
+                            toolUse.input as unknown as ExecuteBashParams
+                        )
+                        if (requiresAcceptance) {
+                            needsConfirmation = true
+                            const confirmationResult = this.#processExecuteBashConfirmation(toolUse, warning)
+                            await chatResultStream.writeResultBlock(confirmationResult)
+                        }
+                        break
+                    default:
+                        await chatResultStream.writeResultBlock({
+                            type: 'tool',
+                            body: `${executeToolMessage(toolUse)}`,
+                            messageId: toolUse.toolUseId,
+                        })
+                        break
                 }
 
                 if (needsConfirmation) {
@@ -495,7 +523,11 @@ export class AgenticChatController implements ChatHandlers {
                         const bashToolResult = this.#getBashExecutionChatResult(toolUse, result)
                         await chatResultStream.writeResultBlock(bashToolResult)
                     default:
-                        await chatResultStream.writeResultBlock({ body: toolResultMessage(toolUse, result) })
+                        await chatResultStream.writeResultBlock({
+                            type: 'tool',
+                            body: toolResultMessage(toolUse, result),
+                            messageId: toolUse.toolUseId,
+                        })
                         break
                 }
             } catch (err) {
@@ -556,10 +588,11 @@ export class AgenticChatController implements ChatHandlers {
 
     async #getFsWriteChatResult(toolUse: ToolUse): Promise<ChatMessage> {
         const input = toolUse.input as unknown as FsWriteParams
-        const fileName = path.basename(input.path)
-        // TODO: right now diff changes is coupled with fsWrite class, we should move it to shared utils
-        const fsWrite = new FsWrite(this.#features)
-        const diffChanges = await fsWrite.getDiffChanges(input)
+        const oldContent = this.#triggerContext.getToolUseLookup().get(toolUse.toolUseId!)?.oldContent ?? ''
+        const diffChanges = getDiffChanges(input, oldContent)
+        // TODO: support multi folder workspaces
+        const workspaceRoot = workspaceUtils.getWorkspaceFolderPaths(this.#features.lsp)[0]
+        const relativeFilePath = path.relative(workspaceRoot, input.path)
         const changes = diffChanges.reduce(
             (acc, { count = 0, added, removed }) => {
                 if (added) {
@@ -576,8 +609,8 @@ export class AgenticChatController implements ChatHandlers {
             messageId: toolUse.toolUseId,
             header: {
                 fileList: {
-                    filePaths: [fileName],
-                    details: { [fileName]: { changes } },
+                    filePaths: [relativeFilePath],
+                    details: { [relativeFilePath]: { changes } },
                 },
                 buttons: [{ id: 'undo-changes', text: 'Undo', icon: 'undo' }],
             },
@@ -927,14 +960,26 @@ export class AgenticChatController implements ChatHandlers {
         // TODO: also pass in selection and handle on client side
         const workspaceRoot = workspaceUtils.getWorkspaceFolderPaths(this.#features.lsp)[0]
         let absolutePath = path.join(workspaceRoot, params.filePath)
-        // handle prompt file outside of workspace
-        if (params.filePath.endsWith(promptFileExtension)) {
-            const existsInWorkspace = await this.#features.workspace.fs.exists(absolutePath)
-            if (!existsInWorkspace) {
-                absolutePath = path.join(getUserPromptsDirectory(), params.filePath)
+
+        const toolUseId = params.messageId
+        const toolUse = toolUseId ? this.#triggerContext.getToolUseLookup().get(toolUseId) : undefined
+        if (toolUse?.name === 'fsWrite') {
+            // TODO: since the tool already executed, we need to reverse the old/new content for the diff
+            this.#features.lsp.workspace.openFileDiff({
+                originalFileUri: absolutePath,
+                isDeleted: false,
+                fileContent: toolUse.oldContent,
+            })
+        } else {
+            // handle prompt file outside of workspace
+            if (params.filePath.endsWith(promptFileExtension)) {
+                const existsInWorkspace = await this.#features.workspace.fs.exists(absolutePath)
+                if (!existsInWorkspace) {
+                    absolutePath = path.join(getUserPromptsDirectory(), params.filePath)
+                }
             }
+            await this.#features.lsp.window.showDocument({ uri: absolutePath })
         }
-        await this.#features.lsp.window.showDocument({ uri: absolutePath })
     }
 
     onFollowUpClicked() {}
@@ -1092,6 +1137,7 @@ export class AgenticChatController implements ChatHandlers {
         const requestId = response.$metadata.requestId!
         const chatEventParser = new AgenticChatEventParser(requestId, metric)
         const streamWriter = chatResultStream.getResultStreamWriter()
+
         for await (const chatEvent of response.generateAssistantResponseResponse!) {
             const result = chatEventParser.processPartialEvent(chatEvent, contextList)
 
@@ -1100,7 +1146,9 @@ export class AgenticChatController implements ChatHandlers {
                 return result
             }
 
-            await streamWriter.write(result.data.chatResult)
+            if (chatEvent.assistantResponseEvent) {
+                await streamWriter.write(result.data.chatResult)
+            }
         }
         await streamWriter.close()
 
