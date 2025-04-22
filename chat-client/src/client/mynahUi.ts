@@ -134,7 +134,8 @@ export const createMynahUi = (
     tabFactory: TabFactory,
     disclaimerAcknowledged: boolean,
     pairProgrammingCardAcknowledged: boolean,
-    customChatClientAdapter?: ChatClientAdapter
+    customChatClientAdapter?: ChatClientAdapter,
+    featureConfig?: Map<string, any>
 ): [MynahUI, InboundChatApi] => {
     const initialTabId = TabFactory.generateUniqueId()
     let disclaimerCardActive = !disclaimerAcknowledged
@@ -200,10 +201,11 @@ export const createMynahUi = (
         },
         onTabAdd: (tabId: string) => {
             const defaultTabBarData = tabFactory.getDefaultTabData()
+            const contextCommands = [...(contextCommandGroups || []), ...(featureConfig?.get('contextCommands') || [])]
             const defaultTabConfig: Partial<MynahUIDataModel> = {
                 quickActionCommands: defaultTabBarData.quickActionCommands,
                 tabBarButtons: defaultTabBarData.tabBarButtons,
-                contextCommands: contextCommandGroups,
+                contextCommands: contextCommands,
                 ...(disclaimerCardActive ? { promptInputStickyCard: disclaimerCard } : {}),
             }
             mynahUi.updateStore(tabId, defaultTabConfig)
@@ -692,9 +694,11 @@ ${params.message}`,
             commands: toContextCommands(group.commands),
         }))
 
+        const contextCommands = [...contextCommandGroups, ...(featureConfig?.get('contextCommands') || [])]
+
         Object.keys(mynahUi.getAllTabs()).forEach(tabId => {
             mynahUi.updateStore(tabId, {
-                contextCommands: contextCommandGroups,
+                contextCommands: contextCommands,
             })
         })
     }

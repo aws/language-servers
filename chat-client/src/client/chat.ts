@@ -18,6 +18,7 @@ import {
     CopyCodeToClipboardParams,
     ERROR_MESSAGE,
     ErrorMessage,
+    FeatureContext,
     GENERIC_COMMAND,
     GenericCommandMessage,
     INSERT_TO_CURSOR_POSITION,
@@ -99,7 +100,8 @@ type ChatClientConfig = Pick<MynahUIDataModel, 'quickActionCommands'> & {
 export const createChat = (
     clientApi: { postMessage: (msg: UiMessage | UiResultMessage | ServerMessage) => void },
     config?: ChatClientConfig,
-    chatClientAdapter?: ChatClientAdapter
+    chatClientAdapter?: ChatClientAdapter,
+    featureConfigSerialized?: string
 ) => {
     let mynahApi: InboundChatApi
 
@@ -107,6 +109,16 @@ export const createChat = (
         clientApi.postMessage(message)
     }
 
+    const parseFeatureConfig = (featureConfigSerialized?: string): Map<string, FeatureContext> => {
+        try {
+            return new Map<string, FeatureContext>(JSON.parse(featureConfigSerialized || '{}'))
+        } catch (error) {
+            console.error('Error parsing feature config:', error)
+        }
+        return new Map()
+    }
+
+    const featureConfig: Map<string, FeatureContext> = parseFeatureConfig(featureConfigSerialized)
     /**
      * Handles incoming messages from the IDE or other sources.
      * Routes messages to appropriate handlers based on command type.
@@ -183,8 +195,25 @@ export const createChat = (
                 }
 
                 const allExistingTabs: MynahUITabStoreModel = mynahUi.getAllTabs()
+
+                const additionalContextCommands: any[] = []
+                featureConfig.forEach((featureContext: FeatureContext, _feature: string) => {
+                    additionalContextCommands.push({
+                        command: featureContext.value.stringValue ?? '',
+                        description: featureContext.variation,
+                    })
+                })
+
                 for (const tabId in allExistingTabs) {
-                    mynahUi.updateStore(tabId, tabFactory.getDefaultTabData())
+                    mynahUi.updateStore(tabId, {
+                        ...tabFactory.getDefaultTabData(),
+                        contextCommands: [
+                            {
+                                groupName: 'Additional Context Commands',
+                                commands: additionalContextCommands,
+                            },
+                        ],
+                    })
                 }
                 break
             }
@@ -330,7 +359,8 @@ export const createChat = (
         tabFactory,
         config?.disclaimerAcknowledged ?? false,
         config?.pairProgrammingAcknowledged ?? false,
-        chatClientAdapter
+        chatClientAdapter,
+        featureConfig
     )
 
     mynahApi = api
