@@ -101,6 +101,7 @@ import { ListDirectory, ListDirectoryParams } from './tools/listDirectory'
 import { FsWrite, FsWriteParams, getDiffChanges } from './tools/fsWrite'
 import { ExecuteBash, ExecuteBashOutput, ExecuteBashParams } from './tools/executeBash'
 import { ExplanatoryParams, InvokeOutput, ToolApprovalException } from './tools/toolShared'
+import { FileSearch, FileSearchParams } from './tools/fileSearch'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -559,6 +560,7 @@ export class AgenticChatController implements ChatHandlers {
                 switch (toolUse.name) {
                     case 'fsRead':
                     case 'listDirectory':
+                    case 'fileSearch':
                     case 'fsWrite':
                     case 'executeBash': {
                         const toolMap = {
@@ -566,6 +568,7 @@ export class AgenticChatController implements ChatHandlers {
                             listDirectory: { Tool: ListDirectory },
                             fsWrite: { Tool: FsWrite },
                             executeBash: { Tool: ExecuteBash },
+                            fileSearch: { Tool: FileSearch },
                         }
 
                         const { Tool } = toolMap[toolUse.name as keyof typeof toolMap]
@@ -595,8 +598,8 @@ export class AgenticChatController implements ChatHandlers {
                         break
                 }
 
-                if (['fsRead', 'listDirectory'].includes(toolUse.name)) {
-                    const initialListDirResult = this.#processReadOrList(toolUse, chatResultStream)
+                if (['fsRead', 'listDirectory', 'fileSearch'].includes(toolUse.name)) {
+                    const initialListDirResult = this.#processReadOrListOrSearch(toolUse, chatResultStream)
                     if (initialListDirResult) {
                         await chatResultStream.writeResultBlock(initialListDirResult)
                     }
@@ -638,6 +641,8 @@ export class AgenticChatController implements ChatHandlers {
                 switch (toolUse.name) {
                     case 'fsRead':
                     case 'listDirectory':
+                    case 'fileSearch':
+                    // no need to write tool result for listDir,fsRead,fileSearch into chat stream
                     case 'executeBash':
                         // no need to write tool result for listDir and fsRead into chat stream
                         // executeBash will stream the output instead of waiting until the end
@@ -858,7 +863,7 @@ export class AgenticChatController implements ChatHandlers {
         }
     }
 
-    #processReadOrList(toolUse: ToolUse, chatResultStream: AgenticChatResultStream): ChatMessage | undefined {
+    #processReadOrListOrSearch(toolUse: ToolUse, chatResultStream: AgenticChatResultStream): ChatMessage | undefined {
         let messageIdToUpdate = toolUse.toolUseId!
         const currentId = chatResultStream.getMessageIdToUpdateForTool(toolUse.name!)
 
@@ -868,7 +873,7 @@ export class AgenticChatController implements ChatHandlers {
             chatResultStream.setMessageIdToUpdateForTool(toolUse.name!, messageIdToUpdate)
         }
 
-        const currentPath = (toolUse.input as unknown as FsReadParams | ListDirectoryParams)?.path
+        const currentPath = (toolUse.input as unknown as FsReadParams | ListDirectoryParams | FileSearchParams)?.path
         if (!currentPath) return
         const existingPaths = chatResultStream.getMessageOperation(messageIdToUpdate)?.filePaths || []
         // Check if path already exists in the list
@@ -892,7 +897,9 @@ export class AgenticChatController implements ChatHandlers {
             title =
                 toolUse.name === 'fsRead'
                     ? `${itemCount} file${itemCount > 1 ? 's' : ''} read`
-                    : `${itemCount} ${itemCount === 1 ? 'directory' : 'directories'} listed`
+                    : toolUse.name === 'fileSearch'
+                      ? `${itemCount} ${itemCount === 1 ? 'directory' : 'directories'} searched`
+                      : `${itemCount} ${itemCount === 1 ? 'directory' : 'directories'} listed`
         }
         const fileDetails: Record<string, FileDetails> = {}
         for (const item of filePathsPushed) {
