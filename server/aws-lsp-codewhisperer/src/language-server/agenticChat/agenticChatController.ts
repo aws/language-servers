@@ -441,6 +441,7 @@ export class AgenticChatController implements ChatHandlers {
                         break
                     default:
                         await chatResultStream.writeResultBlock({
+                            type: 'tool',
                             body: `${executeToolMessage(toolUse)}`,
                             messageId: toolUse.toolUseId,
                         })
@@ -474,7 +475,11 @@ export class AgenticChatController implements ChatHandlers {
                         await chatResultStream.writeResultBlock(chatResult)
                         break
                     default:
-                        await chatResultStream.writeResultBlock({ body: toolResultMessage(toolUse, result) })
+                        await chatResultStream.writeResultBlock({
+                            type: 'tool',
+                            body: toolResultMessage(toolUse, result),
+                            messageId: toolUse.toolUseId,
+                        })
                         break
                 }
             } catch (err) {
@@ -1045,6 +1050,7 @@ export class AgenticChatController implements ChatHandlers {
         const requestId = response.$metadata.requestId!
         const chatEventParser = new AgenticChatEventParser(requestId, metric)
         const streamWriter = chatResultStream.getResultStreamWriter()
+
         for await (const chatEvent of response.generateAssistantResponseResponse!) {
             const result = chatEventParser.processPartialEvent(chatEvent, contextList)
 
@@ -1053,7 +1059,9 @@ export class AgenticChatController implements ChatHandlers {
                 return result
             }
 
-            await streamWriter.write(result.data.chatResult)
+            if (chatEvent.assistantResponseEvent) {
+                await streamWriter.write(result.data.chatResult)
+            }
         }
         await streamWriter.close()
 

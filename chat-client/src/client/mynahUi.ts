@@ -486,18 +486,18 @@ export const createMynahUi = (
             header = contextListToHeader(chatResult.contextList)
         }
 
-        if (chatResult.additionalMessages?.length) {
-            const store = mynahUi.getTabData(tabId).getStore() || {}
-            const chatItems = store.chatItems || []
+        const store = mynahUi.getTabData(tabId)?.getStore() || {}
+        const chatItems = store.chatItems || []
 
+        if (chatResult.additionalMessages?.length) {
             chatResult.additionalMessages.forEach(am => {
                 const contextHeader = contextListToHeader(am.contextList)
                 const header = contextHeader || toMynahHeader(am.header) // Is this mutually exclusive?
 
                 const chatItem: ChatItem = {
                     messageId: am.messageId,
-                    body: am.body,
-                    type: ChatItemType.ANSWER,
+                    body: am.type !== 'tool' && (am.body === undefined || am.body === '') ? 'Thinking...' : am.body,
+                    type: am.type === 'tool' ? ChatItemType.ANSWER : ChatItemType.ANSWER_STREAM,
                     header:
                         am.type === 'tool' && am.header?.fileList && am.header.buttons
                             ? {
@@ -517,8 +517,8 @@ export const createMynahUi = (
                     fullWidth: am.type === 'tool' && am.header?.fileList ? true : undefined,
                     padding: am.type === 'tool' && am.header?.fileList ? false : undefined,
                 }
-                const message = chatItems.find(ci => ci.messageId === am.messageId)
-                if (!message) {
+
+                if (!chatItems.find(ci => ci.messageId === am.messageId)) {
                     mynahUi.addChatItem(tabId, chatItem)
                 } else {
                     mynahUi.updateChatAnswerWithMessageId(tabId, am.messageId!, chatItem)
@@ -527,12 +527,19 @@ export const createMynahUi = (
         }
 
         if (isPartialResult) {
-            // type for MynahUI differs from ChatResult types so we ignore it
-            mynahUi.updateLastChatAnswer(tabId, {
-                ...chatResultWithoutType,
+            const chatItem = {
+                ...chatResult,
+                body: chatResult.body === undefined || chatResult.body === '' ? 'Thinking...' : chatResult.body,
+                type: ChatItemType.ANSWER_STREAM,
                 header: header,
                 buttons: buttons,
-            })
+            }
+
+            if (!chatItems.find(ci => ci.messageId === chatResult.messageId)) {
+                mynahUi.addChatItem(tabId, chatItem)
+            } else {
+                mynahUi.updateChatAnswerWithMessageId(tabId, chatResult.messageId!, chatItem)
+            }
             return
         }
 
@@ -569,25 +576,7 @@ export const createMynahUi = (
               }
             : {}
 
-        // TODO: ensure all card item types are supported for export on MynahUI side.
-        // Chat export does not work with 'ANSWER_STREAM' cards, so at the end of the streaming
-        // we convert 'ANSWER_STREAM' to 'ANSWER' card.
-        // First, we unset all the properties and then insert all the data as card item type 'ANSWER'.
-        // It works, because 'addChatResponse' receives aggregated/joined data send in every next progress update.
-        mynahUi.updateLastChatAnswer(tabId, {
-            header: undefined,
-            body: '',
-            followUp: undefined,
-            relatedContent: undefined,
-            canBeVoted: undefined,
-            codeReference: undefined,
-            fileList: undefined,
-        })
-
-        mynahUi.endMessageStream(tabId, chatResult.messageId ?? '')
-
-        mynahUi.updateLastChatAnswer(tabId, {
-            type: ChatItemType.ANSWER,
+        mynahUi.endMessageStream(tabId, chatResult.messageId ?? '', {
             header: header,
             buttons: buttons,
             body: chatResult.body,
