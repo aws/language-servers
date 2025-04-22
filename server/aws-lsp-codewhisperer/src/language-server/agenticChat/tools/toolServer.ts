@@ -6,12 +6,14 @@ import { ExecuteBash, ExecuteBashParams } from './executeBash'
 import { LspGetDocuments, LspGetDocumentsParams } from './lspGetDocuments'
 import { LspReadDocumentContents, LspReadDocumentContentsParams } from './lspReadDocumentContents'
 import { LspApplyWorkspaceEdit, LspApplyWorkspaceEditParams } from './lspApplyWorkspaceEdit'
+import { FileSearch, FileSearchParams } from './fileSearch'
 
 export const FsToolsServer: Server = ({ workspace, logging, agent, lsp }) => {
     const fsReadTool = new FsRead({ workspace, logging })
     const fsWriteTool = new FsWrite({ workspace, logging })
 
     const listDirectoryTool = new ListDirectory({ workspace, logging, lsp })
+    const fileSearchTool = new FileSearch({ workspace, logging, lsp })
 
     agent.addTool(fsReadTool.getSpec(), async (input: FsReadParams) => {
         // TODO: fill in logic for handling invalid tool invocations
@@ -28,6 +30,8 @@ export const FsToolsServer: Server = ({ workspace, logging, agent, lsp }) => {
     })
 
     agent.addTool(listDirectoryTool.getSpec(), (input: ListDirectoryParams) => listDirectoryTool.invoke(input))
+
+    agent.addTool(fileSearchTool.getSpec(), (input: FileSearchParams) => fileSearchTool.invoke(input))
 
     return () => {}
 }

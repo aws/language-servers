@@ -101,6 +101,7 @@ import { ListDirectoryParams } from './tools/listDirectory'
 import { FsWrite, FsWriteParams, getDiffChanges } from './tools/fsWrite'
 import { ExecuteBash, ExecuteBashOutput, ExecuteBashParams } from './tools/executeBash'
 import { ExplanatoryParams, InvokeOutput } from './tools/toolShared'
+import { FileSearchParams } from './tools/fileSearch'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -480,7 +481,8 @@ export class AgenticChatController implements ChatHandlers {
                 switch (toolUse.name) {
                     case 'fsRead':
                     case 'listDirectory':
-                        const initialReadOrListResult = this.#processReadOrList(toolUse, chatResultStream)
+                    case 'fileSearch':
+                        const initialReadOrListResult = this.#processReadOrListOrSearch(toolUse, chatResultStream)
                         if (initialReadOrListResult) {
                             await chatResultStream.writeResultBlock(initialReadOrListResult)
                         }
@@ -544,7 +546,8 @@ export class AgenticChatController implements ChatHandlers {
                 switch (toolUse.name) {
                     case 'fsRead':
                     case 'listDirectory':
-                        // no need to write tool result for listDir and fsRead into chat stream
+                    case 'fileSearch':
+                        // no need to write tool result for listDir,fsRead,fileSearch into chat stream
                         break
                     case 'fsWrite':
                         const chatResult = await this.#getFsWriteChatResult(toolUse)
@@ -648,10 +651,10 @@ export class AgenticChatController implements ChatHandlers {
         }
     }
 
-    #processReadOrList(toolUse: ToolUse, chatResultStream: AgenticChatResultStream): ChatMessage | undefined {
+    #processReadOrListOrSearch(toolUse: ToolUse, chatResultStream: AgenticChatResultStream): ChatMessage | undefined {
         // return initial message about fsRead or listDir
         const toolUseId = toolUse.toolUseId!
-        const currentPath = (toolUse.input as unknown as FsReadParams | ListDirectoryParams).path
+        const currentPath = (toolUse.input as unknown as FsReadParams | ListDirectoryParams | FileSearchParams).path
         if (!currentPath) return
         const currentFileList = chatResultStream.getContextFileList(toolUseId)
         if (!currentFileList.some(path => path.relativeFilePath === currentPath)) {
@@ -671,7 +674,9 @@ export class AgenticChatController implements ChatHandlers {
             title =
                 toolUse.name === 'fsRead'
                     ? `${itemCount} file${itemCount > 1 ? 's' : ''} read`
-                    : `${itemCount} ${itemCount === 1 ? 'directory' : 'directories'} listed`
+                    : toolUse.name === 'fileSearch'
+                      ? `${itemCount} ${itemCount === 1 ? 'directory' : 'directories'} searched`
+                      : `${itemCount} ${itemCount === 1 ? 'directory' : 'directories'} listed`
         }
         const fileDetails: Record<string, FileDetails> = {}
         for (const item of currentFileList) {
