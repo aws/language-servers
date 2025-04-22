@@ -16,6 +16,7 @@ import {
     ButtonClickParams,
     ChatMessage,
     ChatResult,
+    ChatUpdateParams,
     ContextCommand,
     ContextCommandParams,
     ConversationClickResult,
@@ -50,6 +51,7 @@ import { pairProgrammingModeOff, pairProgrammingModeOn, programmerModeCard } fro
 
 export interface InboundChatApi {
     addChatResponse(params: ChatResult, tabId: string, isPartialResult: boolean): void
+    updateChat(params: ChatUpdateParams): void
     sendToPrompt(params: SendToPromptParams): void
     sendGenericCommand(params: GenericCommandParams): void
     showError(params: ErrorParams): void
@@ -499,9 +501,6 @@ export const createMynahUi = (
 
         if (chatResult.additionalMessages?.length) {
             chatResult.additionalMessages.forEach(am => {
-                const contextHeader = contextListToHeader(am.contextList)
-                const header = contextHeader || toMynahHeader(am.header) // Is this mutually exclusive?
-
                 const chatItem: ChatItem = {
                     messageId: am.messageId,
                     body: am.type !== 'tool' && (am.body === undefined || am.body === '') ? 'Thinking...' : am.body,
@@ -600,6 +599,56 @@ export const createMynahUi = (
             loadingChat: false,
             promptInputDisabledState: false,
         })
+    }
+
+    const updateChat = (params: ChatUpdateParams) => {
+        if (params.data?.messages.length) {
+            const { tabId } = params
+            const store = mynahUi.getTabData(tabId).getStore() || {}
+            const chatItems = store.chatItems || []
+
+            params.data?.messages.forEach(m => {
+                if (!m.messageId) {
+                    // Do not process messages without known ID.
+                    return
+                }
+
+                const contextHeader = contextListToHeader(m.contextList)
+                const header = contextHeader || toMynahHeader(m.header) // Is this mutually exclusive?
+
+                const chatItem: ChatItem = {
+                    messageId: m.messageId,
+                    body: m.body,
+                    type: ChatItemType.ANSWER,
+                    header:
+                        m.type === 'tool' && m.header?.fileList && m.header.buttons
+                            ? {
+                                ...header,
+                                fileList: {
+                                    ...header?.fileList,
+                                    fileTreeTitle: '',
+                                    hideFileCount: true,
+                                    details: toDetailsWithoutIcon(header?.fileList?.details),
+                                },
+                                buttons: header?.buttons?.map(button => ({ ...button, status: 'clear' })),
+                            }
+                            : header,
+                    buttons: toMynahButtons(m.buttons),
+
+                    // file diffs in the header need space
+                    fullWidth: m.type === 'tool' && m.header?.fileList ? true : undefined,
+                    padding: m.type === 'tool' && m.header?.fileList ? false : undefined,
+                }
+
+                const message = chatItems.find(ci => ci.messageId === m.messageId)
+                if (!message) {
+                    // TODO: we don't have method to insert message at position, skip adding new messages for now.
+                    // mynahUi.addChatItem(tabId, chatItem)
+                } else {
+                    mynahUi.updateChatAnswerWithMessageId(tabId, m.messageId, chatItem)
+                }
+            })
+        }
     }
 
     const sendToPrompt = (params: SendToPromptParams) => {
@@ -754,6 +803,7 @@ ${params.message}`,
 
     const api = {
         addChatResponse: addChatResponse,
+        updateChat: updateChat,
         sendToPrompt: sendToPrompt,
         sendGenericCommand: sendGenericCommand,
         showError: showError,
