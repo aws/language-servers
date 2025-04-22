@@ -827,7 +827,7 @@ export class AgenticChatController implements ChatHandlers {
                     details: {
                         [fileName]: {
                             changes,
-                            description: input.path,
+                            description: input.path, // Show full path in description when hovering
                         },
                     },
                 },
