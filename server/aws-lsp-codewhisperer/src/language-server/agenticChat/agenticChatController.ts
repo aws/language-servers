@@ -18,6 +18,7 @@ import {
 import {
     ButtonClickParams,
     ButtonClickResult,
+    ChatMessage,
     chatRequestType,
     FileDetails,
     InlineChatResultParams,
@@ -185,9 +186,9 @@ export class AgenticChatController implements ChatHandlers {
     }
 
     #getChatResultStream(partialResultToken?: string | number): AgenticChatResultStream {
-        return new AgenticChatResultStream(async (chunk: ChatResult | string) =>
-            this.#sendProgressToClient(chunk, partialResultToken)
-        )
+        return new AgenticChatResultStream(async (result: ChatResult | string) => {
+            return this.#sendProgressToClient(result, partialResultToken)
+        })
     }
 
     async onChatPrompt(params: ChatParams, token: CancellationToken): Promise<ChatResult | ResponseError<ChatResult>> {
@@ -278,7 +279,7 @@ export class AgenticChatController implements ChatHandlers {
     ): Promise<GenerateAssistantResponseCommandInput> {
         this.#debug('Preparing request input')
         const profileArn = AmazonQTokenServiceManager.getInstance(this.#features).getActiveProfileArn()
-        const requestInput = this.#triggerContext.getChatParamsFromTrigger(
+        const requestInput = await this.#triggerContext.getChatParamsFromTrigger(
             params,
             triggerContext,
             ChatTriggerType.MANUAL,
@@ -414,8 +415,13 @@ export class AgenticChatController implements ChatHandlers {
                     if (initialReadOrListResult) {
                         await chatResultStream.writeResultBlock(initialReadOrListResult)
                     }
+                } else if (toolUse.name === 'fsWrite' || toolUse.name === 'executeBash') {
+                    // todo: pending tool use cards?
                 } else {
-                    await chatResultStream.writeResultBlock({ body: `${executeToolMessage(toolUse)}` })
+                    await chatResultStream.writeResultBlock({
+                        body: `${executeToolMessage(toolUse)}`,
+                        messageId: toolUse.toolUseId,
+                    })
                 }
 
                 const result = await this.#features.agent.runTool(toolUse.name, toolUse.input)
@@ -465,7 +471,7 @@ export class AgenticChatController implements ChatHandlers {
         return results
     }
 
-    async #getFsWriteChatResult(toolUse: ToolUse): Promise<ChatResult> {
+    async #getFsWriteChatResult(toolUse: ToolUse): Promise<ChatMessage> {
         const input = toolUse.input as unknown as FsWriteParams
         const fileName = path.basename(input.path)
         // TODO: right now diff changes is coupled with fsWrite class, we should move it to shared utils
@@ -495,7 +501,7 @@ export class AgenticChatController implements ChatHandlers {
         }
     }
 
-    #processReadOrList(toolUse: ToolUse, chatResultStream: AgenticChatResultStream): ChatResult | undefined {
+    #processReadOrList(toolUse: ToolUse, chatResultStream: AgenticChatResultStream): ChatMessage | undefined {
         // return initial message about fsRead or listDir
         const toolUseId = toolUse.toolUseId!
         const currentPath = (toolUse.input as unknown as FsReadParams | ListDirectoryParams).path
@@ -534,7 +540,9 @@ export class AgenticChatController implements ChatHandlers {
         }
 
         return {
+            type: 'tool',
             contextList,
+            messageId: toolUseId,
             body: '',
         }
     }
@@ -693,7 +701,7 @@ export class AgenticChatController implements ChatHandlers {
         let requestInput: SendMessageCommandInput
 
         try {
-            requestInput = this.#triggerContext.getChatParamsFromTrigger(
+            requestInput = await this.#triggerContext.getChatParamsFromTrigger(
                 params,
                 triggerContext,
                 ChatTriggerType.INLINE_CHAT,

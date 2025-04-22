@@ -108,7 +108,8 @@ export const handleChatPrompt = (
         }
     } else {
         // Send chat prompt to server
-        messager.onChatPrompt({ prompt, tabId }, triggerType)
+        const context = prompt.context?.map(c => (typeof c === 'string' ? { command: c } : c))
+        messager.onChatPrompt({ prompt, tabId, context }, triggerType)
     }
     // Add user prompt to UI
     mynahUi.addChatItem(tabId, {
@@ -439,39 +440,74 @@ export const createMynahUi = (
         return tabId ?? createTabId()
     }
 
+    const contextListToHeader = (contextList?: ChatResult['contextList']) => {
+        if (contextList === undefined) {
+            return undefined
+        }
+
+        return {
+            fileList: {
+                fileTreeTitle: '',
+                filePaths: contextList.filePaths?.map(file => file),
+                rootFolderTitle: contextList.rootFolderTitle ?? 'Context',
+                flatList: true,
+                collapsed: true,
+                hideFileCount: true,
+                details: Object.fromEntries(
+                    Object.entries(contextList.details || {}).map(([filePath, fileDetails]) => [
+                        filePath,
+                        {
+                            label:
+                                fileDetails.lineRanges
+                                    ?.map(range =>
+                                        range.first === -1 || range.second === -1
+                                            ? ''
+                                            : `line ${range.first} - ${range.second}`
+                                    )
+                                    .join(', ') || '',
+                            description: filePath,
+                            clickable: true,
+                        },
+                    ])
+                ),
+            },
+        }
+    }
+
     const addChatResponse = (chatResult: ChatResult, tabId: string, isPartialResult: boolean) => {
         const { type, ...chatResultWithoutType } = chatResult
         let header = toMynahHeader(chatResult.header)
         const buttons = toMynahButtons(chatResult.buttons)
 
         if (chatResult.contextList !== undefined) {
-            header = {
-                fileList: {
-                    fileTreeTitle: '',
-                    filePaths: chatResult.contextList.filePaths?.map(file => file),
-                    rootFolderTitle: chatResult.contextList.rootFolderTitle ?? 'Context',
-                    flatList: true,
-                    collapsed: true,
-                    hideFileCount: true,
-                    details: Object.fromEntries(
-                        Object.entries(chatResult.contextList.details || {}).map(([filePath, fileDetails]) => [
-                            filePath,
-                            {
-                                label:
-                                    fileDetails.lineRanges
-                                        ?.map(range =>
-                                            range.first === -1 || range.second === -1
-                                                ? ''
-                                                : `line ${range.first} - ${range.second}`
-                                        )
-                                        .join(', ') || '',
-                                description: filePath,
-                                clickable: true,
-                            },
-                        ])
-                    ),
-                },
-            }
+            header = contextListToHeader(chatResult.contextList)
+        }
+
+        if (chatResult.additionalMessages?.length) {
+            const store = mynahUi.getTabData(tabId).getStore() || {}
+            const chatItems = store.chatItems || []
+
+            chatResult.additionalMessages.forEach(am => {
+                const contextHeader = contextListToHeader(am.contextList)
+
+                const chatItem = {
+                    messageId: am.messageId,
+                    body: am.body,
+                    type: ChatItemType.ANSWER,
+                    header: contextHeader || toMynahHeader(am.header), // Is this mutually exclusive?
+                    buttons: toMynahButtons(am.buttons),
+
+                    // file diffs in the header need space
+                    fullWidth: am.type === 'tool' && am.header?.fileList ? true : undefined,
+                    padding: am.type === 'tool' && am.header?.fileList ? false : undefined,
+                }
+                const message = chatItems.find(ci => ci.messageId === am.messageId)
+                if (!message) {
+                    mynahUi.addChatItem(tabId, chatItem)
+                } else {
+                    mynahUi.updateChatAnswerWithMessageId(tabId, am.messageId!, chatItem)
+                }
+            })
         }
 
         if (isPartialResult) {
@@ -480,19 +516,6 @@ export const createMynahUi = (
                 ...chatResultWithoutType,
                 header: header,
                 buttons: buttons,
-                // TODO: this won't be needed once we have multiple message support
-                ...(type === 'tool'
-                    ? {
-                          header: {
-                              ...header,
-                              // TODO: this is specific to fsWrite tool, modify for other tools as needed
-                              fileList: { ...header?.fileList, fileTreeTitle: '', hideFileCount: true },
-                              buttons: header?.buttons?.map(button => ({ ...button, status: 'clear' })),
-                          },
-                          fullWidth: true,
-                          padding: false,
-                      }
-                    : {}),
             })
             return
         }
