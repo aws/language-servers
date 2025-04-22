@@ -516,7 +516,7 @@ export class AgenticChatController implements ChatHandlers {
                 if (needsConfirmation) {
                     const deferred = this.#createDeferred()
                     session.setDeferredToolExecution(toolUse.toolUseId, deferred.resolve, deferred.reject)
-                    this.#log(`Promting for tool approval for tool: ${toolUse.name}`)
+                    this.#log(`Prompting for tool approval for tool: ${toolUse.name}`)
                     await deferred.promise
                 }
 
