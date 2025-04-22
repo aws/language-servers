@@ -19,24 +19,29 @@ export class AdditionalContextProvider {
         private readonly lsp: Lsp
     ) {}
 
-    async collectWorkspaceRules(triggerContext: TriggerContext): Promise<string[]> {
-        const rulesFiles: string[] = []
-        const folder = triggerContext.workspaceFolder
-        if (!folder) {
+    async collectWorkspaceRules(): Promise<ContextCommandItem[]> {
+        const rulesFiles: ContextCommandItem[] = []
+        let folders = workspaceUtils.getWorkspaceFolderPaths(this.lsp)
+
+        if (!folders.length) {
             return rulesFiles
         }
-        const workspaceRoot = folder.uri
-            ? URI.parse(folder.uri).fsPath
-            : workspaceUtils.getWorkspaceFolderPaths(this.lsp)[0]
-        const rulesPath = path.join(workspaceRoot, '.amazonq', 'rules')
-        const folderExists = await this.workspace.fs.exists(rulesPath)
+        for (const folder of folders) {
+            const rulesPath = path.join(folder, '.amazonq', 'rules')
+            const folderExists = await this.workspace.fs.exists(rulesPath)
 
-        if (folderExists) {
-            const entries = await this.workspace.fs.readdir(rulesPath)
+            if (folderExists) {
+                const entries = await this.workspace.fs.readdir(rulesPath)
 
-            for (const entry of entries) {
-                if (entry.isFile() && entry.name.endsWith(promptFileExtension)) {
-                    rulesFiles.push(path.join(rulesPath, entry.name))
+                for (const entry of entries) {
+                    if (entry.isFile() && entry.name.endsWith(promptFileExtension)) {
+                        rulesFiles.push({
+                            workspaceFolder: folder,
+                            type: 'file',
+                            relativePath: path.relative(folder, `${rulesPath}/${entry.name}`),
+                            id: '',
+                        })
+                    }
                 }
             }
         }
@@ -59,23 +64,13 @@ export class AdditionalContextProvider {
         context?: ContextCommand[]
     ): Promise<AdditionalContentEntryAddition[]> {
         const additionalContextCommands: ContextCommandItem[] = []
-        const workspaceRules = await this.collectWorkspaceRules(triggerContext)
+        const workspaceRules = await this.collectWorkspaceRules()
         let workspaceFolderPath = triggerContext.workspaceFolder?.uri
             ? URI.parse(triggerContext.workspaceFolder.uri).fsPath
             : workspaceUtils.getWorkspaceFolderPaths(this.lsp)[0]
 
         if (workspaceRules.length > 0) {
-            additionalContextCommands.push(
-                ...workspaceRules.map(
-                    file =>
-                        ({
-                            workspaceFolder: workspaceFolderPath,
-                            type: 'file',
-                            relativePath: path.relative(workspaceFolderPath, file),
-                            id: '',
-                        }) as ContextCommandItem
-                )
-            )
+            additionalContextCommands.push(...workspaceRules)
         }
         triggerContext.workspaceRulesCount = workspaceRules.length
         if (context) {
