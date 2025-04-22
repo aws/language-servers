@@ -1,5 +1,5 @@
 import { FeatureContext } from '@aws/chat-client-ui-types'
-import { Button, ChatMessage } from '@aws/language-server-runtimes-types'
+import { Button, ChatMessage, QuickActionCommand } from '@aws/language-server-runtimes-types'
 import { ChatItemButton, ChatItemContent, MynahIcons, TreeNodeDetails } from '@aws/mynah-ui'
 
 export function toMynahIcon(icon: string | undefined): MynahIcons | undefined {
@@ -22,8 +22,8 @@ export function toDetailsWithoutIcon(
     )
 }
 
-export function toMynahContextCommand(feature?: FeatureContext): any {
-    if (!feature) {
+export function toMynahContextCommand(feature?: FeatureContext): QuickActionCommand | Record<string, never> {
+    if (!feature || !feature.value.stringValue) {
         return {}
     }
 
