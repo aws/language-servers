@@ -1,7 +1,9 @@
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import { CodeWhispererServiceBase } from '../codeWhispererService'
-import { AmazonQBaseServiceManager, BaseAmazonQServiceManager } from './BaseAmazonQServiceManager'
+import { BaseAmazonQServiceManager } from './BaseAmazonQServiceManager'
 import { StreamingClientServiceBase } from '../streamingClientService'
+import { AmazonQServiceAlreadyInitializedError, AmazonQServiceNotInitializedError } from './errors'
+
 /**
  * A reusable test class that extends the abstract base class and allows for injecting features and service mocks.
  *
@@ -17,10 +19,21 @@ export class TestAmazonQServiceManager extends BaseAmazonQServiceManager<
         super(features)
     }
 
-    public static getInstance(features: TestFeatures): TestAmazonQServiceManager {
+    public static initInstance(features: TestFeatures): TestAmazonQServiceManager {
         if (!TestAmazonQServiceManager.instance) {
             TestAmazonQServiceManager.instance = new TestAmazonQServiceManager(features)
+
+            return TestAmazonQServiceManager.instance
         }
+
+        throw new AmazonQServiceAlreadyInitializedError('Test service is already initialized.')
+    }
+
+    public static getInstance(): TestAmazonQServiceManager {
+        if (!TestAmazonQServiceManager.instance) {
+            throw new AmazonQServiceNotInitializedError('Test service is not yet initialized')
+        }
+
         return TestAmazonQServiceManager.instance
     }
 
@@ -40,11 +53,16 @@ export class TestAmazonQServiceManager extends BaseAmazonQServiceManager<
                 'Found undefined cached streaming client, make sure to setup TestAmazonQServiceManager class correctly'
             )
         }
+
         return this.cachedStreamingClient
     }
 
     public withCodeWhispererService<C extends CodeWhispererServiceBase>(service: C) {
         this.cachedCodewhispererService = service
+    }
+
+    public withStreamingClientService<S extends StreamingClientServiceBase>(streamingClient: S) {
+        this.cachedStreamingClient = streamingClient
     }
 
     public static resetInstance(): void {
@@ -58,12 +76,20 @@ export class TestAmazonQServiceManager extends BaseAmazonQServiceManager<
  * @param serviceMock - Mocked service, e.g. with sinon's stubInterface method.
  * @returns A mocked AmazonQServiceManager for testing
  */
-export const initBaseTestServiceManager = <C extends CodeWhispererServiceBase>(
+export const initBaseTestServiceManager = <C extends CodeWhispererServiceBase, S extends StreamingClientServiceBase>(
     features: TestFeatures,
-    serviceMock: C
-): AmazonQBaseServiceManager => {
-    const testServiceManager = TestAmazonQServiceManager.getInstance(features)
-    testServiceManager.withCodeWhispererService(serviceMock)
+    serviceMock?: C,
+    streamingClientMock?: S
+): TestAmazonQServiceManager => {
+    const testServiceManager = TestAmazonQServiceManager.initInstance(features)
+
+    if (serviceMock) {
+        testServiceManager.withCodeWhispererService(serviceMock)
+    }
+
+    if (streamingClientMock) {
+        testServiceManager.withStreamingClientService(streamingClientMock)
+    }
 
     return testServiceManager
 }

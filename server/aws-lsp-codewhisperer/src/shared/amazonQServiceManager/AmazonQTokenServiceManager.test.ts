@@ -120,8 +120,13 @@ describe('AmazonQTokenServiceManager', () => {
         }
         features.lsp.getClientInitializeParams.returns(cachedInitializeParams)
 
-        amazonQTokenServiceManager = AmazonQTokenServiceManager.getInstance(features)
+        AmazonQTokenServiceManager.initInstance(features)
+        amazonQTokenServiceManager = AmazonQTokenServiceManager.getInstance()
         amazonQTokenServiceManager.setServiceFactory(codewhispererStubFactory)
+
+        // Below methods are called by amazonQServer in E2E scenario, here we need to call them manually.
+        amazonQTokenServiceManager.setupCommonLspHandlers()
+        amazonQTokenServiceManager.setupConfigurableLspHandlers()
     }
 
     const setCredentials = setCredentialsForAmazonQTokenServiceManagerFactory(() => features)
@@ -1028,7 +1033,7 @@ describe('AmazonQTokenServiceManager', () => {
             setupServiceManager()
             setCredentials('identityCenter')
 
-            await amazonQTokenServiceManager.handleDidChangeConfiguration()
+            await amazonQTokenServiceManager['handleDidChangeConfiguration']()
 
             const service = amazonQTokenServiceManager.getCodewhispererService()
 
@@ -1051,13 +1056,13 @@ describe('AmazonQTokenServiceManager', () => {
             setupServiceManager()
             setCredentials('identityCenter')
 
-            amazonQTokenServiceManager = AmazonQTokenServiceManager.getInstance(features)
+            amazonQTokenServiceManager = AmazonQTokenServiceManager.getInstance()
             const service = amazonQTokenServiceManager.getCodewhispererService()
 
             assert.strictEqual(service.customizationArn, undefined)
             assert.strictEqual(service.shareCodeWhispererContentWithAWS, false)
 
-            await amazonQTokenServiceManager.handleDidChangeConfiguration()
+            await amazonQTokenServiceManager['handleDidChangeConfiguration']()
 
             // Force next tick to allow async work inside handleDidChangeConfiguration to complete
             await Promise.resolve()
@@ -1071,7 +1076,7 @@ describe('AmazonQTokenServiceManager', () => {
         it('should throw when initialize is called before LSP has been initialized with InitializeParams', () => {
             features.lsp.getClientInitializeParams.returns(undefined)
 
-            assert.throws(() => AmazonQTokenServiceManager.getInstance(features), AmazonQServiceInitializationError)
+            assert.throws(() => AmazonQTokenServiceManager.initInstance(features), AmazonQServiceInitializationError)
         })
     })
 })

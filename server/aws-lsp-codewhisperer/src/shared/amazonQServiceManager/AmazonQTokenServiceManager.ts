@@ -11,6 +11,7 @@ import {
 import { CodeWhispererServiceToken } from '../codeWhispererService'
 import {
     AmazonQError,
+    AmazonQServiceAlreadyInitializedError,
     AmazonQServiceInitializationError,
     AmazonQServiceInvalidProfileError,
     AmazonQServiceNoProfileSupportError,
@@ -22,6 +23,7 @@ import {
 } from './errors'
 import {
     AmazonQBaseServiceManager,
+    AmazonQServiceAPI,
     BaseAmazonQServiceManager,
     QServiceManagerFeatures,
 } from './BaseAmazonQServiceManager'
@@ -89,11 +91,24 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         super(features)
     }
 
-    public static getInstance(features: QServiceManagerFeatures): AmazonQTokenServiceManager {
+    public static initInstance(features: QServiceManagerFeatures): AmazonQTokenServiceManager {
         if (!AmazonQTokenServiceManager.instance) {
             AmazonQTokenServiceManager.instance = new AmazonQTokenServiceManager(features)
             AmazonQTokenServiceManager.instance.initialize()
+
+            return AmazonQTokenServiceManager.instance
         }
+
+        throw new AmazonQServiceAlreadyInitializedError()
+    }
+
+    public static getInstance(): AmazonQTokenServiceManager {
+        if (!AmazonQTokenServiceManager.instance) {
+            throw new AmazonQServiceInitializationError(
+                'Amazon Q service has not been initialized yet. Make sure the Amazon Q server is present and properly initialized.'
+            )
+        }
+
         return AmazonQTokenServiceManager.instance
     }
 
@@ -139,45 +154,52 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         })
     }
 
-    private setupConfigurationListeners(): void {
-        this.features.lsp.workspace.onUpdateConfiguration(
-            async (params: UpdateConfigurationParams, _token: CancellationToken) => {
-                try {
-                    if (params.section === Q_CONFIGURATION_SECTION && params.settings.profileArn !== undefined) {
-                        const profileArn = params.settings.profileArn
+    private async handleOnUpdateConfiguration(params: UpdateConfigurationParams, _token: CancellationToken) {
+        try {
+            if (params.section === Q_CONFIGURATION_SECTION && params.settings.profileArn !== undefined) {
+                const profileArn = params.settings.profileArn
 
-                        if (!isStringOrNull(profileArn)) {
-                            throw new Error('Expected params.settings.profileArn to be of either type string or null')
-                        }
-
-                        this.log(`Profile update is requested for profile ${profileArn}`)
-                        this.cancelActiveProfileChangeToken()
-                        this.profileChangeTokenSource = new CancellationTokenSource()
-
-                        await this.handleProfileChange(profileArn, this.profileChangeTokenSource.token)
-                    }
-                } catch (error) {
-                    this.log('Error updating profiles: ' + error)
-                    if (error instanceof AmazonQServiceProfileUpdateCancelled) {
-                        throw new ResponseError(LSPErrorCodes.ServerCancelled, error.message, {
-                            awsErrorCode: error.code,
-                        })
-                    }
-                    if (error instanceof AmazonQError) {
-                        throw new ResponseError(LSPErrorCodes.RequestFailed, error.message, {
-                            awsErrorCode: error.code,
-                        })
-                    }
-
-                    throw new ResponseError(LSPErrorCodes.RequestFailed, 'Failed to update configuration')
-                } finally {
-                    if (this.profileChangeTokenSource) {
-                        this.profileChangeTokenSource.dispose()
-                        this.profileChangeTokenSource = undefined
-                    }
+                if (!isStringOrNull(profileArn)) {
+                    throw new Error('Expected params.settings.profileArn to be of either type string or null')
                 }
+
+                this.log(`Profile update is requested for profile ${profileArn}`)
+                this.cancelActiveProfileChangeToken()
+                this.profileChangeTokenSource = new CancellationTokenSource()
+
+                await this.handleProfileChange(profileArn, this.profileChangeTokenSource.token)
             }
-        )
+        } catch (error) {
+            this.log('Error updating profiles: ' + error)
+            if (error instanceof AmazonQServiceProfileUpdateCancelled) {
+                throw new ResponseError(LSPErrorCodes.ServerCancelled, error.message, {
+                    awsErrorCode: error.code,
+                })
+            }
+            if (error instanceof AmazonQError) {
+                throw new ResponseError(LSPErrorCodes.RequestFailed, error.message, {
+                    awsErrorCode: error.code,
+                })
+            }
+
+            throw new ResponseError(LSPErrorCodes.RequestFailed, 'Failed to update configuration')
+        } finally {
+            if (this.profileChangeTokenSource) {
+                this.profileChangeTokenSource.dispose()
+                this.profileChangeTokenSource = undefined
+            }
+        }
+    }
+
+    private setupConfigurationListeners(): void {
+        this.handleOnUpdateConfiguration = this.handleOnUpdateConfiguration.bind(this)
+
+        this.configurableLspHandlers.onUpdateConfiguration = async (
+            params: UpdateConfigurationParams,
+            token: CancellationToken
+        ) => {
+            await this.handleOnUpdateConfiguration(params, token)
+        }
     }
 
     /**
@@ -572,6 +594,10 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
     }
 }
 
-export const initBaseTokenServiceManager = (features: QServiceManagerFeatures): AmazonQBaseServiceManager => {
-    return AmazonQTokenServiceManager.getInstance(features)
-}
+export type AmazonQServiceToken = AmazonQServiceAPI<CodeWhispererServiceToken, StreamingClientServiceToken>
+
+export const initBaseTokenServiceManager = (features: QServiceManagerFeatures) =>
+    AmazonQTokenServiceManager.initInstance(features)
+
+export const getOrThrowBaseTokenServiceManager = (): AmazonQBaseServiceManager =>
+    AmazonQTokenServiceManager.getInstance()

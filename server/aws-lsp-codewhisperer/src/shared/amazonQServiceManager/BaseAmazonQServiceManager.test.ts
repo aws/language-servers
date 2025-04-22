@@ -4,22 +4,32 @@ import { expect } from 'chai'
 import { CodeWhispererServiceBase } from '../codeWhispererService'
 import { stubCodeWhispererService } from '../testUtils'
 import { initBaseTestServiceManager, TestAmazonQServiceManager } from './testUtils'
-import { AmazonQBaseServiceManager, CONFIGURATION_CHANGE_IN_PROGRESS_MSG } from './BaseAmazonQServiceManager'
+import {
+    AmazonQBaseServiceManager,
+    BaseAmazonQServiceManager,
+    CONFIGURATION_CHANGE_IN_PROGRESS_MSG,
+} from './BaseAmazonQServiceManager'
 import { CODE_WHISPERER_CONFIGURATION_SECTION, Q_CONFIGURATION_SECTION } from '../constants'
 
 describe('BaseAmazonQServiceManager', () => {
     let features: TestFeatures
     let serviceStub: StubbedInstance<CodeWhispererServiceBase>
     let serviceManager: AmazonQBaseServiceManager
-
+    let handleDidChangeConfigurationSpy: sinon.SinonSpy
     beforeEach(() => {
         features = new TestFeatures()
+
+        handleDidChangeConfigurationSpy = sinon.spy(
+            BaseAmazonQServiceManager.prototype,
+            'handleDidChangeConfiguration' as keyof AmazonQBaseServiceManager
+        )
 
         serviceStub = stubCodeWhispererService()
         serviceManager = initBaseTestServiceManager(features, serviceStub)
     })
 
     afterEach(() => {
+        sinon.restore()
         TestAmazonQServiceManager.resetInstance()
     })
 
@@ -31,7 +41,7 @@ describe('BaseAmazonQServiceManager', () => {
 
         features.lsp.workspace.getConfiguration.resolves({ customization: 'some-arn' })
 
-        await serviceManager.handleDidChangeConfiguration()
+        await serviceManager['handleDidChangeConfiguration']()
 
         const updatedConfig = serviceManager.getConfiguration()
         expect(updatedConfig).to.not.deep.equal(initialConfig)
@@ -51,7 +61,7 @@ describe('BaseAmazonQServiceManager', () => {
             sinon.assert.calledOnceWithExactly(mockListener, serviceManager.getConfiguration())
         })
 
-        await serviceManager.handleDidChangeConfiguration()
+        await serviceManager['handleDidChangeConfiguration']()
 
         mockListeners.forEach(mockListener => {
             sinon.assert.calledTwice(mockListener)
@@ -59,8 +69,21 @@ describe('BaseAmazonQServiceManager', () => {
         })
     })
 
-    it('hooks handleDidChangeConfiguration to LSP server during construction', () => {
+    it('hooks handleDidChangeConfiguration to didChangeConfiguration and onInitialized handlers when requested', async () => {
+        sinon.assert.notCalled(features.lsp.onInitialized)
+        sinon.assert.notCalled(features.lsp.didChangeConfiguration)
+        sinon.assert.notCalled(handleDidChangeConfigurationSpy)
+
+        serviceManager.setupCommonLspHandlers()
+        sinon.assert.notCalled(handleDidChangeConfigurationSpy)
+
+        sinon.assert.calledOnce(features.lsp.onInitialized)
+        features.lsp.onInitialized.args[0]?.[0]({})
+        sinon.assert.calledOnce(handleDidChangeConfigurationSpy)
+
         sinon.assert.calledOnce(features.lsp.didChangeConfiguration)
+        await features.doChangeConfiguration()
+        sinon.assert.calledTwice(handleDidChangeConfigurationSpy)
     })
 
     it('ignores calls to handleDidChangeConfiguration when a request is already inflight', async () => {
@@ -68,13 +91,13 @@ describe('BaseAmazonQServiceManager', () => {
 
         expect(serviceManager['isConfigChangeInProgress']).to.be.false
 
-        const firstCall = serviceManager.handleDidChangeConfiguration()
+        const firstCall = serviceManager['handleDidChangeConfiguration']()
 
         expect(serviceManager['isConfigChangeInProgress']).to.be.true
 
         let concurrentCalls = []
         for (let i = 0; i < TOTAL_CALLS - 1; i++) {
-            concurrentCalls.push(serviceManager.handleDidChangeConfiguration())
+            concurrentCalls.push(serviceManager['handleDidChangeConfiguration']())
         }
 
         await Promise.allSettled([firstCall, ...concurrentCalls])
