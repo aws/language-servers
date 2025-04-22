@@ -90,6 +90,13 @@ export class AgenticChatTriggerContext {
         const useRelevantDocuments = 'context' in params ? params.context?.some(c => c.command === '@workspace') : false
 
         let promptContent = prompt.escapedPrompt ?? prompt.prompt
+
+        // When the user adds @sage context, ** gets prepended and appended to the prompt because of markdown.
+        // This intereferes with routing logic thus we need to remove it
+        if (promptContent && promptContent.includes('@sage')) {
+            promptContent = promptContent.replace(/\*\*@sage\*\*/g, '@sage')
+        }
+
         if (useRelevantDocuments) {
             promptContent = promptContent?.replace(/^@workspace\/?/, '')
         }

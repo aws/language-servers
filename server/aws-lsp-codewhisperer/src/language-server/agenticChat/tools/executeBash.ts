@@ -121,6 +121,12 @@ interface TimestampedChunk {
     isFirst: boolean
 }
 
+export interface ExecuteBashOutput {
+    exitStatus: string
+    stdout: string
+    stderr: string
+}
+
 export class ExecuteBash {
     private childProcess?: ChildProcess
     private readonly logging: Features['logging']
@@ -356,7 +362,7 @@ export class ExecuteBash {
                     maxBashToolResponseSize / 3
                 )
 
-                const outputJson = {
+                const outputJson: ExecuteBashOutput = {
                     exitStatus: exitStatus.toString(),
                     stdout: stdoutTrunc + (stdoutSuffix ? ' ... truncated' : ''),
                     stderr: stderrTrunc + (stderrSuffix ? ' ... truncated' : ''),
