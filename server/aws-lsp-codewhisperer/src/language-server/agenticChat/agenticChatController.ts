@@ -101,6 +101,7 @@ import { ListDirectoryParams } from './tools/listDirectory'
 import { FsWrite, FsWriteParams, getDiffChanges } from './tools/fsWrite'
 import { ExecuteBash, ExecuteBashOutput, ExecuteBashParams } from './tools/executeBash'
 import { ExplanatoryParams, InvokeOutput, ToolApprovalException } from './tools/toolShared'
+import { FileSearchParams } from './tools/fileSearch'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -511,7 +512,8 @@ export class AgenticChatController implements ChatHandlers {
                 switch (toolUse.name) {
                     case 'fsRead':
                     case 'listDirectory':
-                        const initialReadOrListResult = this.#processReadOrList(toolUse, chatResultStream)
+                    case 'fileSearch':
+                        const initialReadOrListResult = this.#processReadOrListOrSearch(toolUse, chatResultStream)
                         if (initialReadOrListResult) {
                             await chatResultStream.writeResultBlock(initialReadOrListResult)
                         }
@@ -569,7 +571,8 @@ export class AgenticChatController implements ChatHandlers {
                 switch (toolUse.name) {
                     case 'fsRead':
                     case 'listDirectory':
-                        // no need to write tool result for listDir and fsRead into chat stream
+                    case 'fileSearch':
+                        // no need to write tool result for listDir,fsRead,fileSearch into chat stream
                         break
                     case 'fsWrite':
                         const chatResult = await this.#getFsWriteChatResult(toolUse)
@@ -702,7 +705,7 @@ export class AgenticChatController implements ChatHandlers {
         }
     }
 
-    #processReadOrList(toolUse: ToolUse, chatResultStream: AgenticChatResultStream): ChatMessage | undefined {
+    #processReadOrListOrSearch(toolUse: ToolUse, chatResultStream: AgenticChatResultStream): ChatMessage | undefined {
         if (toolUse.name !== 'fsRead') {
             //TODO: Implement list directory UX in next PR.
             return {}
@@ -737,7 +740,9 @@ export class AgenticChatController implements ChatHandlers {
             title =
                 toolUse.name === 'fsRead'
                     ? `${itemCount} file${itemCount > 1 ? 's' : ''} read`
-                    : `${itemCount} ${itemCount === 1 ? 'directory' : 'directories'} listed`
+                    : toolUse.name === 'fileSearch'
+                        ? `${itemCount} ${itemCount === 1 ? 'directory' : 'directories'} searched`
+                        : `${itemCount} ${itemCount === 1 ? 'directory' : 'directories'} listed`
         }
         const fileDetails: Record<string, FileDetails> = {}
         for (const item of filePathsPushed) {
@@ -847,7 +852,7 @@ export class AgenticChatController implements ChatHandlers {
                 codeReference: result.data.chatResult.codeReference,
                 relatedContent:
                     result.data.chatResult.relatedContent?.content &&
-                    result.data.chatResult.relatedContent.content.length > 0
+                        result.data.chatResult.relatedContent.content.length > 0
                         ? result.data?.chatResult.relatedContent
                         : undefined,
             })
@@ -948,9 +953,9 @@ export class AgenticChatController implements ChatHandlers {
 
             return result.success
                 ? {
-                      ...result.data.chatResult,
-                      requestId: response.$metadata.requestId,
-                  }
+                    ...result.data.chatResult,
+                    requestId: response.$metadata.requestId,
+                }
                 : new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, result.error)
         } catch (err) {
             this.#log(
