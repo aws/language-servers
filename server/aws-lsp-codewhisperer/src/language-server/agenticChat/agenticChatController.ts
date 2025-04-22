@@ -100,7 +100,7 @@ import { FsReadParams } from './tools/fsRead'
 import { ListDirectoryParams } from './tools/listDirectory'
 import { FsWrite, FsWriteParams, getDiffChanges } from './tools/fsWrite'
 import { ExecuteBash, ExecuteBashOutput, ExecuteBashParams } from './tools/executeBash'
-import { InvokeOutput, ToolApprovalException } from './tools/toolShared'
+import { ExplanatoryParams, InvokeOutput, ToolApprovalException } from './tools/toolShared'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -167,11 +167,33 @@ export class AgenticChatController implements ChatHandlers {
             return {
                 success: true,
             }
+        } else if (params.buttonId === 'undo-changes') {
+            const toolUseId = params.messageId
+            try {
+                await this.#undoFileChange(toolUseId)
+            } catch (err: any) {
+                return { success: false, failureReason: err.message }
+            }
+            return {
+                success: true,
+            }
         } else {
             return {
                 success: false,
                 failureReason: 'not implemented',
             }
+        }
+    }
+
+    async #undoFileChange(toolUseId: string): Promise<void> {
+        this.#log(`Reverting file change for tooluseId: ${toolUseId}`)
+        const toolUse = this.#triggerContext.getToolUseLookup().get(toolUseId)
+
+        const input = toolUse?.input as unknown as FsWriteParams
+        if (toolUse?.oldContent) {
+            await this.#features.workspace.fs.writeFile(input.path, toolUse.oldContent)
+        } else {
+            await this.#features.workspace.fs.rm(input.path)
         }
     }
 
@@ -448,6 +470,14 @@ export class AgenticChatController implements ChatHandlers {
             let needsConfirmation
 
             try {
+                const { explanation } = toolUse.input as unknown as ExplanatoryParams
+                if (explanation) {
+                    await chatResultStream.writeResultBlock({
+                        type: 'directive',
+                        messageId: toolUse.toolUseId + '_explanation',
+                        body: explanation,
+                    })
+                }
                 switch (toolUse.name) {
                     case 'fsRead':
                     case 'listDirectory':

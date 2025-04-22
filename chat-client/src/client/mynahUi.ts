@@ -16,6 +16,7 @@ import {
     ButtonClickParams,
     ChatMessage,
     ChatResult,
+    ChatUpdateParams,
     ContextCommand,
     ContextCommandParams,
     ConversationClickResult,
@@ -50,6 +51,7 @@ import { pairProgrammingModeOff, pairProgrammingModeOn, programmerModeCard } fro
 
 export interface InboundChatApi {
     addChatResponse(params: ChatResult, tabId: string, isPartialResult: boolean): void
+    updateChat(params: ChatUpdateParams): void
     sendToPrompt(params: SendToPromptParams): void
     sendGenericCommand(params: GenericCommandParams): void
     showError(params: ErrorParams): void
@@ -510,31 +512,15 @@ export const createMynahUi = (
 
         if (chatResult.additionalMessages?.length) {
             chatResult.additionalMessages.forEach(am => {
-                const contextHeader = contextListToHeader(am.contextList)
-                const header = contextHeader || toMynahHeader(am.header) // Is this mutually exclusive?
-
                 const chatItem: ChatItem = {
                     messageId: am.messageId,
-                    body: am.type !== 'tool' && (am.body === undefined || am.body === '') ? 'Thinking...' : am.body,
-                    type: am.type === 'tool' ? ChatItemType.ANSWER : ChatItemType.ANSWER_STREAM,
-                    header:
-                        am.type === 'tool' && am.header?.fileList && am.header.buttons
-                            ? {
-                                  ...header,
-                                  fileList: {
-                                      ...header?.fileList,
-                                      fileTreeTitle: '',
-                                      hideFileCount: true,
-                                      details: toDetailsWithoutIcon(header?.fileList?.details),
-                                  },
-                                  buttons: header?.buttons?.map(button => ({ ...button, status: 'clear' })),
-                              }
-                            : header,
-                    buttons: toMynahButtons(am.buttons),
-
-                    // file diffs in the header need space
-                    fullWidth: am.type === 'tool' ? true : undefined,
-                    padding: am.type === 'tool' ? false : undefined,
+                    type:
+                        am.type === 'tool'
+                            ? ChatItemType.ANSWER
+                            : am.type === 'directive'
+                              ? ChatItemType.DIRECTIVE
+                              : ChatItemType.ANSWER_STREAM,
+                    ...prepareChatItemFromMessage(am),
                 }
 
                 if (!chatItems.find(ci => ci.messageId === am.messageId)) {
@@ -611,6 +597,61 @@ export const createMynahUi = (
             loadingChat: false,
             promptInputDisabledState: false,
         })
+    }
+
+    const updateChat = (params: ChatUpdateParams) => {
+        if (params.data?.messages.length) {
+            const { tabId } = params
+            const store = mynahUi.getTabData(tabId).getStore() || {}
+            const chatItems = store.chatItems || []
+
+            params.data?.messages.forEach(updatedMessage => {
+                if (!updatedMessage.messageId) {
+                    // Do not process messages without known ID.
+                    return
+                }
+
+                const oldMessage = chatItems.find(ci => ci.messageId === updatedMessage.messageId)
+                if (!oldMessage) return
+
+                const chatItem: ChatItem = {
+                    type: oldMessage.type,
+                    ...prepareChatItemFromMessage(updatedMessage),
+                }
+
+                mynahUi.updateChatAnswerWithMessageId(tabId, updatedMessage.messageId, chatItem)
+            })
+        }
+    }
+
+    const prepareChatItemFromMessage = (message: ChatMessage): Partial<ChatItem> => {
+        const contextHeader = contextListToHeader(message.contextList)
+        const header = contextHeader || toMynahHeader(message.header) // Is this mutually exclusive?
+
+        return {
+            body:
+                message.type !== 'tool' && (message.body === undefined || message.body === '')
+                    ? 'Thinking...'
+                    : message.body,
+            header:
+                message.type === 'tool' && message.header?.fileList && message.header.buttons
+                    ? {
+                          ...header,
+                          fileList: {
+                              ...header?.fileList,
+                              fileTreeTitle: '',
+                              hideFileCount: true,
+                              details: toDetailsWithoutIcon(header?.fileList?.details),
+                          },
+                          buttons: header?.buttons?.map(button => ({ ...button, status: 'clear' })),
+                      }
+                    : header,
+            buttons: toMynahButtons(message.buttons),
+
+            // file diffs in the header need space
+            fullWidth: message.type === 'tool' && message.header?.fileList ? true : undefined,
+            padding: message.type === 'tool' && message.header?.fileList ? false : undefined,
+        }
     }
 
     const sendToPrompt = (params: SendToPromptParams) => {
@@ -775,6 +816,7 @@ ${params.message}`,
 
     const api = {
         addChatResponse: addChatResponse,
+        updateChat: updateChat,
         sendToPrompt: sendToPrompt,
         sendGenericCommand: sendGenericCommand,
         showError: showError,

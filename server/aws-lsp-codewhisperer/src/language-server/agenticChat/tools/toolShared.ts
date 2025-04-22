@@ -33,3 +33,6 @@ export class ToolApprovalException extends Error {
         super(`Tool execution invalidated`)
     }
 }
+export interface ExplanatoryParams {
+    explanation?: string
+}
