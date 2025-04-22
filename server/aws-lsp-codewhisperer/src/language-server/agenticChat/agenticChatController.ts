@@ -283,7 +283,8 @@ export class AgenticChatController implements ChatHandlers {
                 params,
                 session,
                 triggerContext,
-                additionalContext
+                additionalContext,
+                chatResultStream
             )
 
             // Start the agent loop
@@ -330,7 +331,8 @@ export class AgenticChatController implements ChatHandlers {
         params: ChatParams,
         session: ChatSessionService,
         triggerContext: TriggerContext,
-        additionalContext: AdditionalContentEntryAddition[]
+        additionalContext: AdditionalContentEntryAddition[],
+        chatResultStream: AgenticChatResultStream
     ): Promise<GenerateAssistantResponseCommandInput> {
         this.#debug('Preparing request input')
         const profileArn = AmazonQTokenServiceManager.getInstance(this.#features).getActiveProfileArn()
@@ -339,6 +341,7 @@ export class AgenticChatController implements ChatHandlers {
             triggerContext,
             ChatTriggerType.MANUAL,
             this.#customizationArn,
+            chatResultStream,
             profileArn,
             this.#chatHistoryDb.getMessages(params.tabId, 10),
             this.#getTools(session),

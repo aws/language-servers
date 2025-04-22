@@ -28,7 +28,7 @@
         "clean": "rm -rf node_modules"
     },
     "dependencies": {
-        "@aws/language-server-runtimes": "^0.2.72",
+        "@aws/language-server-runtimes": "^0.2.73",
         "@aws/lsp-core": "^0.0.3"
     },
     "peerDependencies": {

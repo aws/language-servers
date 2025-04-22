@@ -26,6 +26,7 @@ import {
     InfoLinkClickParams,
     LinkClickParams,
     ListConversationsResult,
+    OPEN_WORKSPACE_INDEX_SETTINGS_BUTTON_ID,
     OpenTabParams,
     SourceLinkClickParams,
 } from '@aws/language-server-runtimes-types'
@@ -325,6 +326,8 @@ export const createMynahUi = (
                 Object.keys(mynahUi.getAllTabs()).forEach(storeTabKey => {
                     mynahUi.updateStore(storeTabKey, { promptInputStickyCard: null })
                 })
+            } else if (action.id === OPEN_WORKSPACE_INDEX_SETTINGS_BUTTON_ID) {
+                messager.onOpenSettings('amazonQ.workspaceIndex')
             } else {
                 const payload: ButtonClickParams = {
                     tabId,

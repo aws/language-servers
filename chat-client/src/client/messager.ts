@@ -93,6 +93,7 @@ export interface OutboundChatApi {
     promptInputOptionChange(params: PromptInputOptionChangeParams): void
     stopChatResponse(tabId: string): void
     sendButtonClickEvent(params: ButtonClickParams): void
+    onOpenSettings(settingKey: string): void
 }
 
 export class Messager {
@@ -230,5 +231,9 @@ export class Messager {
 
     onButtonClick = (params: ButtonClickParams): void => {
         this.chatApi.sendButtonClickEvent(params)
+    }
+
+    onOpenSettings = (settingKey: string): void => {
+        this.chatApi.onOpenSettings(settingKey)
     }
 }
