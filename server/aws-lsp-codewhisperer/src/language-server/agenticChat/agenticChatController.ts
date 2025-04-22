@@ -1012,7 +1012,7 @@ export class AgenticChatController implements ChatHandlers {
                     absolutePath = path.join(getUserPromptsDirectory(), params.filePath)
                 }
             }
-            await this.#features.lsp.window.showDocument({ uri: absolutePath })
+            await this.#features.lsp.window.showDocument({ uri: params.filePath })
         }
     }
 
