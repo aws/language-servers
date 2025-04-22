@@ -105,14 +105,6 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri, 
                                     }
                                 )
 
-                                const editor =
-                                    window.activeTextEditor ||
-                                    window.visibleTextEditors.find(editor => editor.document.languageId != 'Log')
-                                if (editor) {
-                                    message.params.cursorPosition = [editor.selection.active]
-                                    message.params.textDocument = { uri: editor.document.uri.toString() }
-                                }
-
                                 const chatRequest = await encryptRequest<ChatParams>(message.params, encryptionKey)
                                 try {
                                     const chatResult = await languageClient.sendRequest(chatRequestType, {
