@@ -3,6 +3,7 @@ import { ChatResult } from '@aws/language-server-runtimes/protocol'
 import { AgenticChatResultStream } from './agenticChatResultStream'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 
+// TODO: renable this test suite and update the following tests.
 xdescribe('agenticChatResponse', function () {
     let output: (ChatResult | string)[] = []
     const logging = new TestFeatures().logging
@@ -68,5 +69,18 @@ xdescribe('agenticChatResponse', function () {
         await writer.close()
 
         assert.ok(chatResultStream.getResultStreamWriter())
+    })
+
+    it('allows blocks to overwritten on id', async function () {
+        const first = await chatResultStream.writeResultBlock({ body: 'first' })
+        const second = await chatResultStream.writeResultBlock({ body: 'second' })
+        await chatResultStream.writeResultBlock({ body: 'third' })
+
+        await chatResultStream.overwriteResultBlock({ body: 'fourth' }, first)
+        await chatResultStream.overwriteResultBlock({ body: 'fifth' }, second)
+
+        assert.deepStrictEqual(chatResultStream.getResult(), {
+            body: `fourth${AgenticChatResultStream.resultDelimiter}fifth${AgenticChatResultStream.resultDelimiter}third`,
+        })
     })
 })
