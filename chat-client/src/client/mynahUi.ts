@@ -13,6 +13,7 @@ import {
     isValidAuthFollowUpType,
 } from '@aws/chat-client-ui-types'
 import {
+    ButtonClickParams,
     ChatMessage,
     ChatResult,
     ContextCommand,
@@ -43,7 +44,7 @@ import { ExportTabBarButtonId, TabFactory } from './tabs/tabFactory'
 import { disclaimerAcknowledgeButtonId, disclaimerCard } from './texts/disclaimer'
 import { ChatClientAdapter, ChatEventHandler } from '../contracts/chatClientAdapter'
 import { withAdapter } from './withAdapter'
-import { toMynahButtons, toMynahHeader, toMynahIcon } from './utils'
+import { toDetailsWithoutIcon, toMynahButtons, toMynahHeader, toMynahIcon } from './utils'
 import { ChatHistory, ChatHistoryList } from './features/history'
 import { pairProgrammingModeOff, pairProgrammingModeOn, programmerModeCard } from './texts/pairProgramming'
 
@@ -195,8 +196,8 @@ export const createMynahUi = (
             messager.onUiReady()
             messager.onTabAdd(initialTabId)
         },
-        onFileClick: (tabId: string, filePath: string) => {
-            messager.onFileClick({ tabId, filePath })
+        onFileClick: (tabId, filePath, deleted, messageId, eventId) => {
+            messager.onFileClick({ tabId, filePath, messageId })
         },
         onTabAdd: (tabId: string) => {
             const defaultTabBarData = tabFactory.getDefaultTabData()
@@ -311,6 +312,13 @@ export const createMynahUi = (
                 Object.keys(mynahUi.getAllTabs()).forEach(storeTabKey => {
                     mynahUi.updateStore(storeTabKey, { promptInputStickyCard: null })
                 })
+            } else {
+                const payload: ButtonClickParams = {
+                    tabId,
+                    messageId,
+                    buttonId: action.id,
+                }
+                messager.onButtonClick(payload)
             }
         },
         onContextSelected: (contextItem, tabId) => {
@@ -384,6 +392,9 @@ export const createMynahUi = (
                 })
             }
         },
+        onStopChatResponse: tabId => {
+            messager.onStopChatResponse(tabId)
+        },
     }
 
     const mynahUiProps: MynahUIProps = {
@@ -440,7 +451,7 @@ export const createMynahUi = (
         return tabId ?? createTabId()
     }
 
-    const contextListToHeader = (contextList?: ChatResult['contextList']) => {
+    const contextListToHeader = (contextList?: ChatResult['contextList']): ChatItem['header'] => {
         if (contextList === undefined) {
             return undefined
         }
@@ -489,12 +500,25 @@ export const createMynahUi = (
 
             chatResult.additionalMessages.forEach(am => {
                 const contextHeader = contextListToHeader(am.contextList)
+                const header = contextHeader || toMynahHeader(am.header) // Is this mutually exclusive?
 
-                const chatItem = {
+                const chatItem: ChatItem = {
                     messageId: am.messageId,
                     body: am.body,
                     type: ChatItemType.ANSWER,
-                    header: contextHeader || toMynahHeader(am.header), // Is this mutually exclusive?
+                    header:
+                        am.type === 'tool' && am.header?.fileList && am.header.buttons
+                            ? {
+                                  ...header,
+                                  fileList: {
+                                      ...header?.fileList,
+                                      fileTreeTitle: '',
+                                      hideFileCount: true,
+                                      details: toDetailsWithoutIcon(header?.fileList?.details),
+                                  },
+                                  buttons: header?.buttons?.map(button => ({ ...button, status: 'clear' })),
+                              }
+                            : header,
                     buttons: toMynahButtons(am.buttons),
 
                     // file diffs in the header need space
