@@ -28,6 +28,7 @@ const LIBRARY_DIR = (() => {
     }
     return path.join(__dirname, 'indexing')
 })()
+const dynamicVecLibImport = new Function('path', 'return import(path)')
 
 export interface SizeConstraints {
     maxFileSize: number
@@ -141,7 +142,7 @@ export class LocalProjectContextController {
             )
 
             const libraryPath = this.getVectorLibraryPath()
-            const vecLib = vectorLib ?? (await eval(`import("${libraryPath}")`))
+            const vecLib = vectorLib ?? (await dynamicVecLibImport(libraryPath))
             if (vecLib) {
                 this._vecLib = await vecLib.start(LIBRARY_DIR, this.clientName, this.indexCacheDirPath)
                 void this.buildIndex()
