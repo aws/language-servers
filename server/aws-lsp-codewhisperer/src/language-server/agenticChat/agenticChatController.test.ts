@@ -331,6 +331,7 @@ describe('AgenticChatController', () => {
                 additionalMessages: [],
                 body: '\n\nHello World!',
                 messageId: 'mock-message-id',
+                buttons: [],
             })
         })
 
@@ -858,6 +859,7 @@ describe('AgenticChatController', () => {
                 additionalMessages: [],
                 body: '\n\nHello World!',
                 messageId: 'mock-message-id',
+                buttons: [],
             })
         })
 
@@ -874,6 +876,7 @@ describe('AgenticChatController', () => {
                 additionalMessages: [],
                 body: '\n\nHello World!',
                 messageId: 'mock-message-id',
+                buttons: [],
             })
         })
 
