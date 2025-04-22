@@ -40,7 +40,9 @@ describe('QConfigurationServerToken', () => {
         testFeatures = new TestFeatures()
         testFeatures.lsp.getClientInitializeParams.returns(getInitializeParams())
 
-        amazonQServiceManager = AmazonQTokenServiceManager.getInstance(testFeatures)
+        AmazonQTokenServiceManager.resetInstance()
+        AmazonQTokenServiceManager.initInstance(testFeatures)
+        amazonQServiceManager = AmazonQTokenServiceManager.getInstance()
 
         const codeWhispererService = stubInterface<CodeWhispererServiceToken>()
         const configurationServer: Server = QConfigurationServerToken()
@@ -59,7 +61,6 @@ describe('QConfigurationServerToken', () => {
     afterEach(() => {
         sinon.restore()
         testFeatures.dispose()
-        AmazonQTokenServiceManager.resetInstance()
     })
 
     it(`calls all list methods when ${Q_CONFIGURATION_SECTION} is requested`, () => {
@@ -104,18 +105,21 @@ describe('ServerConfigurationProvider', () => {
         testFeatures.lsp.getClientInitializeParams.returns(getInitializeParams(developerProfiles))
 
         AmazonQTokenServiceManager.resetInstance()
+        AmazonQTokenServiceManager.initInstance(testFeatures)
+        amazonQServiceManager = AmazonQTokenServiceManager.getInstance()
 
-        amazonQServiceManager = AmazonQTokenServiceManager.getInstance(testFeatures)
         amazonQServiceManager.setServiceFactory(sinon.stub().returns(codeWhispererService))
         serverConfigurationProvider = new ServerConfigurationProvider(
-            amazonQServiceManager,
             testFeatures.credentialsProvider,
             testFeatures.logging
         )
 
+        // trigger initialization
+        serverConfigurationProvider['listAllAvailableProfilesHandler']
+
         listAvailableProfilesHandlerSpy = sinon.spy(
             serverConfigurationProvider,
-            'listAllAvailableProfilesHandler' as keyof ServerConfigurationProvider
+            'cachedListAllAvailableProfilesHandler' as keyof ServerConfigurationProvider
         )
     }
 

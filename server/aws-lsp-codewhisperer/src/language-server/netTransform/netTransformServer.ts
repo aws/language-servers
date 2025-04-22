@@ -7,7 +7,6 @@ import {
     Workspace,
     Logging,
 } from '@aws/language-server-runtimes/server-interface'
-import { CodeWhispererServiceToken } from '../../shared/codeWhispererService'
 import {
     emitTransformationJobArtifactsDownloadedFailure,
     emitTransformationJobArtifactsDownloadedTelemetry,
@@ -45,6 +44,7 @@ const CancelTransformCommand = 'aws/qNetTransform/cancelTransform'
 const DownloadArtifactsCommand = 'aws/qNetTransform/downloadArtifacts'
 import { SDKInitializator } from '@aws/language-server-runtimes/server-interface'
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
+import { AmazonQServiceAPI } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
 
 /**
  *
@@ -52,19 +52,11 @@ import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/A
  * @returns  NetTransform server
  */
 export const QNetTransformServerToken =
-    (
-        service: (
-            credentialsProvider: CredentialsProvider,
-            workspace: Workspace,
-            logging: Logging,
-            awsQRegion: string,
-            awsQEndpointUrl: string,
-            sdkInitializator: SDKInitializator
-        ) => CodeWhispererServiceToken
-    ): Server =>
+    (): Server =>
     ({ credentialsProvider, workspace, logging, lsp, telemetry, runtime, sdkInitializator }) => {
-        let amazonQServiceManager: AmazonQTokenServiceManager
-        let transformHandler: TransformHandler
+        const amazonQService = new AmazonQServiceAPI(() => AmazonQTokenServiceManager.getInstance())
+        const transformHandler = new TransformHandler(amazonQService, workspace, logging, runtime)
+
         const runTransformCommand = async (params: ExecuteCommandParams, _token: CancellationToken) => {
             try {
                 switch (params.command) {
@@ -182,24 +174,6 @@ export const QNetTransformServerToken =
         }
 
         const onInitializeHandler = async (params: InitializeParams) => {
-            amazonQServiceManager = AmazonQTokenServiceManager.getInstance({
-                lsp,
-                logging,
-                runtime,
-                credentialsProvider,
-                sdkInitializator,
-                workspace,
-            })
-
-            transformHandler = new TransformHandler(amazonQServiceManager, workspace, logging, runtime)
-
-            /* 
-                    Calling handleDidChangeConfiguration once to ensure we get configuration atleast once at start up
-                    
-                    TODO: TODO: consider refactoring such responsibilities to common service manager config/initialisation server
-                */
-            await amazonQServiceManager.handleDidChangeConfiguration()
-
             return {
                 capabilities: {
                     executeCommandProvider: {

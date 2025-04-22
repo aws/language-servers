@@ -63,6 +63,7 @@ class HelloWorld
 
             // Start the server and open a document
             await features.start(server)
+            await TestAmazonQServiceManager.getInstance()['handleDidChangeConfiguration']()
 
             features.openDocument(SOME_FILE)
         })

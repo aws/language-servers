@@ -6,16 +6,20 @@
 import { CancellationToken, Server } from '@aws/language-server-runtimes/server-interface'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import sinon from 'ts-sinon'
+import { expect } from 'chai'
 import { AgenticChatController } from './agenticChatController'
 import { ChatSessionManagementService } from '../chat/chatSessionManagementService'
 import { QAgenticChatServer } from './qAgenticChatServer'
-import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
-import { ChatController } from '../chat/chatController'
+import {
+    AmazonQServiceToken,
+    AmazonQTokenServiceManager,
+} from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
+import { AmazonQServiceBase } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
 
 describe('QAgenticChatServer', () => {
     const mockTabId = 'mockTabId'
     let disposeStub: sinon.SinonStub
-    let withAmazonQServiceManagerSpy: sinon.SinonSpy
+    let withAmazonQServiceSpy: sinon.SinonSpy<[amazonQService: AmazonQServiceBase], ChatSessionManagementService>
     let testFeatures: TestFeatures
     let amazonQServiceManager: AmazonQTokenServiceManager
     let disposeServer: () => void
@@ -47,11 +51,14 @@ describe('QAgenticChatServer', () => {
         }
         testFeatures.lsp.getClientInitializeParams.returns(cachedInitializeParams)
 
-        amazonQServiceManager = AmazonQTokenServiceManager.getInstance(testFeatures)
+        AmazonQTokenServiceManager.resetInstance()
+
+        AmazonQTokenServiceManager.initInstance(testFeatures)
+        amazonQServiceManager = AmazonQTokenServiceManager.getInstance()
 
         disposeStub = sinon.stub(ChatSessionManagementService.prototype, 'dispose')
         chatSessionManagementService = ChatSessionManagementService.getInstance()
-        withAmazonQServiceManagerSpy = sinon.spy(chatSessionManagementService, 'withAmazonQServiceManager')
+        withAmazonQServiceSpy = sinon.spy(chatSessionManagementService, 'withAmazonQService')
 
         const chatServerFactory: Server = QAgenticChatServer()
 
@@ -69,7 +76,8 @@ describe('QAgenticChatServer', () => {
     })
 
     it('should initialize ChatSessionManagementService with AmazonQTokenServiceManager instance', () => {
-        sinon.assert.calledOnceWithExactly(withAmazonQServiceManagerSpy, amazonQServiceManager)
+        sinon.assert.calledOnce(withAmazonQServiceSpy)
+        expect(withAmazonQServiceSpy.firstCall.firstArg['cachedServiceManager']).to.deep.equal(amazonQServiceManager)
     })
 
     it('dispose should dispose all chat session services', () => {

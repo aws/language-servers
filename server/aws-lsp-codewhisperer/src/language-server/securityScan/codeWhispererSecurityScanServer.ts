@@ -20,6 +20,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 import { hasConnectionExpired } from '../../shared/utils'
 import { AmazonQServiceConnectionExpiredError } from '../../shared/amazonQServiceManager/errors'
+import { AmazonQServiceAPI } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
 
 const RunSecurityScanCommand = 'aws/codewhisperer/runSecurityScan'
 const CancelSecurityScanCommand = 'aws/codewhisperer/cancelSecurityScan'
@@ -27,8 +28,8 @@ const CancelSecurityScanCommand = 'aws/codewhisperer/cancelSecurityScan'
 export const SecurityScanServerToken =
     (): Server =>
     ({ credentialsProvider, workspace, logging, lsp, telemetry, runtime, sdkInitializator }) => {
-        let amazonQServiceManager: AmazonQTokenServiceManager
-        let scanHandler: SecurityScanHandler
+        const amazonQService = new AmazonQServiceAPI(() => AmazonQTokenServiceManager.getInstance())
+        const scanHandler = new SecurityScanHandler(amazonQService, workspace, logging)
 
         const diagnosticsProvider = new SecurityScanDiagnosticsProvider(lsp, logging)
 
@@ -240,27 +241,8 @@ export const SecurityScanServerToken =
             }
         }
 
-        const onInitializedHandler = async () => {
-            amazonQServiceManager = AmazonQTokenServiceManager.getInstance({
-                lsp,
-                logging,
-                runtime,
-                credentialsProvider,
-                sdkInitializator,
-                workspace,
-            })
-            scanHandler = new SecurityScanHandler(amazonQServiceManager, workspace, logging)
-            /* 
-                        Calling handleDidChangeConfiguration once to ensure we get configuration atleast once at start up
-                        
-                        TODO: TODO: consider refactoring such responsibilities to common service manager config/initialisation server
-                    */
-            await amazonQServiceManager.handleDidChangeConfiguration()
-        }
-
         lsp.onExecuteCommand(onExecuteCommandHandler)
         lsp.addInitializer(onInitializeHandler)
-        lsp.onInitialized(onInitializedHandler)
         lsp.onDidChangeTextDocument(async p => {
             const textDocument = await workspace.getTextDocument(p.textDocument.uri)
             const languageId = getSupportedLanguageId(textDocument, supportedSecurityScanLanguages)

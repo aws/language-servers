@@ -26,7 +26,11 @@ import { DocumentContextExtractor } from './contexts/documentContext'
 import * as utils from './utils'
 import { DEFAULT_HELP_FOLLOW_UP_PROMPT, HELP_MESSAGE } from './constants'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
-import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
+import {
+    AmazonQServiceToken,
+    AmazonQTokenServiceManager,
+} from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
+import { AmazonQServiceAPI } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
 
 describe('ChatController', () => {
     const mockTabId = 'tab-1'
@@ -96,7 +100,7 @@ describe('ChatController', () => {
     let emitConversationMetricStub: sinon.SinonStub
 
     let testFeatures: TestFeatures
-    let amazonQServiceManager: AmazonQTokenServiceManager
+    let amazonQService: AmazonQServiceToken
     let chatSessionManagementService: ChatSessionManagementService
     let chatController: ChatController
     let telemetryService: TelemetryService
@@ -143,9 +147,11 @@ describe('ChatController', () => {
 
         AmazonQTokenServiceManager.resetInstance()
 
-        amazonQServiceManager = AmazonQTokenServiceManager.getInstance(testFeatures)
+        AmazonQTokenServiceManager.initInstance(testFeatures)
+        amazonQService = new AmazonQServiceAPI(() => AmazonQTokenServiceManager.getInstance())
+
         chatSessionManagementService = ChatSessionManagementService.getInstance()
-        chatSessionManagementService.withAmazonQServiceManager(amazonQServiceManager)
+        chatSessionManagementService.withAmazonQService(amazonQService)
 
         const mockCredentialsProvider: CredentialsProvider = {
             hasCredentials: sinon.stub().returns(true),
@@ -164,12 +170,12 @@ describe('ChatController', () => {
             onClientTelemetry: sinon.stub(),
         }
 
-        telemetryService = new TelemetryService(amazonQServiceManager, mockCredentialsProvider, telemetry, logging)
+        telemetryService = new TelemetryService(amazonQService, mockCredentialsProvider, telemetry, logging)
         chatController = new ChatController(
             chatSessionManagementService,
             testFeatures,
             telemetryService,
-            amazonQServiceManager
+            amazonQService
         )
     })
 

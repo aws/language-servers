@@ -1,15 +1,16 @@
 import { CancellationToken, Server } from '@aws/language-server-runtimes/server-interface'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import sinon from 'ts-sinon'
+import { expect } from 'chai'
 import { ChatController } from './chatController'
 import { ChatSessionManagementService } from './chatSessionManagementService'
 import { QChatServerFactory } from './qChatServer'
-import { TestAmazonQServiceManager } from '../../shared/amazonQServiceManager/testUtils'
+import { initBaseTestServiceManager, TestAmazonQServiceManager } from '../../shared/amazonQServiceManager/testUtils'
 
 describe('QChatServer', () => {
     const mockTabId = 'mockTabId'
     let disposeStub: sinon.SinonStub
-    let withAmazonQServiceManagerSpy: sinon.SinonSpy
+    let withAmazonQServiceSpy: sinon.SinonSpy
     let testFeatures: TestFeatures
     let amazonQServiceManager: TestAmazonQServiceManager
     let disposeServer: () => void
@@ -31,10 +32,11 @@ describe('QChatServer', () => {
         }
         testFeatures.lsp.getClientInitializeParams.returns(cachedInitializeParams)
 
-        amazonQServiceManager = TestAmazonQServiceManager.getInstance(testFeatures)
+        TestAmazonQServiceManager.resetInstance()
+        amazonQServiceManager = initBaseTestServiceManager(testFeatures)
         disposeStub = sinon.stub(ChatSessionManagementService.prototype, 'dispose')
         chatSessionManagementService = ChatSessionManagementService.getInstance()
-        withAmazonQServiceManagerSpy = sinon.spy(chatSessionManagementService, 'withAmazonQServiceManager')
+        withAmazonQServiceSpy = sinon.spy(chatSessionManagementService, 'withAmazonQService')
 
         const chatServerFactory: Server = QChatServerFactory(() => amazonQServiceManager)
 
@@ -51,7 +53,8 @@ describe('QChatServer', () => {
     })
 
     it('should initialize ChatSessionManagementService with AmazonQTokenServiceManager instance', () => {
-        sinon.assert.calledOnceWithExactly(withAmazonQServiceManagerSpy, amazonQServiceManager)
+        sinon.assert.calledOnce(withAmazonQServiceSpy)
+        expect(withAmazonQServiceSpy.firstCall.firstArg['cachedServiceManager']).to.deep.equal(amazonQServiceManager)
     })
 
     it('dispose should dispose all chat session services', () => {

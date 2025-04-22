@@ -41,12 +41,12 @@ import {
 } from '../../shared/amazonQServiceManager/errors'
 import {
     AmazonQBaseServiceManager,
-    QServiceManagerFeatures,
+    AmazonQServiceAPI,
 } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
-import { initBaseTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
+import { getOrThrowBaseTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
-import { initBaseIAMServiceManager } from '../../shared/amazonQServiceManager/AmazonQIAMServiceManager'
 import { hasConnectionExpired } from '../../shared/utils'
+import { getOrThrowBaseIAMServiceManager } from '../../shared/amazonQServiceManager/AmazonQIAMServiceManager'
 
 const EMPTY_RESULT = { sessionId: '', items: [] }
 export const CONTEXT_CHARACTERS_LIMIT = 10240
@@ -238,26 +238,41 @@ interface AcceptedInlineSuggestionEntry extends AcceptedSuggestionEntry {
 }
 
 export const CodewhispererServerFactory =
-    (serviceManager: (features: QServiceManagerFeatures) => AmazonQBaseServiceManager): Server =>
+    (getServiceManager: () => AmazonQBaseServiceManager): Server =>
     ({ credentialsProvider, lsp, workspace, telemetry, logging, runtime, sdkInitializator }) => {
         let lastUserModificationTime: number
         let timeSinceLastUserModification: number = 0
 
         const sessionManager = SessionManager.getInstance()
 
-        // AmazonQTokenServiceManager and TelemetryService are initialized in `onInitialized` handler to make sure Language Server connection is started
-        let amazonQServiceManager: AmazonQBaseServiceManager
-        let telemetryService: TelemetryService
+        const amazonQService = new AmazonQServiceAPI(getServiceManager)
+        const telemetryService = new TelemetryService(amazonQService, credentialsProvider, telemetry, logging)
 
         lsp.addInitializer((params: InitializeParams) => {
+            telemetryService.updateUserContext(makeUserContextObject(params, runtime.platform, 'INLINE'))
+
             return {
                 capabilities: {},
             }
         })
 
-        // CodePercentage and codeDiff tracker have a dependency on TelemetryService, so initialization is also delayed to `onInitialized` handler
-        let codePercentageTracker: CodePercentageTracker
-        let codeDiffTracker: CodeDiffTracker<AcceptedInlineSuggestionEntry>
+        const codePercentageTracker = new CodePercentageTracker(telemetryService)
+        const codeDiffTracker = new CodeDiffTracker(
+            workspace,
+            logging,
+            async (entry: AcceptedInlineSuggestionEntry, percentage, unmodifiedAcceptedCharacterCount) => {
+                await telemetryService.emitUserModificationEvent({
+                    sessionId: entry.sessionId,
+                    requestId: entry.requestId,
+                    languageId: entry.languageId,
+                    customizationArn: entry.customizationArn,
+                    timestamp: new Date(),
+                    acceptedCharacterCount: entry.originalString.length,
+                    modificationPercentage: percentage,
+                    unmodifiedAcceptedCharacterCount: unmodifiedAcceptedCharacterCount,
+                })
+            }
+        )
 
         const onInlineCompletionHandler = async (
             params: InlineCompletionWithReferencesParams,
@@ -318,7 +333,7 @@ export const CodewhispererServerFactory =
                         return EMPTY_RESULT
                     }
 
-                    const codeWhispererService = amazonQServiceManager.getCodewhispererService()
+                    const codeWhispererService = amazonQService.getCodewhispererService()
                     // supplementalContext available only via token authentication
                     const supplementalContextPromise =
                         codeWhispererService instanceof CodeWhispererServiceToken
@@ -367,11 +382,12 @@ export const CodewhispererServerFactory =
                     })
 
                     // Add extra context to request context
-                    const { extraContext } = amazonQServiceManager.getConfiguration().inlineSuggestions
+                    const {extraContext} = amazonQService.getConfiguration().inlineSuggestions
                     if (extraContext) {
                         requestContext.fileContext.leftFileContent = extraContext + '\n' + requestContext.fileContext.leftFileContent
                     }
-                    return codeWhispererService.generateSuggestions({
+
+                return codeWhispererService.generateSuggestions({
                         ...requestContext,
                         fileContext: {
                             ...requestContext.fileContext,
@@ -431,7 +447,7 @@ export const CodewhispererServerFactory =
                                     // the response. No locking or concurrency controls, filtering is done
                                     // right before returning and is only guaranteed to be consistent within
                                     // the context of a single response.
-                                    const { includeSuggestionsWithCodeReferences } = amazonQServiceManager.getConfiguration()
+                                    const { includeSuggestionsWithCodeReferences } = amazonQService.getConfiguration()
                                     if (includeSuggestionsWithCodeReferences) {
                                         return true
                                     }
@@ -598,50 +614,7 @@ export const CodewhispererServerFactory =
         }
 
         const onInitializedHandler = async () => {
-            amazonQServiceManager = serviceManager({
-                credentialsProvider,
-                lsp,
-                logging,
-                runtime,
-                sdkInitializator,
-                workspace,
-            })
-
-            const clientParams = safeGet(
-                lsp.getClientInitializeParams(),
-                new AmazonQServiceInitializationError(
-                    'TelemetryService initialized before LSP connection was initialized.'
-                )
-            )
-
-            telemetryService = new TelemetryService(amazonQServiceManager, credentialsProvider, telemetry, logging)
-            telemetryService.updateUserContext(makeUserContextObject(clientParams, runtime.platform, 'INLINE'))
-
-            codePercentageTracker = new CodePercentageTracker(telemetryService)
-            codeDiffTracker = new CodeDiffTracker(
-                workspace,
-                logging,
-                async (entry: AcceptedInlineSuggestionEntry, percentage, unmodifiedAcceptedCharacterCount) => {
-                    await telemetryService.emitUserModificationEvent({
-                        sessionId: entry.sessionId,
-                        requestId: entry.requestId,
-                        languageId: entry.languageId,
-                        customizationArn: entry.customizationArn,
-                        timestamp: new Date(),
-                        acceptedCharacterCount: entry.originalString.length,
-                        modificationPercentage: percentage,
-                        unmodifiedAcceptedCharacterCount: unmodifiedAcceptedCharacterCount,
-                    })
-                }
-            )
-
-            /* 
-                            Calling handleDidChangeConfiguration once to ensure we get configuration atleast once at start up
-                            
-                            TODO: TODO: consider refactoring such responsibilities to common service manager config/initialisation server
-                        */
-            await amazonQServiceManager.handleDidChangeConfiguration()
-            await amazonQServiceManager.addDidChangeConfigurationListener(updateConfiguration)
+            await amazonQService.addDidChangeConfigurationListener(updateConfiguration)
         }
 
         lsp.extensions.onInlineCompletionWithReferences(onInlineCompletionHandler)
@@ -670,10 +643,10 @@ export const CodewhispererServerFactory =
         logging.log('Amazon Q Inline Suggestion server has been initialised')
 
         return async () => {
-            codePercentageTracker?.dispose()
-            await codeDiffTracker?.shutdown()
+            codePercentageTracker.dispose()
+            await codeDiffTracker.shutdown()
         }
     }
 
-export const CodeWhispererServerIAM = CodewhispererServerFactory(initBaseIAMServiceManager)
-export const CodeWhispererServerToken = CodewhispererServerFactory(initBaseTokenServiceManager)
+export const CodeWhispererServerIAM = CodewhispererServerFactory(getOrThrowBaseIAMServiceManager)
+export const CodeWhispererServerToken = CodewhispererServerFactory(getOrThrowBaseTokenServiceManager)

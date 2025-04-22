@@ -51,7 +51,7 @@ import {
 } from '../../shared/amazonQServiceManager/errors'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
-import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
+import { AmazonQServiceBase } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
 import { SendMessageCommandInput, SendMessageCommandOutput } from '../../shared/streamingClientService'
 
 type ChatHandlers = Omit<
@@ -76,20 +76,20 @@ export class ChatController implements ChatHandlers {
     #triggerContext: QChatTriggerContext
     #customizationArn?: string
     #telemetryService: TelemetryService
-    #amazonQServiceManager: AmazonQBaseServiceManager
+    #amazonQService: AmazonQServiceBase
 
     constructor(
         chatSessionManagementService: ChatSessionManagementService,
         features: Features,
         telemetryService: TelemetryService,
-        amazonQServiceManager: AmazonQBaseServiceManager
+        amazonQService: AmazonQServiceBase
     ) {
         this.#features = features
         this.#chatSessionManagementService = chatSessionManagementService
         this.#triggerContext = new QChatTriggerContext(features.workspace, features.logging)
         this.#telemetryController = new ChatTelemetryController(features, telemetryService)
         this.#telemetryService = telemetryService
-        this.#amazonQServiceManager = amazonQServiceManager
+        this.#amazonQService = amazonQService
     }
 
     dispose() {
@@ -263,7 +263,7 @@ export class ChatController implements ChatHandlers {
                 this.#customizationArn
             )
 
-            const client = this.#amazonQServiceManager.getStreamingClient()
+            const client = this.#amazonQService.getStreamingClient()
             response = await client.sendMessage(requestInput)
             this.#log('Response for inline chat', JSON.stringify(response.$metadata), JSON.stringify(response))
         } catch (err) {
