@@ -195,8 +195,8 @@ export const createMynahUi = (
             messager.onUiReady()
             messager.onTabAdd(initialTabId)
         },
-        onFileClick: (tabId: string, filePath: string) => {
-            messager.onFileClick({ tabId, filePath })
+        onFileClick: (tabId, filePath, deleted, messageId, eventId) => {
+            messager.onFileClick({ tabId, filePath, messageId })
         },
         onTabAdd: (tabId: string) => {
             const defaultTabBarData = tabFactory.getDefaultTabData()

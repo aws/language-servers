@@ -419,20 +419,32 @@ export class AgenticChatController implements ChatHandlers {
 
         for (const toolUse of toolUses) {
             if (!toolUse.name || !toolUse.toolUseId) continue
+            this.#triggerContext.getToolUseLookup().set(toolUse.toolUseId, toolUse)
 
             try {
-                if (toolUse.name === 'fsRead' || toolUse.name === 'listDirectory') {
-                    const initialReadOrListResult = this.#processReadOrList(toolUse, chatResultStream)
-                    if (initialReadOrListResult) {
-                        await chatResultStream.writeResultBlock(initialReadOrListResult)
-                    }
-                } else if (toolUse.name === 'fsWrite' || toolUse.name === 'executeBash') {
-                    // todo: pending tool use cards?
-                } else {
-                    await chatResultStream.writeResultBlock({
-                        body: `${executeToolMessage(toolUse)}`,
-                        messageId: toolUse.toolUseId,
-                    })
+                switch (toolUse.name) {
+                    case 'fsRead':
+                    case 'listDirectory':
+                        const initialReadOrListResult = this.#processReadOrList(toolUse, chatResultStream)
+                        if (initialReadOrListResult) {
+                            await chatResultStream.writeResultBlock(initialReadOrListResult)
+                        }
+                        break
+                    case 'fsWrite':
+                        const input = toolUse.input as unknown as FsWriteParams
+                        const document = await this.#triggerContext.getTextDocument(input.path)
+                        this.#triggerContext
+                            .getToolUseLookup()
+                            .set(toolUse.toolUseId, { ...toolUse, oldContent: document?.getText() })
+                        break
+                    case 'executeBash':
+                        break
+                    default:
+                        await chatResultStream.writeResultBlock({
+                            body: `${executeToolMessage(toolUse)}`,
+                            messageId: toolUse.toolUseId,
+                        })
+                        break
                 }
 
                 const result = await this.#features.agent.runTool(toolUse.name, toolUse.input)
@@ -855,14 +867,26 @@ export class AgenticChatController implements ChatHandlers {
         // TODO: also pass in selection and handle on client side
         const workspaceRoot = workspaceUtils.getWorkspaceFolderPaths(this.#features.lsp)[0]
         let absolutePath = path.join(workspaceRoot, params.filePath)
-        // handle prompt file outside of workspace
-        if (params.filePath.endsWith(promptFileExtension)) {
-            const existsInWorkspace = await this.#features.workspace.fs.exists(absolutePath)
-            if (!existsInWorkspace) {
-                absolutePath = path.join(getUserPromptsDirectory(), params.filePath)
+
+        const toolUseId = params.messageId
+        const toolUse = toolUseId ? this.#triggerContext.getToolUseLookup().get(toolUseId) : undefined
+        if (toolUse?.name === 'fsWrite') {
+            // TODO: since the tool already executed, we need to reverse the old/new content for the diff
+            this.#features.lsp.workspace.openFileDiff({
+                originalFileUri: absolutePath,
+                isDeleted: false,
+                fileContent: toolUse.oldContent,
+            })
+        } else {
+            // handle prompt file outside of workspace
+            if (params.filePath.endsWith(promptFileExtension)) {
+                const existsInWorkspace = await this.#features.workspace.fs.exists(absolutePath)
+                if (!existsInWorkspace) {
+                    absolutePath = path.join(getUserPromptsDirectory(), params.filePath)
+                }
             }
+            await this.#features.lsp.window.showDocument({ uri: absolutePath })
         }
-        await this.#features.lsp.window.showDocument({ uri: absolutePath })
     }
 
     onFollowUpClicked() {}

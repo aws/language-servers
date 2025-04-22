@@ -10,6 +10,7 @@ import {
     AdditionalContentEntry,
     GenerateAssistantResponseCommandInput,
     ChatMessage,
+    ToolUse,
 } from '@amzn/codewhisperer-streaming'
 import {
     BedrockTools,
@@ -54,12 +55,14 @@ export class AgenticChatTriggerContext {
     #lsp: Features['lsp']
     #logging: Features['logging']
     #documentContextExtractor: DocumentContextExtractor
+    #toolUseLookup: Map<string, ToolUse & { oldContent?: string }>
 
     constructor({ workspace, lsp, logging }: Pick<Features, 'workspace' | 'lsp' | 'logging'> & Partial<Features>) {
         this.#workspace = workspace
         this.#lsp = lsp
         this.#logging = logging
         this.#documentContextExtractor = new DocumentContextExtractor({ logger: logging, workspace })
+        this.#toolUseLookup = new Map()
     }
 
     async getNewTriggerContext(params: ChatParams | InlineChatParams): Promise<TriggerContext> {
@@ -255,5 +258,9 @@ export class AgenticChatTriggerContext {
             this.#logging.error(`Error querying query vector index to get relevant documents: ${e}`)
             return []
         }
+    }
+
+    getToolUseLookup() {
+        return this.#toolUseLookup
     }
 }
