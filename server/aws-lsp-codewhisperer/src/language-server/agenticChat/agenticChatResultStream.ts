@@ -58,6 +58,7 @@ export class AgenticChatResultStream {
                 if (c.messageId === this.#state.messageId) {
                     return {
                         ...acc,
+                        buttons: [...(acc.buttons ?? []), ...(c.buttons ?? [])],
                         body: acc.body + AgenticChatResultStream.resultDelimiter + c.body,
                     }
                 } else if (acc.additionalMessages!.some(am => am.messageId === c.messageId)) {
@@ -65,6 +66,10 @@ export class AgenticChatResultStream {
                         ...acc,
                         additionalMessages: acc.additionalMessages!.map(am => ({
                             ...am,
+                            buttons:
+                                am.messageId === c.messageId
+                                    ? [...(am.buttons ?? []), ...(c.buttons ?? [])]
+                                    : am.buttons,
                             body:
                                 am.messageId === c.messageId
                                     ? am.body + AgenticChatResultStream.resultDelimiter + c.body

@@ -1,9 +1,9 @@
 // Port from VSC https://github.com/aws/aws-toolkit-vscode/blob/741c2c481bcf0dca2d9554e32dc91d8514b1b1d1/packages/core/src/codewhispererChat/tools/executeBash.ts#L134
 
-import { CommandValidation, InvokeOutput } from './toolShared'
+import { CommandValidation, ExplanatoryParams, InvokeOutput } from './toolShared'
 import { split } from 'shlex'
 import { Logging } from '@aws/language-server-runtimes/server-interface'
-import { processUtils, workspaceUtils } from '@aws/lsp-core'
+import { CancellationError, processUtils, workspaceUtils } from '@aws/lsp-core'
 import { CancellationToken } from 'vscode-languageserver'
 import { ChildProcess, ChildProcessOptions } from '@aws/lsp-core/out/util/processUtils'
 // eslint-disable-next-line import/no-nodejs-modules
@@ -108,10 +108,9 @@ export const lineCount: number = 1024
 export const destructiveCommandWarningMessage = '⚠️ WARNING: Destructive command detected:\n\n'
 export const mutateCommandWarningMessage = 'Mutation command:\n\n'
 
-export interface ExecuteBashParams {
+export interface ExecuteBashParams extends ExplanatoryParams {
     command: string
     cwd?: string
-    explanation?: string
 }
 
 interface TimestampedChunk {
@@ -246,8 +245,7 @@ export class ExecuteBash {
             // Check if cancelled before starting
             if (cancellationToken?.isCancellationRequested) {
                 this.logging.debug('Bash command execution cancelled before starting')
-                reject(new Error('Command execution cancelled'))
-                return
+                throw new CancellationError('user')
             }
 
             this.logging.debug(`Spawning process with command: bash -c "${params.command}" (cwd=${params.cwd})`)
@@ -300,7 +298,7 @@ export class ExecuteBash {
                 onStdout: async (chunk: string) => {
                     if (cancellationToken?.isCancellationRequested) {
                         this.logging.debug('Bash command execution cancelled during stderr processing')
-                        return
+                        throw new CancellationError('user')
                     }
                     const isFirst = getAndSetFirstChunk(false)
                     const timestamp = Date.now()
@@ -315,7 +313,7 @@ export class ExecuteBash {
                 onStderr: async (chunk: string) => {
                     if (cancellationToken?.isCancellationRequested) {
                         this.logging.debug('Bash command execution cancelled during stderr processing')
-                        return
+                        throw new CancellationError('user')
                     }
                     const isFirst = getAndSetFirstChunk(false)
                     const timestamp = Date.now()
@@ -345,8 +343,7 @@ export class ExecuteBash {
                 // Check if cancelled after execution
                 if (cancellationToken?.isCancellationRequested) {
                     this.logging.debug('Bash command execution cancelled after completion')
-                    reject(new Error('Command execution cancelled'))
-                    return
+                    throw new CancellationError('user')
                 }
 
                 const exitStatus = result.exitCode ?? 0
@@ -378,7 +375,7 @@ export class ExecuteBash {
             } catch (err: any) {
                 // Check if this was due to cancellation
                 if (cancellationToken?.isCancellationRequested) {
-                    reject(new Error('Command execution cancelled'))
+                    throw new CancellationError('user')
                 } else {
                     this.logging.error(`Failed to execute bash command '${params.command}': ${err.message}`)
                     reject(new Error(`Failed to execute command: ${err.message}`))

@@ -95,12 +95,12 @@ import { AdditionalContextProvider } from './context/addtionalContextProvider'
 import { getNewPromptFilePath, getUserPromptsDirectory, promptFileExtension } from './context/contextUtils'
 import { ContextCommandsProvider } from './context/contextCommandsProvider'
 import { LocalProjectContextController } from '../../shared/localProjectContextController'
-import { workspaceUtils } from '@aws/lsp-core'
+import { CancellationError, workspaceUtils } from '@aws/lsp-core'
 import { FsReadParams } from './tools/fsRead'
 import { ListDirectoryParams } from './tools/listDirectory'
 import { FsWrite, FsWriteParams, getDiffChanges } from './tools/fsWrite'
 import { ExecuteBash, ExecuteBashOutput, ExecuteBashParams } from './tools/executeBash'
-import { InvokeOutput } from './tools/toolShared'
+import { ExplanatoryParams, InvokeOutput, ToolApprovalException } from './tools/toolShared'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -150,6 +150,7 @@ export class AgenticChatController implements ChatHandlers {
     }
 
     async onButtonClick(params: ButtonClickParams): Promise<ButtonClickResult> {
+        this.#log(`onButtonClick event with params: ${JSON.stringify(params)}`)
         if (params.buttonId === 'run-shell-command' || params.buttonId === 'reject-shell-command') {
             const session = this.#chatSessionManagementService.getSession(params.tabId)
             if (!session.data) {
@@ -162,16 +163,37 @@ export class AgenticChatController implements ChatHandlers {
                     failureReason: `could not find deferred tool execution for message: ${params.messageId} `,
                 }
             }
-            params.buttonId === 'reject-shell-command' ? handler.reject() : handler.resolve()
+            params.buttonId === 'reject-shell-command' ? handler.reject(new ToolApprovalException()) : handler.resolve()
+            return {
+                success: true,
+            }
+        } else if (params.buttonId === 'undo-changes') {
+            const toolUseId = params.messageId
+            try {
+                await this.#undoFileChange(toolUseId)
+            } catch (err: any) {
+                return { success: false, failureReason: err.message }
+            }
             return {
                 success: true,
             }
         } else {
-            this.#log(`onButtonClick event with params: ${JSON.stringify(params)}`)
             return {
                 success: false,
                 failureReason: 'not implemented',
             }
+        }
+    }
+
+    async #undoFileChange(toolUseId: string): Promise<void> {
+        this.#log(`Reverting file change for tooluseId: ${toolUseId}`)
+        const toolUse = this.#triggerContext.getToolUseLookup().get(toolUseId)
+
+        const input = toolUse?.input as unknown as FsWriteParams
+        if (toolUse?.oldContent) {
+            await this.#features.workspace.fs.writeFile(input.path, toolUse.oldContent)
+        } else {
+            await this.#features.workspace.fs.rm(input.path)
         }
     }
 
@@ -261,7 +283,8 @@ export class AgenticChatController implements ChatHandlers {
                 params,
                 session,
                 triggerContext,
-                additionalContext
+                additionalContext,
+                chatResultStream
             )
 
             // Start the agent loop
@@ -270,6 +293,7 @@ export class AgenticChatController implements ChatHandlers {
                 session,
                 metric,
                 chatResultStream,
+                params.tabId,
                 session.conversationId,
                 token,
                 triggerContext.documentReference
@@ -286,7 +310,8 @@ export class AgenticChatController implements ChatHandlers {
                 chatResultStream
             )
         } catch (err) {
-            if (token?.isCancellationRequested) {
+            // TODO: On ToolValidationException, we want to show custom mynah-ui components making it clear it was cancelled.
+            if (CancellationError.isUserCancelled(err) || err instanceof ToolApprovalException) {
                 /**
                  * when the session is aborted it generates an error.
                  * we need to resolve this error with an answer so the
@@ -308,7 +333,8 @@ export class AgenticChatController implements ChatHandlers {
         params: ChatParams,
         session: ChatSessionService,
         triggerContext: TriggerContext,
-        additionalContext: AdditionalContentEntryAddition[]
+        additionalContext: AdditionalContentEntryAddition[],
+        chatResultStream: AgenticChatResultStream
     ): Promise<GenerateAssistantResponseCommandInput> {
         this.#debug('Preparing request input')
         const profileArn = AmazonQTokenServiceManager.getInstance(this.#features).getActiveProfileArn()
@@ -317,6 +343,7 @@ export class AgenticChatController implements ChatHandlers {
             triggerContext,
             ChatTriggerType.MANUAL,
             this.#customizationArn,
+            chatResultStream,
             profileArn,
             this.#chatHistoryDb.getMessages(params.tabId, 10),
             this.#getTools(session),
@@ -334,6 +361,7 @@ export class AgenticChatController implements ChatHandlers {
         session: ChatSessionService,
         metric: Metric<CombinedConversationEvent>,
         chatResultStream: AgenticChatResultStream,
+        tabId: string,
         conversationIdentifier?: string,
         token?: CancellationToken,
         documentReference?: FileList
@@ -350,8 +378,7 @@ export class AgenticChatController implements ChatHandlers {
 
             // Check for cancellation
             if (token?.isCancellationRequested) {
-                this.#debug('Request cancelled during agent loop')
-                break
+                throw new CancellationError('user')
             }
 
             // Phase 3: Request Execution
@@ -381,11 +408,13 @@ export class AgenticChatController implements ChatHandlers {
             }
 
             const currentMessage = currentRequestInput.conversationState?.currentMessage
+            if (currentMessage) {
+                this.#chatHistoryDb.fixHistory(tabId, currentMessage, session.conversationId ?? '')
+            }
 
             // Process tool uses and update the request input for the next iteration
-            const toolResults = await this.#processToolUses(pendingToolUses, chatResultStream, session)
+            const toolResults = await this.#processToolUses(pendingToolUses, chatResultStream, session, token)
             currentRequestInput = this.#updateRequestInputWithToolResults(currentRequestInput, toolResults)
-
             if (!currentRequestInput.conversationState!.history) {
                 currentRequestInput.conversationState!.history = []
             }
@@ -437,7 +466,8 @@ export class AgenticChatController implements ChatHandlers {
     async #processToolUses(
         toolUses: Array<ToolUse & { stop: boolean }>,
         chatResultStream: AgenticChatResultStream,
-        session: ChatSessionService
+        session: ChatSessionService,
+        token?: CancellationToken
     ): Promise<ToolResult[]> {
         const results: ToolResult[] = []
 
@@ -447,6 +477,14 @@ export class AgenticChatController implements ChatHandlers {
             let needsConfirmation
 
             try {
+                const { explanation } = toolUse.input as unknown as ExplanatoryParams
+                if (explanation) {
+                    await chatResultStream.writeResultBlock({
+                        type: 'directive',
+                        messageId: toolUse.toolUseId + '_explanation',
+                        body: explanation,
+                    })
+                }
                 switch (toolUse.name) {
                     case 'fsRead':
                     case 'listDirectory':
@@ -485,16 +523,11 @@ export class AgenticChatController implements ChatHandlers {
                 if (needsConfirmation) {
                     const deferred = this.#createDeferred()
                     session.setDeferredToolExecution(toolUse.toolUseId, deferred.resolve, deferred.reject)
-
-                    // the below line was commented out for now because
-                    // the partial result block from above is not streamed to chat window yet at this point
-                    // so the buttons are not in the window for the promise to be rejected/resolved
-                    // this can to be brought back once intermediate messages are shown
-
-                    // await deferred.promise
+                    this.#log(`Prompting for tool approval for tool: ${toolUse.name}`)
+                    await deferred.promise
                 }
 
-                const result = await this.#features.agent.runTool(toolUse.name, toolUse.input)
+                const result = await this.#features.agent.runTool(toolUse.name, toolUse.input, token)
                 let toolResultContent: ToolResultContentBlock
 
                 if (typeof result === 'string') {
@@ -532,6 +565,10 @@ export class AgenticChatController implements ChatHandlers {
                         break
                 }
             } catch (err) {
+                // If we did not approve a tool to be used or the user stopped the response, bubble this up to interrupt agentic loop
+                if (CancellationError.isUserCancelled(err) || err instanceof ToolApprovalException) {
+                    throw err
+                }
                 const errMsg = err instanceof Error ? err.message : 'unknown error'
                 await chatResultStream.writeResultBlock({
                     body: toolErrorMessage(toolUse, errMsg),
@@ -979,7 +1016,7 @@ export class AgenticChatController implements ChatHandlers {
                     absolutePath = path.join(getUserPromptsDirectory(), params.filePath)
                 }
             }
-            await this.#features.lsp.window.showDocument({ uri: absolutePath })
+            await this.#features.lsp.window.showDocument({ uri: params.filePath })
         }
     }
 
@@ -1227,7 +1264,7 @@ export class AgenticChatController implements ChatHandlers {
         let reject
         const promise = new Promise((res, rej) => {
             resolve = res
-            reject = rej
+            reject = (e: Error) => rej(e)
         })
         return { promise, resolve, reject }
     }

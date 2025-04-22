@@ -15,7 +15,7 @@ export type ChatSessionServiceConfig = CodeWhispererStreamingClientConfig
 
 type DeferredHandler = {
     resolve: () => void
-    reject: () => void
+    reject: (err: Error) => void
 }
 export class ChatSessionService {
     public shareCodeWhispererContentWithAWS = false

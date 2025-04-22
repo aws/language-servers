@@ -26,6 +26,7 @@ import {
     InfoLinkClickParams,
     LinkClickParams,
     ListConversationsResult,
+    OPEN_WORKSPACE_INDEX_SETTINGS_BUTTON_ID,
     OpenTabParams,
     SourceLinkClickParams,
 } from '@aws/language-server-runtimes-types'
@@ -209,11 +210,11 @@ export const createMynahUi = (
                 tabBarButtons: defaultTabBarData.tabBarButtons,
                 contextCommands: [
                     ...(contextCommandGroups || []),
-                    ...(featureConfig?.get('highlightCommands')
+                    ...(featureConfig?.get('highlightCommand')
                         ? [
                               {
                                   groupName: 'Additional commands',
-                                  commands: [toMynahContextCommand(featureConfig.get('highlightCommands'))],
+                                  commands: [toMynahContextCommand(featureConfig.get('highlightCommand'))],
                               },
                           ]
                         : []),
@@ -325,6 +326,8 @@ export const createMynahUi = (
                 Object.keys(mynahUi.getAllTabs()).forEach(storeTabKey => {
                     mynahUi.updateStore(storeTabKey, { promptInputStickyCard: null })
                 })
+            } else if (action.id === OPEN_WORKSPACE_INDEX_SETTINGS_BUTTON_ID) {
+                messager.onOpenSettings('amazonQ.workspaceIndex')
             } else {
                 const payload: ButtonClickParams = {
                     tabId,
@@ -514,7 +517,12 @@ export const createMynahUi = (
             chatResult.additionalMessages.forEach(am => {
                 const chatItem: ChatItem = {
                     messageId: am.messageId,
-                    type: am.type === 'tool' ? ChatItemType.ANSWER : ChatItemType.ANSWER_STREAM,
+                    type:
+                        am.type === 'tool'
+                            ? ChatItemType.ANSWER
+                            : am.type === 'directive'
+                              ? ChatItemType.DIRECTIVE
+                              : ChatItemType.ANSWER_STREAM,
                     ...prepareChatItemFromMessage(am),
                 }
 
@@ -740,11 +748,11 @@ ${params.message}`,
             mynahUi.updateStore(tabId, {
                 contextCommands: [
                     ...(contextCommandGroups || []),
-                    ...(featureConfig?.get('highlightCommands')
+                    ...(featureConfig?.get('highlightCommand')
                         ? [
                               {
                                   groupName: 'Additional commands',
-                                  commands: [toMynahContextCommand(featureConfig.get('highlightCommands'))],
+                                  commands: [toMynahContextCommand(featureConfig.get('highlightCommand'))],
                               },
                           ]
                         : []),
@@ -846,5 +854,5 @@ const uiComponentsTexts = {
     copyToClipboard: 'Copied to clipboard',
     noMoreTabsTooltip: 'You can only open ten conversation tabs at a time.',
     codeSuggestionWithReferenceTitle: 'Some suggestions contain code with references.',
-    spinnerText: 'Generating your answer...',
+    spinnerText: 'Thinking...',
 }

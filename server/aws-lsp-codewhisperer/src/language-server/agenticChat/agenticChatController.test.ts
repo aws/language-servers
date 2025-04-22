@@ -331,6 +331,7 @@ describe('AgenticChatController', () => {
                 additionalMessages: [],
                 body: '\n\nHello World!',
                 messageId: 'mock-message-id',
+                buttons: [],
             })
         })
 
@@ -858,6 +859,7 @@ describe('AgenticChatController', () => {
                 additionalMessages: [],
                 body: '\n\nHello World!',
                 messageId: 'mock-message-id',
+                buttons: [],
             })
         })
 
@@ -874,6 +876,7 @@ describe('AgenticChatController', () => {
                 additionalMessages: [],
                 body: '\n\nHello World!',
                 messageId: 'mock-message-id',
+                buttons: [],
             })
         })
 
@@ -1011,11 +1014,6 @@ describe('AgenticChatController', () => {
                 const calledRequestInput: GenerateAssistantResponseCommandInput =
                     generateAssistantResponseStub.firstCall.firstArg
 
-                console.error(
-                    'OKS: ',
-                    calledRequestInput.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext
-                        ?.editorState
-                )
                 assert.deepStrictEqual(
                     calledRequestInput.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext
                         ?.editorState,

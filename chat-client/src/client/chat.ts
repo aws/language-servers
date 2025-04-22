@@ -31,6 +31,7 @@ import {
     UiResultMessage,
     CHAT_PROMPT_OPTION_ACKNOWLEDGED,
     STOP_CHAT_RESPONSE,
+    OPEN_SETTINGS,
 } from '@aws/chat-client-ui-types'
 import {
     BUTTON_CLICK_REQUEST_METHOD,
@@ -201,16 +202,16 @@ export const createChat = (
                 }
 
                 const allExistingTabs: MynahUITabStoreModel = mynahUi.getAllTabs()
-                const highlightCommands = featureConfig.get('highlightCommands')
+                const highlightCommand = featureConfig.get('highlightCommand')
 
                 for (const tabId in allExistingTabs) {
                     mynahUi.updateStore(tabId, {
                         ...tabFactory.getDefaultTabData(),
-                        contextCommands: highlightCommands
+                        contextCommands: highlightCommand
                             ? [
                                   {
                                       groupName: 'Additional Commands',
-                                      commands: [toMynahContextCommand(highlightCommands)],
+                                      commands: [toMynahContextCommand(highlightCommand)],
                                   },
                               ]
                             : [],
@@ -350,6 +351,9 @@ export const createChat = (
         },
         sendButtonClickEvent: params => {
             sendMessageToClient({ command: BUTTON_CLICK_REQUEST_METHOD, params: params })
+        },
+        onOpenSettings: (settingKey: string) => {
+            sendMessageToClient({ command: OPEN_SETTINGS, params: { settingKey } })
         },
     }
 

@@ -401,7 +401,7 @@ function generateJS(webView: Webview, extensionUri: Uri): string {
 
     const entrypoint = webView.asWebviewUri(chatUri)
     const chatFeatures: Map<string, FeatureContext> = new Map()
-    chatFeatures.set('highlightCommands', {
+    chatFeatures.set('highlightCommand', {
         variation: 'Context commands for chat',
         value: {
             stringValue: '@sage',

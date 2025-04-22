@@ -16,6 +16,7 @@ import {
     Origin,
     UserInputMessageContext,
     UserIntent,
+    ToolUse,
 } from '@amzn/codewhisperer-streaming'
 import { Workspace } from '@aws/language-server-runtimes/server-interface'
 
@@ -65,7 +66,8 @@ export type Message = {
     userIntent?: UserIntent
     origin?: Origin
     userInputMessageContext?: UserInputMessageContext
-    // toolUses?: ToolUse[]
+    toolUses?: ToolUse[]
+    shouldDisplayMessage?: boolean
 }
 
 /**
@@ -78,12 +80,14 @@ export function messageToStreamingMessage(msg: Message): StreamingMessage {
                   messageId: msg.messageId,
                   content: msg.body,
                   references: msg.codeReference || [],
+                  toolUses: msg.toolUses || [],
               },
           }
         : {
               userInputMessage: {
                   content: msg.body,
                   userIntent: msg.userIntent,
+                  origin: msg.origin || 'IDE',
                   userInputMessageContext: msg.userInputMessageContext || {},
               },
           }
