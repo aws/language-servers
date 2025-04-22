@@ -93,7 +93,7 @@ const DEFAULT_TAB_DATA = {
     tabTitle: 'Chat',
     promptInputInfo:
         'Amazon Q Developer uses generative AI. You may need to verify responses. See the [AWS Responsible AI Policy](https://aws.amazon.com/machine-learning/responsible-ai/policy/).',
-    promptInputPlaceholder: 'Ask a question or enter "/" for quick actions',
+    promptInputPlaceholder: 'Ask a question. Use @ to add context, / for quick actions',
 }
 
 type ChatClientConfig = Pick<MynahUIDataModel, 'quickActionCommands'> & {
