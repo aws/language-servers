@@ -335,6 +335,7 @@ export class AgenticChatController implements ChatHandlers {
 
             // Phase 3: Request Execution
             this.#debug(`Request Input: ${JSON.stringify(currentRequestInput)}`)
+
             const response = await session.generateAssistantResponse(currentRequestInput)
             this.#debug(`Response received for iteration ${iterationCount}:`, JSON.stringify(response.$metadata))
 

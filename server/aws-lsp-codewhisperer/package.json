@@ -31,7 +31,7 @@
         "@amzn/codewhisperer-streaming": "file:../../core/codewhisperer-streaming/amzn-codewhisperer-streaming-1.0.4.tgz",
         "@aws-sdk/util-arn-parser": "^3.723.0",
         "@aws-sdk/util-retry": "^3.374.0",
-        "@aws/chat-client-ui-types": "^0.1.16",
+        "@aws/chat-client-ui-types": "^0.1.27",
         "@aws/language-server-runtimes": "^0.2.72",
         "@aws/lsp-core": "^0.0.3",
         "@smithy/node-http-handler": "^2.5.0",

@@ -44,7 +44,7 @@ import { ExportTabBarButtonId, TabFactory } from './tabs/tabFactory'
 import { disclaimerAcknowledgeButtonId, disclaimerCard } from './texts/disclaimer'
 import { ChatClientAdapter, ChatEventHandler } from '../contracts/chatClientAdapter'
 import { withAdapter } from './withAdapter'
-import { toDetailsWithoutIcon, toMynahButtons, toMynahHeader, toMynahIcon } from './utils'
+import { toDetailsWithoutIcon, toMynahButtons, toMynahContextCommand, toMynahHeader, toMynahIcon } from './utils'
 import { ChatHistory, ChatHistoryList } from './features/history'
 import { pairProgrammingModeOff, pairProgrammingModeOn, programmerModeCard } from './texts/pairProgramming'
 
@@ -135,7 +135,8 @@ export const createMynahUi = (
     tabFactory: TabFactory,
     disclaimerAcknowledged: boolean,
     pairProgrammingCardAcknowledged: boolean,
-    customChatClientAdapter?: ChatClientAdapter
+    customChatClientAdapter?: ChatClientAdapter,
+    featureConfig?: Map<string, any>
 ): [MynahUI, InboundChatApi] => {
     const initialTabId = TabFactory.generateUniqueId()
     let disclaimerCardActive = !disclaimerAcknowledged
@@ -204,7 +205,17 @@ export const createMynahUi = (
             const defaultTabConfig: Partial<MynahUIDataModel> = {
                 quickActionCommands: defaultTabBarData.quickActionCommands,
                 tabBarButtons: defaultTabBarData.tabBarButtons,
-                contextCommands: contextCommandGroups,
+                contextCommands: [
+                    ...(contextCommandGroups || []),
+                    ...(featureConfig?.get('highlightCommands')
+                        ? [
+                              {
+                                  groupName: 'Additional commands',
+                                  commands: [toMynahContextCommand(featureConfig.get('highlightCommands'))],
+                              },
+                          ]
+                        : []),
+                ],
                 ...(disclaimerCardActive ? { promptInputStickyCard: disclaimerCard } : {}),
             }
             mynahUi.updateStore(tabId, defaultTabConfig)
@@ -691,7 +702,17 @@ ${params.message}`,
 
         Object.keys(mynahUi.getAllTabs()).forEach(tabId => {
             mynahUi.updateStore(tabId, {
-                contextCommands: contextCommandGroups,
+                contextCommands: [
+                    ...(contextCommandGroups || []),
+                    ...(featureConfig?.get('highlightCommands')
+                        ? [
+                              {
+                                  groupName: 'Additional commands',
+                                  commands: [toMynahContextCommand(featureConfig.get('highlightCommands'))],
+                              },
+                          ]
+                        : []),
+                ],
             })
         })
     }
