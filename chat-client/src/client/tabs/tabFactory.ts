@@ -57,7 +57,6 @@ export class TabFactory {
                   ? (chatMessages as ChatItem[])
                   : [],
             ...(disclaimerCardActive ? { promptInputStickyCard: disclaimerCard } : {}),
-            cancelButtonWhenLoading: false,
             promptInputOptions: [pairProgrammingPromptInput],
         }
         return tabData

@@ -29,6 +29,7 @@ import {
     ErrorResult,
     UiResultMessage,
     CHAT_PROMPT_OPTION_ACKNOWLEDGED,
+    STOP_CHAT_RESPONSE,
 } from '@aws/chat-client-ui-types'
 import {
     CHAT_REQUEST_METHOD,
@@ -313,6 +314,9 @@ export const createChat = (
         },
         promptInputOptionChange: (params: PromptInputOptionChangeParams) => {
             sendMessageToClient({ command: PROMPT_INPUT_OPTION_CHANGE_METHOD, params })
+        },
+        stopChatResponse: (tabId: string) => {
+            sendMessageToClient({ command: STOP_CHAT_RESPONSE, params: { tabId } })
         },
     }
 

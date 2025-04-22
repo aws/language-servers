@@ -384,6 +384,9 @@ export const createMynahUi = (
                 })
             }
         },
+        onStopChatResponse: tabId => {
+            messager.onStopChatResponse(tabId)
+        },
     }
 
     const mynahUiProps: MynahUIProps = {
