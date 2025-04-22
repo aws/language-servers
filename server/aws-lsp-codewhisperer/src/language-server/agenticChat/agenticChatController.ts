@@ -293,6 +293,7 @@ export class AgenticChatController implements ChatHandlers {
                 session,
                 metric,
                 chatResultStream,
+                params.tabId,
                 session.conversationId,
                 token,
                 triggerContext.documentReference
@@ -360,6 +361,7 @@ export class AgenticChatController implements ChatHandlers {
         session: ChatSessionService,
         metric: Metric<CombinedConversationEvent>,
         chatResultStream: AgenticChatResultStream,
+        tabId: string,
         conversationIdentifier?: string,
         token?: CancellationToken,
         documentReference?: FileList
@@ -406,11 +408,13 @@ export class AgenticChatController implements ChatHandlers {
             }
 
             const currentMessage = currentRequestInput.conversationState?.currentMessage
+            if (currentMessage) {
+                this.#chatHistoryDb.fixHistory(tabId, currentMessage, session.conversationId ?? '')
+            }
 
             // Process tool uses and update the request input for the next iteration
             const toolResults = await this.#processToolUses(pendingToolUses, chatResultStream, session, token)
             currentRequestInput = this.#updateRequestInputWithToolResults(currentRequestInput, toolResults)
-
             if (!currentRequestInput.conversationState!.history) {
                 currentRequestInput.conversationState!.history = []
             }
