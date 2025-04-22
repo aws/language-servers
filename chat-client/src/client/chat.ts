@@ -202,16 +202,16 @@ export const createChat = (
                 }
 
                 const allExistingTabs: MynahUITabStoreModel = mynahUi.getAllTabs()
-                const highlightCommands = featureConfig.get('highlightCommands')
+                const highlightCommand = featureConfig.get('highlightCommand')
 
                 for (const tabId in allExistingTabs) {
                     mynahUi.updateStore(tabId, {
                         ...tabFactory.getDefaultTabData(),
-                        contextCommands: highlightCommands
+                        contextCommands: highlightCommand
                             ? [
                                   {
                                       groupName: 'Additional Commands',
-                                      commands: [toMynahContextCommand(highlightCommands)],
+                                      commands: [toMynahContextCommand(highlightCommand)],
                                   },
                               ]
                             : [],
