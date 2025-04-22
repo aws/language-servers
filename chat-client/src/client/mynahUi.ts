@@ -514,7 +514,12 @@ export const createMynahUi = (
             chatResult.additionalMessages.forEach(am => {
                 const chatItem: ChatItem = {
                     messageId: am.messageId,
-                    type: am.type === 'tool' ? ChatItemType.ANSWER : ChatItemType.ANSWER_STREAM,
+                    type:
+                        am.type === 'tool'
+                            ? ChatItemType.ANSWER
+                            : am.type === 'directive'
+                              ? ChatItemType.DIRECTIVE
+                              : ChatItemType.ANSWER_STREAM,
                     ...prepareChatItemFromMessage(am),
                 }
 
