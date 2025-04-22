@@ -2,6 +2,7 @@
  * Copyright Amazon.com, Inc. or its affiliates.
  * All Rights Reserved. SPDX-License-Identifier: Apache-2.0
  */
+
 import { Logger, Workspace } from '@aws/language-server-runtimes/server-interface'
 import { URI } from 'vscode-uri'
 import { MCPServerConfig } from './mcpTypes'
@@ -73,9 +74,7 @@ export async function loadMcpServerConfigs(
                 args: Array.isArray((entry as any).args) ? (entry as any).args : [],
                 env: typeof (entry as any).env === 'object' ? (entry as any).env : {},
                 disabled: !!(entry as any).disabled,
-                autoApprove: Array.isArray((entry as any).autoApprove)
-                    ? (entry as any).autoApprove
-                    : [],
+                autoApprove: Array.isArray((entry as any).autoApprove) ? (entry as any).autoApprove : [],
             }
             servers.set(name, cfg)
             logging.info(`Loaded MCP server '${name}' from ${fsPath}`)
