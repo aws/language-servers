@@ -3,7 +3,7 @@ import { Chunk } from 'local-indexing'
 import { RelevantTextDocument } from '@amzn/codewhisperer-streaming'
 import * as assert from 'assert'
 
-describe('convertChunksToRelevantTextDocuments', () => {
+describe('relevantTextDocuments', () => {
     it('converts empty array to empty array', () => {
         const result = convertChunksToRelevantTextDocuments([])
         assert.deepStrictEqual(result, [])

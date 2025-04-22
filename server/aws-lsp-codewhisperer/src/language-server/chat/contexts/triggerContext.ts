@@ -70,17 +70,21 @@ export class QChatTriggerContext {
                                               programmingLanguage: triggerContext.programmingLanguage,
                                               relativeFilePath: triggerContext.relativeFilePath,
                                           },
-                                          relevantDocuments: triggerContext.relevantDocuments,
-                                          useRelevantDocuments: triggerContext.useRelevantDocuments,
+                                          ...(triggerContext.useRelevantDocuments && {
+                                              useRelevantDocuments: triggerContext.useRelevantDocuments,
+                                              relevantDocuments: triggerContext.relevantDocuments,
+                                          }),
                                       },
                                       tools,
                                   }
                                 : {
                                       tools,
-                                      editorState: {
-                                          relevantDocuments: triggerContext.relevantDocuments,
-                                          useRelevantDocuments: triggerContext.useRelevantDocuments,
-                                      },
+                                      ...(triggerContext.useRelevantDocuments && {
+                                          editorState: {
+                                              useRelevantDocuments: triggerContext.useRelevantDocuments,
+                                              relevantDocuments: triggerContext.relevantDocuments,
+                                          },
+                                      }),
                                   },
                         userIntent: triggerContext.userIntent,
                         origin: 'IDE',
