@@ -210,13 +210,13 @@ describe('AdditionalContextProvider', () => {
                 {
                     workspaceFolder: '/workspace',
                     type: 'file',
-                    relativePath: '.amazonq/rules/rule1.md',
+                    relativePath: path.join('.amazonq', 'rules', 'rule1.md'),
                     id: '',
                 },
                 {
                     workspaceFolder: '/workspace',
                     type: 'file',
-                    relativePath: '.amazonq/rules/rule2.md',
+                    relativePath: path.join('.amazonq', 'rules', 'rule2.md'),
                     id: '',
                 },
             ])
