@@ -35,7 +35,7 @@ export async function readDirectoryRecursively(
 
     while (queue.length > 0) {
         if (token?.isCancellationRequested) {
-            features.logging.info('cancelled listing directory')
+            features.logging.info('cancelled readDirectoryRecursively')
             throw new CancellationError('user')
         }
 
