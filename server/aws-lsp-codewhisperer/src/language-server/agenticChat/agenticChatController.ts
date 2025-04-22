@@ -84,7 +84,7 @@ import {
     ChatResultWithMetadata as AgenticChatResultWithMetadata,
 } from './agenticChatEventParser'
 import { ChatSessionService } from '../chat/chatSessionService'
-import { AgenticChatResultStream } from './agenticChatResultStream'
+import { AgenticChatResultStream, ResultStreamWriter } from './agenticChatResultStream'
 import { executeToolMessage, toolErrorMessage, toolResultMessage } from './textFormatting'
 import {
     AdditionalContentEntryAddition,
@@ -460,6 +460,22 @@ export class AgenticChatController implements ChatHandlers {
         return Object.values(toolUses).filter(toolUse => toolUse.stop)
     }
 
+    async deferToolExecution(
+        toolUseId: string,
+        toolUseName: string,
+        resultStream: AgenticChatResultStream,
+        promptBlockId: number,
+        session: ChatSessionService
+    ) {
+        const deferred = this.#createDeferred()
+        session.setDeferredToolExecution(toolUseId, deferred.resolve, deferred.reject)
+        this.#log(`Prompting for tool approval for tool: ${toolUseName}`)
+        await deferred.promise
+        if (toolUseName === 'executeBash') {
+            await resultStream.overwriteResultBlock(this.#getUpdateBashConfirmResult(toolUseId, true), promptBlockId)
+        }
+    }
+
     /**
      * Processes tool uses by running the tools and collecting results
      */
@@ -474,7 +490,6 @@ export class AgenticChatController implements ChatHandlers {
         for (const toolUse of toolUses) {
             if (!toolUse.name || !toolUse.toolUseId) continue
             this.#triggerContext.getToolUseLookup().set(toolUse.toolUseId, toolUse)
-            let needsConfirmation
 
             try {
                 const { explanation } = toolUse.input as unknown as ExplanatoryParams
@@ -506,9 +521,15 @@ export class AgenticChatController implements ChatHandlers {
                             toolUse.input as unknown as ExecuteBashParams
                         )
                         if (requiresAcceptance) {
-                            needsConfirmation = true
                             const confirmationResult = this.#processExecuteBashConfirmation(toolUse, warning)
-                            await chatResultStream.writeResultBlock(confirmationResult)
+                            const buttonBlockId = await chatResultStream.writeResultBlock(confirmationResult)
+                            await this.deferToolExecution(
+                                toolUse.toolUseId,
+                                toolUse.name,
+                                chatResultStream,
+                                buttonBlockId,
+                                session
+                            )
                         }
                         break
                     default:
@@ -518,16 +539,6 @@ export class AgenticChatController implements ChatHandlers {
                             messageId: toolUse.toolUseId,
                         })
                         break
-                }
-
-                if (needsConfirmation) {
-                    const deferred = this.#createDeferred()
-                    session.setDeferredToolExecution(toolUse.toolUseId, deferred.resolve, deferred.reject)
-                    this.#log(`Prompting for tool approval for tool: ${toolUse.name}`)
-                    await deferred.promise
-                    if (toolUse.name === 'executeBash') {
-                        await chatResultStream.writeResultBlock(this.#getUpdateBashConfirmResult(toolUse, true))
-                    }
                 }
 
                 const result = await this.#features.agent.runTool(toolUse.name, toolUse.input, token)
@@ -572,7 +583,9 @@ export class AgenticChatController implements ChatHandlers {
                 // If we did not approve a tool to be used or the user stopped the response, bubble this up to interrupt agentic loop
                 if (CancellationError.isUserCancelled(err) || err instanceof ToolApprovalException) {
                     if (err instanceof ToolApprovalException) {
-                        await chatResultStream.writeResultBlock(this.#getUpdateBashConfirmResult(toolUse, false))
+                        await chatResultStream.writeResultBlock(
+                            this.#getUpdateBashConfirmResult(toolUse.toolUseId, false)
+                        )
                     }
                     throw err
                 }
@@ -592,9 +605,9 @@ export class AgenticChatController implements ChatHandlers {
         return results
     }
 
-    #getUpdateBashConfirmResult(toolUse: ToolUse, isAccept: boolean): ChatResult {
+    #getUpdateBashConfirmResult(toolUseId: string, isAccept: boolean): ChatResult {
         return {
-            messageId: toolUse.toolUseId,
+            messageId: toolUseId,
             type: 'tool',
             body: '',
             header: {
