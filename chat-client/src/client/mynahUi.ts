@@ -498,8 +498,8 @@ export const createMynahUi = (
                     buttons: toMynahButtons(am.buttons),
 
                     // file diffs in the header need space
-                    fullWidth: am.type === 'tool' && am.header?.fileList ? true : undefined,
-                    padding: am.type === 'tool' && am.header?.fileList ? false : undefined,
+                    fullWidth: am.type === 'tool' ? true : undefined,
+                    padding: am.type === 'tool' ? false : undefined,
                 }
                 const message = chatItems.find(ci => ci.messageId === am.messageId)
                 if (!message) {
