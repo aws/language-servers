@@ -189,7 +189,7 @@ export class AgenticChatEventParser implements ChatResult {
         const chatResult: ChatResult = {
             messageId: this.messageId,
             body: this.body || '',
-            canBeVoted: this.canBeVoted ?? true,
+            canBeVoted: this.canBeVoted ?? false,
             relatedContent: this.relatedContent,
             followUp: this.followUp,
             codeReference: this.codeReference,

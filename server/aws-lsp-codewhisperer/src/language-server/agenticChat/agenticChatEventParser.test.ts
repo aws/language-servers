@@ -30,7 +30,7 @@ describe('AgenticChatEventParser', () => {
                     chatResult: {
                         messageId: mockMessageId,
                         body: '',
-                        canBeVoted: true,
+                        canBeVoted: false,
                         codeReference: undefined,
                         followUp: undefined,
                         relatedContent: undefined,
@@ -62,7 +62,7 @@ describe('AgenticChatEventParser', () => {
                     chatResult: {
                         messageId: mockMessageId,
                         body: '',
-                        canBeVoted: true,
+                        canBeVoted: false,
                         codeReference: undefined,
                         followUp: undefined,
                         relatedContent: undefined,
@@ -91,7 +91,7 @@ describe('AgenticChatEventParser', () => {
                     chatResult: {
                         messageId: mockMessageId,
                         body: 'This is an ',
-                        canBeVoted: true,
+                        canBeVoted: false,
                         codeReference: undefined,
                         followUp: undefined,
                         relatedContent: undefined,
@@ -114,7 +114,7 @@ describe('AgenticChatEventParser', () => {
                     chatResult: {
                         messageId: mockMessageId,
                         body: 'This is an assistant response.',
-                        canBeVoted: true,
+                        canBeVoted: false,
                         codeReference: undefined,
                         followUp: undefined,
                         relatedContent: undefined,
@@ -146,7 +146,7 @@ describe('AgenticChatEventParser', () => {
                 chatResult: {
                     messageId: mockMessageId,
                     body: 'assistant response',
-                    canBeVoted: true,
+                    canBeVoted: false,
                     codeReference: undefined,
                     followUp: undefined,
                     relatedContent: undefined,
@@ -196,7 +196,7 @@ describe('AgenticChatEventParser', () => {
                 chatResult: {
                     messageId: mockMessageId,
                     body: 'This is an ',
-                    canBeVoted: true,
+                    canBeVoted: false,
                     codeReference: undefined,
                     followUp: {
                         text: AgenticChatEventParser.FOLLOW_UP_TEXT,
@@ -253,7 +253,7 @@ describe('AgenticChatEventParser', () => {
         const expectedResult: ChatResult = {
             messageId: mockMessageId,
             body: 'This is an assistant response.',
-            canBeVoted: true,
+            canBeVoted: false,
             relatedContent: {
                 content: [
                     {

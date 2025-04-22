@@ -25,7 +25,7 @@ describe('ChatEventParser', () => {
                     chatResult: {
                         messageId: mockMessageId,
                         body: undefined,
-                        canBeVoted: true,
+                        canBeVoted: false,
                         codeReference: undefined,
                         followUp: undefined,
                         relatedContent: undefined,
@@ -56,7 +56,7 @@ describe('ChatEventParser', () => {
                     chatResult: {
                         messageId: mockMessageId,
                         body: undefined,
-                        canBeVoted: true,
+                        canBeVoted: false,
                         codeReference: undefined,
                         followUp: undefined,
                         relatedContent: undefined,
@@ -85,7 +85,7 @@ describe('ChatEventParser', () => {
                     chatResult: {
                         messageId: mockMessageId,
                         body: 'This is an ',
-                        canBeVoted: true,
+                        canBeVoted: false,
                         codeReference: undefined,
                         followUp: undefined,
                         relatedContent: undefined,
@@ -107,7 +107,7 @@ describe('ChatEventParser', () => {
                     chatResult: {
                         messageId: mockMessageId,
                         body: 'This is an assistant response.',
-                        canBeVoted: true,
+                        canBeVoted: false,
                         codeReference: undefined,
                         followUp: undefined,
                         relatedContent: undefined,
@@ -138,7 +138,7 @@ describe('ChatEventParser', () => {
                 chatResult: {
                     messageId: mockMessageId,
                     body: 'assistant response',
-                    canBeVoted: true,
+                    canBeVoted: false,
                     codeReference: undefined,
                     followUp: undefined,
                     relatedContent: undefined,
@@ -171,7 +171,7 @@ describe('ChatEventParser', () => {
                 chatResult: {
                     messageId: mockMessageId,
                     body: 'This is an ',
-                    canBeVoted: true,
+                    canBeVoted: false,
                     codeReference: undefined,
                     followUp: {
                         text: ChatEventParser.FOLLOW_UP_TEXT,
@@ -227,7 +227,7 @@ describe('ChatEventParser', () => {
         const expectedResult: ChatResult = {
             messageId: mockMessageId,
             body: 'This is an assistant response.',
-            canBeVoted: true,
+            canBeVoted: false,
             relatedContent: {
                 content: [
                     {
