@@ -9,8 +9,7 @@
     },
     "files": [
         "build",
-        "out",
-        "lib"
+        "out"
     ],
     "author": "Amazon Web Services",
     "license": "Apache-2.0",
@@ -24,11 +23,8 @@
     "dependencies": {
         "@aws/chat-client-ui-types": "^0.1.24",
         "@aws/language-server-runtimes-types": "^0.1.22",
-        "@aws/mynah-ui": "file:./lib/aws-mynah-ui-4.31.0-beta.6.tgz"
+        "@aws/mynah-ui": "^4.31.0-beta.6"
     },
-    "bundleDependencies": [
-        "@aws/mynah-ui"
-    ],
     "devDependencies": {
         "@types/jsdom": "^21.1.6",
         "@types/mocha": "^10.0.9",
