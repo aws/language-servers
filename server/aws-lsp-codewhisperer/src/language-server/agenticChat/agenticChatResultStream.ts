@@ -1,7 +1,7 @@
 import { ChatResult, FileDetails, ChatMessage } from '@aws/language-server-runtimes/protocol'
 import { randomUUID } from 'crypto'
 
-export interface ResultStreamWriter {
+interface ResultStreamWriter {
     write(chunk: ChatResult, final?: boolean): Promise<void>
     close(): Promise<void>
 }
@@ -97,12 +97,22 @@ export class AgenticChatResultStream {
             }, result)
     }
 
+    /**
+     * Add a block to the message block store and send it to the client.
+     * @param result the blockId associated with the block such that it can be overwritten later
+     * @returns
+     */
     async writeResultBlock(result: ChatMessage): Promise<number> {
         this.#state.chatResultBlocks.push(result)
         await this.#sendProgress(this.getResult(result.messageId))
         return this.#state.chatResultBlocks.length - 1
     }
 
+    /**
+     * Overwrites a specific blockId and re-sends the resulting blocks to the client.
+     * @param result
+     * @param blockId
+     */
     async overwriteResultBlock(result: ChatMessage, blockId: number) {
         this.#state.chatResultBlocks[blockId] = result
         await this.#sendProgress(this.getResult(result.messageId))

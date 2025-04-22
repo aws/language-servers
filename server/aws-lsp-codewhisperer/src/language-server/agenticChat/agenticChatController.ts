@@ -84,7 +84,7 @@ import {
     ChatResultWithMetadata as AgenticChatResultWithMetadata,
 } from './agenticChatEventParser'
 import { ChatSessionService } from '../chat/chatSessionService'
-import { AgenticChatResultStream, ResultStreamWriter } from './agenticChatResultStream'
+import { AgenticChatResultStream } from './agenticChatResultStream'
 import { executeToolMessage, toolErrorMessage, toolResultMessage } from './textFormatting'
 import {
     AdditionalContentEntryAddition,
@@ -459,8 +459,15 @@ export class AgenticChatController implements ChatHandlers {
     #getPendingToolUses(toolUses: Record<string, ToolUse & { stop: boolean }>): Array<ToolUse & { stop: boolean }> {
         return Object.values(toolUses).filter(toolUse => toolUse.stop)
     }
-
-    async deferToolExecution(
+    /**
+     * Creates a promise that does not resolve until the user accepts or reject the tool usage.
+     * @param toolUseId
+     * @param toolUseName
+     * @param resultStream
+     * @param promptBlockId id of approval block. This allows us to overwrite the buttons with 'accepted' or 'rejected' text.
+     * @param session
+     */
+    async waitForToolApproval(
         toolUseId: string,
         toolUseName: string,
         resultStream: AgenticChatResultStream,
@@ -472,6 +479,7 @@ export class AgenticChatController implements ChatHandlers {
         this.#log(`Prompting for tool approval for tool: ${toolUseName}`)
         await deferred.promise
         if (toolUseName === 'executeBash') {
+            // Note: we want to overwrite the button block because it already exists in the stream.
             await resultStream.overwriteResultBlock(this.#getUpdateBashConfirmResult(toolUseId, true), promptBlockId)
         }
     }
@@ -523,7 +531,7 @@ export class AgenticChatController implements ChatHandlers {
                         if (requiresAcceptance) {
                             const confirmationResult = this.#processExecuteBashConfirmation(toolUse, warning)
                             const buttonBlockId = await chatResultStream.writeResultBlock(confirmationResult)
-                            await this.deferToolExecution(
+                            await this.waitForToolApproval(
                                 toolUse.toolUseId,
                                 toolUse.name,
                                 chatResultStream,
