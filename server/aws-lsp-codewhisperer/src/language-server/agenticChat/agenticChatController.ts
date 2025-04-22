@@ -682,7 +682,12 @@ export class AgenticChatController implements ChatHandlers {
             header: {
                 fileList: {
                     filePaths: [fileName],
-                    details: { [fileName]: { changes } },
+                    details: {
+                        [fileName]: {
+                            changes,
+                            description: input.path, // Show full path in description when hovering
+                        },
+                    },
                 },
                 buttons: [{ id: 'undo-changes', text: 'Undo', icon: 'undo' }],
             },
