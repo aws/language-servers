@@ -503,26 +503,8 @@ export const createMynahUi = (
             chatResult.additionalMessages.forEach(am => {
                 const chatItem: ChatItem = {
                     messageId: am.messageId,
-                    body: am.type !== 'tool' && (am.body === undefined || am.body === '') ? 'Thinking...' : am.body,
                     type: am.type === 'tool' ? ChatItemType.ANSWER : ChatItemType.ANSWER_STREAM,
-                    header:
-                        am.type === 'tool' && am.header?.fileList && am.header.buttons
-                            ? {
-                                  ...header,
-                                  fileList: {
-                                      ...header?.fileList,
-                                      fileTreeTitle: '',
-                                      hideFileCount: true,
-                                      details: toDetailsWithoutIcon(header?.fileList?.details),
-                                  },
-                                  buttons: header?.buttons?.map(button => ({ ...button, status: 'clear' })),
-                              }
-                            : header,
-                    buttons: toMynahButtons(am.buttons),
-
-                    // file diffs in the header need space
-                    fullWidth: am.type === 'tool' && am.header?.fileList ? true : undefined,
-                    padding: am.type === 'tool' && am.header?.fileList ? false : undefined,
+                    ...prepareChatItemFromMessage(am),
                 }
 
                 if (!chatItems.find(ci => ci.messageId === am.messageId)) {
@@ -607,47 +589,52 @@ export const createMynahUi = (
             const store = mynahUi.getTabData(tabId).getStore() || {}
             const chatItems = store.chatItems || []
 
-            params.data?.messages.forEach(m => {
-                if (!m.messageId) {
+            params.data?.messages.forEach(updatedMessage => {
+                if (!updatedMessage.messageId) {
                     // Do not process messages without known ID.
                     return
                 }
 
-                const contextHeader = contextListToHeader(m.contextList)
-                const header = contextHeader || toMynahHeader(m.header) // Is this mutually exclusive?
+                const oldMessage = chatItems.find(ci => ci.messageId === updatedMessage.messageId)
+                if (!oldMessage) return
 
                 const chatItem: ChatItem = {
-                    messageId: m.messageId,
-                    body: m.body,
-                    type: ChatItemType.ANSWER,
-                    header:
-                        m.type === 'tool' && m.header?.fileList && m.header.buttons
-                            ? {
-                                ...header,
-                                fileList: {
-                                    ...header?.fileList,
-                                    fileTreeTitle: '',
-                                    hideFileCount: true,
-                                    details: toDetailsWithoutIcon(header?.fileList?.details),
-                                },
-                                buttons: header?.buttons?.map(button => ({ ...button, status: 'clear' })),
-                            }
-                            : header,
-                    buttons: toMynahButtons(m.buttons),
-
-                    // file diffs in the header need space
-                    fullWidth: m.type === 'tool' && m.header?.fileList ? true : undefined,
-                    padding: m.type === 'tool' && m.header?.fileList ? false : undefined,
+                    type: oldMessage.type,
+                    ...prepareChatItemFromMessage(updatedMessage),
                 }
 
-                const message = chatItems.find(ci => ci.messageId === m.messageId)
-                if (!message) {
-                    // TODO: we don't have method to insert message at position, skip adding new messages for now.
-                    // mynahUi.addChatItem(tabId, chatItem)
-                } else {
-                    mynahUi.updateChatAnswerWithMessageId(tabId, m.messageId, chatItem)
-                }
+                mynahUi.updateChatAnswerWithMessageId(tabId, updatedMessage.messageId, chatItem)
             })
+        }
+    }
+
+    const prepareChatItemFromMessage = (message: ChatMessage): Partial<ChatItem> => {
+        const contextHeader = contextListToHeader(message.contextList)
+        const header = contextHeader || toMynahHeader(message.header) // Is this mutually exclusive?
+
+        return {
+            body:
+                message.type !== 'tool' && (message.body === undefined || message.body === '')
+                    ? 'Thinking...'
+                    : message.body,
+            header:
+                message.type === 'tool' && message.header?.fileList && message.header.buttons
+                    ? {
+                          ...header,
+                          fileList: {
+                              ...header?.fileList,
+                              fileTreeTitle: '',
+                              hideFileCount: true,
+                              details: toDetailsWithoutIcon(header?.fileList?.details),
+                          },
+                          buttons: header?.buttons?.map(button => ({ ...button, status: 'clear' })),
+                      }
+                    : header,
+            buttons: toMynahButtons(message.buttons),
+
+            // file diffs in the header need space
+            fullWidth: message.type === 'tool' && message.header?.fileList ? true : undefined,
+            padding: message.type === 'tool' && message.header?.fileList ? false : undefined,
         }
     }
 
