@@ -460,7 +460,7 @@ export class AgenticChatController implements ChatHandlers {
         return Object.values(toolUses).filter(toolUse => toolUse.stop)
     }
     /**
-     * Creates a promise that does not resolve until the user accepts or reject the tool usage.
+     * Creates a promise that does not resolve until the user accepts or rejects the tool usage.
      * @param toolUseId
      * @param toolUseName
      * @param resultStream
