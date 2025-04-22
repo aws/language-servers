@@ -29,7 +29,7 @@ export class AgenticChatResultStream {
         isLocked: false,
         uuid: randomUUID(),
         messageId: undefined as string | undefined,
-        messageIdToUpdate: undefined as string | undefined,
+        messageIdToUpdateForTool: new Map<OperationType, string>(),
         messageOperations: new Map<string, FileOperation>(),
     }
     readonly #sendProgress: (newChatResult: ChatResult | string) => Promise<void>
@@ -41,22 +41,23 @@ export class AgenticChatResultStream {
     getResult(only?: string): ChatResult {
         return this.#joinResults(this.#state.chatResultBlocks, only)
     }
-    getMessageIdToUpdate(): string | undefined {
-        return this.#state.messageIdToUpdate
+
+    setMessageIdToUpdateForTool(toolName: string, messageId: string) {
+        this.#state.messageIdToUpdateForTool.set(toolName as OperationType, messageId)
     }
 
-    setMessageIdToUpdate(messageId: string) {
-        this.#state.messageIdToUpdate = messageId
+    getMessageIdToUpdateForTool(toolName: string): string | undefined {
+        return this.#state.messageIdToUpdateForTool.get(toolName as OperationType)
     }
 
     /**
      * Adds a file operation for a specific message
      * @param messageId The ID of the message
-     * @param type The type of operation ('read' or 'listDir' or 'write')
+     * @param type The type of operation ('fsRead' or 'listDirectory' or 'fsWrite')
      * @param filePaths Array of FileDetailsWithPath involved in the operation
      */
-    addMessageOperation(messageId: string, type: OperationType, filePaths: FileDetailsWithPath[]) {
-        this.#state.messageOperations.set(messageId, { type, filePaths })
+    addMessageOperation(messageId: string, type: string, filePaths: FileDetailsWithPath[]) {
+        this.#state.messageOperations.set(messageId, { type: type as OperationType, filePaths })
     }
 
     /**
