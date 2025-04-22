@@ -345,7 +345,7 @@ export class AgenticChatController implements ChatHandlers {
             this.#customizationArn,
             chatResultStream,
             profileArn,
-            this.#chatHistoryDb.getMessages(params.tabId, 10),
+            this.#chatHistoryDb.getMessages(params.tabId),
             this.#getTools(session),
             additionalContext
         )
