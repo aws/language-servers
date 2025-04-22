@@ -150,6 +150,7 @@ export class AgenticChatController implements ChatHandlers {
     }
 
     async onButtonClick(params: ButtonClickParams): Promise<ButtonClickResult> {
+        this.#log(`onButtonClick event with params: ${JSON.stringify(params)}`)
         if (params.buttonId === 'run-shell-command' || params.buttonId === 'reject-shell-command') {
             const session = this.#chatSessionManagementService.getSession(params.tabId)
             if (!session.data) {
@@ -166,12 +167,33 @@ export class AgenticChatController implements ChatHandlers {
             return {
                 success: true,
             }
+        } else if (params.buttonId === 'undo-changes') {
+            const toolUseId = params.messageId
+            try {
+                await this.#undoFileChange(toolUseId)
+            } catch (err: any) {
+                return { success: false, failureReason: err.message }
+            }
+            return {
+                success: true,
+            }
         } else {
-            this.#log(`onButtonClick event with params: ${JSON.stringify(params)}`)
             return {
                 success: false,
                 failureReason: 'not implemented',
             }
+        }
+    }
+
+    async #undoFileChange(toolUseId: string): Promise<void> {
+        this.#log(`Reverting file change for tooluseId: ${toolUseId}`)
+        const toolUse = this.#triggerContext.getToolUseLookup().get(toolUseId)
+
+        const input = toolUse?.input as unknown as FsWriteParams
+        if (toolUse?.oldContent) {
+            await this.#features.workspace.fs.writeFile(input.path, toolUse.oldContent)
+        } else {
+            await this.#features.workspace.fs.rm(input.path)
         }
     }
 
