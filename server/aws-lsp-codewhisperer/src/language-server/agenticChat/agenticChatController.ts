@@ -521,6 +521,7 @@ export class AgenticChatController implements ChatHandlers {
                     session.setDeferredToolExecution(toolUse.toolUseId, deferred.resolve, deferred.reject)
                     this.#log(`Prompting for tool approval for tool: ${toolUse.name}`)
                     await deferred.promise
+                    await chatResultStream.writeResultBlock(this.#getUpdateBashConfirmResult(toolUse, true))
                 }
 
                 const result = await this.#features.agent.runTool(toolUse.name, toolUse.input)
@@ -552,6 +553,7 @@ export class AgenticChatController implements ChatHandlers {
                     case 'executeBash':
                         const bashToolResult = this.#getBashExecutionChatResult(toolUse, result)
                         await chatResultStream.writeResultBlock(bashToolResult)
+                        break
                     default:
                         await chatResultStream.writeResultBlock({
                             type: 'tool',
@@ -563,6 +565,7 @@ export class AgenticChatController implements ChatHandlers {
             } catch (err) {
                 // If we did not approve a tool to be used, bubble this up to interrupt agentic loop
                 if (err instanceof ToolApprovalException) {
+                    await chatResultStream.writeResultBlock(this.#getUpdateBashConfirmResult(toolUse, false))
                     throw err
                 }
                 const errMsg = err instanceof Error ? err.message : 'unknown error'
@@ -579,6 +582,25 @@ export class AgenticChatController implements ChatHandlers {
         }
 
         return results
+    }
+
+    #getUpdateBashConfirmResult(toolUse: ToolUse, isAccept: boolean): ChatResult {
+        return {
+            messageId: toolUse.toolUseId,
+            type: 'tool',
+            body: '',
+            header: {
+                body: 'shell',
+                buttons: [
+                    {
+                        id: isAccept ? 'command-accepted' : 'command-rejected',
+                        icon: isAccept ? 'ok' : 'cancel',
+                        text: isAccept ? 'Accepted' : 'Rejected',
+                        disabled: true,
+                    },
+                ],
+            },
+        }
     }
 
     #getBashExecutionChatResult(toolUse: ToolUse, result: InvokeOutput): ChatResult {

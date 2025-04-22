@@ -652,8 +652,8 @@ export const createMynahUi = (
             buttons: toMynahButtons(message.buttons),
 
             // file diffs in the header need space
-            fullWidth: message.type === 'tool' && message.header?.fileList ? true : undefined,
-            padding: message.type === 'tool' && message.header?.fileList ? false : undefined,
+            fullWidth: message.type === 'tool' ? true : undefined,
+            padding: message.type === 'tool' ? false : undefined,
         }
     }
 
