@@ -196,21 +196,18 @@ export const createChat = (
 
                 const allExistingTabs: MynahUITabStoreModel = mynahUi.getAllTabs()
 
-                const additionalContextCommands: any[] = []
-                featureConfig.forEach((featureContext: FeatureContext, _feature: string) => {
-                    additionalContextCommands.push({
-                        command: featureContext.value.stringValue ?? '',
-                        description: featureContext.variation,
-                    })
-                })
-
                 for (const tabId in allExistingTabs) {
                     mynahUi.updateStore(tabId, {
                         ...tabFactory.getDefaultTabData(),
                         contextCommands: [
                             {
                                 groupName: 'Additional Context Commands',
-                                commands: additionalContextCommands,
+                                commands: [
+                                    {
+                                        description: featureConfig.get('highlightCommands')?.variation ?? '',
+                                        command: featureConfig.get('highlightCommands')?.value.stringValue ?? '',
+                                    },
+                                ],
                             },
                         ],
                     })

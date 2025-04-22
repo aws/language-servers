@@ -6,6 +6,7 @@ import {
     AuthFollowUpClickedParams,
     CopyCodeToClipboardParams,
     ErrorParams,
+    FeatureContext,
     GenericCommandParams,
     InsertToCursorPositionParams,
     SendToPromptParams,
@@ -74,6 +75,18 @@ export const handlePromptInputChange = (mynahUi: MynahUI, tabId: string, options
         mynahUi.addChatItem(tabId, pairProgrammingModeOn)
     } else {
         mynahUi.addChatItem(tabId, pairProgrammingModeOff)
+    }
+}
+
+export const getAdditionalCommands = (highlightedCommands: FeatureContext) => {
+    return {
+        groupName: 'Additional Commands',
+        commands: [
+            {
+                command: highlightedCommands.value.stringValue ?? '',
+                description: highlightedCommands.variation,
+            },
+        ],
     }
 }
 
@@ -201,11 +214,11 @@ export const createMynahUi = (
         },
         onTabAdd: (tabId: string) => {
             const defaultTabBarData = tabFactory.getDefaultTabData()
-            const contextCommands = [...(contextCommandGroups || []), ...(featureConfig?.get('contextCommands') || [])]
+            const highlightedCommands: FeatureContext = featureConfig?.get('highlightCommands')
             const defaultTabConfig: Partial<MynahUIDataModel> = {
                 quickActionCommands: defaultTabBarData.quickActionCommands,
                 tabBarButtons: defaultTabBarData.tabBarButtons,
-                contextCommands: contextCommands,
+                contextCommands: [...(contextCommandGroups || []), getAdditionalCommands(highlightedCommands)],
                 ...(disclaimerCardActive ? { promptInputStickyCard: disclaimerCard } : {}),
             }
             mynahUi.updateStore(tabId, defaultTabConfig)
@@ -694,7 +707,8 @@ ${params.message}`,
             commands: toContextCommands(group.commands),
         }))
 
-        const contextCommands = [...contextCommandGroups, ...(featureConfig?.get('contextCommands') || [])]
+        console.log('Context commands feature ', featureConfig?.get('highlightCommands'))
+        const contextCommands = [...(contextCommandGroups || []), ...(featureConfig?.get('highlightCommands') || [])]
 
         Object.keys(mynahUi.getAllTabs()).forEach(tabId => {
             mynahUi.updateStore(tabId, {

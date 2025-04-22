@@ -334,6 +334,12 @@ export class AgenticChatController implements ChatHandlers {
 
             // Phase 3: Request Execution
             this.#debug(`Request Input: ${JSON.stringify(currentRequestInput)}`)
+
+            // Remove ** from the input because markdown adds content that interferes with context commands
+            if (currentRequestInput.conversationState?.currentMessage?.userInputMessage?.content) {
+                currentRequestInput.conversationState.currentMessage.userInputMessage.content =
+                    currentRequestInput.conversationState.currentMessage.userInputMessage.content.replace(/\*\*/g, '')
+            }
             const response = await session.generateAssistantResponse(currentRequestInput)
             this.#debug(`Response received for iteration ${iterationCount}:`, JSON.stringify(response.$metadata))
 
