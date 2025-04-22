@@ -52,7 +52,8 @@
         "shlex": "2.1.2",
         "uuid": "^11.0.5",
         "vscode-uri": "^3.1.0",
-        "@modelcontextprotocol/sdk": "^1.9.0"
+        "@modelcontextprotocol/sdk": "^1.9.0",
+        "@vscode/ripgrep": "^1.15.11"
     },
     "devDependencies": {
         "@types/adm-zip": "^0.5.5",
