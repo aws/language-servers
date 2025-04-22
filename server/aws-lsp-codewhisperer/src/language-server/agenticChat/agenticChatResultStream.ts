@@ -85,6 +85,7 @@ export class AgenticChatResultStream {
                                         : (acc.contextList?.rootFolderTitle ?? ''),
                                 },
                             }),
+                            header: c.header ? { ...c.header } : { ...am.header },
                         })),
                     }
                 } else {
