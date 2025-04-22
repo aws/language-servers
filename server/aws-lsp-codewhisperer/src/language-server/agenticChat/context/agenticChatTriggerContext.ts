@@ -20,6 +20,7 @@ import {
     FileList,
     TextDocument,
     OPEN_WORKSPACE_INDEX_SETTINGS_BUTTON_ID,
+    ChatResult,
 } from '@aws/language-server-runtimes/server-interface'
 import { Features } from '../../types'
 import { DocumentContext, DocumentContextExtractor } from '../../chat/contexts/documentContext'
@@ -58,7 +59,7 @@ export class AgenticChatTriggerContext {
     #lsp: Features['lsp']
     #logging: Features['logging']
     #documentContextExtractor: DocumentContextExtractor
-    #toolUseLookup: Map<string, ToolUse & { oldContent?: string }>
+    #toolUseLookup: Map<string, ToolUse & { oldContent?: string; chatResult?: ChatResult }>
 
     constructor({ workspace, lsp, logging }: Pick<Features, 'workspace' | 'lsp' | 'logging'> & Partial<Features>) {
         this.#workspace = workspace

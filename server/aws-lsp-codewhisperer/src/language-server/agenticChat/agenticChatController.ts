@@ -171,6 +171,26 @@ export class AgenticChatController implements ChatHandlers {
             const toolUseId = params.messageId
             try {
                 await this.#undoFileChange(toolUseId)
+                const cachedToolUse = this.#triggerContext.getToolUseLookup().get(toolUseId)
+                if (cachedToolUse) {
+                    this.#features.chat.sendChatUpdate({
+                        tabId: params.tabId,
+                        data: {
+                            messages: [
+                                {
+                                    ...cachedToolUse.chatResult,
+                                    header: {
+                                        ...cachedToolUse.chatResult?.header,
+                                        buttons: cachedToolUse.chatResult?.header?.buttons?.filter(
+                                            button => button.id !== 'undo-changes'
+                                        ),
+                                        status: { status: 'error', icon: 'cancel', text: 'Change discarded' },
+                                    },
+                                },
+                            ],
+                        },
+                    })
+                }
             } catch (err: any) {
                 return { success: false, failureReason: err.message }
             }
@@ -554,6 +574,11 @@ export class AgenticChatController implements ChatHandlers {
                         break
                     case 'fsWrite':
                         const chatResult = await this.#getFsWriteChatResult(toolUse)
+                        const toolUseLookup = this.#triggerContext.getToolUseLookup()
+                        const cachedToolUse = toolUseLookup.get(toolUse.toolUseId)
+                        if (cachedToolUse) {
+                            toolUseLookup.set(toolUse.toolUseId, { ...cachedToolUse, chatResult })
+                        }
                         await chatResultStream.writeResultBlock(chatResult)
                         break
                     case 'executeBash':
