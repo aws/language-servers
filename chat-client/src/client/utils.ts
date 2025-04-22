@@ -11,7 +11,12 @@ export function toMynahButtons(buttons: Button[] | undefined): ChatItemButton[] 
 }
 
 export function toMynahHeader(header: ChatMessage['header']): ChatItemContent['header'] {
-    return { ...header, icon: toMynahIcon(header?.icon), buttons: toMynahButtons(header?.buttons) }
+    return {
+        ...header,
+        icon: toMynahIcon(header?.icon),
+        buttons: toMynahButtons(header?.buttons),
+        status: { ...header?.status, icon: toMynahIcon(header?.status?.icon) },
+    }
 }
 
 export function toDetailsWithoutIcon(
