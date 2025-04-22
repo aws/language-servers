@@ -15,14 +15,22 @@ interface ResultStreamWriter {
 interface FileDetailsWithPath extends FileDetails {
     relativeFilePath: string
 }
+
+type OperationType = 'read' | 'write' | 'listDir'
+
+interface FileOperation {
+    type: OperationType
+    filePaths: FileDetailsWithPath[]
+}
 export class AgenticChatResultStream {
     static readonly resultDelimiter = '\n\n'
     #state = {
         chatResultBlocks: [] as ChatMessage[],
         isLocked: false,
-        contextFileList: {} as Record<string, FileDetailsWithPath[]>,
         uuid: randomUUID(),
         messageId: undefined as string | undefined,
+        messageIdToUpdate: undefined as string | undefined,
+        messageOperations: new Map<string, FileOperation>(),
     }
     readonly #sendProgress: (newChatResult: ChatResult | string) => Promise<void>
 
@@ -33,16 +41,31 @@ export class AgenticChatResultStream {
     getResult(only?: string): ChatResult {
         return this.#joinResults(this.#state.chatResultBlocks, only)
     }
-
-    getContextFileList(toolUseId: string): FileDetailsWithPath[] {
-        return this.#state.contextFileList[toolUseId] ?? []
+    getMessageIdToUpdate(): string | undefined {
+        return this.#state.messageIdToUpdate
     }
 
-    addContextFileList(toolUseId: string, fileDetails: FileDetailsWithPath) {
-        if (!this.#state.contextFileList[toolUseId]) {
-            this.#state.contextFileList[toolUseId] = []
-        }
-        this.#state.contextFileList[toolUseId].push(fileDetails)
+    setMessageIdToUpdate(messageId: string) {
+        this.#state.messageIdToUpdate = messageId
+    }
+
+    /**
+     * Adds a file operation for a specific message
+     * @param messageId The ID of the message
+     * @param type The type of operation ('read' or 'listDir' or 'write')
+     * @param filePaths Array of FileDetailsWithPath involved in the operation
+     */
+    addMessageOperation(messageId: string, type: OperationType, filePaths: FileDetailsWithPath[]) {
+        this.#state.messageOperations.set(messageId, { type, filePaths })
+    }
+
+    /**
+     * Gets the file operation details for a specific message
+     * @param messageId The ID of the message
+     * @returns The file operation details or undefined if not found
+     */
+    getMessageOperation(messageId: string): FileOperation | undefined {
+        return this.#state.messageOperations.get(messageId)
     }
 
     #joinResults(chatResults: ChatMessage[], only?: string): ChatResult {
@@ -74,17 +97,18 @@ export class AgenticChatResultStream {
                                 am.messageId === c.messageId
                                     ? am.body + AgenticChatResultStream.resultDelimiter + c.body
                                     : am.body,
-                            ...((c.contextList || acc.contextList) && {
-                                contextList: {
-                                    filePaths: [
-                                        ...(acc.contextList?.filePaths ?? []),
-                                        ...(c.contextList?.filePaths ?? []),
-                                    ],
-                                    rootFolderTitle: c.contextList?.rootFolderTitle
-                                        ? c.contextList.rootFolderTitle
-                                        : (acc.contextList?.rootFolderTitle ?? ''),
-                                },
-                            }),
+                            ...(am.messageId === c.messageId &&
+                                (c.contextList || acc.contextList) && {
+                                    contextList: {
+                                        filePaths: [
+                                            ...(acc.contextList?.filePaths ?? []),
+                                            ...(c.contextList?.filePaths ?? []),
+                                        ],
+                                        rootFolderTitle: c.contextList?.rootFolderTitle
+                                            ? c.contextList.rootFolderTitle
+                                            : (acc.contextList?.rootFolderTitle ?? ''),
+                                    },
+                                }),
                             header: c.header ? { ...c.header } : { ...am.header },
                         })),
                     }
