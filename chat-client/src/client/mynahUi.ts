@@ -301,7 +301,6 @@ export const createMynahUi = (
             messager.onInfoLinkClick(payload)
         },
         onInBodyButtonClicked: (tabId, messageId, action, eventId) => {
-            console.log(tabId, messageId, action, eventId)
             if (action.id === disclaimerAcknowledgeButtonId) {
                 // Hide the legal disclaimer card
                 disclaimerCardActive = false
