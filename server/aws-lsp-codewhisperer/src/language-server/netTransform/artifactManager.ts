@@ -61,17 +61,21 @@ export class ArtifactManager {
     }
 
     async removeDuplicateNugetPackagesFolder(request: StartTransformRequest) {
-        const packagesFolder = path.join(
-            this.workspacePath,
-            artifactFolderName,
-            sourceCodeFolderName,
-            packagesFolderName
-        )
-        if (fs.existsSync(packagesFolder)) {
-            fs.rmSync(packagesFolder, { recursive: true, force: true })
-            this.logging.log(
-                `Removed packages folder ${packagesFolder} from source code directory to be uploaded because it is a duplicate of references folder from artifacts`
+        try {
+            const packagesFolder = path.join(
+                this.workspacePath,
+                artifactFolderName,
+                sourceCodeFolderName,
+                packagesFolderName
             )
+            if (fs.existsSync(packagesFolder)) {
+                fs.rmSync(packagesFolder, { recursive: true, force: true })
+                this.logging.log(
+                    `Removed packages folder ${packagesFolder} from source code directory to be uploaded because it is a duplicate of references folder from artifacts`
+                )
+            }
+        } catch (error) {
+            this.logging.log('Failed to remove packages folder: ' + error)
         }
     }
 
