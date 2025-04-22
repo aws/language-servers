@@ -44,7 +44,7 @@ import { ExportTabBarButtonId, TabFactory } from './tabs/tabFactory'
 import { disclaimerAcknowledgeButtonId, disclaimerCard } from './texts/disclaimer'
 import { ChatClientAdapter, ChatEventHandler } from '../contracts/chatClientAdapter'
 import { withAdapter } from './withAdapter'
-import { toDetailsWithoutIcon, toMynahButtons, toMynahHeader, toMynahIcon } from './utils'
+import { toDetailsWithoutIcon, toMynahButtons, toMynahContextCommand, toMynahHeader, toMynahIcon } from './utils'
 import { ChatHistory, ChatHistoryList } from './features/history'
 import { pairProgrammingModeOff, pairProgrammingModeOn, programmerModeCard } from './texts/pairProgramming'
 
@@ -75,18 +75,6 @@ export const handlePromptInputChange = (mynahUi: MynahUI, tabId: string, options
         mynahUi.addChatItem(tabId, pairProgrammingModeOn)
     } else {
         mynahUi.addChatItem(tabId, pairProgrammingModeOff)
-    }
-}
-
-export const getAdditionalCommands = (highlightedCommands: FeatureContext) => {
-    return {
-        groupName: 'Additional Commands',
-        commands: [
-            {
-                command: highlightedCommands.value.stringValue ?? '',
-                description: highlightedCommands.variation,
-            },
-        ],
     }
 }
 
@@ -214,11 +202,20 @@ export const createMynahUi = (
         },
         onTabAdd: (tabId: string) => {
             const defaultTabBarData = tabFactory.getDefaultTabData()
-            const highlightedCommands: FeatureContext = featureConfig?.get('highlightCommands')
             const defaultTabConfig: Partial<MynahUIDataModel> = {
                 quickActionCommands: defaultTabBarData.quickActionCommands,
                 tabBarButtons: defaultTabBarData.tabBarButtons,
-                contextCommands: [...(contextCommandGroups || []), getAdditionalCommands(highlightedCommands)],
+                contextCommands: [
+                    ...(contextCommandGroups || []),
+                    ...(featureConfig?.get('highlightCommands')
+                        ? [
+                              {
+                                  groupName: 'Additional commands',
+                                  commands: [toMynahContextCommand(featureConfig.get('highlightCommands'))],
+                              },
+                          ]
+                        : []),
+                ],
                 ...(disclaimerCardActive ? { promptInputStickyCard: disclaimerCard } : {}),
             }
             mynahUi.updateStore(tabId, defaultTabConfig)
@@ -707,12 +704,19 @@ ${params.message}`,
             commands: toContextCommands(group.commands),
         }))
 
-        console.log('Context commands feature ', featureConfig?.get('highlightCommands'))
-        const contextCommands = [...(contextCommandGroups || []), ...(featureConfig?.get('highlightCommands') || [])]
-
         Object.keys(mynahUi.getAllTabs()).forEach(tabId => {
             mynahUi.updateStore(tabId, {
-                contextCommands: contextCommands,
+                contextCommands: [
+                    ...(contextCommandGroups || []),
+                    ...(featureConfig?.get('highlightCommands')
+                        ? [
+                              {
+                                  groupName: 'Additional commands',
+                                  commands: [toMynahContextCommand(featureConfig.get('highlightCommands'))],
+                              },
+                          ]
+                        : []),
+                ],
             })
         })
     }

@@ -83,7 +83,7 @@ import { Messager, OutboundChatApi } from './messager'
 import { InboundChatApi, createMynahUi } from './mynahUi'
 import { TabFactory } from './tabs/tabFactory'
 import { ChatClientAdapter } from '../contracts/chatClientAdapter'
-import { toMynahIcon } from './utils'
+import { toMynahContextCommand, toMynahIcon } from './utils'
 
 const DEFAULT_TAB_DATA = {
     tabTitle: 'Chat',
@@ -195,21 +195,19 @@ export const createChat = (
                 }
 
                 const allExistingTabs: MynahUITabStoreModel = mynahUi.getAllTabs()
+                const highlightCommands = featureConfig.get('highlightCommands')
 
                 for (const tabId in allExistingTabs) {
                     mynahUi.updateStore(tabId, {
                         ...tabFactory.getDefaultTabData(),
-                        contextCommands: [
-                            {
-                                groupName: 'Additional Context Commands',
-                                commands: [
-                                    {
-                                        description: featureConfig.get('highlightCommands')?.variation ?? '',
-                                        command: featureConfig.get('highlightCommands')?.value.stringValue ?? '',
-                                    },
-                                ],
-                            },
-                        ],
+                        contextCommands: highlightCommands
+                            ? [
+                                  {
+                                      groupName: 'Additional Commands',
+                                      commands: [toMynahContextCommand(highlightCommands)],
+                                  },
+                              ]
+                            : [],
                     })
                 }
                 break
