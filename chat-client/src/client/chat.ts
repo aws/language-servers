@@ -32,6 +32,7 @@ import {
     STOP_CHAT_RESPONSE,
 } from '@aws/chat-client-ui-types'
 import {
+    BUTTON_CLICK_REQUEST_METHOD,
     CHAT_REQUEST_METHOD,
     CONTEXT_COMMAND_NOTIFICATION_METHOD,
     CONVERSATION_CLICK_REQUEST_METHOD,
@@ -317,6 +318,9 @@ export const createChat = (
         },
         stopChatResponse: (tabId: string) => {
             sendMessageToClient({ command: STOP_CHAT_RESPONSE, params: { tabId } })
+        },
+        sendButtonClickEvent: params => {
+            sendMessageToClient({ command: BUTTON_CLICK_REQUEST_METHOD, params: params })
         },
     }
 
