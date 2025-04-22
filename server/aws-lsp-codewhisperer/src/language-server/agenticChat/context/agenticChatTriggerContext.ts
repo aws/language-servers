@@ -221,7 +221,6 @@ export class AgenticChatTriggerContext {
         if (!localProjectContextController.isEnabled && chatResultStream) {
             await chatResultStream.writeResultBlock({
                 body: `To add your workspace as context, enable local indexing in your IDE settings. After enabling, add @workspace to your question, and I'll generate a response using your workspace as context.`,
-                // messageId: randomUUID(),
                 buttons: [
                     {
                         id: OPEN_WORKSPACE_INDEX_SETTINGS_BUTTON_ID,
