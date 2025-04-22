@@ -663,9 +663,8 @@ export class AgenticChatController implements ChatHandlers {
         const input = toolUse.input as unknown as FsWriteParams
         const oldContent = this.#triggerContext.getToolUseLookup().get(toolUse.toolUseId!)?.oldContent ?? ''
         const diffChanges = getDiffChanges(input, oldContent)
-        // TODO: support multi folder workspaces
-        const workspaceRoot = workspaceUtils.getWorkspaceFolderPaths(this.#features.lsp)[0]
-        const relativeFilePath = path.relative(workspaceRoot, input.path)
+        // Get just the filename instead of the full path
+        const fileName = path.basename(input.path)
         const changes = diffChanges.reduce(
             (acc, { count = 0, added, removed }) => {
                 if (added) {
@@ -682,8 +681,8 @@ export class AgenticChatController implements ChatHandlers {
             messageId: toolUse.toolUseId,
             header: {
                 fileList: {
-                    filePaths: [relativeFilePath],
-                    details: { [relativeFilePath]: { changes } },
+                    filePaths: [fileName],
+                    details: { [fileName]: { changes } },
                 },
                 buttons: [{ id: 'undo-changes', text: 'Undo', icon: 'undo' }],
             },
