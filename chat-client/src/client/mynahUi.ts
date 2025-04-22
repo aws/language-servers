@@ -13,6 +13,7 @@ import {
     isValidAuthFollowUpType,
 } from '@aws/chat-client-ui-types'
 import {
+    ButtonClickParams,
     ChatMessage,
     ChatResult,
     ContextCommand,
@@ -300,6 +301,7 @@ export const createMynahUi = (
             messager.onInfoLinkClick(payload)
         },
         onInBodyButtonClicked: (tabId, messageId, action, eventId) => {
+            console.log(tabId, messageId, action, eventId)
             if (action.id === disclaimerAcknowledgeButtonId) {
                 // Hide the legal disclaimer card
                 disclaimerCardActive = false
@@ -311,6 +313,13 @@ export const createMynahUi = (
                 Object.keys(mynahUi.getAllTabs()).forEach(storeTabKey => {
                     mynahUi.updateStore(storeTabKey, { promptInputStickyCard: null })
                 })
+            } else {
+                const payload: ButtonClickParams = {
+                    tabId,
+                    messageId,
+                    buttonId: action.id,
+                }
+                messager.onButtonClick(payload)
             }
         },
         onContextSelected: (contextItem, tabId) => {

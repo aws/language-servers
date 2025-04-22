@@ -21,6 +21,7 @@ import {
     TriggerType,
 } from '@aws/chat-client-ui-types'
 import {
+    ButtonClickParams,
     ChatParams,
     ConversationAction,
     ConversationClickParams,
@@ -91,6 +92,7 @@ export interface OutboundChatApi {
     onGetSerializedChat(requestId: string, result: GetSerializedChatResult | ErrorResult): void
     promptInputOptionChange(params: PromptInputOptionChangeParams): void
     stopChatResponse(tabId: string): void
+    sendButtonClickEvent(params: ButtonClickParams): void
 }
 
 export class Messager {
@@ -224,5 +226,9 @@ export class Messager {
 
     onStopChatResponse = (tabId: string): void => {
         this.chatApi.stopChatResponse(tabId)
+    }
+
+    onButtonClick = (params: ButtonClickParams): void => {
+        this.chatApi.sendButtonClickEvent(params)
     }
 }
