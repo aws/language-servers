@@ -1,13 +1,15 @@
 import { convertChunksToRelevantTextDocuments } from './relevantTextDocuments'
 import { Chunk } from 'local-indexing'
 import { RelevantTextDocument } from '@amzn/codewhisperer-streaming'
+import * as assert from 'assert'
 
 describe('convertChunksToRelevantTextDocuments', () => {
-    test('converts empty array to empty array', () => {
-        expect(convertChunksToRelevantTextDocuments([])).toEqual([])
+    it('converts empty array to empty array', () => {
+        const result = convertChunksToRelevantTextDocuments([])
+        assert.deepStrictEqual(result, [])
     })
 
-    test('combines chunks from same file and sorts by startLine', () => {
+    it('combines chunks from same file and sorts by startLine', () => {
         const chunks: Chunk[] = [
             {
                 id: '1',
@@ -39,10 +41,11 @@ describe('convertChunksToRelevantTextDocuments', () => {
             },
         ]
 
-        expect(convertChunksToRelevantTextDocuments(chunks)).toEqual(expected)
+        const result = convertChunksToRelevantTextDocuments(chunks)
+        assert.deepStrictEqual(result, expected)
     })
 
-    test('handles chunks without startLine', () => {
+    it('handles chunks without startLine', () => {
         const chunks: Chunk[] = [
             {
                 id: '1',
@@ -72,10 +75,11 @@ describe('convertChunksToRelevantTextDocuments', () => {
             },
         ]
 
-        expect(convertChunksToRelevantTextDocuments(chunks)).toEqual(expected)
+        const result = convertChunksToRelevantTextDocuments(chunks)
+        assert.deepStrictEqual(result, expected)
     })
 
-    test('handles unknown programming language', () => {
+    it('handles unknown programming language', () => {
         const chunks: Chunk[] = [
             {
                 id: '1',
@@ -95,10 +99,11 @@ describe('convertChunksToRelevantTextDocuments', () => {
             },
         ]
 
-        expect(convertChunksToRelevantTextDocuments(chunks)).toEqual(expected)
+        const result = convertChunksToRelevantTextDocuments(chunks)
+        assert.deepStrictEqual(result, expected)
     })
 
-    test('filters out empty content', () => {
+    it('filters out empty content', () => {
         const chunks: Chunk[] = [
             {
                 id: '1',
@@ -128,10 +133,11 @@ describe('convertChunksToRelevantTextDocuments', () => {
             },
         ]
 
-        expect(convertChunksToRelevantTextDocuments(chunks)).toEqual(expected)
+        const result = convertChunksToRelevantTextDocuments(chunks)
+        assert.deepStrictEqual(result, expected)
     })
 
-    test('truncates relative file path if too long', () => {
+    it('truncates relative file path if too long', () => {
         const longPath = 'a'.repeat(5000)
         const chunks: Chunk[] = [
             {
@@ -146,10 +152,11 @@ describe('convertChunksToRelevantTextDocuments', () => {
         ]
 
         const result = convertChunksToRelevantTextDocuments(chunks)
-        expect(result[0].relativeFilePath?.length).toBe(4000)
+        // Assuming the function truncates the relative path to 4000 characters.
+        assert.strictEqual(result[0].relativeFilePath?.length, 4000)
     })
 
-    test('handles multiple files', () => {
+    it('handles multiple files', () => {
         const chunks: Chunk[] = [
             {
                 id: '1',
@@ -184,6 +191,7 @@ describe('convertChunksToRelevantTextDocuments', () => {
             },
         ]
 
-        expect(convertChunksToRelevantTextDocuments(chunks)).toEqual(expected)
+        const result = convertChunksToRelevantTextDocuments(chunks)
+        assert.deepStrictEqual(result, expected)
     })
 })
