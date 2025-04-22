@@ -21,13 +21,13 @@ export class AdditionalContextProvider {
 
     async collectWorkspaceRules(): Promise<ContextCommandItem[]> {
         const rulesFiles: ContextCommandItem[] = []
-        let folders = workspaceUtils.getWorkspaceFolderPaths(this.lsp)
+        let workspaceFolders = workspaceUtils.getWorkspaceFolderPaths(this.lsp)
 
-        if (!folders.length) {
+        if (!workspaceFolders.length) {
             return rulesFiles
         }
-        for (const folder of folders) {
-            const rulesPath = path.join(folder, '.amazonq', 'rules')
+        for (const workspaceFolder of workspaceFolders) {
+            const rulesPath = path.join(workspaceFolder, '.amazonq', 'rules')
             const folderExists = await this.workspace.fs.exists(rulesPath)
 
             if (folderExists) {
@@ -36,9 +36,9 @@ export class AdditionalContextProvider {
                 for (const entry of entries) {
                     if (entry.isFile() && entry.name.endsWith(promptFileExtension)) {
                         rulesFiles.push({
-                            workspaceFolder: folder,
+                            workspaceFolder: workspaceFolder,
                             type: 'file',
-                            relativePath: path.relative(folder, `${rulesPath}/${entry.name}`),
+                            relativePath: path.relative(workspaceFolder, path.join(rulesPath, entry.name)),
                             id: '',
                         })
                     }
