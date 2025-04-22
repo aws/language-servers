@@ -28,6 +28,11 @@ export interface CommandValidation {
     warning?: string
 }
 
+export class ToolApprovalException extends Error {
+    constructor() {
+        super(`Tool execution invalidated`)
+    }
+}
 export interface ExplanatoryParams {
     explanation?: string
 }
