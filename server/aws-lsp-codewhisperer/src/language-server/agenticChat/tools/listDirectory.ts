@@ -30,30 +30,25 @@ export class ListDirectory {
         await validatePath(params.path, this.workspace.fs.exists)
     }
 
-    public async queueDescription(params: ListDirectoryParams, updates: WritableStream, requiresAcceptance: boolean) {
-        const writer = updates.getWriter()
-        const closeWriter = async (w: WritableStreamDefaultWriter) => {
-            await w.close()
-            w.releaseLock()
+    public async queueDescription(params: ListDirectoryParams, requiresAcceptance?: boolean): Promise<string> {
+        if (requiresAcceptance === false) {
+            return ''
         }
-        if (!requiresAcceptance) {
-            await writer.write('')
-            await closeWriter(writer)
-            return
-        }
+        let description = ''
         if (params.maxDepth === undefined) {
-            await writer.write(`Listing directory recursively: ${params.path}`)
+            description = `Listing directory recursively: ${params.path}`
         } else if (params.maxDepth === 0) {
-            await writer.write(`Listing directory: ${params.path}`)
+            description = `Listing directory: ${params.path}`
         } else {
             const level = params.maxDepth > 1 ? 'levels' : 'level'
-            await writer.write(`Listing directory: ${params.path} limited to ${params.maxDepth} subfolder ${level}`)
+            description = `Listing directory: ${params.path} limited to ${params.maxDepth} subfolder ${level}`
         }
-        await closeWriter(writer)
+
+        return description
     }
 
-    public async requiresAcceptance(path: string): Promise<CommandValidation> {
-        return { requiresAcceptance: !workspaceUtils.isInWorkspace(getWorkspaceFolderPaths(this.lsp), path) }
+    public async requiresAcceptance(params: ListDirectoryParams): Promise<CommandValidation> {
+        return { requiresAcceptance: !workspaceUtils.isInWorkspace(getWorkspaceFolderPaths(this.lsp), params.path) }
     }
 
     public async invoke(params: ListDirectoryParams, token?: CancellationToken): Promise<InvokeOutput> {

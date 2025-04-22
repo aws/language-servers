@@ -171,6 +171,8 @@ describe('AgenticChatController', () => {
             runTool: sinon.stub().resolves({}),
             getTools: sinon.stub().returns([]),
             addTool: sinon.stub().resolves(),
+            requiresAcceptance: sinon.stub().resolves(),
+            queueDescription: sinon.stub().resolves(),
         }
 
         additionalContextProviderStub = sinon.stub(AdditionalContextProvider.prototype, 'getAdditionalContext')

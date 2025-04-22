@@ -432,11 +432,11 @@ export class ExecuteBash {
         return output
     }
 
-    public async queueDescription(command: string, updates: WritableStream) {
-        const writer = updates.getWriter()
-        await writer.write('```shell\n' + command + '\n```')
-        await writer.close()
-        writer.releaseLock()
+    public async queueDescription(params: ExecuteBashParams, requiresAcceptance?: boolean): Promise<string> {
+        if (requiresAcceptance === false) {
+            return ''
+        }
+        return '```shell\n' + params.command + '\n```'
     }
 
     public getSpec() {

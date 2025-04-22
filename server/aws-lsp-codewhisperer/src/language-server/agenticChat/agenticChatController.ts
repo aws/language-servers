@@ -96,8 +96,8 @@ import { getNewPromptFilePath, getUserPromptsDirectory, promptFileExtension } fr
 import { ContextCommandsProvider } from './context/contextCommandsProvider'
 import { LocalProjectContextController } from '../../shared/localProjectContextController'
 import { CancellationError, workspaceUtils } from '@aws/lsp-core'
-import { FsReadParams } from './tools/fsRead'
-import { ListDirectoryParams } from './tools/listDirectory'
+import { FsRead, FsReadParams } from './tools/fsRead'
+import { ListDirectory, ListDirectoryParams } from './tools/listDirectory'
 import { FsWrite, FsWriteParams, getDiffChanges } from './tools/fsWrite'
 import { ExecuteBash, ExecuteBashOutput, ExecuteBashParams } from './tools/executeBash'
 import { ExplanatoryParams, InvokeOutput, ToolApprovalException } from './tools/toolShared'
@@ -487,10 +487,23 @@ export class AgenticChatController implements ChatHandlers {
                 }
                 switch (toolUse.name) {
                     case 'fsRead':
+                        const fsReadTool = new FsRead(this.#features)
+                        const { requiresAcceptance: fsReadRequiresAcceptance, warning: fsReadWarning } =
+                            await fsReadTool.requiresAcceptance(toolUse.input as unknown as FsReadParams)
+                        if (fsReadRequiresAcceptance) {
+                            needsConfirmation = true
+                            const confirmationResult = this.#processReadorListDirConfirmation(toolUse, fsReadWarning)
+                            await chatResultStream.writeResultBlock(confirmationResult)
+                        }
+                        break
                     case 'listDirectory':
-                        const initialReadOrListResult = this.#processReadOrList(toolUse, chatResultStream)
-                        if (initialReadOrListResult) {
-                            await chatResultStream.writeResultBlock(initialReadOrListResult)
+                        const listDirTool = new ListDirectory(this.#features)
+                        const { requiresAcceptance: listDirRequiresAcceptance, warning: listDirWarning } =
+                            await listDirTool.requiresAcceptance(toolUse.input as unknown as ListDirectoryParams)
+                        if (listDirRequiresAcceptance) {
+                            needsConfirmation = true
+                            const confirmationResult = this.#processReadorListDirConfirmation(toolUse, listDirWarning)
+                            await chatResultStream.writeResultBlock(confirmationResult)
                         }
                         break
                     case 'fsWrite':
@@ -525,6 +538,13 @@ export class AgenticChatController implements ChatHandlers {
                     session.setDeferredToolExecution(toolUse.toolUseId, deferred.resolve, deferred.reject)
                     this.#log(`Prompting for tool approval for tool: ${toolUse.name}`)
                     await deferred.promise
+                }
+
+                if (['fsRead', 'listDirectory'].includes(toolUse.name)) {
+                    const initialListDirResult = this.#processReadOrList(toolUse, chatResultStream)
+                    if (initialListDirResult) {
+                        await chatResultStream.writeResultBlock(initialListDirResult)
+                    }
                 }
 
                 const result = await this.#features.agent.runTool(toolUse.name, toolUse.input, token)
@@ -621,6 +641,30 @@ export class AgenticChatController implements ChatHandlers {
             messageId: toolUse.toolUseId,
             header,
             body: warning ? warning + body : body,
+        }
+    }
+
+    #processReadorListDirConfirmation(toolUse: ToolUse, warning?: string): ChatResult {
+        const buttons: Button[] = [
+            {
+                id: 'run-shell-command',
+                text: 'Run',
+                icon: 'play',
+            },
+        ]
+        const header = {
+            body: 'file-access',
+            buttons,
+        }
+
+        const filePath = (toolUse.input as unknown as FsReadParams | ListDirectoryParams).path
+        const body =
+            'I need permission to read files and list directories outside the workspace.\n\n```' + filePath + '```'
+        return {
+            type: 'tool',
+            messageId: toolUse.toolUseId,
+            header,
+            body: warning ? warning + '\n\n' + body : body,
         }
     }
 

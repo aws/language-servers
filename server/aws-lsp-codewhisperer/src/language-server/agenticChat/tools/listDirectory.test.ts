@@ -112,6 +112,36 @@ describe('ListDirectory Tool', () => {
         await assert.rejects(listDirectory.invoke({ path: missingPath, maxDepth: 0 }))
     })
 
+    it('returns description for recursive listing', async () => {
+        const listDirectory = new ListDirectory(testFeatures)
+        const description = await listDirectory.queueDescription({ path: '/some/path' })
+        assert.strictEqual(description, 'Listing directory recursively: /some/path')
+    })
+
+    it('returns description for non-recursive listing', async () => {
+        const listDirectory = new ListDirectory(testFeatures)
+        const description = await listDirectory.queueDescription({ path: '/some/path', maxDepth: 0 })
+        assert.strictEqual(description, 'Listing directory: /some/path')
+    })
+
+    it('returns description with depth limit', async () => {
+        const listDirectory = new ListDirectory(testFeatures)
+        const description = await listDirectory.queueDescription({ path: '/some/path', maxDepth: 2 })
+        assert.strictEqual(description, 'Listing directory: /some/path limited to 2 subfolder levels')
+    })
+
+    it('returns description with singular level text for maxDepth=1', async () => {
+        const listDirectory = new ListDirectory(testFeatures)
+        const description = await listDirectory.queueDescription({ path: '/some/path', maxDepth: 1 })
+        assert.strictEqual(description, 'Listing directory: /some/path limited to 1 subfolder level')
+    })
+
+    it('returns empty string when requiresAcceptance is false', async () => {
+        const listDirectory = new ListDirectory(testFeatures)
+        const description = await listDirectory.queueDescription({ path: '/some/path' }, false)
+        assert.strictEqual(description, '')
+    })
+
     it('expands ~ path', async () => {
         const listDirectory = new ListDirectory(testFeatures)
         const result = await listDirectory.invoke({ path: '~', maxDepth: 0 })

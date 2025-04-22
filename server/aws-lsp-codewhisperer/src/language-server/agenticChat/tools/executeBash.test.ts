@@ -122,4 +122,29 @@ describe('ExecuteBash Tool', () => {
             'A command without any path-like token should not require acceptance'
         )
     })
+
+    it('returns formatted command in code block', async () => {
+        const execBash = new ExecuteBash(features)
+        const params = { command: 'ls -la', cwd: '/some/path' }
+        const description = await execBash.queueDescription(params)
+        assert.strictEqual(description, '```shell\nls -la\n```', 'Should return command in shell code block')
+    })
+
+    it('preserves complex commands in description', async () => {
+        const execBash = new ExecuteBash(features)
+        const params = { command: 'find . -name "*.js" | xargs grep "TODO"', cwd: '/some/path' }
+        const description = await execBash.queueDescription(params)
+        assert.strictEqual(
+            description,
+            '```shell\nfind . -name "*.js" | xargs grep "TODO"\n```',
+            'Should preserve complex command syntax in description'
+        )
+    })
+
+    it('returns empty string when requiresAcceptance is false', async () => {
+        const execBash = new ExecuteBash(features)
+        const params = { command: 'echo hello', cwd: '/some/path' }
+        const description = await execBash.queueDescription(params, false)
+        assert.strictEqual(description, '', 'Should return empty string when requiresAcceptance is false')
+    })
 })

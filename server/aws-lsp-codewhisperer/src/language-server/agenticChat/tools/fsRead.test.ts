@@ -94,17 +94,22 @@ describe('FsRead Tool', () => {
         verifyResult(result, { content: '', truncated: false })
     })
 
-    it('updates the stream', async () => {
+    it('returns description string when requiresAcceptance is true', async () => {
         const fsRead = new FsRead(features)
-        const chunks = []
-        const stream = new WritableStream({
-            write: c => {
-                chunks.push(c)
-            },
-        })
-        await fsRead.queueDescription({ path: 'this/is/my/path' }, stream, true)
-        assert.ok(chunks.length > 0)
-        assert.ok(!stream.locked)
+        const description = await fsRead.queueDescription({ path: 'this/is/my/path' }, true)
+        assert.strictEqual(description, 'Reading file: [this/is/my/path] all lines')
+    })
+
+    it('returns description string with line range', async () => {
+        const fsRead = new FsRead(features)
+        const description = await fsRead.queueDescription({ path: 'this/is/my/path', readRange: [5, 10] })
+        assert.strictEqual(description, 'Reading file: [this/is/my/path] from line 5 to 10')
+    })
+
+    it('returns empty string when requiresAcceptance is false', async () => {
+        const fsRead = new FsRead(features)
+        const description = await fsRead.queueDescription({ path: 'this/is/my/path' }, false)
+        assert.strictEqual(description, '')
     })
 
     it('should require acceptance if fsPath is outside the workspace', async () => {

@@ -24,35 +24,55 @@ export class FsRead {
         await validatePath(params.path, this.workspace.fs.exists)
     }
 
-    public async queueDescription(params: FsReadParams, updates: WritableStream, requiresAcceptance: boolean) {
-        const updateWriter = updates.getWriter()
-        const closeWriter = async (w: WritableStreamDefaultWriter) => {
-            await w.close()
-            w.releaseLock()
+    public async queueDescription(params: FsReadParams, requiresAcceptance?: boolean): Promise<string> {
+        if (requiresAcceptance === false) {
+            return ''
         }
-        if (!requiresAcceptance) {
-            await closeWriter(updateWriter)
-            return
-        }
-        await updateWriter.write(`Reading file: [${params.path}]`)
 
+        let description = `Reading file: [${params.path}]`
         const [start, end] = params.readRange ?? []
 
         if (start && end) {
-            await updateWriter.write(`from line ${start} to ${end}`)
+            description += ` from line ${start} to ${end}`
         } else if (start) {
             const msg =
                 start > 0 ? `from line ${start} to end of file` : `${start} line from the end of file to end of file`
-            await updateWriter.write(msg)
+            description += ` ${msg}`
         } else {
-            await updateWriter.write('all lines')
+            description += ' all lines'
         }
-        await closeWriter(updateWriter)
+
+        return description
     }
 
     public async requiresAcceptance(params: FsReadParams): Promise<CommandValidation> {
         // true when the file is not resolvable within our workspace. i.e. is outside of our workspace.
-        return { requiresAcceptance: !(await this.workspace.getTextDocument(URI.file(params.path).toString())) }
+        console.log(`[DEBUG] requiresAcceptance called with path: ${params.path}`)
+        const fileUri = URI.file(params.path).toString()
+        console.log(`[DEBUG] Converted URI: ${fileUri}`)
+
+        try {
+            const textDocument = await this.workspace.getTextDocument(fileUri)
+            console.log(`[DEBUG] getTextDocument result: ${textDocument ? 'Document found' : 'Document NOT found'}`)
+            if (textDocument) {
+                console.log(
+                    `[DEBUG] Document details: ${JSON.stringify({
+                        uri: textDocument.uri,
+                        languageId: textDocument.languageId,
+                        version: textDocument.version,
+                        lineCount: textDocument.lineCount,
+                    })}`
+                )
+            }
+
+            const requiresAcceptance = !textDocument
+            console.log(`[DEBUG] Final requiresAcceptance value: ${requiresAcceptance}`)
+            return { requiresAcceptance }
+        } catch (error) {
+            console.log(`[DEBUG] Error in requiresAcceptance: ${error}`)
+            // If there's an error, we should require acceptance as a safety measure
+            return { requiresAcceptance: true }
+        }
     }
 
     public async invoke(params: FsReadParams): Promise<InvokeOutput> {

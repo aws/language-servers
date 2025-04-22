@@ -44,18 +44,61 @@ describe('FsWrite Tool', function () {
         await tempFolder.delete()
     })
 
-    it('writes a empty space to updates stream', async function () {
-        const fsRead = new FsWrite(features)
-        const chunks: string[] = []
-        const stream = new WritableStream({
-            write: c => {
-                chunks.push(c)
-            },
-        })
-        await fsRead.queueDescription(stream)
-        assert.strictEqual(chunks.length, 1)
-        assert.ok(chunks[0], ' ')
-        assert.ok(!stream.locked)
+    it('returns description for create command', async function () {
+        const fsWrite = new FsWrite(features)
+        const params = {
+            command: 'create' as const,
+            path: '/path/to/file.txt',
+            fileText: 'content',
+        }
+        const description = await fsWrite.queueDescription(params)
+        assert.strictEqual(description, 'Creating file: /path/to/file.txt')
+    })
+
+    it('returns description for strReplace command', async function () {
+        const fsWrite = new FsWrite(features)
+        const params = {
+            command: 'strReplace' as const,
+            path: '/path/to/file.txt',
+            oldStr: 'old',
+            newStr: 'new',
+        }
+        const description = await fsWrite.queueDescription(params)
+        assert.strictEqual(description, 'Replacing text in file: /path/to/file.txt')
+    })
+
+    it('returns description for insert command', async function () {
+        const fsWrite = new FsWrite(features)
+        const params = {
+            command: 'insert' as const,
+            path: '/path/to/file.txt',
+            insertLine: 5,
+            newStr: 'new line',
+        }
+        const description = await fsWrite.queueDescription(params)
+        assert.strictEqual(description, 'Inserting text at line 5 in file: /path/to/file.txt')
+    })
+
+    it('returns description for append command', async function () {
+        const fsWrite = new FsWrite(features)
+        const params = {
+            command: 'append' as const,
+            path: '/path/to/file.txt',
+            newStr: 'appended text',
+        }
+        const description = await fsWrite.queueDescription(params)
+        assert.strictEqual(description, 'Appending text to file: /path/to/file.txt')
+    })
+
+    it('returns empty string when requiresAcceptance is false', async function () {
+        const fsWrite = new FsWrite(features)
+        const params = {
+            command: 'create' as const,
+            path: '/path/to/file.txt',
+            fileText: 'content',
+        }
+        const description = await fsWrite.queueDescription(params, false)
+        assert.strictEqual(description, '')
     })
 
     describe('handleCreate', function () {

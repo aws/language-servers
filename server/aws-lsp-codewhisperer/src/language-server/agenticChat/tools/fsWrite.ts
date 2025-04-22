@@ -115,12 +115,28 @@ export class FsWrite {
         }
     }
 
-    public async queueDescription(updates: WritableStream): Promise<void> {
-        const updateWriter = updates.getWriter()
-        // Write an empty string because FsWrite should only show a chat message with header
-        await updateWriter.write(' ')
-        await updateWriter.close()
-        updateWriter.releaseLock()
+    public async queueDescription(params: FsWriteParams, requiresAcceptance?: boolean): Promise<string> {
+        if (requiresAcceptance === false) {
+            return ''
+        }
+
+        let description = ''
+        switch (params.command) {
+            case 'create':
+                description = `Creating file: ${params.path}`
+                break
+            case 'strReplace':
+                description = `Replacing text in file: ${params.path}`
+                break
+            case 'insert':
+                description = `Inserting text at line ${params.insertLine} in file: ${params.path}`
+                break
+            case 'append':
+                description = `Appending text to file: ${params.path}`
+                break
+        }
+
+        return description
     }
 
     private async handleCreate(params: CreateParams, sanitizedPath: string): Promise<void> {
