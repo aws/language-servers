@@ -854,5 +854,5 @@ const uiComponentsTexts = {
     copyToClipboard: 'Copied to clipboard',
     noMoreTabsTooltip: 'You can only open ten conversation tabs at a time.',
     codeSuggestionWithReferenceTitle: 'Some suggestions contain code with references.',
-    spinnerText: 'Generating your answer...',
+    spinnerText: 'Thinking...',
 }
