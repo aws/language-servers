@@ -703,22 +703,34 @@ export class AgenticChatController implements ChatHandlers {
     }
 
     #processReadOrList(toolUse: ToolUse, chatResultStream: AgenticChatResultStream): ChatMessage | undefined {
-        // return initial message about fsRead or listDir
-        const toolUseId = toolUse.toolUseId!
-        const currentPath = (toolUse.input as unknown as FsReadParams | ListDirectoryParams).path
+        if (toolUse.name !== 'fsRead') {
+            //TODO: Implement list directory UX in next PR.
+            return {}
+        }
+        let messageId = toolUse.toolUseId || ''
+        if (chatResultStream.getMessageIdToUpdate()) {
+            messageId = chatResultStream.getMessageIdToUpdate()!
+        } else if (messageId) {
+            chatResultStream.setMessageIdToUpdate(messageId)
+        }
+        const currentPath = (toolUse.input as unknown as FsReadParams | ListDirectoryParams)?.path
         if (!currentPath) return
-        const currentFileList = chatResultStream.getContextFileList(toolUseId)
-        if (!currentFileList.some(path => path.relativeFilePath === currentPath)) {
+        const existingPaths = chatResultStream.getMessageOperation(messageId)?.filePaths || []
+        // Check if path already exists in the list
+        const isPathAlreadyProcessed = existingPaths.some(path => path.relativeFilePath === currentPath)
+        if (!isPathAlreadyProcessed) {
             const currentFileDetail = {
-                relativeFilePath: (toolUse.input as any)?.path,
+                relativeFilePath: currentPath,
                 lineRanges: [{ first: -1, second: -1 }],
             }
-            chatResultStream.addContextFileList(toolUseId, currentFileDetail)
-            currentFileList.push(currentFileDetail)
+            const operationType = toolUse.name === 'fsRead' ? 'read' : 'listDir'
+            if (operationType === 'read') {
+                chatResultStream.addMessageOperation(messageId, operationType, [...existingPaths, currentFileDetail])
+            }
         }
-
         let title: string
-        const itemCount = currentFileList.length
+        const itemCount = chatResultStream.getMessageOperation(messageId)?.filePaths.length
+        const filePathsPushed = chatResultStream.getMessageOperation(messageId)?.filePaths ?? []
         if (!itemCount) {
             title = 'Gathering context'
         } else {
@@ -728,7 +740,7 @@ export class AgenticChatController implements ChatHandlers {
                     : `${itemCount} ${itemCount === 1 ? 'directory' : 'directories'} listed`
         }
         const fileDetails: Record<string, FileDetails> = {}
-        for (const item of currentFileList) {
+        for (const item of filePathsPushed) {
             fileDetails[item.relativeFilePath] = {
                 lineRanges: item.lineRanges,
             }
@@ -736,14 +748,13 @@ export class AgenticChatController implements ChatHandlers {
 
         const contextList: FileList = {
             rootFolderTitle: title,
-            filePaths: currentFileList.map(item => item.relativeFilePath),
+            filePaths: filePathsPushed.map(item => item.relativeFilePath),
             details: fileDetails,
         }
-
         return {
             type: 'tool',
             contextList,
-            messageId: toolUseId,
+            messageId,
             body: '',
         }
     }
