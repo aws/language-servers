@@ -43,7 +43,7 @@ import { ExportTabBarButtonId, TabFactory } from './tabs/tabFactory'
 import { disclaimerAcknowledgeButtonId, disclaimerCard } from './texts/disclaimer'
 import { ChatClientAdapter, ChatEventHandler } from '../contracts/chatClientAdapter'
 import { withAdapter } from './withAdapter'
-import { toMynahButtons, toMynahHeader, toMynahIcon } from './utils'
+import { toDetailsWithoutIcon, toMynahButtons, toMynahHeader, toMynahIcon } from './utils'
 import { ChatHistory, ChatHistoryList } from './features/history'
 import { pairProgrammingModeOff, pairProgrammingModeOn, programmerModeCard } from './texts/pairProgramming'
 
@@ -443,7 +443,7 @@ export const createMynahUi = (
         return tabId ?? createTabId()
     }
 
-    const contextListToHeader = (contextList?: ChatResult['contextList']) => {
+    const contextListToHeader = (contextList?: ChatResult['contextList']): ChatItem['header'] => {
         if (contextList === undefined) {
             return undefined
         }
@@ -492,12 +492,25 @@ export const createMynahUi = (
 
             chatResult.additionalMessages.forEach(am => {
                 const contextHeader = contextListToHeader(am.contextList)
+                const header = contextHeader || toMynahHeader(am.header) // Is this mutually exclusive?
 
-                const chatItem = {
+                const chatItem: ChatItem = {
                     messageId: am.messageId,
                     body: am.body,
                     type: ChatItemType.ANSWER,
-                    header: contextHeader || toMynahHeader(am.header), // Is this mutually exclusive?
+                    header:
+                        am.type === 'tool' && am.header?.fileList && am.header.buttons
+                            ? {
+                                  ...header,
+                                  fileList: {
+                                      ...header?.fileList,
+                                      fileTreeTitle: '',
+                                      hideFileCount: true,
+                                      details: toDetailsWithoutIcon(header?.fileList?.details),
+                                  },
+                                  buttons: header?.buttons?.map(button => ({ ...button, status: 'clear' })),
+                              }
+                            : header,
                     buttons: toMynahButtons(am.buttons),
 
                     // file diffs in the header need space
