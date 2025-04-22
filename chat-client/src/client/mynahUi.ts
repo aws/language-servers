@@ -6,7 +6,6 @@ import {
     AuthFollowUpClickedParams,
     CopyCodeToClipboardParams,
     ErrorParams,
-    FeatureContext,
     GenericCommandParams,
     InsertToCursorPositionParams,
     SendToPromptParams,
