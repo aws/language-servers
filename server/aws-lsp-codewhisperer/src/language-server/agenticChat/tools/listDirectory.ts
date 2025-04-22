@@ -1,10 +1,11 @@
 // Port from VSC: https://github.com/aws/aws-toolkit-vscode/blob/0eea1d8ca6e25243609a07dc2a2c31886b224baa/packages/core/src/codewhispererChat/tools/listDirectory.ts#L19
 import { CommandValidation, InvokeOutput, validatePath } from './toolShared'
-import { workspaceUtils } from '@aws/lsp-core'
+import { CancellationError, workspaceUtils } from '@aws/lsp-core'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 import { sanitize } from '@aws/lsp-core/out/util/path'
 import { DEFAULT_EXCLUDE_PATTERNS } from '../../chat/constants'
 import { getWorkspaceFolderPaths } from '@aws/lsp-core/out/util/workspaceUtils'
+import { CancellationToken } from '@aws/language-server-runtimes/protocol'
 
 export interface ListDirectoryParams {
     path: string
@@ -55,16 +56,21 @@ export class ListDirectory {
         return { requiresAcceptance: !workspaceUtils.isInWorkspace(getWorkspaceFolderPaths(this.lsp), path) }
     }
 
-    public async invoke(params: ListDirectoryParams): Promise<InvokeOutput> {
+    public async invoke(params: ListDirectoryParams, token?: CancellationToken): Promise<InvokeOutput> {
         const path = sanitize(params.path)
         try {
             const listing = await workspaceUtils.readDirectoryRecursively(
                 { workspace: this.workspace, logging: this.logging },
                 path,
-                { maxDepth: params.maxDepth, excludePatterns: DEFAULT_EXCLUDE_PATTERNS }
+                { maxDepth: params.maxDepth, excludePatterns: DEFAULT_EXCLUDE_PATTERNS },
+                token
             )
             return this.createOutput(listing.join('\n'))
         } catch (error: any) {
+            if (CancellationError.isUserCancelled(error)) {
+                // bubble this up to the main agentic chat loop
+                throw error
+            }
             this.logging.error(`Failed to list directory "${path}": ${error.message || error}`)
             throw new Error(`Failed to list directory "${path}": ${error.message || error}`)
         }

@@ -95,7 +95,7 @@ import { AdditionalContextProvider } from './context/addtionalContextProvider'
 import { getNewPromptFilePath, getUserPromptsDirectory, promptFileExtension } from './context/contextUtils'
 import { ContextCommandsProvider } from './context/contextCommandsProvider'
 import { LocalProjectContextController } from '../../shared/localProjectContextController'
-import { workspaceUtils } from '@aws/lsp-core'
+import { CancellationError, workspaceUtils } from '@aws/lsp-core'
 import { FsReadParams } from './tools/fsRead'
 import { ListDirectoryParams } from './tools/listDirectory'
 import { FsWrite, FsWriteParams, getDiffChanges } from './tools/fsWrite'
@@ -310,7 +310,7 @@ export class AgenticChatController implements ChatHandlers {
             )
         } catch (err) {
             // TODO: On ToolValidationException, we want to show custom mynah-ui components making it clear it was cancelled.
-            if (token?.isCancellationRequested || err instanceof ToolApprovalException) {
+            if (CancellationError.isUserCancelled(err) || err instanceof ToolApprovalException) {
                 /**
                  * when the session is aborted it generates an error.
                  * we need to resolve this error with an answer so the
@@ -376,8 +376,7 @@ export class AgenticChatController implements ChatHandlers {
 
             // Check for cancellation
             if (token?.isCancellationRequested) {
-                this.#debug('Request cancelled during agent loop')
-                break
+                throw new CancellationError('user')
             }
 
             // Phase 3: Request Execution
@@ -409,7 +408,7 @@ export class AgenticChatController implements ChatHandlers {
             const currentMessage = currentRequestInput.conversationState?.currentMessage
 
             // Process tool uses and update the request input for the next iteration
-            const toolResults = await this.#processToolUses(pendingToolUses, chatResultStream, session)
+            const toolResults = await this.#processToolUses(pendingToolUses, chatResultStream, session, token)
             currentRequestInput = this.#updateRequestInputWithToolResults(currentRequestInput, toolResults)
 
             if (!currentRequestInput.conversationState!.history) {
@@ -463,7 +462,8 @@ export class AgenticChatController implements ChatHandlers {
     async #processToolUses(
         toolUses: Array<ToolUse & { stop: boolean }>,
         chatResultStream: AgenticChatResultStream,
-        session: ChatSessionService
+        session: ChatSessionService,
+        token?: CancellationToken
     ): Promise<ToolResult[]> {
         const results: ToolResult[] = []
 
@@ -523,7 +523,7 @@ export class AgenticChatController implements ChatHandlers {
                     await deferred.promise
                 }
 
-                const result = await this.#features.agent.runTool(toolUse.name, toolUse.input)
+                const result = await this.#features.agent.runTool(toolUse.name, toolUse.input, token)
                 let toolResultContent: ToolResultContentBlock
 
                 if (typeof result === 'string') {
@@ -561,8 +561,8 @@ export class AgenticChatController implements ChatHandlers {
                         break
                 }
             } catch (err) {
-                // If we did not approve a tool to be used, bubble this up to interrupt agentic loop
-                if (err instanceof ToolApprovalException) {
+                // If we did not approve a tool to be used or the user stopped the response, bubble this up to interrupt agentic loop
+                if (CancellationError.isUserCancelled(err) || err instanceof ToolApprovalException) {
                     throw err
                 }
                 const errMsg = err instanceof Error ? err.message : 'unknown error'
