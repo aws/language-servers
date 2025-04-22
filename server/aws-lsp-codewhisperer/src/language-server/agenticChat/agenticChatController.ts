@@ -100,7 +100,7 @@ import { FsReadParams } from './tools/fsRead'
 import { ListDirectoryParams } from './tools/listDirectory'
 import { FsWrite, FsWriteParams, getDiffChanges } from './tools/fsWrite'
 import { ExecuteBash, ExecuteBashOutput, ExecuteBashParams } from './tools/executeBash'
-import { InvokeOutput } from './tools/toolShared'
+import { InvokeOutput, ToolApprovalException } from './tools/toolShared'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -150,6 +150,7 @@ export class AgenticChatController implements ChatHandlers {
     }
 
     async onButtonClick(params: ButtonClickParams): Promise<ButtonClickResult> {
+        this.#log(`onButtonClick event with params: ${JSON.stringify(params)}`)
         if (params.buttonId === 'run-shell-command' || params.buttonId === 'reject-shell-command') {
             const session = this.#chatSessionManagementService.getSession(params.tabId)
             if (!session.data) {
@@ -162,12 +163,11 @@ export class AgenticChatController implements ChatHandlers {
                     failureReason: `could not find deferred tool execution for message: ${params.messageId} `,
                 }
             }
-            params.buttonId === 'reject-shell-command' ? handler.reject() : handler.resolve()
+            params.buttonId === 'reject-shell-command' ? handler.reject(new ToolApprovalException()) : handler.resolve()
             return {
                 success: true,
             }
         } else {
-            this.#log(`onButtonClick event with params: ${JSON.stringify(params)}`)
             return {
                 success: false,
                 failureReason: 'not implemented',
@@ -286,7 +286,8 @@ export class AgenticChatController implements ChatHandlers {
                 chatResultStream
             )
         } catch (err) {
-            if (token?.isCancellationRequested) {
+            // TODO: On ToolValidationException, we want to show custom mynah-ui components making it clear it was cancelled.
+            if (token?.isCancellationRequested || err instanceof ToolApprovalException) {
                 /**
                  * when the session is aborted it generates an error.
                  * we need to resolve this error with an answer so the
@@ -485,13 +486,8 @@ export class AgenticChatController implements ChatHandlers {
                 if (needsConfirmation) {
                     const deferred = this.#createDeferred()
                     session.setDeferredToolExecution(toolUse.toolUseId, deferred.resolve, deferred.reject)
-
-                    // the below line was commented out for now because
-                    // the partial result block from above is not streamed to chat window yet at this point
-                    // so the buttons are not in the window for the promise to be rejected/resolved
-                    // this can to be brought back once intermediate messages are shown
-
-                    // await deferred.promise
+                    this.#log(`Promting for tool approval for tool: ${toolUse.name}`)
+                    await deferred.promise
                 }
 
                 const result = await this.#features.agent.runTool(toolUse.name, toolUse.input)
@@ -532,6 +528,10 @@ export class AgenticChatController implements ChatHandlers {
                         break
                 }
             } catch (err) {
+                // If we did not approve a tool to be used, bubble this up to interrupt agentic loop
+                if (err instanceof ToolApprovalException) {
+                    throw err
+                }
                 const errMsg = err instanceof Error ? err.message : 'unknown error'
                 await chatResultStream.writeResultBlock({
                     body: toolErrorMessage(toolUse, errMsg),
@@ -1227,7 +1227,7 @@ export class AgenticChatController implements ChatHandlers {
         let reject
         const promise = new Promise((res, rej) => {
             resolve = res
-            reject = rej
+            reject = (e: Error) => rej(e)
         })
         return { promise, resolve, reject }
     }

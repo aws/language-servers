@@ -27,3 +27,9 @@ export interface CommandValidation {
     requiresAcceptance: boolean
     warning?: string
 }
+
+export class ToolApprovalException extends Error {
+    constructor() {
+        super(`Tool execution invalidated`)
+    }
+}
