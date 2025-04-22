@@ -29,14 +29,39 @@ describe('Webworker testing at runtime', () => {
         await new Promise(resolve => setTimeout(resolve, 10000))
 
         const logs = await browser.getLogs('browser')
+        const errorLogs = logs.filter(log => log.level === 'SEVERE')
 
-        console.log('### START LOGS ###')
-        logs.forEach(log => {
+        // Only log error entries if any exist
+        if (errorLogs.length > 0) {
+            console.log('### ERROR LOGS ###')
+            errorLogs.forEach(log => {
+                console.log(`[WDIO ${log.level}]: ${log.message}`)
+            })
+            console.log('### END ERROR LOGS ###')
+        }
+
+        expect(errorLogs).toHaveLength(0)
+    })
+
+    it('should contain server initialization log message', async () => {
+        await browser.url('http://localhost:8080')
+        // even after page loads, it is safer to wait some seconds for logs to appear on console
+        await new Promise(resolve => setTimeout(resolve, 10000))
+        // Get browser logs
+        const logs = await browser.getLogs('browser')
+        // Look for the specific server initialization message
+        const serverInitLogs = logs.filter(log => {
+            return log.message.includes('Server initialized:') && log.message.includes('Object')
+        })
+
+        // Log the matching entries for debugging
+        console.log('### SERVER INIT LOGS ###')
+        serverInitLogs.forEach(log => {
             console.log(`[WDIO ${log.level}]: ${log.message}`)
         })
-        console.log('### END LOGS ###')
+        console.log('### END SERVER INIT LOGS ###')
 
-        const errorLogs = logs.filter(log => log.level === 'SEVERE')
-        expect(errorLogs).toHaveLength(0)
+        // Assert that we found at least one matching log entry
+        expect(serverInitLogs.length).toBeGreaterThan(0, 'Expected to find server initialization log message')
     })
 })
