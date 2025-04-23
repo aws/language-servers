@@ -98,7 +98,7 @@ describe('MynahUI', () => {
             assert.notCalled(onQuickActionSpy)
             assert.calledWith(onChatPromptSpy, { prompt, tabId, context: undefined })
             assert.calledWith(addChatItemSpy, tabId, { type: ChatItemType.PROMPT, body: prompt.escapedPrompt })
-            assert.calledWith(updateStoreSpy, tabId, { loadingChat: true, promptInputDisabledState: true })
+            assert.calledWith(updateStoreSpy, tabId, { loadingChat: true, promptInputDisabledState: false })
             assert.calledWith(addChatItemSpy, tabId, { type: ChatItemType.ANSWER_STREAM })
         })
 
@@ -282,7 +282,7 @@ describe('MynahUI', () => {
 
             sinon.assert.calledOnceWithMatch(updateStoreSpy, tabId, {
                 loadingChat: true,
-                promptInputDisabledState: true,
+                promptInputDisabledState: false,
             })
         })
     })
