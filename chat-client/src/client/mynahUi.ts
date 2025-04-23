@@ -631,29 +631,35 @@ export const createMynahUi = (
         const contextHeader = contextListToHeader(message.contextList)
         const header = contextHeader || toMynahHeader(message.header) // Is this mutually exclusive?
 
+        let processedHeader = header
+        if (message.type === 'tool') {
+            processedHeader = { ...header }
+            if (header?.buttons) {
+                processedHeader.buttons = header.buttons.map(button => ({ ...button, status: 'clear' }))
+            }
+            if (header?.fileList) {
+                processedHeader.fileList = {
+                    ...header.fileList,
+                    fileTreeTitle: '',
+                    hideFileCount: true,
+                    details: toDetailsWithoutIcon(header.fileList.details),
+                }
+            }
+        }
+
         return {
             body:
                 message.type !== 'tool' && (message.body === undefined || message.body === '')
                     ? 'Thinking...'
                     : message.body,
-            header:
-                message.type === 'tool' && message.header?.fileList && message.header.buttons
-                    ? {
-                          ...header,
-                          fileList: {
-                              ...header?.fileList,
-                              fileTreeTitle: '',
-                              hideFileCount: true,
-                              details: toDetailsWithoutIcon(header?.fileList?.details),
-                          },
-                          buttons: header?.buttons?.map(button => ({ ...button, status: 'clear' })),
-                      }
-                    : header,
+            header: processedHeader,
             buttons: toMynahButtons(message.buttons),
 
             // file diffs in the header need space
-            fullWidth: message.type === 'tool' ? true : undefined,
+            fullWidth: message.type === 'tool' && message.header?.buttons ? true : undefined,
             padding: message.type === 'tool' ? false : undefined,
+
+            codeBlockActions: message.type === 'tool' ? { 'insert-to-cursor': null, copy: null } : undefined,
         }
     }
 
