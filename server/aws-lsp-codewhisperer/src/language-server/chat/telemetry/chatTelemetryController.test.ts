@@ -54,7 +54,7 @@ describe('TelemetryController', () => {
 
         sinon.assert.calledOnceWithExactly(testFeatures.telemetry.emitMetric, {
             name: ChatTelemetryEventName.EnterFocusChat,
-            data: { credentialStartUrl: undefined },
+            data: { credentialStartUrl: undefined, result: 'Succeeded' },
         })
     })
 
@@ -67,7 +67,7 @@ describe('TelemetryController', () => {
 
         sinon.assert.calledOnceWithExactly(testFeatures.telemetry.emitMetric, {
             name: ChatTelemetryEventName.ExitFocusChat,
-            data: { credentialStartUrl: undefined },
+            data: { credentialStartUrl: undefined, result: 'Succeeded' },
         })
     })
 
