@@ -61,7 +61,7 @@ describe('toolShared', () => {
                 true,
                 'Should require acceptance when workspace folders are empty'
             )
-            sinon.assert.calledOnce(mockLogging.warn as sinon.SinonSpy)
+            sinon.assert.calledOnce(mockLogging.debug as sinon.SinonSpy)
         })
 
         it('should require acceptance if workspace folders are undefined', async () => {
@@ -77,7 +77,7 @@ describe('toolShared', () => {
                 true,
                 'Should require acceptance when workspace folders are undefined'
             )
-            sinon.assert.calledOnce(mockLogging.warn as sinon.SinonSpy)
+            sinon.assert.calledOnce(mockLogging.debug as sinon.SinonSpy)
         })
 
         it('should require acceptance if getClientInitializeParams returns undefined', async () => {
@@ -91,7 +91,7 @@ describe('toolShared', () => {
                 true,
                 'Should require acceptance when getClientInitializeParams returns undefined'
             )
-            sinon.assert.calledOnce(mockLogging.warn as sinon.SinonSpy)
+            sinon.assert.calledOnce(mockLogging.debug as sinon.SinonSpy)
         })
 
         it('should require acceptance and log error if an exception occurs', async () => {
