@@ -127,7 +127,7 @@ describe('MynahUI', () => {
                 tabId,
             })
             assert.calledOnce(updateStoreSpy)
-            assert.calledWith(updateStoreSpy, tabId, { loadingChat: true, promptInputDisabledState: true })
+            assert.calledWith(updateStoreSpy, tabId, { loadingChat: true, promptInputDisabledState: false })
         })
     })
 
