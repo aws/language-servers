@@ -159,8 +159,7 @@ export class ExecuteBash {
         writer?: WritableStreamDefaultWriter
     ): void {
         const buffer = chunk.isStdout ? stdoutBuffer : stderrBuffer
-        const content = chunk.isFirst ? '```console\n' + chunk.content : chunk.content
-        ExecuteBash.handleChunk(content, buffer, writer)
+        ExecuteBash.handleChunk(chunk.content, buffer, writer)
     }
 
     public async requiresAcceptance(params: ExecuteBashParams): Promise<CommandValidation> {
@@ -236,8 +235,8 @@ export class ExecuteBash {
     // TODO: generalize cancellation logic for tools.
     public async invoke(
         params: ExecuteBashParams,
-        updates?: WritableStream,
-        cancellationToken?: CancellationToken
+        cancellationToken?: CancellationToken,
+        updates?: WritableStream
     ): Promise<InvokeOutput> {
         this.logging.info(`Invoking bash command: "${params.command}" in cwd: "${params.cwd}"`)
 

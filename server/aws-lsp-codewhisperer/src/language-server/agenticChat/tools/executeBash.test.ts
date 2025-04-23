@@ -66,7 +66,7 @@ describe('ExecuteBash Tool', () => {
         const execBash = new ExecuteBash(features)
 
         const writable = new WritableStream()
-        const result = await execBash.invoke({ command: 'ls' }, writable)
+        const result = await execBash.invoke({ command: 'ls' }, undefined, writable)
         assert.strictEqual(result.output.kind, 'json')
         assert.ok('exitStatus' in result.output.content)
         assert.ok('stdout' in result.output.content && typeof result.output.content.stdout === 'string')

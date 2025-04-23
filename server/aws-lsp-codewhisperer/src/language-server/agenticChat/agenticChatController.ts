@@ -576,7 +576,8 @@ export class AgenticChatController implements ChatHandlers {
                         .set(toolUse.toolUseId, { ...toolUse, oldContent: document?.getText() })
                 }
 
-                const result = await this.#features.agent.runTool(toolUse.name, toolUse.input, token)
+                const ws = this.#getWritableStream(chatResultStream, toolUse)
+                const result = await this.#features.agent.runTool(toolUse.name, toolUse.input, token, ws)
                 let toolResultContent: ToolResultContentBlock
 
                 if (typeof result === 'string') {
@@ -596,7 +597,9 @@ export class AgenticChatController implements ChatHandlers {
                 switch (toolUse.name) {
                     case 'fsRead':
                     case 'listDirectory':
+                    case 'executeBash':
                         // no need to write tool result for listDir and fsRead into chat stream
+                        // executeBash will stream the output instead of waiting until the end
                         break
                     case 'fsWrite':
                         const chatResult = await this.#getFsWriteChatResult(toolUse)
@@ -606,10 +609,6 @@ export class AgenticChatController implements ChatHandlers {
                             toolUseLookup.set(toolUse.toolUseId, { ...cachedToolUse, chatResult })
                         }
                         await chatResultStream.writeResultBlock(chatResult)
-                        break
-                    case 'executeBash':
-                        const bashToolResult = this.#getBashExecutionChatResult(toolUse, result)
-                        await chatResultStream.writeResultBlock(bashToolResult)
                         break
                     default:
                         await chatResultStream.writeResultBlock({
@@ -641,6 +640,35 @@ export class AgenticChatController implements ChatHandlers {
         }
 
         return results
+    }
+
+    #getWritableStream(chatResultStream: AgenticChatResultStream, toolUse: ToolUse): WritableStream | undefined {
+        if (toolUse.name !== 'executeBash') {
+            return
+        }
+        return new WritableStream({
+            start: async () => {
+                await chatResultStream.writeResultBlock({
+                    type: 'tool',
+                    body: '```console',
+                    messageId: toolUse.toolUseId,
+                })
+            },
+            write: async chunk => {
+                await chatResultStream.writeResultBlock({
+                    type: 'tool',
+                    body: chunk,
+                    messageId: toolUse.toolUseId,
+                })
+            },
+            close: async () => {
+                await chatResultStream.writeResultBlock({
+                    type: 'tool',
+                    body: '```',
+                    messageId: toolUse.toolUseId,
+                })
+            },
+        })
     }
 
     #getUpdateBashConfirmResult(toolUse: ToolUse, isAccept: boolean): ChatResult {

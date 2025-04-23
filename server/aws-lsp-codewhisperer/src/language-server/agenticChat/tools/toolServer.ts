@@ -37,8 +37,8 @@ export const FsToolsServer: Server = ({ workspace, logging, agent, lsp }) => {
 
 export const BashToolsServer: Server = ({ logging, workspace, agent, lsp }) => {
     const bashTool = new ExecuteBash({ logging, workspace, lsp })
-    agent.addTool(bashTool.getSpec(), (input: ExecuteBashParams, token?: CancellationToken) =>
-        bashTool.invoke(input, undefined, token)
+    agent.addTool(bashTool.getSpec(), (input: ExecuteBashParams, token?: CancellationToken, updates?: WritableStream) =>
+        bashTool.invoke(input, token, updates)
     )
     return () => {}
 }
