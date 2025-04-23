@@ -1,4 +1,3 @@
-import { ChatMessage, ToolUse } from '@amzn/codewhisperer-streaming'
 import { CommandValidation, ExplanatoryParams, InvokeOutput } from './toolShared'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 import { sanitize } from '@aws/lsp-core/out/util/path'
