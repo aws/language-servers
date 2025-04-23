@@ -1,5 +1,5 @@
 import { ChatResult, FileDetails, ChatMessage } from '@aws/language-server-runtimes/protocol'
-import { randomUUID } from 'crypto'
+import { v4 as uuid4 } from 'uuid'
 
 interface ResultStreamWriter {
     write(chunk: ChatResult, final?: boolean): Promise<void>
@@ -27,7 +27,7 @@ export class AgenticChatResultStream {
     #state = {
         chatResultBlocks: [] as ChatMessage[],
         isLocked: false,
-        uuid: randomUUID(),
+        uuid: uuid4(),
         messageId: undefined as string | undefined,
         messageIdToUpdate: undefined as string | undefined,
         messageOperations: new Map<string, FileOperation>(),
