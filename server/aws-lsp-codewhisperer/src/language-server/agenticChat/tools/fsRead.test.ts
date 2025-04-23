@@ -130,6 +130,9 @@ describe('FsRead Tool', () => {
                 ...features.lsp,
                 getClientInitializeParams: () => ({
                     workspaceFolders: [{ uri: 'file:///workspace/folder', name: 'workspace' }],
+                    processId: 123,
+                    rootUri: 'file:///workspace/folder',
+                    capabilities: {},
                 }),
             },
             workspace: {
