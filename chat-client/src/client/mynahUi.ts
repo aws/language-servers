@@ -90,6 +90,7 @@ export const handleChatPrompt = (
     _eventId?: string
 ) => {
     let userPrompt = prompt.escapedPrompt
+    messager.onStopChatResponse(tabId)
     if (prompt.command) {
         // Temporary solution to handle clear quick actions on the client side
         if (prompt.command === '/clear') {
@@ -124,7 +125,7 @@ export const handleChatPrompt = (
     // Set UI to loading state
     mynahUi.updateStore(tabId, {
         loadingChat: true,
-        promptInputDisabledState: true,
+        promptInputDisabledState: false,
     })
 
     // Create initial empty response
