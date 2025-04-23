@@ -10,8 +10,8 @@ import { McpManager } from './mcp/mcpManager'
 import { McpTool } from './mcp/mcpTool'
 
 export const FsToolsServer: Server = ({ workspace, logging, agent, lsp }) => {
-    const fsReadTool = new FsRead({ workspace, logging })
-    const fsWriteTool = new FsWrite({ workspace, logging })
+    const fsReadTool = new FsRead({ workspace, lsp, logging })
+    const fsWriteTool = new FsWrite({ workspace, lsp, logging })
     const listDirectoryTool = new ListDirectory({ workspace, logging, lsp })
 
     agent.addTool(fsReadTool.getSpec(), async (input: FsReadParams) => {

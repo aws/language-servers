@@ -482,7 +482,7 @@ export class AgenticChatController implements ChatHandlers {
             }
 
             // Process tool uses and update the request input for the next iteration
-            const toolResults = await this.#processToolUses(pendingToolUses, chatResultStream, session, token)
+            const toolResults = await this.#processToolUses(pendingToolUses, chatResultStream, session, tabId, token)
             currentRequestInput = this.#updateRequestInputWithToolResults(currentRequestInput, toolResults)
         }
 
@@ -536,10 +536,12 @@ export class AgenticChatController implements ChatHandlers {
         toolUses: Array<ToolUse & { stop: boolean }>,
         chatResultStream: AgenticChatResultStream,
         session: ChatSessionService,
+        tabId: string,
         token?: CancellationToken
     ): Promise<ToolResult[]> {
         const results: ToolResult[] = []
         let buttonBlockId
+        let loadingMessageId
 
         for (const toolUse of toolUses) {
             if (!toolUse.name || !toolUse.toolUseId) continue
@@ -570,10 +572,17 @@ export class AgenticChatController implements ChatHandlers {
                         const tool = new Tool(this.#features)
                         const { requiresAcceptance, warning } = await tool.requiresAcceptance(toolUse.input as any)
 
-                        if (requiresAcceptance) {
-                            const confirmationResult = this.#processToolConfirmation(toolUse, warning)
-                            buttonBlockId = await chatResultStream.writeResultBlock(confirmationResult)
-                            await this.waitForToolApproval(toolUse, chatResultStream, buttonBlockId, session)
+                        if (requiresAcceptance || toolUse.name === 'executeBash') {
+                            // for executeBash, we till send the confirmation message without action buttons
+                            const confirmationResult = this.#processToolConfirmation(
+                                toolUse,
+                                requiresAcceptance,
+                                warning
+                            )
+                            const buttonBlockId = await chatResultStream.writeResultBlock(confirmationResult)
+                            if (requiresAcceptance) {
+                                await this.waitForToolApproval(toolUse, chatResultStream, buttonBlockId, session)
+                            }
                         }
                         break
                     }
@@ -599,8 +608,17 @@ export class AgenticChatController implements ChatHandlers {
                         .set(toolUse.toolUseId, { ...toolUse, oldContent: document?.getText() })
                 }
 
+                // show thinking spinner when tool is running
+                loadingMessageId = `loading-${toolUse.toolUseId}`
+                await chatResultStream.writeResultBlock({ messageId: loadingMessageId })
+                this.#features.chat.sendChatUpdate({ tabId, state: { inProgress: true } })
+
                 const ws = this.#getWritableStream(chatResultStream, toolUse)
                 const result = await this.#features.agent.runTool(toolUse.name, toolUse.input, token, ws)
+
+                // remove the temp loading message when tool finishes
+                await chatResultStream.removeResultBlock(loadingMessageId)
+                this.#features.chat.sendChatUpdate({ tabId, state: { inProgress: false } })
                 let toolResultContent: ToolResultContentBlock
 
                 if (typeof result === 'string') {
@@ -642,6 +660,10 @@ export class AgenticChatController implements ChatHandlers {
                         break
                 }
             } catch (err) {
+                if (loadingMessageId) {
+                    await chatResultStream.removeResultBlock(loadingMessageId)
+                    this.#features.chat.sendChatUpdate({ tabId, state: { inProgress: false } })
+                }
                 // If we did not approve a tool to be used or the user stopped the response, bubble this up to interrupt agentic loop
                 if (CancellationError.isUserCancelled(err) || err instanceof ToolApprovalException) {
                     if (err instanceof ToolApprovalException && toolUse.name === 'executeBash') {
@@ -717,36 +739,32 @@ export class AgenticChatController implements ChatHandlers {
         }
     }
 
-    #getBashExecutionChatResult(toolUse: ToolUse, result: InvokeOutput): ChatResult {
-        const outputString = result.output.success
-            ? (result.output.content as ExecuteBashOutput).stdout
-            : (result.output.content as ExecuteBashOutput).stderr
-        return {
-            type: 'tool',
-            messageId: toolUse.toolUseId,
-            body: outputString,
-        }
-    }
-
-    #processToolConfirmation(toolUse: ToolUse, warning?: string, toolType?: string): ChatResult {
+    #processToolConfirmation(
+        toolUse: ToolUse,
+        requiresAcceptance: Boolean,
+        warning?: string,
+        toolType?: string
+    ): ChatResult {
         let buttons: Button[] = []
         let header: { body: string; buttons: Button[] }
         let body: string
 
         switch (toolType || toolUse.name) {
             case 'executeBash':
-                buttons = [
-                    {
-                        id: 'reject-shell-command',
-                        text: 'Reject',
-                        icon: 'cancel',
-                    },
-                    {
-                        id: 'run-shell-command',
-                        text: 'Run',
-                        icon: 'play',
-                    },
-                ]
+                buttons = requiresAcceptance
+                    ? [
+                          {
+                              id: 'reject-shell-command',
+                              text: 'Reject',
+                              icon: 'cancel',
+                          },
+                          {
+                              id: 'run-shell-command',
+                              text: 'Run',
+                              icon: 'play',
+                          },
+                      ]
+                    : []
                 header = {
                     body: 'shell',
                     buttons,
@@ -1181,6 +1199,8 @@ export class AgenticChatController implements ChatHandlers {
                 isDeleted: false,
                 fileContent: toolUse.oldContent,
             })
+        } else if (toolUse?.name === 'fsRead') {
+            await this.#features.lsp.window.showDocument({ uri: params.filePath })
         } else {
             // handle prompt file outside of workspace
             if (params.filePath.endsWith(promptFileExtension)) {
@@ -1189,7 +1209,7 @@ export class AgenticChatController implements ChatHandlers {
                     absolutePath = path.join(getUserPromptsDirectory(), params.filePath)
                 }
             }
-            await this.#features.lsp.window.showDocument({ uri: params.filePath })
+            await this.#features.lsp.window.showDocument({ uri: absolutePath })
         }
     }
 

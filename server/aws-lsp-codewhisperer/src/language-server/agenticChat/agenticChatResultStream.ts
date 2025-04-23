@@ -144,6 +144,14 @@ export class AgenticChatResultStream {
         await this.#sendProgress(this.getResult(result.messageId))
     }
 
+    /**
+     * Removes a specific messageId and re-sends the result to the client.
+     * @param messageId
+     */
+    async removeResultBlock(messageId: string) {
+        this.#state.chatResultBlocks = this.#state.chatResultBlocks.filter(block => block.messageId !== messageId)
+    }
+
     getResultStreamWriter(): ResultStreamWriter {
         // Note: if write calls are not awaited, stream can be out-of-order.
         if (this.#state.isLocked) {

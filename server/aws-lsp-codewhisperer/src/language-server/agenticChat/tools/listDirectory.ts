@@ -1,5 +1,5 @@
 // Port from VSC: https://github.com/aws/aws-toolkit-vscode/blob/0eea1d8ca6e25243609a07dc2a2c31886b224baa/packages/core/src/codewhispererChat/tools/listDirectory.ts#L19
-import { CommandValidation, InvokeOutput, validatePath } from './toolShared'
+import { CommandValidation, InvokeOutput, requiresPathAcceptance, validatePath } from './toolShared'
 import { CancellationError, workspaceUtils } from '@aws/lsp-core'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 import { sanitize } from '@aws/lsp-core/out/util/path'
@@ -53,7 +53,7 @@ export class ListDirectory {
     }
 
     public async requiresAcceptance(params: ListDirectoryParams): Promise<CommandValidation> {
-        return { requiresAcceptance: !workspaceUtils.isInWorkspace(getWorkspaceFolderPaths(this.lsp), params.path) }
+        return requiresPathAcceptance(params.path, this.lsp, this.logging)
     }
 
     public async invoke(params: ListDirectoryParams, token?: CancellationToken): Promise<InvokeOutput> {
