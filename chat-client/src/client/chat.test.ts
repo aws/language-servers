@@ -22,7 +22,7 @@ import {
     SEND_TO_PROMPT_TELEMETRY_EVENT,
     TAB_ADD_TELEMETRY_EVENT,
 } from '../contracts/telemetry'
-import { ChatItemType, MynahUI } from '@aws/mynah-ui'
+import { MynahUI } from '@aws/mynah-ui'
 import { TabFactory } from './tabs/tabFactory'
 import { ChatClientAdapter } from '../contracts/chatClientAdapter'
 
@@ -204,7 +204,6 @@ describe('Chat', () => {
 
     it('complete chat response triggers ui events', () => {
         const endMessageStreamStub = sandbox.stub(mynahUi, 'endMessageStream')
-        const updateLastChatAnswerStub = sandbox.stub(mynahUi, 'updateLastChatAnswer')
         const updateStoreStub = sandbox.stub(mynahUi, 'updateStore')
 
         const tabId = '123'
@@ -217,10 +216,16 @@ describe('Chat', () => {
         })
         window.dispatchEvent(chatEvent)
 
-        assert.calledOnceWithExactly(endMessageStreamStub, tabId, '')
-        assert.calledTwice(updateLastChatAnswerStub)
-        assert.calledWithMatch(updateLastChatAnswerStub, tabId, { body: '' })
-        assert.calledWithMatch(updateLastChatAnswerStub, tabId, { body, type: ChatItemType.ANSWER })
+        assert.calledOnceWithExactly(endMessageStreamStub, tabId, '', {
+            header: undefined,
+            buttons: undefined,
+            body: 'some response',
+            followUp: {},
+            relatedContent: undefined,
+            canBeVoted: undefined,
+            codeReference: undefined,
+            fileList: undefined,
+        })
         assert.calledOnceWithExactly(updateStoreStub, tabId, {
             loadingChat: false,
             promptInputDisabledState: false,
@@ -229,7 +234,6 @@ describe('Chat', () => {
 
     it('partial chat response triggers ui events', () => {
         const endMessageStreamStub = sandbox.stub(mynahUi, 'endMessageStream')
-        const updateLastChatAnswerStub = sandbox.stub(mynahUi, 'updateLastChatAnswer')
         const updateStoreStub = sandbox.stub(mynahUi, 'updateStore')
 
         const tabId = '123'
@@ -242,19 +246,12 @@ describe('Chat', () => {
             isPartialResult: true,
         })
         window.dispatchEvent(chatEvent)
-
-        assert.calledOnceWithExactly(updateLastChatAnswerStub, tabId, {
-            body,
-            header: { icon: undefined, buttons: undefined },
-            buttons: undefined,
-        })
         assert.notCalled(endMessageStreamStub)
         assert.notCalled(updateStoreStub)
     })
 
     it('partial chat response with header triggers ui events', () => {
         const endMessageStreamStub = sandbox.stub(mynahUi, 'endMessageStream')
-        const updateLastChatAnswerStub = sandbox.stub(mynahUi, 'updateLastChatAnswer')
         const updateStoreStub = sandbox.stub(mynahUi, 'updateStore')
 
         const tabId = '123'
@@ -296,12 +293,6 @@ describe('Chat', () => {
         })
 
         window.dispatchEvent(chatEvent)
-
-        assert.calledOnceWithExactly(updateLastChatAnswerStub, tabId, {
-            ...params,
-            header: mockHeader,
-            buttons: undefined,
-        })
         assert.notCalled(endMessageStreamStub)
         assert.notCalled(updateStoreStub)
     })

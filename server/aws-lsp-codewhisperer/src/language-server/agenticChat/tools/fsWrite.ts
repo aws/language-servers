@@ -1,13 +1,13 @@
-import { InvokeOutput } from './toolShared'
+import { CommandValidation, ExplanatoryParams, InvokeOutput } from './toolShared'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 import { sanitize } from '@aws/lsp-core/out/util/path'
 import { Change, diffLines } from 'diff'
+import { URI } from 'vscode-uri'
 
 // Port of https://github.com/aws/aws-toolkit-vscode/blob/16aa8768834f41ae512522473a6a962bb96abe51/packages/core/src/codewhispererChat/tools/fsWrite.ts#L42
 
-interface BaseParams {
+interface BaseParams extends ExplanatoryParams {
     path: string
-    explanation?: string
 }
 
 export interface CreateParams extends BaseParams {
@@ -35,7 +35,6 @@ export interface AppendParams extends BaseParams {
 export type FsWriteParams = CreateParams | StrReplaceParams | InsertParams | AppendParams
 
 export interface FsWriteBackup {
-    filePath: string
     content: string
     isNew: boolean
 }
@@ -125,137 +124,31 @@ export class FsWrite {
         updateWriter.releaseLock()
     }
 
-    public async getDiffChanges(params: FsWriteParams): Promise<Change[]> {
-        let newContent
-        const { filePath: sanitizedPath, content: oldContent } = await this.getBackup(params)
-        switch (params.command) {
-            case 'create':
-                newContent = params.fileText
-                break
-            case 'strReplace':
-                newContent = await this.getStrReplaceContent(params, sanitizedPath)
-                break
-            case 'insert':
-                newContent = await this.getInsertContent(params, sanitizedPath)
-                break
-            case 'append':
-                newContent = await this.getAppendContent(params, sanitizedPath)
-                break
-        }
-        return diffLines(oldContent, newContent)
-    }
-
-    public async getBackup(params: FsWriteParams): Promise<FsWriteBackup> {
-        const sanitizedPath = sanitize(params.path)
-        let oldContent
-        let isNew
-        try {
-            oldContent = await this.workspace.fs.readFile(sanitizedPath)
-            isNew = false
-        } catch (err) {
-            oldContent = ''
-            isNew = true
-        }
-        return { filePath: sanitizedPath, content: oldContent, isNew }
-    }
-
-    private async getStrReplaceContent(params: StrReplaceParams, sanitizedPath: string): Promise<string> {
-        const fileContent = await this.workspace.fs.readFile(sanitizedPath)
-
-        const matches = [...fileContent.matchAll(new RegExp(this.escapeRegExp(params.oldStr), 'g'))]
-
-        if (matches.length === 0) {
-            throw new Error(`No occurrences of "${params.oldStr}" were found`)
-        }
-        if (matches.length > 1) {
-            throw new Error(`${matches.length} occurrences of oldStr were found when only 1 is expected`)
-        }
-
-        return fileContent.replace(params.oldStr, params.newStr)
-    }
-
-    private async getAppendContent(params: AppendParams, sanitizedPath: string): Promise<string> {
-        const fileContent = await this.workspace.fs.readFile(sanitizedPath)
-        const needsNewline = fileContent.length !== 0 && !fileContent.endsWith('\n')
-
-        let contentToAppend = params.newStr
-        if (needsNewline) {
-            contentToAppend = '\n' + contentToAppend
-        }
-
-        return fileContent + contentToAppend
-    }
-
-    private async getInsertContent(params: InsertParams, sanitizedPath: string): Promise<string> {
-        const fileContent = await this.workspace.fs.readFile(sanitizedPath)
-        const lines = fileContent.split('\n')
-
-        const numLines = lines.length
-        const insertLine = Math.max(0, Math.min(params.insertLine, numLines))
-
-        let newContent: string
-        if (insertLine === 0) {
-            newContent = params.newStr + '\n' + fileContent
-        } else {
-            newContent = [...lines.slice(0, insertLine), params.newStr, ...lines.slice(insertLine)].join('\n')
-        }
-        return newContent
+    public async requiresAcceptance(params: FsWriteParams): Promise<CommandValidation> {
+        return { requiresAcceptance: !(await this.workspace.getTextDocument(URI.file(params.path).toString())) }
     }
 
     private async handleCreate(params: CreateParams, sanitizedPath: string): Promise<void> {
         const content = params.fileText
-
         await this.workspace.fs.writeFile(sanitizedPath, content)
     }
 
     private async handleStrReplace(params: StrReplaceParams, sanitizedPath: string): Promise<void> {
         const fileContent = await this.workspace.fs.readFile(sanitizedPath)
-
-        const matches = [...fileContent.matchAll(new RegExp(this.escapeRegExp(params.oldStr), 'g'))]
-
-        if (matches.length === 0) {
-            throw new Error(`No occurrences of "${params.oldStr}" were found`)
-        }
-        if (matches.length > 1) {
-            throw new Error(`${matches.length} occurrences of oldStr were found when only 1 is expected`)
-        }
-
-        const newContent = fileContent.replace(params.oldStr, params.newStr)
+        const newContent = getStrReplaceContent(params, fileContent)
         await this.workspace.fs.writeFile(sanitizedPath, newContent)
     }
 
     private async handleInsert(params: InsertParams, sanitizedPath: string): Promise<void> {
         const fileContent = await this.workspace.fs.readFile(sanitizedPath)
-        const lines = fileContent.split('\n')
-
-        const numLines = lines.length
-        const insertLine = Math.max(0, Math.min(params.insertLine, numLines))
-
-        let newContent: string
-        if (insertLine === 0) {
-            newContent = params.newStr + '\n' + fileContent
-        } else {
-            newContent = [...lines.slice(0, insertLine), params.newStr, ...lines.slice(insertLine)].join('\n')
-        }
-
+        const newContent = getInsertContent(params, fileContent)
         await this.workspace.fs.writeFile(sanitizedPath, newContent)
     }
 
     private async handleAppend(params: AppendParams, sanitizedPath: string): Promise<void> {
         const fileContent = await this.workspace.fs.readFile(sanitizedPath)
-        const needsNewline = fileContent.length !== 0 && !fileContent.endsWith('\n')
-
-        let contentToAppend = params.newStr
-        if (needsNewline) {
-            contentToAppend = '\n' + contentToAppend
-        }
-
-        const newContent = fileContent + contentToAppend
+        const newContent = getAppendContent(params, fileContent)
         await this.workspace.fs.writeFile(sanitizedPath, newContent)
-    }
-
-    private escapeRegExp(string: string): string {
-        return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
     }
 
     public getSpec() {
@@ -267,6 +160,8 @@ export class FsWrite {
                 and otherwise create a new file\n * The `append` command will add content to the end of an existing file, \
                 automatically adding a newline if the file does not end with one. \
                 The file must exist.\n Notes for using the `strReplace` command:\n * \
+                IMPORTANT: Only use the `strReplace` command for simple, isolated single-line replacements. \
+                If you are editing multiple lines, always prefer the `create` command and replace the entire file content instead.\n * \
                 The `oldStr` parameter should match EXACTLY one or more consecutive lines from the original file. Be mindful of whitespaces!\n * \
                 If the `oldStr` parameter is not unique in the file, the replacement will not be performed. \
                 Make sure to include enough context in `oldStr` to make it unique\n * \
@@ -315,4 +210,65 @@ export class FsWrite {
             },
         } as const
     }
+}
+
+const getFinalContent = (params: FsWriteParams, oldContent: string): string => {
+    switch (params.command) {
+        case 'append':
+            return getAppendContent(params, oldContent)
+        case 'create':
+            return params.fileText
+        case 'insert':
+            return getInsertContent(params, oldContent)
+        case 'strReplace':
+            return getStrReplaceContent(params, oldContent)
+    }
+}
+
+const getAppendContent = (params: AppendParams, oldContent: string) => {
+    const needsNewline = oldContent.length !== 0 && !oldContent.endsWith('\n')
+
+    let contentToAppend = params.newStr
+    if (needsNewline) {
+        contentToAppend = '\n' + contentToAppend
+    }
+
+    return oldContent + contentToAppend
+}
+
+const getInsertContent = (params: InsertParams, oldContent: string) => {
+    const lines = oldContent.split('\n')
+
+    const numLines = lines.length
+    const insertLine = Math.max(0, Math.min(params.insertLine, numLines))
+
+    let newContent: string
+    if (insertLine === 0) {
+        newContent = params.newStr + '\n' + oldContent
+    } else {
+        newContent = [...lines.slice(0, insertLine), params.newStr, ...lines.slice(insertLine)].join('\n')
+    }
+    return newContent
+}
+
+const getStrReplaceContent = (params: StrReplaceParams, oldContent: string) => {
+    const matches = [...oldContent.matchAll(new RegExp(escapeRegExp(params.oldStr), 'g'))]
+
+    if (matches.length === 0) {
+        throw new Error(`No occurrences of "${params.oldStr}" were found`)
+    }
+    if (matches.length > 1) {
+        throw new Error(`${matches.length} occurrences of oldStr were found when only 1 is expected`)
+    }
+
+    return oldContent.replace(params.oldStr, params.newStr)
+}
+
+const escapeRegExp = (string: string) => {
+    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+export const getDiffChanges = (params: FsWriteParams, oldContent: string): Change[] => {
+    const finalContent = getFinalContent(params, oldContent)
+    return diffLines(oldContent, finalContent)
 }

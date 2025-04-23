@@ -18,6 +18,7 @@ import {
     CopyCodeToClipboardParams,
     ERROR_MESSAGE,
     ErrorMessage,
+    FeatureContext,
     GENERIC_COMMAND,
     GenericCommandMessage,
     INSERT_TO_CURSOR_POSITION,
@@ -29,13 +30,18 @@ import {
     ErrorResult,
     UiResultMessage,
     CHAT_PROMPT_OPTION_ACKNOWLEDGED,
+    STOP_CHAT_RESPONSE,
+    OPEN_SETTINGS,
 } from '@aws/chat-client-ui-types'
 import {
+    BUTTON_CLICK_REQUEST_METHOD,
     CHAT_REQUEST_METHOD,
+    CHAT_UPDATE_NOTIFICATION_METHOD,
     CONTEXT_COMMAND_NOTIFICATION_METHOD,
     CONVERSATION_CLICK_REQUEST_METHOD,
     CREATE_PROMPT_NOTIFICATION_METHOD,
     ChatParams,
+    ChatUpdateParams,
     ContextCommandParams,
     ConversationClickParams,
     ConversationClickResult,
@@ -81,7 +87,7 @@ import { Messager, OutboundChatApi } from './messager'
 import { InboundChatApi, createMynahUi } from './mynahUi'
 import { TabFactory } from './tabs/tabFactory'
 import { ChatClientAdapter } from '../contracts/chatClientAdapter'
-import { toMynahIcon } from './utils'
+import { toMynahContextCommand, toMynahIcon } from './utils'
 
 const DEFAULT_TAB_DATA = {
     tabTitle: 'Chat',
@@ -98,7 +104,8 @@ type ChatClientConfig = Pick<MynahUIDataModel, 'quickActionCommands'> & {
 export const createChat = (
     clientApi: { postMessage: (msg: UiMessage | UiResultMessage | ServerMessage) => void },
     config?: ChatClientConfig,
-    chatClientAdapter?: ChatClientAdapter
+    chatClientAdapter?: ChatClientAdapter,
+    featureConfigSerialized?: string
 ) => {
     let mynahApi: InboundChatApi
 
@@ -106,6 +113,17 @@ export const createChat = (
         clientApi.postMessage(message)
     }
 
+    const parseFeatureConfig = (featureConfigSerialized?: string): Map<string, FeatureContext> => {
+        try {
+            const parsed = JSON.parse(featureConfigSerialized || '[]')
+            return new Map<string, FeatureContext>(parsed)
+        } catch (error) {
+            console.error('Error parsing feature config:', featureConfigSerialized, error)
+        }
+        return new Map()
+    }
+
+    const featureConfig: Map<string, FeatureContext> = parseFeatureConfig(featureConfigSerialized)
     /**
      * Handles incoming messages from the IDE or other sources.
      * Routes messages to appropriate handlers based on command type.
@@ -135,6 +153,9 @@ export const createChat = (
         switch (message?.command) {
             case CHAT_REQUEST_METHOD:
                 mynahApi.addChatResponse(message.params, message.tabId, message.isPartialResult)
+                break
+            case CHAT_UPDATE_NOTIFICATION_METHOD:
+                mynahApi.updateChat(message.params as ChatUpdateParams)
                 break
             case OPEN_TAB_REQUEST_METHOD:
                 mynahApi.openTab(message.requestId, message.params as OpenTabParams)
@@ -182,8 +203,20 @@ export const createChat = (
                 }
 
                 const allExistingTabs: MynahUITabStoreModel = mynahUi.getAllTabs()
+                const highlightCommand = featureConfig.get('highlightCommand')
+
                 for (const tabId in allExistingTabs) {
-                    mynahUi.updateStore(tabId, tabFactory.getDefaultTabData())
+                    mynahUi.updateStore(tabId, {
+                        ...tabFactory.getDefaultTabData(),
+                        contextCommands: highlightCommand
+                            ? [
+                                  {
+                                      groupName: 'Additional Commands',
+                                      commands: [toMynahContextCommand(highlightCommand)],
+                                  },
+                              ]
+                            : [],
+                    })
                 }
                 break
             }
@@ -314,6 +347,15 @@ export const createChat = (
         promptInputOptionChange: (params: PromptInputOptionChangeParams) => {
             sendMessageToClient({ command: PROMPT_INPUT_OPTION_CHANGE_METHOD, params })
         },
+        stopChatResponse: (tabId: string) => {
+            sendMessageToClient({ command: STOP_CHAT_RESPONSE, params: { tabId } })
+        },
+        sendButtonClickEvent: params => {
+            sendMessageToClient({ command: BUTTON_CLICK_REQUEST_METHOD, params: params })
+        },
+        onOpenSettings: (settingKey: string) => {
+            sendMessageToClient({ command: OPEN_SETTINGS, params: { settingKey } })
+        },
     }
 
     const messager = new Messager(chatApi)
@@ -326,7 +368,8 @@ export const createChat = (
         tabFactory,
         config?.disclaimerAcknowledged ?? false,
         config?.pairProgrammingAcknowledged ?? false,
-        chatClientAdapter
+        chatClientAdapter,
+        featureConfig
     )
 
     mynahApi = api

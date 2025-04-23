@@ -27,3 +27,17 @@ export interface CommandValidation {
     requiresAcceptance: boolean
     warning?: string
 }
+
+export class ToolApprovalException extends Error {
+    constructor() {
+        super(`Tool execution invalidated`)
+    }
+}
+export interface ExplanatoryParams {
+    explanation?: string
+}
+
+export enum OutputKind {
+    Text = 'text',
+    Json = 'json',
+}

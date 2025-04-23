@@ -13,8 +13,10 @@ import {
     isValidAuthFollowUpType,
 } from '@aws/chat-client-ui-types'
 import {
+    ButtonClickParams,
     ChatMessage,
     ChatResult,
+    ChatUpdateParams,
     ContextCommand,
     ContextCommandParams,
     ConversationClickResult,
@@ -24,6 +26,7 @@ import {
     InfoLinkClickParams,
     LinkClickParams,
     ListConversationsResult,
+    OPEN_WORKSPACE_INDEX_SETTINGS_BUTTON_ID,
     OpenTabParams,
     SourceLinkClickParams,
 } from '@aws/language-server-runtimes-types'
@@ -43,12 +46,13 @@ import { ExportTabBarButtonId, TabFactory } from './tabs/tabFactory'
 import { disclaimerAcknowledgeButtonId, disclaimerCard } from './texts/disclaimer'
 import { ChatClientAdapter, ChatEventHandler } from '../contracts/chatClientAdapter'
 import { withAdapter } from './withAdapter'
-import { toMynahButtons, toMynahHeader, toMynahIcon } from './utils'
+import { toDetailsWithoutIcon, toMynahButtons, toMynahContextCommand, toMynahHeader, toMynahIcon } from './utils'
 import { ChatHistory, ChatHistoryList } from './features/history'
 import { pairProgrammingModeOff, pairProgrammingModeOn, programmerModeCard } from './texts/pairProgramming'
 
 export interface InboundChatApi {
     addChatResponse(params: ChatResult, tabId: string, isPartialResult: boolean): void
+    updateChat(params: ChatUpdateParams): void
     sendToPrompt(params: SendToPromptParams): void
     sendGenericCommand(params: GenericCommandParams): void
     showError(params: ErrorParams): void
@@ -86,6 +90,7 @@ export const handleChatPrompt = (
     _eventId?: string
 ) => {
     let userPrompt = prompt.escapedPrompt
+    messager.onStopChatResponse(tabId)
     if (prompt.command) {
         // Temporary solution to handle clear quick actions on the client side
         if (prompt.command === '/clear') {
@@ -120,7 +125,7 @@ export const handleChatPrompt = (
     // Set UI to loading state
     mynahUi.updateStore(tabId, {
         loadingChat: true,
-        promptInputDisabledState: true,
+        promptInputDisabledState: false,
     })
 
     // Create initial empty response
@@ -134,7 +139,8 @@ export const createMynahUi = (
     tabFactory: TabFactory,
     disclaimerAcknowledged: boolean,
     pairProgrammingCardAcknowledged: boolean,
-    customChatClientAdapter?: ChatClientAdapter
+    customChatClientAdapter?: ChatClientAdapter,
+    featureConfig?: Map<string, any>
 ): [MynahUI, InboundChatApi] => {
     const initialTabId = TabFactory.generateUniqueId()
     let disclaimerCardActive = !disclaimerAcknowledged
@@ -195,15 +201,25 @@ export const createMynahUi = (
             messager.onUiReady()
             messager.onTabAdd(initialTabId)
         },
-        onFileClick: (tabId: string, filePath: string) => {
-            messager.onFileClick({ tabId, filePath })
+        onFileClick: (tabId, filePath, deleted, messageId, eventId) => {
+            messager.onFileClick({ tabId, filePath, messageId })
         },
         onTabAdd: (tabId: string) => {
             const defaultTabBarData = tabFactory.getDefaultTabData()
             const defaultTabConfig: Partial<MynahUIDataModel> = {
                 quickActionCommands: defaultTabBarData.quickActionCommands,
                 tabBarButtons: defaultTabBarData.tabBarButtons,
-                contextCommands: contextCommandGroups,
+                contextCommands: [
+                    ...(contextCommandGroups || []),
+                    ...(featureConfig?.get('highlightCommand')
+                        ? [
+                              {
+                                  groupName: 'Additional commands',
+                                  commands: [toMynahContextCommand(featureConfig.get('highlightCommand'))],
+                              },
+                          ]
+                        : []),
+                ],
                 ...(disclaimerCardActive ? { promptInputStickyCard: disclaimerCard } : {}),
             }
             mynahUi.updateStore(tabId, defaultTabConfig)
@@ -311,6 +327,15 @@ export const createMynahUi = (
                 Object.keys(mynahUi.getAllTabs()).forEach(storeTabKey => {
                     mynahUi.updateStore(storeTabKey, { promptInputStickyCard: null })
                 })
+            } else if (action.id === OPEN_WORKSPACE_INDEX_SETTINGS_BUTTON_ID) {
+                messager.onOpenSettings('amazonQ.workspaceIndex')
+            } else {
+                const payload: ButtonClickParams = {
+                    tabId,
+                    messageId,
+                    buttonId: action.id,
+                }
+                messager.onButtonClick(payload)
             }
         },
         onContextSelected: (contextItem, tabId) => {
@@ -384,6 +409,9 @@ export const createMynahUi = (
                 })
             }
         },
+        onStopChatResponse: tabId => {
+            messager.onStopChatResponse(tabId)
+        },
     }
 
     const mynahUiProps: MynahUIProps = {
@@ -440,7 +468,7 @@ export const createMynahUi = (
         return tabId ?? createTabId()
     }
 
-    const contextListToHeader = (contextList?: ChatResult['contextList']) => {
+    const contextListToHeader = (contextList?: ChatResult['contextList']): ChatItem['header'] => {
         if (contextList === undefined) {
             return undefined
         }
@@ -483,26 +511,23 @@ export const createMynahUi = (
             header = contextListToHeader(chatResult.contextList)
         }
 
+        const store = mynahUi.getTabData(tabId)?.getStore() || {}
+        const chatItems = store.chatItems || []
+
         if (chatResult.additionalMessages?.length) {
-            const store = mynahUi.getTabData(tabId).getStore() || {}
-            const chatItems = store.chatItems || []
-
             chatResult.additionalMessages.forEach(am => {
-                const contextHeader = contextListToHeader(am.contextList)
-
-                const chatItem = {
+                const chatItem: ChatItem = {
                     messageId: am.messageId,
-                    body: am.body,
-                    type: ChatItemType.ANSWER,
-                    header: contextHeader || toMynahHeader(am.header), // Is this mutually exclusive?
-                    buttons: toMynahButtons(am.buttons),
-
-                    // file diffs in the header need space
-                    fullWidth: am.type === 'tool' && am.header?.fileList ? true : undefined,
-                    padding: am.type === 'tool' && am.header?.fileList ? false : undefined,
+                    type:
+                        am.type === 'tool'
+                            ? ChatItemType.ANSWER
+                            : am.type === 'directive'
+                              ? ChatItemType.DIRECTIVE
+                              : ChatItemType.ANSWER_STREAM,
+                    ...prepareChatItemFromMessage(am),
                 }
-                const message = chatItems.find(ci => ci.messageId === am.messageId)
-                if (!message) {
+
+                if (!chatItems.find(ci => ci.messageId === am.messageId)) {
                     mynahUi.addChatItem(tabId, chatItem)
                 } else {
                     mynahUi.updateChatAnswerWithMessageId(tabId, am.messageId!, chatItem)
@@ -511,12 +536,19 @@ export const createMynahUi = (
         }
 
         if (isPartialResult) {
-            // type for MynahUI differs from ChatResult types so we ignore it
-            mynahUi.updateLastChatAnswer(tabId, {
-                ...chatResultWithoutType,
+            const chatItem = {
+                ...chatResult,
+                body: chatResult.body === undefined || chatResult.body === '' ? 'Thinking...' : chatResult.body,
+                type: ChatItemType.ANSWER_STREAM,
                 header: header,
                 buttons: buttons,
-            })
+            }
+
+            if (!chatItems.find(ci => ci.messageId === chatResult.messageId)) {
+                mynahUi.addChatItem(tabId, chatItem)
+            } else {
+                mynahUi.updateChatAnswerWithMessageId(tabId, chatResult.messageId!, chatItem)
+            }
             return
         }
 
@@ -553,25 +585,7 @@ export const createMynahUi = (
               }
             : {}
 
-        // TODO: ensure all card item types are supported for export on MynahUI side.
-        // Chat export does not work with 'ANSWER_STREAM' cards, so at the end of the streaming
-        // we convert 'ANSWER_STREAM' to 'ANSWER' card.
-        // First, we unset all the properties and then insert all the data as card item type 'ANSWER'.
-        // It works, because 'addChatResponse' receives aggregated/joined data send in every next progress update.
-        mynahUi.updateLastChatAnswer(tabId, {
-            header: undefined,
-            body: '',
-            followUp: undefined,
-            relatedContent: undefined,
-            canBeVoted: undefined,
-            codeReference: undefined,
-            fileList: undefined,
-        })
-
-        mynahUi.endMessageStream(tabId, chatResult.messageId ?? '')
-
-        mynahUi.updateLastChatAnswer(tabId, {
-            type: ChatItemType.ANSWER,
+        mynahUi.endMessageStream(tabId, chatResult.messageId ?? '', {
             header: header,
             buttons: buttons,
             body: chatResult.body,
@@ -587,6 +601,67 @@ export const createMynahUi = (
             loadingChat: false,
             promptInputDisabledState: false,
         })
+    }
+
+    const updateChat = (params: ChatUpdateParams) => {
+        if (params.data?.messages.length) {
+            const { tabId } = params
+            const store = mynahUi.getTabData(tabId).getStore() || {}
+            const chatItems = store.chatItems || []
+
+            params.data?.messages.forEach(updatedMessage => {
+                if (!updatedMessage.messageId) {
+                    // Do not process messages without known ID.
+                    return
+                }
+
+                const oldMessage = chatItems.find(ci => ci.messageId === updatedMessage.messageId)
+                if (!oldMessage) return
+
+                const chatItem: ChatItem = {
+                    type: oldMessage.type,
+                    ...prepareChatItemFromMessage(updatedMessage),
+                }
+
+                mynahUi.updateChatAnswerWithMessageId(tabId, updatedMessage.messageId, chatItem)
+            })
+        }
+    }
+
+    const prepareChatItemFromMessage = (message: ChatMessage): Partial<ChatItem> => {
+        const contextHeader = contextListToHeader(message.contextList)
+        const header = contextHeader || toMynahHeader(message.header) // Is this mutually exclusive?
+
+        let processedHeader = header
+        if (message.type === 'tool') {
+            processedHeader = { ...header }
+            if (header?.buttons) {
+                processedHeader.buttons = header.buttons.map(button => ({ ...button, status: 'clear' }))
+            }
+            if (header?.fileList) {
+                processedHeader.fileList = {
+                    ...header.fileList,
+                    fileTreeTitle: '',
+                    hideFileCount: true,
+                    details: toDetailsWithoutIcon(header.fileList.details),
+                }
+            }
+        }
+
+        return {
+            body:
+                message.type !== 'tool' && (message.body === undefined || message.body === '')
+                    ? 'Thinking...'
+                    : message.body,
+            header: processedHeader,
+            buttons: toMynahButtons(message.buttons),
+
+            // file diffs in the header need space
+            fullWidth: message.type === 'tool' && message.header?.buttons ? true : undefined,
+            padding: message.type === 'tool' ? false : undefined,
+
+            codeBlockActions: message.type === 'tool' ? { 'insert-to-cursor': null, copy: null } : undefined,
+        }
     }
 
     const sendToPrompt = (params: SendToPromptParams) => {
@@ -678,7 +753,17 @@ ${params.message}`,
 
         Object.keys(mynahUi.getAllTabs()).forEach(tabId => {
             mynahUi.updateStore(tabId, {
-                contextCommands: contextCommandGroups,
+                contextCommands: [
+                    ...(contextCommandGroups || []),
+                    ...(featureConfig?.get('highlightCommand')
+                        ? [
+                              {
+                                  groupName: 'Additional commands',
+                                  commands: [toMynahContextCommand(featureConfig.get('highlightCommand'))],
+                              },
+                          ]
+                        : []),
+                ],
             })
         })
     }
@@ -741,6 +826,7 @@ ${params.message}`,
 
     const api = {
         addChatResponse: addChatResponse,
+        updateChat: updateChat,
         sendToPrompt: sendToPrompt,
         sendGenericCommand: sendGenericCommand,
         showError: showError,
@@ -775,5 +861,5 @@ const uiComponentsTexts = {
     copyToClipboard: 'Copied to clipboard',
     noMoreTabsTooltip: 'You can only open ten conversation tabs at a time.',
     codeSuggestionWithReferenceTitle: 'Some suggestions contain code with references.',
-    spinnerText: 'Generating your answer...',
+    spinnerText: 'Thinking...',
 }

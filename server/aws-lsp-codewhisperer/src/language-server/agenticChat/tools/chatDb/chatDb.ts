@@ -18,9 +18,15 @@ import * as crypto from 'crypto'
 import * as path from 'path'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 import { ConversationItemGroup } from '@aws/language-server-runtimes/protocol'
+import { ChatMessage, ToolResultStatus } from '@amzn/codewhisperer-streaming'
+import { ChatItemType } from '@aws/mynah-ui'
 import { getUserHomeDir } from '@aws/lsp-core/out/util/path'
 
 export const EMPTY_CONVERSATION_LIST_ID = 'empty'
+// Maximum number of characters to keep in history
+const MaxConversationHistoryCharacters = 600_000
+// Maximum number of messages to keep in history
+const MaxConversationHistoryMessages = 250
 
 /**
  * A singleton database class that manages chat history persistence using LokiJS.
@@ -329,6 +335,217 @@ export class ChatDatabase {
                     title: tabTitle,
                     conversations: [{ conversationId, clientType, messages: [message] }],
                 })
+            }
+        }
+    }
+
+    /**
+     * Fixes the history to maintain the following invariants:
+     * 1. The history contains at most MaxConversationHistoryMessages messages. Oldest messages are dropped.
+     * 2. The history character length is <= MaxConversationHistoryCharacters. Oldest messages are dropped.
+     * 3. The first message is from the user. Oldest messages are dropped if needed.
+     * 4. The last message is from the assistant. The last message is dropped if it is from the user.
+     * 5. If the last message is from the assistant and it contains tool uses, and a next user
+     *    message is set without tool results, then the user message will have cancelled tool results.
+     */
+    fixHistory(tabId: string, newUserMessage: ChatMessage, conversationId: string): void {
+        if (!this.#initialized) {
+            return
+        }
+        const historyId = this.#historyIdMapping.get(tabId)
+        this.#features.logging.info(`Fixing history: tabId=${tabId}, historyId=${historyId || 'undefined'}`)
+
+        if (!historyId) {
+            return
+        }
+
+        const tabCollection = this.#db.getCollection<Tab>(TabCollection)
+        const tabData = tabCollection.findOne({ historyId })
+        if (!tabData) {
+            return
+        }
+
+        let allMessages = tabData.conversations.flatMap((conversation: Conversation) => conversation.messages)
+        this.#features.logging.info(`Found ${allMessages.length} messages in conversation`)
+
+        //  Make sure we don't exceed MaxConversationHistoryMessages
+        allMessages = this.trimHistoryToMaxLength(allMessages)
+
+        //  Drop empty assistant partial if it’s the last message
+        this.handleEmptyAssistantMessage(allMessages)
+
+        //  Make sure max characters ≤ MaxConversationHistoryCharacters
+        allMessages = this.trimMessagesToMaxLength(allMessages)
+
+        //  Ensure messages in history a valid for server side checks
+        this.ensureValidMessageSequence(allMessages)
+
+        //  If the last message is from the assistant and it contains tool uses, and a next user message is set without tool results, then the user message will have cancelled tool results.
+        this.handleToolUses(allMessages, newUserMessage)
+        const clientType = this.#features.lsp.getClientInitializeParams()?.clientInfo?.name || 'unknown'
+
+        tabData.conversations = [
+            {
+                conversationId: conversationId,
+                clientType: clientType,
+                messages: allMessages,
+            },
+        ]
+        tabData.updatedAt = new Date()
+        tabCollection.update(tabData)
+        this.#features.logging.info(`Updated tab data in collection`)
+    }
+
+    private trimHistoryToMaxLength(messages: Message[]): Message[] {
+        while (messages.length > MaxConversationHistoryMessages) {
+            // Find the next valid user message to start from
+            const indexToTrim = this.findIndexToTrim(messages)
+            if (indexToTrim !== undefined && indexToTrim > 0) {
+                this.#features.logging.debug(
+                    `Removing the first ${indexToTrim} elements to maintain valid history length`
+                )
+                messages.splice(0, indexToTrim)
+            } else {
+                this.#features.logging.debug(
+                    'Could not find a valid point to trim, reset history to reduce history size'
+                )
+                return []
+            }
+        }
+        return messages
+    }
+
+    private findIndexToTrim(allMessages: Message[]): number | undefined {
+        for (let i = 2; i < allMessages.length; i++) {
+            const message = allMessages[i]
+            if (message.type === ('prompt' as ChatItemType) && this.isValidUserMessageWithoutToolResults(message)) {
+                return i
+            }
+        }
+        return undefined
+    }
+
+    private isValidUserMessageWithoutToolResults(message: Message): boolean {
+        const ctx = message.userInputMessageContext
+        return !!ctx && (!ctx.toolResults || ctx.toolResults.length === 0) && message.body !== ''
+    }
+
+    private handleEmptyAssistantMessage(messages: Message[]): void {
+        if (messages.length === 0) {
+            return
+        }
+
+        const lastMsg = messages[messages.length - 1]
+        if (
+            lastMsg.type === ('answer' as ChatItemType) &&
+            (!lastMsg.body || lastMsg.body.trim().length === 0) &&
+            (!lastMsg.toolUses || lastMsg.toolUses.length === 0)
+        ) {
+            this.#features.logging.debug(
+                'Last message is empty partial assistant. Removed last assistant message and user message'
+            )
+            messages.splice(-2)
+        }
+    }
+
+    private trimMessagesToMaxLength(messages: Message[]): Message[] {
+        let totalCharacters = this.calculateCharacterCount(messages)
+        while (totalCharacters > MaxConversationHistoryCharacters && messages.length > 2) {
+            // Find the next valid user message to start from
+            const indexToTrim = this.findIndexToTrim(messages)
+            if (indexToTrim !== undefined && indexToTrim > 0) {
+                this.#features.logging.debug(
+                    `Removing the first ${indexToTrim} elements in the history due to character count limit`
+                )
+                messages.splice(0, indexToTrim)
+            } else {
+                this.#features.logging.debug(
+                    'Could not find a valid point to trim, reset history to reduce character count'
+                )
+                return []
+            }
+            totalCharacters = this.calculateCharacterCount(messages)
+        }
+        return messages
+    }
+
+    private calculateCharacterCount(allMessages: Message[]): number {
+        let count = 0
+        for (const message of allMessages) {
+            // Count characters of all message text
+            count += message.body.length
+
+            // Count characters in tool uses
+            if (message.toolUses) {
+                try {
+                    for (const toolUse of message.toolUses) {
+                        count += JSON.stringify(toolUse).length
+                    }
+                } catch (e) {
+                    this.#features.logging.error(`Error counting toolUses: ${String(e)}`)
+                }
+            }
+            // Count characters in tool results
+            if (message.userInputMessageContext?.toolResults) {
+                try {
+                    for (const toolResul of message.userInputMessageContext.toolResults) {
+                        count += JSON.stringify(toolResul).length
+                    }
+                } catch (e) {
+                    this.#features.logging.error(`Error counting toolResults: ${String(e)}`)
+                }
+            }
+        }
+        this.#features.logging.debug(`Current history characters: ${count}`)
+        return count
+    }
+
+    private ensureValidMessageSequence(messages: Message[]): void {
+        //  Make sure the first stored message is from the user (type === 'prompt'), else drop
+        while (messages.length > 0 && messages[0].type === ('answer' as ChatItemType)) {
+            messages.shift()
+            this.#features.logging.debug('Dropped first message since it is not from user')
+        }
+
+        //  Make sure the last stored message is from the assistant (type === 'answer'), else drop
+        if (messages.length > 0 && messages[messages.length - 1].type === ('prompt' as ChatItemType)) {
+            messages.pop()
+            this.#features.logging.debug('Dropped trailing user message')
+        }
+    }
+
+    private handleToolUses(messages: Message[], newUserMessage: ChatMessage): void {
+        if (messages.length === 0) {
+            if (newUserMessage.userInputMessage?.userInputMessageContext?.toolResults) {
+                this.#features.logging.debug('No history message found, but new user message has tool results.')
+                newUserMessage.userInputMessage.userInputMessageContext.toolResults = undefined
+                // tool results are empty, so content must not be empty
+                newUserMessage.userInputMessage.content = 'Conversation history was too large, so it was cleared.'
+            }
+            return
+        }
+
+        const lastMsg = messages[messages.length - 1]
+        if (lastMsg.toolUses && lastMsg.toolUses.length > 0) {
+            const toolResults = newUserMessage.userInputMessage?.userInputMessageContext?.toolResults
+            if (!toolResults || toolResults.length === 0) {
+                this.#features.logging.debug(
+                    `No tools results in last user message following a tool use message from assisstant, marking as canceled`
+                )
+                if (newUserMessage.userInputMessage?.userInputMessageContext) {
+                    newUserMessage.userInputMessage.userInputMessageContext.toolResults = lastMsg.toolUses.map(
+                        toolUse => ({
+                            toolUseId: toolUse.toolUseId,
+                            content: [
+                                {
+                                    type: 'Text',
+                                    text: 'Tool use was cancelled by the user',
+                                },
+                            ],
+                            status: ToolResultStatus.ERROR,
+                        })
+                    )
+                }
             }
         }
     }

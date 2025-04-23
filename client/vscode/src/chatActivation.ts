@@ -1,5 +1,6 @@
 import {
     isValidAuthFollowUpType,
+    FeatureContext,
     INSERT_TO_CURSOR_POSITION,
     AUTH_FOLLOW_UP_CLICKED,
     CHAT_OPTIONS,
@@ -28,6 +29,8 @@ import {
     ShowSaveFileDialogRequestType,
     ShowSaveFileDialogParams,
     tabBarActionRequestType,
+    buttonClickRequestType,
+    chatUpdateNotificationType,
 } from '@aws/language-server-runtimes/protocol'
 import { v4 as uuidv4 } from 'uuid'
 import { Uri, Webview, WebviewView, commands, window } from 'vscode'
@@ -171,6 +174,14 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri, 
                                 tabBarActionRequestType.method
                             )
                             break
+                        case buttonClickRequestType.method:
+                            await handleRequest(
+                                languageClient,
+                                message.params,
+                                webviewView,
+                                buttonClickRequestType.method
+                            )
+                            break
                         case followUpClickNotificationType.method:
                             if (!isValidAuthFollowUpType(message.params.followUp.type))
                                 languageClient.sendNotification(followUpClickNotificationType, message.params)
@@ -185,6 +196,13 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri, 
                 languageClient.onNotification(contextCommandsNotificationType, params => {
                     webviewView.webview.postMessage({
                         command: contextCommandsNotificationType.method,
+                        params: params,
+                    })
+                })
+
+                languageClient.onNotification(chatUpdateNotificationType, params => {
+                    webviewView.webview.postMessage({
+                        command: chatUpdateNotificationType.method,
                         params: params,
                     })
                 })
@@ -399,12 +417,24 @@ function generateJS(webView: Webview, extensionUri: Uri): string {
     const chatUri = Uri.joinPath(assetsPath, 'build', 'amazonq-ui.js')
 
     const entrypoint = webView.asWebviewUri(chatUri)
+    const chatFeatures: Map<string, FeatureContext> = new Map()
+    chatFeatures.set('highlightCommand', {
+        variation: 'Context commands for chat',
+        value: {
+            stringValue: '@sage',
+        },
+    })
+    const stringifiedContextCommands = JSON.stringify(Array.from(chatFeatures.entries()))
 
     return `
     <script type="text/javascript" src="${entrypoint.toString()}" defer onload="init()"></script>
     <script type="text/javascript">
         const init = () => {
-            amazonQChat.createChat(acquireVsCodeApi(), {disclaimerAcknowledged: false});
+            amazonQChat.createChat(acquireVsCodeApi(), 
+                {disclaimerAcknowledged: false}, 
+                undefined,
+                JSON.stringify(${stringifiedContextCommands})
+            );
         }
     </script>
     `
