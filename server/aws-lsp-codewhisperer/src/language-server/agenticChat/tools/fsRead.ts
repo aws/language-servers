@@ -2,6 +2,8 @@ import { sanitize } from '@aws/lsp-core/out/util/path'
 import { URI } from 'vscode-uri'
 import { CommandValidation, InvokeOutput, validatePath } from './toolShared'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
+import { workspaceUtils } from '@aws/lsp-core'
+import { getWorkspaceFolderPaths } from '@aws/lsp-core/out/util/workspaceUtils'
 
 // Port of https://github.com/aws/aws-toolkit-vscode/blob/5a0404eb0e2c637ca3bd119714f5c7a24634f746/packages/core/src/codewhispererChat/tools/fsRead.ts#L17
 
@@ -14,10 +16,12 @@ export class FsRead {
     static maxResponseSize = 200_000
     private readonly logging: Features['logging']
     private readonly workspace: Features['workspace']
+    private readonly lsp: Features['lsp']
 
-    constructor(features: Pick<Features, 'workspace' | 'logging'> & Partial<Features>) {
+    constructor(features: Pick<Features, 'lsp' | 'workspace' | 'logging'> & Partial<Features>) {
         this.logging = features.logging
         this.workspace = features.workspace
+        this.lsp = features.lsp
     }
 
     public async validate(params: FsReadParams): Promise<void> {
@@ -52,7 +56,14 @@ export class FsRead {
 
     public async requiresAcceptance(params: FsReadParams): Promise<CommandValidation> {
         // true when the file is not resolvable within our workspace. i.e. is outside of our workspace.
-        return { requiresAcceptance: !(await this.workspace.getTextDocument(URI.file(params.path).toString())) }
+        try {
+            const isInWorkspace = workspaceUtils.isInWorkspace(getWorkspaceFolderPaths(this.lsp), params.path)
+            return { requiresAcceptance: !isInWorkspace }
+        } catch (error) {
+            console.error('Error checking file acceptance:', error)
+            // In case of error, safer to require acceptance
+            return { requiresAcceptance: true }
+        }
     }
 
     public async invoke(params: FsReadParams): Promise<InvokeOutput> {

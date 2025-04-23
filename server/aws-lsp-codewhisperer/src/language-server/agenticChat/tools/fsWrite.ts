@@ -1,8 +1,10 @@
+import { workspaceUtils } from '@aws/lsp-core'
 import { CommandValidation, ExplanatoryParams, InvokeOutput } from './toolShared'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 import { sanitize } from '@aws/lsp-core/out/util/path'
 import { Change, diffLines } from 'diff'
 import { URI } from 'vscode-uri'
+import { getWorkspaceFolderPaths } from '@aws/lsp-core/out/util/workspaceUtils'
 
 // Port of https://github.com/aws/aws-toolkit-vscode/blob/16aa8768834f41ae512522473a6a962bb96abe51/packages/core/src/codewhispererChat/tools/fsWrite.ts#L42
 
@@ -41,9 +43,11 @@ export interface FsWriteBackup {
 
 export class FsWrite {
     private readonly workspace: Features['workspace']
+    private readonly lsp: Features['lsp']
 
-    constructor(features: Pick<Features, 'workspace'> & Partial<Features>) {
+    constructor(features: Pick<Features, 'workspace' | 'lsp'> & Partial<Features>) {
         this.workspace = features.workspace
+        this.lsp = features.lsp
     }
 
     public async validate(params: FsWriteParams): Promise<void> {
@@ -125,7 +129,15 @@ export class FsWrite {
     }
 
     public async requiresAcceptance(params: FsWriteParams): Promise<CommandValidation> {
-        return { requiresAcceptance: !(await this.workspace.getTextDocument(URI.file(params.path).toString())) }
+        // true when the file is not resolvable within our workspace. i.e. is outside of our workspace.
+        try {
+            const isInWorkspace = workspaceUtils.isInWorkspace(getWorkspaceFolderPaths(this.lsp), params.path)
+            return { requiresAcceptance: !isInWorkspace }
+        } catch (error) {
+            console.error('Error checking file acceptance:', error)
+            // In case of error, safer to require acceptance
+            return { requiresAcceptance: true }
+        }
     }
 
     private async handleCreate(params: CreateParams, sanitizedPath: string): Promise<void> {

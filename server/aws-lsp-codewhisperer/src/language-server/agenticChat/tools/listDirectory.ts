@@ -53,7 +53,14 @@ export class ListDirectory {
     }
 
     public async requiresAcceptance(params: ListDirectoryParams): Promise<CommandValidation> {
-        return { requiresAcceptance: !workspaceUtils.isInWorkspace(getWorkspaceFolderPaths(this.lsp), params.path) }
+        try {
+            const isInWorkspace = workspaceUtils.isInWorkspace(getWorkspaceFolderPaths(this.lsp), params.path)
+            return { requiresAcceptance: !isInWorkspace }
+        } catch (error) {
+            console.error('Error checking file acceptance:', error)
+            // In case of error, safer to require acceptance
+            return { requiresAcceptance: true }
+        }
     }
 
     public async invoke(params: ListDirectoryParams, token?: CancellationToken): Promise<InvokeOutput> {
