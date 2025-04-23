@@ -641,6 +641,10 @@ export class AgenticChatController implements ChatHandlers {
                         })
                         break
                 }
+
+                if (toolUse.name) {
+                    this.#telemetryController.emitToolUseSuggested(toolUse, session.conversationId || '')
+                }
             } catch (err) {
                 // If we did not approve a tool to be used or the user stopped the response, bubble this up to interrupt agentic loop
                 if (CancellationError.isUserCancelled(err) || err instanceof ToolApprovalException) {
