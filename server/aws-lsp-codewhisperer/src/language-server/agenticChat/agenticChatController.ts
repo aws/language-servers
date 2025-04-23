@@ -454,7 +454,7 @@ export class AgenticChatController implements ChatHandlers {
             )
 
             //  Add the current assistantResponse message to the history DB
-            if (result.data?.chatResult.body) {
+            if (result.data?.chatResult.body !== undefined) {
                 this.#chatHistoryDb.addMessage(tabId, 'cwc', conversationIdentifier ?? '', {
                     body: result.data?.chatResult.body,
                     type: 'answer' as any,
