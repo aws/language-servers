@@ -539,6 +539,7 @@ export class AgenticChatController implements ChatHandlers {
         token?: CancellationToken
     ): Promise<ToolResult[]> {
         const results: ToolResult[] = []
+        let buttonBlockId
 
         for (const toolUse of toolUses) {
             if (!toolUse.name || !toolUse.toolUseId) continue
@@ -571,7 +572,7 @@ export class AgenticChatController implements ChatHandlers {
 
                         if (requiresAcceptance) {
                             const confirmationResult = this.#processToolConfirmation(toolUse, warning)
-                            const buttonBlockId = await chatResultStream.writeResultBlock(confirmationResult)
+                            buttonBlockId = await chatResultStream.writeResultBlock(confirmationResult)
                             await this.waitForToolApproval(toolUse, chatResultStream, buttonBlockId, session)
                         }
                         break
@@ -644,7 +645,14 @@ export class AgenticChatController implements ChatHandlers {
                 // If we did not approve a tool to be used or the user stopped the response, bubble this up to interrupt agentic loop
                 if (CancellationError.isUserCancelled(err) || err instanceof ToolApprovalException) {
                     if (err instanceof ToolApprovalException && toolUse.name === 'executeBash') {
-                        await chatResultStream.writeResultBlock(this.#getUpdateBashConfirmResult(toolUse, false))
+                        if (buttonBlockId) {
+                            await chatResultStream.overwriteResultBlock(
+                                this.#getUpdateBashConfirmResult(toolUse, false),
+                                buttonBlockId
+                            )
+                        } else {
+                            this.#features.logging.log('Failed to update executeBash block: no blockId is available.')
+                        }
                     }
                     throw err
                 }

@@ -129,6 +129,7 @@ export class AgenticChatResultStream {
     async writeResultBlock(result: ChatMessage): Promise<number> {
         this.#state.chatResultBlocks.push(result)
         await this.#sendProgress(this.getResult(result.messageId))
+        // TODO: We should use chat messageId as blockId instead of nummber for more predictable updates.
         return this.#state.chatResultBlocks.length - 1
     }
 
