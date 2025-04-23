@@ -36,3 +36,8 @@ export class ToolApprovalException extends Error {
 export interface ExplanatoryParams {
     explanation?: string
 }
+
+export enum OutputKind {
+    Text = 'text',
+    Json = 'json',
+}

@@ -28,6 +28,7 @@ const props: RuntimeProps = {
         FsToolsServer,
         BashToolsServer,
         QLocalProjectContextServerTokenProxy,
+        // McpToolsServer,
         // LspToolsServer,
     ],
     name: 'AWS CodeWhisperer',

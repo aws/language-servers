@@ -6,11 +6,12 @@ import { ExecuteBash, ExecuteBashParams } from './executeBash'
 import { LspGetDocuments, LspGetDocumentsParams } from './lspGetDocuments'
 import { LspReadDocumentContents, LspReadDocumentContentsParams } from './lspReadDocumentContents'
 import { LspApplyWorkspaceEdit, LspApplyWorkspaceEditParams } from './lspApplyWorkspaceEdit'
+import { McpManager } from './mcp/mcpManager'
+import { McpTool } from './mcp/mcpTool'
 
 export const FsToolsServer: Server = ({ workspace, logging, agent, lsp }) => {
     const fsReadTool = new FsRead({ workspace, logging })
     const fsWriteTool = new FsWrite({ workspace, logging })
-
     const listDirectoryTool = new ListDirectory({ workspace, logging, lsp })
 
     agent.addTool(fsReadTool.getSpec(), async (input: FsReadParams) => {
@@ -54,4 +55,32 @@ export const LspToolsServer: Server = ({ workspace, logging, lsp, agent }) => {
     agent.addTool(LspApplyWorkspaceEdit.getSpec(), input => lspApplyWorkspaceEdit.invoke(input))
 
     return () => {}
+}
+
+export const McpToolsServer: Server = ({ workspace, logging, lsp, agent }) => {
+    lsp.onInitialized(async () => {
+        // todo: move to constants
+        const wsUris = lsp.getClientInitializeParams()?.workspaceFolders?.map(f => f.uri) ?? []
+        const wsConfigPaths = wsUris.map(uri => `${uri}/.amazonq/mcp.json`)
+        const globalConfigPath = `${workspace.fs.getUserHomeDir()}/.aws/amazonq/mcp.json`
+        const allPaths = [...wsConfigPaths, globalConfigPath]
+
+        const mgr = await McpManager.init(allPaths, { logging, workspace, lsp })
+
+        for (const def of mgr.getAllTools()) {
+            const baseSpec = def
+            const namespaced = `${def.serverName}_${def.toolName}`
+            const tool = new McpTool({ logging, workspace, lsp }, def)
+
+            agent.addTool(
+                { name: namespaced, description: baseSpec.description, inputSchema: baseSpec.inputSchema },
+                (input: any) => tool.invoke(input)
+            )
+            logging.info(`MCP: registered tool ${namespaced}`)
+        }
+    })
+
+    return async () => {
+        await McpManager.instance.close()
+    }
 }
