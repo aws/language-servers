@@ -528,7 +528,7 @@ export class AgenticChatController implements ChatHandlers {
                         const { requiresAcceptance, warning } = await tool.requiresAcceptance(toolUse.input as any)
 
                         if (requiresAcceptance) {
-                            const confirmationResult = this.#processExecuteBashConfirmation(toolUse, warning)
+                            const confirmationResult = this.#processToolConfirmation(toolUse, warning)
                             const buttonBlockId = await chatResultStream.writeResultBlock(confirmationResult)
                             await this.waitForToolApproval(toolUse, chatResultStream, buttonBlockId, session)
                         }
