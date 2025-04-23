@@ -1,13 +1,17 @@
 import { TriggerType } from '@aws/chat-client-ui-types'
-import { ChatTriggerType, UserIntent, Tool, ToolResult } from '@amzn/codewhisperer-streaming'
+import { ChatTriggerType, UserIntent, Tool, ToolResult, RelevantTextDocument } from '@amzn/codewhisperer-streaming'
 import { BedrockTools, ChatParams, CursorState, InlineChatParams } from '@aws/language-server-runtimes/server-interface'
 import { Features } from '../../types'
 import { DocumentContext, DocumentContextExtractor } from './documentContext'
 import { SendMessageCommandInput } from '../../../shared/streamingClientService'
+import { LocalProjectContextController } from '../../../shared/localProjectContextController'
+import { convertChunksToRelevantTextDocuments } from '../tools/relevantTextDocuments'
 
 export interface TriggerContext extends Partial<DocumentContext> {
     userIntent?: UserIntent
     triggerType?: TriggerType
+    useRelevantDocuments?: boolean
+    relevantDocuments?: RelevantTextDocument[]
 }
 
 export class QChatTriggerContext {
@@ -15,18 +19,28 @@ export class QChatTriggerContext {
 
     #workspace: Features['workspace']
     #documentContextExtractor: DocumentContextExtractor
+    #logger: Features['logging']
 
     constructor(workspace: Features['workspace'], logger: Features['logging']) {
         this.#workspace = workspace
         this.#documentContextExtractor = new DocumentContextExtractor({ logger, workspace })
+        this.#logger = logger
     }
 
     async getNewTriggerContext(params: ChatParams | InlineChatParams): Promise<TriggerContext> {
         const documentContext: DocumentContext | undefined = await this.extractDocumentContext(params)
 
+        const useRelevantDocuments =
+            'context' in params
+                ? params.context?.some(context => typeof context !== 'string' && context.command === '@workspace')
+                : false
+        const relevantDocuments = useRelevantDocuments ? await this.extractProjectContext(params.prompt.prompt) : []
+
         return {
             ...documentContext,
             userIntent: this.#guessIntentFromPrompt(params.prompt.prompt),
+            useRelevantDocuments,
+            relevantDocuments,
         }
     }
 
@@ -56,11 +70,21 @@ export class QChatTriggerContext {
                                               programmingLanguage: triggerContext.programmingLanguage,
                                               relativeFilePath: triggerContext.relativeFilePath,
                                           },
+                                          ...(triggerContext.useRelevantDocuments && {
+                                              useRelevantDocuments: triggerContext.useRelevantDocuments,
+                                              relevantDocuments: triggerContext.relevantDocuments,
+                                          }),
                                       },
                                       tools,
                                   }
                                 : {
                                       tools,
+                                      ...(triggerContext.useRelevantDocuments && {
+                                          editorState: {
+                                              useRelevantDocuments: triggerContext.useRelevantDocuments,
+                                              relevantDocuments: triggerContext.relevantDocuments,
+                                          },
+                                      }),
                                   },
                         userIntent: triggerContext.userIntent,
                         origin: 'IDE',
@@ -91,6 +115,19 @@ export class QChatTriggerContext {
                   cursorState?.[0] ?? QChatTriggerContext.DEFAULT_CURSOR_STATE
               )
             : undefined
+    }
+
+    async extractProjectContext(query?: string): Promise<RelevantTextDocument[]> {
+        if (query) {
+            try {
+                const contextController = await LocalProjectContextController.getInstance()
+                const resp = await contextController.queryVectorIndex({ query })
+                return convertChunksToRelevantTextDocuments(resp)
+            } catch (e) {
+                this.#logger.error(`Failed to extract project context for chat trigger: ${e}`)
+            }
+        }
+        return []
     }
 
     #guessIntentFromPrompt(prompt?: string): UserIntent | undefined {
