@@ -60,7 +60,7 @@ describe('toolShared', () => {
                 true,
                 'Should require acceptance when workspace folders are empty'
             )
-            sinon.assert.calledOnce(mockLogging.warn as sinon.SinonSpy)
+            sinon.assert.calledOnce(mockLogging.debug as sinon.SinonSpy)
         })
 
         it('should require acceptance if workspace folders are undefined', async () => {
