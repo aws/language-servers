@@ -96,8 +96,8 @@ import { getNewPromptFilePath, getUserPromptsDirectory, promptFileExtension } fr
 import { ContextCommandsProvider } from './context/contextCommandsProvider'
 import { LocalProjectContextController } from '../../shared/localProjectContextController'
 import { CancellationError, workspaceUtils } from '@aws/lsp-core'
-import { FsRead, FsReadParams } from './tools/fsRead'
-import { ListDirectory, ListDirectoryParams } from './tools/listDirectory'
+import { FsReadParams } from './tools/fsRead'
+import { ListDirectoryParams } from './tools/listDirectory'
 import { FsWrite, FsWriteParams, getDiffChanges } from './tools/fsWrite'
 import { ExecuteBash, ExecuteBashOutput, ExecuteBashParams } from './tools/executeBash'
 import { ExplanatoryParams, InvokeOutput, ToolApprovalException } from './tools/toolShared'
@@ -151,11 +151,7 @@ export class AgenticChatController implements ChatHandlers {
 
     async onButtonClick(params: ButtonClickParams): Promise<ButtonClickResult> {
         this.#log(`onButtonClick event with params: ${JSON.stringify(params)}`)
-        if (
-            params.buttonId === 'run-shell-command' ||
-            params.buttonId === 'reject-shell-command' ||
-            params.buttonId === 'allow-tools'
-        ) {
+        if (params.buttonId === 'run-shell-command' || params.buttonId === 'reject-shell-command') {
             const session = this.#chatSessionManagementService.getSession(params.tabId)
             if (!session.data) {
                 return { success: false, failureReason: `could not find chat session for tab: ${params.tabId} ` }
@@ -461,7 +457,7 @@ export class AgenticChatController implements ChatHandlers {
                     codeReference: result.data.chatResult.codeReference,
                     relatedContent:
                         result.data.chatResult.relatedContent?.content &&
-                        result.data.chatResult.relatedContent.content.length > 0
+                            result.data.chatResult.relatedContent.content.length > 0
                             ? result.data?.chatResult.relatedContent
                             : undefined,
                     toolUses: Object.keys(result.data?.toolUses!).map(k => ({
@@ -556,26 +552,29 @@ export class AgenticChatController implements ChatHandlers {
                 switch (toolUse.name) {
                     case 'fsRead':
                     case 'listDirectory':
-                    case 'fsWrite':
-                    case 'executeBash': {
-                        const toolMap = {
-                            fsRead: { Tool: FsRead },
-                            listDirectory: { Tool: ListDirectory },
-                            fsWrite: { Tool: FsWrite },
-                            executeBash: { Tool: ExecuteBash },
+                        const initialReadOrListResult = this.#processReadOrList(toolUse, chatResultStream)
+                        if (initialReadOrListResult) {
+                            await chatResultStream.writeResultBlock(initialReadOrListResult)
                         }
-
-                        const { Tool } = toolMap[toolUse.name as keyof typeof toolMap]
-                        const tool = new Tool(this.#features)
-                        const { requiresAcceptance, warning } = await tool.requiresAcceptance(toolUse.input as any)
-
+                        break
+                    case 'fsWrite':
+                        const input = toolUse.input as unknown as FsWriteParams
+                        const document = await this.#triggerContext.getTextDocument(input.path)
+                        this.#triggerContext
+                            .getToolUseLookup()
+                            .set(toolUse.toolUseId, { ...toolUse, oldContent: document?.getText() })
+                        break
+                    case 'executeBash':
+                        const bashTool = new ExecuteBash(this.#features)
+                        const { requiresAcceptance, warning } = await bashTool.requiresAcceptance(
+                            toolUse.input as unknown as ExecuteBashParams
+                        )
                         if (requiresAcceptance) {
-                            const confirmationResult = this.#processToolConfirmation(toolUse, warning)
+                            const confirmationResult = this.#processExecuteBashConfirmation(toolUse, warning)
                             const buttonBlockId = await chatResultStream.writeResultBlock(confirmationResult)
                             await this.waitForToolApproval(toolUse, chatResultStream, buttonBlockId, session)
                         }
                         break
-                    }
                     default:
                         await chatResultStream.writeResultBlock({
                             type: 'tool',
@@ -720,76 +719,31 @@ export class AgenticChatController implements ChatHandlers {
         }
     }
 
-    #processToolConfirmation(toolUse: ToolUse, warning?: string, toolType?: string): ChatResult {
-        let buttons: Button[] = []
-        let header: { body: string; buttons: Button[] }
-        let body: string
-
-        switch (toolType || toolUse.name) {
-            case 'executeBash':
-                buttons = [
-                    {
-                        id: 'reject-shell-command',
-                        text: 'Reject',
-                        icon: 'cancel',
-                    },
-                    {
-                        id: 'run-shell-command',
-                        text: 'Run',
-                        icon: 'play',
-                    },
-                ]
-                header = {
-                    body: 'shell',
-                    buttons,
-                }
-                const commandString = (toolUse.input as unknown as ExecuteBashParams).command
-                body = '```shell\n' + commandString + '\n```'
-                break
-
-            case 'fsWrite':
-                buttons = [
-                    {
-                        id: 'allow-tools', // Reusing the same ID for simplicity, could be changed to 'allow-write-tools'
-                        text: 'Allow',
-                        icon: 'ok',
-                        status: 'clear',
-                    },
-                ]
-                header = {
-                    body: '#### ⚠️ Allow file modification outside of your workspace',
-                    buttons,
-                }
-                const writeFilePath = (toolUse.input as unknown as FsWriteParams).path
-                body = `I need permission to modify files in your workspace.\n\`${writeFilePath}\``
-                break
-
-            case 'fsRead':
-            case 'listDirectory':
-            default:
-                buttons = [
-                    {
-                        id: 'allow-tools',
-                        text: 'Allow',
-                        icon: 'ok',
-                        status: 'clear',
-                    },
-                ]
-                header = {
-                    body: '#### ⚠️ Allow read-only tools outside your workspace',
-                    buttons,
-                }
-                // ⚠️ Warning: This accesses files outside the workspace
-                const readFilePath = (toolUse.input as unknown as FsReadParams | ListDirectoryParams).path
-                body = `I need permission to read files and list directories outside the workspace.\n\`${readFilePath}\``
-                break
+    #processExecuteBashConfirmation(toolUse: ToolUse, warning?: string): ChatResult {
+        const buttons: Button[] = [
+            {
+                id: 'reject-shell-command',
+                text: 'Reject',
+                icon: 'cancel',
+            },
+            {
+                id: 'run-shell-command',
+                text: 'Run',
+                icon: 'play',
+            },
+        ]
+        const header = {
+            body: 'shell',
+            buttons,
         }
 
+        const commandString = (toolUse.input as unknown as ExecuteBashParams).command
+        const body = '```shell\n' + commandString + '\n```'
         return {
             type: 'tool',
             messageId: toolUse.toolUseId,
             header,
-            body: warning ? warning + (toolType === 'executeBash' ? '' : '\n\n') + body : body,
+            body: warning ? warning + body : body,
         }
     }
 
@@ -1055,9 +1009,9 @@ export class AgenticChatController implements ChatHandlers {
 
             return result.success
                 ? {
-                      ...result.data.chatResult,
-                      requestId: response.$metadata.requestId,
-                  }
+                    ...result.data.chatResult,
+                    requestId: response.$metadata.requestId,
+                }
                 : new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, result.error)
         } catch (err) {
             this.#log(
