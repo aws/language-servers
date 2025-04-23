@@ -1194,6 +1194,8 @@ export class AgenticChatController implements ChatHandlers {
                 isDeleted: false,
                 fileContent: toolUse.oldContent,
             })
+        } else if (toolUse?.name === 'fsRead') {
+            await this.#features.lsp.window.showDocument({ uri: params.filePath })
         } else {
             // handle prompt file outside of workspace
             if (params.filePath.endsWith(promptFileExtension)) {
@@ -1202,7 +1204,7 @@ export class AgenticChatController implements ChatHandlers {
                     absolutePath = path.join(getUserPromptsDirectory(), params.filePath)
                 }
             }
-            await this.#features.lsp.window.showDocument({ uri: params.filePath })
+            await this.#features.lsp.window.showDocument({ uri: absolutePath })
         }
     }
 
