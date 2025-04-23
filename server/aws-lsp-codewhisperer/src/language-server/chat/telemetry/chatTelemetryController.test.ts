@@ -6,7 +6,7 @@ import assert = require('assert')
 import { ChatUIEventName } from './clientTelemetry'
 import { TelemetryService } from '../../../shared/telemetry/telemetryService'
 
-describe.only('TelemetryController', () => {
+describe('TelemetryController', () => {
     const mockTabId = 'mockTabId'
     const mockConversationId = 'mockConversationId'
 
