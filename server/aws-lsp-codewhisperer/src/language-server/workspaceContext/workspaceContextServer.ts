@@ -90,10 +90,13 @@ export const WorkspaceContextServer =
                 if (params.section === Q_CONTEXT_CONFIGURATION_SECTION) {
                     const workspaceMap = workspaceFolderManager.getWorkspaces()
 
-                    const workspaceArray = Array.from(workspaceMap, ([workspaceRoot, workspaceState]) => ({
-                        workspaceRoot,
-                        workspaceId: workspaceState.workspaceId ?? '',
-                    }))
+                    // Filter workspaces to only include those with READY status
+                    const workspaceArray = Array.from(workspaceMap)
+                        .filter(([_, workspaceState]) => workspaceState.remoteWorkspaceState === 'READY')
+                        .map(([workspaceRoot, workspaceState]) => ({
+                            workspaceRoot,
+                            workspaceId: workspaceState.workspaceId ?? '',
+                        }))
 
                     return {
                         workspaces: workspaceArray,
