@@ -171,11 +171,13 @@ export class ContextCommandsProvider implements Disposable {
     }
 
     async maybeUpdateCodeSymbols() {
-        const needUpdate = await (
-            await LocalProjectContextController.getInstance()
-        ).shouldUpdateContextCommandSymbolsOnce()
+        const controller = LocalProjectContextController.getInstance()
+        if (!controller) {
+            return
+        }
+        const needUpdate = await controller.shouldUpdateContextCommandSymbolsOnce()
         if (needUpdate) {
-            const items = await (await LocalProjectContextController.getInstance()).getContextCommandItems()
+            const items = await controller.getContextCommandItems()
             await this.processContextCommandUpdate(items)
         }
     }

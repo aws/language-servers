@@ -1217,7 +1217,7 @@ export class AgenticChatController implements ChatHandlers {
     async onReady() {
         await this.#tabBarController.loadChats()
         try {
-            const localProjectContextController = await LocalProjectContextController.getInstance()
+            const localProjectContextController = LocalProjectContextController.getInstance()
             const contextItems = await localProjectContextController.getContextCommandItems()
             await this.#contextCommandsProvider.processContextCommandUpdate(contextItems)
             void this.#contextCommandsProvider.maybeUpdateCodeSymbols()

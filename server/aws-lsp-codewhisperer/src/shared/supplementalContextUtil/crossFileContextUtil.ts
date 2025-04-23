@@ -144,9 +144,8 @@ export async function fetchProjectContext(
         target,
     }
 
-    try {
-        controller = await LocalProjectContextController.getInstance()
-    } catch (e) {
+    controller = LocalProjectContextController.getInstance()
+    if (!controller) {
         return []
     }
     return controller.queryInlineProjectContext(inlineProjectContextRequest)

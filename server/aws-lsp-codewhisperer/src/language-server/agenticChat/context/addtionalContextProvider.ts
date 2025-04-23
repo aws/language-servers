@@ -83,7 +83,7 @@ export class AdditionalContextProvider {
 
         let prompts: AdditionalContextPrompt[] = []
         try {
-            const localProjectContextController = await LocalProjectContextController.getInstance()
+            const localProjectContextController = LocalProjectContextController.getInstance()
             prompts = await localProjectContextController.getContextCommandPrompt(additionalContextCommands)
         } catch (error) {
             // do nothing

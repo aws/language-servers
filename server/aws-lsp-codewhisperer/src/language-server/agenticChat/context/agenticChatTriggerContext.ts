@@ -218,7 +218,7 @@ export class AgenticChatTriggerContext {
         prompt: string,
         chatResultStream?: AgenticChatResultStream
     ): Promise<RelevantTextDocumentAddition[]> {
-        const localProjectContextController = await LocalProjectContextController.getInstance()
+        const localProjectContextController = LocalProjectContextController.getInstance()
         if (!localProjectContextController.isEnabled && chatResultStream) {
             await chatResultStream.writeResultBlock({
                 body: `To add your workspace as context, enable local indexing in your IDE settings. After enabling, add @workspace to your question, and I'll generate a response using your workspace as context.`,
