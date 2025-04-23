@@ -254,6 +254,7 @@ export class TelemetryService {
                     ...metric,
                     [CONVERSATION_ID_METRIC_KEY]: options.conversationId,
                     credentialStartUrl: this.credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
+                    result: 'Succeeded',
                 },
             })
         }
@@ -290,6 +291,7 @@ export class TelemetryService {
                     cwsprChatModificationPercentage: params.modificationPercentage,
                     codewhispererCustomizationArn: params.customizationArn,
                     credentialStartUrl: this.credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
+                    result: 'Succeeded',
                 },
             })
         }
@@ -420,6 +422,7 @@ export class TelemetryService {
                     cwsprChatActiveEditorTotalCharacters: params.activeEditorTotalCharacters,
                     cwsprChatActiveEditorImportCount: additionalParams.chatActiveEditorImportCount,
                     codewhispererCustomizationArn: params.customizationArn,
+                    result: 'Succeeded',
                 },
             })
         }

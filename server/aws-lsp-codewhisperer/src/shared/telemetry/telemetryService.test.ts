@@ -446,6 +446,7 @@ describe('TelemetryService', () => {
                     cwsprChatAcceptedCharactersLength: 100,
                     cwsprChatConversationId: 'conv123',
                     credentialStartUrl: 'idc-start-url',
+                    result: 'Succeeded',
                 },
             })
         })
@@ -752,6 +753,7 @@ describe('TelemetryService', () => {
                 cwsprChatModificationPercentage: 0.2,
                 codewhispererCustomizationArn: 'test-arn',
                 credentialStartUrl: 'idc-start-url',
+                result: 'Succeeded',
             },
         })
     })
@@ -874,6 +876,7 @@ describe('TelemetryService', () => {
                     cwsprChatActiveEditorTotalCharacters: 250,
                     cwsprChatActiveEditorImportCount: undefined,
                     codewhispererCustomizationArn: 'cust-123',
+                    result: 'Succeeded',
                 },
             })
         })
