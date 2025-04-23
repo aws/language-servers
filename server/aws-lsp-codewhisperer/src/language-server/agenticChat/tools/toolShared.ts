@@ -72,7 +72,7 @@ export async function requiresPathAcceptance(
         return { requiresAcceptance: !isInWorkspace }
     } catch (error) {
         if (logging) {
-            logging.debug(`Error checking file acceptance: ${error}`)
+            logging.error(`Error checking file acceptance: ${error}`)
         }
         // In case of error, safer to require acceptance
         return { requiresAcceptance: true }
