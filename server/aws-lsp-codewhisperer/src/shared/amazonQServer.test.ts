@@ -15,8 +15,11 @@ describe('AmazonQServiceServer', () => {
     beforeEach(() => {
         features = new TestFeatures()
 
-        setupCommonLspHandlersSpy = sinon.spy(BaseAmazonQServiceManager.prototype, 'setupCommonLspHandlers')
-        setupConfigurableLspHandlersSpy = sinon.spy(BaseAmazonQServiceManager.prototype, 'setupConfigurableLspHandlers')
+        setupCommonLspHandlersSpy = sinon.spy(BaseAmazonQServiceManager.prototype, 'setupCommonLspHandlers' as any)
+        setupConfigurableLspHandlersSpy = sinon.spy(
+            BaseAmazonQServiceManager.prototype,
+            'setupConfigurableLspHandlers' as any
+        )
 
         TestAmazonQServiceManager.resetInstance()
         server = AmazonQServiceServerFactory(() => initBaseTestServiceManager(features))

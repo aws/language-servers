@@ -59,11 +59,20 @@ import { parse } from '@aws-sdk/util-arn-parser'
  * - identityCenter: Connected via Identity Center
  *
  * AmazonQTokenServiceManager is a singleton class, which must be instantiated with Language Server runtimes [Features](https://github.com/aws/language-server-runtimes/blob/21d5d1dc7c73499475b7c88c98d2ce760e5d26c8/runtimes/server-interface/server.ts#L31-L42)
- * To get access to current CodeWhispererServiceToken client object, call `getCodewhispererService()` mathod:
+ * in the `amazonQServiceServer` via the `initInstance()` method. Dependencies of this class can access the singleton via the `AmazonQServiceAPI`
+ * wrapper (recommended) or through `getInstance()`.
+ *
+ * To get access to current CodeWhispererServiceToken client object, call `getCodewhispererService()` method:
  *
  * @example
- * const AmazonQServiceManager = AmazonQTokenServiceManager.getInstance(features);
- * const codewhispererService = AmazonQServiceManager.getCodewhispererService();
+ *
+ * const amazonQService = new AmazonQServiceAPI(() => AmazonQTokenServiceManager.getInstance());
+ *
+ * // after LSP handshake
+ * const codewhispererService = amazonQService.getCodewhispererService();
+ *
+ * AmazonQTokenServiceManager.getInstance().getActiveProfileArn()
+ *
  */
 export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
     CodeWhispererServiceToken,

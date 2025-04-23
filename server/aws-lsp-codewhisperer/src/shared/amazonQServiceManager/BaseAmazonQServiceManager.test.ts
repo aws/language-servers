@@ -1,16 +1,19 @@
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
-import sinon, { StubbedInstance } from 'ts-sinon'
+import sinon, { StubbedInstance, stubInterface } from 'ts-sinon'
 import { expect } from 'chai'
 import { CodeWhispererServiceBase } from '../codeWhispererService'
 import { stubCodeWhispererService } from '../testUtils'
 import { initBaseTestServiceManager, TestAmazonQServiceManager } from './testUtils'
 import {
     AmazonQBaseServiceManager,
+    AmazonQServiceAPI,
+    AmazonQServiceBase,
     BaseAmazonQServiceManager,
     CONFIGURATION_CHANGE_IN_PROGRESS_MSG,
 } from './BaseAmazonQServiceManager'
 import { CODE_WHISPERER_CONFIGURATION_SECTION, Q_CONFIGURATION_SECTION } from '../constants'
 import { UpdateConfigurationParams } from '@aws/language-server-runtimes/protocol'
+import { StreamingClientServiceBase } from '../streamingClientService'
 
 describe('BaseAmazonQServiceManager', () => {
     let features: TestFeatures
@@ -125,5 +128,40 @@ describe('BaseAmazonQServiceManager', () => {
 
         await features.doUpdateConfiguration({} as UpdateConfigurationParams, {} as any)
         sinon.assert.calledOnce(mockedOnUpdateConfigurationHandler)
+    })
+})
+
+describe('AmazonQServiceAPI', () => {
+    let features: TestFeatures
+    let serviceStub: StubbedInstance<CodeWhispererServiceBase>
+    let streamingClientStub: StubbedInstance<StreamingClientServiceBase>
+    let amazonQService: AmazonQServiceBase
+
+    beforeEach(() => {
+        features = new TestFeatures()
+
+        serviceStub = stubCodeWhispererService()
+        streamingClientStub = stubInterface<StreamingClientServiceBase>()
+        amazonQService = new AmazonQServiceAPI(() =>
+            initBaseTestServiceManager(features, serviceStub, streamingClientStub)
+        )
+    })
+
+    afterEach(() => {
+        sinon.restore()
+        TestAmazonQServiceManager.resetInstance()
+    })
+
+    it('should delay initialization until a method invocation', () => {
+        expect(amazonQService['cachedServiceManager']).to.be.undefined
+
+        // trigger initialization
+        amazonQService.getConfiguration()
+        expect(amazonQService['cachedServiceManager']).to.deep.equal(TestAmazonQServiceManager.getInstance())
+    })
+
+    it('should route service methods to cached service manager', () => {
+        expect(amazonQService.getCodewhispererService()).to.deep.equal(serviceStub)
+        expect(amazonQService.getStreamingClient()).to.deep.equal(streamingClientStub)
     })
 })
