@@ -12,12 +12,18 @@ import {
 } from '../../shared/streamingClientService'
 
 export type ChatSessionServiceConfig = CodeWhispererStreamingClientConfig
+
+type DeferredHandler = {
+    resolve: () => void
+    reject: (err: Error) => void
+}
 export class ChatSessionService {
     public shareCodeWhispererContentWithAWS = false
     public pairProgrammingMode: boolean = true
     #abortController?: AbortController
     #conversationId?: string
     #amazonQServiceManager?: AmazonQBaseServiceManager
+    #deferredToolExecution: Record<string, DeferredHandler> = {}
 
     public get conversationId(): string | undefined {
         return this.#conversationId
@@ -25,6 +31,13 @@ export class ChatSessionService {
 
     public set conversationId(value: string | undefined) {
         this.#conversationId = value
+    }
+
+    public getDeferredToolExecution(messageId: string): DeferredHandler | undefined {
+        return this.#deferredToolExecution[messageId]
+    }
+    public setDeferredToolExecution(messageId: string, resolve: any, reject: any) {
+        this.#deferredToolExecution[messageId] = { resolve, reject }
     }
 
     constructor(amazonQServiceManager?: AmazonQBaseServiceManager) {

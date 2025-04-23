@@ -38,7 +38,7 @@ import { DEFAULT_HELP_FOLLOW_UP_PROMPT, HELP_MESSAGE } from '../chat/constants'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 import { TabBarController } from './tabBarController'
-import { getUserPromptsDirectory } from './context/contextUtils'
+import { getUserPromptsDirectory, promptFileExtension } from './context/contextUtils'
 import { AdditionalContextProvider } from './context/addtionalContextProvider'
 import { ContextCommandsProvider } from './context/contextCommandsProvider'
 import { ChatDatabase } from './tools/chatDb/chatDb'
@@ -50,11 +50,6 @@ describe('AgenticChatController', () => {
     const mockMessageId = 'mock-message-id'
 
     const mockChatResponseList: ChatResponseStream[] = [
-        {
-            messageMetadataEvent: {
-                conversationId: mockConversationId,
-            },
-        },
         {
             assistantResponseEvent: {
                 content: 'Hello ',
@@ -73,18 +68,13 @@ describe('AgenticChatController', () => {
     ]
 
     const expectedCompleteChatResult: ChatResult = {
-        body: '',
-        messageId: undefined,
-        additionalMessages: [
-            {
-                body: 'Hello World!',
-                canBeVoted: true,
-                messageId: 'mock-message-id',
-                codeReference: undefined,
-                followUp: undefined,
-                relatedContent: undefined,
-            },
-        ],
+        body: 'Hello World!',
+        canBeVoted: true,
+        messageId: 'mock-message-id',
+        codeReference: undefined,
+        followUp: undefined,
+        relatedContent: undefined,
+        additionalMessages: [],
     }
 
     const expectedCompleteInlineChatResult: InlineChatResult = {
@@ -337,7 +327,12 @@ describe('AgenticChatController', () => {
             const chatResult = await chatResultPromise
 
             sinon.assert.callCount(testFeatures.lsp.sendProgress, 0)
-            assert.deepStrictEqual(chatResult, expectedCompleteChatResult)
+            assert.deepStrictEqual(chatResult, {
+                additionalMessages: [],
+                body: '\n\nHello World!',
+                messageId: 'mock-message-id',
+                buttons: [],
+            })
         })
 
         it('creates a new conversationId if missing in the session', async () => {
@@ -373,7 +368,7 @@ describe('AgenticChatController', () => {
             )
 
             // Verify that history was requested from the db
-            sinon.assert.calledWith(getMessagesStub, mockTabId, 10)
+            sinon.assert.calledWith(getMessagesStub, mockTabId)
 
             assert.ok(generateAssistantResponseStub.calledOnce)
 
@@ -860,7 +855,12 @@ describe('AgenticChatController', () => {
             const chatResult = await chatResultPromise
 
             sinon.assert.callCount(testFeatures.lsp.sendProgress, mockChatResponseList.length)
-            assert.deepStrictEqual(chatResult, expectedCompleteChatResult)
+            assert.deepStrictEqual(chatResult, {
+                additionalMessages: [],
+                body: '\n\nHello World!',
+                messageId: 'mock-message-id',
+                buttons: [],
+            })
         })
 
         it('can use 0 as progress token', async () => {
@@ -872,7 +872,12 @@ describe('AgenticChatController', () => {
             const chatResult = await chatResultPromise
 
             sinon.assert.callCount(testFeatures.lsp.sendProgress, mockChatResponseList.length)
-            assert.deepStrictEqual(chatResult, expectedCompleteChatResult)
+            assert.deepStrictEqual(chatResult, {
+                additionalMessages: [],
+                body: '\n\nHello World!',
+                messageId: 'mock-message-id',
+                buttons: [],
+            })
         })
 
         it('returns a ResponseError if sendMessage returns an error', async () => {
@@ -1009,11 +1014,6 @@ describe('AgenticChatController', () => {
                 const calledRequestInput: GenerateAssistantResponseCommandInput =
                     generateAssistantResponseStub.firstCall.firstArg
 
-                console.error(
-                    'OKS: ',
-                    calledRequestInput.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext
-                        ?.editorState
-                )
                 assert.deepStrictEqual(
                     calledRequestInput.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext
                         ?.editorState,
@@ -1136,7 +1136,7 @@ describe('AgenticChatController', () => {
     describe('onCreatePrompt', () => {
         it('should create prompt file with given name', async () => {
             const promptName = 'testPrompt'
-            const expectedPath = path.join(getUserPromptsDirectory(), 'testPrompt.prompt.md')
+            const expectedPath = path.join(getUserPromptsDirectory(), `testPrompt${promptFileExtension}`)
 
             await chatController.onCreatePrompt({ promptName })
 
@@ -1144,7 +1144,7 @@ describe('AgenticChatController', () => {
         })
 
         it('should create default prompt file when no name provided', async () => {
-            const expectedPath = path.join(getUserPromptsDirectory(), 'default.prompt.md')
+            const expectedPath = path.join(getUserPromptsDirectory(), `default${promptFileExtension}`)
 
             await chatController.onCreatePrompt({ promptName: '' })
 

@@ -1,7 +1,7 @@
 import { getUserHomeDir } from '@aws/lsp-core/out/util/path'
 import * as path from 'path'
 
-export const promptFileExtension = '.prompt.md'
+export const promptFileExtension = '.md'
 export const additionalContentInnerContextLimit = 8192
 export const additionalContentNameLimit = 1024
 

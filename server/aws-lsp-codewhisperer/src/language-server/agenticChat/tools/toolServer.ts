@@ -1,4 +1,4 @@
-import { Server } from '@aws/language-server-runtimes/server-interface'
+import { CancellationToken, Server } from '@aws/language-server-runtimes/server-interface'
 import { FsRead, FsReadParams } from './fsRead'
 import { FsWrite, FsWriteParams } from './fsWrite'
 import { ListDirectory, ListDirectoryParams } from './listDirectory'
@@ -27,14 +27,18 @@ export const FsToolsServer: Server = ({ workspace, logging, agent, lsp }) => {
         return await fsWriteTool.invoke(input)
     })
 
-    agent.addTool(listDirectoryTool.getSpec(), (input: ListDirectoryParams) => listDirectoryTool.invoke(input))
+    agent.addTool(listDirectoryTool.getSpec(), (input: ListDirectoryParams, token?: CancellationToken) =>
+        listDirectoryTool.invoke(input, token)
+    )
 
     return () => {}
 }
 
 export const BashToolsServer: Server = ({ logging, workspace, agent, lsp }) => {
     const bashTool = new ExecuteBash({ logging, workspace, lsp })
-    agent.addTool(bashTool.getSpec(), (input: ExecuteBashParams) => bashTool.invoke(input))
+    agent.addTool(bashTool.getSpec(), (input: ExecuteBashParams, token?: CancellationToken) =>
+        bashTool.invoke(input, undefined, token)
+    )
     return () => {}
 }
 

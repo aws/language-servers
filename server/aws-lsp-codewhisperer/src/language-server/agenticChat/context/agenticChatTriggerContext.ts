@@ -10,6 +10,7 @@ import {
     AdditionalContentEntry,
     GenerateAssistantResponseCommandInput,
     ChatMessage,
+    ToolUse,
 } from '@amzn/codewhisperer-streaming'
 import {
     BedrockTools,
@@ -18,6 +19,7 @@ import {
     InlineChatParams,
     FileList,
     TextDocument,
+    OPEN_WORKSPACE_INDEX_SETTINGS_BUTTON_ID,
 } from '@aws/language-server-runtimes/server-interface'
 import { Features } from '../../types'
 import { DocumentContext, DocumentContextExtractor } from '../../chat/contexts/documentContext'
@@ -26,6 +28,8 @@ import { URI } from 'vscode-uri'
 import { LocalProjectContextController } from '../../../shared/localProjectContextController'
 import * as path from 'path'
 import { RelevantTextDocument } from '@amzn/codewhisperer-streaming'
+import { AgenticChatResultStream } from '../agenticChatResultStream'
+import { randomUUID } from 'crypto'
 
 export interface TriggerContext extends Partial<DocumentContext> {
     userIntent?: UserIntent
@@ -54,12 +58,14 @@ export class AgenticChatTriggerContext {
     #lsp: Features['lsp']
     #logging: Features['logging']
     #documentContextExtractor: DocumentContextExtractor
+    #toolUseLookup: Map<string, ToolUse & { oldContent?: string }>
 
     constructor({ workspace, lsp, logging }: Pick<Features, 'workspace' | 'lsp' | 'logging'> & Partial<Features>) {
         this.#workspace = workspace
         this.#lsp = lsp
         this.#logging = logging
         this.#documentContextExtractor = new DocumentContextExtractor({ logger: logging, workspace })
+        this.#toolUseLookup = new Map()
     }
 
     async getNewTriggerContext(params: ChatParams | InlineChatParams): Promise<TriggerContext> {
@@ -76,6 +82,7 @@ export class AgenticChatTriggerContext {
         triggerContext: TriggerContext,
         chatTriggerType: ChatTriggerType,
         customizationArn?: string,
+        chatResultStream?: AgenticChatResultStream,
         profileArn?: string,
         history: ChatMessage[] = [],
         tools: BedrockTools = [],
@@ -87,12 +94,19 @@ export class AgenticChatTriggerContext {
         const useRelevantDocuments = 'context' in params ? params.context?.some(c => c.command === '@workspace') : false
 
         let promptContent = prompt.escapedPrompt ?? prompt.prompt
+
+        // When the user adds @sage context, ** gets prepended and appended to the prompt because of markdown.
+        // This intereferes with routing logic thus we need to remove it
+        if (promptContent && promptContent.includes('@sage')) {
+            promptContent = promptContent.replace(/\*\*@sage\*\*/g, '@sage')
+        }
+
         if (useRelevantDocuments) {
             promptContent = promptContent?.replace(/^@workspace\/?/, '')
         }
 
         const relevantDocuments = useRelevantDocuments
-            ? await this.#getRelevantDocuments(promptContent ?? '')
+            ? await this.#getRelevantDocuments(promptContent ?? '', chatResultStream)
             : undefined
 
         const data: GenerateAssistantResponseCommandInput = {
@@ -199,10 +213,24 @@ export class AgenticChatTriggerContext {
         return undefined
     }
 
-    async #getRelevantDocuments(prompt: string): Promise<RelevantTextDocumentAddition[]> {
+    async #getRelevantDocuments(
+        prompt: string,
+        chatResultStream?: AgenticChatResultStream
+    ): Promise<RelevantTextDocumentAddition[]> {
         const localProjectContextController = await LocalProjectContextController.getInstance()
-        if (!localProjectContextController.isEnabled) {
-            // TODO: Prompt user to enable indexing
+        if (!localProjectContextController.isEnabled && chatResultStream) {
+            await chatResultStream.writeResultBlock({
+                body: `To add your workspace as context, enable local indexing in your IDE settings. After enabling, add @workspace to your question, and I'll generate a response using your workspace as context.`,
+                buttons: [
+                    {
+                        id: OPEN_WORKSPACE_INDEX_SETTINGS_BUTTON_ID,
+                        text: 'Open settings',
+                        icon: 'external',
+                        keepCardAfterClick: false,
+                        status: 'info',
+                    },
+                ],
+            })
             return []
         }
 
@@ -255,5 +283,9 @@ export class AgenticChatTriggerContext {
             this.#logging.error(`Error querying query vector index to get relevant documents: ${e}`)
             return []
         }
+    }
+
+    getToolUseLookup() {
+        return this.#toolUseLookup
     }
 }

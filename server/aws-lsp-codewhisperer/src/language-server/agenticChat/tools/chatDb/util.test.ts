@@ -33,6 +33,7 @@ describe('ChatDb Utilities', () => {
                     content: 'Hello',
                     userInputMessageContext: {},
                     userIntent: undefined,
+                    origin: 'IDE',
                 },
             })
         })
@@ -51,9 +52,7 @@ describe('ChatDb Utilities', () => {
                 assistantResponseMessage: {
                     messageId: 'msg-1',
                     content: 'Response',
-                    references: [
-                        { url: 'test.js', recommendationContentSpan: { start: 10, end: 15 }, information: '' },
-                    ],
+                    toolUses: [],
                 },
             })
         })

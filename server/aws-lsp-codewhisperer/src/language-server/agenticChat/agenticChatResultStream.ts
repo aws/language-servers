@@ -1,7 +1,8 @@
 import { ChatResult, FileDetails, ChatMessage } from '@aws/language-server-runtimes/protocol'
+import { randomUUID } from 'crypto'
 
 interface ResultStreamWriter {
-    write(chunk: ChatResult): Promise<void>
+    write(chunk: ChatResult, final?: boolean): Promise<void>
     close(): Promise<void>
 }
 
@@ -14,12 +15,22 @@ interface ResultStreamWriter {
 interface FileDetailsWithPath extends FileDetails {
     relativeFilePath: string
 }
+
+type OperationType = 'read' | 'write' | 'listDir'
+
+interface FileOperation {
+    type: OperationType
+    filePaths: FileDetailsWithPath[]
+}
 export class AgenticChatResultStream {
     static readonly resultDelimiter = '\n\n'
     #state = {
         chatResultBlocks: [] as ChatMessage[],
         isLocked: false,
-        contextFileList: {} as Record<string, FileDetailsWithPath[]>,
+        uuid: randomUUID(),
+        messageId: undefined as string | undefined,
+        messageIdToUpdate: undefined as string | undefined,
+        messageOperations: new Map<string, FileOperation>(),
     }
     readonly #sendProgress: (newChatResult: ChatResult | string) => Promise<void>
 
@@ -27,62 +38,78 @@ export class AgenticChatResultStream {
         this.#sendProgress = sendProgress
     }
 
-    getResult(): ChatResult {
-        return this.#joinResults(this.#state.chatResultBlocks)
+    getResult(only?: string): ChatResult {
+        return this.#joinResults(this.#state.chatResultBlocks, only)
+    }
+    getMessageIdToUpdate(): string | undefined {
+        return this.#state.messageIdToUpdate
     }
 
-    getContextFileList(toolUseId: string): FileDetailsWithPath[] {
-        return this.#state.contextFileList[toolUseId] ?? []
+    setMessageIdToUpdate(messageId: string) {
+        this.#state.messageIdToUpdate = messageId
     }
 
-    addContextFileList(toolUseId: string, fileDetails: FileDetailsWithPath) {
-        if (!this.#state.contextFileList[toolUseId]) {
-            this.#state.contextFileList[toolUseId] = []
-        }
-        this.#state.contextFileList[toolUseId].push(fileDetails)
+    /**
+     * Adds a file operation for a specific message
+     * @param messageId The ID of the message
+     * @param type The type of operation ('read' or 'listDir' or 'write')
+     * @param filePaths Array of FileDetailsWithPath involved in the operation
+     */
+    addMessageOperation(messageId: string, type: OperationType, filePaths: FileDetailsWithPath[]) {
+        this.#state.messageOperations.set(messageId, { type, filePaths })
     }
 
-    #joinResults(chatResults: ChatMessage[]): ChatResult {
-        const tools: Record<string, boolean> = {}
-        let firstResponseMessageId: string | undefined
+    /**
+     * Gets the file operation details for a specific message
+     * @param messageId The ID of the message
+     * @returns The file operation details or undefined if not found
+     */
+    getMessageOperation(messageId: string): FileOperation | undefined {
+        return this.#state.messageOperations.get(messageId)
+    }
 
-        for (const result of chatResults) {
-            if (result.type === 'tool') {
-                tools[result.messageId || ''] = true
-            } else if (tools[result.messageId || '']) {
-                firstResponseMessageId = result.messageId
-                break
-            }
-        }
-
+    #joinResults(chatResults: ChatMessage[], only?: string): ChatResult {
         const result: ChatResult = {
-            body: '', // TODO: somehow doesn't stream unless there is content in the primary result message
+            body: '',
             additionalMessages: [],
-            messageId: firstResponseMessageId,
+            messageId: this.#state.messageId || this.#state.uuid,
         }
 
-        return chatResults.reduce<ChatResult>((acc, c) => {
-            if (c.messageId && c.messageId !== firstResponseMessageId) {
-                if (acc.additionalMessages!.some(am => am.messageId === c.messageId)) {
+        return chatResults
+            .filter(cr => cr.messageId == this.#state.messageId || only === undefined || only === cr.messageId)
+            .reduce<ChatResult>((acc, c) => {
+                if (c.messageId === this.#state.messageId) {
+                    return {
+                        ...acc,
+                        buttons: [...(acc.buttons ?? []), ...(c.buttons ?? [])],
+                        body: acc.body + AgenticChatResultStream.resultDelimiter + c.body,
+                    }
+                } else if (acc.additionalMessages!.some(am => am.messageId === c.messageId)) {
                     return {
                         ...acc,
                         additionalMessages: acc.additionalMessages!.map(am => ({
                             ...am,
+                            buttons:
+                                am.messageId === c.messageId
+                                    ? [...(am.buttons ?? []), ...(c.buttons ?? [])]
+                                    : am.buttons,
                             body:
                                 am.messageId === c.messageId
                                     ? am.body + AgenticChatResultStream.resultDelimiter + c.body
                                     : am.body,
-                            ...((c.contextList || acc.contextList) && {
-                                contextList: {
-                                    filePaths: [
-                                        ...(acc.contextList?.filePaths ?? []),
-                                        ...(c.contextList?.filePaths ?? []),
-                                    ],
-                                    rootFolderTitle: c.contextList?.rootFolderTitle
-                                        ? c.contextList.rootFolderTitle
-                                        : (acc.contextList?.rootFolderTitle ?? ''),
-                                },
-                            }),
+                            ...(am.messageId === c.messageId &&
+                                (c.contextList || acc.contextList) && {
+                                    contextList: {
+                                        filePaths: [
+                                            ...(acc.contextList?.filePaths ?? []),
+                                            ...(c.contextList?.filePaths ?? []),
+                                        ],
+                                        rootFolderTitle: c.contextList?.rootFolderTitle
+                                            ? c.contextList.rootFolderTitle
+                                            : (acc.contextList?.rootFolderTitle ?? ''),
+                                    },
+                                }),
+                            header: c.header ? { ...c.header } : { ...am.header },
                         })),
                     }
                 } else {
@@ -91,18 +118,28 @@ export class AgenticChatResultStream {
                         additionalMessages: [...acc.additionalMessages!, c],
                     }
                 }
-            } else {
-                return {
-                    ...acc,
-                    body: c.body + AgenticChatResultStream.resultDelimiter + acc.body,
-                }
-            }
-        }, result)
+            }, result)
     }
 
-    async writeResultBlock(result: ChatMessage) {
+    /**
+     * Add a block to the message block store and send it to the client.
+     * @param result the blockId associated with the block such that it can be overwritten later
+     * @returns
+     */
+    async writeResultBlock(result: ChatMessage): Promise<number> {
         this.#state.chatResultBlocks.push(result)
-        await this.#sendProgress(this.getResult())
+        await this.#sendProgress(this.getResult(result.messageId))
+        return this.#state.chatResultBlocks.length - 1
+    }
+
+    /**
+     * Overwrites a specific blockId and re-sends the resulting blocks to the client.
+     * @param result
+     * @param blockId
+     */
+    async overwriteResultBlock(result: ChatMessage, blockId: number) {
+        this.#state.chatResultBlocks[blockId] = result
+        await this.#sendProgress(this.getResult(result.messageId))
     }
 
     getResultStreamWriter(): ResultStreamWriter {
@@ -114,8 +151,12 @@ export class AgenticChatResultStream {
         let lastResult: ChatResult | undefined
 
         return {
-            write: async (intermediateChatResult: ChatResult) => {
-                const combinedResult = this.#joinResults([...this.#state.chatResultBlocks, intermediateChatResult])
+            write: async (intermediateChatResult: ChatMessage) => {
+                this.#state.messageId = intermediateChatResult.messageId
+                const combinedResult = this.#joinResults(
+                    [...this.#state.chatResultBlocks, intermediateChatResult],
+                    intermediateChatResult.messageId
+                )
                 lastResult = intermediateChatResult
                 return await this.#sendProgress(combinedResult)
             },

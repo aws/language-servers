@@ -68,16 +68,12 @@ export class ContextCommandsProvider implements Disposable {
     }
 
     async processContextCommandUpdate(items: ContextCommandItem[]) {
-        const localProjectContextController = await LocalProjectContextController.getInstance()
-        const allItems = await this.mapContextCommandItems(items, localProjectContextController.isEnabled)
+        const allItems = await this.mapContextCommandItems(items)
         this.chat.sendContextCommands({ contextCommandGroups: allItems })
         this.cachedContextCommands = items
     }
 
-    async mapContextCommandItems(
-        items: ContextCommandItem[],
-        localProjectContextEnabled: boolean
-    ): Promise<ContextCommandGroup[]> {
+    async mapContextCommandItems(items: ContextCommandItem[]): Promise<ContextCommandGroup[]> {
         const folderCmds: ContextCommand[] = []
         const folderCmdGroup: ContextCommand = {
             command: 'Folders',
@@ -129,20 +125,11 @@ export class ContextCommandsProvider implements Disposable {
             description: 'Add a saved prompt to context',
             icon: 'magic',
         }
-        const commands = [
-            ...(localProjectContextEnabled
-                ? [
-                      {
-                          command: '@workspace',
-                          description: 'Reference all code in workspace.',
-                      },
-                  ]
-                : []),
-            folderCmdGroup,
-            fileCmdGroup,
-            codeCmdGroup,
-            promptCmdGroup,
-        ]
+        const workspaceCmd = {
+            command: '@workspace',
+            description: 'Reference all code in workspace.',
+        }
+        const commands = [workspaceCmd, folderCmdGroup, fileCmdGroup, codeCmdGroup, promptCmdGroup]
         const allCommands: ContextCommandGroup[] = [
             {
                 commands: commands,

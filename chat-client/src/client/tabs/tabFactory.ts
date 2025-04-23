@@ -48,16 +48,11 @@ export class TabFactory {
                         Ask me to explain, debug, or optimize your code. 
                         You can enter \`/\` to see a list of quick actions.`,
                       },
-                      {
-                          type: ChatItemType.ANSWER,
-                          followUp: this.getWelcomeBlock(),
-                      },
                   ]
                 : chatMessages
                   ? (chatMessages as ChatItem[])
                   : [],
             ...(disclaimerCardActive ? { promptInputStickyCard: disclaimerCard } : {}),
-            cancelButtonWhenLoading: false,
             promptInputOptions: [pairProgrammingPromptInput],
         }
         return tabData
@@ -83,23 +78,6 @@ export class TabFactory {
 
         tabData.tabBarButtons = this.getTabBarButtons()
         return tabData
-    }
-
-    private getWelcomeBlock() {
-        return {
-            text: 'Try Examples:',
-            options: [
-                {
-                    pillText: 'Explain selected code',
-                    prompt: 'Explain selected code',
-                    type: 'init-prompt',
-                },
-                {
-                    pillText: 'How can Amazon Q help me?',
-                    type: 'help',
-                },
-            ],
-        }
     }
 
     private getTabBarButtons(): TabBarMainAction[] | undefined {
