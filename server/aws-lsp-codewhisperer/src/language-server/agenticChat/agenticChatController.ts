@@ -685,7 +685,7 @@ export class AgenticChatController implements ChatHandlers {
                     details: {
                         [fileName]: {
                             changes,
-                            description: input.path, // Show full path in description when hovering
+                            description: input.path,
                         },
                     },
                 },
@@ -1052,9 +1052,10 @@ export class AgenticChatController implements ChatHandlers {
         const toolUseId = params.messageId
         const toolUse = toolUseId ? this.#triggerContext.getToolUseLookup().get(toolUseId) : undefined
         if (toolUse?.name === 'fsWrite') {
+            const input = toolUse.input as unknown as FsWriteParams
             // TODO: since the tool already executed, we need to reverse the old/new content for the diff
             this.#features.lsp.workspace.openFileDiff({
-                originalFileUri: absolutePath,
+                originalFileUri: input.path,
                 isDeleted: false,
                 fileContent: toolUse.oldContent,
             })
