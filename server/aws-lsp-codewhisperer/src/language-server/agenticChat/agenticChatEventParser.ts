@@ -80,10 +80,7 @@ export class AgenticChatEventParser implements ChatResult {
         return this.#totalEvents
     }
 
-    public processPartialEvent(
-        chatEvent: ChatResponseStream,
-        contextList?: FileList
-    ): Result<ChatResultWithMetadata, string> {
+    public processPartialEvent(chatEvent: ChatResponseStream): Result<ChatResultWithMetadata, string> {
         const {
             messageMetadataEvent,
             followupPromptEvent,
@@ -113,9 +110,6 @@ export class AgenticChatEventParser implements ChatResult {
         } else if (invalidStateEvent) {
             this.error = invalidStateEvent.message ?? invalidStateEvent.reason ?? 'Invalid state'
         } else if (assistantResponseEvent?.content) {
-            if (contextList?.filePaths?.length) {
-                this.contextList = contextList
-            }
             this.#totalEvents.assistantResponseEvent += 1
             this.body = (this.body ?? '') + assistantResponseEvent.content
         } else if (toolUseEvent) {
