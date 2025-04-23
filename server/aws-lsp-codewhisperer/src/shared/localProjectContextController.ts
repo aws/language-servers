@@ -61,6 +61,7 @@ export class LocalProjectContextController {
     private maxIndexSizeMB?: number
     private respectUserGitIgnores?: boolean
     private indexCacheDirPath: string = path.join(homedir(), '.aws', 'amazonq', 'cache')
+    private indexingComplete = false
 
     private readonly fileExtensions: string[] = Object.keys(languageByExtension)
     private readonly DEFAULT_MAX_INDEX_SIZE_MB = 2048
@@ -71,10 +72,15 @@ export class LocalProjectContextController {
         this.workspaceFolders = workspaceFolders
         this.clientName = clientName
         this.log = logging
+        LocalProjectContextController.instance = this
     }
 
     get isEnabled(): boolean {
         return this._vecLib !== undefined && this._vecLib !== null
+    }
+
+    get isIndexBuilt(): boolean {
+        return this.indexingComplete
     }
 
     public static async getInstance(): Promise<LocalProjectContextController> {
@@ -139,7 +145,6 @@ export class LocalProjectContextController {
             if (vecLib) {
                 this._vecLib = await vecLib.start(LIBRARY_DIR, this.clientName, this.indexCacheDirPath)
                 void this.buildIndex()
-                LocalProjectContextController.instance = this
             } else {
                 this.log.warn(`Vector library could not be imported from: ${libraryPath}`)
             }
@@ -171,6 +176,7 @@ export class LocalProjectContextController {
     async buildIndex(): Promise<void> {
         try {
             if (this._vecLib) {
+                this.indexingComplete = false
                 const sourceFiles = await this.processWorkspaceFolders(
                     this.workspaceFolders,
                     this.ignoreFilePatterns,
@@ -182,9 +188,31 @@ export class LocalProjectContextController {
                 )
                 await this._vecLib?.buildIndex(sourceFiles, this.indexCacheDirPath, 'all')
                 this.log.info('Context index built successfully')
+                this.indexingComplete = true
             }
         } catch (error) {
             this.log.error(`Error building index: ${error}`)
+        }
+    }
+
+    public async waitForIndexBuilt(timeoutMs: number = 30000): Promise<boolean> {
+        if (this.indexingComplete) {
+            return true
+        }
+        if (!this._vecLib) {
+            return false
+        }
+
+        try {
+            await waitUntil(async () => this.indexingComplete, {
+                interval: 500,
+                timeout: timeoutMs,
+                truthy: true,
+            })
+            return this.indexingComplete
+        } catch (e) {
+            this.log.error(`Failed while awaiting index to be built: ${e}`)
+            return false
         }
     }
 
@@ -201,7 +229,7 @@ export class LocalProjectContextController {
                 }
             }
             if (this._vecLib) {
-                await this.buildIndex()
+                void this.buildIndex()
             }
         } catch (error) {
             this.log.error(`Error in updateWorkspaceFolders: ${error}`)
