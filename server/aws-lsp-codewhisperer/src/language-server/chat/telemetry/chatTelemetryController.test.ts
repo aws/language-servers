@@ -6,7 +6,7 @@ import assert = require('assert')
 import { ChatUIEventName } from './clientTelemetry'
 import { TelemetryService } from '../../../shared/telemetry/telemetryService'
 
-describe('TelemetryController', () => {
+describe.only('TelemetryController', () => {
     const mockTabId = 'mockTabId'
     const mockConversationId = 'mockConversationId'
 
@@ -104,6 +104,7 @@ describe('TelemetryController', () => {
             data: {
                 [CONVERSATION_ID_METRIC_KEY]: mockConversationId,
                 credentialStartUrl: undefined,
+                result: 'Succeeded',
             },
         })
     })
