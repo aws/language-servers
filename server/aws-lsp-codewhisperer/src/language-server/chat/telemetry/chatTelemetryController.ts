@@ -140,6 +140,7 @@ export class ChatTelemetryController {
             data: {
                 ...metric.data,
                 credentialStartUrl: this.#credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
+                result: 'Succeeded',
             },
         })
     }
@@ -159,8 +160,9 @@ export class ChatTelemetryController {
                 ...metric,
                 data: {
                     ...metric.data,
-                    credentialStartUrl: this.#credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
+                    //credentialStartUrl: this.#credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
                     [CONVERSATION_ID_METRIC_KEY]: conversationId,
+                    result: 'Succeeded',
                 },
             })
         }
