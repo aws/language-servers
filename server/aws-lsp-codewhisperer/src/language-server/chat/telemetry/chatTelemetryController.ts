@@ -20,7 +20,7 @@ import { TriggerContext } from '../contexts/triggerContext'
 import { CredentialsProvider, Logging } from '@aws/language-server-runtimes/server-interface'
 import { AcceptedSuggestionEntry, CodeDiffTracker } from '../../inline-completion/codeDiffTracker'
 import { TelemetryService } from '../../../shared/telemetry/telemetryService'
-import { getEndPositionForAcceptedSuggestion } from '../../../shared/utils'
+import { getEndPositionForAcceptedSuggestion, getTelemetryReasonDesc } from '../../../shared/utils'
 import { CodewhispererLanguage } from '../../../shared/languageDetection'
 
 export const CONVERSATION_ID_METRIC_KEY = 'cwsprChatConversationId'
@@ -228,7 +228,12 @@ export class ChatTelemetryController {
         })
     }
 
-    public emitMessageResponseError(tabId: string, metric: Partial<CombinedConversationEvent>) {
+    public emitMessageResponseError(
+        tabId: string,
+        metric: Partial<CombinedConversationEvent>,
+        requestId?: string,
+        errorReason?: string
+    ) {
         this.emitConversationMetric(
             {
                 name: ChatTelemetryEventName.MessageResponseError,
@@ -242,6 +247,8 @@ export class ChatTelemetryController {
                     cwsprChatRepsonseCode: metric.cwsprChatRepsonseCode,
                     cwsprChatRequestLength: metric.cwsprChatRequestLength,
                     cwsprChatConversationType: metric.cwsprChatConversationType,
+                    requestId: requestId,
+                    reasonDesc: getTelemetryReasonDesc(errorReason),
                 },
             },
             tabId
