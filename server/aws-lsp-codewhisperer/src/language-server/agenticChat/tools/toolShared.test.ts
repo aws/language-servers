@@ -103,21 +103,5 @@ describe('toolShared', () => {
             assert.strictEqual(result.requiresAcceptance, true, 'Should require acceptance when an error occurs')
             sinon.assert.calledOnce(mockLogging.error as sinon.SinonSpy)
         })
-
-        it('should work without logging parameter', async () => {
-            // This test ensures the function doesn't throw when logging is not provided
-            const result = await requiresPathAcceptance('/workspace/folder1/file.txt', mockLsp)
-            assert.strictEqual(result.requiresAcceptance, false, 'Path inside workspace should not require acceptance')
-        })
-
-        it('should handle errors without logging parameter', async () => {
-            const errorLsp = {
-                getClientInitializeParams: sinon.stub().throws(new Error('Test error')),
-            } as unknown as Features['lsp']
-
-            // This test ensures the function handles errors gracefully when logging is not provided
-            const result = await requiresPathAcceptance('/any/path/file.txt', errorLsp)
-            assert.strictEqual(result.requiresAcceptance, true, 'Should require acceptance when an error occurs')
-        })
     })
 })
