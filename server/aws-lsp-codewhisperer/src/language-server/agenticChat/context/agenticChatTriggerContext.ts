@@ -27,10 +27,10 @@ import { DocumentContext, DocumentContextExtractor } from '../../chat/contexts/d
 import { workspaceUtils } from '@aws/lsp-core'
 import { URI } from 'vscode-uri'
 import { LocalProjectContextController } from '../../../shared/localProjectContextController'
-import * as path from 'path'
 import { RelevantTextDocument } from '@amzn/codewhisperer-streaming'
 import { AgenticChatResultStream } from '../agenticChatResultStream'
-import { randomUUID } from 'crypto'
+// eslint-disable-next-line import/no-nodejs-modules
+import { basename } from 'path' // supported by https://www.npmjs.com/package/path-browserify
 
 export interface TriggerContext extends Partial<DocumentContext> {
     userIntent?: UserIntent
@@ -262,7 +262,7 @@ export class AgenticChatTriggerContext {
                 const text = chunk.context ?? chunk.content
                 const baseDocument = {
                     text,
-                    relativeFilePath: chunk.relativePath ?? path.basename(chunk.filePath),
+                    relativeFilePath: chunk.relativePath ?? basename(chunk.filePath),
                     startLine: chunk.startLine ?? -1,
                     endLine: chunk.endLine ?? -1,
                 }

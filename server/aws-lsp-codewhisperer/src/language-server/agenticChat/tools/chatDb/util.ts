@@ -1,9 +1,5 @@
-/*!
- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
- * SPDX-License-Identifier: Apache-2.0
- */
-
-import * as path from 'path'
+// eslint-disable-next-line import/no-nodejs-modules
+import { join } from 'path'
 import {
     ChatMessage,
     ConversationItem,
@@ -24,7 +20,7 @@ import { Workspace } from '@aws/language-server-runtimes/server-interface'
 
 export const TabCollection = 'tabs'
 
-export const historyPath = path.join('.aws', 'amazonq', 'history')
+export const historyPath = join('.aws', 'amazonq', 'history')
 
 const TabTypes = [
     'cwc',
@@ -150,7 +146,7 @@ export class FileSystemAdapter implements LokiPersistenceAdapter {
     async loadDatabase(dbname: string, callback: (data: string | undefined | Error) => void) {
         try {
             await this.ensureDirectory()
-            const filename = path.join(this.#directory, dbname)
+            const filename = join(this.#directory, dbname)
 
             try {
                 const data = await this.#workspace.fs.readFile(filename, { encoding: 'utf8' })
@@ -167,7 +163,7 @@ export class FileSystemAdapter implements LokiPersistenceAdapter {
     async saveDatabase(dbname: string, dbstring: string, callback: (err: Error | undefined) => void) {
         try {
             await this.ensureDirectory()
-            const filename = path.join(this.#directory, dbname)
+            const filename = join(this.#directory, dbname)
 
             await this.#workspace.fs.writeFile(filename, dbstring, { mode: 0o600 })
             callback(undefined)
@@ -177,7 +173,7 @@ export class FileSystemAdapter implements LokiPersistenceAdapter {
     }
 
     async deleteDatabase(dbname: string, callback: (err: Error | undefined) => void) {
-        const filename = path.join(this.#directory, dbname)
+        const filename = join(this.#directory, dbname)
         try {
             await this.#workspace.fs.rm(filename)
             callback(undefined)

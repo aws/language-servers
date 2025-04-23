@@ -2,8 +2,8 @@
  * Copied from ../chat/chatController.ts for the purpose of developing a divergent implementation.
  * Will be deleted or merged.
  */
-
-import * as path from 'path'
+// eslint-disable-next-line import/no-nodejs-modules
+import { basename, join } from 'path' // supported by https://www.npmjs.com/package/path-browserify
 import {
     ChatTriggerType,
     GenerateAssistantResponseCommandInput,
@@ -824,7 +824,7 @@ export class AgenticChatController implements ChatHandlers {
         const oldContent = this.#triggerContext.getToolUseLookup().get(toolUse.toolUseId!)?.oldContent ?? ''
         const diffChanges = getDiffChanges(input, oldContent)
         // Get just the filename instead of the full path
-        const fileName = path.basename(input.path)
+        const fileName = basename(input.path)
         const changes = diffChanges.reduce(
             (acc, { count = 0, added, removed }) => {
                 if (added) {
@@ -1187,7 +1187,7 @@ export class AgenticChatController implements ChatHandlers {
     async onFileClicked(params: FileClickParams) {
         // TODO: also pass in selection and handle on client side
         const workspaceRoot = workspaceUtils.getWorkspaceFolderPaths(this.#features.lsp)[0]
-        let absolutePath = path.join(workspaceRoot, params.filePath)
+        let absolutePath = join(workspaceRoot, params.filePath)
 
         const toolUseId = params.messageId
         const toolUse = toolUseId ? this.#triggerContext.getToolUseLookup().get(toolUseId) : undefined
@@ -1206,7 +1206,7 @@ export class AgenticChatController implements ChatHandlers {
             if (params.filePath.endsWith(promptFileExtension)) {
                 const existsInWorkspace = await this.#features.workspace.fs.exists(absolutePath)
                 if (!existsInWorkspace) {
-                    absolutePath = path.join(getUserPromptsDirectory(), params.filePath)
+                    absolutePath = join(getUserPromptsDirectory(), params.filePath)
                 }
             }
             await this.#features.lsp.window.showDocument({ uri: absolutePath })
