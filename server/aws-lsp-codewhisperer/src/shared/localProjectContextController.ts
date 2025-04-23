@@ -61,6 +61,7 @@ export class LocalProjectContextController {
     private maxIndexSizeMB?: number
     private respectUserGitIgnores?: boolean
     private indexCacheDirPath: string = path.join(homedir(), '.aws', 'amazonq', 'cache')
+    private _isIndexing = false
     private indexingComplete = false
 
     private readonly fileExtensions: string[] = Object.keys(languageByExtension)
@@ -72,11 +73,14 @@ export class LocalProjectContextController {
         this.workspaceFolders = workspaceFolders
         this.clientName = clientName
         this.log = logging
-        LocalProjectContextController.instance = this
     }
 
     get isEnabled(): boolean {
         return this._vecLib !== undefined && this._vecLib !== null
+    }
+
+    get isIndexing(): boolean {
+        return this._isIndexing
     }
 
     get isIndexBuilt(): boolean {
@@ -145,6 +149,7 @@ export class LocalProjectContextController {
             if (vecLib) {
                 this._vecLib = await vecLib.start(LIBRARY_DIR, this.clientName, this.indexCacheDirPath)
                 void this.buildIndex()
+                LocalProjectContextController.instance = this
             } else {
                 this.log.warn(`Vector library could not be imported from: ${libraryPath}`)
             }
@@ -176,6 +181,7 @@ export class LocalProjectContextController {
     async buildIndex(): Promise<void> {
         try {
             if (this._vecLib) {
+                this._isIndexing = true
                 this.indexingComplete = false
                 const sourceFiles = await this.processWorkspaceFolders(
                     this.workspaceFolders,
@@ -192,6 +198,8 @@ export class LocalProjectContextController {
             }
         } catch (error) {
             this.log.error(`Error building index: ${error}`)
+        } finally {
+            this._isIndexing = false
         }
     }
 
