@@ -388,7 +388,8 @@
     },
 
     "ideCoefficient": {
-        "VsCode": -0.13566
+        "VSCODE": -0.13566,
+        "JETBRAINS": 0.0
     },
 
     "minn": {
