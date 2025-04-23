@@ -1,6 +1,5 @@
 import { FileDetails, QuickActionCommand, FileList, ContextCommand } from '@aws/language-server-runtimes/protocol'
 import { AdditionalContextPrompt, ContextCommandItem, ContextCommandItemType } from 'local-indexing'
-import * as path from 'path'
 import { AdditionalContentEntryAddition, TriggerContext } from './agenticChatTriggerContext'
 import { URI } from 'vscode-uri'
 import { Lsp, Workspace } from '@aws/language-server-runtimes/server-interface'
@@ -12,6 +11,8 @@ import {
     promptFileExtension,
 } from './contextUtils'
 import { LocalProjectContextController } from '../../../shared/localProjectContextController'
+// eslint-disable-next-line import/no-nodejs-modules
+import { relative, join, basename } from 'path' // supported by https://www.npmjs.com/package/path-browserify
 
 export class AdditionalContextProvider {
     constructor(
@@ -27,7 +28,7 @@ export class AdditionalContextProvider {
             return rulesFiles
         }
         for (const workspaceFolder of workspaceFolders) {
-            const rulesPath = path.join(workspaceFolder, '.amazonq', 'rules')
+            const rulesPath = join(workspaceFolder, '.amazonq', 'rules')
             const folderExists = await this.workspace.fs.exists(rulesPath)
 
             if (folderExists) {
@@ -38,7 +39,7 @@ export class AdditionalContextProvider {
                         rulesFiles.push({
                             workspaceFolder: workspaceFolder,
                             type: 'file',
-                            relativePath: path.relative(workspaceFolder, path.join(rulesPath, entry.name)),
+                            relativePath: relative(workspaceFolder, join(rulesPath, entry.name)),
                             id: '',
                         })
                     }
@@ -50,7 +51,7 @@ export class AdditionalContextProvider {
 
     getContextType(prompt: AdditionalContextPrompt): string {
         if (prompt.filePath.endsWith(promptFileExtension)) {
-            if (pathUtils.isInDirectory(path.join('.amazonq', 'rules'), prompt.relativePath)) {
+            if (pathUtils.isInDirectory(join('.amazonq', 'rules'), prompt.relativePath)) {
                 return 'rule'
             } else if (pathUtils.isInDirectory(getUserPromptsDirectory(), prompt.filePath)) {
                 return 'prompt'
@@ -98,8 +99,8 @@ export class AdditionalContextProvider {
                     : prompt.description
 
             const relativePath = prompt.filePath.startsWith(getUserPromptsDirectory())
-                ? path.basename(prompt.filePath)
-                : path.relative(workspaceFolderPath, prompt.filePath)
+                ? basename(prompt.filePath)
+                : relative(workspaceFolderPath, prompt.filePath)
 
             const entry = {
                 name: prompt.name.substring(0, additionalContentNameLimit),

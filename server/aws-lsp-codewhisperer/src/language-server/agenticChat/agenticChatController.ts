@@ -3,7 +3,7 @@
  * Will be deleted or merged.
  */
 // eslint-disable-next-line import/no-nodejs-modules
-import { basename as pathBasename, join as pathJoin } from 'path' // basename and join included in path-browserify
+import { basename as pathBasename, join as pathJoin } from 'path' // supported by https://www.npmjs.com/package/path-browserify
 import {
     ChatTriggerType,
     GenerateAssistantResponseCommandInput,

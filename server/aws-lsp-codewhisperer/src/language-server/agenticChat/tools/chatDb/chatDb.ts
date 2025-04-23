@@ -14,13 +14,15 @@ import {
     TabType,
     updateOrCreateConversation,
 } from './util'
-import * as crypto from 'crypto'
-import * as path from 'path'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 import { ConversationItemGroup } from '@aws/language-server-runtimes/protocol'
 import { ChatMessage, ToolResultStatus } from '@amzn/codewhisperer-streaming'
 import { ChatItemType } from '@aws/mynah-ui'
 import { getUserHomeDir } from '@aws/lsp-core/out/util/path'
+// eslint-disable-next-line import/no-nodejs-modules
+import { join } from 'path' // supported by https://www.npmjs.com/package/path-browserify
+// eslint-disable-next-line import/no-nodejs-modules
+import { createHash } from 'crypto' // supported by https://www.npmjs.com/package/crypto-browserify
 
 export const EMPTY_CONVERSATION_LIST_ID = 'empty'
 // Maximum number of characters to keep in history
@@ -52,7 +54,7 @@ export class ChatDatabase {
 
     constructor(features: Features) {
         this.#features = features
-        this.#dbDirectory = path.join(
+        this.#dbDirectory = join(
             features.runtime.platform === 'browser'
                 ? features.workspace.fs.getServerDataDirPath('amazonq-chat')
                 : getUserHomeDir(),
@@ -102,12 +104,12 @@ export class ChatDatabase {
             const pathsString = workspaceFolderPaths
                 .sort() // Sort to ensure consistent hash regardless of folder order
                 .join('|')
-            return crypto.createHash('md5').update(pathsString).digest('hex')
+            return createHash('md5').update(pathsString).digest('hex')
         }
 
         // Case 2: Single folder workspace
         if (workspaceFolderPaths && workspaceFolderPaths[0]) {
-            return crypto.createHash('md5').update(workspaceFolderPaths[0]).digest('hex')
+            return createHash('md5').update(workspaceFolderPaths[0]).digest('hex')
         }
 
         // Case 3: No workspace open
