@@ -1,7 +1,8 @@
-import { ExplanatoryParams, InvokeOutput } from './toolShared'
+import { CommandValidation, ExplanatoryParams, InvokeOutput } from './toolShared'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 import { sanitize } from '@aws/lsp-core/out/util/path'
 import { Change, diffLines } from 'diff'
+import { URI } from 'vscode-uri'
 
 // Port of https://github.com/aws/aws-toolkit-vscode/blob/16aa8768834f41ae512522473a6a962bb96abe51/packages/core/src/codewhispererChat/tools/fsWrite.ts#L42
 
@@ -121,6 +122,10 @@ export class FsWrite {
         await updateWriter.write(' ')
         await updateWriter.close()
         updateWriter.releaseLock()
+    }
+
+    public async requiresAcceptance(params: FsWriteParams): Promise<CommandValidation> {
+        return { requiresAcceptance: !(await this.workspace.getTextDocument(URI.file(params.path).toString())) }
     }
 
     private async handleCreate(params: CreateParams, sanitizedPath: string): Promise<void> {
