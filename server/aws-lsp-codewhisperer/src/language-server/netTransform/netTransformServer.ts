@@ -23,6 +23,8 @@ import {
     emitTransformationJobStartedTelemetry,
     emitTransformationPlanReceivedFailure,
     emitTransformationPlanReceivedTelemetry,
+    emitCancelPollingTelemetry,
+    emitCancelPollingFailure,
 } from './metrics'
 import {
     CancelTransformRequest,
@@ -30,6 +32,7 @@ import {
     GetTransformPlanRequest,
     GetTransformRequest,
     StartTransformRequest,
+    CancelPollingRequest,
 } from './models'
 import { TransformHandler } from './transformHandler'
 
@@ -43,8 +46,10 @@ const PollTransformForPlanCommand = 'aws/qNetTransform/pollTransformForPlan'
 const GetTransformPlanCommand = 'aws/qNetTransform/getTransformPlan'
 const CancelTransformCommand = 'aws/qNetTransform/cancelTransform'
 const DownloadArtifactsCommand = 'aws/qNetTransform/downloadArtifacts'
+const CancelPollingCommand = 'aws/qNetTransform/cancelPolling'
 import { SDKInitializator } from '@aws/language-server-runtimes/server-interface'
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
+import { Console } from 'console'
 
 /**
  *
@@ -128,6 +133,11 @@ export const QNetTransformServerToken =
                         )
                         return response
                     }
+                    case CancelPollingCommand: {
+                        const request = params as CancelPollingRequest
+                        await transformHandler.cancelPollingAsync(request.CancelPollingEnabled)
+                        emitCancelPollingTelemetry(telemetry, request)
+                    }
                 }
                 return
             } catch (e: any) {
@@ -167,6 +177,11 @@ export const QNetTransformServerToken =
                     case DownloadArtifactsCommand: {
                         const request = params as DownloadArtifactsRequest
                         emitTransformationJobArtifactsDownloadedFailure(telemetry, request, e)
+                        break
+                    }
+                    case CancelPollingCommand: {
+                        const request = params as CancelPollingRequest
+                        emitCancelPollingFailure(telemetry, request, e)
                         break
                     }
                 }
@@ -211,6 +226,7 @@ export const QNetTransformServerToken =
                             GetTransformPlanCommand,
                             CancelTransformCommand,
                             DownloadArtifactsCommand,
+                            CancelPollingCommand,
                         ],
                     },
                 },

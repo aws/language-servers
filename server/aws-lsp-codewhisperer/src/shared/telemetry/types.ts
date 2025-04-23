@@ -148,6 +148,10 @@ export interface TransformationJobArtifactsDownloadedEvent {
     error: string
 }
 
+export interface PollingCancelledEvent {
+    CancelPollingEnabled: Boolean
+}
+
 export interface TransformationFailureEvent {
     [key: string]: any
     category: string
