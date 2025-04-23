@@ -659,6 +659,10 @@ export class AgenticChatController implements ChatHandlers {
                         })
                         break
                 }
+
+                if (toolUse.name) {
+                    this.#telemetryController.emitToolUseSuggested(toolUse, session.conversationId || '')
+                }
             } catch (err) {
                 if (loadingMessageId) {
                     await chatResultStream.removeResultBlock(loadingMessageId)
