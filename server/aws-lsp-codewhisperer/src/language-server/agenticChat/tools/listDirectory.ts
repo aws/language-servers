@@ -52,8 +52,8 @@ export class ListDirectory {
         await closeWriter(writer)
     }
 
-    public async requiresAcceptance(path: string): Promise<CommandValidation> {
-        return { requiresAcceptance: !workspaceUtils.isInWorkspace(getWorkspaceFolderPaths(this.lsp), path) }
+    public async requiresAcceptance(params: ListDirectoryParams): Promise<CommandValidation> {
+        return { requiresAcceptance: !workspaceUtils.isInWorkspace(getWorkspaceFolderPaths(this.lsp), params.path) }
     }
 
     public async invoke(params: ListDirectoryParams, token?: CancellationToken): Promise<InvokeOutput> {
