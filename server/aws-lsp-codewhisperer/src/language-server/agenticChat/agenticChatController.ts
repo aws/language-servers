@@ -251,7 +251,7 @@ export class AgenticChatController implements ChatHandlers {
         }
 
         const metric = new Metric<CombinedConversationEvent>({
-            cwsprChatConversationType: 'Chat',
+            cwsprChatConversationType: 'AgenticChat',
         })
 
         const triggerContext = await this.#getTriggerContext(params, metric)
@@ -801,7 +801,7 @@ export class AgenticChatController implements ChatHandlers {
     ): ChatResult | ResponseError<ChatResult> {
         if (isAwsError(err) || (isObject(err) && 'statusCode' in err && typeof err.statusCode === 'number')) {
             metric.setDimension('cwsprChatRepsonseCode', err.statusCode ?? 400)
-            this.#telemetryController.emitMessageResponseError(tabId, metric.metric)
+            this.#telemetryController.emitMessageResponseError(tabId, metric.metric, err.requestId, err.message)
         }
 
         if (err instanceof AmazonQServicePendingSigninError) {

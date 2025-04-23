@@ -242,7 +242,7 @@ export enum ChatInteractionType {
     ClickBodyLink = 'clickBodyLink',
 }
 
-export type ChatConversationType = 'Chat' | 'Assign' | 'Transform'
+export type ChatConversationType = 'Chat' | 'Assign' | 'Transform' | 'AgenticChat'
 
 export type InteractWithMessageEvent = {
     credentialStartUrl?: string
