@@ -12,7 +12,6 @@ export class WebSocketClient {
     private readonly maxReconnectAttempts: number = 5
     private messageQueue: string[] = []
     private readonly messageThrottleDelay: number = 100
-    private lastMessageTime: number = 0
 
     constructor(url: string, logging: Logging, credentialsProvider: CredentialsProvider) {
         this.url = url
@@ -157,14 +156,8 @@ export class WebSocketClient {
     // It might be better to keep an active queue in the client and expose enqueueMessage instead of send
     public async send(message: string): Promise<void> {
         if (this.ws?.readyState === WebSocket.OPEN) {
-            const now = Date.now()
-            const timeSinceLastMessage = now - this.lastMessageTime
-            if (timeSinceLastMessage < this.messageThrottleDelay) {
-                // Wait for the remaining delay time
-                await new Promise(resolve => setTimeout(resolve, this.messageThrottleDelay - timeSinceLastMessage))
-            }
+            await new Promise(resolve => setTimeout(resolve, this.messageThrottleDelay))
             this.ws.send(message)
-            this.lastMessageTime = Date.now()
         } else {
             this.queueMessage(message)
         }
