@@ -1,5 +1,5 @@
 import { workspaceUtils } from '@aws/lsp-core'
-import { CommandValidation, ExplanatoryParams, InvokeOutput } from './toolShared'
+import { CommandValidation, ExplanatoryParams, InvokeOutput, requiresPathAcceptance } from './toolShared'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 import { sanitize } from '@aws/lsp-core/out/util/path'
 import { Change, diffLines } from 'diff'
@@ -129,15 +129,7 @@ export class FsWrite {
     }
 
     public async requiresAcceptance(params: FsWriteParams): Promise<CommandValidation> {
-        // true when the file is not resolvable within our workspace. i.e. is outside of our workspace.
-        try {
-            const isInWorkspace = workspaceUtils.isInWorkspace(getWorkspaceFolderPaths(this.lsp), params.path)
-            return { requiresAcceptance: !isInWorkspace }
-        } catch (error) {
-            console.error('Error checking file acceptance:', error)
-            // In case of error, safer to require acceptance
-            return { requiresAcceptance: true }
-        }
+        return requiresPathAcceptance(params.path, this.lsp)
     }
 
     private async handleCreate(params: CreateParams, sanitizedPath: string): Promise<void> {

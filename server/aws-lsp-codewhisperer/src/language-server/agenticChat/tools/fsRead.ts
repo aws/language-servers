@@ -1,6 +1,6 @@
 import { sanitize } from '@aws/lsp-core/out/util/path'
 import { URI } from 'vscode-uri'
-import { CommandValidation, InvokeOutput, validatePath } from './toolShared'
+import { CommandValidation, InvokeOutput, requiresPathAcceptance, validatePath } from './toolShared'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 import { workspaceUtils } from '@aws/lsp-core'
 import { getWorkspaceFolderPaths } from '@aws/lsp-core/out/util/workspaceUtils'
@@ -55,15 +55,7 @@ export class FsRead {
     }
 
     public async requiresAcceptance(params: FsReadParams): Promise<CommandValidation> {
-        // true when the file is not resolvable within our workspace. i.e. is outside of our workspace.
-        try {
-            const isInWorkspace = workspaceUtils.isInWorkspace(getWorkspaceFolderPaths(this.lsp), params.path)
-            return { requiresAcceptance: !isInWorkspace }
-        } catch (error) {
-            console.error('Error checking file acceptance:', error)
-            // In case of error, safer to require acceptance
-            return { requiresAcceptance: true }
-        }
+        return requiresPathAcceptance(params.path, this.lsp, this.logging)
     }
 
     public async invoke(params: FsReadParams): Promise<InvokeOutput> {
