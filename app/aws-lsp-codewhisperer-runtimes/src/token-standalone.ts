@@ -8,7 +8,7 @@ import {
     QLocalProjectContextServerTokenProxy,
 } from '@aws/lsp-codewhisperer'
 import { IdentityServer } from '@aws/lsp-identity'
-import { createTokenRuntimeProps } from './common'
+import { createTokenRuntimeProps } from './standalone-common'
 
 const MAJOR = 0
 const MINOR = 1

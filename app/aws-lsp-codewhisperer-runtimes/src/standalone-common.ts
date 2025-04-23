@@ -1,6 +1,7 @@
 import { RuntimeProps } from '@aws/language-server-runtimes/runtimes/runtime'
 import { Server } from '@aws/language-server-runtimes/server-interface'
-import { AmazonQServiceServerIAM, AmazonQServiceServerToken } from '@aws/lsp-codewhisperer'
+import { AmazonQServiceServerToken } from '@aws/lsp-codewhisperer'
+import { AmazonQServiceServerIAM } from '@aws/lsp-codewhisperer'
 
 const createRuntimePropsFactory =
     (AmazonQServiceServer: Server) =>

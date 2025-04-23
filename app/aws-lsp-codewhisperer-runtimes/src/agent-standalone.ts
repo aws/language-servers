@@ -9,7 +9,7 @@ import {
 } from '@aws/lsp-codewhisperer'
 import { IdentityServer } from '@aws/lsp-identity'
 import { BashToolsServer, FsToolsServer } from '@aws/lsp-codewhisperer/out/language-server/agenticChat/tools/toolServer'
-import { createTokenRuntimeProps } from './common'
+import { createTokenRuntimeProps } from './standalone-common'
 
 const MAJOR = 0
 const MINOR = 1
