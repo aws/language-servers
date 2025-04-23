@@ -58,7 +58,7 @@ export enum OutputKind {
 export async function requiresPathAcceptance(
     path: string,
     lsp: Features['lsp'],
-    logging?: Features['logging']
+    logging: Features['logging']
 ): Promise<CommandValidation> {
     try {
         const workspaceFolders = getWorkspaceFolderPaths(lsp)

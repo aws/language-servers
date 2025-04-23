@@ -42,10 +42,12 @@ export interface FsWriteBackup {
 }
 
 export class FsWrite {
+    private readonly logging: Features['logging']
     private readonly workspace: Features['workspace']
     private readonly lsp: Features['lsp']
 
-    constructor(features: Pick<Features, 'workspace' | 'lsp'> & Partial<Features>) {
+    constructor(features: Pick<Features, 'workspace' | 'logging' | 'lsp'> & Partial<Features>) {
+        this.logging = features.logging
         this.workspace = features.workspace
         this.lsp = features.lsp
     }
@@ -129,7 +131,7 @@ export class FsWrite {
     }
 
     public async requiresAcceptance(params: FsWriteParams): Promise<CommandValidation> {
-        return requiresPathAcceptance(params.path, this.lsp)
+        return requiresPathAcceptance(params.path, this.lsp, this.logging)
     }
 
     private async handleCreate(params: CreateParams, sanitizedPath: string): Promise<void> {
