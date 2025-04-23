@@ -1369,8 +1369,13 @@ export class AgenticChatController implements ChatHandlers {
         const chatEventParser = new AgenticChatEventParser(requestId, metric)
         const streamWriter = chatResultStream.getResultStreamWriter()
 
+        // Display context transparency list once at the beginning of response
+        if (contextList) {
+            await streamWriter.write({ body: '', contextList })
+        }
+
         for await (const chatEvent of response.generateAssistantResponseResponse!) {
-            const result = chatEventParser.processPartialEvent(chatEvent, contextList)
+            const result = chatEventParser.processPartialEvent(chatEvent)
 
             // terminate early when there is an error
             if (!result.success) {

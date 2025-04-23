@@ -84,6 +84,7 @@ export class AgenticChatResultStream {
                         ...acc,
                         buttons: [...(acc.buttons ?? []), ...(c.buttons ?? [])],
                         body: acc.body + AgenticChatResultStream.resultDelimiter + c.body,
+                        ...(c.contextList && { contextList: c.contextList }),
                     }
                 } else if (acc.additionalMessages!.some(am => am.messageId === c.messageId)) {
                     return {
