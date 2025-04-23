@@ -79,7 +79,6 @@ export function messageToStreamingMessage(msg: Message): StreamingMessage {
               assistantResponseMessage: {
                   messageId: msg.messageId,
                   content: msg.body,
-                  references: msg.codeReference || [],
                   toolUses: msg.toolUses || [],
               },
           }

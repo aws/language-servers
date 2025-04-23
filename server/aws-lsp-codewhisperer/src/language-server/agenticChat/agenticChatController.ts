@@ -349,7 +349,7 @@ export class AgenticChatController implements ChatHandlers {
             this.#customizationArn,
             chatResultStream,
             profileArn,
-            this.#chatHistoryDb.getMessages(params.tabId, 10),
+            this.#chatHistoryDb.getMessages(params.tabId),
             this.#getTools(session),
             additionalContext
         )
@@ -463,6 +463,29 @@ export class AgenticChatController implements ChatHandlers {
     #getPendingToolUses(toolUses: Record<string, ToolUse & { stop: boolean }>): Array<ToolUse & { stop: boolean }> {
         return Object.values(toolUses).filter(toolUse => toolUse.stop)
     }
+    /**
+     * Creates a promise that does not resolve until the user accepts or rejects the tool usage.
+     * @param toolUseId
+     * @param toolUseName
+     * @param resultStream
+     * @param promptBlockId id of approval block. This allows us to overwrite the buttons with 'accepted' or 'rejected' text.
+     * @param session
+     */
+    async waitForToolApproval(
+        toolUse: ToolUse,
+        resultStream: AgenticChatResultStream,
+        promptBlockId: number,
+        session: ChatSessionService
+    ) {
+        const deferred = this.#createDeferred()
+        session.setDeferredToolExecution(toolUse.toolUseId!, deferred.resolve, deferred.reject)
+        this.#log(`Prompting for tool approval for tool: ${toolUse.name}`)
+        await deferred.promise
+        if (toolUse.name === 'executeBash') {
+            // Note: we want to overwrite the button block because it already exists in the stream.
+            await resultStream.overwriteResultBlock(this.#getUpdateBashConfirmResult(toolUse, true), promptBlockId)
+        }
+    }
 
     /**
      * Processes tool uses by running the tools and collecting results
@@ -478,7 +501,6 @@ export class AgenticChatController implements ChatHandlers {
         for (const toolUse of toolUses) {
             if (!toolUse.name || !toolUse.toolUseId) continue
             this.#triggerContext.getToolUseLookup().set(toolUse.toolUseId, toolUse)
-            let needsConfirmation
 
             try {
                 const { explanation } = toolUse.input as unknown as ExplanatoryParams
@@ -506,9 +528,9 @@ export class AgenticChatController implements ChatHandlers {
                         const { requiresAcceptance, warning } = await tool.requiresAcceptance(toolUse.input as any)
 
                         if (requiresAcceptance) {
-                            needsConfirmation = true
-                            const confirmationResult = this.#processToolConfirmation(toolUse, warning, toolUse.name)
-                            await chatResultStream.writeResultBlock(confirmationResult)
+                            const confirmationResult = this.#processExecuteBashConfirmation(toolUse, warning)
+                            const buttonBlockId = await chatResultStream.writeResultBlock(confirmationResult)
+                            await this.waitForToolApproval(toolUse, chatResultStream, buttonBlockId, session)
                         }
                         break
                     }
@@ -519,16 +541,6 @@ export class AgenticChatController implements ChatHandlers {
                             messageId: toolUse.toolUseId,
                         })
                         break
-                }
-
-                if (needsConfirmation) {
-                    const deferred = this.#createDeferred()
-                    session.setDeferredToolExecution(toolUse.toolUseId, deferred.resolve, deferred.reject)
-                    this.#log(`Prompting for tool approval for tool: ${toolUse.name}`)
-                    await deferred.promise
-                    if (toolUse.name === 'executeBash') {
-                        await chatResultStream.writeResultBlock(this.#getUpdateBashConfirmResult(toolUse, true))
-                    }
                 }
 
                 if (['fsRead', 'listDirectory'].includes(toolUse.name)) {
@@ -585,7 +597,7 @@ export class AgenticChatController implements ChatHandlers {
             } catch (err) {
                 // If we did not approve a tool to be used or the user stopped the response, bubble this up to interrupt agentic loop
                 if (CancellationError.isUserCancelled(err) || err instanceof ToolApprovalException) {
-                    if (err instanceof ToolApprovalException) {
+                    if (err instanceof ToolApprovalException && toolUse.name === 'executeBash') {
                         await chatResultStream.writeResultBlock(this.#getUpdateBashConfirmResult(toolUse, false))
                     }
                     throw err
@@ -610,17 +622,14 @@ export class AgenticChatController implements ChatHandlers {
         return {
             messageId: toolUse.toolUseId,
             type: 'tool',
-            body: '',
+            body: '```shell\n' + (toolUse.input as unknown as ExecuteBashParams).command + '\n```',
             header: {
                 body: 'shell',
-                buttons: [
-                    {
-                        id: isAccept ? 'command-accepted' : 'command-rejected',
-                        icon: isAccept ? 'ok' : 'cancel',
-                        text: isAccept ? 'Accepted' : 'Rejected',
-                        disabled: true,
-                    },
-                ],
+                status: {
+                    status: isAccept ? 'success' : 'error',
+                    icon: isAccept ? 'ok' : 'cancel',
+                    text: isAccept ? 'Accepted' : 'Rejected',
+                },
             },
         }
     }
@@ -741,22 +750,34 @@ export class AgenticChatController implements ChatHandlers {
     }
 
     #processReadOrList(toolUse: ToolUse, chatResultStream: AgenticChatResultStream): ChatMessage | undefined {
-        // return initial message about fsRead or listDir
-        const toolUseId = toolUse.toolUseId!
-        const currentPath = (toolUse.input as unknown as FsReadParams | ListDirectoryParams).path
+        if (toolUse.name !== 'fsRead') {
+            //TODO: Implement list directory UX in next PR.
+            return {}
+        }
+        let messageId = toolUse.toolUseId || ''
+        if (chatResultStream.getMessageIdToUpdate()) {
+            messageId = chatResultStream.getMessageIdToUpdate()!
+        } else if (messageId) {
+            chatResultStream.setMessageIdToUpdate(messageId)
+        }
+        const currentPath = (toolUse.input as unknown as FsReadParams | ListDirectoryParams)?.path
         if (!currentPath) return
-        const currentFileList = chatResultStream.getContextFileList(toolUseId)
-        if (!currentFileList.some(path => path.relativeFilePath === currentPath)) {
+        const existingPaths = chatResultStream.getMessageOperation(messageId)?.filePaths || []
+        // Check if path already exists in the list
+        const isPathAlreadyProcessed = existingPaths.some(path => path.relativeFilePath === currentPath)
+        if (!isPathAlreadyProcessed) {
             const currentFileDetail = {
-                relativeFilePath: (toolUse.input as any)?.path,
+                relativeFilePath: currentPath,
                 lineRanges: [{ first: -1, second: -1 }],
             }
-            chatResultStream.addContextFileList(toolUseId, currentFileDetail)
-            currentFileList.push(currentFileDetail)
+            const operationType = toolUse.name === 'fsRead' ? 'read' : 'listDir'
+            if (operationType === 'read') {
+                chatResultStream.addMessageOperation(messageId, operationType, [...existingPaths, currentFileDetail])
+            }
         }
-
         let title: string
-        const itemCount = currentFileList.length
+        const itemCount = chatResultStream.getMessageOperation(messageId)?.filePaths.length
+        const filePathsPushed = chatResultStream.getMessageOperation(messageId)?.filePaths ?? []
         if (!itemCount) {
             title = 'Gathering context'
         } else {
@@ -766,7 +787,7 @@ export class AgenticChatController implements ChatHandlers {
                     : `${itemCount} ${itemCount === 1 ? 'directory' : 'directories'} listed`
         }
         const fileDetails: Record<string, FileDetails> = {}
-        for (const item of currentFileList) {
+        for (const item of filePathsPushed) {
             fileDetails[item.relativeFilePath] = {
                 lineRanges: item.lineRanges,
             }
@@ -774,14 +795,13 @@ export class AgenticChatController implements ChatHandlers {
 
         const contextList: FileList = {
             rootFolderTitle: title,
-            filePaths: currentFileList.map(item => item.relativeFilePath),
+            filePaths: filePathsPushed.map(item => item.relativeFilePath),
             details: fileDetails,
         }
-
         return {
             type: 'tool',
             contextList,
-            messageId: toolUseId,
+            messageId,
             body: '',
         }
     }

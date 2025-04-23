@@ -160,7 +160,7 @@ export class FsWrite {
                 and otherwise create a new file\n * The `append` command will add content to the end of an existing file, \
                 automatically adding a newline if the file does not end with one. \
                 The file must exist.\n Notes for using the `strReplace` command:\n * \
-                IMPORTANT: For the `fsWrite` tool, only use the `strReplace` command for simple, isolated single-line replacements. \
+                IMPORTANT: Only use the `strReplace` command for simple, isolated single-line replacements. \
                 If you are editing multiple lines, always prefer the `create` command and replace the entire file content instead.\n * \
                 The `oldStr` parameter should match EXACTLY one or more consecutive lines from the original file. Be mindful of whitespaces!\n * \
                 If the `oldStr` parameter is not unique in the file, the replacement will not be performed. \
