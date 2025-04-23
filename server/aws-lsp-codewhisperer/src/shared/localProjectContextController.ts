@@ -80,8 +80,8 @@ export class LocalProjectContextController {
     public static async getInstance(): Promise<LocalProjectContextController> {
         try {
             await waitUntil(async () => this.instance, {
-                interval: 1000,
-                timeout: 60_000,
+                interval: 100,
+                timeout: 600,
                 truthy: true,
             })
 
@@ -91,7 +91,12 @@ export class LocalProjectContextController {
 
             return this.instance
         } catch (error) {
-            throw new Error(`Failed to get LocalProjectContextController instance: ${error}`)
+            // throw new Error(`Failed to get LocalProjectContextController instance: ${error}`)
+            return {
+                isEnabled: false,
+                shouldUpdateContextCommandSymbolsOnce: () => [],
+                getContextCommandItems: () => [],
+            } as unknown as LocalProjectContextController
         }
     }
 
