@@ -23,6 +23,7 @@ import { getUserHomeDir } from '@aws/lsp-core/out/util/path'
 import { join } from 'path' // supported by https://www.npmjs.com/package/path-browserify
 // eslint-disable-next-line import/no-nodejs-modules
 import { createHash } from 'crypto' // supported by https://www.npmjs.com/package/crypto-browserify
+import { v4 as uuid4 } from 'uuid'
 
 export const EMPTY_CONVERSATION_LIST_ID = 'empty'
 // Maximum number of characters to keep in history
@@ -307,7 +308,7 @@ export class ChatDatabase {
             let historyId = this.#historyIdMapping.get(tabId)
 
             if (!historyId) {
-                historyId = crypto.randomUUID()
+                historyId = uuid4()
                 this.#features.logging.log(`Creating new historyId=${historyId} for tabId=${tabId}`)
                 this.setHistoryIdMapping(tabId, historyId)
             }
