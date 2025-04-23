@@ -369,7 +369,7 @@ export class AgenticChatController implements ChatHandlers {
             this.#customizationArn,
             chatResultStream,
             profileArn,
-            this.#chatHistoryDb.getMessages(params.tabId),
+            [],
             this.#getTools(session),
             additionalContext
         )
@@ -405,6 +405,37 @@ export class AgenticChatController implements ChatHandlers {
                 throw new CancellationError('user')
             }
 
+            const currentMessage = currentRequestInput.conversationState?.currentMessage
+            const conversationId = conversationIdentifier ?? ''
+
+            if (!currentMessage || !conversationId) {
+                this.#debug(
+                    `Warning: ${!currentMessage ? 'currentMessage' : ''}${!currentMessage && !conversationId ? ' and ' : ''}${!conversationId ? 'conversationIdentifier' : ''} is empty in agent loop iteration ${iterationCount}.`
+                )
+            }
+
+            //  Fix the history to maintain invariants
+            if (currentMessage) {
+                this.#chatHistoryDb.fixHistory(tabId, currentMessage, conversationIdentifier ?? '')
+            }
+
+            //  Retrieve the history from DB; Do not include chatHistory for requests going to Mynah Backend
+            currentRequestInput.conversationState!.history = currentRequestInput.conversationState?.currentMessage
+                ?.userInputMessage?.userIntent
+                ? []
+                : this.#chatHistoryDb.getMessages(tabId)
+
+            //  Add the current user message to the history DB
+            if (currentMessage && conversationIdentifier) {
+                this.#chatHistoryDb.addMessage(tabId, 'cwc', conversationIdentifier, {
+                    body: currentMessage.userInputMessage?.content ?? '',
+                    type: 'prompt' as any,
+                    userIntent: currentMessage.userInputMessage?.userIntent,
+                    origin: currentMessage.userInputMessage?.origin,
+                    userInputMessageContext: currentMessage.userInputMessage?.userInputMessageContext,
+                })
+            }
+
             // Phase 3: Request Execution
             this.#debug(`Request Input: ${JSON.stringify(currentRequestInput)}`)
 
@@ -422,6 +453,25 @@ export class AgenticChatController implements ChatHandlers {
                 documentReference
             )
 
+            //  Add the current assistantResponse message to the history DB
+            if (result.data?.chatResult.body) {
+                this.#chatHistoryDb.addMessage(tabId, 'cwc', conversationIdentifier ?? '', {
+                    body: result.data?.chatResult.body,
+                    type: 'answer' as any,
+                    codeReference: result.data.chatResult.codeReference,
+                    relatedContent:
+                        result.data.chatResult.relatedContent?.content &&
+                        result.data.chatResult.relatedContent.content.length > 0
+                            ? result.data?.chatResult.relatedContent
+                            : undefined,
+                    toolUses: Object.keys(result.data?.toolUses!).map(k => ({
+                        toolUseId: result.data!.toolUses[k].toolUseId,
+                        name: result.data!.toolUses[k].name,
+                        input: result.data!.toolUses[k].input,
+                    })),
+                })
+            }
+
             // Check if we have any tool uses that need to be processed
             const pendingToolUses = this.#getPendingToolUses(result.data?.toolUses || {})
 
@@ -431,37 +481,9 @@ export class AgenticChatController implements ChatHandlers {
                 break
             }
 
-            const currentMessage = currentRequestInput.conversationState?.currentMessage
-            if (currentMessage) {
-                this.#chatHistoryDb.fixHistory(tabId, currentMessage, session.conversationId ?? '')
-            }
-
             // Process tool uses and update the request input for the next iteration
             const toolResults = await this.#processToolUses(pendingToolUses, chatResultStream, session, token)
             currentRequestInput = this.#updateRequestInputWithToolResults(currentRequestInput, toolResults)
-            if (!currentRequestInput.conversationState!.history) {
-                currentRequestInput.conversationState!.history = []
-            }
-
-            currentRequestInput.conversationState!.history.push({
-                userInputMessage: {
-                    content: currentMessage?.userInputMessage?.content,
-                    origin: currentMessage?.userInputMessage?.origin,
-                    userIntent: currentMessage?.userInputMessage?.userIntent,
-                    userInputMessageContext: currentMessage?.userInputMessage?.userInputMessageContext,
-                },
-            })
-
-            currentRequestInput.conversationState!.history.push({
-                assistantResponseMessage: {
-                    content: result.data?.chatResult.body,
-                    toolUses: Object.keys(result.data?.toolUses!).map(k => ({
-                        toolUseId: result.data!.toolUses[k].toolUseId,
-                        name: result.data!.toolUses[k].name,
-                        input: result.data!.toolUses[k].input,
-                    })),
-                },
-            })
         }
 
         if (iterationCount >= maxIterations) {
@@ -905,25 +927,6 @@ export class AgenticChatController implements ChatHandlers {
                 ),
             },
         })
-
-        // Save question/answer interaction to chat history
-        if (params.prompt.prompt && conversationId && result.data?.chatResult.body) {
-            this.#chatHistoryDb.addMessage(params.tabId, 'cwc', conversationId, {
-                body: params.prompt.prompt,
-                type: 'prompt' as any,
-            })
-
-            this.#chatHistoryDb.addMessage(params.tabId, 'cwc', conversationId, {
-                body: result.data.chatResult.body,
-                type: 'answer' as any,
-                codeReference: result.data.chatResult.codeReference,
-                relatedContent:
-                    result.data.chatResult.relatedContent?.content &&
-                    result.data.chatResult.relatedContent.content.length > 0
-                        ? result.data?.chatResult.relatedContent
-                        : undefined,
-            })
-        }
 
         return chatResultStream.getResult()
     }

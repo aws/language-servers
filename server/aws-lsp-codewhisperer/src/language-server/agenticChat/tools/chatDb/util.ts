@@ -95,13 +95,32 @@ export function messageToStreamingMessage(msg: Message): StreamingMessage {
 /**
  * Converts Message to LSP Protocol ChatMessage
  */
-export function messageToChatMessage(msg: Message): ChatMessage {
-    return {
-        body: msg.body,
-        type: msg.type,
-        codeReference: msg.codeReference,
-        relatedContent: msg.relatedContent && msg.relatedContent?.content.length > 0 ? msg.relatedContent : undefined,
+export function messageToChatMessage(msg: Message): ChatMessage[] {
+    const chatMessages: ChatMessage[] = [
+        {
+            body: msg.body,
+            type: msg.type,
+            codeReference: msg.codeReference,
+            relatedContent:
+                msg.relatedContent && msg.relatedContent?.content.length > 0 ? msg.relatedContent : undefined,
+        },
+    ]
+
+    // Check if there are any toolUses with explanations that should be displayed as directive messages
+    if (msg.toolUses && msg.toolUses.length > 0) {
+        for (const toolUse of msg.toolUses) {
+            if (toolUse.input && typeof toolUse.input === 'object') {
+                const input = toolUse.input as any
+                if (input.explanation) {
+                    chatMessages.push({
+                        body: input.explanation,
+                        type: 'directive',
+                    })
+                }
+            }
+        }
     }
+    return chatMessages
 }
 
 /**

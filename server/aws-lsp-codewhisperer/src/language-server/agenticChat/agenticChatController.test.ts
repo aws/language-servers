@@ -429,6 +429,15 @@ describe('AgenticChatController', () => {
                 },
             ]
 
+            getMessagesStub
+                .onFirstCall()
+                .returns([])
+                .onSecondCall()
+                .returns([
+                    { userInputMessage: { content: 'Hello with tool' } },
+                    { assistantResponseMessage: { content: 'I need to use a tool. ' } },
+                ])
+
             // Reset the stub and set up to return different responses on consecutive calls
             generateAssistantResponseStub.restore()
             generateAssistantResponseStub = sinon.stub(CodeWhispererStreaming.prototype, 'generateAssistantResponse')
@@ -553,6 +562,15 @@ describe('AgenticChatController', () => {
                     },
                 },
             ]
+
+            getMessagesStub
+                .onFirstCall()
+                .returns([])
+                .onSecondCall()
+                .returns([
+                    { userInputMessage: { content: 'Hello with failing tool' } },
+                    { assistantResponseMessage: { content: 'I need to use a tool that will fail. ' } },
+                ])
 
             // Reset the stub and set up to return different responses on consecutive calls
             generateAssistantResponseStub.restore()
@@ -722,6 +740,24 @@ describe('AgenticChatController', () => {
                     },
                 },
             ]
+
+            const historyAfterTool1 = [
+                { userInputMessage: { content: 'Hello with multiple tools' } },
+                { assistantResponseMessage: { content: 'I need to use tool 1. ' } },
+            ]
+            const historyAfterTool2 = [
+                ...historyAfterTool1,
+                { userInputMessage: { content: 'Hello with multiple tools' } },
+                { assistantResponseMessage: { content: 'Now I need to use tool 2. ' } },
+            ]
+
+            getMessagesStub
+                .onFirstCall()
+                .returns([])
+                .onSecondCall()
+                .returns(historyAfterTool1)
+                .onThirdCall()
+                .returns(historyAfterTool2)
 
             // Reset the stub and set up to return different responses on consecutive calls
             generateAssistantResponseStub.restore()
