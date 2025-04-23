@@ -217,7 +217,7 @@ describe('Chat', () => {
         window.dispatchEvent(chatEvent)
 
         assert.calledOnceWithExactly(endMessageStreamStub, tabId, '', {
-            header: { icon: undefined, buttons: undefined, status: { icon: undefined } },
+            header: undefined,
             buttons: undefined,
             body: 'some response',
             followUp: {},

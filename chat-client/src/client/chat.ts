@@ -115,7 +115,8 @@ export const createChat = (
 
     const parseFeatureConfig = (featureConfigSerialized?: string): Map<string, FeatureContext> => {
         try {
-            return new Map<string, FeatureContext>(JSON.parse(featureConfigSerialized || '{}'))
+            const parsed = JSON.parse(featureConfigSerialized || '[]')
+            return new Map<string, FeatureContext>(parsed)
         } catch (error) {
             console.error('Error parsing feature config:', featureConfigSerialized, error)
         }
