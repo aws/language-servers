@@ -541,6 +541,7 @@ export class AgenticChatController implements ChatHandlers {
     ): Promise<ToolResult[]> {
         const results: ToolResult[] = []
         let buttonBlockId
+        let loadingMessageId
 
         for (const toolUse of toolUses) {
             if (!toolUse.name || !toolUse.toolUseId) continue
@@ -608,7 +609,7 @@ export class AgenticChatController implements ChatHandlers {
                 }
 
                 // show thinking spinner when tool is running
-                const loadingMessageId = `loading-${toolUse.toolUseId}`
+                loadingMessageId = `loading-${toolUse.toolUseId}`
                 await chatResultStream.writeResultBlock({ messageId: loadingMessageId })
                 this.#features.chat.sendChatUpdate({ tabId, state: { inProgress: true } })
 
@@ -659,6 +660,10 @@ export class AgenticChatController implements ChatHandlers {
                         break
                 }
             } catch (err) {
+                if (loadingMessageId) {
+                    await chatResultStream.removeResultBlock(loadingMessageId)
+                    this.#features.chat.sendChatUpdate({ tabId, state: { inProgress: false } })
+                }
                 // If we did not approve a tool to be used or the user stopped the response, bubble this up to interrupt agentic loop
                 if (CancellationError.isUserCancelled(err) || err instanceof ToolApprovalException) {
                     if (err instanceof ToolApprovalException && toolUse.name === 'executeBash') {
