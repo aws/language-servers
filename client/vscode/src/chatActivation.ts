@@ -29,6 +29,8 @@ import {
     ShowSaveFileDialogRequestType,
     ShowSaveFileDialogParams,
     tabBarActionRequestType,
+    buttonClickRequestType,
+    chatUpdateNotificationType,
 } from '@aws/language-server-runtimes/protocol'
 import { v4 as uuidv4 } from 'uuid'
 import { Uri, Webview, WebviewView, commands, window } from 'vscode'
@@ -172,6 +174,14 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri, 
                                 tabBarActionRequestType.method
                             )
                             break
+                        case buttonClickRequestType.method:
+                            await handleRequest(
+                                languageClient,
+                                message.params,
+                                webviewView,
+                                buttonClickRequestType.method
+                            )
+                            break
                         case followUpClickNotificationType.method:
                             if (!isValidAuthFollowUpType(message.params.followUp.type))
                                 languageClient.sendNotification(followUpClickNotificationType, message.params)
@@ -186,6 +196,13 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri, 
                 languageClient.onNotification(contextCommandsNotificationType, params => {
                     webviewView.webview.postMessage({
                         command: contextCommandsNotificationType.method,
+                        params: params,
+                    })
+                })
+
+                languageClient.onNotification(chatUpdateNotificationType, params => {
+                    webviewView.webview.postMessage({
+                        command: chatUpdateNotificationType.method,
                         params: params,
                     })
                 })
