@@ -515,6 +515,9 @@ export const createMynahUi = (
         const chatItems = store.chatItems || []
 
         if (chatResult.additionalMessages?.length) {
+            mynahUi.updateStore(tabId, {
+                loadingChat: true,
+            })
             chatResult.additionalMessages.forEach(am => {
                 const chatItem: ChatItem = {
                     messageId: am.messageId,
@@ -538,7 +541,7 @@ export const createMynahUi = (
         if (isPartialResult) {
             const chatItem = {
                 ...chatResult,
-                body: chatResult.body === undefined || chatResult.body === '' ? 'Thinking...' : chatResult.body,
+                body: chatResult.body,
                 type: ChatItemType.ANSWER_STREAM,
                 header: header,
                 buttons: buttons,
@@ -604,6 +607,10 @@ export const createMynahUi = (
     }
 
     const updateChat = (params: ChatUpdateParams) => {
+        const isChatLoading = params.state?.inProgress
+        mynahUi.updateStore(params.tabId, {
+            loadingChat: isChatLoading,
+        })
         if (params.data?.messages.length) {
             const { tabId } = params
             const store = mynahUi.getTabData(tabId).getStore() || {}
@@ -649,10 +656,7 @@ export const createMynahUi = (
         }
 
         return {
-            body:
-                message.type !== 'tool' && (message.body === undefined || message.body === '')
-                    ? 'Thinking...'
-                    : message.body,
+            body: message.body,
             header: processedHeader,
             buttons: toMynahButtons(message.buttons),
 
