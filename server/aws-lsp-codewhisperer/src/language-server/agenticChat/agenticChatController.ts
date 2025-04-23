@@ -837,19 +837,18 @@ export class AgenticChatController implements ChatHandlers {
     }
 
     #processReadOrList(toolUse: ToolUse, chatResultStream: AgenticChatResultStream): ChatMessage | undefined {
-        if (toolUse.name !== 'fsRead') {
-            //TODO: Implement list directory UX in next PR.
-            return {}
+        let messageIdToUpdate = toolUse.toolUseId!
+        const currentId = chatResultStream.getMessageIdToUpdateForTool(toolUse.name!)
+
+        if (currentId) {
+            messageIdToUpdate = currentId
+        } else {
+            chatResultStream.setMessageIdToUpdateForTool(toolUse.name!, messageIdToUpdate)
         }
-        let messageId = toolUse.toolUseId || ''
-        if (chatResultStream.getMessageIdToUpdate()) {
-            messageId = chatResultStream.getMessageIdToUpdate()!
-        } else if (messageId) {
-            chatResultStream.setMessageIdToUpdate(messageId)
-        }
+
         const currentPath = (toolUse.input as unknown as FsReadParams | ListDirectoryParams)?.path
         if (!currentPath) return
-        const existingPaths = chatResultStream.getMessageOperation(messageId)?.filePaths || []
+        const existingPaths = chatResultStream.getMessageOperation(messageIdToUpdate)?.filePaths || []
         // Check if path already exists in the list
         const isPathAlreadyProcessed = existingPaths.some(path => path.relativeFilePath === currentPath)
         if (!isPathAlreadyProcessed) {
@@ -857,14 +856,14 @@ export class AgenticChatController implements ChatHandlers {
                 relativeFilePath: currentPath,
                 lineRanges: [{ first: -1, second: -1 }],
             }
-            const operationType = toolUse.name === 'fsRead' ? 'read' : 'listDir'
-            if (operationType === 'read') {
-                chatResultStream.addMessageOperation(messageId, operationType, [...existingPaths, currentFileDetail])
-            }
+            chatResultStream.addMessageOperation(messageIdToUpdate, toolUse.name!, [
+                ...existingPaths,
+                currentFileDetail,
+            ])
         }
         let title: string
-        const itemCount = chatResultStream.getMessageOperation(messageId)?.filePaths.length
-        const filePathsPushed = chatResultStream.getMessageOperation(messageId)?.filePaths ?? []
+        const itemCount = chatResultStream.getMessageOperation(messageIdToUpdate)?.filePaths.length
+        const filePathsPushed = chatResultStream.getMessageOperation(messageIdToUpdate)?.filePaths ?? []
         if (!itemCount) {
             title = 'Gathering context'
         } else {
@@ -888,7 +887,7 @@ export class AgenticChatController implements ChatHandlers {
         return {
             type: 'tool',
             contextList,
-            messageId,
+            messageId: messageIdToUpdate,
             body: '',
         }
     }
