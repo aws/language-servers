@@ -35,13 +35,15 @@ interface ConfigurableLspHandlers {
 
 /**
  * BaseAmazonQServiceManager is a base abstract class that can be generically extended
- * to manage a centralized CodeWhispererService that extends CodeWhispererServiceBase and a centralized StreamingClientService that extends StreamingClientServiceBase.
+ * to manage a centralized CodeWhispererService that extends CodeWhispererServiceBase and
+ * a centralized StreamingClientService that extends StreamingClientServiceBase.
  *
- * It implements `handleDidChangeConfiguration` and hooks it into the passed LSP server's
- * `didChangeConfiguration` notification. Servers can listen to the completion of these
- * configuration updates by attaching a listener that handles the updated configuration as
+ * It implements `handleDidChangeConfiguration` and hooks the method into the passed LSP server's
+ * `didChangeConfiguration` and `onInitialized` notifications when `setupCommonLspHandlers` is
+ * called. Servers can listen to the completion of these configuration updates by attaching a
+ * listener that handles the updated configuration as
  * needed. The base class also triggers the `updateCachedServiceConfig` method, updating
- * the cached service if defined.
+ * the cached services if defined.
  *
  * @example
  *
@@ -52,6 +54,22 @@ interface ConfigurableLspHandlers {
  * await serviceManager.handleDidChangeConfiguration()
  * // configuration is updated and listener invoked with updatedConfig
  * ```
+ *
+ * Furthermore, concrete implementations can configure the `onUpdateConfiguration` LSP handler
+ * by registering a handler in the `configurableLspHandlers` dictionary. The `AmazonQServiceServer`
+ * will then hook it into the corresponding LSP request using the `setupConfigurableLspHandlers`
+ * method.
+ *
+ * @remarks
+ *
+ * 1. `BaseAmazonQServiceManager` is intended to be extended as a singleton which should only be
+ * initialized in the corresponding `AmazonQServiceServer`. Other servers should not attempt to
+ * initialize any concrete implementation of this class.
+ *
+ * 2. For testing, be aware that if other server's unit tests depend on the LSP handling done by this
+ * class, the responses from this class (such as `handleDidChangeConfiguration`) have to be manually
+ * triggered in your mock routines.
+ *
  */
 export abstract class BaseAmazonQServiceManager<
     C extends CodeWhispererServiceBase,

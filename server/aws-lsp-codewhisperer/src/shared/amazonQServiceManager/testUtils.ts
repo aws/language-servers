@@ -1,8 +1,13 @@
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import { CodeWhispererServiceBase } from '../codeWhispererService'
-import { BaseAmazonQServiceManager } from './BaseAmazonQServiceManager'
+import { BaseAmazonQServiceManager, QServiceManagerFeatures } from './BaseAmazonQServiceManager'
 import { StreamingClientServiceBase } from '../streamingClientService'
-import { AmazonQServiceAlreadyInitializedError, AmazonQServiceNotInitializedError } from './errors'
+import {
+    AmazonQServiceAlreadyInitializedError,
+    AmazonQServiceInitializationError,
+    AmazonQServiceNotInitializedError,
+} from './errors'
+import { throws, deepStrictEqual } from 'assert'
 
 /**
  * A reusable test class that extends the abstract base class and allows for injecting features and service mocks.
@@ -26,7 +31,7 @@ export class TestAmazonQServiceManager extends BaseAmazonQServiceManager<
             return TestAmazonQServiceManager.instance
         }
 
-        throw new AmazonQServiceAlreadyInitializedError('Test service is already initialized.')
+        throw new AmazonQServiceInitializationError('Test service is already initialized.')
     }
 
     public static getInstance(): TestAmazonQServiceManager {
@@ -92,4 +97,57 @@ export const initBaseTestServiceManager = <C extends CodeWhispererServiceBase, S
     }
 
     return testServiceManager
+}
+
+/**
+ * Helper function to test the initialization process of the service managers
+ *
+ * @param SingletonServiceManager - Token or IAM Service manager class
+ *
+ * @example
+ *
+ * ```ts
+ * describe('some test name', () => {
+ *     generateSingletonInitializationTests(AmazonQTokenServiceManager)
+ * })
+ * ```
+ */
+export const generateSingletonInitializationTests = <
+    C extends CodeWhispererServiceBase,
+    S extends StreamingClientServiceBase,
+    T extends BaseAmazonQServiceManager<C, S>,
+    U extends {
+        getInstance(): T
+        initInstance(features: QServiceManagerFeatures): T
+        resetInstance(): void
+    },
+>(
+    SingletonServiceManager: U
+) => {
+    let testFeatures: TestFeatures
+
+    beforeEach(() => {
+        testFeatures = new TestFeatures()
+        testFeatures.lsp.getClientInitializeParams.returns({} as any)
+    })
+
+    afterEach(() => {
+        SingletonServiceManager.resetInstance()
+    })
+
+    it('should throw when initInstance is called more than once', () => {
+        SingletonServiceManager.initInstance(testFeatures)
+
+        throws(() => SingletonServiceManager.initInstance(testFeatures), AmazonQServiceAlreadyInitializedError)
+    })
+
+    it('should throw when getInstance is called before initInstance', () => {
+        throws(() => SingletonServiceManager.getInstance(), AmazonQServiceInitializationError)
+    })
+
+    it('should not throw when getInstance is called after initInstance', () => {
+        const singletonServiceManagerInstance = SingletonServiceManager.initInstance(testFeatures)
+
+        deepStrictEqual(SingletonServiceManager.getInstance(), singletonServiceManagerInstance)
+    })
 }

@@ -10,6 +10,7 @@ import {
     CONFIGURATION_CHANGE_IN_PROGRESS_MSG,
 } from './BaseAmazonQServiceManager'
 import { CODE_WHISPERER_CONFIGURATION_SECTION, Q_CONFIGURATION_SECTION } from '../constants'
+import { UpdateConfigurationParams } from '@aws/language-server-runtimes/protocol'
 
 describe('BaseAmazonQServiceManager', () => {
     let features: TestFeatures
@@ -108,5 +109,21 @@ describe('BaseAmazonQServiceManager', () => {
         sinon.assert.calledOnce(features.lsp.workspace.getConfiguration.withArgs(CODE_WHISPERER_CONFIGURATION_SECTION))
 
         sinon.assert.callCount(features.logging.debug.withArgs(CONFIGURATION_CHANGE_IN_PROGRESS_MSG), TOTAL_CALLS - 1)
+    })
+
+    it('hooks onUpdateConfiguration handler to LSP server when requested and if defined', async () => {
+        sinon.assert.notCalled(features.lsp.workspace.onUpdateConfiguration)
+
+        serviceManager.setupConfigurableLspHandlers()
+        sinon.assert.notCalled(features.lsp.workspace.onUpdateConfiguration)
+
+        const mockedOnUpdateConfigurationHandler = sinon.spy()
+        serviceManager['configurableLspHandlers'].onUpdateConfiguration = mockedOnUpdateConfigurationHandler
+
+        serviceManager.setupConfigurableLspHandlers()
+        sinon.assert.calledOnce(features.lsp.workspace.onUpdateConfiguration)
+
+        await features.doUpdateConfiguration({} as UpdateConfigurationParams, {} as any)
+        sinon.assert.calledOnce(mockedOnUpdateConfigurationHandler)
     })
 })

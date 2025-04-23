@@ -72,6 +72,11 @@ export class AmazonQIAMServiceManager extends BaseAmazonQServiceManager<
         }
         return this.cachedStreamingClient
     }
+
+    // For Unit Tests
+    public static resetInstance(): void {
+        AmazonQIAMServiceManager.instance = null
+    }
 }
 
 export const initBaseIAMServiceManager = (features: QServiceManagerFeatures) =>

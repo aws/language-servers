@@ -4,6 +4,7 @@ import { AmazonQTokenServiceManager } from './AmazonQTokenServiceManager'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import { CodeWhispererServiceToken, GenerateSuggestionsRequest } from '../codeWhispererService'
 import {
+    AmazonQServiceAlreadyInitializedError,
     AmazonQServiceInitializationError,
     AmazonQServicePendingProfileError,
     AmazonQServicePendingProfileUpdateError,
@@ -25,6 +26,7 @@ import {
 import * as qDeveloperProfilesFetcherModule from './qDeveloperProfiles'
 import { setCredentialsForAmazonQTokenServiceManagerFactory } from '../testUtils'
 import { StreamingClientServiceToken } from '../streamingClientService'
+import { generateSingletonInitializationTests } from './testUtils'
 
 export const mockedProfiles: qDeveloperProfilesFetcherModule.AmazonQDeveloperProfile[] = [
     {
@@ -82,8 +84,7 @@ describe('AmazonQTokenServiceManager', () => {
         AmazonQTokenServiceManager.resetInstance()
 
         features = new TestFeatures()
-        // @ts-ignore
-        features.logging = console
+
         sdkInitializatorSpy = Object.assign(sinon.spy(features.sdkInitializator), {
             v2: sinon.spy(features.sdkInitializator.v2),
         })
@@ -161,6 +162,10 @@ describe('AmazonQTokenServiceManager', () => {
 
         return service
     }
+
+    describe('Initialization process', () => {
+        generateSingletonInitializationTests(AmazonQTokenServiceManager)
+    })
 
     describe('Client is not connected', () => {
         it('should be in PENDING_CONNECTION state when bearer token is not set', () => {

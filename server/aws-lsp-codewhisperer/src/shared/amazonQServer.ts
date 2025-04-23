@@ -7,8 +7,9 @@ export const AmazonQServiceServerFactory =
     (initServiceManager: (features: QServiceManagerFeatures) => AmazonQBaseServiceManager): Server =>
     ({ credentialsProvider, lsp, workspace, logging, runtime, sdkInitializator }) => {
         let amazonQServiceManager: AmazonQBaseServiceManager
-
+        console.log('hi2')
         lsp.addInitializer((_params: InitializeParams) => {
+            console.log('hi1')
             amazonQServiceManager = initServiceManager({
                 credentialsProvider,
                 lsp,
