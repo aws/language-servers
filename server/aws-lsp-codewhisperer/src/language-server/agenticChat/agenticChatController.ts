@@ -397,6 +397,7 @@ export class AgenticChatController implements ChatHandlers {
         const maxIterations = 100 // Safety limit to prevent infinite loops
         metric.recordStart()
 
+        let loadingMessageId
         while (iterationCount < maxIterations) {
             iterationCount++
             this.#debug(`Agent loop iteration ${iterationCount} for conversation id:`, conversationIdentifier || '')
@@ -408,6 +409,10 @@ export class AgenticChatController implements ChatHandlers {
 
             const currentMessage = currentRequestInput.conversationState?.currentMessage
             const conversationId = conversationIdentifier ?? ''
+
+            // show loading message while we process request
+            loadingMessageId = `loading-${conversationId}-${iterationCount}`
+            await chatResultStream.writeResultBlock({ messageId: loadingMessageId, type: 'answer' })
 
             if (!currentMessage || !conversationId) {
                 this.#debug(
@@ -442,6 +447,13 @@ export class AgenticChatController implements ChatHandlers {
 
             const response = await session.generateAssistantResponse(currentRequestInput)
             this.#debug(`Response received for iteration ${iterationCount}:`, JSON.stringify(response.$metadata))
+
+            // remove the temp loading message when we have response
+            if (loadingMessageId) {
+                await chatResultStream.removeResultBlock(loadingMessageId)
+                this.#features.chat.sendChatUpdate({ tabId, state: { inProgress: false } })
+                loadingMessageId = undefined
+            }
 
             // Phase 4: Response Processing
             const result = await this.#processGenerateAssistantResponseResponse(
@@ -595,6 +607,10 @@ export class AgenticChatController implements ChatHandlers {
                         })
                         break
                 }
+                // show thinking spinner when tool is running
+                loadingMessageId = `loading-${toolUse.toolUseId}`
+                await chatResultStream.writeResultBlock({ messageId: loadingMessageId, type: 'answer' })
+                this.#features.chat.sendChatUpdate({ tabId, state: { inProgress: true } })
 
                 if (['fsRead', 'listDirectory'].includes(toolUse.name)) {
                     const initialListDirResult = this.#processReadOrList(toolUse, chatResultStream)
@@ -609,17 +625,16 @@ export class AgenticChatController implements ChatHandlers {
                         .set(toolUse.toolUseId, { ...toolUse, oldContent: document?.getText() })
                 }
 
-                // show thinking spinner when tool is running
-                loadingMessageId = `loading-${toolUse.toolUseId}`
-                await chatResultStream.writeResultBlock({ messageId: loadingMessageId })
-                this.#features.chat.sendChatUpdate({ tabId, state: { inProgress: true } })
-
                 const ws = this.#getWritableStream(chatResultStream, toolUse)
                 const result = await this.#features.agent.runTool(toolUse.name, toolUse.input, token, ws)
 
                 // remove the temp loading message when tool finishes
-                await chatResultStream.removeResultBlock(loadingMessageId)
-                this.#features.chat.sendChatUpdate({ tabId, state: { inProgress: false } })
+                if (loadingMessageId) {
+                    await chatResultStream.removeResultBlock(loadingMessageId)
+                    this.#features.chat.sendChatUpdate({ tabId, state: { inProgress: false } })
+                    loadingMessageId = undefined
+                }
+
                 let toolResultContent: ToolResultContentBlock
 
                 if (typeof result === 'string') {
@@ -661,7 +676,6 @@ export class AgenticChatController implements ChatHandlers {
                         })
                         break
                 }
-
                 if (toolUse.name) {
                     this.#telemetryController.emitToolUseSuggested(toolUse, session.conversationId || '')
                 }
@@ -669,6 +683,7 @@ export class AgenticChatController implements ChatHandlers {
                 if (loadingMessageId) {
                     await chatResultStream.removeResultBlock(loadingMessageId)
                     this.#features.chat.sendChatUpdate({ tabId, state: { inProgress: false } })
+                    loadingMessageId = undefined
                 }
                 // If we did not approve a tool to be used or the user stopped the response, bubble this up to interrupt agentic loop
                 if (CancellationError.isUserCancelled(err) || err instanceof ToolApprovalException) {

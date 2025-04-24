@@ -890,7 +890,7 @@ describe('AgenticChatController', () => {
 
             const chatResult = await chatResultPromise
 
-            sinon.assert.callCount(testFeatures.lsp.sendProgress, mockChatResponseList.length)
+            sinon.assert.callCount(testFeatures.lsp.sendProgress, mockChatResponseList.length + 1) // response length + loading message
             assert.deepStrictEqual(chatResult, {
                 additionalMessages: [],
                 body: '\n\nHello World!',
@@ -907,7 +907,7 @@ describe('AgenticChatController', () => {
 
             const chatResult = await chatResultPromise
 
-            sinon.assert.callCount(testFeatures.lsp.sendProgress, mockChatResponseList.length)
+            sinon.assert.callCount(testFeatures.lsp.sendProgress, mockChatResponseList.length + 1) // response length + loading message
             assert.deepStrictEqual(chatResult, {
                 additionalMessages: [],
                 body: '\n\nHello World!',
@@ -942,7 +942,7 @@ describe('AgenticChatController', () => {
 
             const chatResult = await chatResultPromise
 
-            sinon.assert.callCount(testFeatures.lsp.sendProgress, 0)
+            sinon.assert.callCount(testFeatures.lsp.sendProgress, 1) // called for loading message
             assert.deepStrictEqual(chatResult, utils.createAuthFollowUpResult('full-auth'))
         })
 
