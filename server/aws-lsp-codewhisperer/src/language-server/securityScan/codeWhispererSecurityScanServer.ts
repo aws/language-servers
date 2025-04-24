@@ -196,9 +196,7 @@ export const SecurityScanServerToken =
                 logging.log(`Security scan failed. ${error}`)
                 securityScanTelemetryEntry.result = 'Failed'
                 const err = getErrorMessage(error)
-                const exception = hasConnectionExpired(error as Error)
-                    ? new AmazonQServiceInvalidConnectionError(err)
-                    : null
+                const exception = hasConnectionExpired(error) ? new AmazonQServiceInvalidConnectionError(err) : error
 
                 return {
                     status: 'Failed',

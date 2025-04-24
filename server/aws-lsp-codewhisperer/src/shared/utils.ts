@@ -303,7 +303,10 @@ export function isStringOrNull(object: any): object is string | null {
     return typeof object === 'string' || object === null
 }
 
-export function hasConnectionExpired(error: Error) {
-    const authFollowType = getAuthFollowUpType(error)
-    return authFollowType == 're-auth'
+export function hasConnectionExpired(error: any) {
+    if (error instanceof Error) {
+        const authFollowType = getAuthFollowUpType(error)
+        return authFollowType == 're-auth'
+    }
+    return false
 }

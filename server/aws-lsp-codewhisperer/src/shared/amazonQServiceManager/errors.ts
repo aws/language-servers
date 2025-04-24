@@ -1,10 +1,12 @@
 // Base error class for Amazon Q
 export class AmazonQError extends Error {
     public code: string
+    override message: string
     constructor(message: string, code: string) {
         super(message)
         this.name = 'AmazonQError'
         this.code = code
+        this.message = message
     }
 }
 
@@ -65,10 +67,8 @@ export class AmazonQServiceNoProfileSupportError extends AmazonQError {
 }
 
 export class AmazonQServiceInvalidConnectionError extends AmazonQError {
-    override message: string
     constructor(message: string = 'Current authentication token is expired.') {
         super(message, 'E_AMAZON_Q_INVALID_CONNECTION')
         this.name = 'AmazonQServiceInvalidConnectionError'
-        this.message = 'Current authentication token is expired.'
     }
 }
