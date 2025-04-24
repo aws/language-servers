@@ -277,6 +277,9 @@ export const WorkspaceContextServer =
             if (!programmingLanguage || !SUPPORTED_WORKSPACE_CONTEXT_LANGUAGES.includes(programmingLanguage)) {
                 return
             }
+
+            logging.log(`Received didSave event for ${event.textDocument.uri}`)
+
             const result = workspaceFolderManager.getWorkspaceDetailsWithId(event.textDocument.uri, workspaceFolders)
             if (!result) {
                 logging.log(`No workspace found for ${event.textDocument.uri} discarding the save event`)
@@ -315,6 +318,7 @@ export const WorkspaceContextServer =
             if (!isUserEligibleForWorkspaceContext()) {
                 return
             }
+            logging.log(`Received didCreateFiles event of length ${event.files.length}`)
 
             for (const file of event.files) {
                 const isDir = isDirectory(file.uri)
@@ -371,6 +375,8 @@ export const WorkspaceContextServer =
                 return
             }
 
+            logging.log(`Received didDeleteFiles event of length ${event.files.length}`)
+
             for (const file of event.files) {
                 const result = workspaceFolderManager.getWorkspaceDetailsWithId(file.uri, workspaceFolders)
                 if (!result) {
@@ -418,6 +424,8 @@ export const WorkspaceContextServer =
                 return
             }
 
+            logging.log(`Received didRenameFiles event of length ${event.files.length}`)
+
             for (const file of event.files) {
                 const result = workspaceFolderManager.getWorkspaceDetailsWithId(file.newUri, workspaceFolders)
                 if (!result) {
@@ -463,6 +471,8 @@ export const WorkspaceContextServer =
             if (!isUserEligibleForWorkspaceContext()) {
                 return
             }
+            logging.log(`Received onDidChangeDependencyPaths event for ${params.moduleName}`)
+
             const workspaceFolder = workspaceFolderManager.getWorkspaceFolder(params.moduleName)
             await dependencyDiscoverer.handleDependencyUpdateFromLSP(
                 params.runtimeLanguage,
