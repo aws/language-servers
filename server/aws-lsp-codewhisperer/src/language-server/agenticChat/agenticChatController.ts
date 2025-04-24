@@ -726,13 +726,6 @@ export class AgenticChatController implements ChatHandlers {
             return
         }
         return new WritableStream({
-            start: async () => {
-                await chatResultStream.writeResultBlock({
-                    type: 'tool',
-                    body: '```console',
-                    messageId: toolUse.toolUseId,
-                })
-            },
             write: async chunk => {
                 await chatResultStream.writeResultBlock({
                     type: 'tool',
@@ -754,7 +747,7 @@ export class AgenticChatController implements ChatHandlers {
         return {
             messageId: toolUse.toolUseId,
             type: 'tool',
-            body: '```shell\n' + (toolUse.input as unknown as ExecuteBashParams).command + '\n```',
+            body: '```shell\n' + (toolUse.input as unknown as ExecuteBashParams).command + '\n',
             header: {
                 body: 'shell',
                 status: {
@@ -797,7 +790,7 @@ export class AgenticChatController implements ChatHandlers {
                     buttons,
                 }
                 const commandString = (toolUse.input as unknown as ExecuteBashParams).command
-                body = '```shell\n' + commandString + '\n```'
+                body = '```shell\n' + commandString + '\n'
                 break
 
             case 'fsWrite':
