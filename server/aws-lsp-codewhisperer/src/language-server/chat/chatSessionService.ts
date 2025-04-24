@@ -40,6 +40,17 @@ export class ChatSessionService {
         this.#deferredToolExecution[messageId] = { resolve, reject }
     }
 
+    public rejectAllDeferredToolExecutions(error: Error): void {
+        for (const messageId in this.#deferredToolExecution) {
+            const handler = this.#deferredToolExecution[messageId]
+            if (handler && handler.reject) {
+                handler.reject(error)
+            }
+        }
+        // Clear all handlers after rejecting them
+        this.#deferredToolExecution = {}
+    }
+
     constructor(amazonQServiceManager?: AmazonQBaseServiceManager) {
         this.#amazonQServiceManager = amazonQServiceManager
     }
