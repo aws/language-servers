@@ -43,6 +43,8 @@ import { AdditionalContextProvider } from './context/addtionalContextProvider'
 import { ContextCommandsProvider } from './context/contextCommandsProvider'
 import { ChatDatabase } from './tools/chatDb/chatDb'
 import { LocalProjectContextController } from '../../shared/localProjectContextController'
+import { CancellationError } from '@aws/lsp-core'
+import { ToolApprovalException } from './tools/toolShared'
 
 describe('AgenticChatController', () => {
     const mockTabId = 'tab-1'
@@ -1843,6 +1845,16 @@ ${' '.repeat(8)}}
         await chatController.onTabBarAction({ tabId: mockTabId, action: 'export' })
 
         sinon.assert.calledOnce(tabBarActionStub)
+    })
+
+    it('determines when an error is a user action', function () {
+        const nonUserAction = new Error('User action error')
+        const cancellationError = new CancellationError('user')
+        const rejectionError = new ToolApprovalException()
+
+        assert.ok(!chatController.isUserAction(nonUserAction))
+        assert.ok(chatController.isUserAction(cancellationError))
+        assert.ok(chatController.isUserAction(rejectionError))
     })
 })
 

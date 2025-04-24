@@ -334,7 +334,7 @@ export class AgenticChatController implements ChatHandlers {
                 chatResultStream
             )
         } catch (err) {
-            if (this.#isUserAction(err)) {
+            if (this.isUserAction(err)) {
                 /**
                  * when the session is aborted it generates an error.
                  * we need to resolve this error with an answer so the
@@ -669,7 +669,7 @@ export class AgenticChatController implements ChatHandlers {
                     this.#features.chat.sendChatUpdate({ tabId, state: { inProgress: false } })
                 }
 
-                if (this.#isUserAction(err)) {
+                if (this.isUserAction(err)) {
                     if (err instanceof ToolApprovalException && toolUse.name === 'executeBash') {
                         if (buttonBlockId) {
                             await chatResultStream.overwriteResultBlock(
@@ -700,7 +700,7 @@ export class AgenticChatController implements ChatHandlers {
      * @param err
      * @returns
      */
-    #isUserAction(err: unknown): boolean {
+    isUserAction(err: unknown): boolean {
         return CancellationError.isUserCancelled(err) || err instanceof ToolApprovalException
     }
 
