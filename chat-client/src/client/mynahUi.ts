@@ -351,12 +351,26 @@ export const createMynahUi = (
                             autoFocus: true,
                             title: 'Prompt name',
                             placeholder: 'Enter prompt name',
+                            validationPatterns: {
+                                patterns: [
+                                    {
+                                        pattern: /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,99}$/,
+                                        errorMessage:
+                                            'Use only letters, numbers, hyphens, and underscores, starting with a letter or number. Maximum 100 characters.',
+                                    },
+                                ],
+                            },
                             description: "Use this prompt by typing '@' followed by the prompt name.",
                         },
                     ],
                     [
                         { id: ContextPrompt.CancelButtonId, text: 'Cancel', status: 'clear' },
-                        { id: ContextPrompt.SubmitButtonId, text: 'Create', status: 'main' },
+                        {
+                            id: ContextPrompt.SubmitButtonId,
+                            text: 'Create',
+                            status: 'main',
+                            waitMandatoryFormItems: true,
+                        },
                     ],
                     `Create a saved prompt`
                 )
