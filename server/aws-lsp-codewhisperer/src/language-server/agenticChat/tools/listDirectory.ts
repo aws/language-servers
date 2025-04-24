@@ -4,12 +4,12 @@ import { CancellationError, workspaceUtils } from '@aws/lsp-core'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 import { sanitize } from '@aws/lsp-core/out/util/path'
 import { DEFAULT_EXCLUDE_PATTERNS } from '../../chat/constants'
-import { getWorkspaceFolderPaths } from '@aws/lsp-core/out/util/workspaceUtils'
 import { CancellationToken } from '@aws/language-server-runtimes/protocol'
 
 export interface ListDirectoryParams {
     path: string
     maxDepth?: number
+    pattern?: string | RegExp
 }
 
 export class ListDirectory {
@@ -28,6 +28,14 @@ export class ListDirectory {
             throw new Error('MaxDepth cannot be negative.')
         }
         await validatePath(params.path, this.workspace.fs.exists)
+
+        if (params.pattern) {
+            try {
+                new RegExp(params.pattern)
+            } catch (error) {
+                throw new Error(`Invalid regex pattern: ${(error as Error).message}`)
+            }
+        }
     }
 
     public async queueDescription(params: ListDirectoryParams, updates: WritableStream, requiresAcceptance: boolean) {
@@ -59,10 +67,11 @@ export class ListDirectory {
     public async invoke(params: ListDirectoryParams, token?: CancellationToken): Promise<InvokeOutput> {
         const path = sanitize(params.path)
         try {
+            const excludePatterns = (params.pattern ? [params.pattern] : []).concat(DEFAULT_EXCLUDE_PATTERNS)
             const listing = await workspaceUtils.readDirectoryRecursively(
                 { workspace: this.workspace, logging: this.logging },
                 path,
-                { maxDepth: params.maxDepth, excludePatterns: DEFAULT_EXCLUDE_PATTERNS },
+                { maxDepth: params.maxDepth, excludePatterns: excludePatterns },
                 token
             )
             return this.createOutput(listing.join('\n'))
@@ -89,7 +98,7 @@ export class ListDirectory {
         return {
             name: 'listDirectory',
             description:
-                'List the contents of a directory and its subdirectories, it will filter out build outputs such as `build/`, `out/` and `dist` and dependency directory such as `node_modules/`.\n * Use this tool for discovery, before using more targeted tools like fsRead.\n *Useful to try to understand the file structure before diving deeper into specific files.\n *Can be used to explore the codebase.\n *Results clearly distinguish between files, directories or symlinks with [F], [D] and [L] prefixes.',
+                'List and searches the contents of a directory and its subdirectories using an optional regex pattern. In addition to the optional pattern passed in, it will also filter out build outputs such as `build/`, `out/` and `dist` and dependency directory such as `node_modules/`.\n * Use this tool for discovery, before using more targeted tools like fsRead.\n *Useful to try to understand the file structure before diving deeper into specific files.\n *Can be used to explore the codebase.\n *Results clearly distinguish between files, directories or symlinks with [F], [D] and [L] prefixes.',
             inputSchema: {
                 type: 'object',
                 properties: {
@@ -101,6 +110,10 @@ export class ListDirectory {
                         type: 'number',
                         description:
                             'Maximum depth to traverse when listing directories. Use `0` to list only the specified directory, `1` to include immediate subdirectories, etc. If it is not provided, it will list all subdirectories recursively.',
+                    },
+                    pattern: {
+                        type: 'string',
+                        description: 'Regex pattern to match against file and directory names.',
                     },
                 },
                 required: ['path'],

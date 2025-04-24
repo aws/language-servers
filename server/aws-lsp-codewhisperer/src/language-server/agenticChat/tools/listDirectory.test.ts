@@ -105,6 +105,27 @@ describe('ListDirectory Tool', () => {
         assert.ok(!hasFileC, 'Should not list fileC.md under node_modules in the directory output')
     })
 
+    it('lists directory contents with pattern argument', async () => {
+        await tempFolder.write('testZZZfile', 'some content')
+        await tempFolder.write('anotherZZZtest', 'some content')
+        await tempFolder.write('anotherZtest', 'some content')
+
+        const listDirectory = new ListDirectory(testFeatures)
+        await listDirectory.validate({ path: tempFolder.path, pattern: /.*ZZZ.*/ })
+        const result = await listDirectory.invoke({ path: tempFolder.path, pattern: /.*ZZZ.*/ })
+
+        assert.strictEqual(result.output.kind, 'text')
+        const lines = result.output.content.split('\n')
+        const hasFile = (f: string) => lines.some((l: string) => l.includes('[F] ') && l.includes(f))
+
+        assert.ok(!hasFile('testZZZfile'), 'Should not list testZZZfile in the directory output')
+        assert.ok(
+            !hasFile('anotherZZZtest'),
+            'Should not list anotherZZZtest under node_modules in the directory output'
+        )
+        assert.ok(hasFile('anotherZtest'), 'Should list anotherZtest under node_modules in the directory output')
+    })
+
     it('throws error if path does not exist', async () => {
         const missingPath = path.join(tempFolder.path, 'no_such_file.txt')
         const listDirectory = new ListDirectory(testFeatures)
