@@ -290,6 +290,7 @@ export class AgenticChatController implements ChatHandlers {
         token.onCancellationRequested(() => {
             this.#log('cancellation requested')
             session.abortRequest()
+            session.rejectAllDeferredToolExecutions(new CancellationError('user'))
         })
 
         const chatResultStream = this.#getChatResultStream(params.partialResultToken)
