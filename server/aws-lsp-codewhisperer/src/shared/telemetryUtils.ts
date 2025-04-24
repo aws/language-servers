@@ -47,10 +47,11 @@ export const getUserAgent = (initializeParams: InitializeParams, serverInfo?: Se
 }
 
 const IDE_CATEGORY_MAP: { [key: string]: IdeCategory } = {
-    'Amazon Q For VSCode': 'VSCODE',
+    // TODO: VSCode key needs to change for getting the correct coefficient value for inline
+    'AmazonQ-For-VSCode': 'VSCODE',
     'Amazon Q For JetBrains': 'JETBRAINS',
-    'Amazon Q For Eclipse': 'ECLIPSE',
-    'AWS Toolkit For VisualStudio': 'VISUAL_STUDIO',
+    'AmazonQ-For-Eclipse': 'ECLIPSE',
+    'AWS-Toolkit-For-VisualStudio': 'VISUAL_STUDIO',
 }
 
 const mapClientNameToIdeCategory = (clientName: string): string | undefined => {

@@ -389,7 +389,9 @@
 
     "ideCoefficient": {
         "VSCODE": -0.13566,
-        "JETBRAINS": 0.0
+        "JETBRAINS": 0.0,
+        "ECLIPSE": 0.0,
+        "VISUAL_STUDIO": 0.0
     },
 
     "minn": {

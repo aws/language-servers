@@ -289,7 +289,7 @@ export const CodewhispererServerFactory =
                     const codewhispererAutoTriggerType = triggerType(fileContext)
                     const previousDecision =
                         sessionManager.getPreviousSession()?.getAggregatedUserTriggerDecision() ?? ''
-                    let ideCategory: string | undefined = "VSCODE"
+                    let ideCategory: string | undefined = ''
                     const initializeParams = lsp.getClientInitializeParams()
                     if (initializeParams !== undefined) {
                         ideCategory = makeUserContextObject(initializeParams, runtime.platform, 'INLINE')?.ideCategory
@@ -298,7 +298,7 @@ export const CodewhispererServerFactory =
                         fileContext, // The left/right file context and programming language
                         lineNum: params.position.line, // the line number of the invocation, this is the line of the cursor
                         char: triggerCharacter, // Add the character just inserted, if any, before the invication position
-                        ide: ideCategory ?? "VSCODE",
+                        ide: ideCategory ?? '',
                         os: '', // TODO: We should get this in a platform-agnostic way (i.e., compatible with the browser)
                         previousDecision, // The last decision by the user on the previous invocation
                         triggerType: codewhispererAutoTriggerType, // The 2 trigger types currently influencing the Auto-Trigger are SpecialCharacter and Enter
