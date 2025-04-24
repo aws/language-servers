@@ -1369,7 +1369,7 @@ export class AgenticChatController implements ChatHandlers {
         } else if (toolUse?.name === 'fsRead') {
             await this.#features.lsp.window.showDocument({ uri: params.filePath })
         } else {
-            const absolutePath = params.filePath ?? (await this.#resolveAbsolutePath(params.filePath))
+            const absolutePath = params.fullPath ?? (await this.#resolveAbsolutePath(params.filePath))
             if (absolutePath) {
                 await this.#features.lsp.window.showDocument({ uri: absolutePath })
             }
