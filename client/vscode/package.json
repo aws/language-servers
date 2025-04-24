@@ -103,13 +103,8 @@
                 "category": "Test Amazon Q Extension"
             },
             {
-                "command": "aws.sample-vscode-ext-amazonq.updateProfileIad",
-                "title": "Update Amazon Q IDC Profile IAD",
-                "category": "Test Amazon Q Extension"
-            },
-            {
-                "command": "aws.sample-vscode-ext-amazonq.updateProfileFra",
-                "title": "Update Amazon Q IDC Profile FRA",
+                "command": "aws.sample-vscode-ext-amazonq.selectProfile",
+                "title": "Select an (available) Amazon Q IDC profile",
                 "category": "Test Amazon Q Extension"
             },
             {
