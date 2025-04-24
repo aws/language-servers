@@ -977,7 +977,7 @@ export class AgenticChatController implements ChatHandlers {
         const matchCount = matches.length
 
         const contextList: FileList = {
-            rootFolderTitle: `Grepped for "${query}", ${output.totalMatchCount} found`,
+            rootFolderTitle: `Searched for "${query}", ${output.totalMatchCount} found`,
             filePaths: sortedFilePaths,
             details: fileDetails,
         }
