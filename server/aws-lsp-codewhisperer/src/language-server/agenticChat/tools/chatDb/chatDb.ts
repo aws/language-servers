@@ -314,6 +314,7 @@ export class ChatDatabase {
             const tabTitle =
                 (message.type === 'prompt' && message.body.trim().length > 0 ? message.body : tabData?.title) ||
                 'Amazon Q Chat'
+            message = this.formatChatHistoryMessage(message)
             if (tabData) {
                 this.#features.logging.log(`Updating existing tab with historyId=${historyId}`)
                 tabData.conversations = updateOrCreateConversation(
@@ -337,6 +338,19 @@ export class ChatDatabase {
                 })
             }
         }
+    }
+
+    formatChatHistoryMessage(message: Message): Message {
+        if (message.type === ('prompt' as ChatItemType)) {
+            return {
+                ...message,
+                userInputMessageContext: {
+                    // Only keep toolResults in history
+                    toolResults: message.userInputMessageContext?.toolResults,
+                },
+            }
+        }
+        return message
     }
 
     /**
