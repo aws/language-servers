@@ -84,6 +84,7 @@ export class AgenticChatResultStream {
                         ...acc,
                         buttons: [...(acc.buttons ?? []), ...(c.buttons ?? [])],
                         body: acc.body + AgenticChatResultStream.resultDelimiter + c.body,
+                        ...(c.contextList && { contextList: c.contextList }),
                     }
                 } else if (acc.additionalMessages!.some(am => am.messageId === c.messageId)) {
                     return {
@@ -136,7 +137,8 @@ export class AgenticChatResultStream {
 
     /**
      * Overwrites a specific blockId and re-sends the resulting blocks to the client.
-     * @param messageId
+     * @param result
+     * @param blockId
      */
     async overwriteResultBlock(result: ChatMessage, blockId: number) {
         this.#state.chatResultBlocks[blockId] = result
@@ -145,12 +147,10 @@ export class AgenticChatResultStream {
 
     /**
      * Removes a specific messageId and re-sends the result to the client.
-     * @param result
-     * @param blockId
+     * @param messageId
      */
     async removeResultBlock(messageId: string) {
         this.#state.chatResultBlocks = this.#state.chatResultBlocks.filter(block => block.messageId !== messageId)
-        await this.#sendProgress(this.getResult(messageId))
     }
 
     getResultStreamWriter(): ResultStreamWriter {

@@ -454,7 +454,7 @@ export class AgenticChatController implements ChatHandlers {
             )
 
             //  Add the current assistantResponse message to the history DB
-            if (result.data?.chatResult.body) {
+            if (result.data?.chatResult.body !== undefined) {
                 this.#chatHistoryDb.addMessage(tabId, 'cwc', conversationIdentifier ?? '', {
                     body: result.data?.chatResult.body,
                     type: 'answer' as any,
@@ -541,6 +541,7 @@ export class AgenticChatController implements ChatHandlers {
     ): Promise<ToolResult[]> {
         const results: ToolResult[] = []
         let buttonBlockId
+        let loadingMessageId
 
         for (const toolUse of toolUses) {
             if (!toolUse.name || !toolUse.toolUseId) continue
@@ -608,7 +609,7 @@ export class AgenticChatController implements ChatHandlers {
                 }
 
                 // show thinking spinner when tool is running
-                const loadingMessageId = `loading-${toolUse.toolUseId}`
+                loadingMessageId = `loading-${toolUse.toolUseId}`
                 await chatResultStream.writeResultBlock({ messageId: loadingMessageId })
                 this.#features.chat.sendChatUpdate({ tabId, state: { inProgress: true } })
 
@@ -658,7 +659,15 @@ export class AgenticChatController implements ChatHandlers {
                         })
                         break
                 }
+
+                if (toolUse.name) {
+                    this.#telemetryController.emitToolUseSuggested(toolUse, session.conversationId || '')
+                }
             } catch (err) {
+                if (loadingMessageId) {
+                    await chatResultStream.removeResultBlock(loadingMessageId)
+                    this.#features.chat.sendChatUpdate({ tabId, state: { inProgress: false } })
+                }
                 // If we did not approve a tool to be used or the user stopped the response, bubble this up to interrupt agentic loop
                 if (CancellationError.isUserCancelled(err) || err instanceof ToolApprovalException) {
                     if (err instanceof ToolApprovalException && toolUse.name === 'executeBash') {
@@ -1194,6 +1203,8 @@ export class AgenticChatController implements ChatHandlers {
                 isDeleted: false,
                 fileContent: toolUse.oldContent,
             })
+        } else if (toolUse?.name === 'fsRead') {
+            await this.#features.lsp.window.showDocument({ uri: params.filePath })
         } else {
             // handle prompt file outside of workspace
             if (params.filePath.endsWith(promptFileExtension)) {
@@ -1202,7 +1213,7 @@ export class AgenticChatController implements ChatHandlers {
                     absolutePath = path.join(getUserPromptsDirectory(), params.filePath)
                 }
             }
-            await this.#features.lsp.window.showDocument({ uri: params.filePath })
+            await this.#features.lsp.window.showDocument({ uri: absolutePath })
         }
     }
 
@@ -1362,8 +1373,13 @@ export class AgenticChatController implements ChatHandlers {
         const chatEventParser = new AgenticChatEventParser(requestId, metric)
         const streamWriter = chatResultStream.getResultStreamWriter()
 
+        // Display context transparency list once at the beginning of response
+        if (contextList) {
+            await streamWriter.write({ body: '', contextList })
+        }
+
         for await (const chatEvent of response.generateAssistantResponseResponse!) {
-            const result = chatEventParser.processPartialEvent(chatEvent, contextList)
+            const result = chatEventParser.processPartialEvent(chatEvent)
 
             // terminate early when there is an error
             if (!result.success) {

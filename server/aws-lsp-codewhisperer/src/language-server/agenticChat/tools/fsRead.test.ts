@@ -126,6 +126,15 @@ describe('FsRead Tool', () => {
     it('should not require acceptance if fsPath is inside the workspace', async () => {
         const fsRead = new FsRead({
             ...features,
+            lsp: {
+                ...features.lsp,
+                getClientInitializeParams: () => ({
+                    workspaceFolders: [{ uri: 'file:///workspace/folder', name: 'workspace' }],
+                    processId: 123,
+                    rootUri: 'file:///workspace/folder',
+                    capabilities: {},
+                }),
+            },
             workspace: {
                 ...features.workspace,
                 getTextDocument: async s => ({}) as TextDocument,

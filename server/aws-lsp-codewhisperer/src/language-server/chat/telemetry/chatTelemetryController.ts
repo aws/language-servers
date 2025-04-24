@@ -14,7 +14,7 @@ import {
     RelevancyVoteType,
     isClientTelemetryEvent,
 } from './clientTelemetry'
-import { UserIntent } from '@amzn/codewhisperer-streaming'
+import { ToolUse, UserIntent } from '@amzn/codewhisperer-streaming'
 import { TriggerContext } from '../contexts/triggerContext'
 
 import { CredentialsProvider, Logging } from '@aws/language-server-runtimes/server-interface'
@@ -166,6 +166,19 @@ export class ChatTelemetryController {
                 },
             })
         }
+    }
+
+    public emitToolUseSuggested(toolUse: ToolUse, conversationId: string) {
+        this.#telemetry.emitMetric({
+            name: ChatTelemetryEventName.ToolUseSuggested,
+            data: {
+                [CONVERSATION_ID_METRIC_KEY]: conversationId,
+                cwsprChatConversationType: 'AgenticChatWithToolUse',
+                credentialStartUrl: this.#credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
+                cwsprToolName: toolUse.name ?? '',
+                cwsprToolUseId: toolUse.toolUseId ?? '',
+            },
+        })
     }
 
     public emitAddMessageMetric(tabId: string, metric: Partial<CombinedConversationEvent>) {

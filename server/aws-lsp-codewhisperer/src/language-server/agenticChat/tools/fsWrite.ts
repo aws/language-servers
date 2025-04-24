@@ -1,8 +1,10 @@
-import { CommandValidation, ExplanatoryParams, InvokeOutput } from './toolShared'
+import { workspaceUtils } from '@aws/lsp-core'
+import { CommandValidation, ExplanatoryParams, InvokeOutput, requiresPathAcceptance } from './toolShared'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 import { sanitize } from '@aws/lsp-core/out/util/path'
 import { Change, diffLines } from 'diff'
 import { URI } from 'vscode-uri'
+import { getWorkspaceFolderPaths } from '@aws/lsp-core/out/util/workspaceUtils'
 
 // Port of https://github.com/aws/aws-toolkit-vscode/blob/16aa8768834f41ae512522473a6a962bb96abe51/packages/core/src/codewhispererChat/tools/fsWrite.ts#L42
 
@@ -40,10 +42,14 @@ export interface FsWriteBackup {
 }
 
 export class FsWrite {
+    private readonly logging: Features['logging']
     private readonly workspace: Features['workspace']
+    private readonly lsp: Features['lsp']
 
-    constructor(features: Pick<Features, 'workspace'> & Partial<Features>) {
+    constructor(features: Pick<Features, 'workspace' | 'logging' | 'lsp'> & Partial<Features>) {
+        this.logging = features.logging
         this.workspace = features.workspace
+        this.lsp = features.lsp
     }
 
     public async validate(params: FsWriteParams): Promise<void> {
@@ -125,7 +131,7 @@ export class FsWrite {
     }
 
     public async requiresAcceptance(params: FsWriteParams): Promise<CommandValidation> {
-        return { requiresAcceptance: !(await this.workspace.getTextDocument(URI.file(params.path).toString())) }
+        return requiresPathAcceptance(params.path, this.lsp, this.logging)
     }
 
     private async handleCreate(params: CreateParams, sanitizedPath: string): Promise<void> {

@@ -146,6 +146,7 @@ export const createMynahUi = (
     let disclaimerCardActive = !disclaimerAcknowledged
     let programmingModeCardActive = !pairProgrammingCardAcknowledged
     let contextCommandGroups: ContextCommandGroups | undefined
+    let isPairProgrammingMode = true
 
     let chatEventHandlers: ChatEventHandler = {
         onCodeInsertToCursorPosition(
@@ -393,6 +394,9 @@ export const createMynahUi = (
             throw new Error(`Unhandled tab bar button id: ${buttonId}`)
         },
         onPromptInputOptionChange: (tabId, optionsValues) => {
+            if (optionsValues['pair-programmer-mode'] !== undefined) {
+                isPairProgrammingMode = optionsValues['pair-programmer-mode'] === 'true'
+            }
             handlePromptInputChange(mynahUi, tabId, optionsValues)
             messager.onPromptInputOptionChange({ tabId, optionsValues })
         },
@@ -545,6 +549,7 @@ export const createMynahUi = (
                 type: ChatItemType.ANSWER_STREAM,
                 header: header,
                 buttons: buttons,
+                codeBlockActions: isPairProgrammingMode ? { 'insert-to-cursor': null } : undefined,
             }
 
             if (!chatItems.find(ci => ci.messageId === chatResult.messageId)) {
@@ -664,7 +669,12 @@ export const createMynahUi = (
             fullWidth: message.type === 'tool' && message.header?.buttons ? true : undefined,
             padding: message.type === 'tool' ? false : undefined,
 
-            codeBlockActions: message.type === 'tool' ? { 'insert-to-cursor': null, copy: null } : undefined,
+            codeBlockActions:
+                message.type === 'tool'
+                    ? { 'insert-to-cursor': null, copy: null }
+                    : isPairProgrammingMode
+                      ? { 'insert-to-cursor': null }
+                      : undefined,
         }
     }
 
