@@ -1,12 +1,10 @@
 // Base error class for Amazon Q
 export class AmazonQError extends Error {
     public code: string
-    override message: string
     constructor(message: string, code: string) {
         super(message)
         this.name = 'AmazonQError'
         this.code = code
-        this.message = message
     }
 }
 
