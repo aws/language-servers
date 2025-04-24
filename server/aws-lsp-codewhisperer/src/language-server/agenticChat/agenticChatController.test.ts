@@ -920,7 +920,7 @@ describe('AgenticChatController', () => {
             })
         })
 
-        it('propagates error message to final chat result', async () => {
+        it('propagates model error back to client', async () => {
             generateAssistantResponseStub.callsFake(() => {
                 throw new Error('Error')
             })
@@ -931,9 +931,12 @@ describe('AgenticChatController', () => {
             )
 
             // These checks will fail if a response error is returned.
-            const typedChatResult = chatResult as ChatResult
-            assert.strictEqual(typedChatResult.type, 'answer')
-            assert.strictEqual(typedChatResult.body, 'Error')
+            const typedChatResult = chatResult as ResponseError<ChatResult>
+            assert.strictEqual(typedChatResult.message, 'Error')
+            assert.strictEqual(
+                typedChatResult.data?.body,
+                'An error occurred when communicating with the model, check the logs for more information.'
+            )
         })
 
         it('returns an auth follow up action if model request returns an auth error', async () => {
