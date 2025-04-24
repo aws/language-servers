@@ -628,6 +628,7 @@ export class AgenticChatController implements ChatHandlers {
                 } else if (typeof result === 'object') {
                     toolResultContent = { json: result }
                 } else toolResultContent = { text: JSON.stringify(result) }
+                this.#validateToolResult(toolUse, toolResultContent)
 
                 results.push({
                     toolUseId: toolUse.toolUseId,
@@ -696,6 +697,27 @@ export class AgenticChatController implements ChatHandlers {
         }
 
         return results
+    }
+
+    #validateToolResult(toolUse: ToolUse, result: ToolResultContentBlock) {
+        let maxToolResponseSize
+        switch (toolUse.name) {
+            case 'fsRead':
+                maxToolResponseSize = 200_000
+                break
+            case 'listDirectory':
+                maxToolResponseSize = 30_000
+                break
+            default:
+                maxToolResponseSize = 100_000
+                break
+        }
+        if (
+            (result.text && result.text.length > maxToolResponseSize) ||
+            (result.json && JSON.stringify(result.json).length > maxToolResponseSize)
+        ) {
+            throw Error(`${toolUse.name} output exceeds maximum character limit of ${maxToolResponseSize}`)
+        }
     }
 
     #getWritableStream(chatResultStream: AgenticChatResultStream, toolUse: ToolUse): WritableStream | undefined {
