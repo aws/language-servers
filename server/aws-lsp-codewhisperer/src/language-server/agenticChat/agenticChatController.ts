@@ -334,8 +334,7 @@ export class AgenticChatController implements ChatHandlers {
                 chatResultStream
             )
         } catch (err) {
-            // TODO: On ToolValidationException, we want to show custom mynah-ui components making it clear it was cancelled.
-            if (CancellationError.isUserCancelled(err) || err instanceof ToolApprovalException) {
+            if (this.#isUserAction(err)) {
                 /**
                  * when the session is aborted it generates an error.
                  * we need to resolve this error with an answer so the
@@ -669,8 +668,8 @@ export class AgenticChatController implements ChatHandlers {
                     await chatResultStream.removeResultBlock(loadingMessageId)
                     this.#features.chat.sendChatUpdate({ tabId, state: { inProgress: false } })
                 }
-                // If we did not approve a tool to be used or the user stopped the response, bubble this up to interrupt agentic loop
-                if (CancellationError.isUserCancelled(err) || err instanceof ToolApprovalException) {
+
+                if (this.#isUserAction(err)) {
                     if (err instanceof ToolApprovalException && toolUse.name === 'executeBash') {
                         if (buttonBlockId) {
                             await chatResultStream.overwriteResultBlock(
@@ -684,9 +683,6 @@ export class AgenticChatController implements ChatHandlers {
                     throw err
                 }
                 const errMsg = err instanceof Error ? err.message : 'unknown error'
-                await chatResultStream.writeResultBlock({
-                    body: toolErrorMessage(toolUse, errMsg),
-                })
                 this.#log(`Error running tool ${toolUse.name}:`, errMsg)
                 results.push({
                     toolUseId: toolUse.toolUseId,
@@ -697,6 +693,15 @@ export class AgenticChatController implements ChatHandlers {
         }
 
         return results
+    }
+
+    /**
+     * Determines if error is thrown as a result of a user action (Ex. rejecting tool, stop button)
+     * @param err
+     * @returns
+     */
+    #isUserAction(err: unknown): boolean {
+        return CancellationError.isUserCancelled(err) || err instanceof ToolApprovalException
     }
 
     #validateToolResult(toolUse: ToolUse, result: ToolResultContentBlock) {
