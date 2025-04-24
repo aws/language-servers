@@ -101,6 +101,7 @@ import { ListDirectory, ListDirectoryParams } from './tools/listDirectory'
 import { FsWrite, FsWriteParams, getDiffChanges } from './tools/fsWrite'
 import { ExecuteBash, ExecuteBashOutput, ExecuteBashParams } from './tools/executeBash'
 import { ExplanatoryParams, InvokeOutput, ToolApprovalException } from './tools/toolShared'
+import { ModelServiceException } from './errors'
 import { FileSearch, FileSearchParams } from './tools/fileSearch'
 import { GrepSearch, SanitizedRipgrepOutput } from './tools/grepSearch'
 
@@ -337,8 +338,20 @@ export class AgenticChatController implements ChatHandlers {
                 chatResultStream
             )
         } catch (err) {
-            // TODO: On ToolValidationException, we want to show custom mynah-ui components making it clear it was cancelled.
-            if (CancellationError.isUserCancelled(err) || err instanceof ToolApprovalException) {
+            // HACK: the chat-client needs to have a partial event with the associated messageId sent before it can accept the final result.
+            // Without this, the `thinking` indicator never goes away.
+            // Note: buttons being explicitly empty is required for this hack to work.
+            const errorMessageId = `error-message-id-${uuid()}`
+            await this.#sendProgressToClient(
+                {
+                    type: 'answer',
+                    body: '',
+                    messageId: errorMessageId,
+                    buttons: [],
+                },
+                params.partialResultToken
+            )
+            if (this.isUserAction(err, token)) {
                 /**
                  * when the session is aborted it generates an error.
                  * we need to resolve this error with an answer so the
@@ -347,9 +360,11 @@ export class AgenticChatController implements ChatHandlers {
                 return {
                     type: 'answer',
                     body: '',
+                    messageId: errorMessageId,
+                    buttons: [],
                 }
             }
-            return this.#handleRequestError(err, params.tabId, metric)
+            return this.#handleRequestError(err, errorMessageId, params.tabId, metric)
         }
     }
 
@@ -445,10 +460,9 @@ export class AgenticChatController implements ChatHandlers {
             }
 
             // Phase 3: Request Execution
-            this.#debug(`Request Input: ${JSON.stringify(currentRequestInput)}`)
-
-            const response = await session.generateAssistantResponse(currentRequestInput)
-            this.#debug(`Response received for iteration ${iterationCount}:`, JSON.stringify(response.$metadata))
+            const response = await this.fetchModelResponse(currentRequestInput, i =>
+                session.generateAssistantResponse(i)
+            )
 
             // remove the temp loading message when we have response
             if (loadingMessageId) {
@@ -699,8 +713,8 @@ export class AgenticChatController implements ChatHandlers {
                     this.#features.chat.sendChatUpdate({ tabId, state: { inProgress: false } })
                     loadingMessageId = undefined
                 }
-                // If we did not approve a tool to be used or the user stopped the response, bubble this up to interrupt agentic loop
-                if (CancellationError.isUserCancelled(err) || err instanceof ToolApprovalException) {
+
+                if (this.isUserAction(err, token)) {
                     if (err instanceof ToolApprovalException && toolUse.name === 'executeBash') {
                         if (buttonBlockId) {
                             await chatResultStream.overwriteResultBlock(
@@ -714,9 +728,6 @@ export class AgenticChatController implements ChatHandlers {
                     throw err
                 }
                 const errMsg = err instanceof Error ? err.message : 'unknown error'
-                await chatResultStream.writeResultBlock({
-                    body: toolErrorMessage(toolUse, errMsg),
-                })
                 this.#log(`Error running tool ${toolUse.name}:`, errMsg)
                 results.push({
                     toolUseId: toolUse.toolUseId,
@@ -727,6 +738,34 @@ export class AgenticChatController implements ChatHandlers {
         }
 
         return results
+    }
+
+    /**
+     * Determines if error is thrown as a result of a user action (Ex. rejecting tool, stop button)
+     * @param err
+     * @returns
+     */
+    isUserAction(err: unknown, token?: CancellationToken): boolean {
+        return (
+            CancellationError.isUserCancelled(err) ||
+            err instanceof ToolApprovalException ||
+            (token?.isCancellationRequested ?? false)
+        )
+    }
+
+    async fetchModelResponse<RequestType, ResponseType>(
+        requestInput: RequestType,
+        makeRequest: (requestInput: RequestType) => Promise<ResponseType>
+    ): Promise<ResponseType> {
+        this.#debug(`Q Backend Request: ${JSON.stringify(requestInput)}`)
+        try {
+            const response = await makeRequest(requestInput)
+            this.#debug(`Q Backend Response: ${JSON.stringify(response)}`)
+            return response
+        } catch (e) {
+            this.#features.logging.error(`Error in call: ${JSON.stringify(e)}`)
+            throw new ModelServiceException(e as Error)
+        }
     }
 
     #validateToolResult(toolUse: ToolUse, result: ToolResultContentBlock) {
@@ -1111,6 +1150,7 @@ export class AgenticChatController implements ChatHandlers {
      */
     #handleRequestError(
         err: any,
+        errorMessageId: string,
         tabId: string,
         metric: Metric<CombinedConversationEvent>
     ): ChatResult | ResponseError<ChatResult> {
@@ -1119,12 +1159,23 @@ export class AgenticChatController implements ChatHandlers {
             this.#telemetryController.emitMessageResponseError(tabId, metric.metric, err.requestId, err.message)
         }
 
-        if (err instanceof AmazonQServicePendingSigninError) {
+        // return non-model errors back to the client as errors
+        if (!(err instanceof ModelServiceException)) {
+            this.#log(`unknown error ${err instanceof Error ? JSON.stringify(err) : 'unknown'}`)
+            this.#debug(`stack ${err instanceof Error ? JSON.stringify(err.stack) : 'unknown'}`)
+            this.#debug(`cause ${err instanceof Error ? JSON.stringify(err.cause) : 'unknown'}`)
+            return new ResponseError<ChatResult>(
+                LSPErrorCodes.RequestFailed,
+                err instanceof Error ? err.message : 'Unknown request error'
+            )
+        }
+
+        if (err.cause instanceof AmazonQServicePendingSigninError) {
             this.#log(`Q Chat SSO Connection error: ${getErrorMessage(err)}`)
             return createAuthFollowUpResult('full-auth')
         }
 
-        if (err instanceof AmazonQServicePendingProfileError) {
+        if (err.cause instanceof AmazonQServicePendingProfileError) {
             this.#log(`Q Chat SSO Connection error: ${getErrorMessage(err)}`)
             const followUpResult = createAuthFollowUpResult('use-supported-auth')
             // Access first element in array
@@ -1140,13 +1191,14 @@ export class AgenticChatController implements ChatHandlers {
             return createAuthFollowUpResult(authFollowType)
         }
 
-        this.#log(`Q api request error ${err instanceof Error ? JSON.stringify(err) : 'unknown'}`)
-        this.#debug(`Q api request error stack ${err instanceof Error ? JSON.stringify(err.stack) : 'unknown'}`)
-        this.#debug(`Q api request error cause ${err instanceof Error ? JSON.stringify(err.cause) : 'unknown'}`)
-        return new ResponseError<ChatResult>(
-            LSPErrorCodes.RequestFailed,
-            err instanceof Error ? err.message : 'Unknown request error'
-        )
+        const backendError = err.cause
+        // Send the backend error message directly to the client to be displayed in chat.
+        return {
+            type: 'answer',
+            body: backendError.message,
+            messageId: errorMessageId,
+            buttons: [],
+        }
     }
 
     async onInlineChatPrompt(
