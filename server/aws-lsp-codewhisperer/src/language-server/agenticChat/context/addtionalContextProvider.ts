@@ -131,7 +131,7 @@ export class AdditionalContextProvider {
             }
         }
         const fileList: FileList = {
-            filePaths: context.map(item => item.relativePath),
+            filePaths: [...new Set(context.map(item => item.relativePath))],
             details: fileDetails,
         }
         return fileList
