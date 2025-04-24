@@ -102,6 +102,7 @@ import { FsWrite, FsWriteParams, getDiffChanges } from './tools/fsWrite'
 import { ExecuteBash, ExecuteBashOutput, ExecuteBashParams } from './tools/executeBash'
 import { ExplanatoryParams, InvokeOutput, ToolApprovalException } from './tools/toolShared'
 import { ModelServiceException } from './errors'
+import { FileSearch, FileSearchParams } from './tools/fileSearch'
 import { GrepSearch, SanitizedRipgrepOutput } from './tools/grepSearch'
 
 type ChatHandlers = Omit<
@@ -458,7 +459,7 @@ export class AgenticChatController implements ChatHandlers {
                 })
             }
 
-            // Phase 3: Request Executio
+            // Phase 3: Request Execution
             const response = await this.fetchModelResponse(currentRequestInput, i =>
                 session.generateAssistantResponse(i)
             )
@@ -587,6 +588,7 @@ export class AgenticChatController implements ChatHandlers {
                 switch (toolUse.name) {
                     case 'fsRead':
                     case 'listDirectory':
+                    case 'fileSearch':
                     case 'grepSearch':
                     case 'fsWrite':
                     case 'executeBash': {
@@ -595,6 +597,7 @@ export class AgenticChatController implements ChatHandlers {
                             listDirectory: { Tool: ListDirectory },
                             fsWrite: { Tool: FsWrite },
                             executeBash: { Tool: ExecuteBash },
+                            fileSearch: { Tool: FileSearch },
                             grepSearch: { Tool: GrepSearch },
                         }
 
@@ -629,8 +632,8 @@ export class AgenticChatController implements ChatHandlers {
                 await chatResultStream.writeResultBlock({ messageId: loadingMessageId, type: 'answer' })
                 this.#features.chat.sendChatUpdate({ tabId, state: { inProgress: true } })
 
-                if (['fsRead', 'listDirectory'].includes(toolUse.name)) {
-                    const initialListDirResult = this.#processReadOrList(toolUse, chatResultStream)
+                if (['fsRead', 'listDirectory', 'fileSearch'].includes(toolUse.name)) {
+                    const initialListDirResult = this.#processReadOrListOrSearch(toolUse, chatResultStream)
                     if (initialListDirResult) {
                         await chatResultStream.writeResultBlock(initialListDirResult)
                     }
@@ -672,6 +675,8 @@ export class AgenticChatController implements ChatHandlers {
                 switch (toolUse.name) {
                     case 'fsRead':
                     case 'listDirectory':
+                    case 'fileSearch':
+                    // no need to write tool result for listDir,fsRead,fileSearch into chat stream
                     case 'executeBash':
                         // no need to write tool result for listDir and fsRead into chat stream
                         // executeBash will stream the output instead of waiting until the end
@@ -937,7 +942,7 @@ export class AgenticChatController implements ChatHandlers {
         }
     }
 
-    #processReadOrList(toolUse: ToolUse, chatResultStream: AgenticChatResultStream): ChatMessage | undefined {
+    #processReadOrListOrSearch(toolUse: ToolUse, chatResultStream: AgenticChatResultStream): ChatMessage | undefined {
         let messageIdToUpdate = toolUse.toolUseId!
         const currentId = chatResultStream.getMessageIdToUpdateForTool(toolUse.name!)
 
@@ -947,7 +952,7 @@ export class AgenticChatController implements ChatHandlers {
             chatResultStream.setMessageIdToUpdateForTool(toolUse.name!, messageIdToUpdate)
         }
 
-        const currentPath = (toolUse.input as unknown as FsReadParams | ListDirectoryParams)?.path
+        const currentPath = (toolUse.input as unknown as FsReadParams | ListDirectoryParams | FileSearchParams)?.path
         if (!currentPath) return
         const existingPaths = chatResultStream.getMessageOperation(messageIdToUpdate)?.filePaths || []
         // Check if path already exists in the list
@@ -971,7 +976,9 @@ export class AgenticChatController implements ChatHandlers {
             title =
                 toolUse.name === 'fsRead'
                     ? `${itemCount} file${itemCount > 1 ? 's' : ''} read`
-                    : `${itemCount} ${itemCount === 1 ? 'directory' : 'directories'} listed`
+                    : toolUse.name === 'fileSearch'
+                      ? `${itemCount} ${itemCount === 1 ? 'directory' : 'directories'} searched`
+                      : `${itemCount} ${itemCount === 1 ? 'directory' : 'directories'} listed`
         }
         const fileDetails: Record<string, FileDetails> = {}
         for (const item of filePathsPushed) {
