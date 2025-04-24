@@ -920,7 +920,7 @@ describe('AgenticChatController', () => {
             })
         })
 
-        it('returns a ResponseError if sendMessage returns an error', async () => {
+        it('propagates error message to final chat result', async () => {
             generateAssistantResponseStub.callsFake(() => {
                 throw new Error('Error')
             })
@@ -930,10 +930,13 @@ describe('AgenticChatController', () => {
                 mockCancellationToken
             )
 
-            assert.ok(chatResult instanceof ResponseError)
+            // These checks will fail if a response error is returned.
+            const typedChatResult = chatResult as ChatResult
+            assert.strictEqual(typedChatResult.type, 'answer')
+            assert.strictEqual(typedChatResult.body, 'Error')
         })
 
-        it('returns a auth follow up action if sendMessage returns an auth error', async () => {
+        it('returns an auth follow up action if model request returns an auth error', async () => {
             generateAssistantResponseStub.callsFake(() => {
                 throw new Error('Error')
             })
@@ -946,7 +949,8 @@ describe('AgenticChatController', () => {
 
             const chatResult = await chatResultPromise
 
-            sinon.assert.callCount(testFeatures.lsp.sendProgress, 0)
+            // called once for error message propagation.
+            sinon.assert.callCount(testFeatures.lsp.sendProgress, 1)
             assert.deepStrictEqual(chatResult, utils.createAuthFollowUpResult('full-auth'))
         })
 
@@ -1850,7 +1854,6 @@ ${' '.repeat(8)}}
     })
 
     it('determines when an error is a user action', function () {
-        // TODO: add a case for when the token is cancelled
         const nonUserAction = new Error('User action error')
         const cancellationError = new CancellationError('user')
         const rejectionError = new ToolApprovalException()
@@ -1860,11 +1863,11 @@ ${' '.repeat(8)}}
         assert.ok(chatController.isUserAction(cancellationError))
         assert.ok(chatController.isUserAction(rejectionError))
 
-        assert.ok(chatController.isUserAction(nonUserAction, tokenSource.token))
+        assert.ok(!chatController.isUserAction(nonUserAction, tokenSource.token))
 
         tokenSource.cancel()
 
-        assert.ok(!chatController.isUserAction(nonUserAction, tokenSource.token))
+        assert.ok(chatController.isUserAction(nonUserAction, tokenSource.token))
     })
 })
 

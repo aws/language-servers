@@ -1067,12 +1067,23 @@ export class AgenticChatController implements ChatHandlers {
             this.#telemetryController.emitMessageResponseError(tabId, metric.metric, err.requestId, err.message)
         }
 
-        if (err instanceof AmazonQServicePendingSigninError) {
+        // return non-model errors back to the client.
+        if (!(err instanceof ModelServiceException)) {
+            this.#log(`unknown error ${err instanceof Error ? JSON.stringify(err) : 'unknown'}`)
+            this.#debug(`stack ${err instanceof Error ? JSON.stringify(err.stack) : 'unknown'}`)
+            this.#debug(`cause ${err instanceof Error ? JSON.stringify(err.cause) : 'unknown'}`)
+            return new ResponseError<ChatResult>(
+                LSPErrorCodes.RequestFailed,
+                err instanceof Error ? err.message : 'Unknown request error'
+            )
+        }
+
+        if (err instanceof ModelServiceException && err.cause instanceof AmazonQServicePendingSigninError) {
             this.#log(`Q Chat SSO Connection error: ${getErrorMessage(err)}`)
             return createAuthFollowUpResult('full-auth')
         }
 
-        if (err instanceof AmazonQServicePendingProfileError) {
+        if (err instanceof ModelServiceException && err.cause && err instanceof AmazonQServicePendingProfileError) {
             this.#log(`Q Chat SSO Connection error: ${getErrorMessage(err)}`)
             const followUpResult = createAuthFollowUpResult('use-supported-auth')
             // Access first element in array
@@ -1082,30 +1093,20 @@ export class AgenticChatController implements ChatHandlers {
             return followUpResult
         }
 
-        if (err instanceof ModelServiceException) {
-            const backendError = err.cause
-            // Send the backend error message directly to the client in chat.
-            return {
-                type: 'answer',
-                body: backendError.message,
-                messageId: errorMessageId,
-                buttons: [],
-            }
-        }
-
         const authFollowType = getAuthFollowUpType(err)
         if (authFollowType) {
             this.#log(`Q auth error: ${getErrorMessage(err)}`)
             return createAuthFollowUpResult(authFollowType)
         }
 
-        this.#log(`Q api request error ${err instanceof Error ? JSON.stringify(err) : 'unknown'}`)
-        this.#debug(`Q api request error stack ${err instanceof Error ? JSON.stringify(err.stack) : 'unknown'}`)
-        this.#debug(`Q api request error cause ${err instanceof Error ? JSON.stringify(err.cause) : 'unknown'}`)
-        return new ResponseError<ChatResult>(
-            LSPErrorCodes.RequestFailed,
-            err instanceof Error ? err.message : 'Unknown request error'
-        )
+        const backendError = err.cause
+        // Send the backend error message directly to the client in chat.
+        return {
+            type: 'answer',
+            body: backendError.message,
+            messageId: errorMessageId,
+            buttons: [],
+        }
     }
 
     async onInlineChatPrompt(
