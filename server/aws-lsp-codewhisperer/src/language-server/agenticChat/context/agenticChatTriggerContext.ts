@@ -30,7 +30,6 @@ import { LocalProjectContextController } from '../../../shared/localProjectConte
 import * as path from 'path'
 import { RelevantTextDocument } from '@amzn/codewhisperer-streaming'
 import { AgenticChatResultStream } from '../agenticChatResultStream'
-import { randomUUID } from 'crypto'
 
 export interface TriggerContext extends Partial<DocumentContext> {
     userIntent?: UserIntent
@@ -40,7 +39,11 @@ export interface TriggerContext extends Partial<DocumentContext> {
 }
 export type LineInfo = { startLine: number; endLine: number }
 
-export type AdditionalContentEntryAddition = AdditionalContentEntry & { type: string; relativePath: string } & LineInfo
+export type AdditionalContentEntryAddition = AdditionalContentEntry & {
+    type: string
+    relativePath: string
+    path: string
+} & LineInfo
 
 export type RelevantTextDocumentAddition = RelevantTextDocument & LineInfo
 

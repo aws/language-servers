@@ -1288,12 +1288,9 @@ export class AgenticChatController implements ChatHandlers {
     }
 
     async onFileClicked(params: FileClickParams) {
-        // TODO: also pass in selection and handle on client side
-        const workspaceRoot = workspaceUtils.getWorkspaceFolderPaths(this.#features.lsp)[0]
-        let absolutePath = path.join(workspaceRoot, params.filePath)
-
         const toolUseId = params.messageId
         const toolUse = toolUseId ? this.#triggerContext.getToolUseLookup().get(toolUseId) : undefined
+
         if (toolUse?.name === 'fsWrite') {
             const input = toolUse.input as unknown as FsWriteParams
             // TODO: since the tool already executed, we need to reverse the old/new content for the diff
@@ -1305,14 +1302,10 @@ export class AgenticChatController implements ChatHandlers {
         } else if (toolUse?.name === 'fsRead') {
             await this.#features.lsp.window.showDocument({ uri: params.filePath })
         } else {
-            // handle prompt file outside of workspace
-            if (params.filePath.endsWith(promptFileExtension)) {
-                const existsInWorkspace = await this.#features.workspace.fs.exists(absolutePath)
-                if (!existsInWorkspace) {
-                    absolutePath = path.join(getUserPromptsDirectory(), params.filePath)
-                }
+            const absolutePath = params.fullPath ?? (await this.#resolveAbsolutePath(params.filePath))
+            if (absolutePath) {
+                await this.#features.lsp.window.showDocument({ uri: absolutePath })
             }
-            await this.#features.lsp.window.showDocument({ uri: absolutePath })
         }
     }
 
@@ -1429,6 +1422,29 @@ export class AgenticChatController implements ChatHandlers {
     async #getInlineChatTriggerContext(params: InlineChatParams) {
         let triggerContext: TriggerContext = await this.#triggerContext.getNewTriggerContext(params)
         return triggerContext
+    }
+
+    async #resolveAbsolutePath(relativePath: string): Promise<string | undefined> {
+        try {
+            const workspaceFolders = workspaceUtils.getWorkspaceFolderPaths(this.#features.lsp)
+            for (const workspaceRoot of workspaceFolders) {
+                const candidatePath = path.join(workspaceRoot, relativePath)
+                if (await this.#features.workspace.fs.exists(candidatePath)) {
+                    return candidatePath
+                }
+            }
+
+            // handle prompt file outside of workspace
+            if (relativePath.endsWith(promptFileExtension)) {
+                return path.join(getUserPromptsDirectory(), relativePath)
+            }
+
+            this.#features.logging.error(`File not found: ${relativePath}`)
+        } catch (e: any) {
+            this.#features.logging.error(`Error resolving absolute path: ${e.message}`)
+        }
+
+        return undefined
     }
 
     async #getTriggerContext(params: ChatParams, metric: Metric<CombinedConversationEvent>) {
