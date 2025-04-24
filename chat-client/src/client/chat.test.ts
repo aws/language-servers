@@ -229,6 +229,7 @@ describe('Chat', () => {
         assert.calledOnceWithExactly(updateStoreStub, tabId, {
             loadingChat: false,
             promptInputDisabledState: false,
+            cancelButtonWhenLoading: true,
         })
     })
 

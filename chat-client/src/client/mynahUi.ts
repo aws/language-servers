@@ -125,6 +125,7 @@ export const handleChatPrompt = (
     // Set UI to loading state
     mynahUi.updateStore(tabId, {
         loadingChat: true,
+        cancelButtonWhenLoading: true,
         promptInputDisabledState: false,
     })
 
@@ -428,6 +429,13 @@ export const createMynahUi = (
             }
         },
         onStopChatResponse: tabId => {
+            const store = mynahUi.getTabData(tabId)?.getStore() || {}
+            const chatItems = store.chatItems || []
+            const updatedItems = chatItems.map(item => ({
+                ...item,
+                type: item.type === ChatItemType.ANSWER_STREAM ? ChatItemType.ANSWER : item.type,
+            }))
+            mynahUi.updateStore(tabId, { loadingChat: false, cancelButtonWhenLoading: true, chatItems: updatedItems })
             messager.onStopChatResponse(tabId)
         },
     }
@@ -540,6 +548,7 @@ export const createMynahUi = (
         if (chatResult.additionalMessages?.length) {
             mynahUi.updateStore(tabId, {
                 loadingChat: true,
+                cancelButtonWhenLoading: true,
             })
             chatResult.additionalMessages.forEach(am => {
                 const chatItem: ChatItem = {
@@ -626,6 +635,7 @@ export const createMynahUi = (
 
         mynahUi.updateStore(tabId, {
             loadingChat: false,
+            cancelButtonWhenLoading: true,
             promptInputDisabledState: false,
         })
     }
@@ -634,6 +644,7 @@ export const createMynahUi = (
         const isChatLoading = params.state?.inProgress
         mynahUi.updateStore(params.tabId, {
             loadingChat: isChatLoading,
+            cancelButtonWhenLoading: true,
         })
         if (params.data?.messages.length) {
             const { tabId } = params
@@ -740,6 +751,7 @@ ${params.message}`,
 
         mynahUi.updateStore(tabId, {
             loadingChat: false,
+            cancelButtonWhenLoading: true,
             promptInputDisabledState: false,
         })
 
