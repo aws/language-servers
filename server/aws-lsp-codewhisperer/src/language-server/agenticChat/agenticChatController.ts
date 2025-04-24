@@ -1175,7 +1175,7 @@ export class AgenticChatController implements ChatHandlers {
             return createAuthFollowUpResult('full-auth')
         }
 
-        if (err.cause && err instanceof AmazonQServicePendingProfileError) {
+        if (err.cause instanceof AmazonQServicePendingProfileError) {
             this.#log(`Q Chat SSO Connection error: ${getErrorMessage(err)}`)
             const followUpResult = createAuthFollowUpResult('use-supported-auth')
             // Access first element in array
