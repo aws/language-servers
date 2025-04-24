@@ -250,25 +250,25 @@ export class ChatTelemetryController {
         requestId?: string,
         errorReason?: string
     ) {
-        this.emitConversationMetric(
-            {
-                name: ChatTelemetryEventName.MessageResponseError,
-                data: {
-                    cwsprChatHasCodeSnippet: metric.cwsprChatHasCodeSnippet,
-                    cwsprChatTriggerInteraction: metric.cwsprChatTriggerInteraction,
-                    cwsprChatUserIntent: metric.cwsprChatUserIntent,
-                    cwsprChatProgrammingLanguage: metric.cwsprChatProgrammingLanguage,
-                    cwsprChatActiveEditorTotalCharacters: metric.cwsprChatActiveEditorTotalCharacters,
-                    cwsprChatActiveEditorImportCount: metric.cwsprChatActiveEditorImportCount,
-                    cwsprChatRepsonseCode: metric.cwsprChatRepsonseCode,
-                    cwsprChatRequestLength: metric.cwsprChatRequestLength,
-                    cwsprChatConversationType: metric.cwsprChatConversationType,
-                    requestId: requestId,
-                    reasonDesc: getTelemetryReasonDesc(errorReason),
-                },
+        this.#telemetry.emitMetric({
+            name: ChatTelemetryEventName.MessageResponseError,
+            data: {
+                cwsprChatHasCodeSnippet: metric.cwsprChatHasCodeSnippet,
+                cwsprChatTriggerInteraction: metric.cwsprChatTriggerInteraction,
+                cwsprChatUserIntent: metric.cwsprChatUserIntent,
+                cwsprChatProgrammingLanguage: metric.cwsprChatProgrammingLanguage,
+                cwsprChatActiveEditorTotalCharacters: metric.cwsprChatActiveEditorTotalCharacters,
+                cwsprChatActiveEditorImportCount: metric.cwsprChatActiveEditorImportCount,
+                cwsprChatRepsonseCode: metric.cwsprChatRepsonseCode,
+                cwsprChatRequestLength: metric.cwsprChatRequestLength,
+                cwsprChatConversationType: metric.cwsprChatConversationType,
+                requestId: requestId,
+                reasonDesc: getTelemetryReasonDesc(errorReason),
+                credentialStartUrl: this.#credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
+                result: 'Succeeded',
+                [CONVERSATION_ID_METRIC_KEY]: this.getConversationId(tabId),
             },
-            tabId
-        )
+        })
     }
 
     public enqueueCodeDiffEntry(params: Omit<InsertToCursorPositionParams, 'name'>) {

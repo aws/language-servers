@@ -4,6 +4,8 @@ import { distance } from 'fastest-levenshtein'
 import { Suggestion } from './codeWhispererService'
 import { CodewhispererCompletionType } from './telemetry/types'
 import { BUILDER_ID_START_URL, crashMonitoringDirName, driveLetterRegex, MISSING_BEARER_TOKEN_ERROR } from './constants'
+import { CodeWhispererStreamingServiceException } from '@amzn/codewhisperer-streaming'
+import { ServiceException } from '@smithy/smithy-client'
 export type SsoConnectionType = 'builderId' | 'identityCenter' | 'none'
 
 export function isAwsError(error: unknown): error is AWSError {
@@ -300,4 +302,25 @@ export function safeGet<T, E extends Error>(object: T | undefined, customError?:
 
 export function isStringOrNull(object: any): object is string | null {
     return typeof object === 'string' || object === null
+}
+
+// Port of implementation in AWS Toolkit for VSCode
+// https://github.com/aws/aws-toolkit-vscode/blob/c22efa03e73b241564c8051c35761eb8620edb83/packages/core/src/shared/errors.ts#L648
+export function getHttpStatusCode(err: unknown): number | undefined {
+    if (hasResponse(err) && err?.$response?.statusCode !== undefined) {
+        return err?.$response?.statusCode
+    }
+    if (hasMetadata(err) && err.$metadata?.httpStatusCode !== undefined) {
+        return err.$metadata?.httpStatusCode
+    }
+
+    return undefined
+}
+
+function hasResponse<T>(error: T): error is T & Pick<ServiceException, '$response'> {
+    return typeof (error as { $response?: unknown })?.$response === 'object'
+}
+
+function hasMetadata<T>(error: T): error is T & Pick<CodeWhispererStreamingServiceException, '$metadata'> {
+    return typeof (error as { $metadata?: unknown })?.$metadata === 'object'
 }
