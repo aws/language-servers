@@ -1092,7 +1092,7 @@ export class AgenticChatController implements ChatHandlers {
             }
         }
 
-        metric.setDimension('cwsprChatRepsonseCode', getHttpStatusCode(err) ?? 400)
+        metric.setDimension('cwsprChatRepsonseCode', getHttpStatusCode(err) ?? 0)
         this.#telemetryController.emitMessageResponseError(tabId, metric.metric, requestID, errorMessage)
 
         // return non-model errors back to the client as errors
