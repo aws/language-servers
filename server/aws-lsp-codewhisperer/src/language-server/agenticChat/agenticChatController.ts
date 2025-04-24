@@ -1144,7 +1144,7 @@ export class AgenticChatController implements ChatHandlers {
             this.#telemetryController.emitMessageResponseError(tabId, metric.metric, err.requestId, err.message)
         }
 
-        // return non-model errors back to the client.
+        // return non-model errors back to the client as errors
         if (!(err instanceof ModelServiceException)) {
             this.#log(`unknown error ${err instanceof Error ? JSON.stringify(err) : 'unknown'}`)
             this.#debug(`stack ${err instanceof Error ? JSON.stringify(err.stack) : 'unknown'}`)
@@ -1177,7 +1177,7 @@ export class AgenticChatController implements ChatHandlers {
         }
 
         const backendError = err.cause
-        // Send the backend error message directly to the client in chat.
+        // Send the backend error message directly to the client to be displayed in chat.
         return {
             type: 'answer',
             body: backendError.message,
