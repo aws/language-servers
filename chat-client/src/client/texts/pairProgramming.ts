@@ -15,7 +15,7 @@ export const programmerModeCard: ChatItem = {
 }
 
 export const pairProgrammingPromptInput: ChatItemFormItem = {
-    type: 'switch',
+    type: 'checkbox',
     id: 'pair-programmer-mode',
     tooltip: 'Turn off for read only responses',
     alternateTooltip: 'Turn on to allow Q to run commands and generate code diffs',
