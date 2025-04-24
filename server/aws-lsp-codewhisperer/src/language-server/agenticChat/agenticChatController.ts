@@ -413,6 +413,7 @@ export class AgenticChatController implements ChatHandlers {
         const maxIterations = 100 // Safety limit to prevent infinite loops
         metric.recordStart()
 
+        let loadingMessageId
         while (iterationCount < maxIterations) {
             iterationCount++
             this.#debug(`Agent loop iteration ${iterationCount} for conversation id:`, conversationIdentifier || '')
@@ -424,6 +425,10 @@ export class AgenticChatController implements ChatHandlers {
 
             const currentMessage = currentRequestInput.conversationState?.currentMessage
             const conversationId = conversationIdentifier ?? ''
+
+            // show loading message while we process request
+            loadingMessageId = `loading-${conversationId}-${iterationCount}`
+            await chatResultStream.writeResultBlock({ messageId: loadingMessageId, type: 'answer' })
 
             if (!currentMessage || !conversationId) {
                 this.#debug(
@@ -453,10 +458,17 @@ export class AgenticChatController implements ChatHandlers {
                 })
             }
 
-            // Phase 3: Request Execution
+            // Phase 3: Request Executio
             const response = await this.fetchModelResponse(currentRequestInput, i =>
                 session.generateAssistantResponse(i)
             )
+
+            // remove the temp loading message when we have response
+            if (loadingMessageId) {
+                await chatResultStream.removeResultBlock(loadingMessageId)
+                this.#features.chat.sendChatUpdate({ tabId, state: { inProgress: false } })
+                loadingMessageId = undefined
+            }
 
             // Phase 4: Response Processing
             const result = await this.#processGenerateAssistantResponseResponse(
@@ -612,6 +624,10 @@ export class AgenticChatController implements ChatHandlers {
                         })
                         break
                 }
+                // show thinking spinner when tool is running
+                loadingMessageId = `loading-${toolUse.toolUseId}`
+                await chatResultStream.writeResultBlock({ messageId: loadingMessageId, type: 'answer' })
+                this.#features.chat.sendChatUpdate({ tabId, state: { inProgress: true } })
 
                 if (['fsRead', 'listDirectory'].includes(toolUse.name)) {
                     const initialListDirResult = this.#processReadOrList(toolUse, chatResultStream)
@@ -626,17 +642,16 @@ export class AgenticChatController implements ChatHandlers {
                         .set(toolUse.toolUseId, { ...toolUse, oldContent: document?.getText() })
                 }
 
-                // show thinking spinner when tool is running
-                loadingMessageId = `loading-${toolUse.toolUseId}`
-                await chatResultStream.writeResultBlock({ messageId: loadingMessageId })
-                this.#features.chat.sendChatUpdate({ tabId, state: { inProgress: true } })
-
                 const ws = this.#getWritableStream(chatResultStream, toolUse)
                 const result = await this.#features.agent.runTool(toolUse.name, toolUse.input, token, ws)
 
                 // remove the temp loading message when tool finishes
-                await chatResultStream.removeResultBlock(loadingMessageId)
-                this.#features.chat.sendChatUpdate({ tabId, state: { inProgress: false } })
+                if (loadingMessageId) {
+                    await chatResultStream.removeResultBlock(loadingMessageId)
+                    this.#features.chat.sendChatUpdate({ tabId, state: { inProgress: false } })
+                    loadingMessageId = undefined
+                }
+
                 let toolResultContent: ToolResultContentBlock
 
                 if (typeof result === 'string') {
@@ -684,7 +699,6 @@ export class AgenticChatController implements ChatHandlers {
                         })
                         break
                 }
-
                 if (toolUse.name) {
                     this.#telemetryController.emitToolUseSuggested(toolUse, session.conversationId || '')
                 }
@@ -692,6 +706,7 @@ export class AgenticChatController implements ChatHandlers {
                 if (loadingMessageId) {
                     await chatResultStream.removeResultBlock(loadingMessageId)
                     this.#features.chat.sendChatUpdate({ tabId, state: { inProgress: false } })
+                    loadingMessageId = undefined
                 }
 
                 if (this.isUserAction(err, token)) {
@@ -774,13 +789,6 @@ export class AgenticChatController implements ChatHandlers {
             return
         }
         return new WritableStream({
-            start: async () => {
-                await chatResultStream.writeResultBlock({
-                    type: 'tool',
-                    body: '```console',
-                    messageId: toolUse.toolUseId,
-                })
-            },
             write: async chunk => {
                 await chatResultStream.writeResultBlock({
                     type: 'tool',
@@ -802,7 +810,7 @@ export class AgenticChatController implements ChatHandlers {
         return {
             messageId: toolUse.toolUseId,
             type: 'tool',
-            body: '```shell\n' + (toolUse.input as unknown as ExecuteBashParams).command + '\n```',
+            body: '```shell\n' + (toolUse.input as unknown as ExecuteBashParams).command + '\n',
             header: {
                 body: 'shell',
                 status: {
@@ -845,7 +853,7 @@ export class AgenticChatController implements ChatHandlers {
                     buttons,
                 }
                 const commandString = (toolUse.input as unknown as ExecuteBashParams).command
-                body = '```shell\n' + commandString + '\n```'
+                body = '```shell\n' + commandString + '\n'
                 break
 
             case 'fsWrite':
@@ -1340,12 +1348,9 @@ export class AgenticChatController implements ChatHandlers {
     }
 
     async onFileClicked(params: FileClickParams) {
-        // TODO: also pass in selection and handle on client side
-        const workspaceRoot = workspaceUtils.getWorkspaceFolderPaths(this.#features.lsp)[0]
-        let absolutePath = path.join(workspaceRoot, params.filePath)
-
         const toolUseId = params.messageId
         const toolUse = toolUseId ? this.#triggerContext.getToolUseLookup().get(toolUseId) : undefined
+
         if (toolUse?.name === 'fsWrite') {
             const input = toolUse.input as unknown as FsWriteParams
             // TODO: since the tool already executed, we need to reverse the old/new content for the diff
@@ -1357,14 +1362,10 @@ export class AgenticChatController implements ChatHandlers {
         } else if (toolUse?.name === 'fsRead') {
             await this.#features.lsp.window.showDocument({ uri: params.filePath })
         } else {
-            // handle prompt file outside of workspace
-            if (params.filePath.endsWith(promptFileExtension)) {
-                const existsInWorkspace = await this.#features.workspace.fs.exists(absolutePath)
-                if (!existsInWorkspace) {
-                    absolutePath = path.join(getUserPromptsDirectory(), params.filePath)
-                }
+            const absolutePath = params.filePath ?? (await this.#resolveAbsolutePath(params.filePath))
+            if (absolutePath) {
+                await this.#features.lsp.window.showDocument({ uri: absolutePath })
             }
-            await this.#features.lsp.window.showDocument({ uri: absolutePath })
         }
     }
 
@@ -1481,6 +1482,29 @@ export class AgenticChatController implements ChatHandlers {
     async #getInlineChatTriggerContext(params: InlineChatParams) {
         let triggerContext: TriggerContext = await this.#triggerContext.getNewTriggerContext(params)
         return triggerContext
+    }
+
+    async #resolveAbsolutePath(relativePath: string): Promise<string | undefined> {
+        try {
+            const workspaceFolders = workspaceUtils.getWorkspaceFolderPaths(this.#features.lsp)
+            for (const workspaceRoot of workspaceFolders) {
+                const candidatePath = path.join(workspaceRoot, relativePath)
+                if (await this.#features.workspace.fs.exists(candidatePath)) {
+                    return candidatePath
+                }
+            }
+
+            // handle prompt file outside of workspace
+            if (relativePath.endsWith(promptFileExtension)) {
+                return path.join(getUserPromptsDirectory(), relativePath)
+            }
+
+            this.#features.logging.error(`File not found: ${relativePath}`)
+        } catch (e: any) {
+            this.#features.logging.error(`Error resolving absolute path: ${e.message}`)
+        }
+
+        return undefined
     }
 
     async #getTriggerContext(params: ChatParams, metric: Metric<CombinedConversationEvent>) {
