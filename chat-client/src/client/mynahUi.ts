@@ -351,12 +351,26 @@ export const createMynahUi = (
                             autoFocus: true,
                             title: 'Prompt name',
                             placeholder: 'Enter prompt name',
+                            validationPatterns: {
+                                patterns: [
+                                    {
+                                        pattern: /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,99}$/,
+                                        errorMessage:
+                                            'Use only letters, numbers, hyphens, and underscores, starting with a letter or number. Maximum 100 characters.',
+                                    },
+                                ],
+                            },
                             description: "Use this prompt by typing '@' followed by the prompt name.",
                         },
                     ],
                     [
                         { id: ContextPrompt.CancelButtonId, text: 'Cancel', status: 'clear' },
-                        { id: ContextPrompt.SubmitButtonId, text: 'Create', status: 'main' },
+                        {
+                            id: ContextPrompt.SubmitButtonId,
+                            text: 'Create',
+                            status: 'main',
+                            waitMandatoryFormItems: true,
+                        },
                     ],
                     `Create a saved prompt`
                 )
@@ -496,7 +510,9 @@ export const createMynahUi = (
                                             ? ''
                                             : `line ${range.first} - ${range.second}`
                                     )
-                                    .join(', ') || '',
+                                    .join(', ') || fileDetails.description
+                                    ? fileDetails.description
+                                    : '',
                             description: filePath,
                             clickable: true,
                         },
@@ -871,7 +887,7 @@ const uiComponentsTexts = {
     save: 'Save',
     cancel: 'Cancel',
     submit: 'Submit',
-    stopGenerating: 'Stop generating',
+    stopGenerating: 'Stop',
     copyToClipboard: 'Copied to clipboard',
     noMoreTabsTooltip: 'You can only open ten conversation tabs at a time.',
     codeSuggestionWithReferenceTitle: 'Some suggestions contain code with references.',
