@@ -101,6 +101,7 @@ import { ListDirectory, ListDirectoryParams } from './tools/listDirectory'
 import { FsWrite, FsWriteParams, getDiffChanges } from './tools/fsWrite'
 import { ExecuteBash, ExecuteBashOutput, ExecuteBashParams } from './tools/executeBash'
 import { ExplanatoryParams, InvokeOutput, ToolApprovalException } from './tools/toolShared'
+import { ModelServiceException } from './errors'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -334,7 +335,20 @@ export class AgenticChatController implements ChatHandlers {
                 chatResultStream
             )
         } catch (err) {
-            if (this.isUserAction(err)) {
+            // HACK: the chat-client needs to have a partial event with the associated messageId sent before it can accept the final result.
+            // Without this, the `thinking` indicator never goes away.
+            // Note: buttons being explicitly empty is required for this hack to work.
+            const errorMessageId = `error-message-id-${uuid()}`
+            await this.#sendProgressToClient(
+                {
+                    type: 'answer',
+                    body: '',
+                    messageId: errorMessageId,
+                    buttons: [],
+                },
+                params.partialResultToken
+            )
+            if (this.isUserAction(err, token)) {
                 /**
                  * when the session is aborted it generates an error.
                  * we need to resolve this error with an answer so the
@@ -343,9 +357,11 @@ export class AgenticChatController implements ChatHandlers {
                 return {
                     type: 'answer',
                     body: '',
+                    messageId: errorMessageId,
+                    buttons: [],
                 }
             }
-            return this.#handleRequestError(err, params.tabId, metric)
+            return this.#handleRequestError(err, errorMessageId, params.tabId, metric)
         }
     }
 
@@ -436,10 +452,9 @@ export class AgenticChatController implements ChatHandlers {
             }
 
             // Phase 3: Request Execution
-            this.#debug(`Request Input: ${JSON.stringify(currentRequestInput)}`)
-
-            const response = await session.generateAssistantResponse(currentRequestInput)
-            this.#debug(`Response received for iteration ${iterationCount}:`, JSON.stringify(response.$metadata))
+            const response = await this.fetchModelResponse(currentRequestInput, i =>
+                session.generateAssistantResponse(i)
+            )
 
             // Phase 4: Response Processing
             const result = await this.#processGenerateAssistantResponseResponse(
@@ -669,7 +684,7 @@ export class AgenticChatController implements ChatHandlers {
                     this.#features.chat.sendChatUpdate({ tabId, state: { inProgress: false } })
                 }
 
-                if (this.isUserAction(err)) {
+                if (this.isUserAction(err, token)) {
                     if (err instanceof ToolApprovalException && toolUse.name === 'executeBash') {
                         if (buttonBlockId) {
                             await chatResultStream.overwriteResultBlock(
@@ -700,8 +715,27 @@ export class AgenticChatController implements ChatHandlers {
      * @param err
      * @returns
      */
-    isUserAction(err: unknown): boolean {
-        return CancellationError.isUserCancelled(err) || err instanceof ToolApprovalException
+    isUserAction(err: unknown, token?: CancellationToken): boolean {
+        return (
+            CancellationError.isUserCancelled(err) ||
+            err instanceof ToolApprovalException ||
+            (token?.isCancellationRequested ?? false)
+        )
+    }
+
+    async fetchModelResponse<RequestType, ResponseType>(
+        requestInput: RequestType,
+        makeRequest: (requestInput: RequestType) => Promise<ResponseType>
+    ): Promise<ResponseType> {
+        this.#debug(`Q Backend Request: ${JSON.stringify(requestInput)}`)
+        try {
+            const response = await makeRequest(requestInput)
+            this.#debug(`Q Backend Response: ${JSON.stringify(response)}`)
+            return response
+        } catch (e) {
+            this.#features.logging.error(`Error in call: ${JSON.stringify(e)}`)
+            throw new ModelServiceException(e as Error)
+        }
     }
 
     #validateToolResult(toolUse: ToolUse, result: ToolResultContentBlock) {
@@ -1024,6 +1058,7 @@ export class AgenticChatController implements ChatHandlers {
      */
     #handleRequestError(
         err: any,
+        errorMessageId: string,
         tabId: string,
         metric: Metric<CombinedConversationEvent>
     ): ChatResult | ResponseError<ChatResult> {
@@ -1045,6 +1080,17 @@ export class AgenticChatController implements ChatHandlers {
                 followUpResult.followUp.options[0].pillText = 'Select Q Developer Profile'
             }
             return followUpResult
+        }
+
+        if (err instanceof ModelServiceException) {
+            const backendError = err.cause
+            // Send the backend error message directly to the client in chat.
+            return {
+                type: 'answer',
+                body: backendError.message,
+                messageId: errorMessageId,
+                buttons: [],
+            }
         }
 
         const authFollowType = getAuthFollowUpType(err)

@@ -23,6 +23,8 @@ import {
     InsertToCursorPositionParams,
     TextDocumentEdit,
     InlineChatResult,
+    CancellationToken,
+    CancellationTokenSource,
 } from '@aws/language-server-runtimes/server-interface'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import * as assert from 'assert'
@@ -1848,13 +1850,21 @@ ${' '.repeat(8)}}
     })
 
     it('determines when an error is a user action', function () {
+        // TODO: add a case for when the token is cancelled
         const nonUserAction = new Error('User action error')
         const cancellationError = new CancellationError('user')
         const rejectionError = new ToolApprovalException()
+        const tokenSource = new CancellationTokenSource()
 
         assert.ok(!chatController.isUserAction(nonUserAction))
         assert.ok(chatController.isUserAction(cancellationError))
         assert.ok(chatController.isUserAction(rejectionError))
+
+        assert.ok(chatController.isUserAction(nonUserAction, tokenSource.token))
+
+        tokenSource.cancel()
+
+        assert.ok(!chatController.isUserAction(nonUserAction, tokenSource.token))
     })
 })
 
