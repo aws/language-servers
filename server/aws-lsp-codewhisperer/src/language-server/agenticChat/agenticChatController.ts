@@ -748,13 +748,13 @@ export class AgenticChatController implements ChatHandlers {
         requestInput: RequestType,
         makeRequest: (requestInput: RequestType) => Promise<ResponseType>
     ): Promise<ResponseType> {
-        this.#debug(`Q Backend Request: ${JSON.stringify(requestInput)}`)
+        this.#debug(`Q Model Request: ${JSON.stringify(requestInput)}`)
         try {
             const response = await makeRequest(requestInput)
-            this.#debug(`Q Backend Response: ${JSON.stringify(response)}`)
+            this.#debug(`Q Model Response: ${JSON.stringify(response)}`)
             return response
         } catch (e) {
-            this.#features.logging.error(`Error in call: ${JSON.stringify(e)}`)
+            this.#features.logging.error(`Q Model Error: ${JSON.stringify(e)}`)
             throw new ModelServiceException(e as Error)
         }
     }
@@ -1115,14 +1115,12 @@ export class AgenticChatController implements ChatHandlers {
             return createAuthFollowUpResult(authFollowType)
         }
 
-        const backendError = err.cause
-        // Send the backend error message directly to the client to be displayed in chat.
-        return {
+        return new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, err.cause.message, {
             type: 'answer',
-            body: backendError.message,
+            body: 'An error occurred when communicating with the model, check the logs for more information.',
             messageId: errorMessageId,
             buttons: [],
-        }
+        })
     }
 
     async onInlineChatPrompt(
