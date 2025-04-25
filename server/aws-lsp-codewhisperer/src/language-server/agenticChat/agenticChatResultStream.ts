@@ -109,6 +109,10 @@ export class AgenticChatResultStream {
                                         rootFolderTitle: c.contextList?.rootFolderTitle
                                             ? c.contextList.rootFolderTitle
                                             : (acc.contextList?.rootFolderTitle ?? ''),
+                                        details: {
+                                            ...(acc.contextList?.details ?? {}),
+                                            ...(c.contextList?.details ?? {}),
+                                        },
                                     },
                                 }),
                             header: c.header ? { ...c.header } : { ...am.header },

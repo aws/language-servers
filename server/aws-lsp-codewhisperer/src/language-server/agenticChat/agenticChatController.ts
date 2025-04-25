@@ -991,6 +991,7 @@ export class AgenticChatController implements ChatHandlers {
         for (const item of filePathsPushed) {
             fileDetails[item.relativeFilePath] = {
                 lineRanges: item.lineRanges,
+                description: item.relativeFilePath,
             }
         }
 
