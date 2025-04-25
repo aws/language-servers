@@ -28,18 +28,27 @@ export class TabFactory {
 
     constructor(
         private defaultTabData: DefaultTabData,
-        private quickActionCommands?: QuickActionCommandGroup[]
+        private quickActionCommands?: QuickActionCommandGroup[],
+        private bannerMessage?: ChatMessage
     ) {}
 
-    public createTab(
-        needWelcomeMessages: boolean,
-        disclaimerCardActive: boolean,
-        pairProgrammingCardActive: boolean,
-        chatMessages?: ChatMessage[]
-    ): MynahUIDataModel {
+    public createTab(disclaimerCardActive: boolean): MynahUIDataModel {
         const tabData: MynahUIDataModel = {
             ...this.getDefaultTabData(),
-            chatItems: needWelcomeMessages
+            ...(disclaimerCardActive ? { promptInputStickyCard: disclaimerCard } : {}),
+            promptInputOptions: [pairProgrammingPromptInput],
+        }
+        return tabData
+    }
+
+    public getChatItems(
+        needWelcomeMessages: boolean,
+        pairProgrammingCardActive: boolean,
+        chatMessages?: ChatMessage[]
+    ): ChatItem[] {
+        return [
+            ...(this.bannerMessage ? [this.getBannerMessage() as ChatItem] : []),
+            ...(needWelcomeMessages
                 ? [
                       ...(pairProgrammingCardActive ? [programmerModeCard] : []),
                       {
@@ -51,11 +60,8 @@ export class TabFactory {
                   ]
                 : chatMessages
                   ? (chatMessages as ChatItem[])
-                  : [],
-            ...(disclaimerCardActive ? { promptInputStickyCard: disclaimerCard } : {}),
-            promptInputOptions: [pairProgrammingPromptInput],
-        }
-        return tabData
+                  : []),
+        ]
     }
 
     public updateQuickActionCommands(quickActionCommands: QuickActionCommandGroup[]) {
@@ -78,6 +84,24 @@ export class TabFactory {
 
         tabData.tabBarButtons = this.getTabBarButtons()
         return tabData
+    }
+
+    public setInfoMessages(messages: ChatMessage[] | undefined) {
+        if (messages?.length) {
+            // For now this messages array is only populated with banner data hence we use the first item
+            this.bannerMessage = messages[0]
+        }
+    }
+
+    private getBannerMessage(): ChatItem | undefined {
+        if (this.bannerMessage) {
+            return {
+                type: ChatItemType.ANSWER,
+                status: 'info',
+                ...this.bannerMessage,
+            } as ChatItem
+        }
+        return undefined
     }
 
     private getTabBarButtons(): TabBarMainAction[] | undefined {
