@@ -16,6 +16,7 @@ import {
 import { Customizations } from '../../client/token/codewhispererbearertokenclient'
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 import { Q_CONFIGURATION_SECTION } from '../../shared/constants'
+import { AmazonQError } from '../../shared/amazonQServiceManager/errors'
 
 const Q_CUSTOMIZATIONS = 'customizations'
 const Q_DEVELOPER_PROFILES = 'developerProfiles'
@@ -155,6 +156,16 @@ export class ServerConfigurationProvider {
 
             return profiles
         } catch (error) {
+            if (error instanceof AmazonQError) {
+                this.logging.error(error.message)
+                throw new ResponseError(
+                    LSPErrorCodes.RequestFailed,
+                    `${ON_GET_CONFIGURATION_FROM_SERVER_ERROR_PREFIX}${Q_DEVELOPER_PROFILES}`,
+                    {
+                        awsErrorCode: error.code,
+                    }
+                )
+            }
             throw this.getResponseError(
                 `${ON_GET_CONFIGURATION_FROM_SERVER_ERROR_PREFIX}${Q_DEVELOPER_PROFILES}`,
                 error

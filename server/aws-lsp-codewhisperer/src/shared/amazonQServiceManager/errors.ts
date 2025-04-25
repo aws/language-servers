@@ -63,3 +63,10 @@ export class AmazonQServiceNoProfileSupportError extends AmazonQError {
         this.name = 'AmazonQServiceNoProfileSupportError'
     }
 }
+
+export class AmazonQServiceProfileThrottlingError extends AmazonQError {
+    constructor(message: string = 'Amazon Q Profile has encountered throttling error') {
+        super(message, 'E_AMAZON_Q_PROFILE_THROTTLING')
+        this.name = 'AmazonQServiceProfileThrottlingError'
+    }
+}
