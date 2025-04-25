@@ -504,6 +504,8 @@ export class AgenticChatController implements ChatHandlers {
                         input: result.data!.toolUses[k].input,
                     })),
                 })
+            } else {
+                this.#features.logging.warn('No ChatResult body in response, skipping adding to history')
             }
 
             // Check if we have any tool uses that need to be processed
@@ -631,6 +633,7 @@ export class AgenticChatController implements ChatHandlers {
                         break
                     }
                     default:
+                        this.#features.logging.warn(`Recieved unrecognized tool: ${toolUse.name}`)
                         await chatResultStream.writeResultBlock({
                             type: 'tool',
                             body: `${executeToolMessage(toolUse)}`,
@@ -702,6 +705,7 @@ export class AgenticChatController implements ChatHandlers {
                         await chatResultStream.writeResultBlock(chatResult)
                         break
                     default:
+                        this.#features.logging.warn(`Processing unrecognized tool: ${toolUse.name}`)
                         await chatResultStream.writeResultBlock({
                             type: 'tool',
                             body: toolResultMessage(toolUse, result),
@@ -727,7 +731,7 @@ export class AgenticChatController implements ChatHandlers {
                                 cachedButtonBlockId
                             )
                         } else {
-                            this.#features.logging.log('Failed to update executeBash block: no blockId is available.')
+                            this.#features.logging.warn('Failed to update executeBash block: no blockId is available.')
                         }
                     }
                     throw err
