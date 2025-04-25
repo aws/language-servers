@@ -89,7 +89,11 @@ export class ListDirectory {
         return {
             name: 'listDirectory',
             description:
-                'List the contents of a directory and its subdirectories, it will filter out build outputs such as `build/`, `out/` and `dist` and dependency directory such as `node_modules/`.\n * Use this tool for discovery, before using more targeted tools like fsRead.\n *Useful to try to understand the file structure before diving deeper into specific files.\n *Can be used to explore the codebase.\n *Results clearly distinguish between files, directories or symlinks with [F], [D] and [L] prefixes.',
+                'List the contents of a directory and its subdirectories, it will ignore directories such as `build/`, `out/`, `dist/` and `node_modules/`.\
+                \n * Use this tool for discovery such as exploring the codebase or project. This tool is more effective than running a command like \`ls\` using `executeBash` tool.\
+                \n * Useful to try to understand the file structure before diving deeper into specific files.\
+                \n * Do not use this tool to confirm the existence of files you may have created, as the user will let you know if the files were created successfully or not.\
+                \n * Results clearly distinguish between files, directories or symlinks with [F], [D] and [L] prefixes.',
             inputSchema: {
                 type: 'object',
                 properties: {
