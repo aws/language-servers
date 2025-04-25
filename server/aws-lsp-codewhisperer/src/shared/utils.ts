@@ -324,6 +324,7 @@ function hasResponse<T>(error: T): error is T & Pick<ServiceException, '$respons
 
 function hasMetadata<T>(error: T): error is T & Pick<CodeWhispererStreamingServiceException, '$metadata'> {
     return typeof (error as { $metadata?: unknown })?.$metadata === 'object'
+}
 
 export function hasConnectionExpired(error: any) {
     if (error instanceof Error) {
