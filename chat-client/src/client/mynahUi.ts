@@ -39,6 +39,7 @@ import {
     NotificationType,
     MynahUIProps,
     QuickActionCommand,
+    ChatItemFormItem,
 } from '@aws/mynah-ui'
 import { VoteParams } from '../contracts/telemetry'
 import { Messager } from './messager'
@@ -48,7 +49,12 @@ import { ChatClientAdapter, ChatEventHandler } from '../contracts/chatClientAdap
 import { withAdapter } from './withAdapter'
 import { toDetailsWithoutIcon, toMynahButtons, toMynahContextCommand, toMynahHeader, toMynahIcon } from './utils'
 import { ChatHistory, ChatHistoryList } from './features/history'
-import { pairProgrammingModeOff, pairProgrammingModeOn, programmerModeCard } from './texts/pairProgramming'
+import {
+    pairProgrammingModeOff,
+    pairProgrammingModeOn,
+    pairProgrammingPromptInput,
+    programmerModeCard,
+} from './texts/pairProgramming'
 
 export interface InboundChatApi {
     addChatResponse(params: ChatResult, tabId: string, isPartialResult: boolean): void
@@ -72,13 +78,34 @@ const ContextPrompt = {
     PromptNameFieldId: 'prompt-name',
 } as const
 
+const getTabPairProgrammingMode = (mynahUi: MynahUI, tabId: string) => {
+    const promptInputOptions = mynahUi.getTabData(tabId)?.getStore()?.promptInputOptions ?? []
+    return promptInputOptions.find(item => item.id === 'pair-programmer-mode')?.value === 'true'
+}
+
 export const handlePromptInputChange = (mynahUi: MynahUI, tabId: string, optionsValues: Record<string, string>) => {
     const promptTypeValue = optionsValues['pair-programmer-mode']
+
+    const store = mynahUi.getTabData(tabId)?.getStore()
+    const currentPromptInputOptions = store?.promptInputOptions ?? []
+    const updatedPromptInputOptions: ChatItemFormItem[] = currentPromptInputOptions.map(item =>
+        item.id === 'pair-programmer-mode' ? ({ ...item, value: promptTypeValue } as ChatItemFormItem) : item
+    )
+    // If the option wasn't found, add it
+    if (!updatedPromptInputOptions.some(item => item.id === 'pair-programmer-mode')) {
+        updatedPromptInputOptions.push({ ...pairProgrammingPromptInput, value: promptTypeValue } as ChatItemFormItem)
+    }
+
     if (promptTypeValue === 'true') {
         mynahUi.addChatItem(tabId, pairProgrammingModeOn)
     } else {
         mynahUi.addChatItem(tabId, pairProgrammingModeOff)
     }
+
+    // Update the store with the new promptInputOptions array
+    mynahUi.updateStore(tabId, {
+        promptInputOptions: updatedPromptInputOptions,
+    })
 }
 
 export const handleChatPrompt = (
@@ -147,7 +174,6 @@ export const createMynahUi = (
     let disclaimerCardActive = !disclaimerAcknowledged
     let programmingModeCardActive = !pairProgrammingCardAcknowledged
     let contextCommandGroups: ContextCommandGroups | undefined
-    let isPairProgrammingMode = true
 
     let chatEventHandlers: ChatEventHandler = {
         onCodeInsertToCursorPosition(
@@ -409,9 +435,6 @@ export const createMynahUi = (
             throw new Error(`Unhandled tab bar button id: ${buttonId}`)
         },
         onPromptInputOptionChange: (tabId, optionsValues) => {
-            if (optionsValues['pair-programmer-mode'] !== undefined) {
-                isPairProgrammingMode = optionsValues['pair-programmer-mode'] === 'true'
-            }
             handlePromptInputChange(mynahUi, tabId, optionsValues)
             messager.onPromptInputOptionChange({ tabId, optionsValues })
         },
@@ -542,6 +565,7 @@ export const createMynahUi = (
 
         const store = mynahUi.getTabData(tabId)?.getStore() || {}
         const chatItems = store.chatItems || []
+        const isPairProgrammingMode: boolean = getTabPairProgrammingMode(mynahUi, tabId)
 
         if (chatResult.additionalMessages?.length) {
             mynahUi.updateStore(tabId, {
@@ -557,7 +581,7 @@ export const createMynahUi = (
                             : am.type === 'directive'
                               ? ChatItemType.DIRECTIVE
                               : ChatItemType.ANSWER_STREAM,
-                    ...prepareChatItemFromMessage(am),
+                    ...prepareChatItemFromMessage(am, isPairProgrammingMode),
                 }
 
                 if (!chatItems.find(ci => ci.messageId === am.messageId)) {
@@ -660,7 +684,7 @@ export const createMynahUi = (
 
                 const chatItem: ChatItem = {
                     type: oldMessage.type,
-                    ...prepareChatItemFromMessage(updatedMessage),
+                    ...prepareChatItemFromMessage(updatedMessage, getTabPairProgrammingMode(mynahUi, tabId)),
                 }
 
                 mynahUi.updateChatAnswerWithMessageId(tabId, updatedMessage.messageId, chatItem)
@@ -668,7 +692,7 @@ export const createMynahUi = (
         }
     }
 
-    const prepareChatItemFromMessage = (message: ChatMessage): Partial<ChatItem> => {
+    const prepareChatItemFromMessage = (message: ChatMessage, isPairProgrammingMode: boolean): Partial<ChatItem> => {
         const contextHeader = contextListToHeader(message.contextList)
         const header = contextHeader || toMynahHeader(message.header) // Is this mutually exclusive?
 
