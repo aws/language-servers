@@ -391,6 +391,7 @@ export class TelemetryService {
             chatFollowUpCount?: number
             chatConversationType: ChatConversationType
             chatActiveEditorImportCount?: number
+            languageServerVersion?: string
         }>
     ) {
         if (!params.conversationId || !params.messageId) {
@@ -423,6 +424,7 @@ export class TelemetryService {
                     cwsprChatActiveEditorImportCount: additionalParams.chatActiveEditorImportCount,
                     codewhispererCustomizationArn: params.customizationArn,
                     result: 'Succeeded',
+                    languageServerVersion: additionalParams.languageServerVersion,
                 },
             })
         }
