@@ -579,10 +579,11 @@ export class AgenticChatController implements ChatHandlers {
         token?: CancellationToken
     ): Promise<ToolResult[]> {
         const results: ToolResult[] = []
-        let buttonBlockId
         let loadingMessageId
 
         for (const toolUse of toolUses) {
+            // Store buttonBlockId to use it in `catch` block if needed
+            let cachedButtonBlockId
             if (!toolUse.name || !toolUse.toolUseId) continue
             this.#triggerContext.getToolUseLookup().set(toolUse.toolUseId, toolUse)
 
@@ -620,9 +621,9 @@ export class AgenticChatController implements ChatHandlers {
                                 requiresAcceptance,
                                 warning
                             )
-                            const buttonBlockId = await chatResultStream.writeResultBlock(confirmationResult)
+                            cachedButtonBlockId = await chatResultStream.writeResultBlock(confirmationResult)
                             if (requiresAcceptance) {
-                                await this.waitForToolApproval(toolUse, chatResultStream, buttonBlockId, session)
+                                await this.waitForToolApproval(toolUse, chatResultStream, cachedButtonBlockId, session)
                             }
                         }
                         break
@@ -718,10 +719,10 @@ export class AgenticChatController implements ChatHandlers {
 
                 if (this.isUserAction(err, token)) {
                     if (err instanceof ToolApprovalException && toolUse.name === 'executeBash') {
-                        if (buttonBlockId) {
+                        if (cachedButtonBlockId) {
                             await chatResultStream.overwriteResultBlock(
                                 this.#getUpdateBashConfirmResult(toolUse, false),
-                                buttonBlockId
+                                cachedButtonBlockId
                             )
                         } else {
                             this.#features.logging.log('Failed to update executeBash block: no blockId is available.')
