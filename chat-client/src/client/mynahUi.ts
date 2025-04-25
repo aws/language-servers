@@ -67,6 +67,7 @@ export interface InboundChatApi {
     listConversations(params: ListConversationsResult): void
     conversationClicked(params: ConversationClickResult): void
     getSerializedChat(requestId: string, params: GetSerializedChatParams): void
+    createTabId(openTab?: boolean): string | undefined
 }
 
 type ContextCommandGroups = MynahUIDataModel['contextCommands']
@@ -82,6 +83,8 @@ const getTabPairProgrammingMode = (mynahUi: MynahUI, tabId: string) => {
     const promptInputOptions = mynahUi.getTabData(tabId)?.getStore()?.promptInputOptions ?? []
     return promptInputOptions.find(item => item.id === 'pair-programmer-mode')?.value === 'true'
 }
+
+const openTabKey = 'openTab'
 
 export const handlePromptInputChange = (mynahUi: MynahUI, tabId: string, optionsValues: Record<string, string>) => {
     const promptTypeValue = optionsValues['pair-programmer-mode']
@@ -170,7 +173,6 @@ export const createMynahUi = (
     customChatClientAdapter?: ChatClientAdapter,
     featureConfig?: Map<string, any>
 ): [MynahUI, InboundChatApi] => {
-    const initialTabId = TabFactory.generateUniqueId()
     let disclaimerCardActive = !disclaimerAcknowledged
     let programmingModeCardActive = !pairProgrammingCardAcknowledged
     let contextCommandGroups: ContextCommandGroups | undefined
@@ -227,7 +229,6 @@ export const createMynahUi = (
         },
         onReady: () => {
             messager.onUiReady()
-            messager.onTabAdd(initialTabId)
         },
         onFileClick: (tabId, filePath, deleted, messageId, eventId, fileDetails) => {
             messager.onFileClick({ tabId, filePath, messageId, fullPath: fileDetails?.data?.['fullPath'] })
@@ -249,6 +250,16 @@ export const createMynahUi = (
                         : []),
                 ],
                 ...(disclaimerCardActive ? { promptInputStickyCard: disclaimerCard } : {}),
+            }
+
+            const tabStore = mynahUi.getTabData(tabId).getStore()
+
+            // Tabs can be opened through different methods, including server-initiated 'openTab' requests.
+            // The 'openTab' request is specifically used for loading historical chat sessions with pre-existing messages.
+            // We check if tabMetadata.openTabKey exists - if it does and is set to true, we skip showing welcome messages
+            // since this indicates we're loading a previous chat session rather than starting a new one.
+            if (!tabStore?.tabMetadata || !tabStore.tabMetadata.openTabKey) {
+                defaultTabConfig.chatItems = tabFactory.getChatItems(true, programmingModeCardActive, [])
             }
             mynahUi.updateStore(tabId, defaultTabConfig)
             messager.onTabAdd(tabId)
@@ -446,7 +457,7 @@ export const createMynahUi = (
                 // Update the tab defaults to hide the programmer mode card for new tabs
                 mynahUi.updateTabDefaults({
                     store: {
-                        chatItems: tabFactory.createTab(true, disclaimerCardActive, false).chatItems,
+                        chatItems: tabFactory.getChatItems(true, false),
                     },
                 })
             }
@@ -456,7 +467,7 @@ export const createMynahUi = (
             const chatItems = store.chatItems || []
             const updatedItems = chatItems.map(item => ({
                 ...item,
-                type: item.type === ChatItemType.ANSWER_STREAM ? ChatItemType.ANSWER : item.type,
+                type: item.type === ChatItemType.ANSWER_STREAM && !item.body ? ChatItemType.ANSWER : item.type,
             }))
             mynahUi.updateStore(tabId, { loadingChat: false, cancelButtonWhenLoading: true, chatItems: updatedItems })
             messager.onStopChatResponse(tabId)
@@ -464,14 +475,9 @@ export const createMynahUi = (
     }
 
     const mynahUiProps: MynahUIProps = {
-        tabs: {
-            [initialTabId]: {
-                isSelected: true,
-                store: tabFactory.createTab(true, disclaimerCardActive, programmingModeCardActive),
-            },
-        },
+        tabs: {},
         defaults: {
-            store: tabFactory.createTab(true, false, programmingModeCardActive),
+            store: tabFactory.createTab(false),
         },
         config: {
             maxTabs: 10,
@@ -495,11 +501,14 @@ export const createMynahUi = (
         return tabId ? mynahUi.getAllTabs()[tabId]?.store : undefined
     }
 
-    const createTabId = (needWelcomeMessages: boolean = false, chatMessages?: ChatMessage[]) => {
-        const tabId = mynahUi.updateStore(
-            '',
-            tabFactory.createTab(needWelcomeMessages, disclaimerCardActive, programmingModeCardActive, chatMessages)
-        )
+    // The 'openTab' parameter indicates whether this tab creation is initiated by 'openTab' server request
+    // to restore a previous chat session (true) or if it's a new client-side tab creation (false/undefined).
+    // This distinction helps maintain consistent tab behavior between fresh conversations and restored sessions.
+    const createTabId = (openTab?: boolean) => {
+        const tabId = mynahUi.updateStore('', {
+            ...tabFactory.createTab(disclaimerCardActive),
+            tabMetadata: { openTabKey: openTab ? true : false },
+        })
         if (tabId === undefined) {
             mynahUi.notify({
                 content: uiComponentsTexts.noMoreTabsTooltip,
@@ -789,8 +798,11 @@ ${params.message}`,
             messager.onOpenTab(requestId, { tabId: params.tabId })
         } else {
             const messages = params.newTabOptions?.data?.messages
-            const tabId = createTabId(messages ? false : true, messages)
+            const tabId = createTabId(true)
             if (tabId) {
+                mynahUi.updateStore(tabId, {
+                    chatItems: tabFactory.getChatItems(messages ? false : true, programmingModeCardActive, messages),
+                })
                 messager.onOpenTab(requestId, { tabId })
             } else {
                 messager.onOpenTab(requestId, {
@@ -902,6 +914,7 @@ ${params.message}`,
         listConversations: listConversations,
         conversationClicked: conversationClicked,
         getSerializedChat: getSerializedChat,
+        createTabId: createTabId,
     }
 
     return [mynahUi, api]

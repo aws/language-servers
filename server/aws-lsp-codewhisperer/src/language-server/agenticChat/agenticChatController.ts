@@ -433,7 +433,7 @@ export class AgenticChatController implements ChatHandlers {
             const conversationId = conversationIdentifier ?? ''
 
             // show loading message while we process request
-            loadingMessageId = `loading-${conversationId}-${iterationCount}`
+            loadingMessageId = `loading-${uuid()}-${iterationCount}`
             await chatResultStream.writeResultBlock({ messageId: loadingMessageId, type: 'answer' })
 
             if (!currentMessage || !conversationId) {
@@ -487,6 +487,10 @@ export class AgenticChatController implements ChatHandlers {
                 documentReference
             )
 
+            // show loading message after we render text response and before processing toolUse
+            loadingMessageId = `loading-${uuid()}-${iterationCount}`
+            await chatResultStream.writeResultBlock({ messageId: loadingMessageId, type: 'answer' })
+
             //  Add the current assistantResponse message to the history DB
             if (result.data?.chatResult.body !== undefined) {
                 this.#chatHistoryDb.addMessage(tabId, 'cwc', conversationIdentifier ?? '', {
@@ -508,6 +512,13 @@ export class AgenticChatController implements ChatHandlers {
 
             // Check if we have any tool uses that need to be processed
             const pendingToolUses = this.#getPendingToolUses(result.data?.toolUses || {})
+
+            // remove the temp loading message when we are going to process toolUse
+            if (loadingMessageId) {
+                await chatResultStream.removeResultBlock(loadingMessageId)
+                this.#features.chat.sendChatUpdate({ tabId, state: { inProgress: false } })
+                loadingMessageId = undefined
+            }
 
             if (pendingToolUses.length === 0) {
                 // No more tool uses, we're done
@@ -574,10 +585,11 @@ export class AgenticChatController implements ChatHandlers {
         token?: CancellationToken
     ): Promise<ToolResult[]> {
         const results: ToolResult[] = []
-        let buttonBlockId
         let loadingMessageId
 
         for (const toolUse of toolUses) {
+            // Store buttonBlockId to use it in `catch` block if needed
+            let cachedButtonBlockId
             if (!toolUse.name || !toolUse.toolUseId) continue
             this.#triggerContext.getToolUseLookup().set(toolUse.toolUseId, toolUse)
 
@@ -615,16 +627,9 @@ export class AgenticChatController implements ChatHandlers {
                                 requiresAcceptance,
                                 warning
                             )
-                            const buttonBlockId = await chatResultStream.writeResultBlock(confirmationResult)
-                            // if (toolUse.name !== 'executeBash') {
-                            //     await chatResultStream.writeResultBlock({
-                            //         type: 'tool',
-                            //         body: '',
-                            //         messageId: toolUse.toolUseId,
-                            //     })
-                            // }
+                            cachedButtonBlockId = await chatResultStream.writeResultBlock(confirmationResult)
                             if (requiresAcceptance) {
-                                await this.waitForToolApproval(toolUse, chatResultStream, buttonBlockId, session)
+                                await this.waitForToolApproval(toolUse, chatResultStream, cachedButtonBlockId, session)
                             }
                         }
                         break
@@ -642,12 +647,7 @@ export class AgenticChatController implements ChatHandlers {
                 await chatResultStream.writeResultBlock({ messageId: loadingMessageId, type: 'answer' })
                 this.#features.chat.sendChatUpdate({ tabId, state: { inProgress: true } })
 
-                if (['fsRead', 'listDirectory', 'fileSearch'].includes(toolUse.name)) {
-                    const initialListDirResult = this.#processReadOrListOrSearch(toolUse, chatResultStream)
-                    if (initialListDirResult) {
-                        await chatResultStream.writeResultBlock(initialListDirResult)
-                    }
-                } else if (toolUse.name === 'fsWrite') {
+                if (toolUse.name === 'fsWrite') {
                     const input = toolUse.input as unknown as FsWriteParams
                     const document = await this.#triggerContext.getTextDocument(input.path)
                     this.#triggerContext
@@ -686,6 +686,11 @@ export class AgenticChatController implements ChatHandlers {
                     case 'fsRead':
                     case 'listDirectory':
                     case 'fileSearch':
+                        const initialListDirResult = this.#processReadOrListOrSearch(toolUse, chatResultStream)
+                        if (initialListDirResult) {
+                            await chatResultStream.writeResultBlock(initialListDirResult)
+                        }
+                        break
                     // no need to write tool result for listDir,fsRead,fileSearch into chat stream
                     case 'executeBash':
                         // no need to write tool result for listDir and fsRead into chat stream
@@ -720,10 +725,10 @@ export class AgenticChatController implements ChatHandlers {
 
                 if (this.isUserAction(err, token)) {
                     if (err instanceof ToolApprovalException && toolUse.name === 'executeBash') {
-                        if (buttonBlockId) {
+                        if (cachedButtonBlockId) {
                             await chatResultStream.overwriteResultBlock(
                                 this.#getUpdateBashConfirmResult(toolUse, false),
-                                buttonBlockId
+                                cachedButtonBlockId
                             )
                         } else {
                             this.#features.logging.log('Failed to update executeBash block: no blockId is available.')
@@ -761,13 +766,13 @@ export class AgenticChatController implements ChatHandlers {
         requestInput: RequestType,
         makeRequest: (requestInput: RequestType) => Promise<ResponseType>
     ): Promise<ResponseType> {
-        this.#debug(`Q Backend Request: ${JSON.stringify(requestInput)}`)
+        this.#debug(`Q Model Request: ${JSON.stringify(requestInput)}`)
         try {
             const response = await makeRequest(requestInput)
-            this.#debug(`Q Backend Response: ${JSON.stringify(response)}`)
+            this.#debug(`Q Model Response: ${JSON.stringify(response)}`)
             return response
         } catch (e) {
-            this.#features.logging.error(`Error in call: ${JSON.stringify(e)}`)
+            this.#features.logging.error(`Q Model Error: ${JSON.stringify(e)}`)
             throw new ModelServiceException(e as Error)
         }
     }
@@ -838,7 +843,7 @@ export class AgenticChatController implements ChatHandlers {
         toolType?: string
     ): ChatResult {
         let buttons: Button[] = []
-        let header: { body: string; buttons: Button[] }
+        let header: { body: string; buttons: Button[]; icon?: string; iconForegroundStatus?: string }
         let body: string
 
         switch (toolType || toolUse.name) {
@@ -875,7 +880,9 @@ export class AgenticChatController implements ChatHandlers {
                     },
                 ]
                 header = {
-                    body: '#### ⚠️ Allow file modification outside of your workspace',
+                    icon: 'warning',
+                    iconForegroundStatus: 'warning',
+                    body: '#### Allow file modification outside of your workspace',
                     buttons,
                 }
                 const writeFilePath = (toolUse.input as unknown as FsWriteParams).path
@@ -894,7 +901,9 @@ export class AgenticChatController implements ChatHandlers {
                     },
                 ]
                 header = {
-                    body: '#### ⚠️ Allow read-only tools outside your workspace',
+                    icon: 'warning',
+                    iconForegroundStatus: 'warning',
+                    body: '#### Allow read-only tools outside your workspace',
                     buttons,
                 }
                 // ⚠️ Warning: This accesses files outside the workspace
@@ -1129,14 +1138,12 @@ export class AgenticChatController implements ChatHandlers {
             return createAuthFollowUpResult(authFollowType)
         }
 
-        const backendError = err.cause
-        // Send the backend error message directly to the client to be displayed in chat.
-        return {
+        return new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, err.cause.message, {
             type: 'answer',
-            body: backendError.message,
+            body: 'An error occurred when communicating with the model, check the logs for more information.',
             messageId: errorMessageId,
             buttons: [],
-        }
+        })
     }
 
     async onInlineChatPrompt(
