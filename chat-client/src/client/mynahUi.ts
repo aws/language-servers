@@ -728,7 +728,7 @@ export const createMynahUi = (
 
             // file diffs in the header need space
             fullWidth: message.type === 'tool' && message.header?.buttons ? true : undefined,
-            padding: message.type === 'tool' ? false : undefined,
+            padding: message.type === 'tool' ? (message.messageId?.endsWith('_permission') ? true : false) : undefined,
 
             codeBlockActions:
                 message.type === 'tool'
