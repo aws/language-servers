@@ -6,6 +6,7 @@ import { CodewhispererCompletionType } from './telemetry/types'
 import { BUILDER_ID_START_URL, crashMonitoringDirName, driveLetterRegex, MISSING_BEARER_TOKEN_ERROR } from './constants'
 import { CodeWhispererStreamingServiceException } from '@amzn/codewhisperer-streaming'
 import { ServiceException } from '@smithy/smithy-client'
+import { getAuthFollowUpType } from '../language-server/chat/utils'
 export type SsoConnectionType = 'builderId' | 'identityCenter' | 'none'
 
 export function isAwsError(error: unknown): error is AWSError {
@@ -323,4 +324,12 @@ function hasResponse<T>(error: T): error is T & Pick<ServiceException, '$respons
 
 function hasMetadata<T>(error: T): error is T & Pick<CodeWhispererStreamingServiceException, '$metadata'> {
     return typeof (error as { $metadata?: unknown })?.$metadata === 'object'
+
+export function hasConnectionExpired(error: any) {
+    if (error instanceof Error) {
+        const authFollowType = getAuthFollowUpType(error)
+        return authFollowType == 're-auth'
+    }
+    return false
+
 }

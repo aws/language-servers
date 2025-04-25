@@ -22,13 +22,23 @@ import { truncateOverlapWithRightContext } from './mergeRightUtils'
 import { CodeWhispererSession, SessionManager } from './session/sessionManager'
 import { CodePercentageTracker } from './codePercentage'
 import { CodeWhispererPerceivedLatencyEvent, CodeWhispererServiceInvocationEvent } from '../../shared/telemetry/types'
-import { getCompletionType, getEndPositionForAcceptedSuggestion, isAwsError, safeGet } from '../../shared/utils'
+import {
+    getCompletionType,
+    getEndPositionForAcceptedSuggestion,
+    getErrorMessage,
+    isAwsError,
+    safeGet,
+} from '../../shared/utils'
 import { makeUserContextObject } from '../../shared/telemetryUtils'
 import { fetchSupplementalContext } from '../../shared/supplementalContextUtil/supplementalContextUtil'
 import { textUtils } from '@aws/lsp-core'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import { AcceptedSuggestionEntry, CodeDiffTracker } from './codeDiffTracker'
-import { AmazonQError, AmazonQServiceInitializationError } from '../../shared/amazonQServiceManager/errors'
+import {
+    AmazonQError,
+    AmazonQServiceConnectionExpiredError,
+    AmazonQServiceInitializationError,
+} from '../../shared/amazonQServiceManager/errors'
 import {
     AmazonQBaseServiceManager,
     QServiceManagerFeatures,
@@ -36,6 +46,7 @@ import {
 import { initBaseTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
 import { initBaseIAMServiceManager } from '../../shared/amazonQServiceManager/AmazonQIAMServiceManager'
+import { hasConnectionExpired } from '../../shared/utils'
 
 const EMPTY_RESULT = { sessionId: '', items: [] }
 export const CONTEXT_CHARACTERS_LIMIT = 10240
@@ -480,6 +491,9 @@ export const CodewhispererServerFactory =
                                 throw error
                             }
 
+                            if (hasConnectionExpired(error)) {
+                                throw new AmazonQServiceConnectionExpiredError(getErrorMessage(error))
+                            }
                             return EMPTY_RESULT
                         })
                 })
