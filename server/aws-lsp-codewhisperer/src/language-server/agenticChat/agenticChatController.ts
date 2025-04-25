@@ -6,6 +6,7 @@
 import * as path from 'path'
 import {
     ChatTriggerType,
+    CodeWhispererStreamingServiceException,
     GenerateAssistantResponseCommandInput,
     GenerateAssistantResponseCommandOutput,
     SendMessageCommandInput,
@@ -68,7 +69,7 @@ import { ChatSessionManagementService } from '../chat/chatSessionManagementServi
 import { ChatTelemetryController } from '../chat/telemetry/chatTelemetryController'
 import { QuickAction } from '../chat/quickActions'
 import { Metric } from '../../shared/telemetry/metric'
-import { getErrorMessage, isAwsError, isNullish, isObject } from '../../shared/utils'
+import { getErrorMessage, getHttpStatusCode, isAwsError, isNullish, isObject } from '../../shared/utils'
 import { HELP_MESSAGE } from '../chat/constants'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import {
@@ -1094,9 +1095,22 @@ export class AgenticChatController implements ChatHandlers {
         tabId: string,
         metric: Metric<CombinedConversationEvent>
     ): ChatResult | ResponseError<ChatResult> {
-        if (isAwsError(err) || (isObject(err) && 'statusCode' in err && typeof err.statusCode === 'number')) {
-            metric.setDimension('cwsprChatRepsonseCode', err.statusCode ?? 400)
-            this.#telemetryController.emitMessageResponseError(tabId, metric.metric, err.requestId, err.message)
+        if (isAwsError(err) || (isObject(err) && typeof getHttpStatusCode(err) === 'number')) {
+            let errorMessage: string
+            let requestID: string | undefined
+
+            if (err instanceof CodeWhispererStreamingServiceException) {
+                errorMessage = err.message
+                requestID = err.$metadata.requestId
+            } else {
+                errorMessage = 'Not a CodeWhispererStreamingServiceException.'
+                if (err instanceof Error || err?.message) {
+                    errorMessage += ` Error is: ${err.message}`
+                }
+            }
+
+            metric.setDimension('cwsprChatResponseCode', getHttpStatusCode(err) ?? 0)
+            this.#telemetryController.emitMessageResponseError(tabId, metric.metric, requestID, errorMessage)
         }
 
         // return non-model errors back to the client as errors
