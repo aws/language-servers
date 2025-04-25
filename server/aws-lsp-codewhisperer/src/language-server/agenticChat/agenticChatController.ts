@@ -107,6 +107,7 @@ import { ExplanatoryParams, InvokeOutput, ToolApprovalException } from './tools/
 import { ModelServiceException } from './errors'
 import { FileSearch, FileSearchParams } from './tools/fileSearch'
 import { diffLines } from 'diff'
+import { CodeSearch } from './tools/codeSearch'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -654,6 +655,9 @@ export class AgenticChatController implements ChatHandlers {
                         }
                         break
                     }
+                    case 'codeSearch':
+                        // no need to write tool message for code search.
+                        break
                     default:
                         await chatResultStream.writeResultBlock({
                             type: 'tool',
@@ -715,6 +719,9 @@ export class AgenticChatController implements ChatHandlers {
                     case 'executeBash':
                         // no need to write tool result for listDir and fsRead into chat stream
                         // executeBash will stream the output instead of waiting until the end
+                        break
+                    case 'codeSearch':
+                        // no need to write tool result for code search.
                         break
                     case 'fsWrite':
                         const input = toolUse.input as unknown as FsWriteParams
