@@ -64,9 +64,9 @@ export class AmazonQServiceNoProfileSupportError extends AmazonQError {
     }
 }
 
-export class AmazonQServiceInvalidConnectionError extends AmazonQError {
+export class AmazonQServiceConnectionExpiredError extends AmazonQError {
     constructor(message: string = 'Current authentication token is expired.') {
-        super(message, 'E_AMAZON_Q_INVALID_CONNECTION')
-        this.name = 'AmazonQServiceInvalidConnectionError'
+        super(message, 'E_AMAZON_Q_CONNECTION_EXPIRED')
+        this.name = 'AmazonQServiceConnectionExpiredError'
     }
 }

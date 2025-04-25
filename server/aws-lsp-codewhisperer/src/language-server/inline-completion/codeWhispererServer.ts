@@ -36,7 +36,7 @@ import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import { AcceptedSuggestionEntry, CodeDiffTracker } from './codeDiffTracker'
 import {
     AmazonQError,
-    AmazonQServiceInvalidConnectionError,
+    AmazonQServiceConnectionExpiredError,
     AmazonQServiceInitializationError,
 } from '../../shared/amazonQServiceManager/errors'
 import {
@@ -492,7 +492,7 @@ export const CodewhispererServerFactory =
                             }
 
                             if (hasConnectionExpired(error)) {
-                                throw new AmazonQServiceInvalidConnectionError(getErrorMessage(error))
+                                throw new AmazonQServiceConnectionExpiredError(getErrorMessage(error))
                             }
                             return EMPTY_RESULT
                         })

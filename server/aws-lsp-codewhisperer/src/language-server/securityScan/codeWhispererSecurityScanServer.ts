@@ -19,7 +19,7 @@ import { getErrorMessage, parseJson } from '../../shared/utils'
 import { v4 as uuidv4 } from 'uuid'
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 import { hasConnectionExpired } from '../../shared/utils'
-import { AmazonQServiceInvalidConnectionError } from '../../shared/amazonQServiceManager/errors'
+import { AmazonQServiceConnectionExpiredError } from '../../shared/amazonQServiceManager/errors'
 
 const RunSecurityScanCommand = 'aws/codewhisperer/runSecurityScan'
 const CancelSecurityScanCommand = 'aws/codewhisperer/cancelSecurityScan'
@@ -197,7 +197,7 @@ export const SecurityScanServerToken =
                 securityScanTelemetryEntry.result = 'Failed'
                 const errMessage = getErrorMessage(error)
                 const exception = hasConnectionExpired(error)
-                    ? new AmazonQServiceInvalidConnectionError(errMessage)
+                    ? new AmazonQServiceConnectionExpiredError(errMessage)
                     : error
 
                 return {
