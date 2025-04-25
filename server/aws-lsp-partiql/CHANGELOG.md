@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.0.8](https://github.com/aws/language-servers/compare/lsp-partiql/v0.0.7...lsp-partiql/v0.0.8) (2025-04-25)
+
+
+### Features
+
+* workspace open settings ([#1055](https://github.com/aws/language-servers/issues/1055)) ([f3018da](https://github.com/aws/language-servers/commit/f3018da706663b0f64bc5b4becc2fd600d5ff5b6))
+
+
+### Bug Fixes
+
+* onFileClick logic is crashing the whole process if no workspace is open ([#1119](https://github.com/aws/language-servers/issues/1119)) ([0211223](https://github.com/aws/language-servers/commit/0211223a93dd3ddcb5b7b06882e2a10eb09fa01c))
+
 ## [0.0.7](https://github.com/aws/language-servers/compare/lsp-partiql/v0.0.6...lsp-partiql/v0.0.7) (2025-04-07)
 
 

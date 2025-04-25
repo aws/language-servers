@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.1.4](https://github.com/aws/language-servers/compare/lsp-yaml/v0.1.3...lsp-yaml/v0.1.4) (2025-04-25)
+
+
+### Features
+
+* workspace open settings ([#1055](https://github.com/aws/language-servers/issues/1055)) ([f3018da](https://github.com/aws/language-servers/commit/f3018da706663b0f64bc5b4becc2fd600d5ff5b6))
+
+
+### Bug Fixes
+
+* onFileClick logic is crashing the whole process if no workspace is open ([#1119](https://github.com/aws/language-servers/issues/1119)) ([0211223](https://github.com/aws/language-servers/commit/0211223a93dd3ddcb5b7b06882e2a10eb09fa01c))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @aws/lsp-core bumped from ^0.0.3 to ^0.0.4
+
 ## [0.1.3](https://github.com/aws/language-servers/compare/lsp-yaml/v0.1.2...lsp-yaml/v0.1.3) (2025-04-07)
 
 
