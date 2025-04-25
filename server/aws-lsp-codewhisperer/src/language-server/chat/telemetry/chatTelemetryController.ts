@@ -177,6 +177,7 @@ export class ChatTelemetryController {
                 credentialStartUrl: this.#credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
                 cwsprToolName: toolUse.name ?? '',
                 cwsprToolUseId: toolUse.toolUseId ?? '',
+                result: 'Succeeded',
             },
         })
     }

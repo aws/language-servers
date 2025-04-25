@@ -106,6 +106,7 @@ export class AdditionalContextProvider {
                 description: description.substring(0, additionalContentNameLimit),
                 innerContext: prompt.content.substring(0, additionalContentInnerContextLimit),
                 type: contextType,
+                path: prompt.filePath,
                 relativePath: relativePath,
                 startLine: prompt.startLine,
                 endLine: prompt.endLine,
@@ -126,10 +127,11 @@ export class AdditionalContextProvider {
                         second: item.name === 'symbol' ? item.endLine : -1,
                     },
                 ],
+                fullPath: item.path,
             }
         }
         const fileList: FileList = {
-            filePaths: context.map(item => item.relativePath),
+            filePaths: [...new Set(context.map(item => item.relativePath))],
             details: fileDetails,
         }
         return fileList
