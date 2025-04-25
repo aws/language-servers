@@ -103,6 +103,8 @@ import { ExecuteBash, ExecuteBashOutput, ExecuteBashParams } from './tools/execu
 import { ExplanatoryParams, InvokeOutput, ToolApprovalException } from './tools/toolShared'
 import { ModelServiceException } from './errors'
 import { FileSearch, FileSearchParams } from './tools/fileSearch'
+import { partialClone } from '@aws/lsp-core/out/util/collectionUtils'
+import { formatObjForLogs } from '@aws/lsp-core/out/util/loggingUtils'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -760,10 +762,11 @@ export class AgenticChatController implements ChatHandlers {
         requestInput: RequestType,
         makeRequest: (requestInput: RequestType) => Promise<ResponseType>
     ): Promise<ResponseType> {
-        this.#debug(`Q Model Request: ${JSON.stringify(requestInput)}`)
+        // History can be thousands of lines, so we don't want it in the logs. The full history can be retrieved via requestId.
+        this.#debug(`Q Model Request: ${formatObjForLogs(requestInput, { depth: 5, omitKeys: ['history'] })}`)
         try {
             const response = await makeRequest(requestInput)
-            this.#debug(`Q Model Response: ${JSON.stringify(response)}`)
+            this.#debug(`Q Model Response: ${formatObjForLogs(response, { depth: 5 })}`)
             return response
         } catch (e) {
             this.#features.logging.error(`Q Model Error: ${JSON.stringify(e)}`)
@@ -1490,7 +1493,7 @@ export class AgenticChatController implements ChatHandlers {
         contextList?: FileList
     ): Promise<Result<AgenticChatResultWithMetadata, string>> {
         const requestId = response.$metadata.requestId!
-        const chatEventParser = new AgenticChatEventParser(requestId, metric)
+        const chatEventParser = new AgenticChatEventParser(requestId, metric, this.#features.logging)
         const streamWriter = chatResultStream.getResultStreamWriter()
 
         // Display context transparency list once at the beginning of response

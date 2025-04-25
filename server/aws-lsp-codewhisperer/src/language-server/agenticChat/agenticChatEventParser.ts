@@ -16,6 +16,7 @@ import { AddMessageEvent } from '../../shared/telemetry/types'
 import { Metric } from '../../shared/telemetry/metric'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 import { partialClone } from '@aws/lsp-core/out/util/collectionUtils'
+import { formatObjForLogs } from '@aws/lsp-core/out/util/loggingUtils'
 
 export type ChatResultWithMetadata = {
     chatResult: ChatResult
@@ -143,7 +144,7 @@ export class AgenticChatEventParser implements ChatResult {
                         input: parsedInput,
                     }
                     this.#logging.log(
-                        `ToolUseEvent: ${toolUseId} ${name} ${JSON.stringify(partialClone(parsedInput, 3, [], { maxStringLength: 25 }))}`
+                        `ToolUseEvent: ${toolUseId} ${name} ${formatObjForLogs(this.toolUses[toolUseId].input)}`
                     )
                 }
             }
