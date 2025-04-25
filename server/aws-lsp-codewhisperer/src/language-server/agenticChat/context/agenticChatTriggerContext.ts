@@ -55,6 +55,8 @@ export interface DocumentReference {
     readonly lineRanges: Array<{ first: number; second: number }>
 }
 
+type FileChange = { before?: string; after?: string }
+
 export class AgenticChatTriggerContext {
     private static readonly DEFAULT_CURSOR_STATE: CursorState = { position: { line: 0, character: 0 } }
 
@@ -62,7 +64,7 @@ export class AgenticChatTriggerContext {
     #lsp: Features['lsp']
     #logging: Features['logging']
     #documentContextExtractor: DocumentContextExtractor
-    #toolUseLookup: Map<string, ToolUse & { fileChange?: { before?: string; after?: string }; chatResult?: ChatResult }>
+    #toolUseLookup: Map<string, ToolUse & { fileChange?: FileChange; chatResult?: ChatResult }>
 
     constructor({ workspace, lsp, logging }: Pick<Features, 'workspace' | 'lsp' | 'logging'> & Partial<Features>) {
         this.#workspace = workspace
