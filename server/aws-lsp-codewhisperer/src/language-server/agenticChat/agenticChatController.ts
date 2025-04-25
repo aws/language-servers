@@ -427,7 +427,7 @@ export class AgenticChatController implements ChatHandlers {
             const conversationId = conversationIdentifier ?? ''
 
             // show loading message while we process request
-            loadingMessageId = `loading-${conversationId}-${iterationCount}`
+            loadingMessageId = `loading-${uuid()}-${iterationCount}`
             await chatResultStream.writeResultBlock({ messageId: loadingMessageId, type: 'answer' })
 
             if (!currentMessage || !conversationId) {
@@ -481,6 +481,10 @@ export class AgenticChatController implements ChatHandlers {
                 documentReference
             )
 
+            // show loading message after we render text response and before processing toolUse
+            loadingMessageId = `loading-${uuid()}-${iterationCount}`
+            await chatResultStream.writeResultBlock({ messageId: loadingMessageId, type: 'answer' })
+
             //  Add the current assistantResponse message to the history DB
             if (result.data?.chatResult.body !== undefined) {
                 this.#chatHistoryDb.addMessage(tabId, 'cwc', conversationIdentifier ?? '', {
@@ -502,6 +506,13 @@ export class AgenticChatController implements ChatHandlers {
 
             // Check if we have any tool uses that need to be processed
             const pendingToolUses = this.#getPendingToolUses(result.data?.toolUses || {})
+
+            // remove the temp loading message when we are going to process toolUse
+            if (loadingMessageId) {
+                await chatResultStream.removeResultBlock(loadingMessageId)
+                this.#features.chat.sendChatUpdate({ tabId, state: { inProgress: false } })
+                loadingMessageId = undefined
+            }
 
             if (pendingToolUses.length === 0) {
                 // No more tool uses, we're done
@@ -629,12 +640,7 @@ export class AgenticChatController implements ChatHandlers {
                 await chatResultStream.writeResultBlock({ messageId: loadingMessageId, type: 'answer' })
                 this.#features.chat.sendChatUpdate({ tabId, state: { inProgress: true } })
 
-                if (['fsRead', 'listDirectory', 'fileSearch'].includes(toolUse.name)) {
-                    const initialListDirResult = this.#processReadOrListOrSearch(toolUse, chatResultStream)
-                    if (initialListDirResult) {
-                        await chatResultStream.writeResultBlock(initialListDirResult)
-                    }
-                } else if (toolUse.name === 'fsWrite') {
+                if (toolUse.name === 'fsWrite') {
                     const input = toolUse.input as unknown as FsWriteParams
                     const document = await this.#triggerContext.getTextDocument(input.path)
                     this.#triggerContext
@@ -673,6 +679,11 @@ export class AgenticChatController implements ChatHandlers {
                     case 'fsRead':
                     case 'listDirectory':
                     case 'fileSearch':
+                        const initialListDirResult = this.#processReadOrListOrSearch(toolUse, chatResultStream)
+                        if (initialListDirResult) {
+                            await chatResultStream.writeResultBlock(initialListDirResult)
+                        }
+                        break
                     // no need to write tool result for listDir,fsRead,fileSearch into chat stream
                     case 'executeBash':
                         // no need to write tool result for listDir and fsRead into chat stream
