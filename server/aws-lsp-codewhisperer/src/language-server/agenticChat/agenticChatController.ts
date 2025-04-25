@@ -836,7 +836,7 @@ export class AgenticChatController implements ChatHandlers {
         toolType?: string
     ): ChatResult {
         let buttons: Button[] = []
-        let header: { body: string; buttons: Button[] }
+        let header: { body: string; buttons: Button[]; icon?: string; iconForegroundStatus?: string }
         let body: string
 
         switch (toolType || toolUse.name) {
@@ -873,7 +873,9 @@ export class AgenticChatController implements ChatHandlers {
                     },
                 ]
                 header = {
-                    body: '#### ⚠️ Allow file modification outside of your workspace',
+                    icon: 'warning',
+                    iconForegroundStatus: 'warning',
+                    body: '#### Allow file modification outside of your workspace',
                     buttons,
                 }
                 const writeFilePath = (toolUse.input as unknown as FsWriteParams).path
@@ -892,7 +894,9 @@ export class AgenticChatController implements ChatHandlers {
                     },
                 ]
                 header = {
-                    body: '#### ⚠️ Allow read-only tools outside your workspace',
+                    icon: 'warning',
+                    iconForegroundStatus: 'warning',
+                    body: '#### Allow read-only tools outside your workspace',
                     buttons,
                 }
                 // ⚠️ Warning: This accesses files outside the workspace
