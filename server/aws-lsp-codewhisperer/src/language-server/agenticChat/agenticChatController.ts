@@ -162,11 +162,17 @@ export class AgenticChatController implements ChatHandlers {
             if (!session.data) {
                 return { success: false, failureReason: `could not find chat session for tab: ${params.tabId} ` }
             }
-            const handler = session.data.getDeferredToolExecution(params.messageId)
+            // For 'allow-tools', remove '_permission' suffix from messageId
+            const messageId =
+                params.buttonId === 'allow-tools' && params.messageId.endsWith('_permission')
+                    ? params.messageId.replace('_permission', '')
+                    : params.messageId
+
+            const handler = session.data.getDeferredToolExecution(messageId)
             if (!handler?.reject || !handler.resolve) {
                 return {
                     success: false,
-                    failureReason: `could not find deferred tool execution for message: ${params.messageId} `,
+                    failureReason: `could not find deferred tool execution for message: ${messageId} `,
                 }
             }
             params.buttonId === 'reject-shell-command' ? handler.reject(new ToolApprovalException()) : handler.resolve()
@@ -610,6 +616,13 @@ export class AgenticChatController implements ChatHandlers {
                                 warning
                             )
                             const buttonBlockId = await chatResultStream.writeResultBlock(confirmationResult)
+                            // if (toolUse.name !== 'executeBash') {
+                            //     await chatResultStream.writeResultBlock({
+                            //         type: 'tool',
+                            //         body: '',
+                            //         messageId: toolUse.toolUseId,
+                            //     })
+                            // }
                             if (requiresAcceptance) {
                                 await this.waitForToolApproval(toolUse, chatResultStream, buttonBlockId, session)
                             }
@@ -892,7 +905,8 @@ export class AgenticChatController implements ChatHandlers {
 
         return {
             type: 'tool',
-            messageId: toolUse.toolUseId,
+            messageId:
+                toolType || toolUse.name !== 'executeBash' ? `${toolUse.toolUseId}_permission` : toolUse.toolUseId,
             header,
             body: warning ? warning + (toolType === 'executeBash' ? '' : '\n\n') + body : body,
         }
