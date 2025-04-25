@@ -38,14 +38,4 @@ export const QConfigurationServerTokenProxy = QConfigurationServerToken()
 
 export const QLocalProjectContextServerTokenProxy = LocalProjectContextServer()
 
-export const WorkspaceContextServerTokenProxy = WorkspaceContextServer(
-    (credentialsProvider, workspace, awsQRegion, awsQEndpointUrl, sdkInitializator) => {
-        return new CodeWhispererServiceToken(
-            credentialsProvider,
-            workspace,
-            awsQRegion,
-            awsQEndpointUrl,
-            sdkInitializator
-        )
-    }
-)
+export const WorkspaceContextServerTokenProxy = WorkspaceContextServer()

@@ -34,6 +34,7 @@
         "@aws/chat-client-ui-types": "^0.1.28",
         "@aws/language-server-runtimes": "^0.2.75",
         "@aws/lsp-core": "^0.0.3",
+        "@modelcontextprotocol/sdk": "^1.9.0",
         "@smithy/node-http-handler": "^2.5.0",
         "adm-zip": "^0.5.10",
         "archiver": "^7.0.1",
@@ -56,8 +57,7 @@
         "vscode-uri": "^3.1.0",
         "ws": "^8.18.0",
         "xml2js": "^0.6.2",
-        "xmlbuilder2": "^3.1.1",
-        "@modelcontextprotocol/sdk": "^1.9.0"
+        "xmlbuilder2": "^3.1.1"
     },
     "devDependencies": {
         "@types/adm-zip": "^0.5.5",

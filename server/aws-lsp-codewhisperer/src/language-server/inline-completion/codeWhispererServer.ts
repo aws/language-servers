@@ -13,7 +13,6 @@ import {
     TextDocument,
     ResponseError,
     LSPErrorCodes,
-    WorkspaceFolder,
 } from '@aws/language-server-runtimes/server-interface'
 import { AWSError } from 'aws-sdk'
 import { autoTrigger, triggerType } from './auto-trigger/autoTrigger'
@@ -56,7 +55,6 @@ const getFileContext = (params: {
     }
     leftFileContent: string
     rightFileContent: string
-    workspaceFolder?: WorkspaceFolder
 } => {
     const left = params.textDocument.getText({
         start: { line: 0, character: 0 },
@@ -82,7 +80,6 @@ const getFileContext = (params: {
         },
         leftFileContent: left,
         rightFileContent: right,
-        workspaceFolder: workspaceFolder,
     }
 }
 
@@ -295,8 +292,8 @@ export const CodewhispererServerFactory =
                     const maxResults = isAutomaticLspTriggerKind ? 1 : 5
                     const selectionRange = params.context.selectedCompletionInfo?.range
                     const fileContext = getFileContext({ textDocument, inferredLanguageId, position: params.position })
-
-                    const workspaceId = WorkspaceFolderManager.getInstance()?.getWorkspaceId(fileContext.workspaceFolder)
+                    const workspaceFolder = WorkspaceFolderManager.getInstance()?.getWorkspaceFolder(params.textDocument.uri)
+                    const workspaceId = WorkspaceFolderManager.getInstance()?.getWorkspaceId(workspaceFolder)
                     // TODO: Can we get this derived from a keyboard event in the future?
                     // This picks the last non-whitespace character, if any, before the cursor
                     const triggerCharacter = fileContext.leftFileContent.trim().at(-1) ?? ''
