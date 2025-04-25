@@ -433,7 +433,7 @@ export const createMynahUi = (
             const chatItems = store.chatItems || []
             const updatedItems = chatItems.map(item => ({
                 ...item,
-                type: item.type === ChatItemType.ANSWER_STREAM ? ChatItemType.ANSWER : item.type,
+                type: item.type === ChatItemType.ANSWER_STREAM && !item.body ? ChatItemType.ANSWER : item.type,
             }))
             mynahUi.updateStore(tabId, { loadingChat: false, cancelButtonWhenLoading: true, chatItems: updatedItems })
             messager.onStopChatResponse(tabId)
