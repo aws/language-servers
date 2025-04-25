@@ -9,6 +9,7 @@ import {
 import { disclaimerCard } from '../texts/disclaimer'
 import { ChatMessage } from '@aws/language-server-runtimes-types'
 import { ChatHistory } from '../features/history'
+import { pairProgrammingPromptInput, programmerModeCard } from '../texts/pairProgramming'
 
 export type DefaultTabData = MynahUIDataModel
 
@@ -33,27 +34,26 @@ export class TabFactory {
     public createTab(
         needWelcomeMessages: boolean,
         disclaimerCardActive: boolean,
+        pairProgrammingCardActive: boolean,
         chatMessages?: ChatMessage[]
     ): MynahUIDataModel {
         const tabData: MynahUIDataModel = {
             ...this.getDefaultTabData(),
             chatItems: needWelcomeMessages
                 ? [
+                      ...(pairProgrammingCardActive ? [programmerModeCard] : []),
                       {
                           type: ChatItemType.ANSWER,
                           body: `Hi, I'm Amazon Q. I can answer your software development questions. 
                         Ask me to explain, debug, or optimize your code. 
                         You can enter \`/\` to see a list of quick actions.`,
                       },
-                      {
-                          type: ChatItemType.ANSWER,
-                          followUp: this.getWelcomeBlock(),
-                      },
                   ]
                 : chatMessages
                   ? (chatMessages as ChatItem[])
                   : [],
             ...(disclaimerCardActive ? { promptInputStickyCard: disclaimerCard } : {}),
+            promptInputOptions: [pairProgrammingPromptInput],
         }
         return tabData
     }
@@ -78,23 +78,6 @@ export class TabFactory {
 
         tabData.tabBarButtons = this.getTabBarButtons()
         return tabData
-    }
-
-    private getWelcomeBlock() {
-        return {
-            text: 'Try Examples:',
-            options: [
-                {
-                    pillText: 'Explain selected code',
-                    prompt: 'Explain selected code',
-                    type: 'init-prompt',
-                },
-                {
-                    pillText: 'How can Amazon Q help me?',
-                    type: 'help',
-                },
-            ],
-        }
     }
 
     private getTabBarButtons(): TabBarMainAction[] | undefined {

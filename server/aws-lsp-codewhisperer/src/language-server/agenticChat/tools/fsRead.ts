@@ -1,8 +1,11 @@
 import { sanitize } from '@aws/lsp-core/out/util/path'
-import { InvokeOutput } from './toolShared'
+import { URI } from 'vscode-uri'
+import { CommandValidation, InvokeOutput, requiresPathAcceptance, validatePath } from './toolShared'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
+import { workspaceUtils } from '@aws/lsp-core'
+import { getWorkspaceFolderPaths } from '@aws/lsp-core/out/util/workspaceUtils'
 
-// Port of https://github.com/aws/aws-toolkit-vscode/blob/8e00eefa33f4eee99eed162582c32c270e9e798e/packages/core/src/codewhispererChat/tools/fsRead.ts#L17
+// Port of https://github.com/aws/aws-toolkit-vscode/blob/5a0404eb0e2c637ca3bd119714f5c7a24634f746/packages/core/src/codewhispererChat/tools/fsRead.ts#L17
 
 export interface FsReadParams {
     path: string
@@ -10,47 +13,49 @@ export interface FsReadParams {
 }
 
 export class FsRead {
+    static maxResponseSize = 200_000
     private readonly logging: Features['logging']
     private readonly workspace: Features['workspace']
+    private readonly lsp: Features['lsp']
 
-    constructor(features: Pick<Features, 'workspace' | 'logging'> & Partial<Features>) {
+    constructor(features: Pick<Features, 'lsp' | 'workspace' | 'logging'> & Partial<Features>) {
         this.logging = features.logging
         this.workspace = features.workspace
+        this.lsp = features.lsp
     }
 
     public async validate(params: FsReadParams): Promise<void> {
-        this.logging.debug(`Validating path: ${params.path}`)
-        if (!params.path || params.path.trim().length === 0) {
-            throw new Error('Path cannot be empty.')
-        }
-
-        const fileExists = await this.workspace.fs.exists(params.path)
-        if (!fileExists) {
-            throw new Error(`Path: "${params.path}" does not exist or cannot be accessed.`)
-        }
-
-        this.logging.debug(`Validation succeeded for path: ${params.path}`)
+        await validatePath(params.path, this.workspace.fs.exists)
     }
 
-    public async queueDescription(params: FsReadParams, updates: WritableStream) {
+    public async queueDescription(params: FsReadParams, updates: WritableStream, requiresAcceptance: boolean) {
         const updateWriter = updates.getWriter()
-        await updateWriter.write(`Reading file: ${params.path}]`)
+        const closeWriter = async (w: WritableStreamDefaultWriter) => {
+            await w.close()
+            w.releaseLock()
+        }
+        if (!requiresAcceptance) {
+            await closeWriter(updateWriter)
+            return
+        }
+        await updateWriter.write(`Reading file: [${params.path}]`)
 
         const [start, end] = params.readRange ?? []
 
         if (start && end) {
             await updateWriter.write(`from line ${start} to ${end}`)
         } else if (start) {
-            if (start > 0) {
-                await updateWriter.write(`from line ${start} to end of file`)
-            } else {
-                await updateWriter.write(`${start} line from the end of file to end of file`)
-            }
+            const msg =
+                start > 0 ? `from line ${start} to end of file` : `${start} line from the end of file to end of file`
+            await updateWriter.write(msg)
         } else {
             await updateWriter.write('all lines')
         }
-        await updateWriter.close()
-        updateWriter.releaseLock()
+        await closeWriter(updateWriter)
+    }
+
+    public async requiresAcceptance(params: FsReadParams): Promise<CommandValidation> {
+        return requiresPathAcceptance(params.path, this.lsp, this.logging)
     }
 
     public async invoke(params: FsReadParams): Promise<InvokeOutput> {
@@ -101,10 +106,18 @@ export class FsRead {
     }
 
     private createOutput(content: string): InvokeOutput {
+        const exceedsMaxSize = content.length > FsRead.maxResponseSize
+        if (exceedsMaxSize) {
+            this.logging.info(`FsRead: truncating response to first ${FsRead.maxResponseSize} characters`)
+            content = content.substring(0, FsRead.maxResponseSize - 3) + '...'
+        }
         return {
             output: {
-                kind: 'text',
-                content: content,
+                kind: 'json',
+                content: {
+                    content,
+                    truncated: exceedsMaxSize,
+                },
             },
         }
     }
@@ -113,13 +126,12 @@ export class FsRead {
         return {
             name: 'fsRead',
             description:
-                'A tool for reading a file.\n * This tool returns the contents of a file, and the optional `readRange` determines what range of lines will be read from the specified file',
+                'A tool for reading a file.\n * This tool returns the contents of a file, and the optional `readRange` determines what range of lines will be read from the specified file.\n * If the file exceeds 200K characters, this tool will only read the first 200K characters of the file with a `truncated=true` in the output',
             inputSchema: {
                 type: 'object',
                 properties: {
                     path: {
-                        description:
-                            'Path to a file, e.g. `/path/to/repo/file.py`. If you want to access a path relative to the current workspace, use relative paths e.g. `./src/file.py`.',
+                        description: 'Absolute path to a file, e.g. `/repo/file.py`.',
                         type: 'string',
                     },
                     readRange: {

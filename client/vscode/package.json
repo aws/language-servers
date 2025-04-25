@@ -103,13 +103,8 @@
                 "category": "Test Amazon Q Extension"
             },
             {
-                "command": "aws.sample-vscode-ext-amazonq.updateProfileIad",
-                "title": "Update Amazon Q IDC Profile IAD",
-                "category": "Test Amazon Q Extension"
-            },
-            {
-                "command": "aws.sample-vscode-ext-amazonq.updateProfileFra",
-                "title": "Update Amazon Q IDC Profile FRA",
+                "command": "aws.sample-vscode-ext-amazonq.selectProfile",
+                "title": "Select an (available) Amazon Q IDC profile",
                 "category": "Test Amazon Q Extension"
             },
             {
@@ -351,8 +346,8 @@
     "devDependencies": {
         "@aws-sdk/credential-providers": "^3.731.1",
         "@aws-sdk/types": "^3.734.0",
-        "@aws/chat-client-ui-types": "^0.1.16",
-        "@aws/language-server-runtimes": "^0.2.61",
+        "@aws/chat-client-ui-types": "^0.1.28",
+        "@aws/language-server-runtimes": "^0.2.76",
         "@types/uuid": "^9.0.8",
         "@types/vscode": "^1.98.0",
         "jose": "^5.2.4",

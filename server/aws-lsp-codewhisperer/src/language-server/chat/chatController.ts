@@ -9,6 +9,10 @@ import {
     TextEdit,
     chatRequestType,
     InlineChatResultParams,
+    NotificationHandler,
+    PromptInputOptionChangeParams,
+    ButtonClickParams,
+    ButtonClickResult,
 } from '@aws/language-server-runtimes/protocol'
 import {
     CancellationToken,
@@ -91,6 +95,13 @@ export class ChatController implements ChatHandlers {
     dispose() {
         this.#chatSessionManagementService.dispose()
         this.#telemetryController.dispose()
+    }
+
+    async onButtonClick(params: ButtonClickParams): Promise<ButtonClickResult> {
+        return {
+            success: false,
+            failureReason: 'not implemented',
+        }
     }
 
     async onChatPrompt(params: ChatParams, token: CancellationToken): Promise<ChatResult | ResponseError<ChatResult>> {
@@ -566,6 +577,8 @@ export class ChatController implements ChatHandlers {
 
         return chatEventParser.getResult()
     }
+
+    onPromptInputOptionChange() {}
 
     updateConfiguration = (newConfig: AmazonQWorkspaceConfig) => {
         this.#customizationArn = newConfig.customizationArn

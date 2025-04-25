@@ -1,4 +1,4 @@
-import { AppendParams, CreateParams, FsWrite, InsertParams, StrReplaceParams } from './fsWrite'
+import { AppendParams, CreateParams, FsWrite, getDiffChanges, InsertParams, StrReplaceParams } from './fsWrite'
 import { testFolder } from '@aws/lsp-core'
 import * as path from 'path'
 import * as assert from 'assert'
@@ -93,39 +93,6 @@ describe('FsWrite Tool', function () {
 
             const content = await features.workspace.fs.readFile(filePath)
             assert.strictEqual(content, 'Goodbye')
-
-            assert.deepStrictEqual(output, expectedOutput)
-        })
-
-        it('uses newStr when fileText is not provided', async function () {
-            const filePath = path.join(tempFolder.path, 'file2.txt')
-
-            const params: CreateParams = {
-                command: 'create',
-                newStr: 'Hello World',
-                path: filePath,
-            }
-            const fsWrite = new FsWrite(features)
-            const output = await fsWrite.invoke(params)
-
-            const content = await features.workspace.fs.readFile(filePath)
-            assert.strictEqual(content, 'Hello World')
-
-            assert.deepStrictEqual(output, expectedOutput)
-        })
-
-        it('creates an empty file when no content is provided', async function () {
-            const filePath = path.join(tempFolder.path, 'file3.txt')
-
-            const params: CreateParams = {
-                command: 'create',
-                path: filePath,
-            }
-            const fsWrite = new FsWrite(features)
-            const output = await fsWrite.invoke(params)
-
-            const content = await features.workspace.fs.readFile(filePath)
-            assert.strictEqual(content, '')
 
             assert.deepStrictEqual(output, expectedOutput)
         })
@@ -425,115 +392,120 @@ describe('FsWrite Tool', function () {
             await assert.rejects(() => fsWrite.invoke(params), /no such file or directory/)
         })
     })
+})
 
-    describe('getDiffChanges', function () {
-        it('handles create case', async function () {
-            const testContent = 'newFileText'
-            const fsWrite = new FsWrite(features)
+describe('getDiffChanges', function () {
+    let tempFolder: testFolder.TestFolder
+    before(async function () {
+        tempFolder = await testFolder.TestFolder.create()
+    })
 
-            const filepath = path.join(tempFolder.path, 'testFile.txt')
+    it('handles create case', async function () {
+        const testContent = 'newFileText'
 
-            const result = await fsWrite.getDiffChanges({ command: 'create', path: filepath, fileText: testContent })
-            assert.deepStrictEqual(result, [
-                {
-                    added: true,
-                    count: 1,
-                    removed: false,
-                    value: testContent,
-                },
-            ])
-            const result2 = await fsWrite.getDiffChanges({ command: 'create', path: filepath })
-            assert.deepStrictEqual(result2, [])
-        })
+        const filepath = path.join(tempFolder.path, 'testFile.txt')
 
-        it('handles replace case', async function () {
-            const fsWrite = new FsWrite(features)
-            const content = 'replace this old word'
-            const filepath = await tempFolder.write('testFile.txt', content)
+        const result = getDiffChanges({ command: 'create', path: filepath, fileText: testContent }, '')
+        assert.deepStrictEqual(result, [
+            {
+                added: true,
+                count: 1,
+                removed: false,
+                value: testContent,
+            },
+        ])
+    })
 
-            const result = await fsWrite.getDiffChanges({
+    it('handles replace case', async function () {
+        const content = 'replace this old word'
+        const filepath = await tempFolder.write('testFile.txt', content)
+
+        const result = getDiffChanges(
+            {
                 command: 'strReplace',
                 path: filepath,
                 oldStr: 'old',
                 newStr: 'new',
-            })
-            assert.deepStrictEqual(result, [
-                {
-                    added: false,
-                    count: 1,
-                    removed: true,
-                    value: content,
-                },
-                {
-                    added: true,
-                    count: 1,
-                    removed: false,
-                    value: content.replace('old', 'new'),
-                },
-            ])
-        })
+            },
+            content
+        )
+        assert.deepStrictEqual(result, [
+            {
+                added: false,
+                count: 1,
+                removed: true,
+                value: content,
+            },
+            {
+                added: true,
+                count: 1,
+                removed: false,
+                value: content.replace('old', 'new'),
+            },
+        ])
+    })
 
-        it('handles insert case', async function () {
-            const fsWrite = new FsWrite(features)
-            const content = 'line1 \n line2 \n line3'
-            const filepath = await tempFolder.write('testFile.txt', content)
+    it('handles insert case', async function () {
+        const content = 'line1 \n line2 \n line3'
+        const filepath = await tempFolder.write('testFile.txt', content)
 
-            const result = await fsWrite.getDiffChanges({
+        const result = getDiffChanges(
+            {
                 command: 'insert',
                 path: filepath,
                 insertLine: 2,
                 newStr: 'new text',
-            })
+            },
+            content
+        )
 
-            assert.deepStrictEqual(result, [
-                {
-                    added: false,
-                    count: 2,
-                    removed: false,
-                    value: 'line1 \n line2 \n',
-                },
-                {
-                    added: true,
-                    count: 1,
-                    removed: false,
-                    value: 'new text\n',
-                },
-                {
-                    added: false,
-                    count: 1,
-                    removed: false,
-                    value: ' line3',
-                },
-            ])
-        })
+        assert.deepStrictEqual(result, [
+            {
+                added: false,
+                count: 2,
+                removed: false,
+                value: 'line1 \n line2 \n',
+            },
+            {
+                added: true,
+                count: 1,
+                removed: false,
+                value: 'new text\n',
+            },
+            {
+                added: false,
+                count: 1,
+                removed: false,
+                value: ' line3',
+            },
+        ])
+    })
 
-        it('handles append case', async function () {
-            const fsWrite = new FsWrite(features)
-            const content = 'line1 \n line2'
-            const filepath = await tempFolder.write('testFile.txt', content)
+    it('handles append case', async function () {
+        const content = 'line1 \n line2'
+        const filepath = await tempFolder.write('testFile.txt', content)
 
-            const result = await fsWrite.getDiffChanges({ command: 'append', path: filepath, newStr: 'line3' })
+        const result = getDiffChanges({ command: 'append', path: filepath, newStr: 'line3' }, content)
 
-            assert.deepStrictEqual(result, [
-                {
-                    added: false,
-                    count: 1,
-                    removed: false,
-                    value: 'line1 \n',
-                },
-                {
-                    added: false,
-                    count: 1,
-                    removed: true,
-                    value: ' line2',
-                },
-                {
-                    added: true,
-                    count: 2,
-                    removed: false,
-                    value: ' line2\nline3',
-                },
-            ])
-        })
+        assert.deepStrictEqual(result, [
+            {
+                added: false,
+                count: 1,
+                removed: false,
+                value: 'line1 \n',
+            },
+            {
+                added: false,
+                count: 1,
+                removed: true,
+                value: ' line2',
+            },
+            {
+                added: true,
+                count: 2,
+                removed: false,
+                value: ' line2\nline3',
+            },
+        ])
     })
 })

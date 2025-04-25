@@ -45,6 +45,7 @@ import {
 import { CodeDiffTracker } from './codeDiffTracker'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import { initBaseTestServiceManager, TestAmazonQServiceManager } from '../../shared/amazonQServiceManager/testUtils'
+import { LocalProjectContextController } from '../../shared/localProjectContextController'
 import { URI } from 'vscode-uri'
 
 const updateConfiguration = async (
@@ -560,6 +561,10 @@ describe('CodeWhisperer Server', () => {
                         responseContext: EXPECTED_RESPONSE_CONTEXT,
                     })
                 )
+
+                sandbox.stub(LocalProjectContextController, 'getInstance').resolves({
+                    queryInlineProjectContext: sandbox.stub().resolves([]),
+                } as unknown as LocalProjectContextController)
 
                 // Initialize the features, but don't start server yet
                 TestAmazonQServiceManager.resetInstance()

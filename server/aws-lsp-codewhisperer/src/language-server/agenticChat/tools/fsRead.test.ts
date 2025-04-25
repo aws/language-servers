@@ -3,19 +3,13 @@ import { FsRead } from './fsRead'
 import * as path from 'path'
 import * as fs from 'fs/promises'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
-import { Workspace } from '@aws/language-server-runtimes/server-interface'
+import { TextDocument, Workspace } from '@aws/language-server-runtimes/server-interface'
 import { testFolder } from '@aws/lsp-core'
 import { StubbedInstance } from 'ts-sinon'
 
 describe('FsRead Tool', () => {
     let features: TestFeatures
     let tempFolder: testFolder.TestFolder
-
-    const stdout = new WritableStream({
-        write(chunk) {
-            process.stdout.write(chunk)
-        },
-    })
 
     before(async () => {
         features = new TestFeatures()
@@ -63,15 +57,23 @@ describe('FsRead Tool', () => {
         )
     })
 
+    it('truncate output if too large', async () => {
+        const fileContent = 'A'.repeat(FsRead.maxResponseSize + 10)
+        const filePath = await tempFolder.write('largeFile.txt', fileContent)
+        const fsRead = new FsRead(features)
+        await fsRead.validate({ path: filePath })
+        const result = await fsRead.invoke({ path: filePath })
+
+        verifyResult(result, { truncated: true }, ({ content }) => content.length === FsRead.maxResponseSize)
+    })
+
     it('reads entire file', async () => {
         const fileContent = 'Line 1\nLine 2\nLine 3'
         const filePath = await tempFolder.write('fullFile.txt', fileContent)
 
         const fsRead = new FsRead(features)
         const result = await fsRead.invoke({ path: filePath })
-
-        assert.strictEqual(result.output.kind, 'text', 'Output kind should be "text"')
-        assert.strictEqual(result.output.content, fileContent, 'File content should match exactly')
+        verifyResult(result, { content: fileContent, truncated: false })
     })
 
     it('reads partial lines of a file', async () => {
@@ -80,9 +82,7 @@ describe('FsRead Tool', () => {
 
         const fsRead = new FsRead(features)
         const result = await fsRead.invoke({ path: filePath, readRange: [2, 4] })
-
-        assert.strictEqual(result.output.kind, 'text')
-        assert.strictEqual(result.output.content, 'B\nC\nD')
+        verifyResult(result, { content: 'B\nC\nD', truncated: false })
     })
 
     it('invalid line range', async () => {
@@ -91,8 +91,7 @@ describe('FsRead Tool', () => {
 
         await fsRead.invoke({ path: filePath, readRange: [3, 2] })
         const result = await fsRead.invoke({ path: filePath, readRange: [3, 2] })
-        assert.strictEqual(result.output.kind, 'text')
-        assert.strictEqual(result.output.content, '')
+        verifyResult(result, { content: '', truncated: false })
     })
 
     it('updates the stream', async () => {
@@ -103,8 +102,67 @@ describe('FsRead Tool', () => {
                 chunks.push(c)
             },
         })
-        await fsRead.queueDescription({ path: 'this/is/my/path' }, stream)
+        await fsRead.queueDescription({ path: 'this/is/my/path' }, stream, true)
         assert.ok(chunks.length > 0)
         assert.ok(!stream.locked)
     })
+
+    it('should require acceptance if fsPath is outside the workspace', async () => {
+        const fsRead = new FsRead({
+            ...features,
+            workspace: {
+                ...features.workspace,
+                getTextDocument: async s => undefined,
+            },
+        })
+        const result = await fsRead.requiresAcceptance({ path: '/not/in/workspace/file.txt' })
+        assert.equal(
+            result.requiresAcceptance,
+            true,
+            'Expected requiresAcceptance to be true for a path outside the workspace'
+        )
+    })
+
+    it('should not require acceptance if fsPath is inside the workspace', async () => {
+        const fsRead = new FsRead({
+            ...features,
+            lsp: {
+                ...features.lsp,
+                getClientInitializeParams: () => ({
+                    workspaceFolders: [{ uri: 'file:///workspace/folder', name: 'workspace' }],
+                    processId: 123,
+                    rootUri: 'file:///workspace/folder',
+                    capabilities: {},
+                }),
+            },
+            workspace: {
+                ...features.workspace,
+                getTextDocument: async s => ({}) as TextDocument,
+            },
+        })
+        const result = await fsRead.requiresAcceptance({ path: '/workspace/folder/file.txt' })
+        assert.equal(
+            result.requiresAcceptance,
+            false,
+            'Expected requiresAcceptance to be false for a path inside the workspace'
+        )
+    })
 })
+
+function verifyResult(
+    result: any,
+    expected: { content?: string; truncated: boolean },
+    customChecks?: (r: { content: string; truncated: boolean }) => boolean
+) {
+    assert.strictEqual(result.output.kind, 'json', 'Output kind should be "json"')
+    const resultContent = result.output.content as { content: string; truncated: boolean }
+    if (expected.content) {
+        assert.strictEqual(resultContent.content, expected.content, 'File content should match exactly')
+    }
+    if (expected.truncated !== undefined) {
+        assert.strictEqual(resultContent.truncated, expected.truncated, 'Truncated flag should match')
+    }
+    if (customChecks) {
+        assert.ok(customChecks(resultContent), 'Custom checks failed in verifyResult')
+    }
+}

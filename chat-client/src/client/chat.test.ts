@@ -204,7 +204,6 @@ describe('Chat', () => {
 
     it('complete chat response triggers ui events', () => {
         const endMessageStreamStub = sandbox.stub(mynahUi, 'endMessageStream')
-        const updateLastChatAnswerStub = sandbox.stub(mynahUi, 'updateLastChatAnswer')
         const updateStoreStub = sandbox.stub(mynahUi, 'updateStore')
 
         const tabId = '123'
@@ -217,17 +216,25 @@ describe('Chat', () => {
         })
         window.dispatchEvent(chatEvent)
 
-        assert.calledOnceWithExactly(endMessageStreamStub, tabId, '')
-        assert.calledOnceWithMatch(updateLastChatAnswerStub, tabId, { body })
+        assert.calledOnceWithExactly(endMessageStreamStub, tabId, '', {
+            header: undefined,
+            buttons: undefined,
+            body: 'some response',
+            followUp: {},
+            relatedContent: undefined,
+            canBeVoted: undefined,
+            codeReference: undefined,
+            fileList: undefined,
+        })
         assert.calledOnceWithExactly(updateStoreStub, tabId, {
             loadingChat: false,
             promptInputDisabledState: false,
+            cancelButtonWhenLoading: true,
         })
     })
 
     it('partial chat response triggers ui events', () => {
         const endMessageStreamStub = sandbox.stub(mynahUi, 'endMessageStream')
-        const updateLastChatAnswerStub = sandbox.stub(mynahUi, 'updateLastChatAnswer')
         const updateStoreStub = sandbox.stub(mynahUi, 'updateStore')
 
         const tabId = '123'
@@ -240,15 +247,12 @@ describe('Chat', () => {
             isPartialResult: true,
         })
         window.dispatchEvent(chatEvent)
-
-        assert.calledOnceWithExactly(updateLastChatAnswerStub, tabId, { body, header: undefined })
         assert.notCalled(endMessageStreamStub)
         assert.notCalled(updateStoreStub)
     })
 
     it('partial chat response with header triggers ui events', () => {
         const endMessageStreamStub = sandbox.stub(mynahUi, 'endMessageStream')
-        const updateLastChatAnswerStub = sandbox.stub(mynahUi, 'updateLastChatAnswer')
         const updateStoreStub = sandbox.stub(mynahUi, 'updateStore')
 
         const tabId = '123'
@@ -290,11 +294,6 @@ describe('Chat', () => {
         })
 
         window.dispatchEvent(chatEvent)
-
-        assert.calledOnceWithExactly(updateLastChatAnswerStub, tabId, {
-            ...params,
-            header: mockHeader,
-        })
         assert.notCalled(endMessageStreamStub)
         assert.notCalled(updateStoreStub)
     })

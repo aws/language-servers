@@ -1,14 +1,20 @@
-import { Server } from '@aws/language-server-runtimes/server-interface'
+import { CancellationToken, Server } from '@aws/language-server-runtimes/server-interface'
 import { FsRead, FsReadParams } from './fsRead'
 import { FsWrite, FsWriteParams } from './fsWrite'
 import { ListDirectory, ListDirectoryParams } from './listDirectory'
 import { ExecuteBash, ExecuteBashParams } from './executeBash'
+import { LspGetDocuments, LspGetDocumentsParams } from './lspGetDocuments'
+import { LspReadDocumentContents, LspReadDocumentContentsParams } from './lspReadDocumentContents'
+import { LspApplyWorkspaceEdit, LspApplyWorkspaceEditParams } from './lspApplyWorkspaceEdit'
+import { McpManager } from './mcp/mcpManager'
+import { McpTool } from './mcp/mcpTool'
+import { FileSearch, FileSearchParams } from './fileSearch'
 
-export const FsToolsServer: Server = ({ workspace, logging, agent }) => {
-    const fsReadTool = new FsRead({ workspace, logging })
-    const fsWriteTool = new FsWrite({ workspace, logging })
-
-    const listDirectoryTool = new ListDirectory({ workspace, logging })
+export const FsToolsServer: Server = ({ workspace, logging, agent, lsp }) => {
+    const fsReadTool = new FsRead({ workspace, lsp, logging })
+    const fsWriteTool = new FsWrite({ workspace, lsp, logging })
+    const listDirectoryTool = new ListDirectory({ workspace, logging, lsp })
+    const fileSearchTool = new FileSearch({ workspace, logging, lsp })
 
     agent.addTool(fsReadTool.getSpec(), async (input: FsReadParams) => {
         // TODO: fill in logic for handling invalid tool invocations
@@ -24,13 +30,61 @@ export const FsToolsServer: Server = ({ workspace, logging, agent }) => {
         return await fsWriteTool.invoke(input)
     })
 
-    agent.addTool(listDirectoryTool.getSpec(), (input: ListDirectoryParams) => listDirectoryTool.invoke(input))
+    agent.addTool(listDirectoryTool.getSpec(), (input: ListDirectoryParams, token?: CancellationToken) =>
+        listDirectoryTool.invoke(input, token)
+    )
+
+    agent.addTool(fileSearchTool.getSpec(), (input: FileSearchParams) => fileSearchTool.invoke(input))
 
     return () => {}
 }
 
-export const BashToolsServer: Server = ({ logging, agent }) => {
-    const bashTool = new ExecuteBash(logging)
-    agent.addTool(bashTool.getSpec(), (input: ExecuteBashParams) => bashTool.invoke(input))
+export const BashToolsServer: Server = ({ logging, workspace, agent, lsp }) => {
+    const bashTool = new ExecuteBash({ logging, workspace, lsp })
+    agent.addTool(bashTool.getSpec(), (input: ExecuteBashParams, token?: CancellationToken, updates?: WritableStream) =>
+        bashTool.invoke(input, token, updates)
+    )
     return () => {}
+}
+
+export const LspToolsServer: Server = ({ workspace, logging, lsp, agent }) => {
+    const lspGetDocuments = new LspGetDocuments({ workspace, logging })
+    const lspReadDocumentContents = new LspReadDocumentContents({ workspace, logging })
+    const lspApplyWorkspaceEdit = new LspApplyWorkspaceEdit({ lsp, logging })
+
+    agent.addTool(LspGetDocuments.getSpec(), (input: LspGetDocumentsParams) => lspGetDocuments.invoke(input))
+    agent.addTool(LspReadDocumentContents.getSpec(), (input: LspReadDocumentContentsParams) =>
+        lspReadDocumentContents.invoke(input)
+    )
+    agent.addTool(LspApplyWorkspaceEdit.getSpec(), input => lspApplyWorkspaceEdit.invoke(input))
+
+    return () => {}
+}
+
+export const McpToolsServer: Server = ({ workspace, logging, lsp, agent }) => {
+    lsp.onInitialized(async () => {
+        // todo: move to constants
+        const wsUris = lsp.getClientInitializeParams()?.workspaceFolders?.map(f => f.uri) ?? []
+        const wsConfigPaths = wsUris.map(uri => `${uri}/.amazonq/mcp.json`)
+        const globalConfigPath = `${workspace.fs.getUserHomeDir()}/.aws/amazonq/mcp.json`
+        const allPaths = [...wsConfigPaths, globalConfigPath]
+
+        const mgr = await McpManager.init(allPaths, { logging, workspace, lsp })
+
+        for (const def of mgr.getAllTools()) {
+            const baseSpec = def
+            const namespaced = `${def.serverName}_${def.toolName}`
+            const tool = new McpTool({ logging, workspace, lsp }, def)
+
+            agent.addTool(
+                { name: namespaced, description: baseSpec.description, inputSchema: baseSpec.inputSchema },
+                (input: any) => tool.invoke(input)
+            )
+            logging.info(`MCP: registered tool ${namespaced}`)
+        }
+    })
+
+    return async () => {
+        await McpManager.instance.close()
+    }
 }

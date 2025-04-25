@@ -7,6 +7,7 @@ import { ChatResponseStream, Reference, SupplementaryWebLink, ToolUse } from '@a
 import {
     ChatItemAction,
     ChatResult,
+    FileList,
     ReferenceTrackerInformation,
     SourceLink,
 } from '@aws/language-server-runtimes/protocol'
@@ -31,6 +32,7 @@ export class AgenticChatEventParser implements ChatResult {
     followUp?: { text?: string; options?: ChatItemAction[] }
     codeReference?: ReferenceTrackerInformation[]
     toolUses: Record<string, ToolUse & { stop: boolean }> = {}
+    contextList?: FileList = undefined
 
     conversationId?: string
 
@@ -180,11 +182,12 @@ export class AgenticChatEventParser implements ChatResult {
     public getResult(): Result<ChatResultWithMetadata, string> {
         const chatResult: ChatResult = {
             messageId: this.messageId,
-            body: this.body,
+            body: this.body || '',
             canBeVoted: this.canBeVoted ?? true,
             relatedContent: this.relatedContent,
             followUp: this.followUp,
             codeReference: this.codeReference,
+            ...(this.contextList && { contextList: { ...this.contextList } }),
         }
 
         const chatResultWithMetadata = {

@@ -12,12 +12,18 @@ import {
 } from '../../shared/streamingClientService'
 
 export type ChatSessionServiceConfig = CodeWhispererStreamingClientConfig
+
+type DeferredHandler = {
+    resolve: () => void
+    reject: (err: Error) => void
+}
 export class ChatSessionService {
     public shareCodeWhispererContentWithAWS = false
-    public localHistoryHydrated: boolean = false
+    public pairProgrammingMode: boolean = true
     #abortController?: AbortController
     #conversationId?: string
     #amazonQServiceManager?: AmazonQBaseServiceManager
+    #deferredToolExecution: Record<string, DeferredHandler> = {}
 
     public get conversationId(): string | undefined {
         return this.#conversationId
@@ -25,6 +31,24 @@ export class ChatSessionService {
 
     public set conversationId(value: string | undefined) {
         this.#conversationId = value
+    }
+
+    public getDeferredToolExecution(messageId: string): DeferredHandler | undefined {
+        return this.#deferredToolExecution[messageId]
+    }
+    public setDeferredToolExecution(messageId: string, resolve: any, reject: any) {
+        this.#deferredToolExecution[messageId] = { resolve, reject }
+    }
+
+    public rejectAllDeferredToolExecutions(error: Error): void {
+        for (const messageId in this.#deferredToolExecution) {
+            const handler = this.#deferredToolExecution[messageId]
+            if (handler && handler.reject) {
+                handler.reject(error)
+            }
+        }
+        // Clear all handlers after rejecting them
+        this.#deferredToolExecution = {}
     }
 
     constructor(amazonQServiceManager?: AmazonQBaseServiceManager) {

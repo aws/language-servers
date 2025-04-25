@@ -1,5 +1,8 @@
 import * as path from 'path'
+import { URI } from 'vscode-uri'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
+import { CancellationToken } from '@aws/language-server-runtimes/server-interface'
+import { CancellationError } from './awsError'
 
 type ElementType<T> = T extends (infer U)[] ? U : never
 type Dirent = ElementType<Awaited<ReturnType<Features['workspace']['fs']['readdir']>>>
@@ -10,9 +13,11 @@ export async function readDirectoryRecursively(
     folderPath: string,
     options?: {
         maxDepth?: number
+        excludePatterns?: (string | RegExp)[]
         customFormatCallback?: (entry: Dirent) => string
         failOnError?: boolean
-    }
+    },
+    token?: CancellationToken
 ): Promise<string[]> {
     const dirExists = await features.workspace.fs.exists(folderPath)
     if (!dirExists) {
@@ -29,6 +34,11 @@ export async function readDirectoryRecursively(
     const formatter = options?.customFormatCallback ?? formatListing
 
     while (queue.length > 0) {
+        if (token?.isCancellationRequested) {
+            features.logging.info('cancelled readDirectoryRecursively')
+            throw new CancellationError('user')
+        }
+
         const { filepath, depth } = queue.shift()!
         if (options?.maxDepth !== undefined && depth > options?.maxDepth) {
             features.logging.info(`Skipping directory: ${filepath} (depth ${depth} > max ${options.maxDepth})`)
@@ -46,10 +56,12 @@ export async function readDirectoryRecursively(
             features.logging.warn(errMsg)
             continue
         }
-
         for (const entry of entries) {
-            results.push(formatter(entry))
             const childPath = getEntryPath(entry)
+            if (options?.excludePatterns?.some(pattern => new RegExp(pattern).test(childPath))) {
+                continue
+            }
+            results.push(formatter(entry))
             if (entry.isDirectory() && (options?.maxDepth === undefined || depth < options?.maxDepth)) {
                 queue.push({ filepath: childPath, depth: depth + 1 })
             }
@@ -60,22 +72,39 @@ export async function readDirectoryRecursively(
 }
 
 /**
- * Returns a prefix for a directory ('[DIR]'), symlink ('[LINK]'), or file ('[FILE]').
+ * Returns a prefix for a directory ('[D]'), symlink ('[L]'), or file ('[F]').
  */
 export function formatListing(entry: Dirent): string {
     let typeChar: string
     if (entry.isDirectory()) {
-        typeChar = '[DIR]'
+        typeChar = '[D]'
     } else if (entry.isSymbolicLink()) {
-        typeChar = '[LINK]'
+        typeChar = '[L]'
     } else if (entry.isFile()) {
-        typeChar = '[FILE]'
+        typeChar = '[F]'
     } else {
-        typeChar = '[UNKNOWN]'
+        typeChar = '[?]'
     }
     return `${typeChar} ${path.join(entry.parentPath, entry.name)}`
 }
 
 export function getEntryPath(entry: Dirent) {
     return path.join(entry.parentPath, entry.name)
+}
+
+// TODO: port this to runtimes?
+export function getWorkspaceFolderPaths(lsp: Features['lsp']): string[] {
+    return lsp.getClientInitializeParams()?.workspaceFolders?.map(({ uri }) => URI.parse(uri).fsPath) ?? []
+}
+
+export function isParentFolder(parentPath: string, childPath: string): boolean {
+    const normalizedParentPath = path.normalize(parentPath)
+    const normalizedChildPath = path.normalize(childPath)
+
+    const relative = path.relative(normalizedParentPath, normalizedChildPath)
+    return relative !== '' && !relative.startsWith('..') && !path.isAbsolute(relative)
+}
+
+export function isInWorkspace(workspaceFolderPaths: string[], filepath: string) {
+    return workspaceFolderPaths.some(wsFolder => isParentFolder(wsFolder, filepath) || wsFolder === filepath)
 }

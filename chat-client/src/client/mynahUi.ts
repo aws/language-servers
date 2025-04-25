@@ -13,8 +13,10 @@ import {
     isValidAuthFollowUpType,
 } from '@aws/chat-client-ui-types'
 import {
+    ButtonClickParams,
     ChatMessage,
     ChatResult,
+    ChatUpdateParams,
     ContextCommand,
     ContextCommandParams,
     ConversationClickResult,
@@ -24,6 +26,7 @@ import {
     InfoLinkClickParams,
     LinkClickParams,
     ListConversationsResult,
+    OPEN_WORKSPACE_INDEX_SETTINGS_BUTTON_ID,
     OpenTabParams,
     SourceLinkClickParams,
 } from '@aws/language-server-runtimes-types'
@@ -36,6 +39,7 @@ import {
     NotificationType,
     MynahUIProps,
     QuickActionCommand,
+    ChatItemFormItem,
 } from '@aws/mynah-ui'
 import { VoteParams } from '../contracts/telemetry'
 import { Messager } from './messager'
@@ -43,11 +47,18 @@ import { ExportTabBarButtonId, TabFactory } from './tabs/tabFactory'
 import { disclaimerAcknowledgeButtonId, disclaimerCard } from './texts/disclaimer'
 import { ChatClientAdapter, ChatEventHandler } from '../contracts/chatClientAdapter'
 import { withAdapter } from './withAdapter'
-import { toMynahIcon } from './utils'
+import { toDetailsWithoutIcon, toMynahButtons, toMynahContextCommand, toMynahHeader, toMynahIcon } from './utils'
 import { ChatHistory, ChatHistoryList } from './features/history'
+import {
+    pairProgrammingModeOff,
+    pairProgrammingModeOn,
+    pairProgrammingPromptInput,
+    programmerModeCard,
+} from './texts/pairProgramming'
 
 export interface InboundChatApi {
     addChatResponse(params: ChatResult, tabId: string, isPartialResult: boolean): void
+    updateChat(params: ChatUpdateParams): void
     sendToPrompt(params: SendToPromptParams): void
     sendGenericCommand(params: GenericCommandParams): void
     showError(params: ErrorParams): void
@@ -67,6 +78,36 @@ const ContextPrompt = {
     PromptNameFieldId: 'prompt-name',
 } as const
 
+const getTabPairProgrammingMode = (mynahUi: MynahUI, tabId: string) => {
+    const promptInputOptions = mynahUi.getTabData(tabId)?.getStore()?.promptInputOptions ?? []
+    return promptInputOptions.find(item => item.id === 'pair-programmer-mode')?.value === 'true'
+}
+
+export const handlePromptInputChange = (mynahUi: MynahUI, tabId: string, optionsValues: Record<string, string>) => {
+    const promptTypeValue = optionsValues['pair-programmer-mode']
+
+    const store = mynahUi.getTabData(tabId)?.getStore()
+    const currentPromptInputOptions = store?.promptInputOptions ?? []
+    const updatedPromptInputOptions: ChatItemFormItem[] = currentPromptInputOptions.map(item =>
+        item.id === 'pair-programmer-mode' ? ({ ...item, value: promptTypeValue } as ChatItemFormItem) : item
+    )
+    // If the option wasn't found, add it
+    if (!updatedPromptInputOptions.some(item => item.id === 'pair-programmer-mode')) {
+        updatedPromptInputOptions.push({ ...pairProgrammingPromptInput, value: promptTypeValue } as ChatItemFormItem)
+    }
+
+    if (promptTypeValue === 'true') {
+        mynahUi.addChatItem(tabId, pairProgrammingModeOn)
+    } else {
+        mynahUi.addChatItem(tabId, pairProgrammingModeOff)
+    }
+
+    // Update the store with the new promptInputOptions array
+    mynahUi.updateStore(tabId, {
+        promptInputOptions: updatedPromptInputOptions,
+    })
+}
+
 export const handleChatPrompt = (
     mynahUi: MynahUI,
     tabId: string,
@@ -76,6 +117,7 @@ export const handleChatPrompt = (
     _eventId?: string
 ) => {
     let userPrompt = prompt.escapedPrompt
+    messager.onStopChatResponse(tabId)
     if (prompt.command) {
         // Temporary solution to handle clear quick actions on the client side
         if (prompt.command === '/clear') {
@@ -98,7 +140,8 @@ export const handleChatPrompt = (
         }
     } else {
         // Send chat prompt to server
-        messager.onChatPrompt({ prompt, tabId }, triggerType)
+        const context = prompt.context?.map(c => (typeof c === 'string' ? { command: c } : c))
+        messager.onChatPrompt({ prompt, tabId, context }, triggerType)
     }
     // Add user prompt to UI
     mynahUi.addChatItem(tabId, {
@@ -109,7 +152,8 @@ export const handleChatPrompt = (
     // Set UI to loading state
     mynahUi.updateStore(tabId, {
         loadingChat: true,
-        promptInputDisabledState: true,
+        cancelButtonWhenLoading: true,
+        promptInputDisabledState: false,
     })
 
     // Create initial empty response
@@ -122,10 +166,13 @@ export const createMynahUi = (
     messager: Messager,
     tabFactory: TabFactory,
     disclaimerAcknowledged: boolean,
-    customChatClientAdapter?: ChatClientAdapter
+    pairProgrammingCardAcknowledged: boolean,
+    customChatClientAdapter?: ChatClientAdapter,
+    featureConfig?: Map<string, any>
 ): [MynahUI, InboundChatApi] => {
     const initialTabId = TabFactory.generateUniqueId()
     let disclaimerCardActive = !disclaimerAcknowledged
+    let programmingModeCardActive = !pairProgrammingCardAcknowledged
     let contextCommandGroups: ContextCommandGroups | undefined
 
     let chatEventHandlers: ChatEventHandler = {
@@ -182,15 +229,25 @@ export const createMynahUi = (
             messager.onUiReady()
             messager.onTabAdd(initialTabId)
         },
-        onFileClick: (tabId: string, filePath: string) => {
-            messager.onFileClick({ tabId, filePath })
+        onFileClick: (tabId, filePath, deleted, messageId, eventId, fileDetails) => {
+            messager.onFileClick({ tabId, filePath, messageId, fullPath: fileDetails?.data?.['fullPath'] })
         },
         onTabAdd: (tabId: string) => {
             const defaultTabBarData = tabFactory.getDefaultTabData()
             const defaultTabConfig: Partial<MynahUIDataModel> = {
                 quickActionCommands: defaultTabBarData.quickActionCommands,
                 tabBarButtons: defaultTabBarData.tabBarButtons,
-                contextCommands: contextCommandGroups,
+                contextCommands: [
+                    ...(contextCommandGroups || []),
+                    ...(featureConfig?.get('highlightCommand')
+                        ? [
+                              {
+                                  groupName: 'Additional commands',
+                                  commands: [toMynahContextCommand(featureConfig.get('highlightCommand'))],
+                              },
+                          ]
+                        : []),
+                ],
                 ...(disclaimerCardActive ? { promptInputStickyCard: disclaimerCard } : {}),
             }
             mynahUi.updateStore(tabId, defaultTabConfig)
@@ -298,6 +355,15 @@ export const createMynahUi = (
                 Object.keys(mynahUi.getAllTabs()).forEach(storeTabKey => {
                     mynahUi.updateStore(storeTabKey, { promptInputStickyCard: null })
                 })
+            } else if (action.id === OPEN_WORKSPACE_INDEX_SETTINGS_BUTTON_ID) {
+                messager.onOpenSettings('amazonQ.workspaceIndex')
+            } else {
+                const payload: ButtonClickParams = {
+                    tabId,
+                    messageId,
+                    buttonId: action.id,
+                }
+                messager.onButtonClick(payload)
             }
         },
         onContextSelected: (contextItem, tabId) => {
@@ -312,12 +378,26 @@ export const createMynahUi = (
                             autoFocus: true,
                             title: 'Prompt name',
                             placeholder: 'Enter prompt name',
+                            validationPatterns: {
+                                patterns: [
+                                    {
+                                        pattern: /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,99}$/,
+                                        errorMessage:
+                                            'Use only letters, numbers, hyphens, and underscores, starting with a letter or number. Maximum 100 characters.',
+                                    },
+                                ],
+                            },
                             description: "Use this prompt by typing '@' followed by the prompt name.",
                         },
                     ],
                     [
                         { id: ContextPrompt.CancelButtonId, text: 'Cancel', status: 'clear' },
-                        { id: ContextPrompt.SubmitButtonId, text: 'Create', status: 'main' },
+                        {
+                            id: ContextPrompt.SubmitButtonId,
+                            text: 'Create',
+                            status: 'main',
+                            waitMandatoryFormItems: true,
+                        },
                     ],
                     `Create a saved prompt`
                 )
@@ -354,17 +434,44 @@ export const createMynahUi = (
 
             throw new Error(`Unhandled tab bar button id: ${buttonId}`)
         },
+        onPromptInputOptionChange: (tabId, optionsValues) => {
+            handlePromptInputChange(mynahUi, tabId, optionsValues)
+            messager.onPromptInputOptionChange({ tabId, optionsValues })
+        },
+        onMessageDismiss: (tabId, messageId) => {
+            if (messageId === programmerModeCard.messageId) {
+                programmingModeCardActive = false
+                messager.onChatPromptOptionAcknowledged(messageId)
+
+                // Update the tab defaults to hide the programmer mode card for new tabs
+                mynahUi.updateTabDefaults({
+                    store: {
+                        chatItems: tabFactory.createTab(true, disclaimerCardActive, false).chatItems,
+                    },
+                })
+            }
+        },
+        onStopChatResponse: tabId => {
+            const store = mynahUi.getTabData(tabId)?.getStore() || {}
+            const chatItems = store.chatItems || []
+            const updatedItems = chatItems.map(item => ({
+                ...item,
+                type: item.type === ChatItemType.ANSWER_STREAM && !item.body ? ChatItemType.ANSWER : item.type,
+            }))
+            mynahUi.updateStore(tabId, { loadingChat: false, cancelButtonWhenLoading: true, chatItems: updatedItems })
+            messager.onStopChatResponse(tabId)
+        },
     }
 
     const mynahUiProps: MynahUIProps = {
         tabs: {
             [initialTabId]: {
                 isSelected: true,
-                store: tabFactory.createTab(true, disclaimerCardActive),
+                store: tabFactory.createTab(true, disclaimerCardActive, programmingModeCardActive),
             },
         },
         defaults: {
-            store: tabFactory.createTab(true, false),
+            store: tabFactory.createTab(true, false, programmingModeCardActive),
         },
         config: {
             maxTabs: 10,
@@ -391,7 +498,7 @@ export const createMynahUi = (
     const createTabId = (needWelcomeMessages: boolean = false, chatMessages?: ChatMessage[]) => {
         const tabId = mynahUi.updateStore(
             '',
-            tabFactory.createTab(needWelcomeMessages, disclaimerCardActive, chatMessages)
+            tabFactory.createTab(needWelcomeMessages, disclaimerCardActive, programmingModeCardActive, chatMessages)
         )
         if (tabId === undefined) {
             mynahUi.notify({
@@ -410,43 +517,96 @@ export const createMynahUi = (
         return tabId ?? createTabId()
     }
 
+    const contextListToHeader = (contextList?: ChatResult['contextList']): ChatItem['header'] => {
+        if (contextList === undefined) {
+            return undefined
+        }
+
+        return {
+            fileList: {
+                fileTreeTitle: '',
+                filePaths: contextList.filePaths?.map(file => file),
+                rootFolderTitle: contextList.rootFolderTitle ?? 'Context',
+                flatList: true,
+                collapsed: true,
+                hideFileCount: true,
+                details: Object.fromEntries(
+                    Object.entries(contextList.details || {}).map(([filePath, fileDetails]) => [
+                        filePath,
+                        {
+                            label:
+                                fileDetails.lineRanges
+                                    ?.map(range =>
+                                        range.first === -1 || range.second === -1
+                                            ? ''
+                                            : `line ${range.first} - ${range.second}`
+                                    )
+                                    .join(', ') || '',
+                            description: filePath,
+                            clickable: true,
+                            data: {
+                                fullPath: fileDetails.fullPath || '',
+                            },
+                        },
+                    ])
+                ),
+            },
+        }
+    }
+
     const addChatResponse = (chatResult: ChatResult, tabId: string, isPartialResult: boolean) => {
         const { type, ...chatResultWithoutType } = chatResult
-        let header = undefined
+        let header = toMynahHeader(chatResult.header)
+        const buttons = toMynahButtons(chatResult.buttons)
 
         if (chatResult.contextList !== undefined) {
-            header = {
-                fileList: {
-                    fileTreeTitle: '',
-                    filePaths: chatResult.contextList.filePaths?.map(file => file),
-                    rootFolderTitle: 'Context',
-                    flatList: true,
-                    collapsed: true,
-                    hideFileCount: true,
-                    details: Object.fromEntries(
-                        Object.entries(chatResult.contextList.details || {}).map(([filePath, fileDetails]) => [
-                            filePath,
-                            {
-                                label:
-                                    fileDetails.lineRanges
-                                        ?.map(range =>
-                                            range.first === -1 || range.second === -1
-                                                ? ''
-                                                : `line ${range.first} - ${range.second}`
-                                        )
-                                        .join(', ') || '',
-                                description: filePath,
-                                clickable: true,
-                            },
-                        ])
-                    ),
-                },
-            }
+            header = contextListToHeader(chatResult.contextList)
+        }
+
+        const store = mynahUi.getTabData(tabId)?.getStore() || {}
+        const chatItems = store.chatItems || []
+        const isPairProgrammingMode: boolean = getTabPairProgrammingMode(mynahUi, tabId)
+
+        if (chatResult.additionalMessages?.length) {
+            mynahUi.updateStore(tabId, {
+                loadingChat: true,
+                cancelButtonWhenLoading: true,
+            })
+            chatResult.additionalMessages.forEach(am => {
+                const chatItem: ChatItem = {
+                    messageId: am.messageId,
+                    type:
+                        am.type === 'tool'
+                            ? ChatItemType.ANSWER
+                            : am.type === 'directive'
+                              ? ChatItemType.DIRECTIVE
+                              : ChatItemType.ANSWER_STREAM,
+                    ...prepareChatItemFromMessage(am, isPairProgrammingMode),
+                }
+
+                if (!chatItems.find(ci => ci.messageId === am.messageId)) {
+                    mynahUi.addChatItem(tabId, chatItem)
+                } else {
+                    mynahUi.updateChatAnswerWithMessageId(tabId, am.messageId!, chatItem)
+                }
+            })
         }
 
         if (isPartialResult) {
-            // type for MynahUI differs from ChatResult types so we ignore it
-            mynahUi.updateLastChatAnswer(tabId, { ...chatResultWithoutType, header: header })
+            const chatItem = {
+                ...chatResult,
+                body: chatResult.body,
+                type: ChatItemType.ANSWER_STREAM,
+                header: header,
+                buttons: buttons,
+                codeBlockActions: isPairProgrammingMode ? { 'insert-to-cursor': null } : undefined,
+            }
+
+            if (!chatItems.find(ci => ci.messageId === chatResult.messageId)) {
+                mynahUi.addChatItem(tabId, chatItem)
+            } else {
+                mynahUi.updateChatAnswerWithMessageId(tabId, chatResult.messageId!, chatItem)
+            }
             return
         }
 
@@ -466,6 +626,8 @@ export const createMynahUi = (
             mynahUi.addChatItem(tabId, {
                 type: ChatItemType.SYSTEM_PROMPT,
                 ...chatResultWithoutType, // type for MynahUI differs from ChatResult types so we ignore it
+                header: header,
+                buttons: buttons,
             })
 
             // TODO, prompt should be disabled until user is authenticated
@@ -481,21 +643,91 @@ export const createMynahUi = (
               }
             : {}
 
-        mynahUi.updateLastChatAnswer(tabId, {
+        mynahUi.endMessageStream(tabId, chatResult.messageId ?? '', {
             header: header,
+            buttons: buttons,
             body: chatResult.body,
-            messageId: chatResult.messageId,
             followUp: followUps,
             relatedContent: chatResult.relatedContent,
             canBeVoted: chatResult.canBeVoted,
+            codeReference: chatResult.codeReference,
+            fileList: chatResult.fileList,
+            // messageId excluded
         })
-
-        mynahUi.endMessageStream(tabId, chatResult.messageId ?? '')
 
         mynahUi.updateStore(tabId, {
             loadingChat: false,
+            cancelButtonWhenLoading: true,
             promptInputDisabledState: false,
         })
+    }
+
+    const updateChat = (params: ChatUpdateParams) => {
+        const isChatLoading = params.state?.inProgress
+        mynahUi.updateStore(params.tabId, {
+            loadingChat: isChatLoading,
+            cancelButtonWhenLoading: true,
+        })
+        if (params.data?.messages.length) {
+            const { tabId } = params
+            const store = mynahUi.getTabData(tabId).getStore() || {}
+            const chatItems = store.chatItems || []
+
+            params.data?.messages.forEach(updatedMessage => {
+                if (!updatedMessage.messageId) {
+                    // Do not process messages without known ID.
+                    return
+                }
+
+                const oldMessage = chatItems.find(ci => ci.messageId === updatedMessage.messageId)
+                if (!oldMessage) return
+
+                const chatItem: ChatItem = {
+                    type: oldMessage.type,
+                    ...prepareChatItemFromMessage(updatedMessage, getTabPairProgrammingMode(mynahUi, tabId)),
+                }
+
+                mynahUi.updateChatAnswerWithMessageId(tabId, updatedMessage.messageId, chatItem)
+            })
+        }
+    }
+
+    const prepareChatItemFromMessage = (message: ChatMessage, isPairProgrammingMode: boolean): Partial<ChatItem> => {
+        const contextHeader = contextListToHeader(message.contextList)
+        const header = contextHeader || toMynahHeader(message.header) // Is this mutually exclusive?
+
+        let processedHeader = header
+        if (message.type === 'tool') {
+            processedHeader = { ...header }
+            if (header?.buttons) {
+                processedHeader.buttons = header.buttons.map(button => ({ ...button, status: 'clear' }))
+            }
+            if (header?.fileList) {
+                processedHeader.fileList = {
+                    ...header.fileList,
+                    fileTreeTitle: '',
+                    hideFileCount: true,
+                    details: toDetailsWithoutIcon(header.fileList.details),
+                }
+            }
+        }
+
+        return {
+            body: message.body,
+            header: processedHeader,
+            buttons: toMynahButtons(message.buttons),
+
+            // file diffs in the header need space
+            fullWidth: message.type === 'tool' && message.header?.buttons ? true : undefined,
+            padding: message.type === 'tool' ? false : undefined,
+
+            codeBlockActions:
+                message.type === 'tool'
+                    ? { 'insert-to-cursor': null, copy: null }
+                    : isPairProgrammingMode
+                      ? { 'insert-to-cursor': null }
+                      : undefined,
+        }
     }
 
     const sendToPrompt = (params: SendToPromptParams) => {
@@ -541,6 +773,7 @@ ${params.message}`,
 
         mynahUi.updateStore(tabId, {
             loadingChat: false,
+            cancelButtonWhenLoading: true,
             promptInputDisabledState: false,
         })
 
@@ -587,7 +820,17 @@ ${params.message}`,
 
         Object.keys(mynahUi.getAllTabs()).forEach(tabId => {
             mynahUi.updateStore(tabId, {
-                contextCommands: contextCommandGroups,
+                contextCommands: [
+                    ...(contextCommandGroups || []),
+                    ...(featureConfig?.get('highlightCommand')
+                        ? [
+                              {
+                                  groupName: 'Additional commands',
+                                  commands: [toMynahContextCommand(featureConfig.get('highlightCommand'))],
+                              },
+                          ]
+                        : []),
+                ],
             })
         })
     }
@@ -650,6 +893,7 @@ ${params.message}`,
 
     const api = {
         addChatResponse: addChatResponse,
+        updateChat: updateChat,
         sendToPrompt: sendToPrompt,
         sendGenericCommand: sendGenericCommand,
         showError: showError,
@@ -680,9 +924,9 @@ const uiComponentsTexts = {
     save: 'Save',
     cancel: 'Cancel',
     submit: 'Submit',
-    stopGenerating: 'Stop generating',
+    stopGenerating: 'Stop',
     copyToClipboard: 'Copied to clipboard',
     noMoreTabsTooltip: 'You can only open ten conversation tabs at a time.',
     codeSuggestionWithReferenceTitle: 'Some suggestions contain code with references.',
-    spinnerText: 'Generating your answer...',
+    spinnerText: 'Thinking...',
 }

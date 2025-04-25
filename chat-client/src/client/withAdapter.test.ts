@@ -327,11 +327,6 @@ describe('withAdapter', () => {
             handlerName: 'onTabbedContentTabChange',
             args: ['__TAB_ID__', 'message-1', 'content-tab-1', 'event-1'],
         })
-
-        testEventHandler({
-            handlerName: 'onTabBarButtonClick',
-            args: ['__TAB_ID__', 'message-1', 'button-1', 'event-1'],
-        })
     })
 
     describe('Special Routing Logic', () => {
@@ -580,6 +575,17 @@ describe('withAdapter', () => {
                 sinon.assert.notCalled(customOnFormLinkClickHandler as sinon.SinonStub)
                 sinon.assert.calledOnceWithExactly(onFormLinkClickStub, 'https://example.com', mouseEvent, 'event-1')
             })
+        })
+
+        it('should call route onTabBarButtonClick only to default handler', () => {
+            mynahUiPropsWithAdapter.onTabBarButtonClick?.('tab-1', 'button-1')
+
+            sinon.assert.notCalled(customEventHandlers.onTabBarButtonClick as sinon.SinonStub)
+            sinon.assert.calledOnceWithMatch(
+                defaultEventHandlers.onTabBarButtonClick as sinon.SinonStub,
+                'tab-1',
+                'button-1'
+            )
         })
 
         it('should call both custom and original onReady handlers', () => {

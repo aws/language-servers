@@ -33,6 +33,7 @@ describe('ChatDb Utilities', () => {
                     content: 'Hello',
                     userInputMessageContext: {},
                     userIntent: undefined,
+                    origin: 'IDE',
                 },
             })
         })
@@ -51,9 +52,7 @@ describe('ChatDb Utilities', () => {
                 assistantResponseMessage: {
                     messageId: 'msg-1',
                     content: 'Response',
-                    references: [
-                        { url: 'test.js', recommendationContentSpan: { start: 10, end: 15 }, information: '' },
-                    ],
+                    toolUses: [],
                 },
             })
         })
@@ -70,12 +69,16 @@ describe('ChatDb Utilities', () => {
 
             const result = messageToChatMessage(message)
 
-            assert.deepStrictEqual(result, {
-                body: 'Hello',
-                type: 'prompt',
-                codeReference: [{ url: 'test.js', recommendationContentSpan: { start: 10, end: 15 }, information: '' }],
-                relatedContent: { content: [{ title: 'Sources', url: 'google.com' }] },
-            })
+            assert.deepStrictEqual(result, [
+                {
+                    body: 'Hello',
+                    type: 'prompt',
+                    codeReference: [
+                        { url: 'test.js', recommendationContentSpan: { start: 10, end: 15 }, information: '' },
+                    ],
+                    relatedContent: { content: [{ title: 'Sources', url: 'google.com' }] },
+                },
+            ])
         })
 
         it('should omit relatedContent when content array is empty', () => {
@@ -87,12 +90,14 @@ describe('ChatDb Utilities', () => {
 
             const result = messageToChatMessage(message)
 
-            assert.deepStrictEqual(result, {
-                body: 'Hello',
-                type: 'prompt',
-                relatedContent: undefined,
-                codeReference: undefined,
-            })
+            assert.deepStrictEqual(result, [
+                {
+                    body: 'Hello',
+                    type: 'prompt',
+                    relatedContent: undefined,
+                    codeReference: undefined,
+                },
+            ])
         })
     })
 
@@ -237,11 +242,15 @@ describe('ChatDb Utilities', () => {
 
         it('should sort tabs by updatedAt in descending order within groups', () => {
             const now = new Date()
-            const today1 = new Date(now)
-            const today2 = new Date(now)
-            today2.setHours(today2.getHours() - 1)
-            const today3 = new Date(now)
-            today3.setHours(today3.getHours() - 2)
+
+            const endOfDay = new Date(now)
+            endOfDay.setHours(23, 59, 59, 999)
+
+            const today1 = new Date(endOfDay)
+            const today2 = new Date(endOfDay)
+            today2.setHours(endOfDay.getHours() - 1)
+            const today3 = new Date(endOfDay)
+            today3.setHours(endOfDay.getHours() - 2)
 
             const tabs = [
                 {

@@ -1,18 +1,22 @@
-// Port from VSC https://github.com/aws/aws-toolkit-vscode/blob/093d5bcbce777c88cf18c76b52738610263d1fc0/packages/core/src/codewhispererChat/tools/executeBash.ts#L134
+// Port from VSC https://github.com/aws/aws-toolkit-vscode/blob/741c2c481bcf0dca2d9554e32dc91d8514b1b1d1/packages/core/src/codewhispererChat/tools/executeBash.ts#L134
 
-import { InvokeOutput } from './toolShared'
+import { CommandValidation, ExplanatoryParams, InvokeOutput } from './toolShared'
 import { split } from 'shlex'
 import { Logging } from '@aws/language-server-runtimes/server-interface'
-import { processUtils } from '@aws/lsp-core'
-import { getUserHomeDir, sanitize } from '@aws/lsp-core/out/util/path'
+import { CancellationError, processUtils, workspaceUtils } from '@aws/lsp-core'
+import { CancellationToken } from 'vscode-languageserver'
+import { ChildProcess, ChildProcessOptions } from '@aws/lsp-core/out/util/processUtils'
+// eslint-disable-next-line import/no-nodejs-modules
+import { isAbsolute, join } from 'path' // Safe to import on web since this is part of path-browserify
+import { Features } from '../../types'
+import { getWorkspaceFolderPaths } from '@aws/lsp-core/out/util/workspaceUtils'
 
 export enum CommandCategory {
     ReadOnly,
-    HighRisk,
+    Mutate,
     Destructive,
 }
 
-export const dangerousPatterns = new Set(['<(', '$(', '`'])
 export const splitOperators = new Set(['|', '&&', '||', '>'])
 export const splitOperatorsArray = Array.from(splitOperators)
 export const commandCategories = new Map<string, CommandCategory>([
@@ -43,45 +47,37 @@ export const commandCategories = new Map<string, CommandCategory>([
     ['netstat', CommandCategory.ReadOnly],
     ['ss', CommandCategory.ReadOnly],
     ['dig', CommandCategory.ReadOnly],
-    ['grep', CommandCategory.ReadOnly],
     ['wc', CommandCategory.ReadOnly],
     ['sort', CommandCategory.ReadOnly],
     ['diff', CommandCategory.ReadOnly],
     ['head', CommandCategory.ReadOnly],
     ['tail', CommandCategory.ReadOnly],
 
-    // HighRisk commands
-    ['chmod', CommandCategory.HighRisk],
-    ['chown', CommandCategory.HighRisk],
-    ['mv', CommandCategory.HighRisk],
-    ['cp', CommandCategory.HighRisk],
-    ['ln', CommandCategory.HighRisk],
-    ['mount', CommandCategory.HighRisk],
-    ['umount', CommandCategory.HighRisk],
-    ['kill', CommandCategory.HighRisk],
-    ['killall', CommandCategory.HighRisk],
-    ['pkill', CommandCategory.HighRisk],
-    ['iptables', CommandCategory.HighRisk],
-    ['route', CommandCategory.HighRisk],
-    ['systemctl', CommandCategory.HighRisk],
-    ['service', CommandCategory.HighRisk],
-    ['crontab', CommandCategory.HighRisk],
-    ['at', CommandCategory.HighRisk],
-    ['tar', CommandCategory.HighRisk],
-    ['awk', CommandCategory.HighRisk],
-    ['sed', CommandCategory.HighRisk],
-    ['wget', CommandCategory.HighRisk],
-    ['curl', CommandCategory.HighRisk],
-    ['nc', CommandCategory.HighRisk],
-    ['ssh', CommandCategory.HighRisk],
-    ['scp', CommandCategory.HighRisk],
-    ['ftp', CommandCategory.HighRisk],
-    ['sftp', CommandCategory.HighRisk],
-    ['rsync', CommandCategory.HighRisk],
-    ['chroot', CommandCategory.HighRisk],
-    ['lsof', CommandCategory.HighRisk],
-    ['strace', CommandCategory.HighRisk],
-    ['gdb', CommandCategory.HighRisk],
+    // Mutable commands
+    ['chmod', CommandCategory.Mutate],
+    ['curl', CommandCategory.Mutate],
+    ['mount', CommandCategory.Mutate],
+    ['umount', CommandCategory.Mutate],
+    ['systemctl', CommandCategory.Mutate],
+    ['service', CommandCategory.Mutate],
+    ['crontab', CommandCategory.Mutate],
+    ['at', CommandCategory.Mutate],
+    ['nc', CommandCategory.Mutate],
+    ['ssh', CommandCategory.Mutate],
+    ['scp', CommandCategory.Mutate],
+    ['ftp', CommandCategory.Mutate],
+    ['sftp', CommandCategory.Mutate],
+    ['rsync', CommandCategory.Mutate],
+    ['chroot', CommandCategory.Mutate],
+    ['strace', CommandCategory.Mutate],
+    ['gdb', CommandCategory.Mutate],
+    ['apt', CommandCategory.Mutate],
+    ['yum', CommandCategory.Mutate],
+    ['dnf', CommandCategory.Mutate],
+    ['pacman', CommandCategory.Mutate],
+    ['exec', CommandCategory.Mutate],
+    ['eval', CommandCategory.Mutate],
+    ['xargs', CommandCategory.Mutate],
 
     // Destructive commands
     ['rm', CommandCategory.Destructive],
@@ -100,37 +96,46 @@ export const commandCategories = new Map<string, CommandCategory>([
     ['insmod', CommandCategory.Destructive],
     ['rmmod', CommandCategory.Destructive],
     ['modprobe', CommandCategory.Destructive],
-    ['apt', CommandCategory.Destructive],
-    ['yum', CommandCategory.Destructive],
-    ['dnf', CommandCategory.Destructive],
-    ['pacman', CommandCategory.Destructive],
-    ['perl', CommandCategory.Destructive],
-    ['python', CommandCategory.Destructive],
-    ['bash', CommandCategory.Destructive],
-    ['sh', CommandCategory.Destructive],
-    ['exec', CommandCategory.Destructive],
-    ['eval', CommandCategory.Destructive],
-    ['xargs', CommandCategory.Destructive],
+    ['kill', CommandCategory.Destructive],
+    ['killall', CommandCategory.Destructive],
+    ['pkill', CommandCategory.Destructive],
+    ['iptables', CommandCategory.Destructive],
+    ['route', CommandCategory.Destructive],
+    ['chown', CommandCategory.Destructive],
 ])
 export const maxBashToolResponseSize: number = 1024 * 1024 // 1MB
 export const lineCount: number = 1024
 export const destructiveCommandWarningMessage = '⚠️ WARNING: Destructive command detected:\n\n'
-export const highRiskCommandWarningMessage = '⚠️ WARNING: High risk command detected:\n\n'
+export const mutateCommandWarningMessage = 'Mutation command:\n\n'
 
-export interface ExecuteBashParams {
+export interface ExecuteBashParams extends ExplanatoryParams {
     command: string
     cwd?: string
 }
 
-export interface CommandValidation {
-    requiresAcceptance: boolean
-    warning?: string
+interface TimestampedChunk {
+    timestamp: number
+    isStdout: boolean
+    content: string
+    isFirst: boolean
+}
+
+export interface ExecuteBashOutput {
+    exitStatus: string
+    stdout: string
+    stderr: string
 }
 
 export class ExecuteBash {
-    constructor(private readonly logger: Logging) {}
+    private childProcess?: ChildProcess
+    private readonly logging: Features['logging']
+    private readonly lsp: Features['lsp']
+    constructor(features: Pick<Features, 'logging' | 'lsp'> & Partial<Features>) {
+        this.logging = features.logging
+        this.lsp = features.lsp
+    }
 
-    public async validate(logging: Logging, command: string): Promise<void> {
+    public async validate(command: string): Promise<void> {
         if (!command.trim()) {
             throw new Error('Bash command cannot be empty.')
         }
@@ -141,15 +146,25 @@ export class ExecuteBash {
         }
 
         try {
-            await ExecuteBash.whichCommand(logging, args[0])
+            await ExecuteBash.whichCommand(this.logging, args[0])
         } catch {
             throw new Error(`Command '${args[0]}' not found on PATH.`)
         }
     }
 
-    public requiresAcceptance(command: string): CommandValidation {
+    private static handleTimestampedChunk(
+        chunk: TimestampedChunk,
+        stdoutBuffer: string[],
+        stderrBuffer: string[],
+        writer?: WritableStreamDefaultWriter
+    ): void {
+        const buffer = chunk.isStdout ? stdoutBuffer : stderrBuffer
+        ExecuteBash.handleChunk(chunk.content, buffer, writer)
+    }
+
+    public async requiresAcceptance(params: ExecuteBashParams): Promise<CommandValidation> {
         try {
-            const args = split(command)
+            const args = split(params.command)
             if (!args || args.length === 0) {
                 return { requiresAcceptance: true }
             }
@@ -180,76 +195,160 @@ export class ExecuteBash {
                     return { requiresAcceptance: true }
                 }
 
+                // For each command, validate arguments for path safety within workspace
+                for (const arg of cmdArgs) {
+                    if (this.looksLikePath(arg)) {
+                        // If not absolute, resolve using workingDirectory if available.
+                        const fullPath = !isAbsolute(arg) && params.cwd ? join(params.cwd, arg) : arg
+                        const isInWorkspace = workspaceUtils.isInWorkspace(getWorkspaceFolderPaths(this.lsp), fullPath)
+                        if (!isInWorkspace) {
+                            return { requiresAcceptance: true, warning: destructiveCommandWarningMessage }
+                        }
+                    }
+                }
+
                 const command = cmdArgs[0]
                 const category = commandCategories.get(command)
 
                 switch (category) {
                     case CommandCategory.Destructive:
                         return { requiresAcceptance: true, warning: destructiveCommandWarningMessage }
-                    case CommandCategory.HighRisk:
-                        return {
-                            requiresAcceptance: true,
-                            warning: highRiskCommandWarningMessage,
-                        }
+                    case CommandCategory.Mutate:
+                        return { requiresAcceptance: true, warning: mutateCommandWarningMessage }
                     case CommandCategory.ReadOnly:
-                        if (cmdArgs.some(arg => Array.from(dangerousPatterns).some(pattern => arg.includes(pattern)))) {
-                            return { requiresAcceptance: true, warning: highRiskCommandWarningMessage }
-                        }
                         continue
                     default:
-                        return { requiresAcceptance: true, warning: highRiskCommandWarningMessage }
+                        return { requiresAcceptance: true }
                 }
             }
             return { requiresAcceptance: false }
         } catch (error) {
-            this.logger.warn(`Error while checking acceptance: ${(error as Error).message}`)
+            this.logging.warn(`Error while checking acceptance: ${(error as Error).message}`)
             return { requiresAcceptance: true }
         }
     }
 
-    public async invoke(params: ExecuteBashParams, updates?: WritableStream): Promise<InvokeOutput> {
-        await this.validate(this.logger, params.command)
-        const cwd = params.cwd ? sanitize(params.cwd) : getUserHomeDir()
-        this.logger.info(`Invoking bash command: '${params.command}' in cwd: '${cwd}'`)
+    private looksLikePath(arg: string): boolean {
+        return arg.startsWith('/') || arg.startsWith('./') || arg.startsWith('../')
+    }
+
+    // TODO: generalize cancellation logic for tools.
+    public async invoke(
+        params: ExecuteBashParams,
+        cancellationToken?: CancellationToken,
+        updates?: WritableStream
+    ): Promise<InvokeOutput> {
+        this.logging.info(`Invoking bash command: "${params.command}" in cwd: "${params.cwd}"`)
 
         return new Promise(async (resolve, reject) => {
-            this.logger.debug(`Spawning process with command: bash -c '${params.command}' (cwd=${cwd})`)
+            // Check if cancelled before starting
+            if (cancellationToken?.isCancellationRequested) {
+                this.logging.debug('Bash command execution cancelled before starting')
+                throw new CancellationError('user')
+            }
+
+            this.logging.debug(`Spawning process with command: bash -c "${params.command}" (cwd=${params.cwd})`)
 
             const stdoutBuffer: string[] = []
             const stderrBuffer: string[] = []
 
-            let firstChunk = true
-            let firstStderrChunk = true
+            // Use a closure boolean value firstChunk and a function to get and set its value
+            let isFirstChunk = true
+            const getAndSetFirstChunk = (newValue: boolean): boolean => {
+                const oldValue = isFirstChunk
+                isFirstChunk = newValue
+                return oldValue
+            }
+
+            // Use a queue to maintain chronological order of chunks
+            // This ensures that the output is processed in the exact order it was generated by the child process.
+            const outputQueue: TimestampedChunk[] = []
+            let processingQueue = false
+
             const writer = updates?.getWriter()
-            const childProcessOptions: processUtils.ChildProcessOptions = {
+            // Process the queue in order
+            const processQueue = () => {
+                if (processingQueue || outputQueue.length === 0) {
+                    return
+                }
+
+                processingQueue = true
+
+                try {
+                    // Sort by timestamp to ensure chronological order
+                    outputQueue.sort((a, b) => a.timestamp - b.timestamp)
+
+                    while (outputQueue.length > 0) {
+                        const chunk = outputQueue.shift()!
+                        ExecuteBash.handleTimestampedChunk(chunk, stdoutBuffer, stderrBuffer, writer)
+                    }
+                } finally {
+                    processingQueue = false
+                }
+            }
+
+            const childProcessOptions: ChildProcessOptions = {
                 spawnOptions: {
-                    cwd: cwd,
+                    cwd: params.cwd,
                     stdio: ['pipe', 'pipe', 'pipe'],
                 },
                 collect: false,
                 waitForStreams: true,
-                onStdout: (chunk: string) => {
-                    ExecuteBash.handleChunk(firstChunk ? '```console\n' + chunk : chunk, stdoutBuffer, writer)
-                    firstChunk = false
+                onStdout: async (chunk: string) => {
+                    if (cancellationToken?.isCancellationRequested) {
+                        this.logging.debug('Bash command execution cancelled during stderr processing')
+                        throw new CancellationError('user')
+                    }
+                    const isFirst = getAndSetFirstChunk(false)
+                    const timestamp = Date.now()
+                    outputQueue.push({
+                        timestamp,
+                        isStdout: true,
+                        content: chunk,
+                        isFirst,
+                    })
+                    processQueue()
                 },
-                onStderr: (chunk: string) => {
-                    ExecuteBash.handleChunk(firstStderrChunk ? '```console\n' + chunk : chunk, stderrBuffer, writer)
-                    firstStderrChunk = false
+                onStderr: async (chunk: string) => {
+                    if (cancellationToken?.isCancellationRequested) {
+                        this.logging.debug('Bash command execution cancelled during stderr processing')
+                        throw new CancellationError('user')
+                    }
+                    const isFirst = getAndSetFirstChunk(false)
+                    const timestamp = Date.now()
+                    outputQueue.push({
+                        timestamp,
+                        isStdout: false,
+                        content: chunk,
+                        isFirst,
+                    })
+                    processQueue()
                 },
             }
 
-            const childProcess = new processUtils.ChildProcess(
-                this.logger,
-                'bash',
-                ['-c', params.command],
-                childProcessOptions
-            )
+            this.childProcess = new ChildProcess(this.logging, 'bash', ['-c', params.command], childProcessOptions)
+
+            // Set up cancellation listener
+            if (cancellationToken) {
+                cancellationToken.onCancellationRequested(() => {
+                    this.logging.debug('Cancellation requested, killing child process')
+                    this.childProcess?.stop()
+                })
+            }
 
             try {
-                const result = await childProcess.run()
+                const result = await this.childProcess.run()
+
+                // Check if cancelled after execution
+                if (cancellationToken?.isCancellationRequested) {
+                    this.logging.debug('Bash command execution cancelled after completion')
+                    throw new CancellationError('user')
+                }
+
                 const exitStatus = result.exitCode ?? 0
                 const stdout = stdoutBuffer.join('\n')
                 const stderr = stderrBuffer.join('\n')
+                const success = exitStatus === 0 && !stderr
                 const [stdoutTrunc, stdoutSuffix] = ExecuteBash.truncateSafelyWithSuffix(
                     stdout,
                     maxBashToolResponseSize / 3
@@ -259,7 +358,7 @@ export class ExecuteBash {
                     maxBashToolResponseSize / 3
                 )
 
-                const outputJson = {
+                const outputJson: ExecuteBashOutput = {
                     exitStatus: exitStatus.toString(),
                     stdout: stdoutTrunc + (stdoutSuffix ? ' ... truncated' : ''),
                     stderr: stderrTrunc + (stderrSuffix ? ' ... truncated' : ''),
@@ -269,11 +368,17 @@ export class ExecuteBash {
                     output: {
                         kind: 'json',
                         content: outputJson,
+                        success,
                     },
                 })
             } catch (err: any) {
-                this.logger.error(`Failed to execute bash command '${params.command}': ${err.message}`)
-                reject(new Error(`Failed to execute command: ${err.message}`))
+                // Check if this was due to cancellation
+                if (cancellationToken?.isCancellationRequested) {
+                    throw new CancellationError('user')
+                } else {
+                    this.logging.error(`Failed to execute bash command '${params.command}': ${err.message}`)
+                    reject(new Error(`Failed to execute command: ${err.message}`))
+                }
             } finally {
                 await writer?.close()
                 writer?.releaseLock()
@@ -326,11 +431,11 @@ export class ExecuteBash {
         return output
     }
 
-    public queueDescription(command: string): string {
-        const description = ''
-        description.concat(`I will run the following shell command:\n`)
-        description.concat('```bash\n' + command + '\n```')
-        return description
+    public async queueDescription(command: string, updates: WritableStream) {
+        const writer = updates.getWriter()
+        await writer.write('```shell\n' + command + '\n```')
+        await writer.close()
+        writer.releaseLock()
     }
 
     public getSpec() {
@@ -340,6 +445,11 @@ export class ExecuteBash {
             inputSchema: {
                 type: 'object',
                 properties: {
+                    explanation: {
+                        type: 'string',
+                        description:
+                            'One sentence explanation as to why this tool is being used, and how it contributes to the goal.',
+                    },
                     command: {
                         type: 'string',
                         description: 'Bash command to execute',
