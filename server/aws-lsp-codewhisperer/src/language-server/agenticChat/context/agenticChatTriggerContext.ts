@@ -62,7 +62,7 @@ export class AgenticChatTriggerContext {
     #lsp: Features['lsp']
     #logging: Features['logging']
     #documentContextExtractor: DocumentContextExtractor
-    #toolUseLookup: Map<string, ToolUse & { oldContent?: string; chatResult?: ChatResult }>
+    #toolUseLookup: Map<string, ToolUse & { fileChange?: { before?: string; after?: string }; chatResult?: ChatResult }>
 
     constructor({ workspace, lsp, logging }: Pick<Features, 'workspace' | 'lsp' | 'logging'> & Partial<Features>) {
         this.#workspace = workspace

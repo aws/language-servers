@@ -25,6 +25,7 @@ import {
     FileDetails,
     InlineChatResultParams,
     PromptInputOptionChangeParams,
+    TextDocument,
 } from '@aws/language-server-runtimes/protocol'
 import {
     ApplyWorkspaceEditParams,
@@ -99,11 +100,12 @@ import { LocalProjectContextController } from '../../shared/localProjectContextC
 import { CancellationError, workspaceUtils } from '@aws/lsp-core'
 import { FsRead, FsReadParams } from './tools/fsRead'
 import { ListDirectory, ListDirectoryParams } from './tools/listDirectory'
-import { FsWrite, FsWriteParams, getDiffChanges } from './tools/fsWrite'
+import { FsWrite, FsWriteParams } from './tools/fsWrite'
 import { ExecuteBash, ExecuteBashOutput, ExecuteBashParams } from './tools/executeBash'
 import { ExplanatoryParams, InvokeOutput, ToolApprovalException } from './tools/toolShared'
 import { ModelServiceException } from './errors'
 import { FileSearch, FileSearchParams } from './tools/fileSearch'
+import { diffLines } from 'diff'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -217,8 +219,8 @@ export class AgenticChatController implements ChatHandlers {
         const toolUse = this.#triggerContext.getToolUseLookup().get(toolUseId)
 
         const input = toolUse?.input as unknown as FsWriteParams
-        if (toolUse?.oldContent) {
-            await this.#features.workspace.fs.writeFile(input.path, toolUse.oldContent)
+        if (toolUse?.fileChange?.before) {
+            await this.#features.workspace.fs.writeFile(input.path, toolUse.fileChange.before)
         } else {
             await this.#features.workspace.fs.rm(input.path)
         }
@@ -647,7 +649,7 @@ export class AgenticChatController implements ChatHandlers {
                     const document = await this.#triggerContext.getTextDocument(input.path)
                     this.#triggerContext
                         .getToolUseLookup()
-                        .set(toolUse.toolUseId, { ...toolUse, oldContent: document?.getText() })
+                        .set(toolUse.toolUseId, { ...toolUse, fileChange: { before: document?.getText() } })
                 }
 
                 const ws = this.#getWritableStream(chatResultStream, toolUse)
@@ -692,11 +694,17 @@ export class AgenticChatController implements ChatHandlers {
                         // executeBash will stream the output instead of waiting until the end
                         break
                     case 'fsWrite':
-                        const chatResult = await this.#getFsWriteChatResult(toolUse)
+                        const input = toolUse.input as unknown as FsWriteParams
+                        const doc = await this.#triggerContext.getTextDocument(input.path)
+                        const chatResult = await this.#getFsWriteChatResult(toolUse, doc)
                         const toolUseLookup = this.#triggerContext.getToolUseLookup()
                         const cachedToolUse = toolUseLookup.get(toolUse.toolUseId)
                         if (cachedToolUse) {
-                            toolUseLookup.set(toolUse.toolUseId, { ...cachedToolUse, chatResult })
+                            toolUseLookup.set(toolUse.toolUseId, {
+                                ...cachedToolUse,
+                                chatResult,
+                                fileChange: { ...cachedToolUse.fileChange, after: doc?.getText() },
+                            })
                         }
                         await chatResultStream.writeResultBlock(chatResult)
                         break
@@ -915,12 +923,12 @@ export class AgenticChatController implements ChatHandlers {
         }
     }
 
-    async #getFsWriteChatResult(toolUse: ToolUse): Promise<ChatMessage> {
+    async #getFsWriteChatResult(toolUse: ToolUse, doc: TextDocument | undefined): Promise<ChatMessage> {
         const input = toolUse.input as unknown as FsWriteParams
-        const oldContent = this.#triggerContext.getToolUseLookup().get(toolUse.toolUseId!)?.oldContent ?? ''
-        const diffChanges = getDiffChanges(input, oldContent)
+        const oldContent = this.#triggerContext.getToolUseLookup().get(toolUse.toolUseId!)?.fileChange?.before ?? ''
         // Get just the filename instead of the full path
         const fileName = path.basename(input.path)
+        const diffChanges = diffLines(oldContent, doc?.getText() ?? '')
         const changes = diffChanges.reduce(
             (acc, { count = 0, added, removed }) => {
                 if (added) {
@@ -1313,11 +1321,11 @@ export class AgenticChatController implements ChatHandlers {
 
         if (toolUse?.name === 'fsWrite') {
             const input = toolUse.input as unknown as FsWriteParams
-            // TODO: since the tool already executed, we need to reverse the old/new content for the diff
             this.#features.lsp.workspace.openFileDiff({
                 originalFileUri: input.path,
+                originalFileContent: toolUse.fileChange?.before,
                 isDeleted: false,
-                fileContent: toolUse.oldContent,
+                fileContent: toolUse.fileChange?.after,
             })
         } else if (toolUse?.name === 'fsRead') {
             await this.#features.lsp.window.showDocument({ uri: params.filePath })
