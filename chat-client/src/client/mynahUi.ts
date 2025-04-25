@@ -551,7 +551,7 @@ export const createMynahUi = (
                                             : `line ${range.first} - ${range.second}`
                                     )
                                     .join(', ') || '',
-                            description: filePath,
+                            description: fileDetails.description,
                             clickable: true,
                             data: {
                                 fullPath: fileDetails.fullPath || '',
