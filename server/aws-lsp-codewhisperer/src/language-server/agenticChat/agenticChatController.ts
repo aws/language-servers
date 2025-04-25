@@ -1117,22 +1117,22 @@ export class AgenticChatController implements ChatHandlers {
                       ? `${itemCount} ${itemCount === 1 ? 'directory' : 'directories'} searched`
                       : `${itemCount} ${itemCount === 1 ? 'directory' : 'directories'} listed`
         }
-        const fileDetails: Record<string, FileDetails> = {}
+        const details: Record<string, FileDetails> = {}
         for (const item of filePathsPushed) {
-            fileDetails[item.relativeFilePath] = {
+            details[item.relativeFilePath] = {
                 lineRanges: item.lineRanges,
                 description: item.relativeFilePath,
             }
         }
 
-        const contextList: FileList = {
+        const fileList: FileList = {
             rootFolderTitle: title,
             filePaths: filePathsPushed.map(item => item.relativeFilePath),
-            details: fileDetails,
+            details,
         }
         return {
             type: 'tool',
-            contextList,
+            fileList,
             messageId: messageIdToUpdate,
             body: '',
         }

@@ -115,6 +115,22 @@ export class AgenticChatResultStream {
                                         },
                                     },
                                 }),
+                            ...(am.messageId === c.messageId &&
+                                (c.fileList || acc.fileList) && {
+                                    fileList: {
+                                        filePaths: [
+                                            ...(acc.fileList?.filePaths ?? []),
+                                            ...(c.fileList?.filePaths ?? []),
+                                        ],
+                                        rootFolderTitle: c.fileList?.rootFolderTitle
+                                            ? c.fileList.rootFolderTitle
+                                            : (acc.fileList?.rootFolderTitle ?? ''),
+                                        details: {
+                                            ...(acc.fileList?.details ?? {}),
+                                            ...(c.fileList?.details ?? {}),
+                                        },
+                                    },
+                                }),
                             header: c.header ? { ...c.header } : { ...am.header },
                         })),
                     }

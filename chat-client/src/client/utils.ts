@@ -20,6 +20,43 @@ export function toMynahHeader(header: ChatMessage['header']): ChatItemContent['h
     }
 }
 
+export function toMynahFileList(fileList: ChatMessage['fileList']): ChatItemContent['fileList'] {
+    if (!fileList) return undefined
+    const fileListTree = {
+        fileTreeTitle: '',
+        filePaths: fileList.filePaths?.map(file => file),
+        rootFolderTitle: fileList.rootFolderTitle ?? 'Context',
+        flatList: true,
+        hideFileCount: true,
+        collapsed: true,
+        details: Object.fromEntries(
+            Object.entries(fileList.details || {}).map(([filePath, fileDetails]) => [
+                filePath,
+                {
+                    label:
+                        fileDetails.lineRanges
+                            ?.map(range =>
+                                range.first === -1 || range.second === -1 ? '' : `line ${range.first} - ${range.second}`
+                            )
+                            .join(', ') || '',
+                    description: fileDetails.description,
+                    clickable: true,
+                    data: {
+                        fullPath: fileDetails.fullPath || '',
+                    },
+                },
+            ])
+        ),
+    }
+
+    // Only add the collapsed property if there's exactly one file path
+    // if (fileList.filePaths?.length === 1) {
+    //     return { ...fileListTree, collapsed: true }
+    // }
+
+    return fileListTree
+}
+
 export function toDetailsWithoutIcon(
     details: Record<string, TreeNodeDetails> | undefined
 ): Record<string, TreeNodeDetails> {
