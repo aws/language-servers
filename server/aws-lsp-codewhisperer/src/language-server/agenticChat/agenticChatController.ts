@@ -170,7 +170,9 @@ export class AgenticChatController implements ChatHandlers {
                     failureReason: `could not find deferred tool execution for message: ${params.messageId} `,
                 }
             }
-            params.buttonId === 'reject-shell-command' ? handler.reject(new ToolApprovalException()) : handler.resolve()
+            params.buttonId === 'reject-shell-command'
+                ? handler.reject(new ToolApprovalException('Command was rejected.', true))
+                : handler.resolve()
             return {
                 success: true,
             }
@@ -725,6 +727,13 @@ export class AgenticChatController implements ChatHandlers {
                                 this.#getUpdateBashConfirmResult(toolUse, false),
                                 cachedButtonBlockId
                             )
+                            if (err.shouldShowMessage) {
+                                await chatResultStream.writeResultBlock({
+                                    type: 'answer',
+                                    messageId: `reject-message-${toolUse.toolUseId}`,
+                                    body: err.message || 'Command was rejected.',
+                                })
+                            }
                         } else {
                             this.#features.logging.log('Failed to update executeBash block: no blockId is available.')
                         }
