@@ -331,5 +331,4 @@ export function hasConnectionExpired(error: any) {
         return authFollowType == 're-auth'
     }
     return false
-
 }
