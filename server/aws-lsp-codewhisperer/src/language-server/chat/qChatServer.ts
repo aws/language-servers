@@ -96,9 +96,9 @@ export const QChatServerFactory =
                 amazonQServiceManager
             )
 
-            /* 
+            /*
                                 Calling handleDidChangeConfiguration once to ensure we get configuration atleast once at start up
-                                
+
                                 TODO: TODO: consider refactoring such responsibilities to common service manager config/initialisation server
                             */
             await amazonQServiceManager.handleDidChangeConfiguration()
@@ -150,8 +150,8 @@ export const QChatServerFactory =
             return chatController.onCodeInsertToCursorPosition(params)
         })
 
-        chat.onLogInlineChatResult(params => {
-            return chatController.onLogInlineChatResult(params)
+        chat.onInlineChatResult(params => {
+            return chatController.onInlineChatResult(params)
         })
 
         logging.log('Q Chat server has been initialized')
