@@ -162,17 +162,20 @@ export class FsWrite {
         return {
             name: 'fsWrite',
             description:
-                'A tool for creating and editing a file.\n * The `create` command will override the file at `path` if it already exists as a file, \
-                and otherwise create a new file\n * The `append` command will add content to the end of an existing file, \
-                automatically adding a newline if the file does not end with one. \
-                The file must exist.\n Notes for using the `strReplace` command:\n * \
-                IMPORTANT: Only use the `strReplace` command for simple, isolated single-line replacements. \
-                If you are editing multiple lines, always prefer the `create` command and replace the entire file content instead.\n * \
-                The `oldStr` parameter should match EXACTLY one or more consecutive lines from the original file. Be mindful of whitespaces!\n * \
-                If the `oldStr` parameter is not unique in the file, the replacement will not be performed. \
-                Make sure to include enough context in `oldStr` to make it unique\n * \
-                The `newStr` parameter should contain the edited lines that should replace the `oldStr`. \
-                The `insert` command will insert `newStr` after `insertLine` and place it on its own line.',
+                'A tool for creating and editing a file.\
+                \n * The `create` command will override the file at `path` if it already exists as a file, \
+                and otherwise create a new file. Use this command for initial file creation, such as scaffolding a new project. \
+                You should also use this command when overwriting large boilerplate files where you want to replace the entire content at once.\
+                \n * The `insert` command will insert `newStr` after `insertLine` and place it on its own line.\
+                \n * The `append` command will add content to the end of an existing file, automatically adding a newline if the file does not end with one.\
+                \n * The `strReplace` command will replace `oldStr` in an existing file with `newStr`.\
+                \n IMPORTANT Notes for using the `strReplace` command:\n \
+                * Use this command to delete code by using empty `newStr` parameter.\n \
+                * If you need to make small changes to an existing file, consider using `strReplace` command to avoid unnecessary rewriting the entire file.\n \
+                * Prefer the `create` command if the complexity or number of changes would make `strReplace` unwieldy or error-prone.\n \
+                * The `oldStr` parameter should match EXACTLY one or more consecutive lines from the original file. Be mindful of whitespaces! \
+                Include just the changing lines, and a few surrounding lines if needed for uniqueness. Do not include long runs of unchanging lines in `oldStr`.\n \
+                * The `newStr` parameter should contain the edited lines that should replace the `oldStr`.',
             inputSchema: {
                 type: 'object',
                 properties: {
@@ -208,7 +211,7 @@ export class FsWrite {
                         type: 'string',
                     },
                     path: {
-                        description: 'Absolute path to file or directory, e.g. `/repo/file.py` or `/repo`.',
+                        description: 'Absolute path to a file, e.g. `/repo/file.py`',
                         type: 'string',
                     },
                 },
