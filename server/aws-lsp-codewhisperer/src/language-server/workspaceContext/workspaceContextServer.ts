@@ -78,9 +78,13 @@ export const WorkspaceContextServer = (): Server => features => {
             if (params.section === Q_CONTEXT_CONFIGURATION_SECTION) {
                 const workspaceMap = workspaceFolderManager.getWorkspaces()
 
-                // Filter workspaces to only include those with READY status
+                // Filter workspaces to only include those with websocket connected.
+                // To reduce the error of GenerateCompletions getting repoMap from server-side workspace context,
+                // with websocket connected, at least workspace/didChangeWorkspaceFolders websocket request has been sent.
+                // When the workspace is reopened and server-side was prepared, compared to filter with READY state of workspace,
+                // this filter would add delay to wait for websocket connection being established
                 const workspaceArray = Array.from(workspaceMap)
-                    .filter(([_, workspaceState]) => workspaceState.remoteWorkspaceState === 'READY')
+                    .filter(([_, workspaceState]) => workspaceState.webSocketClient?.isConnected())
                     .map(([workspaceRoot, workspaceState]) => ({
                         workspaceRoot,
                         workspaceId: workspaceState.workspaceId ?? '',
