@@ -898,7 +898,7 @@ describe('AgenticChatController', () => {
 
             const chatResult = await chatResultPromise
 
-            sinon.assert.callCount(testFeatures.lsp.sendProgress, mockChatResponseList.length + 2) // response length + 2 loading messages
+            sinon.assert.callCount(testFeatures.lsp.sendProgress, mockChatResponseList.length + 1) // response length + 1 loading messages
             assert.deepStrictEqual(chatResult, {
                 additionalMessages: [],
                 body: '\n\nHello World!',
@@ -915,7 +915,7 @@ describe('AgenticChatController', () => {
 
             const chatResult = await chatResultPromise
 
-            sinon.assert.callCount(testFeatures.lsp.sendProgress, mockChatResponseList.length + 2) // response length + 2 loading message
+            sinon.assert.callCount(testFeatures.lsp.sendProgress, mockChatResponseList.length + 1) // response length + 1 loading message
             assert.deepStrictEqual(chatResult, {
                 additionalMessages: [],
                 body: '\n\nHello World!',
