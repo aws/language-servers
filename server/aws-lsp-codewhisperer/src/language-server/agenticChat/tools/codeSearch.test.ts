@@ -17,32 +17,13 @@ describe('CodeSearch Tool', () => {
 
     before(async () => {
         testFeatures = new TestFeatures()
-        // @ts-ignore does not require all fs operations to be implemented
-        testFeatures.workspace.fs = {
-            exists: async (path: string): Promise<boolean> => {
-                try {
-                    await fs.access(path)
-                    return true
-                } catch {
-                    return false
-                }
-            },
-        } as Features['workspace']['fs']
+        testFeatures.workspace.fs.exists = path =>
+            fs.access(path).then(
+                () => true,
+                () => false
+            )
         tempFolder = await testFolder.TestFolder.create()
 
-        // Mock the workspace folders for getWorkspaceFolderPaths
-        testFeatures.workspace.fs = {
-            exists: async (path: string): Promise<boolean> => {
-                try {
-                    await fs.access(path)
-                    return true
-                } catch {
-                    return false
-                }
-            },
-        } as Features['workspace']['fs']
-
-        // Create mock LocalProjectContextController
         mockLocalProjectContextController = {
             isEnabled: true,
             queryVectorIndex: stub().resolves([]),
@@ -66,12 +47,6 @@ describe('CodeSearch Tool', () => {
             /Code search query cannot be empty/i,
             'Expected an error about empty query'
         )
-    })
-
-    it('validates query with path', async () => {
-        const codeSearch = new CodeSearch(testFeatures)
-        await codeSearch.validate({ query: 'function test', path: tempFolder.path })
-        // If no error is thrown, the validation passed
     })
 
     it('returns empty results when no matches found', async () => {
@@ -164,12 +139,6 @@ describe('CodeSearch Tool', () => {
         )
     })
 
-    it('does not require acceptance when path is not provided', async () => {
-        const codeSearch = new CodeSearch(testFeatures)
-        const result = await codeSearch.requiresAcceptance({ query: 'test' })
-        assert.strictEqual(result.requiresAcceptance, false)
-    })
-
     it('provides correct queue description', async () => {
         const codeSearch = new CodeSearch(testFeatures)
 
@@ -187,8 +156,8 @@ describe('CodeSearch Tool', () => {
             getWriter: () => mockWriter,
         } as unknown as WritableStream
 
-        await codeSearch.queueDescription({ query: 'test query', path: '/test/path' }, mockStream, true)
-        assert.strictEqual(capturedDescription, 'Performing code search for "test query" in /test/path')
+        await codeSearch.queueDescription({ query: 'test query' }, mockStream, true)
+        assert.strictEqual(capturedDescription, 'Performing code search for "test query" in ')
     })
 
     it('returns correct tool specification', () => {

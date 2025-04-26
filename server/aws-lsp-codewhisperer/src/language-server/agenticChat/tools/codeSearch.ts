@@ -9,7 +9,6 @@ import path = require('path')
 
 export interface CodeSearchParams {
     query: string
-    path?: string
 }
 
 export type CodeSearchOutput = RelevantTextDocument & LineInfo
@@ -28,7 +27,7 @@ export class CodeSearch {
         if (!params.query || params.query.trim().length === 0) {
             throw new Error('Code search query cannot be empty.')
         }
-        const searchPath = this.getOrSetSearchPath(params.path)
+        const searchPath = this.getOrSetSearchPath()
 
         if (searchPath) {
             await validatePath(searchPath, this.workspace.fs.exists)
@@ -47,32 +46,25 @@ export class CodeSearch {
             return
         }
 
-        const path = this.getOrSetSearchPath(params.path)
+        const path = this.getOrSetSearchPath()
         await writer.write(`Performing code search for "${params.query}" in ${path}`)
         await closeWriter(writer)
     }
 
-    public async requiresAcceptance(params: CodeSearchParams): Promise<CommandValidation> {
-        if (!params.path) {
-            return { requiresAcceptance: false }
-        }
-        return requiresPathAcceptance(params.path, this.lsp, this.logging)
-    }
-
     public async invoke(params: CodeSearchParams): Promise<InvokeOutput> {
-        const path = this.getOrSetSearchPath(params.path)
+        const path = this.getOrSetSearchPath()
 
         try {
-            const results = await this.executeCodeSearch(params.query, path)
+            const results = await this.executeCodeSearch(params.query)
             return this.createOutput(
                 !results || results.length === 0 ? 'No code matches found for code search.' : results
             )
         } catch (error: any) {
             this.logging.error(
-                `Failed to perform code search for "${params.query}" in "${path}": ${error.message || error}`
+                `Failed to perform code search for "${params.query}" in workspace "${path}": ${error.message || error}`
             )
             throw new Error(
-                `Failed to perform code search for "${params.query}" in "${path}": ${error.message || error}`
+                `Failed to perform code search for "${params.query}" in workspace"${path}": ${error.message || error}`
             )
         }
     }
@@ -93,13 +85,14 @@ export class CodeSearch {
         return searchPath
     }
 
-    private async executeCodeSearch(query: string, path: string): Promise<CodeSearchOutput[]> {
+    private async executeCodeSearch(query: string): Promise<CodeSearchOutput[]> {
         this.logging.info(`Executing code search for "${query}" in "${path}"`)
         const localProjectContextController = await LocalProjectContextController.getInstance()
 
         if (!localProjectContextController.isEnabled) {
-            this.logging.warn(`Error during code search: local project context controller is disable`)
-            return []
+            this.logging.warn(`Error during code search: local project context controller is disabled`)
+            throw new Error(`Error during code search: Amazon Q Workspace Index disabled,
+                 please update the configuration to enable Amazon Q workspace Index`)
         }
         try {
             // Use the localProjectContextController to query the vector index
@@ -178,7 +171,7 @@ export class CodeSearch {
         return {
             name: 'codeSearch',
             description:
-                "Find snippets of code from the codebase most relevant to the search query.\nThis is a semantic search tool, so the query should ask for something semantically matching what is needed.\nIf it makes sense to only search in particular directories, please specify them in the target_directories field.\nUnless there is a clear reason to use your own search query, please just reuse the user's exact query with their wording.\nTheir exact wording/phrasing can often be helpful for the semantic search query. Keeping the same exact question format can also be helpful.",
+                "Find snippets of code from the codebase most relevant to the search query.\nThis is a semantic search tool, so the query should ask for something semantically matching what is needed.\nUnless there is a clear reason to use your own search query, please just reuse the user's exact query with their wording.\nTheir exact wording/phrasing can often be helpful for the semantic search query. Keeping the same exact question format can also be helpful.",
             inputSchema: {
                 type: 'object',
                 properties: {
@@ -186,12 +179,7 @@ export class CodeSearch {
                         type: 'string',
                         description: 'The search query to find relevant code.',
                     },
-                    path: {
-                        type: 'string',
-                        description:
-                            'Optional absolute path to a directory to search in, e.g., `/repo`. If not provided, the current workspace folder will be used.',
-                    },
-                    explanatio: {
+                    explanation: {
                         type: 'string',
                         description:
                             'One sentence explanation as to why this tool is being used, and how it contributes to the goal',
