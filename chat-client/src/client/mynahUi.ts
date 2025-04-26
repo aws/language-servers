@@ -468,13 +468,7 @@ export const createMynahUi = (
             }
         },
         onStopChatResponse: tabId => {
-            const store = mynahUi.getTabData(tabId)?.getStore() || {}
-            const chatItems = store.chatItems || []
-            const updatedItems = chatItems.map(item => ({
-                ...item,
-                type: item.type === ChatItemType.ANSWER_STREAM && !item.body ? ChatItemType.ANSWER : item.type,
-            }))
-            mynahUi.updateStore(tabId, { loadingChat: false, cancelButtonWhenLoading: true, chatItems: updatedItems })
+            updateFinalItemTypes(tabId)
             messager.onStopChatResponse(tabId)
         },
     }
@@ -607,6 +601,15 @@ export const createMynahUi = (
         }
 
         if (isPartialResult) {
+            const tempChatItem = {
+                body: '',
+                type: ChatItemType.ANSWER_STREAM,
+            }
+            mynahUi.addChatItem(tabId, tempChatItem)
+            mynahUi.updateStore(tabId, {
+                loadingChat: true,
+                cancelButtonWhenLoading: true,
+            })
             const chatItem = {
                 ...chatResult,
                 body: chatResult.body,
@@ -622,6 +625,8 @@ export const createMynahUi = (
                 mynahUi.updateChatAnswerWithMessageId(tabId, chatResult.messageId!, chatItem)
             }
             return
+        } else {
+            updateFinalItemTypes(tabId)
         }
 
         // If chat response from server is an empty object don't do anything
@@ -704,6 +709,21 @@ export const createMynahUi = (
                 mynahUi.updateChatAnswerWithMessageId(tabId, updatedMessage.messageId, chatItem)
             })
         }
+    }
+
+    const updateFinalItemTypes = (tabId: string) => {
+        const store = mynahUi.getTabData(tabId)?.getStore() || {}
+        const chatItems = store.chatItems || []
+        const updatedItems = chatItems.map(item => ({
+            ...item,
+            type: item.type === ChatItemType.ANSWER_STREAM && !item.body ? ChatItemType.ANSWER : item.type,
+        }))
+        mynahUi.updateStore(tabId, {
+            loadingChat: false,
+            cancelButtonWhenLoading: true,
+            chatItems: updatedItems,
+            promptInputDisabledState: false,
+        })
     }
 
     const prepareChatItemFromMessage = (message: ChatMessage, isPairProgrammingMode: boolean): Partial<ChatItem> => {

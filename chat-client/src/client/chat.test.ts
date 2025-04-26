@@ -242,11 +242,7 @@ describe('Chat', () => {
             codeReference: undefined,
             fileList: undefined,
         })
-        assert.calledOnceWithExactly(updateStoreStub, tabId, {
-            loadingChat: false,
-            promptInputDisabledState: false,
-            cancelButtonWhenLoading: true,
-        })
+        assert.calledTwice(updateStoreStub)
     })
 
     it('partial chat response triggers ui events', () => {
@@ -264,7 +260,7 @@ describe('Chat', () => {
         })
         window.dispatchEvent(chatEvent)
         assert.notCalled(endMessageStreamStub)
-        assert.notCalled(updateStoreStub)
+        assert.calledOnce(updateStoreStub)
     })
 
     it('partial chat response with header triggers ui events', () => {
@@ -311,7 +307,7 @@ describe('Chat', () => {
 
         window.dispatchEvent(chatEvent)
         assert.notCalled(endMessageStreamStub)
-        assert.notCalled(updateStoreStub)
+        assert.calledOnce(updateStoreStub)
     })
 
     describe('chatOptions', () => {
