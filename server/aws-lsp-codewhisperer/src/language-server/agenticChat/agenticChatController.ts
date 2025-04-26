@@ -803,10 +803,10 @@ export class AgenticChatController implements ChatHandlers {
         requestInput: RequestType,
         makeRequest: (requestInput: RequestType) => Promise<ResponseType>
     ): Promise<ResponseType> {
-        this.#debug(`Q Model Request: ${JSON.stringify(requestInput)}`)
+        this.#log(`Q Model Request: ${JSON.stringify(requestInput)}`)
         try {
             const response = await makeRequest(requestInput)
-            this.#debug(`Q Model Response: ${JSON.stringify(response)}`)
+            this.#log(`Q Model Response: ${JSON.stringify(response)}`)
             return response
         } catch (e) {
             this.#features.logging.error(`Q Model Error: ${JSON.stringify(e)}`)
@@ -1248,8 +1248,8 @@ export class AgenticChatController implements ChatHandlers {
         // return non-model errors back to the client as errors
         if (!(err instanceof ModelServiceException)) {
             this.#log(`unknown error ${err instanceof Error ? JSON.stringify(err) : 'unknown'}`)
-            this.#debug(`stack ${err instanceof Error ? JSON.stringify(err.stack) : 'unknown'}`)
-            this.#debug(`cause ${err instanceof Error ? JSON.stringify(err.cause) : 'unknown'}`)
+            this.#log(`stack ${err instanceof Error ? JSON.stringify(err.stack) : 'unknown'}`)
+            this.#log(`cause ${err instanceof Error ? JSON.stringify(err.cause) : 'unknown'}`)
             return new ResponseError<ChatResult>(
                 LSPErrorCodes.RequestFailed,
                 err instanceof Error ? err.message : 'Unknown request error'
