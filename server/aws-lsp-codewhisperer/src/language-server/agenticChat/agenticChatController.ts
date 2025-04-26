@@ -506,10 +506,6 @@ export class AgenticChatController implements ChatHandlers {
                 documentReference
             )
 
-            // show loading message after we render text response and before processing toolUse
-            loadingMessageId = `loading-${uuid()}-${iterationCount}`
-            await chatResultStream.writeResultBlock({ messageId: loadingMessageId, type: 'answer' })
-
             //  Add the current assistantResponse message to the history DB
             if (result.data?.chatResult.body !== undefined) {
                 this.#chatHistoryDb.addMessage(tabId, 'cwc', conversationIdentifier ?? '', {
@@ -533,13 +529,6 @@ export class AgenticChatController implements ChatHandlers {
 
             // Check if we have any tool uses that need to be processed
             const pendingToolUses = this.#getPendingToolUses(result.data?.toolUses || {})
-
-            // remove the temp loading message when we are going to process toolUse
-            if (loadingMessageId) {
-                await chatResultStream.removeResultBlock(loadingMessageId)
-                this.#features.chat.sendChatUpdate({ tabId, state: { inProgress: false } })
-                loadingMessageId = undefined
-            }
 
             if (pendingToolUses.length === 0) {
                 // No more tool uses, we're done
