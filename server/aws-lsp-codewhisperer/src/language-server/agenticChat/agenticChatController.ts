@@ -169,12 +169,12 @@ export class AgenticChatController implements ChatHandlers {
 
     async onButtonClick(params: ButtonClickParams): Promise<ButtonClickResult> {
         this.#log(`onButtonClick event with params: ${JSON.stringify(params)}`)
+        const session = this.#chatSessionManagementService.getSession(params.tabId)
         if (
             params.buttonId === 'run-shell-command' ||
             params.buttonId === 'reject-shell-command' ||
             params.buttonId === 'allow-tools'
         ) {
-            const session = this.#chatSessionManagementService.getSession(params.tabId)
             if (!session.data) {
                 return { success: false, failureReason: `could not find chat session for tab: ${params.tabId} ` }
             }
@@ -200,30 +200,17 @@ export class AgenticChatController implements ChatHandlers {
         } else if (params.buttonId === 'undo-changes') {
             const toolUseId = params.messageId
             try {
-                await this.#undoFileChange(toolUseId)
-                const cachedToolUse = this.#triggerContext.getToolUseLookup().get(toolUseId)
-                if (cachedToolUse) {
-                    this.#features.chat.sendChatUpdate({
-                        tabId: params.tabId,
-                        data: {
-                            messages: [
-                                {
-                                    ...cachedToolUse.chatResult,
-                                    header: {
-                                        ...cachedToolUse.chatResult?.header,
-                                        buttons: cachedToolUse.chatResult?.header?.buttons?.filter(
-                                            button => button.id !== 'undo-changes'
-                                        ),
-                                        status: { status: 'error', icon: 'cancel', text: 'Change discarded' },
-                                    },
-                                },
-                            ],
-                        },
-                    })
-                }
+                await this.#undoFileChange(toolUseId, session.data)
+                this.#updateUndoButtonAfterClick(params.tabId, toolUseId, session.data)
             } catch (err: any) {
                 return { success: false, failureReason: err.message }
             }
+            return {
+                success: true,
+            }
+        } else if (params.buttonId === 'undo-all-changes') {
+            const toolUseId = params.messageId.replace('_undoall', '')
+            await this.#undoAllFileChanges(params.tabId, toolUseId, session.data)
             return {
                 success: true,
             }
@@ -235,15 +222,54 @@ export class AgenticChatController implements ChatHandlers {
         }
     }
 
-    async #undoFileChange(toolUseId: string): Promise<void> {
+    async #undoFileChange(toolUseId: string, session: ChatSessionService | undefined): Promise<void> {
         this.#log(`Reverting file change for tooluseId: ${toolUseId}`)
-        const toolUse = this.#triggerContext.getToolUseLookup().get(toolUseId)
+        const toolUse = session?.toolUseLookup.get(toolUseId)
 
         const input = toolUse?.input as unknown as FsWriteParams
         if (toolUse?.fileChange?.before) {
             await this.#features.workspace.fs.writeFile(input.path, toolUse.fileChange.before)
         } else {
             await this.#features.workspace.fs.rm(input.path)
+        }
+    }
+
+    #updateUndoButtonAfterClick(tabId: string, toolUseId: string, session: ChatSessionService | undefined) {
+        const cachedToolUse = session?.toolUseLookup.get(toolUseId)
+        if (!cachedToolUse) {
+            return
+        }
+        this.#features.chat.sendChatUpdate({
+            tabId,
+            data: {
+                messages: [
+                    {
+                        ...cachedToolUse.chatResult,
+                        header: {
+                            ...cachedToolUse.chatResult?.header,
+                            buttons: cachedToolUse.chatResult?.header?.buttons?.filter(
+                                button => button.id !== 'undo-changes'
+                            ),
+                            status: { status: 'error', icon: 'cancel', text: 'Change discarded' },
+                        },
+                    },
+                ],
+            },
+        })
+    }
+
+    async #undoAllFileChanges(
+        tabId: string,
+        toolUseId: string,
+        session: ChatSessionService | undefined
+    ): Promise<void> {
+        this.#log(`Reverting all file changes starting from ${toolUseId}`)
+        const toUndo = session?.toolUseLookup.get(toolUseId)?.relatedToolUses
+        if (!toUndo) {
+            return
+        }
+        for (const messageId of [...toUndo].reverse()) {
+            await this.onButtonClick({ buttonId: 'undo-changes', messageId, tabId })
         }
     }
 
@@ -490,6 +516,7 @@ export class AgenticChatController implements ChatHandlers {
                     cwsprChatMessageId: response.$metadata.requestId,
                 }),
                 chatResultStream,
+                session,
                 documentReference
             )
 
@@ -593,13 +620,16 @@ export class AgenticChatController implements ChatHandlers {
             // Store buttonBlockId to use it in `catch` block if needed
             let cachedButtonBlockId
             if (!toolUse.name || !toolUse.toolUseId) continue
-            this.#triggerContext.getToolUseLookup().set(toolUse.toolUseId, toolUse)
+            session.toolUseLookup.set(toolUse.toolUseId, toolUse)
 
             try {
                 // TODO: Can we move this check in the event parser before the stream completes?
                 const availableToolNames = this.#getTools(session).map(tool => tool.toolSpecification.name)
                 if (!availableToolNames.includes(toolUse.name)) {
                     throw new Error(`Tool ${toolUse.name} is not available in the current mode`)
+                }
+                if (toolUse.name !== 'fsWrite') {
+                    await this.#showUndoAllIfRequired(chatResultStream, session)
                 }
                 const { explanation } = toolUse.input as unknown as ExplanatoryParams
                 if (explanation) {
@@ -653,9 +683,10 @@ export class AgenticChatController implements ChatHandlers {
                 if (toolUse.name === 'fsWrite') {
                     const input = toolUse.input as unknown as FsWriteParams
                     const document = await this.#triggerContext.getTextDocument(input.path)
-                    this.#triggerContext
-                        .getToolUseLookup()
-                        .set(toolUse.toolUseId, { ...toolUse, fileChange: { before: document?.getText() } })
+                    session.toolUseLookup.set(toolUse.toolUseId, {
+                        ...toolUse,
+                        fileChange: { before: document?.getText() },
+                    })
                 }
 
                 const ws = this.#getWritableStream(chatResultStream, toolUse)
@@ -695,11 +726,10 @@ export class AgenticChatController implements ChatHandlers {
                     case 'fsWrite':
                         const input = toolUse.input as unknown as FsWriteParams
                         const doc = await this.#triggerContext.getTextDocument(input.path)
-                        const chatResult = await this.#getFsWriteChatResult(toolUse, doc)
-                        const toolUseLookup = this.#triggerContext.getToolUseLookup()
-                        const cachedToolUse = toolUseLookup.get(toolUse.toolUseId)
+                        const chatResult = await this.#getFsWriteChatResult(toolUse, doc, session)
+                        const cachedToolUse = session.toolUseLookup.get(toolUse.toolUseId)
                         if (cachedToolUse) {
-                            toolUseLookup.set(toolUse.toolUseId, {
+                            session.toolUseLookup.set(toolUse.toolUseId, {
                                 ...cachedToolUse,
                                 chatResult,
                                 fileChange: { ...cachedToolUse.fileChange, after: doc?.getText() },
@@ -715,6 +745,8 @@ export class AgenticChatController implements ChatHandlers {
                         })
                         break
                 }
+                this.#updateUndoAllState(toolUse, session)
+
                 if (toolUse.name) {
                     this.#telemetryController.emitToolUseSuggested(
                         toolUse,
@@ -754,6 +786,61 @@ export class AgenticChatController implements ChatHandlers {
         }
 
         return results
+    }
+
+    /**
+     * Updates the currentUndoAllId state in the session
+     */
+    #updateUndoAllState(toolUse: ToolUse, session: ChatSessionService) {
+        if (toolUse.name === 'fsWrite') {
+            if (session.currentUndoAllId === undefined) {
+                session.currentUndoAllId = toolUse.toolUseId
+            }
+            if (session.currentUndoAllId) {
+                const prev = session.toolUseLookup.get(session.currentUndoAllId)
+                if (prev && toolUse.toolUseId) {
+                    const relatedToolUses = prev.relatedToolUses || new Set()
+                    relatedToolUses.add(toolUse.toolUseId)
+
+                    session.toolUseLookup.set(session.currentUndoAllId, {
+                        ...prev,
+                        relatedToolUses,
+                    })
+                }
+            }
+        } else {
+            session.currentUndoAllId = undefined
+        }
+    }
+
+    /**
+     * Shows an "Undo all changes" button if there are multiple related file changes
+     * that can be undone together.
+     */
+    async #showUndoAllIfRequired(chatResultStream: AgenticChatResultStream, session: ChatSessionService) {
+        if (session.currentUndoAllId === undefined) {
+            return
+        }
+
+        const toUndo = session.toolUseLookup.get(session.currentUndoAllId)?.relatedToolUses
+        if (!toUndo || toUndo.size <= 1) {
+            return
+        }
+
+        await chatResultStream.writeResultBlock({
+            type: 'answer',
+            messageId: `${session.currentUndoAllId}_undoall`,
+            buttons: [
+                {
+                    id: 'undo-all-changes',
+                    text: 'Undo all changes',
+                    icon: 'revert',
+                    status: 'clear',
+                    keepCardAfterClick: false,
+                },
+            ],
+        })
+        session.currentUndoAllId = undefined
     }
 
     /**
@@ -1014,9 +1101,13 @@ export class AgenticChatController implements ChatHandlers {
         }
     }
 
-    async #getFsWriteChatResult(toolUse: ToolUse, doc: TextDocument | undefined): Promise<ChatMessage> {
+    async #getFsWriteChatResult(
+        toolUse: ToolUse,
+        doc: TextDocument | undefined,
+        session: ChatSessionService
+    ): Promise<ChatMessage> {
         const input = toolUse.input as unknown as FsWriteParams
-        const oldContent = this.#triggerContext.getToolUseLookup().get(toolUse.toolUseId!)?.fileChange?.before ?? ''
+        const oldContent = session.toolUseLookup.get(toolUse.toolUseId!)?.fileChange?.before ?? ''
         // Get just the filename instead of the full path
         const fileName = path.basename(input.path)
         const diffChanges = diffLines(oldContent, doc?.getText() ?? '')
@@ -1409,8 +1500,9 @@ export class AgenticChatController implements ChatHandlers {
     }
 
     async onFileClicked(params: FileClickParams) {
+        const session = this.#chatSessionManagementService.getSession(params.tabId)
         const toolUseId = params.messageId
-        const toolUse = toolUseId ? this.#triggerContext.getToolUseLookup().get(toolUseId) : undefined
+        const toolUse = toolUseId ? session.data?.toolUseLookup.get(toolUseId) : undefined
 
         if (toolUse?.name === 'fsWrite') {
             const input = toolUse.input as unknown as FsWriteParams
@@ -1603,6 +1695,7 @@ export class AgenticChatController implements ChatHandlers {
         response: GenerateAssistantResponseCommandOutput,
         metric: Metric<AddMessageEvent>,
         chatResultStream: AgenticChatResultStream,
+        session: ChatSessionService,
         contextList?: FileList
     ): Promise<Result<AgenticChatResultWithMetadata, string>> {
         const requestId = response.$metadata.requestId!
@@ -1615,6 +1708,9 @@ export class AgenticChatController implements ChatHandlers {
         }
 
         for await (const chatEvent of response.generateAssistantResponseResponse!) {
+            if (chatEvent.assistantResponseEvent) {
+                await this.#showUndoAllIfRequired(chatResultStream, session)
+            }
             const result = chatEventParser.processPartialEvent(chatEvent)
 
             // terminate early when there is an error
