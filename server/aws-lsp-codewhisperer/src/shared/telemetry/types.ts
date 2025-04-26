@@ -188,6 +188,7 @@ export type ToolUseSuggestedEvent = {
     cwsprChatConversationType: ChatConversationType
     cwsprToolName: string
     cwsprToolUseId: string
+    languageServerVersion?: string
 }
 
 export type ModifyCodeEvent = {
@@ -220,6 +221,7 @@ export type AddMessageEvent = {
     cwsprChatResponseLength?: number
     cwsprChatConversationType: ChatConversationType
     codewhispererCustomizationArn?: string
+    languageServerVersion?: string
 }
 
 export type EnterFocusChatEvent = {
@@ -289,6 +291,7 @@ export type MessageResponseErrorEvent = {
     cwsprChatRepsonseCode: number
     cwsprChatRequestLength?: number
     cwsprChatConversationType: ChatConversationType
+    languageServerVersion?: string
 }
 
 export type RunCommandEvent = {

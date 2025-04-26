@@ -877,6 +877,7 @@ describe('TelemetryService', () => {
                     cwsprChatActiveEditorImportCount: undefined,
                     codewhispererCustomizationArn: 'cust-123',
                     result: 'Succeeded',
+                    languageServerVersion: undefined,
                 },
             })
         })

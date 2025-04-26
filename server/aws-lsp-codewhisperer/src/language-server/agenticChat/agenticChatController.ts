@@ -746,7 +746,11 @@ export class AgenticChatController implements ChatHandlers {
                         break
                 }
                 if (toolUse.name) {
-                    this.#telemetryController.emitToolUseSuggested(toolUse, session.conversationId || '')
+                    this.#telemetryController.emitToolUseSuggested(
+                        toolUse,
+                        session.conversationId ?? '',
+                        this.#features.runtime.serverInfo.version ?? ''
+                    )
                 }
             } catch (err) {
                 if (loadingMessageId) {
@@ -1201,6 +1205,7 @@ export class AgenticChatController implements ChatHandlers {
         }
 
         metric.setDimension('codewhispererCustomizationArn', this.#customizationArn)
+        metric.setDimension('languageServerVersion', this.#features.runtime.serverInfo.version)
         await this.#telemetryController.emitAddMessageMetric(params.tabId, metric.metric)
 
         this.#telemetryController.updateTriggerInfo(params.tabId, {
@@ -1228,20 +1233,21 @@ export class AgenticChatController implements ChatHandlers {
         metric: Metric<CombinedConversationEvent>
     ): ChatResult | ResponseError<ChatResult> {
         if (isAwsError(err) || (isObject(err) && typeof getHttpStatusCode(err) === 'number')) {
-            let errorMessage: string
+            let errorMessage: string | undefined
             let requestID: string | undefined
 
             if (err instanceof CodeWhispererStreamingServiceException) {
                 errorMessage = err.message
                 requestID = err.$metadata.requestId
-            } else {
-                errorMessage = 'Not a CodeWhispererStreamingServiceException.'
-                if (err instanceof Error || err?.message) {
-                    errorMessage += ` Error is: ${err.message}`
-                }
+            } else if (err?.cause?.message) {
+                errorMessage = err?.cause?.message
+                requestID = err.cause?.$metadata.requestId
+            } else if (err instanceof Error || err?.message) {
+                errorMessage = err.message
             }
 
             metric.setDimension('cwsprChatResponseCode', getHttpStatusCode(err) ?? 0)
+            metric.setDimension('languageServerVersion', this.#features.runtime.serverInfo.version)
             this.#telemetryController.emitMessageResponseError(tabId, metric.metric, requestID, errorMessage)
         }
 
