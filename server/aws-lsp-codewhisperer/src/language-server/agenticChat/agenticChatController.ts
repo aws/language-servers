@@ -132,6 +132,18 @@ export class AgenticChatController implements ChatHandlers {
     #additionalContextProvider: AdditionalContextProvider
     #contextCommandsProvider: ContextCommandsProvider
 
+    /**
+     * Determines the appropriate message ID for a tool use based on tool type and name
+     * @param toolType The type of tool being used
+     * @param toolUse The tool use object
+     * @returns The message ID to use
+     */
+    #getMessageIdForToolUse(toolType: string | undefined, toolUse: ToolUse): string {
+        const toolUseId = toolUse.toolUseId!
+        // Return plain toolUseId for executeBash, add "_permission" suffix for all other tools
+        return toolUse.name === 'executeBash' || toolType === 'executeBash' ? toolUseId : `${toolUseId}_permission`
+    }
+
     constructor(
         chatSessionManagementService: ChatSessionManagementService,
         features: Features,
@@ -165,11 +177,17 @@ export class AgenticChatController implements ChatHandlers {
             if (!session.data) {
                 return { success: false, failureReason: `could not find chat session for tab: ${params.tabId} ` }
             }
-            const handler = session.data.getDeferredToolExecution(params.messageId)
+            // For 'allow-tools', remove suffix as permission card needs to be seperate from file list card
+            const messageId =
+                params.buttonId === 'allow-tools' && params.messageId.endsWith('_permission')
+                    ? params.messageId.replace('_permission', '')
+                    : params.messageId
+
+            const handler = session.data.getDeferredToolExecution(messageId)
             if (!handler?.reject || !handler.resolve) {
                 return {
                     success: false,
-                    failureReason: `could not find deferred tool execution for message: ${params.messageId} `,
+                    failureReason: `could not find deferred tool execution for message: ${messageId} `,
                 }
             }
             params.buttonId === 'reject-shell-command'
@@ -567,10 +585,8 @@ export class AgenticChatController implements ChatHandlers {
         session.setDeferredToolExecution(toolUse.toolUseId!, deferred.resolve, deferred.reject)
         this.#log(`Prompting for tool approval for tool: ${toolUse.name}`)
         await deferred.promise
-        if (toolUse.name === 'executeBash') {
-            // Note: we want to overwrite the button block because it already exists in the stream.
-            await resultStream.overwriteResultBlock(this.#getUpdateBashConfirmResult(toolUse, true), promptBlockId)
-        }
+        // Note: we want to overwrite the button block because it already exists in the stream.
+        await resultStream.overwriteResultBlock(this.#getUpdateToolConfirmResult(toolUse, true), promptBlockId)
     }
 
     /**
@@ -732,7 +748,7 @@ export class AgenticChatController implements ChatHandlers {
                     if (err instanceof ToolApprovalException && toolUse.name === 'executeBash') {
                         if (cachedButtonBlockId) {
                             await chatResultStream.overwriteResultBlock(
-                                this.#getUpdateBashConfirmResult(toolUse, false),
+                                this.#getUpdateToolConfirmResult(toolUse, false),
                                 cachedButtonBlockId
                             )
                             if (err.shouldShowMessage) {
@@ -743,7 +759,7 @@ export class AgenticChatController implements ChatHandlers {
                                 })
                             }
                         } else {
-                            this.#features.logging.log('Failed to update executeBash block: no blockId is available.')
+                            this.#features.logging.log('Failed to update tool block: no blockId is available.')
                         }
                     }
                     throw err
@@ -832,19 +848,106 @@ export class AgenticChatController implements ChatHandlers {
         })
     }
 
-    #getUpdateBashConfirmResult(toolUse: ToolUse, isAccept: boolean): ChatResult {
-        return {
-            messageId: toolUse.toolUseId,
-            type: 'tool',
-            body: '```shell\n' + (toolUse.input as unknown as ExecuteBashParams).command + '\n',
-            header: {
-                body: 'shell',
-                status: {
-                    status: isAccept ? 'success' : 'error',
-                    icon: isAccept ? 'ok' : 'cancel',
-                    text: isAccept ? 'Accepted' : 'Rejected',
+    /**
+     * Creates an updated ChatResult for tool confirmation based on tool type
+     * @param toolUse The tool use object
+     * @param isAccept Whether the tool was accepted or rejected
+     * @param toolType Optional tool type for specialized handling
+     * @returns ChatResult with appropriate confirmation UI
+     */
+    #getUpdateToolConfirmResult(toolUse: ToolUse, isAccept: boolean, toolType?: string): ChatResult {
+        const toolName = toolType || toolUse.name
+
+        // Handle bash commands with special formatting
+        if (toolName === 'executeBash') {
+            return {
+                messageId: toolUse.toolUseId,
+                type: 'tool',
+                body: '```shell\n' + (toolUse.input as unknown as ExecuteBashParams).command + '\n',
+                header: {
+                    body: 'shell',
+                    status: {
+                        status: isAccept ? 'success' : 'error',
+                        icon: isAccept ? 'ok' : 'cancel',
+                        text: isAccept ? 'Accepted' : 'Rejected',
+                    },
                 },
-            },
+            }
+        }
+
+        // For file operations and other tools, create appropriate confirmation UI
+        let header: {
+            body: string
+            status: { status: 'info' | 'success' | 'warning' | 'error'; icon: string; text: string }
+        }
+        let body: string
+
+        switch (toolName) {
+            case 'fsWrite':
+                const writeFilePath = (toolUse.input as unknown as FsWriteParams).path
+                header = {
+                    body: 'File Write',
+                    status: {
+                        status: isAccept ? 'success' : 'error',
+                        icon: isAccept ? 'ok' : 'cancel',
+                        text: isAccept ? 'Allowed' : 'Rejected',
+                    },
+                }
+                body = isAccept
+                    ? `File modification allowed: \`${writeFilePath}\``
+                    : `File modification rejected: \`${writeFilePath}\``
+                break
+
+            case 'fsRead':
+            case 'listDirectory':
+                // Common handling for read operations
+                const path = (toolUse.input as unknown as FsReadParams | ListDirectoryParams).path
+                const isDirectory = toolName === 'listDirectory'
+                header = {
+                    body: isDirectory ? 'Directory Listing' : 'File Read',
+                    status: {
+                        status: isAccept ? 'success' : 'error',
+                        icon: isAccept ? 'ok' : 'cancel',
+                        text: isAccept ? 'Allowed' : 'Rejected',
+                    },
+                }
+                body = isAccept
+                    ? `${isDirectory ? 'Directory listing' : 'File read'} allowed: \`${path}\``
+                    : `${isDirectory ? 'Directory listing' : 'File read'} rejected: \`${path}\``
+                break
+
+            case 'fileSearch':
+                const searchPath = (toolUse.input as unknown as FileSearchParams).path
+                header = {
+                    body: 'File Search',
+                    status: {
+                        status: isAccept ? 'success' : 'error',
+                        icon: isAccept ? 'ok' : 'cancel',
+                        text: isAccept ? 'Allowed' : 'Rejected',
+                    },
+                }
+                body = isAccept ? `File search allowed: \`${searchPath}\`` : `File search rejected: \`${searchPath}\``
+                break
+
+            default:
+                // Generic handler for other tool types
+                header = {
+                    body: toolUse.name || 'Tool',
+                    status: {
+                        status: isAccept ? 'success' : 'error',
+                        icon: isAccept ? 'ok' : 'cancel',
+                        text: isAccept ? 'Allowed' : 'Rejected',
+                    },
+                }
+                body = isAccept ? `Tool execution allowed: ${toolUse.name}` : `Tool execution rejected: ${toolUse.name}`
+                break
+        }
+
+        return {
+            messageId: this.#getMessageIdForToolUse(toolType, toolUse),
+            type: 'tool',
+            body,
+            header,
         }
     }
 
@@ -926,7 +1029,7 @@ export class AgenticChatController implements ChatHandlers {
 
         return {
             type: 'tool',
-            messageId: toolUse.toolUseId,
+            messageId: this.#getMessageIdForToolUse(toolType, toolUse),
             header,
             body: warning ? warning + (toolType === 'executeBash' ? '' : '\n\n') + body : body,
         }
