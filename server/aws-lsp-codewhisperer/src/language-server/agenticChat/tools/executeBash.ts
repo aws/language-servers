@@ -331,8 +331,23 @@ export class ExecuteBash {
             // Set up cancellation listener
             if (cancellationToken) {
                 cancellationToken.onCancellationRequested(() => {
-                    this.logging.debug('Cancellation requested, killing child process')
-                    this.childProcess?.stop()
+                    this.logging.debug('cancellation detected, killing child process')
+
+                    // Kill the process
+                    this.childProcess?.stop(false, 'SIGTERM')
+
+                    // After a short delay, force kill with SIGKILL if still running
+                    setTimeout(() => {
+                        if (this.childProcess && !this.childProcess.stopped) {
+                            this.logging.debug('Process still running after SIGTERM, sending SIGKILL')
+
+                            // Try to kill the process group with SIGKILL
+                            this.childProcess.stop(true, 'SIGKILL')
+                        }
+                    }, 500)
+                    // Return from the function after cancellation
+                    reject(new CancellationError('user'))
+                    return
                 })
             }
 
