@@ -1,6 +1,6 @@
 import { partialClone } from './collectionUtils'
 
-export function formatObjForLogs(
+export function formatObj(
     o: any,
     options?: {
         depth?: number

@@ -103,8 +103,7 @@ import { ExecuteBash, ExecuteBashOutput, ExecuteBashParams } from './tools/execu
 import { ExplanatoryParams, InvokeOutput, ToolApprovalException } from './tools/toolShared'
 import { ModelServiceException } from './errors'
 import { FileSearch, FileSearchParams } from './tools/fileSearch'
-import { partialClone } from '@aws/lsp-core/out/util/collectionUtils'
-import { formatObjForLogs } from '@aws/lsp-core/out/util/loggingUtils'
+import { loggingUtils } from '@aws/lsp-core'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -767,10 +766,10 @@ export class AgenticChatController implements ChatHandlers {
         makeRequest: (requestInput: RequestType) => Promise<ResponseType>
     ): Promise<ResponseType> {
         // History can be thousands of lines, so we don't want it in the logs. The full history can be retrieved via requestId.
-        this.#debug(`Q Model Request: ${formatObjForLogs(requestInput, { depth: 5, omitKeys: ['history'] })}`)
+        this.#debug(`Q Model Request: ${loggingUtils.formatObj(requestInput, { depth: 5, omitKeys: ['history'] })}`)
         try {
             const response = await makeRequest(requestInput)
-            this.#debug(`Q Model Response: ${formatObjForLogs(response, { depth: 5 })}`)
+            this.#debug(`Q Model Response: ${loggingUtils.formatObj(response, { depth: 5 })}`)
             return response
         } catch (e) {
             this.#features.logging.error(`Q Model Error: ${JSON.stringify(e)}`)
