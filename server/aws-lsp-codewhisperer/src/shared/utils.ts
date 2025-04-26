@@ -314,6 +314,9 @@ export function getHttpStatusCode(err: unknown): number | undefined {
     if (hasMetadata(err) && err.$metadata?.httpStatusCode !== undefined) {
         return err.$metadata?.httpStatusCode
     }
+    if (hasCause(err) && err.cause.$metadata?.httpStatusCode !== undefined) {
+        return err.cause.$metadata.httpStatusCode
+    }
 
     return undefined
 }
@@ -324,6 +327,10 @@ function hasResponse<T>(error: T): error is T & Pick<ServiceException, '$respons
 
 function hasMetadata<T>(error: T): error is T & Pick<CodeWhispererStreamingServiceException, '$metadata'> {
     return typeof (error as { $metadata?: unknown })?.$metadata === 'object'
+}
+
+function hasCause<T>(error: T): error is T & { cause: { $metadata?: { httpStatusCode?: number } } } {
+    return typeof (error as { cause?: unknown })?.cause === 'object'
 }
 
 export function hasConnectionExpired(error: any) {

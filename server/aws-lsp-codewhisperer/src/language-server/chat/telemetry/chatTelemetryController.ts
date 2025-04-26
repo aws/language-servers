@@ -168,7 +168,7 @@ export class ChatTelemetryController {
         }
     }
 
-    public emitToolUseSuggested(toolUse: ToolUse, conversationId: string) {
+    public emitToolUseSuggested(toolUse: ToolUse, conversationId: string, languageServerVersion: string) {
         this.#telemetry.emitMetric({
             name: ChatTelemetryEventName.ToolUseSuggested,
             data: {
@@ -178,6 +178,7 @@ export class ChatTelemetryController {
                 cwsprToolName: toolUse.name ?? '',
                 cwsprToolUseId: toolUse.toolUseId ?? '',
                 result: 'Succeeded',
+                languageServerVersion: languageServerVersion,
             },
         })
     }
@@ -215,6 +216,7 @@ export class ChatTelemetryController {
                 chatFollowUpCount: metric.cwsprChatFollowUpCount,
                 chatConversationType: metric.cwsprChatConversationType,
                 chatActiveEditorImportCount: metric.cwsprChatActiveEditorImportCount,
+                languageServerVersion: metric.languageServerVersion,
             }
         )
     }
@@ -267,6 +269,7 @@ export class ChatTelemetryController {
                 credentialStartUrl: this.#credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
                 result: 'Succeeded',
                 [CONVERSATION_ID_METRIC_KEY]: this.getConversationId(tabId),
+                languageServerVersion: metric.languageServerVersion,
             },
         })
     }

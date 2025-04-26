@@ -14,6 +14,7 @@ import {
     SendMessageCommandOutput,
     ToolResult,
     ToolResultContentBlock,
+    ToolResultStatus,
     ToolUse,
 } from '@amzn/codewhisperer-streaming'
 import {
@@ -133,6 +134,18 @@ export class AgenticChatController implements ChatHandlers {
     #additionalContextProvider: AdditionalContextProvider
     #contextCommandsProvider: ContextCommandsProvider
 
+    /**
+     * Determines the appropriate message ID for a tool use based on tool type and name
+     * @param toolType The type of tool being used
+     * @param toolUse The tool use object
+     * @returns The message ID to use
+     */
+    #getMessageIdForToolUse(toolType: string | undefined, toolUse: ToolUse): string {
+        const toolUseId = toolUse.toolUseId!
+        // Return plain toolUseId for executeBash, add "_permission" suffix for all other tools
+        return toolUse.name === 'executeBash' || toolType === 'executeBash' ? toolUseId : `${toolUseId}_permission`
+    }
+
     constructor(
         chatSessionManagementService: ChatSessionManagementService,
         features: Features,
@@ -166,11 +179,17 @@ export class AgenticChatController implements ChatHandlers {
             if (!session.data) {
                 return { success: false, failureReason: `could not find chat session for tab: ${params.tabId} ` }
             }
-            const handler = session.data.getDeferredToolExecution(params.messageId)
+            // For 'allow-tools', remove suffix as permission card needs to be seperate from file list card
+            const messageId =
+                params.buttonId === 'allow-tools' && params.messageId.endsWith('_permission')
+                    ? params.messageId.replace('_permission', '')
+                    : params.messageId
+
+            const handler = session.data.getDeferredToolExecution(messageId)
             if (!handler?.reject || !handler.resolve) {
                 return {
                     success: false,
-                    failureReason: `could not find deferred tool execution for message: ${params.messageId} `,
+                    failureReason: `could not find deferred tool execution for message: ${messageId} `,
                 }
             }
             params.buttonId === 'reject-shell-command'
@@ -453,6 +472,11 @@ export class AgenticChatController implements ChatHandlers {
                 ? []
                 : this.#chatHistoryDb.getMessages(tabId)
 
+            // Phase 3: Request Execution
+            const response = await this.fetchModelResponse(currentRequestInput, i =>
+                session.generateAssistantResponse(i)
+            )
+
             //  Add the current user message to the history DB
             if (currentMessage && conversationIdentifier) {
                 this.#chatHistoryDb.addMessage(tabId, 'cwc', conversationIdentifier, {
@@ -463,11 +487,6 @@ export class AgenticChatController implements ChatHandlers {
                     userInputMessageContext: currentMessage.userInputMessage?.userInputMessageContext,
                 })
             }
-
-            // Phase 3: Request Execution
-            const response = await this.fetchModelResponse(currentRequestInput, i =>
-                session.generateAssistantResponse(i)
-            )
 
             // remove the temp loading message when we have response
             if (loadingMessageId) {
@@ -528,8 +547,18 @@ export class AgenticChatController implements ChatHandlers {
                 break
             }
 
-            // Process tool uses and update the request input for the next iteration
-            const toolResults = await this.#processToolUses(pendingToolUses, chatResultStream, session, tabId, token)
+            let toolResults: ToolResult[]
+            if (result.success) {
+                // Process tool uses and update the request input for the next iteration
+                toolResults = await this.#processToolUses(pendingToolUses, chatResultStream, session, tabId, token)
+            } else {
+                // Send an error card to UI?
+                toolResults = pendingToolUses.map(toolUse => ({
+                    toolUseId: toolUse.toolUseId,
+                    status: ToolResultStatus.ERROR,
+                    content: [{ text: result.error }],
+                }))
+            }
             currentRequestInput = this.#updateRequestInputWithToolResults(currentRequestInput, toolResults)
         }
 
@@ -570,10 +599,8 @@ export class AgenticChatController implements ChatHandlers {
         session.setDeferredToolExecution(toolUse.toolUseId!, deferred.resolve, deferred.reject)
         this.#log(`Prompting for tool approval for tool: ${toolUse.name}`)
         await deferred.promise
-        if (toolUse.name === 'executeBash') {
-            // Note: we want to overwrite the button block because it already exists in the stream.
-            await resultStream.overwriteResultBlock(this.#getUpdateBashConfirmResult(toolUse, true), promptBlockId)
-        }
+        // Note: we want to overwrite the button block because it already exists in the stream.
+        await resultStream.overwriteResultBlock(this.#getUpdateToolConfirmResult(toolUse, true), promptBlockId)
     }
 
     /**
@@ -724,7 +751,11 @@ export class AgenticChatController implements ChatHandlers {
                         break
                 }
                 if (toolUse.name) {
-                    this.#telemetryController.emitToolUseSuggested(toolUse, session.conversationId || '')
+                    this.#telemetryController.emitToolUseSuggested(
+                        toolUse,
+                        session.conversationId ?? '',
+                        this.#features.runtime.serverInfo.version ?? ''
+                    )
                 }
             } catch (err) {
                 if (loadingMessageId) {
@@ -737,7 +768,7 @@ export class AgenticChatController implements ChatHandlers {
                     if (err instanceof ToolApprovalException && toolUse.name === 'executeBash') {
                         if (cachedButtonBlockId) {
                             await chatResultStream.overwriteResultBlock(
-                                this.#getUpdateBashConfirmResult(toolUse, false),
+                                this.#getUpdateToolConfirmResult(toolUse, false),
                                 cachedButtonBlockId
                             )
                             if (err.shouldShowMessage) {
@@ -748,7 +779,7 @@ export class AgenticChatController implements ChatHandlers {
                                 })
                             }
                         } else {
-                            this.#features.logging.warn('Failed to update executeBash block: no blockId is available.')
+                            this.#features.logging.warn('Failed to update tool block: no blockId is available.')
                         }
                     }
                     throw err
@@ -838,19 +869,106 @@ export class AgenticChatController implements ChatHandlers {
         })
     }
 
-    #getUpdateBashConfirmResult(toolUse: ToolUse, isAccept: boolean): ChatResult {
-        return {
-            messageId: toolUse.toolUseId,
-            type: 'tool',
-            body: '```shell\n' + (toolUse.input as unknown as ExecuteBashParams).command + '\n',
-            header: {
-                body: 'shell',
-                status: {
-                    status: isAccept ? 'success' : 'error',
-                    icon: isAccept ? 'ok' : 'cancel',
-                    text: isAccept ? 'Accepted' : 'Rejected',
+    /**
+     * Creates an updated ChatResult for tool confirmation based on tool type
+     * @param toolUse The tool use object
+     * @param isAccept Whether the tool was accepted or rejected
+     * @param toolType Optional tool type for specialized handling
+     * @returns ChatResult with appropriate confirmation UI
+     */
+    #getUpdateToolConfirmResult(toolUse: ToolUse, isAccept: boolean, toolType?: string): ChatResult {
+        const toolName = toolType || toolUse.name
+
+        // Handle bash commands with special formatting
+        if (toolName === 'executeBash') {
+            return {
+                messageId: toolUse.toolUseId,
+                type: 'tool',
+                body: '```shell\n' + (toolUse.input as unknown as ExecuteBashParams).command + '\n',
+                header: {
+                    body: 'shell',
+                    status: {
+                        status: isAccept ? 'success' : 'error',
+                        icon: isAccept ? 'ok' : 'cancel',
+                        text: isAccept ? 'Accepted' : 'Rejected',
+                    },
                 },
-            },
+            }
+        }
+
+        // For file operations and other tools, create appropriate confirmation UI
+        let header: {
+            body: string
+            status: { status: 'info' | 'success' | 'warning' | 'error'; icon: string; text: string }
+        }
+        let body: string
+
+        switch (toolName) {
+            case 'fsWrite':
+                const writeFilePath = (toolUse.input as unknown as FsWriteParams).path
+                header = {
+                    body: 'File Write',
+                    status: {
+                        status: isAccept ? 'success' : 'error',
+                        icon: isAccept ? 'ok' : 'cancel',
+                        text: isAccept ? 'Allowed' : 'Rejected',
+                    },
+                }
+                body = isAccept
+                    ? `File modification allowed: \`${writeFilePath}\``
+                    : `File modification rejected: \`${writeFilePath}\``
+                break
+
+            case 'fsRead':
+            case 'listDirectory':
+                // Common handling for read operations
+                const path = (toolUse.input as unknown as FsReadParams | ListDirectoryParams).path
+                const isDirectory = toolName === 'listDirectory'
+                header = {
+                    body: isDirectory ? 'Directory Listing' : 'File Read',
+                    status: {
+                        status: isAccept ? 'success' : 'error',
+                        icon: isAccept ? 'ok' : 'cancel',
+                        text: isAccept ? 'Allowed' : 'Rejected',
+                    },
+                }
+                body = isAccept
+                    ? `${isDirectory ? 'Directory listing' : 'File read'} allowed: \`${path}\``
+                    : `${isDirectory ? 'Directory listing' : 'File read'} rejected: \`${path}\``
+                break
+
+            case 'fileSearch':
+                const searchPath = (toolUse.input as unknown as FileSearchParams).path
+                header = {
+                    body: 'File Search',
+                    status: {
+                        status: isAccept ? 'success' : 'error',
+                        icon: isAccept ? 'ok' : 'cancel',
+                        text: isAccept ? 'Allowed' : 'Rejected',
+                    },
+                }
+                body = isAccept ? `File search allowed: \`${searchPath}\`` : `File search rejected: \`${searchPath}\``
+                break
+
+            default:
+                // Generic handler for other tool types
+                header = {
+                    body: toolUse.name || 'Tool',
+                    status: {
+                        status: isAccept ? 'success' : 'error',
+                        icon: isAccept ? 'ok' : 'cancel',
+                        text: isAccept ? 'Allowed' : 'Rejected',
+                    },
+                }
+                body = isAccept ? `Tool execution allowed: ${toolUse.name}` : `Tool execution rejected: ${toolUse.name}`
+                break
+        }
+
+        return {
+            messageId: this.#getMessageIdForToolUse(toolType, toolUse),
+            type: 'tool',
+            body,
+            header,
         }
     }
 
@@ -932,7 +1050,7 @@ export class AgenticChatController implements ChatHandlers {
 
         return {
             type: 'tool',
-            messageId: toolUse.toolUseId,
+            messageId: this.#getMessageIdForToolUse(toolType, toolUse),
             header,
             body: warning ? warning + (toolType === 'executeBash' ? '' : '\n\n') + body : body,
         }
@@ -1093,6 +1211,7 @@ export class AgenticChatController implements ChatHandlers {
         }
 
         metric.setDimension('codewhispererCustomizationArn', this.#customizationArn)
+        metric.setDimension('languageServerVersion', this.#features.runtime.serverInfo.version)
         await this.#telemetryController.emitAddMessageMetric(params.tabId, metric.metric)
 
         this.#telemetryController.updateTriggerInfo(params.tabId, {
@@ -1120,20 +1239,21 @@ export class AgenticChatController implements ChatHandlers {
         metric: Metric<CombinedConversationEvent>
     ): ChatResult | ResponseError<ChatResult> {
         if (isAwsError(err) || (isObject(err) && typeof getHttpStatusCode(err) === 'number')) {
-            let errorMessage: string
+            let errorMessage: string | undefined
             let requestID: string | undefined
 
             if (err instanceof CodeWhispererStreamingServiceException) {
                 errorMessage = err.message
                 requestID = err.$metadata.requestId
-            } else {
-                errorMessage = 'Not a CodeWhispererStreamingServiceException.'
-                if (err instanceof Error || err?.message) {
-                    errorMessage += ` Error is: ${err.message}`
-                }
+            } else if (err?.cause?.message) {
+                errorMessage = err?.cause?.message
+                requestID = err.cause?.$metadata.requestId
+            } else if (err instanceof Error || err?.message) {
+                errorMessage = err.message
             }
 
             metric.setDimension('cwsprChatResponseCode', getHttpStatusCode(err) ?? 0)
+            metric.setDimension('languageServerVersion', this.#features.runtime.serverInfo.version)
             this.#telemetryController.emitMessageResponseError(tabId, metric.metric, requestID, errorMessage)
         }
 
@@ -1541,6 +1661,7 @@ export class AgenticChatController implements ChatHandlers {
 
             // terminate early when there is an error
             if (!result.success) {
+                await streamWriter.close()
                 return result
             }
 
