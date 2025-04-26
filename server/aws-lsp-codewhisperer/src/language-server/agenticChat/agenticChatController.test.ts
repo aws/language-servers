@@ -173,7 +173,11 @@ describe('AgenticChatController', () => {
         // Add agent with runTool method to testFeatures
         testFeatures.agent = {
             runTool: sinon.stub().resolves({}),
-            getTools: sinon.stub().returns([]),
+            getTools: sinon.stub().returns(
+                ['mock-tool-name', 'mock-tool-name-1', 'mock-tool-name-2'].map(toolName => ({
+                    toolSpecification: { name: toolName, description: 'Mock tool for testing' },
+                }))
+            ),
             addTool: sinon.stub().resolves(),
         }
 
