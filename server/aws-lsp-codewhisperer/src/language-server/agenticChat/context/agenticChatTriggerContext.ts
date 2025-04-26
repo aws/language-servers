@@ -135,6 +135,9 @@ export class AgenticChatTriggerContext {
                                       },
                                       tools,
                                       additionalContext: additionalContent,
+                                      envState: {
+                                          operatingSystem: process.platform,
+                                      },
                                   }
                                 : {
                                       tools,
@@ -143,6 +146,9 @@ export class AgenticChatTriggerContext {
                                           relevantDocuments: relevantDocuments,
                                           useRelevantDocuments: useRelevantDocuments,
                                           ...defaultEditorState,
+                                      },
+                                      envState: {
+                                          operatingSystem: process.platform,
                                       },
                                   },
                         userIntent: triggerContext.userIntent,
