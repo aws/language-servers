@@ -126,7 +126,7 @@ export class FsRead {
         return {
             name: 'fsRead',
             description:
-                'A tool for reading a file.\n * This tool returns the contents of a file, and the optional `readRange` determines what range of lines will be read from the specified file.\n * If the file exceeds 200K characters, this tool will only read the first 200K characters of the file with a `truncated=true` in the output',
+                'A tool for reading a file.\n * This tool returns the contents of a file, and the optional `readRange` determines what range of lines will be read from the specified file.\n * This tool is more effective than running a command like \`head -n\` using `executeBash` tool.\n * If the file exceeds 200K characters, this tool will only read the first 200K characters of the file with a `truncated=true` in the output, DO NOT re-read the file again using `readRange` unless explicitly asked by the user.',
             inputSchema: {
                 type: 'object',
                 properties: {
