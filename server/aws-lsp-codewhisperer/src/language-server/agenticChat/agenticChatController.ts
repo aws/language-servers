@@ -132,6 +132,7 @@ export class AgenticChatController implements ChatHandlers {
     #chatHistoryDb: ChatDatabase
     #additionalContextProvider: AdditionalContextProvider
     #contextCommandsProvider: ContextCommandsProvider
+    #stoppedToolUses = new Set<string>()
 
     /**
      * Determines the appropriate message ID for a tool use based on tool type and name
@@ -214,6 +215,10 @@ export class AgenticChatController implements ChatHandlers {
             return {
                 success: true,
             }
+        } else if (params.buttonId === 'stop-shell-command') {
+            this.#stoppedToolUses.add(params.messageId)
+            await this.#renderStoppedShellCommand(params.tabId, params.messageId)
+            return { success: true }
         } else {
             return {
                 success: false,
@@ -567,6 +572,8 @@ export class AgenticChatController implements ChatHandlers {
             this.#log('Agent loop reached maximum iterations limit')
         }
 
+        this.#stoppedToolUses.clear()
+
         return (
             finalResult || {
                 success: false,
@@ -756,24 +763,34 @@ export class AgenticChatController implements ChatHandlers {
                 }
             } catch (err) {
                 if (this.isUserAction(err, token)) {
-                    if (err instanceof ToolApprovalException && toolUse.name === 'executeBash') {
-                        if (cachedButtonBlockId) {
-                            await chatResultStream.overwriteResultBlock(
-                                this.#getUpdateToolConfirmResult(toolUse, false),
-                                cachedButtonBlockId
-                            )
-                            if (err.shouldShowMessage) {
-                                await chatResultStream.writeResultBlock({
-                                    type: 'answer',
-                                    messageId: `reject-message-${toolUse.toolUseId}`,
-                                    body: err.message || 'Command was rejected.',
-                                })
+                    if (toolUse.name === 'executeBash') {
+                        if (err instanceof ToolApprovalException) {
+                            if (cachedButtonBlockId) {
+                                await chatResultStream.overwriteResultBlock(
+                                    this.#getUpdateToolConfirmResult(toolUse, false),
+                                    cachedButtonBlockId
+                                )
+                                if (err.shouldShowMessage) {
+                                    await chatResultStream.writeResultBlock({
+                                        type: 'answer',
+                                        messageId: `reject-message-${toolUse.toolUseId}`,
+                                        body: err.message || 'Command was rejected.',
+                                    })
+                                }
+                            } else {
+                                this.#features.logging.log('Failed to update tool block: no blockId is available.')
                             }
-                        } else {
-                            this.#features.logging.log('Failed to update tool block: no blockId is available.')
                         }
+                        throw err
                     }
-                    throw err
+                    if (err instanceof CancellationError) {
+                        results.push({
+                            toolUseId: toolUse.toolUseId,
+                            status: ToolResultStatus.ERROR,
+                            content: [{ text: 'Command stopped by user' }],
+                        })
+                        continue
+                    }
                 }
                 const errMsg = err instanceof Error ? err.message : 'unknown error'
                 this.#log(`Error running tool ${toolUse.name}:`, errMsg)
@@ -782,6 +799,8 @@ export class AgenticChatController implements ChatHandlers {
                     status: 'error',
                     content: [{ json: { error: err instanceof Error ? err.message : 'Unknown error' } }],
                 })
+            } finally {
+                this.#stoppedToolUses.delete(toolUse.toolUseId!)
             }
         }
 
@@ -898,6 +917,7 @@ export class AgenticChatController implements ChatHandlers {
         }
         return new WritableStream({
             write: async chunk => {
+                if (this.#stoppedToolUses.has(toolUse.toolUseId!)) return
                 await chatResultStream.writeResultBlock({
                     type: 'tool',
                     body: chunk,
@@ -905,6 +925,7 @@ export class AgenticChatController implements ChatHandlers {
                 })
             },
             close: async () => {
+                if (this.#stoppedToolUses.has(toolUse.toolUseId!)) return
                 await chatResultStream.writeResultBlock({
                     type: 'tool',
                     body: '```',
@@ -937,6 +958,15 @@ export class AgenticChatController implements ChatHandlers {
                         icon: isAccept ? 'ok' : 'cancel',
                         text: isAccept ? 'Accepted' : 'Rejected',
                     },
+                    buttons: isAccept
+                        ? [
+                              {
+                                  id: 'stop-shell-command',
+                                  text: 'Stop',
+                                  icon: 'stop',
+                              },
+                          ]
+                        : [],
                 },
             }
         }
@@ -1015,6 +1045,34 @@ export class AgenticChatController implements ChatHandlers {
             body,
             header,
         }
+    }
+
+    async #renderStoppedShellCommand(tabId: string, messageId: string): Promise<void> {
+        const session = this.#chatSessionManagementService.getSession(tabId).data
+        const toolUse = session?.toolUseLookup.get(messageId)
+        const command = (toolUse!.input as unknown as ExecuteBashParams).command
+        await this.#features.chat.sendChatUpdate({
+            tabId,
+            state: { inProgress: false },
+            data: {
+                messages: [
+                    {
+                        messageId,
+                        type: 'tool',
+                        body: `\`\`\`shell\n${command}\n\`\`\``,
+                        header: {
+                            body: 'shell',
+                            status: {
+                                status: 'error',
+                                icon: 'stop',
+                                text: 'Stopped',
+                            },
+                            buttons: [],
+                        },
+                    },
+                ],
+            },
+        })
     }
 
     #processToolConfirmation(
