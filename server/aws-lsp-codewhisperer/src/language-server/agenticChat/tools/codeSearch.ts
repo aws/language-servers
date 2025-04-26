@@ -95,6 +95,8 @@ export class CodeSearch {
                  please update the configuration to enable Amazon Q workspace Index`)
         }
         try {
+            // TODO: we need to handle the validation of workspace indexing status once localProjectContextController support
+            // check the indexing status.
             // Use the localProjectContextController to query the vector index
             const searchResults = await localProjectContextController.queryVectorIndex({ query: query })
             const sanitizedSearchResults = this.parseChunksToCodeSearchOutput(searchResults)
