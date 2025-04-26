@@ -533,10 +533,6 @@ export class AgenticChatController implements ChatHandlers {
                     status: ToolResultStatus.ERROR,
                     content: [{ text: result.error }],
                 }))
-                if (result.error.startsWith('ToolUse input is invalid JSON:')) {
-                    currentRequestInput.conversationState!.currentMessage!.userInputMessage!.content =
-                        "Your toolUse input isn't valid. Please check the syntax and make sure the input is complete. If the input is large, break it down into multiple tool uses with smaller input."
-                }
             }
             currentRequestInput = this.#updateRequestInputWithToolResults(currentRequestInput, toolResults)
         }

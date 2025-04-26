@@ -130,17 +130,17 @@ export class AgenticChatEventParser implements ChatResult {
                 }
 
                 if (toolUseEvent.stop) {
+                    const finalInput = this.toolUses[toolUseId].input
                     let parsedInput
                     try {
-                        parsedInput =
-                            typeof this.toolUses[toolUseId].input === 'string'
-                                ? JSON.parse(
-                                      this.toolUses[toolUseId].input === '' ? '{}' : this.toolUses[toolUseId].input
-                                  )
-                                : this.toolUses[toolUseId].input
+                        if (typeof finalInput === 'string') {
+                            parsedInput = JSON.parse(finalInput === '' ? '{}' : finalInput)
+                        } else {
+                            parsedInput = finalInput
+                        }
                     } catch (err) {
                         console.error(`Error parsing tool use input: ${this.toolUses[toolUseId].input}`, err)
-                        this.error = `ToolUse input is invalid JSON: "${this.toolUses[toolUseId].input}"`
+                        this.error = `ToolUse input is invalid JSON: "${this.toolUses[toolUseId].input}". Check the syntax and make sure the input is complete. If the input is large, break it down into multiple tool uses with smaller input.`
                         parsedInput = {}
                     }
                     this.toolUses[toolUseId] = {
