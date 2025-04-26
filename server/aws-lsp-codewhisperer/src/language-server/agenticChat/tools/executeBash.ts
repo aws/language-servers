@@ -328,12 +328,35 @@ export class ExecuteBash {
 
             this.childProcess = new ChildProcess(this.logging, 'bash', ['-c', params.command], childProcessOptions)
 
-            // Set up cancellation listener
+            // Setup a periodic check for trigger cancellation
+            let checkCancellationInterval: NodeJS.Timeout | undefined
             if (cancellationToken) {
-                cancellationToken.onCancellationRequested(() => {
-                    this.logging.debug('Cancellation requested, killing child process')
-                    this.childProcess?.stop()
-                })
+                checkCancellationInterval = setInterval(() => {
+                    if (cancellationToken.isCancellationRequested) {
+                        this.logging.debug('cancellation detected, killing child process')
+
+                        // Kill the process
+                        this.childProcess?.stop(false, 'SIGTERM')
+
+                        // After a short delay, force kill with SIGKILL if still running
+                        setTimeout(() => {
+                            if (this.childProcess && !this.childProcess.stopped) {
+                                this.logging.debug('Process still running after SIGTERM, sending SIGKILL')
+
+                                // Try to kill the process group with SIGKILL
+                                this.childProcess.stop(true, 'SIGKILL')
+                            }
+                        }, 500)
+
+                        if (checkCancellationInterval) {
+                            clearInterval(checkCancellationInterval)
+                        }
+
+                        // Return from the function after cancellation
+                        reject(new CancellationError('user'))
+                        return
+                    }
+                }, 500) // Check every 500ms
             }
 
             try {
