@@ -2,6 +2,7 @@ import {
     CodeWhispererStreamingClientConfig,
     GenerateAssistantResponseCommandInput,
     GenerateAssistantResponseCommandOutput,
+    ToolUse,
 } from '@amzn/codewhisperer-streaming'
 
 import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
@@ -10,8 +11,10 @@ import {
     SendMessageCommandInput,
     SendMessageCommandOutput,
 } from '../../shared/streamingClientService'
+import { ChatResult } from '@aws/language-server-runtimes/server-interface'
 
 export type ChatSessionServiceConfig = CodeWhispererStreamingClientConfig
+type FileChange = { before?: string; after?: string }
 
 type DeferredHandler = {
     resolve: () => void
@@ -24,6 +27,11 @@ export class ChatSessionService {
     #conversationId?: string
     #amazonQServiceManager?: AmazonQBaseServiceManager
     #deferredToolExecution: Record<string, DeferredHandler> = {}
+    #toolUseLookup: Map<
+        string,
+        ToolUse & { fileChange?: FileChange; relatedToolUses?: Set<string>; chatResult?: ChatResult }
+    > = new Map()
+    #currentUndoAllId?: string
 
     public get conversationId(): string | undefined {
         return this.#conversationId
@@ -49,6 +57,18 @@ export class ChatSessionService {
         }
         // Clear all handlers after rejecting them
         this.#deferredToolExecution = {}
+    }
+
+    public get toolUseLookup() {
+        return this.#toolUseLookup
+    }
+
+    public get currentUndoAllId(): string | undefined {
+        return this.#currentUndoAllId
+    }
+
+    public set currentUndoAllId(toolUseId: string | undefined) {
+        this.#currentUndoAllId = toolUseId
     }
 
     constructor(amazonQServiceManager?: AmazonQBaseServiceManager) {

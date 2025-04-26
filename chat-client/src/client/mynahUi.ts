@@ -40,6 +40,7 @@ import {
     MynahUIProps,
     QuickActionCommand,
     ChatItemFormItem,
+    ChatItemButton,
 } from '@aws/mynah-ui'
 import { VoteParams } from '../contracts/telemetry'
 import { Messager } from './messager'
@@ -726,10 +727,14 @@ export const createMynahUi = (
             }
         }
 
+        const processedButtons: ChatItemButton[] | undefined = toMynahButtons(message.buttons)?.map(button =>
+            button.id === 'undo-all-changes' ? { ...button, position: 'outside' } : button
+        )
+
         return {
             body: message.body,
             header: processedHeader,
-            buttons: toMynahButtons(message.buttons),
+            buttons: processedButtons,
 
             // file diffs in the header need space
             fullWidth: message.type === 'tool' && message.header?.buttons ? true : undefined,
