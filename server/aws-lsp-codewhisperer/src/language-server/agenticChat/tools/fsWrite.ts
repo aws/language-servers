@@ -218,19 +218,6 @@ export class FsWrite {
     }
 }
 
-const getFinalContent = (params: FsWriteParams, oldContent: string): string => {
-    switch (params.command) {
-        case 'append':
-            return getAppendContent(params, oldContent)
-        case 'create':
-            return params.fileText
-        case 'insert':
-            return getInsertContent(params, oldContent)
-        case 'strReplace':
-            return getStrReplaceContent(params, oldContent)
-    }
-}
-
 const getAppendContent = (params: AppendParams, oldContent: string) => {
     const needsNewline = oldContent.length !== 0 && !oldContent.endsWith('\n')
 
@@ -272,9 +259,4 @@ const getStrReplaceContent = (params: StrReplaceParams, oldContent: string) => {
 
 const escapeRegExp = (string: string) => {
     return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-}
-
-export const getDiffChanges = (params: FsWriteParams, oldContent: string): Change[] => {
-    const finalContent = getFinalContent(params, oldContent)
-    return diffLines(oldContent, finalContent)
 }

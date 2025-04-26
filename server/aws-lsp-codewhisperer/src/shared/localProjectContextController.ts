@@ -20,6 +20,7 @@ import * as path from 'path'
 
 import * as ignore from 'ignore'
 import { fdir } from 'fdir'
+import { pathToFileURL } from 'url'
 
 const LIBRARY_DIR = (() => {
     if (require.main?.filename) {
@@ -139,7 +140,7 @@ export class LocalProjectContextController {
                     `index worker thread count: ${indexWorkerThreads}`
             )
 
-            const libraryPath = path.join(LIBRARY_DIR, 'dist', 'extension.js')
+            const libraryPath = this.getVectorLibraryPath()
             const vecLib = vectorLib ?? (await eval(`import("${libraryPath}")`))
             if (vecLib) {
                 this._vecLib = await vecLib.start(LIBRARY_DIR, this.clientName, this.indexCacheDirPath)
@@ -151,6 +152,19 @@ export class LocalProjectContextController {
         } catch (error) {
             this.log.error('Vector library failed to initialize:' + error)
         }
+    }
+
+    private getVectorLibraryPath(): string {
+        const libraryPath = path.join(LIBRARY_DIR, 'dist', 'extension.js')
+
+        if (process.platform === 'win32') {
+            // On Windows, the path must be loaded using a URL.
+            // Using the file path directly results in ERR_UNSUPPORTED_ESM_URL_SCHEME
+            // More details: https://github.com/nodejs/node/issues/31710
+            return pathToFileURL(libraryPath).toString()
+        }
+
+        return libraryPath
     }
 
     public async dispose(): Promise<void> {
