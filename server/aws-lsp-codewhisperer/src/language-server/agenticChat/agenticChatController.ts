@@ -14,6 +14,7 @@ import {
     SendMessageCommandOutput,
     ToolResult,
     ToolResultContentBlock,
+    ToolResultStatus,
     ToolUse,
 } from '@amzn/codewhisperer-streaming'
 import {
@@ -448,6 +449,11 @@ export class AgenticChatController implements ChatHandlers {
                 ? []
                 : this.#chatHistoryDb.getMessages(tabId)
 
+            // Phase 3: Request Execution
+            const response = await this.fetchModelResponse(currentRequestInput, i =>
+                session.generateAssistantResponse(i)
+            )
+
             //  Add the current user message to the history DB
             if (currentMessage && conversationIdentifier) {
                 this.#chatHistoryDb.addMessage(tabId, 'cwc', conversationIdentifier, {
@@ -458,11 +464,6 @@ export class AgenticChatController implements ChatHandlers {
                     userInputMessageContext: currentMessage.userInputMessage?.userInputMessageContext,
                 })
             }
-
-            // Phase 3: Request Execution
-            const response = await this.fetchModelResponse(currentRequestInput, i =>
-                session.generateAssistantResponse(i)
-            )
 
             // remove the temp loading message when we have response
             if (loadingMessageId) {
@@ -521,8 +522,22 @@ export class AgenticChatController implements ChatHandlers {
                 break
             }
 
-            // Process tool uses and update the request input for the next iteration
-            const toolResults = await this.#processToolUses(pendingToolUses, chatResultStream, session, tabId, token)
+            let toolResults: ToolResult[]
+            if (result.success) {
+                // Process tool uses and update the request input for the next iteration
+                toolResults = await this.#processToolUses(pendingToolUses, chatResultStream, session, tabId, token)
+            } else {
+                // Send an error card to UI?
+                toolResults = pendingToolUses.map(toolUse => ({
+                    toolUseId: toolUse.toolUseId,
+                    status: ToolResultStatus.ERROR,
+                    content: [{ text: result.error }],
+                }))
+                if (result.error.startsWith('ToolUse input is invalid JSON:')) {
+                    currentRequestInput.conversationState!.currentMessage!.userInputMessage!.content =
+                        "Your toolUse input isn't valid. Please check the syntax and make sure the input is complete. If the input is large, break it down into multiple tool uses with smaller input."
+                }
+            }
             currentRequestInput = this.#updateRequestInputWithToolResults(currentRequestInput, toolResults)
         }
 
@@ -1518,6 +1533,7 @@ export class AgenticChatController implements ChatHandlers {
 
             // terminate early when there is an error
             if (!result.success) {
+                await streamWriter.close()
                 return result
             }
 
