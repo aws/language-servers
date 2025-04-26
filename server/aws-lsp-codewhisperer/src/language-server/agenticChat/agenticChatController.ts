@@ -438,7 +438,6 @@ export class AgenticChatController implements ChatHandlers {
         const maxIterations = 100 // Safety limit to prevent infinite loops
         metric.recordStart()
 
-        let loadingMessageId
         while (iterationCount < maxIterations) {
             iterationCount++
             this.#debug(`Agent loop iteration ${iterationCount} for conversation id:`, conversationIdentifier || '')
@@ -450,11 +449,6 @@ export class AgenticChatController implements ChatHandlers {
 
             const currentMessage = currentRequestInput.conversationState?.currentMessage
             const conversationId = conversationIdentifier ?? ''
-
-            // show loading message while we process request
-            loadingMessageId = `loading-${uuid()}-${iterationCount}`
-            await chatResultStream.writeResultBlock({ messageId: loadingMessageId, type: 'answer' })
-
             if (!currentMessage || !conversationId) {
                 this.#debug(
                     `Warning: ${!currentMessage ? 'currentMessage' : ''}${!currentMessage && !conversationId ? ' and ' : ''}${!conversationId ? 'conversationIdentifier' : ''} is empty in agent loop iteration ${iterationCount}.`
@@ -486,13 +480,6 @@ export class AgenticChatController implements ChatHandlers {
                     origin: currentMessage.userInputMessage?.origin,
                     userInputMessageContext: currentMessage.userInputMessage?.userInputMessageContext,
                 })
-            }
-
-            // remove the temp loading message when we have response
-            if (loadingMessageId) {
-                await chatResultStream.removeResultBlock(loadingMessageId)
-                this.#features.chat.sendChatUpdate({ tabId, state: { inProgress: false } })
-                loadingMessageId = undefined
             }
 
             // Phase 4: Response Processing
@@ -601,7 +588,6 @@ export class AgenticChatController implements ChatHandlers {
         token?: CancellationToken
     ): Promise<ToolResult[]> {
         const results: ToolResult[] = []
-        let loadingMessageId
 
         for (const toolUse of toolUses) {
             // Store buttonBlockId to use it in `catch` block if needed
@@ -663,10 +649,6 @@ export class AgenticChatController implements ChatHandlers {
                         })
                         break
                 }
-                // show thinking spinner when tool is running
-                loadingMessageId = `loading-${toolUse.toolUseId}`
-                await chatResultStream.writeResultBlock({ messageId: loadingMessageId, type: 'answer' })
-                this.#features.chat.sendChatUpdate({ tabId, state: { inProgress: true } })
 
                 if (toolUse.name === 'fsWrite') {
                     const input = toolUse.input as unknown as FsWriteParams
@@ -678,13 +660,6 @@ export class AgenticChatController implements ChatHandlers {
 
                 const ws = this.#getWritableStream(chatResultStream, toolUse)
                 const result = await this.#features.agent.runTool(toolUse.name, toolUse.input, token, ws)
-
-                // remove the temp loading message when tool finishes
-                if (loadingMessageId) {
-                    await chatResultStream.removeResultBlock(loadingMessageId)
-                    this.#features.chat.sendChatUpdate({ tabId, state: { inProgress: false } })
-                    loadingMessageId = undefined
-                }
 
                 let toolResultContent: ToolResultContentBlock
 
@@ -748,12 +723,6 @@ export class AgenticChatController implements ChatHandlers {
                     )
                 }
             } catch (err) {
-                if (loadingMessageId) {
-                    await chatResultStream.removeResultBlock(loadingMessageId)
-                    this.#features.chat.sendChatUpdate({ tabId, state: { inProgress: false } })
-                    loadingMessageId = undefined
-                }
-
                 if (this.isUserAction(err, token)) {
                     if (err instanceof ToolApprovalException && toolUse.name === 'executeBash') {
                         if (cachedButtonBlockId) {
