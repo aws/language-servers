@@ -623,6 +623,11 @@ export class AgenticChatController implements ChatHandlers {
             this.#triggerContext.getToolUseLookup().set(toolUse.toolUseId, toolUse)
 
             try {
+                // TODO: Can we move this check in the event parser before the stream completes?
+                const availableToolNames = this.#getTools(session).map(tool => tool.toolSpecification.name)
+                if (!availableToolNames.includes(toolUse.name)) {
+                    throw new Error(`Tool ${toolUse.name} is not available in the current mode`)
+                }
                 const { explanation } = toolUse.input as unknown as ExplanatoryParams
                 if (explanation) {
                     await chatResultStream.writeResultBlock({
