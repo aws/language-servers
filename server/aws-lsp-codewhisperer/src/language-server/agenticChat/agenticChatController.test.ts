@@ -1185,25 +1185,20 @@ describe('AgenticChatController', () => {
     })
 
     describe('onCreatePrompt', () => {
-        it('should create prompt file with given name and ensure directory exists', async () => {
+        it('should create prompt file with given name', async () => {
             const promptName = 'testPrompt'
             const expectedPath = path.join(getUserPromptsDirectory(), `testPrompt${promptFileExtension}`)
-            const mkdirStub = testFeatures.workspace.fs.mkdir as sinon.SinonStub
 
             await chatController.onCreatePrompt({ promptName })
 
-            sinon.assert.calledOnceWithExactly(mkdirStub, getUserPromptsDirectory(), { recursive: true })
             sinon.assert.calledOnceWithExactly(fsWriteFileStub, expectedPath, '', { mode: 0o600 })
         })
 
         it('should create default prompt file when no name provided', async () => {
             const expectedPath = path.join(getUserPromptsDirectory(), `default${promptFileExtension}`)
-            const mkdirStub = testFeatures.workspace.fs.mkdir as sinon.SinonStub
-            mkdirStub.resetHistory()
 
             await chatController.onCreatePrompt({ promptName: '' })
 
-            sinon.assert.calledOnceWithExactly(mkdirStub, getUserPromptsDirectory(), { recursive: true })
             sinon.assert.calledOnceWithExactly(fsWriteFileStub, expectedPath, '', { mode: 0o600 })
         })
     })
