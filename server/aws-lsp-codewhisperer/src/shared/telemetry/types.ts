@@ -166,6 +166,7 @@ export enum ChatTelemetryEventName {
     MessageResponseError = 'amazonq_messageResponseError',
     ModifyCode = 'amazonq_modifyCode',
     ToolUseSuggested = 'amazonq_toolUseSuggested',
+    InteractWithAgenticChat = 'amazonq_interactWithAgenticChat',
 }
 
 export interface ChatTelemetryEventMap {
@@ -180,6 +181,7 @@ export interface ChatTelemetryEventMap {
     [ChatTelemetryEventName.MessageResponseError]: MessageResponseErrorEvent
     [ChatTelemetryEventName.ModifyCode]: ModifyCodeEvent
     [ChatTelemetryEventName.ToolUseSuggested]: ToolUseSuggestedEvent
+    [ChatTelemetryEventName.InteractWithAgenticChat]: InteractWithAgenticChatEvent
 }
 
 export type ToolUseSuggestedEvent = {
@@ -189,6 +191,13 @@ export type ToolUseSuggestedEvent = {
     cwsprToolName: string
     cwsprToolUseId: string
     languageServerVersion?: string
+}
+
+export type InteractWithAgenticChatEvent = {
+    credentialStartUrl?: string
+    cwsprChatConversationId: string
+    cwsprChatConversationType: ChatConversationType
+    cwsprAgenticChatInteractionType: AgenticChatInteractionType
 }
 
 export type ModifyCodeEvent = {
@@ -255,6 +264,8 @@ export enum ChatInteractionType {
 }
 
 export type ChatConversationType = 'Chat' | 'Assign' | 'Transform' | 'AgenticChat' | 'AgenticChatWithToolUse'
+
+export type AgenticChatInteractionType = 'RejectDiff' | 'GeneratedDiff' | 'RunCommand' | 'GeneratedCommand' | 'StopChat'
 
 export type InteractWithMessageEvent = {
     credentialStartUrl?: string
