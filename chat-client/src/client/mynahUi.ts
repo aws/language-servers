@@ -773,7 +773,8 @@ export const createMynahUi = (
             message.type === 'tool' ? (fileList ? true : message.messageId?.endsWith('_permission')) : undefined
 
         const processedButtons: ChatItemButton[] | undefined = toMynahButtons(message.buttons)?.map(button =>
-            button.id === 'undo-all-changes' ? { ...button, position: 'outside' } : button)
+            button.id === 'undo-all-changes' ? { ...button, position: 'outside' } : button
+        )
 
         return {
             body: message.body,
