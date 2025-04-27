@@ -10,7 +10,6 @@ import {
     AdditionalContentEntry,
     GenerateAssistantResponseCommandInput,
     ChatMessage,
-    ToolUse,
 } from '@amzn/codewhisperer-streaming'
 import {
     BedrockTools,
@@ -20,7 +19,6 @@ import {
     FileList,
     TextDocument,
     OPEN_WORKSPACE_INDEX_SETTINGS_BUTTON_ID,
-    ChatResult,
 } from '@aws/language-server-runtimes/server-interface'
 import { Features } from '../../types'
 import { DocumentContext, DocumentContextExtractor } from '../../chat/contexts/documentContext'
@@ -55,8 +53,6 @@ export interface DocumentReference {
     readonly lineRanges: Array<{ first: number; second: number }>
 }
 
-type FileChange = { before?: string; after?: string }
-
 export class AgenticChatTriggerContext {
     private static readonly DEFAULT_CURSOR_STATE: CursorState = { position: { line: 0, character: 0 } }
 
@@ -64,14 +60,12 @@ export class AgenticChatTriggerContext {
     #lsp: Features['lsp']
     #logging: Features['logging']
     #documentContextExtractor: DocumentContextExtractor
-    #toolUseLookup: Map<string, ToolUse & { fileChange?: FileChange; chatResult?: ChatResult }>
 
     constructor({ workspace, lsp, logging }: Pick<Features, 'workspace' | 'lsp' | 'logging'> & Partial<Features>) {
         this.#workspace = workspace
         this.#lsp = lsp
         this.#logging = logging
         this.#documentContextExtractor = new DocumentContextExtractor({ logger: logging, workspace })
-        this.#toolUseLookup = new Map()
     }
 
     async getNewTriggerContext(params: ChatParams | InlineChatParams): Promise<TriggerContext> {
@@ -79,7 +73,7 @@ export class AgenticChatTriggerContext {
 
         return {
             ...documentContext,
-            userIntent: this.#guessIntentFromPrompt(params.prompt.prompt),
+            userIntent: undefined,
         }
     }
 
@@ -203,22 +197,6 @@ export class AgenticChatTriggerContext {
         }
     }
 
-    #guessIntentFromPrompt(prompt?: string): UserIntent | undefined {
-        if (prompt === undefined) {
-            return undefined
-        } else if (/^explain/i.test(prompt)) {
-            return UserIntent.EXPLAIN_CODE_SELECTION
-        } else if (/^refactor/i.test(prompt)) {
-            return UserIntent.SUGGEST_ALTERNATE_IMPLEMENTATION
-        } else if (/^fix/i.test(prompt)) {
-            return UserIntent.APPLY_COMMON_BEST_PRACTICES
-        } else if (/^optimize/i.test(prompt)) {
-            return UserIntent.IMPROVE_CODE
-        }
-
-        return undefined
-    }
-
     async #getRelevantDocuments(
         prompt: string,
         chatResultStream?: AgenticChatResultStream
@@ -289,9 +267,5 @@ export class AgenticChatTriggerContext {
             this.#logging.error(`Error querying query vector index to get relevant documents: ${e}`)
             return []
         }
-    }
-
-    getToolUseLookup() {
-        return this.#toolUseLookup
     }
 }

@@ -40,6 +40,7 @@ import {
     MynahUIProps,
     QuickActionCommand,
     ChatItemFormItem,
+    ChatItemButton,
 } from '@aws/mynah-ui'
 import { VoteParams } from '../contracts/telemetry'
 import { Messager } from './messager'
@@ -383,6 +384,9 @@ export const createMynahUi = (
                 }
                 messager.onButtonClick(payload)
             }
+            if (action.id === 'stop-shell-command') {
+                messager.onStopChatResponse(tabId)
+            }
         },
         onContextSelected: (contextItem, tabId) => {
             if (contextItem.id === ContextPrompt.CreateItemId) {
@@ -475,13 +479,7 @@ export const createMynahUi = (
             }
         },
         onStopChatResponse: tabId => {
-            const store = mynahUi.getTabData(tabId)?.getStore() || {}
-            const chatItems = store.chatItems || []
-            const updatedItems = chatItems.map(item => ({
-                ...item,
-                type: item.type === ChatItemType.ANSWER_STREAM && !item.body ? ChatItemType.ANSWER : item.type,
-            }))
-            mynahUi.updateStore(tabId, { loadingChat: false, cancelButtonWhenLoading: true, chatItems: updatedItems })
+            updateFinalItemTypes(tabId)
             messager.onStopChatResponse(tabId)
         },
     }
@@ -615,6 +613,15 @@ export const createMynahUi = (
         }
 
         if (isPartialResult) {
+            const tempChatItem = {
+                body: '',
+                type: ChatItemType.ANSWER_STREAM,
+            }
+            mynahUi.addChatItem(tabId, tempChatItem)
+            mynahUi.updateStore(tabId, {
+                loadingChat: true,
+                cancelButtonWhenLoading: true,
+            })
             const chatItem = {
                 ...chatResult,
                 body: chatResult.body,
@@ -631,6 +638,8 @@ export const createMynahUi = (
                 mynahUi.updateChatAnswerWithMessageId(tabId, chatResult.messageId!, chatItem)
             }
             return
+        } else {
+            updateFinalItemTypes(tabId)
         }
 
         // If chat response from server is an empty object don't do anything
@@ -715,6 +724,21 @@ export const createMynahUi = (
         }
     }
 
+    const updateFinalItemTypes = (tabId: string) => {
+        const store = mynahUi.getTabData(tabId)?.getStore() || {}
+        const chatItems = store.chatItems || []
+        const updatedItems = chatItems.map(item => ({
+            ...item,
+            type: item.type === ChatItemType.ANSWER_STREAM && !item.body ? ChatItemType.ANSWER : item.type,
+        }))
+        mynahUi.updateStore(tabId, {
+            loadingChat: false,
+            cancelButtonWhenLoading: true,
+            chatItems: updatedItems,
+            promptInputDisabledState: false,
+        })
+    }
+
     const prepareChatItemFromMessage = (message: ChatMessage, isPairProgrammingMode: boolean): Partial<ChatItem> => {
         const contextHeader = contextListToHeader(message.contextList)
         const header = contextHeader || toMynahHeader(message.header) // Is this mutually exclusive?
@@ -748,10 +772,13 @@ export const createMynahUi = (
         const padding =
             message.type === 'tool' ? (fileList ? true : message.messageId?.endsWith('_permission')) : undefined
 
+        const processedButtons: ChatItemButton[] | undefined = toMynahButtons(message.buttons)?.map(button =>
+            button.id === 'undo-all-changes' ? { ...button, position: 'outside' } : button)
+
         return {
             body: message.body,
             header: includeHeader ? processedHeader : undefined,
-            buttons: toMynahButtons(message.buttons),
+            buttons: processedButtons,
             fileList,
             // file diffs in the header need space
             fullWidth: message.type === 'tool' && message.header?.buttons ? true : undefined,

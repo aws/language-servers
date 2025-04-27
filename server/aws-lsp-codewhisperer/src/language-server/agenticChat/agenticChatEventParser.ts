@@ -140,7 +140,7 @@ export class AgenticChatEventParser implements ChatResult {
                         }
                     } catch (err) {
                         console.error(`Error parsing tool use input: ${this.toolUses[toolUseId].input}`, err)
-                        this.error = `ToolUse input is invalid JSON: "${this.toolUses[toolUseId].input}". Check the syntax and make sure the input is complete. If the input is large, break it down into multiple tool uses with smaller input.`
+                        this.error = `ToolUse input is invalid JSON: "${this.toolUses[toolUseId].input}".`
                         parsedInput = {}
                     }
                     this.toolUses[toolUseId] = {
