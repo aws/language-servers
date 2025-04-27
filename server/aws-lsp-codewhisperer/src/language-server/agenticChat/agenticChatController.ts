@@ -205,6 +205,7 @@ export class AgenticChatController implements ChatHandlers {
             try {
                 await this.#undoFileChange(toolUseId, session.data)
                 this.#updateUndoButtonAfterClick(params.tabId, toolUseId, session.data)
+                this.#telemetryController.emitInteractWithAgenticChat('RejectDiff', params.tabId)
             } catch (err: any) {
                 return { success: false, failureReason: err.message }
             }
@@ -349,6 +350,7 @@ export class AgenticChatController implements ChatHandlers {
 
         token.onCancellationRequested(() => {
             this.#log('cancellation requested')
+            this.#telemetryController.emitInteractWithAgenticChat('StopChat', params.tabId)
             session.abortRequest()
             session.rejectAllDeferredToolExecutions(new CancellationError('user'))
         })
@@ -679,8 +681,15 @@ export class AgenticChatController implements ChatHandlers {
                                 warning
                             )
                             cachedButtonBlockId = await chatResultStream.writeResultBlock(confirmationResult)
+                            const isExecuteBash = toolUse.name === 'executeBash'
+                            if (isExecuteBash) {
+                                this.#telemetryController.emitInteractWithAgenticChat('GeneratedCommand', tabId)
+                            }
                             if (requiresAcceptance) {
                                 await this.waitForToolApproval(toolUse, chatResultStream, cachedButtonBlockId, session)
+                            }
+                            if (isExecuteBash) {
+                                this.#telemetryController.emitInteractWithAgenticChat('RunCommand', tabId)
                             }
                         }
                         break
@@ -755,6 +764,7 @@ export class AgenticChatController implements ChatHandlers {
                                 fileChange: { ...cachedToolUse.fileChange, after: doc?.getText() },
                             })
                         }
+                        this.#telemetryController.emitInteractWithAgenticChat('GeneratedDiff', tabId)
                         await chatResultStream.writeResultBlock(chatResult)
                         break
                     default:
