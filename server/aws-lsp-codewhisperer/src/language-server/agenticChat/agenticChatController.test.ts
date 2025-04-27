@@ -942,6 +942,16 @@ describe('AgenticChatController', () => {
             assert.strictEqual(typedChatResult.data?.body, errorMsg)
         })
 
+        it('shows generic errorMsg on internal errors', async function () {
+            const chatResult = await chatController.onChatPrompt(
+                { tabId: mockTabId, prompt: { prompt: 'Hello' } },
+                undefined as any
+            )
+
+            const typedChatResult = chatResult as ResponseError<ChatResult>
+            assert.strictEqual(typedChatResult.data?.body, genericErrorMsg)
+        })
+
         it('returns an auth follow up action if model request returns an auth error', async () => {
             generateAssistantResponseStub.callsFake(() => {
                 throw new Error('Error')

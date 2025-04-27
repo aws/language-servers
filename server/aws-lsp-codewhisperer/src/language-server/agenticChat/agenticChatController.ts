@@ -339,24 +339,25 @@ export class AgenticChatController implements ChatHandlers {
             cwsprChatConversationType: 'AgenticChat',
         })
 
-        const triggerContext = await this.#getTriggerContext(params, metric)
-        const isNewConversation = !session.conversationId
-        if (isNewConversation) {
-            // agentic chat does not support conversationId in API response,
-            // so we set it to random UUID per session, as other chat functionality
-            // depends on it
-            session.conversationId = uuid()
-        }
-
-        token.onCancellationRequested(() => {
-            this.#log('cancellation requested')
-            this.#telemetryController.emitInteractWithAgenticChat('StopChat', params.tabId)
-            session.abortRequest()
-            session.rejectAllDeferredToolExecutions(new CancellationError('user'))
-        })
-
-        const chatResultStream = this.#getChatResultStream(params.partialResultToken)
         try {
+            const triggerContext = await this.#getTriggerContext(params, metric)
+            const isNewConversation = !session.conversationId
+            if (isNewConversation) {
+                // agentic chat does not support conversationId in API response,
+                // so we set it to random UUID per session, as other chat functionality
+                // depends on it
+                session.conversationId = uuid()
+            }
+
+            token.onCancellationRequested(() => {
+                this.#log('cancellation requested')
+                this.#telemetryController.emitInteractWithAgenticChat('StopChat', params.tabId)
+                session.abortRequest()
+                session.rejectAllDeferredToolExecutions(new CancellationError('user'))
+            })
+
+            const chatResultStream = this.#getChatResultStream(params.partialResultToken)
+
             const additionalContext = await this.#additionalContextProvider.getAdditionalContext(
                 triggerContext,
                 (params.prompt as any).context
