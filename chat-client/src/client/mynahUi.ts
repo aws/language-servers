@@ -48,7 +48,14 @@ import { ExportTabBarButtonId, TabFactory } from './tabs/tabFactory'
 import { disclaimerAcknowledgeButtonId, disclaimerCard } from './texts/disclaimer'
 import { ChatClientAdapter, ChatEventHandler } from '../contracts/chatClientAdapter'
 import { withAdapter } from './withAdapter'
-import { toDetailsWithoutIcon, toMynahButtons, toMynahContextCommand, toMynahHeader, toMynahIcon } from './utils'
+import {
+    toDetailsWithoutIcon,
+    toMynahButtons,
+    toMynahContextCommand,
+    toMynahFileList,
+    toMynahHeader,
+    toMynahIcon,
+} from './utils'
 import { ChatHistory, ChatHistoryList } from './features/history'
 import {
     pairProgrammingModeOff,
@@ -569,6 +576,7 @@ export const createMynahUi = (
     const addChatResponse = (chatResult: ChatResult, tabId: string, isPartialResult: boolean) => {
         const { type, ...chatResultWithoutType } = chatResult
         let header = toMynahHeader(chatResult.header)
+        const fileList = toMynahFileList(chatResult.fileList)
         const buttons = toMynahButtons(chatResult.buttons)
 
         if (chatResult.contextList !== undefined) {
@@ -620,6 +628,7 @@ export const createMynahUi = (
                 type: ChatItemType.ANSWER_STREAM,
                 header: header,
                 buttons: buttons,
+                fileList,
                 codeBlockActions: isPairProgrammingMode ? { 'insert-to-cursor': null } : undefined,
             }
 
@@ -733,6 +742,7 @@ export const createMynahUi = (
     const prepareChatItemFromMessage = (message: ChatMessage, isPairProgrammingMode: boolean): Partial<ChatItem> => {
         const contextHeader = contextListToHeader(message.contextList)
         const header = contextHeader || toMynahHeader(message.header) // Is this mutually exclusive?
+        const fileList = toMynahFileList(message.fileList)
 
         let processedHeader = header
         if (message.type === 'tool') {
@@ -750,18 +760,30 @@ export const createMynahUi = (
             }
         }
 
+        // Check if header should be included
+        const includeHeader =
+            processedHeader &&
+            ((processedHeader.buttons !== undefined &&
+                processedHeader.buttons !== null &&
+                processedHeader.buttons.length > 0) ||
+                processedHeader.status !== undefined ||
+                processedHeader.icon !== undefined)
+
+        const padding =
+            message.type === 'tool' ? (fileList ? true : message.messageId?.endsWith('_permission')) : undefined
+
         const processedButtons: ChatItemButton[] | undefined = toMynahButtons(message.buttons)?.map(button =>
             button.id === 'undo-all-changes' ? { ...button, position: 'outside' } : button
         )
 
         return {
             body: message.body,
-            header: processedHeader,
+            header: includeHeader ? processedHeader : undefined,
             buttons: processedButtons,
-
+            fileList,
             // file diffs in the header need space
             fullWidth: message.type === 'tool' && message.header?.buttons ? true : undefined,
-            padding: message.type === 'tool' ? (message.messageId?.endsWith('_permission') ? true : false) : undefined,
+            padding,
 
             codeBlockActions:
                 message.type === 'tool'
