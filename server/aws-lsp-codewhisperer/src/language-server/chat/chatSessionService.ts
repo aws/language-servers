@@ -12,6 +12,7 @@ import {
     SendMessageCommandOutput,
 } from '../../shared/streamingClientService'
 import { ChatResult } from '@aws/language-server-runtimes/server-interface'
+import { AgenticChatError, wrapErrorWithCode } from '../agenticChat/errors'
 
 export type ChatSessionServiceConfig = CodeWhispererStreamingClientConfig
 type FileChange = { before?: string; after?: string }
@@ -103,14 +104,17 @@ export class ChatSessionService {
         }
 
         if (!this.#amazonQServiceManager) {
-            throw new Error('amazonQServiceManager is not initialized')
+            throw new AgenticChatError('amazonQServiceManager is not initialized', 'AmazonQServiceManager')
         }
 
         const client = this.#amazonQServiceManager.getStreamingClient()
 
         if (client instanceof StreamingClientServiceToken) {
-            const response = await client.generateAssistantResponse(request, this.#abortController)
-            return response
+            try {
+                return await client.generateAssistantResponse(request, this.#abortController)
+            } catch (e) {
+                throw wrapErrorWithCode(e, 'QModelResponse')
+            }
         } else {
             // error
             return Promise.reject(
