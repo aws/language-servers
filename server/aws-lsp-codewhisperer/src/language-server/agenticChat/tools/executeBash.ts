@@ -274,8 +274,8 @@ export class ExecuteBash {
         cancellationToken?: CancellationToken,
         updates?: WritableStream
     ): Promise<InvokeOutput> {
-        const { shellName, shellFlag } = isWindowsPlatform() 
-            ? { shellName: 'cmd.exe', shellFlag: '/c' } 
+        const { shellName, shellFlag } = isWindowsPlatform()
+            ? { shellName: 'cmd.exe', shellFlag: '/c' }
             : { shellName: 'bash', shellFlag: '-c' }
         this.logging.info(`Invoking ${shellName} command: "${params.command}" in cwd: "${params.cwd}"`)
 

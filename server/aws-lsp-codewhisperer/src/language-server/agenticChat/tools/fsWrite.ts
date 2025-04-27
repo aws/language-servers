@@ -211,7 +211,8 @@ export class FsWrite {
                         type: 'string',
                     },
                     path: {
-                        description: 'Absolute path to a file, e.g. `/repo/file.py` for Unix-like system including Unix/Linux/macOS or `d:\\repo\\file.py` for windows.',
+                        description:
+                            'Absolute path to a file, e.g. `/repo/file.py` for Unix-like system including Unix/Linux/macOS or `d:\\repo\\file.py` for windows.',
                         type: 'string',
                     },
                 },
