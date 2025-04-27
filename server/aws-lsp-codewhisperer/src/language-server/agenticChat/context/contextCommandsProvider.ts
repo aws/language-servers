@@ -159,6 +159,7 @@ export class ContextCommandsProvider implements Disposable {
             } else if (item.symbol) {
                 codeCmds.push({
                     ...baseItem,
+                    command: item.symbol.name,
                     description: `${item.symbol.kind}, ${path.join(wsFolderName, item.relativePath)}, L${item.symbol.range.start.line}-${item.symbol.range.end.line}`,
                     label: 'code',
                     icon: 'code-block',
