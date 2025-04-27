@@ -108,6 +108,7 @@ import { ModelServiceException } from './errors'
 import { FileSearch, FileSearchParams } from './tools/fileSearch'
 import { loggingUtils } from '@aws/lsp-core'
 import { diffLines } from 'diff'
+import { CodeSearch } from './tools/codeSearch'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -133,6 +134,7 @@ export class AgenticChatController implements ChatHandlers {
     #chatHistoryDb: ChatDatabase
     #additionalContextProvider: AdditionalContextProvider
     #contextCommandsProvider: ContextCommandsProvider
+    #stoppedToolUses = new Set<string>()
 
     /**
      * Determines the appropriate message ID for a tool use based on tool type and name
@@ -164,18 +166,19 @@ export class AgenticChatController implements ChatHandlers {
         this.#contextCommandsProvider = new ContextCommandsProvider(
             this.#features.logging,
             this.#features.chat,
-            this.#features.workspace
+            this.#features.workspace,
+            this.#features.lsp
         )
     }
 
     async onButtonClick(params: ButtonClickParams): Promise<ButtonClickResult> {
         this.#log(`onButtonClick event with params: ${JSON.stringify(params)}`)
+        const session = this.#chatSessionManagementService.getSession(params.tabId)
         if (
             params.buttonId === 'run-shell-command' ||
             params.buttonId === 'reject-shell-command' ||
             params.buttonId === 'allow-tools'
         ) {
-            const session = this.#chatSessionManagementService.getSession(params.tabId)
             if (!session.data) {
                 return { success: false, failureReason: `could not find chat session for tab: ${params.tabId} ` }
             }
@@ -201,33 +204,24 @@ export class AgenticChatController implements ChatHandlers {
         } else if (params.buttonId === 'undo-changes') {
             const toolUseId = params.messageId
             try {
-                await this.#undoFileChange(toolUseId)
-                const cachedToolUse = this.#triggerContext.getToolUseLookup().get(toolUseId)
-                if (cachedToolUse) {
-                    this.#features.chat.sendChatUpdate({
-                        tabId: params.tabId,
-                        data: {
-                            messages: [
-                                {
-                                    ...cachedToolUse.chatResult,
-                                    header: {
-                                        ...cachedToolUse.chatResult?.header,
-                                        buttons: cachedToolUse.chatResult?.header?.buttons?.filter(
-                                            button => button.id !== 'undo-changes'
-                                        ),
-                                        status: { status: 'error', icon: 'cancel', text: 'Change discarded' },
-                                    },
-                                },
-                            ],
-                        },
-                    })
-                }
+                await this.#undoFileChange(toolUseId, session.data)
+                this.#updateUndoButtonAfterClick(params.tabId, toolUseId, session.data)
             } catch (err: any) {
                 return { success: false, failureReason: err.message }
             }
             return {
                 success: true,
             }
+        } else if (params.buttonId === 'undo-all-changes') {
+            const toolUseId = params.messageId.replace('_undoall', '')
+            await this.#undoAllFileChanges(params.tabId, toolUseId, session.data)
+            return {
+                success: true,
+            }
+        } else if (params.buttonId === 'stop-shell-command') {
+            this.#stoppedToolUses.add(params.messageId)
+            await this.#renderStoppedShellCommand(params.tabId, params.messageId)
+            return { success: true }
         } else {
             return {
                 success: false,
@@ -236,9 +230,9 @@ export class AgenticChatController implements ChatHandlers {
         }
     }
 
-    async #undoFileChange(toolUseId: string): Promise<void> {
+    async #undoFileChange(toolUseId: string, session: ChatSessionService | undefined): Promise<void> {
         this.#log(`Reverting file change for tooluseId: ${toolUseId}`)
-        const toolUse = this.#triggerContext.getToolUseLookup().get(toolUseId)
+        const toolUse = session?.toolUseLookup.get(toolUseId)
 
         const input = toolUse?.input as unknown as FsWriteParams
         if (toolUse?.fileChange?.before) {
@@ -248,10 +242,50 @@ export class AgenticChatController implements ChatHandlers {
         }
     }
 
+    #updateUndoButtonAfterClick(tabId: string, toolUseId: string, session: ChatSessionService | undefined) {
+        const cachedToolUse = session?.toolUseLookup.get(toolUseId)
+        if (!cachedToolUse) {
+            return
+        }
+        this.#features.chat.sendChatUpdate({
+            tabId,
+            data: {
+                messages: [
+                    {
+                        ...cachedToolUse.chatResult,
+                        header: {
+                            ...cachedToolUse.chatResult?.header,
+                            buttons: cachedToolUse.chatResult?.header?.buttons?.filter(
+                                button => button.id !== 'undo-changes'
+                            ),
+                            status: { status: 'error', icon: 'cancel', text: 'Change discarded' },
+                        },
+                    },
+                ],
+            },
+        })
+    }
+
+    async #undoAllFileChanges(
+        tabId: string,
+        toolUseId: string,
+        session: ChatSessionService | undefined
+    ): Promise<void> {
+        this.#log(`Reverting all file changes starting from ${toolUseId}`)
+        const toUndo = session?.toolUseLookup.get(toolUseId)?.relatedToolUses
+        if (!toUndo) {
+            return
+        }
+        for (const messageId of [...toUndo].reverse()) {
+            await this.onButtonClick({ buttonId: 'undo-changes', messageId, tabId })
+        }
+    }
+
     async onCreatePrompt(params: CreatePromptParams): Promise<void> {
         const newFilePath = getNewPromptFilePath(params.promptName)
         const newFileContent = ''
         try {
+            await this.#features.workspace.fs.mkdir(getUserPromptsDirectory(), { recursive: true })
             await this.#features.workspace.fs.writeFile(newFilePath, newFileContent, { mode: 0o600 })
             await this.#features.lsp.window.showDocument({ uri: newFilePath })
         } catch (e) {
@@ -438,7 +472,6 @@ export class AgenticChatController implements ChatHandlers {
         const maxIterations = 100 // Safety limit to prevent infinite loops
         metric.recordStart()
 
-        let loadingMessageId
         while (iterationCount < maxIterations) {
             iterationCount++
             this.#debug(`Agent loop iteration ${iterationCount} for conversation id:`, conversationIdentifier || '')
@@ -450,11 +483,6 @@ export class AgenticChatController implements ChatHandlers {
 
             const currentMessage = currentRequestInput.conversationState?.currentMessage
             const conversationId = conversationIdentifier ?? ''
-
-            // show loading message while we process request
-            loadingMessageId = `loading-${uuid()}-${iterationCount}`
-            await chatResultStream.writeResultBlock({ messageId: loadingMessageId, type: 'answer' })
-
             if (!currentMessage || !conversationId) {
                 this.#debug(
                     `Warning: ${!currentMessage ? 'currentMessage' : ''}${!currentMessage && !conversationId ? ' and ' : ''}${!conversationId ? 'conversationIdentifier' : ''} is empty in agent loop iteration ${iterationCount}.`
@@ -488,13 +516,6 @@ export class AgenticChatController implements ChatHandlers {
                 })
             }
 
-            // remove the temp loading message when we have response
-            if (loadingMessageId) {
-                await chatResultStream.removeResultBlock(loadingMessageId)
-                this.#features.chat.sendChatUpdate({ tabId, state: { inProgress: false } })
-                loadingMessageId = undefined
-            }
-
             // Phase 4: Response Processing
             const result = await this.#processGenerateAssistantResponseResponse(
                 response,
@@ -503,6 +524,7 @@ export class AgenticChatController implements ChatHandlers {
                     cwsprChatMessageId: response.$metadata.requestId,
                 }),
                 chatResultStream,
+                session,
                 documentReference
             )
 
@@ -536,6 +558,7 @@ export class AgenticChatController implements ChatHandlers {
                 break
             }
 
+            let content = ''
             let toolResults: ToolResult[]
             if (result.success) {
                 // Process tool uses and update the request input for the next iteration
@@ -547,13 +570,19 @@ export class AgenticChatController implements ChatHandlers {
                     status: ToolResultStatus.ERROR,
                     content: [{ text: result.error }],
                 }))
+                if (result.error.startsWith('ToolUse input is invalid JSON:')) {
+                    content =
+                        'Your toolUse input is incomplete because it is too large. Break this task down into multiple tool uses with smaller input.'
+                }
             }
-            currentRequestInput = this.#updateRequestInputWithToolResults(currentRequestInput, toolResults)
+            currentRequestInput = this.#updateRequestInputWithToolResults(currentRequestInput, toolResults, content)
         }
 
         if (iterationCount >= maxIterations) {
             this.#log('Agent loop reached maximum iterations limit')
         }
+
+        this.#stoppedToolUses.clear()
 
         return (
             finalResult || {
@@ -603,19 +632,21 @@ export class AgenticChatController implements ChatHandlers {
         token?: CancellationToken
     ): Promise<ToolResult[]> {
         const results: ToolResult[] = []
-        let loadingMessageId
 
         for (const toolUse of toolUses) {
             // Store buttonBlockId to use it in `catch` block if needed
             let cachedButtonBlockId
             if (!toolUse.name || !toolUse.toolUseId) continue
-            this.#triggerContext.getToolUseLookup().set(toolUse.toolUseId, toolUse)
+            session.toolUseLookup.set(toolUse.toolUseId, toolUse)
 
             try {
                 // TODO: Can we move this check in the event parser before the stream completes?
                 const availableToolNames = this.#getTools(session).map(tool => tool.toolSpecification.name)
                 if (!availableToolNames.includes(toolUse.name)) {
                     throw new Error(`Tool ${toolUse.name} is not available in the current mode`)
+                }
+                if (toolUse.name !== 'fsWrite') {
+                    await this.#showUndoAllIfRequired(chatResultStream, session)
                 }
                 const { explanation } = toolUse.input as unknown as ExplanatoryParams
                 if (explanation) {
@@ -657,6 +688,9 @@ export class AgenticChatController implements ChatHandlers {
                         }
                         break
                     }
+                    case 'codeSearch':
+                        // no need to write tool message for code search.
+                        break
                     default:
                         this.#features.logging.warn(`Recieved unrecognized tool: ${toolUse.name}`)
                         await chatResultStream.writeResultBlock({
@@ -666,28 +700,18 @@ export class AgenticChatController implements ChatHandlers {
                         })
                         break
                 }
-                // show thinking spinner when tool is running
-                loadingMessageId = `loading-${toolUse.toolUseId}`
-                await chatResultStream.writeResultBlock({ messageId: loadingMessageId, type: 'answer' })
-                this.#features.chat.sendChatUpdate({ tabId, state: { inProgress: true } })
 
                 if (toolUse.name === 'fsWrite') {
                     const input = toolUse.input as unknown as FsWriteParams
                     const document = await this.#triggerContext.getTextDocument(input.path)
-                    this.#triggerContext
-                        .getToolUseLookup()
-                        .set(toolUse.toolUseId, { ...toolUse, fileChange: { before: document?.getText() } })
+                    session.toolUseLookup.set(toolUse.toolUseId, {
+                        ...toolUse,
+                        fileChange: { before: document?.getText() },
+                    })
                 }
 
                 const ws = this.#getWritableStream(chatResultStream, toolUse)
                 const result = await this.#features.agent.runTool(toolUse.name, toolUse.input, token, ws)
-
-                // remove the temp loading message when tool finishes
-                if (loadingMessageId) {
-                    await chatResultStream.removeResultBlock(loadingMessageId)
-                    this.#features.chat.sendChatUpdate({ tabId, state: { inProgress: false } })
-                    loadingMessageId = undefined
-                }
 
                 let toolResultContent: ToolResultContentBlock
 
@@ -720,14 +744,16 @@ export class AgenticChatController implements ChatHandlers {
                         // no need to write tool result for listDir and fsRead into chat stream
                         // executeBash will stream the output instead of waiting until the end
                         break
+                    case 'codeSearch':
+                        // no need to write tool result for code search.
+                        break
                     case 'fsWrite':
                         const input = toolUse.input as unknown as FsWriteParams
                         const doc = await this.#triggerContext.getTextDocument(input.path)
-                        const chatResult = await this.#getFsWriteChatResult(toolUse, doc)
-                        const toolUseLookup = this.#triggerContext.getToolUseLookup()
-                        const cachedToolUse = toolUseLookup.get(toolUse.toolUseId)
+                        const chatResult = await this.#getFsWriteChatResult(toolUse, doc, session)
+                        const cachedToolUse = session.toolUseLookup.get(toolUse.toolUseId)
                         if (cachedToolUse) {
-                            toolUseLookup.set(toolUse.toolUseId, {
+                            session.toolUseLookup.set(toolUse.toolUseId, {
                                 ...cachedToolUse,
                                 chatResult,
                                 fileChange: { ...cachedToolUse.fileChange, after: doc?.getText() },
@@ -744,6 +770,8 @@ export class AgenticChatController implements ChatHandlers {
                         })
                         break
                 }
+                this.#updateUndoAllState(toolUse, session)
+
                 if (toolUse.name) {
                     this.#telemetryController.emitToolUseSuggested(
                         toolUse,
@@ -752,31 +780,35 @@ export class AgenticChatController implements ChatHandlers {
                     )
                 }
             } catch (err) {
-                if (loadingMessageId) {
-                    await chatResultStream.removeResultBlock(loadingMessageId)
-                    this.#features.chat.sendChatUpdate({ tabId, state: { inProgress: false } })
-                    loadingMessageId = undefined
-                }
-
                 if (this.isUserAction(err, token)) {
-                    if (err instanceof ToolApprovalException && toolUse.name === 'executeBash') {
-                        if (cachedButtonBlockId) {
-                            await chatResultStream.overwriteResultBlock(
-                                this.#getUpdateToolConfirmResult(toolUse, false),
-                                cachedButtonBlockId
-                            )
-                            if (err.shouldShowMessage) {
-                                await chatResultStream.writeResultBlock({
-                                    type: 'answer',
-                                    messageId: `reject-message-${toolUse.toolUseId}`,
-                                    body: err.message || 'Command was rejected.',
-                                })
+                    if (toolUse.name === 'executeBash') {
+                        if (err instanceof ToolApprovalException) {
+                            if (cachedButtonBlockId) {
+                                await chatResultStream.overwriteResultBlock(
+                                    this.#getUpdateToolConfirmResult(toolUse, false),
+                                    cachedButtonBlockId
+                                )
+                                if (err.shouldShowMessage) {
+                                    await chatResultStream.writeResultBlock({
+                                        type: 'answer',
+                                        messageId: `reject-message-${toolUse.toolUseId}`,
+                                        body: err.message || 'Command was rejected.',
+                                    })
+                                }
+                            } else {
+                                this.#features.logging.warn('Failed to update tool block: no blockId is available.')
                             }
-                        } else {
-                            this.#features.logging.warn('Failed to update tool block: no blockId is available.')
                         }
+                        throw err
                     }
-                    throw err
+                    if (err instanceof CancellationError) {
+                        results.push({
+                            toolUseId: toolUse.toolUseId,
+                            status: ToolResultStatus.ERROR,
+                            content: [{ text: 'Command stopped by user' }],
+                        })
+                        continue
+                    }
                 }
                 const errMsg = err instanceof Error ? err.message : 'unknown error'
                 this.#log(`Error running tool ${toolUse.name}:`, errMsg)
@@ -785,10 +817,67 @@ export class AgenticChatController implements ChatHandlers {
                     status: 'error',
                     content: [{ json: { error: err instanceof Error ? err.message : 'Unknown error' } }],
                 })
+            } finally {
+                this.#stoppedToolUses.delete(toolUse.toolUseId!)
             }
         }
 
         return results
+    }
+
+    /**
+     * Updates the currentUndoAllId state in the session
+     */
+    #updateUndoAllState(toolUse: ToolUse, session: ChatSessionService) {
+        if (toolUse.name === 'fsWrite') {
+            if (session.currentUndoAllId === undefined) {
+                session.currentUndoAllId = toolUse.toolUseId
+            }
+            if (session.currentUndoAllId) {
+                const prev = session.toolUseLookup.get(session.currentUndoAllId)
+                if (prev && toolUse.toolUseId) {
+                    const relatedToolUses = prev.relatedToolUses || new Set()
+                    relatedToolUses.add(toolUse.toolUseId)
+
+                    session.toolUseLookup.set(session.currentUndoAllId, {
+                        ...prev,
+                        relatedToolUses,
+                    })
+                }
+            }
+        } else {
+            session.currentUndoAllId = undefined
+        }
+    }
+
+    /**
+     * Shows an "Undo all changes" button if there are multiple related file changes
+     * that can be undone together.
+     */
+    async #showUndoAllIfRequired(chatResultStream: AgenticChatResultStream, session: ChatSessionService) {
+        if (session.currentUndoAllId === undefined) {
+            return
+        }
+
+        const toUndo = session.toolUseLookup.get(session.currentUndoAllId)?.relatedToolUses
+        if (!toUndo || toUndo.size <= 1) {
+            return
+        }
+
+        await chatResultStream.writeResultBlock({
+            type: 'answer',
+            messageId: `${session.currentUndoAllId}_undoall`,
+            buttons: [
+                {
+                    id: 'undo-all-changes',
+                    text: 'Undo all changes',
+                    icon: 'revert',
+                    status: 'clear',
+                    keepCardAfterClick: false,
+                },
+            ],
+        })
+        session.currentUndoAllId = undefined
     }
 
     /**
@@ -845,8 +934,14 @@ export class AgenticChatController implements ChatHandlers {
         if (toolUse.name !== 'executeBash') {
             return
         }
+        const completedHeader: ChatMessage['header'] = {
+            body: 'shell',
+            status: { status: 'success', icon: 'ok', text: 'Completed' },
+            buttons: [],
+        }
         return new WritableStream({
             write: async chunk => {
+                if (this.#stoppedToolUses.has(toolUse.toolUseId!)) return
                 await chatResultStream.writeResultBlock({
                     type: 'tool',
                     body: chunk,
@@ -854,10 +949,12 @@ export class AgenticChatController implements ChatHandlers {
                 })
             },
             close: async () => {
+                if (this.#stoppedToolUses.has(toolUse.toolUseId!)) return
                 await chatResultStream.writeResultBlock({
                     type: 'tool',
                     body: '```',
                     messageId: toolUse.toolUseId,
+                    header: completedHeader,
                 })
             },
         })
@@ -886,6 +983,15 @@ export class AgenticChatController implements ChatHandlers {
                         icon: isAccept ? 'ok' : 'cancel',
                         text: isAccept ? 'Accepted' : 'Rejected',
                     },
+                    buttons: isAccept
+                        ? [
+                              {
+                                  id: 'stop-shell-command',
+                                  text: 'Stop',
+                                  icon: 'stop',
+                              },
+                          ]
+                        : [],
                 },
             }
         }
@@ -964,6 +1070,34 @@ export class AgenticChatController implements ChatHandlers {
             body,
             header,
         }
+    }
+
+    async #renderStoppedShellCommand(tabId: string, messageId: string): Promise<void> {
+        const session = this.#chatSessionManagementService.getSession(tabId).data
+        const toolUse = session?.toolUseLookup.get(messageId)
+        const command = (toolUse!.input as unknown as ExecuteBashParams).command
+        await this.#features.chat.sendChatUpdate({
+            tabId,
+            state: { inProgress: false },
+            data: {
+                messages: [
+                    {
+                        messageId,
+                        type: 'tool',
+                        body: `\`\`\`shell\n${command}\n\`\`\``,
+                        header: {
+                            body: 'shell',
+                            status: {
+                                status: 'error',
+                                icon: 'stop',
+                                text: 'Stopped',
+                            },
+                            buttons: [],
+                        },
+                    },
+                ],
+            },
+        })
     }
 
     #processToolConfirmation(
@@ -1050,9 +1184,13 @@ export class AgenticChatController implements ChatHandlers {
         }
     }
 
-    async #getFsWriteChatResult(toolUse: ToolUse, doc: TextDocument | undefined): Promise<ChatMessage> {
+    async #getFsWriteChatResult(
+        toolUse: ToolUse,
+        doc: TextDocument | undefined,
+        session: ChatSessionService
+    ): Promise<ChatMessage> {
         const input = toolUse.input as unknown as FsWriteParams
-        const oldContent = this.#triggerContext.getToolUseLookup().get(toolUse.toolUseId!)?.fileChange?.before ?? ''
+        const oldContent = session.toolUseLookup.get(toolUse.toolUseId!)?.fileChange?.before ?? ''
         // Get just the filename instead of the full path
         const fileName = path.basename(input.path)
         const diffChanges = diffLines(oldContent, doc?.getText() ?? '')
@@ -1149,7 +1287,8 @@ export class AgenticChatController implements ChatHandlers {
      */
     #updateRequestInputWithToolResults(
         requestInput: GenerateAssistantResponseCommandInput,
-        toolResults: ToolResult[]
+        toolResults: ToolResult[],
+        content: string
     ): GenerateAssistantResponseCommandInput {
         // Create a deep copy of the request input
         const updatedRequestInput = JSON.parse(JSON.stringify(requestInput)) as GenerateAssistantResponseCommandInput
@@ -1157,7 +1296,7 @@ export class AgenticChatController implements ChatHandlers {
         // Add tool results to the request
         updatedRequestInput.conversationState!.currentMessage!.userInputMessage!.userInputMessageContext!.toolResults =
             []
-        updatedRequestInput.conversationState!.currentMessage!.userInputMessage!.content = ''
+        updatedRequestInput.conversationState!.currentMessage!.userInputMessage!.content = content
 
         for (const toolResult of toolResults) {
             this.#debug(`ToolResult: ${JSON.stringify(toolResult)}`)
@@ -1445,8 +1584,9 @@ export class AgenticChatController implements ChatHandlers {
     }
 
     async onFileClicked(params: FileClickParams) {
+        const session = this.#chatSessionManagementService.getSession(params.tabId)
         const toolUseId = params.messageId
-        const toolUse = toolUseId ? this.#triggerContext.getToolUseLookup().get(toolUseId) : undefined
+        const toolUse = toolUseId ? session.data?.toolUseLookup.get(toolUseId) : undefined
 
         if (toolUse?.name === 'fsWrite') {
             const input = toolUse.input as unknown as FsWriteParams
@@ -1639,6 +1779,7 @@ export class AgenticChatController implements ChatHandlers {
         response: GenerateAssistantResponseCommandOutput,
         metric: Metric<AddMessageEvent>,
         chatResultStream: AgenticChatResultStream,
+        session: ChatSessionService,
         contextList?: FileList
     ): Promise<Result<AgenticChatResultWithMetadata, string>> {
         const requestId = response.$metadata.requestId!
@@ -1651,6 +1792,9 @@ export class AgenticChatController implements ChatHandlers {
         }
 
         for await (const chatEvent of response.generateAssistantResponseResponse!) {
+            if (chatEvent.assistantResponseEvent) {
+                await this.#showUndoAllIfRequired(chatResultStream, session)
+            }
             const result = chatEventParser.processPartialEvent(chatEvent)
 
             // terminate early when there is an error

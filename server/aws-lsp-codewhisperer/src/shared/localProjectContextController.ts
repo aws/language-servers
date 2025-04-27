@@ -273,6 +273,27 @@ export class LocalProjectContextController {
         }
     }
 
+    public async shouldUpdateContextCommand(filePaths: string[], isAdd: boolean): Promise<boolean> {
+        try {
+            const indexSeqNum = await this._vecLib?.getIndexSequenceNumber()
+            await this.updateIndex(filePaths, isAdd ? 'add' : 'remove')
+            await waitUntil(
+                async () => {
+                    const newIndexSeqNum = await this._vecLib?.getIndexSequenceNumber()
+                    if (newIndexSeqNum && indexSeqNum && newIndexSeqNum > indexSeqNum) {
+                        return true
+                    }
+                    return false
+                },
+                { interval: 500, timeout: 5_000, truthy: true }
+            )
+            return true
+        } catch (error) {
+            this.log.error(`Error in shouldUpdateContextCommand(: ${error}`)
+            return false
+        }
+    }
+
     public async shouldUpdateContextCommandSymbolsOnce(): Promise<boolean> {
         if (this._contextCommandSymbolsUpdated) {
             return false
