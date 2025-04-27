@@ -49,11 +49,6 @@ export function toMynahFileList(fileList: ChatMessage['fileList']): ChatItemCont
         ),
     }
 
-    // Only add the collapsed property if there's exactly one file path
-    // if (fileList.filePaths?.length === 1) {
-    //     return { ...fileListTree, collapsed: true }
-    // }
-
     return fileListTree
 }
 
