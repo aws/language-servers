@@ -132,7 +132,7 @@ export class FsRead {
                 properties: {
                     path: {
                         description:
-                            'Absolute path to a file, e.g. `/repo/file.py` for linux or `d:\\repo\\file.py` for windows.',
+                            'Absolute path to a file, e.g. `/repo/file.py` for Unix-like system including Unix/Linux/macOS or `d:\\repo\\file.py` for windows.',
                         type: 'string',
                     },
                     readRange: {

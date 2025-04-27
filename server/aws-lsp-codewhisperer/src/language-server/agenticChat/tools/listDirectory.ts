@@ -99,7 +99,7 @@ export class ListDirectory {
                 properties: {
                     path: {
                         type: 'string',
-                        description: 'Absolute path to a directory, e.g., `/repo`.',
+                        description: 'Absolute path to a file, e.g. `/repo` for Unix-like system including Unix/Linux/macOS or `d:\\repo\\` for windows',
                     },
                     maxDepth: {
                         type: 'number',

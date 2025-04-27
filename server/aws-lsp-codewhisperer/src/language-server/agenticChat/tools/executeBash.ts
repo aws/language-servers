@@ -140,6 +140,14 @@ export interface ExecuteBashOutput {
  * - Windows: Uses cmd.exe with /c flag
  * - Unix/Linux/macOS: Uses bash with -c flag
  */
+/**
+ * Determines if the current platform should use Windows-style commands
+ * @returns true if the platform should use Windows command shell, false for Unix-like shells
+ */
+export function isWindowsPlatform(): boolean {
+    return process.platform === 'win32'
+}
+
 export class ExecuteBash {
     private childProcess?: ChildProcess
     private readonly logging: Features['logging']
@@ -243,8 +251,7 @@ export class ExecuteBash {
     }
 
     private looksLikePath(arg: string): boolean {
-        const isWindows = process.platform === 'win32'
-        if (isWindows) {
+        if (isWindowsPlatform()) {
             // Windows path patterns
             return (
                 arg.startsWith('/') ||
@@ -267,9 +274,9 @@ export class ExecuteBash {
         cancellationToken?: CancellationToken,
         updates?: WritableStream
     ): Promise<InvokeOutput> {
-        const isWindows = process.platform === 'win32'
-        const shellName = isWindows ? 'cmd.exe' : 'bash'
-        const shellFlag = isWindows ? '/c' : '-c'
+        const { shellName, shellFlag } = isWindowsPlatform() 
+            ? { shellName: 'cmd.exe', shellFlag: '/c' } 
+            : { shellName: 'bash', shellFlag: '-c' }
         this.logging.info(`Invoking ${shellName} command: "${params.command}" in cwd: "${params.cwd}"`)
 
         return new Promise(async (resolve, reject) => {
@@ -471,8 +478,7 @@ export class ExecuteBash {
     }
 
     private static async whichCommand(logger: Logging, cmd: string): Promise<string> {
-        const isWindows = process.platform === 'win32'
-        const { command, args } = isWindows
+        const { command, args } = isWindowsPlatform()
             ? { command: 'where', args: [cmd] }
             : { command: 'sh', args: ['-c', `command -v ${cmd}`] }
         const cp = new processUtils.ChildProcess(logger, command, args, {
