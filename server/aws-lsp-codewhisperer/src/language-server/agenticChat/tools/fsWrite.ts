@@ -162,20 +162,31 @@ export class FsWrite {
         return {
             name: 'fsWrite',
             description:
-                'A tool for creating and editing a file.\
-                \n * The `create` command will override the file at `path` if it already exists as a file, \
-                and otherwise create a new file. Use this command for initial file creation, such as scaffolding a new project. \
-                You should also use this command when overwriting large boilerplate files where you want to replace the entire content at once.\
-                \n * The `insert` command will insert `newStr` after `insertLine` and place it on its own line.\
-                \n * The `append` command will add content to the end of an existing file, automatically adding a newline if the file does not end with one.\
-                \n * The `strReplace` command will replace `oldStr` in an existing file with `newStr`.\
-                \n IMPORTANT Notes for using the `strReplace` command:\n \
-                * Use this command to delete code by using empty `newStr` parameter.\n \
-                * If you need to make small changes to an existing file, consider using `strReplace` command to avoid unnecessary rewriting the entire file.\n \
-                * Prefer the `create` command if the complexity or number of changes would make `strReplace` unwieldy or error-prone.\n \
-                * The `oldStr` parameter should match EXACTLY one or more consecutive lines from the original file. Be mindful of whitespaces! \
-                Include just the changing lines, and a few surrounding lines if needed for uniqueness. Do not include long runs of unchanging lines in `oldStr`.\n \
-                * The `newStr` parameter should contain the edited lines that should replace the `oldStr`.',
+                'A tool for creating and editing a file.\n\n' +
+                '## Overview\n' +
+                'This tool provides multiple commands for file operations including creating, replacing, inserting, and appending content.\n\n' +
+                '## When to use\n' +
+                '- When creating new files (create)\n' +
+                '- When replacing specific text in existing files (strReplace)\n' +
+                '- When inserting text at a specific line (insert)\n' +
+                '- When adding text to the end of a file (append)\n\n' +
+                '## When not to use\n' +
+                '- When you only need to read file content (use fsRead instead)\n' +
+                '- When making complex edits that would be better handled by a dedicated editor\n\n' +
+                '## Command details\n' +
+                '- The `create` command will override the file at `path` if it already exists as a file, and otherwise create a new file. Use this command for initial file creation, such as scaffolding a new project. You should also use this command when overwriting large boilerplate files where you want to replace the entire content at once.\n' +
+                '- The `insert` command will insert `newStr` after `insertLine` and place it on its own line.\n' +
+                '- The `append` command will add content to the end of an existing file, automatically adding a newline if the file does not end with one.\n' +
+                '- The `strReplace` command will replace `oldStr` in an existing file with `newStr`.\n\n' +
+                '## IMPORTANT Notes for using the `strReplace` command\n' +
+                '- Use this command to delete code by using empty `newStr` parameter.\n' +
+                '- If you need to make small changes to an existing file, consider using `strReplace` command to avoid unnecessary rewriting the entire file.\n' +
+                '- Prefer the `create` command if the complexity or number of changes would make `strReplace` unwieldy or error-prone.\n' +
+                '- The `oldStr` parameter should match EXACTLY one or more consecutive lines from the original file. Be mindful of whitespaces! Include just the changing lines, and a few surrounding lines if needed for uniqueness. Do not include long runs of unchanging lines in `oldStr`.\n' +
+                '- The `newStr` parameter should contain the edited lines that should replace the `oldStr`.\n\n' +
+                '## Related tools\n' +
+                '- fsRead: Use to read the file before modifying it\n' +
+                '- listDirectory: Use to find files before modifying them',
             inputSchema: {
                 type: 'object',
                 properties: {

@@ -126,7 +126,23 @@ export class FsRead {
         return {
             name: 'fsRead',
             description:
-                'A tool for reading a file.\n * This tool returns the contents of a file, and the optional `readRange` determines what range of lines will be read from the specified file.\n * This tool is more effective than running a command like \`head -n\` using `executeBash` tool.\n * If the file exceeds 200K characters, this tool will only read the first 200K characters of the file with a `truncated=true` in the output, DO NOT re-read the file again using `readRange` unless explicitly asked by the user.',
+                'A tool for reading a file.\n\n' +
+                '## Overview\n' +
+                'This tool returns the contents of a file, with optional line range specification.\n\n' +
+                '## When to use\n' +
+                '- When you need to examine the content of a file\n' +
+                '- When you need to read specific line ranges from a file\n' +
+                '- When you need to analyze code or configuration files\n\n' +
+                '## When not to use\n' +
+                '- When the file is very large (>200K characters) and you need the full content\n' +
+                '- When you need to search for patterns across multiple files\n\n' +
+                '## Notes\n' +
+                '- This tool is more effective than running a command like `head -n` using `executeBash` tool\n' +
+                '- If the file exceeds 200K characters, this tool will only read the first 200K characters of the file with a `truncated=true` in the output\n' +
+                '- DO NOT re-read the file again using `readRange` unless explicitly asked by the user\n\n' +
+                '## Related tools\n' +
+                '- fsWrite: Use to modify the file after reading\n' +
+                '- listDirectory: Use to find files before reading them',
             inputSchema: {
                 type: 'object',
                 properties: {
