@@ -104,10 +104,10 @@ import { ListDirectory, ListDirectoryParams } from './tools/listDirectory'
 import { FsWrite, FsWriteParams } from './tools/fsWrite'
 import { ExecuteBash, ExecuteBashOutput, ExecuteBashParams } from './tools/executeBash'
 import { ExplanatoryParams, InvokeOutput, ToolApprovalException } from './tools/toolShared'
-import { ModelServiceException } from './errors'
 import { FileSearch, FileSearchParams } from './tools/fileSearch'
 import { diffLines } from 'diff'
 import { CodeSearch } from './tools/codeSearch'
+import { genericErrorMsg } from './constants'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -502,9 +502,9 @@ export class AgenticChatController implements ChatHandlers {
                 : this.#chatHistoryDb.getMessages(tabId)
 
             // Phase 3: Request Execution
-            const response = await this.fetchModelResponse(currentRequestInput, i =>
-                session.generateAssistantResponse(i)
-            )
+            this.#log(`Q Model Request: ${JSON.stringify(currentRequestInput)}`)
+            const response = await session.generateAssistantResponse(currentRequestInput)
+            this.#log(`Q Model Response: ${JSON.stringify(response)}`)
 
             //  Add the current user message to the history DB
             if (currentMessage && conversationIdentifier) {
@@ -896,21 +896,6 @@ export class AgenticChatController implements ChatHandlers {
             err instanceof ToolApprovalException ||
             (token?.isCancellationRequested ?? false)
         )
-    }
-
-    async fetchModelResponse<RequestType, ResponseType>(
-        requestInput: RequestType,
-        makeRequest: (requestInput: RequestType) => Promise<ResponseType>
-    ): Promise<ResponseType> {
-        this.#log(`Q Model Request: ${JSON.stringify(requestInput)}`)
-        try {
-            const response = await makeRequest(requestInput)
-            this.#log(`Q Model Response: ${JSON.stringify(response)}`)
-            return response
-        } catch (e) {
-            this.#features.logging.error(`Q Model Error: ${JSON.stringify(e)}`)
-            throw new ModelServiceException(e as Error)
-        }
     }
 
     #validateToolResult(toolUse: ToolUse, result: ToolResultContentBlock) {
@@ -1394,17 +1379,6 @@ export class AgenticChatController implements ChatHandlers {
             this.#telemetryController.emitMessageResponseError(tabId, metric.metric, requestID, errorMessage)
         }
 
-        // return non-model errors back to the client as errors
-        if (!(err instanceof ModelServiceException)) {
-            this.#log(`unknown error ${err instanceof Error ? JSON.stringify(err) : 'unknown'}`)
-            this.#log(`stack ${err instanceof Error ? JSON.stringify(err.stack) : 'unknown'}`)
-            this.#log(`cause ${err instanceof Error ? JSON.stringify(err.cause) : 'unknown'}`)
-            return new ResponseError<ChatResult>(
-                LSPErrorCodes.RequestFailed,
-                err instanceof Error ? err.message : 'Unknown request error'
-            )
-        }
-
         if (err.cause instanceof AmazonQServicePendingSigninError) {
             this.#log(`Q Chat SSO Connection error: ${getErrorMessage(err)}`)
             return createAuthFollowUpResult('full-auth')
@@ -1426,9 +1400,20 @@ export class AgenticChatController implements ChatHandlers {
             return createAuthFollowUpResult(authFollowType)
         }
 
-        return new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, err.cause.message, {
+        // Show backend error messages to the customer.
+        if (err.code === 'QModelResponse') {
+            this.#features.logging.error(`QModelResponse Error: ${JSON.stringify(err)}`)
+            return new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, err.message, {
+                type: 'answer',
+                body: err.message,
+                messageId: errorMessageId,
+                buttons: [],
+            })
+        }
+        this.#features.logging.error(`Unknown Error: ${JSON.stringify(err)}`)
+        return new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, err.message, {
             type: 'answer',
-            body: 'An error occurred when communicating with the model, check the logs for more information.',
+            body: genericErrorMsg,
             messageId: errorMessageId,
             buttons: [],
         })

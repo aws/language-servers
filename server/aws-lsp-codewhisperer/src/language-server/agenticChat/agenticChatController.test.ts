@@ -47,6 +47,7 @@ import { ChatDatabase } from './tools/chatDb/chatDb'
 import { LocalProjectContextController } from '../../shared/localProjectContextController'
 import { CancellationError } from '@aws/lsp-core'
 import { ToolApprovalException } from './tools/toolShared'
+import { genericErrorMsg } from './constants'
 
 describe('AgenticChatController', () => {
     const mockTabId = 'tab-1'
@@ -925,8 +926,9 @@ describe('AgenticChatController', () => {
         })
 
         it('propagates model error back to client', async () => {
+            const errorMsg = 'This is an error from the backend'
             generateAssistantResponseStub.callsFake(() => {
-                throw new Error('Error')
+                throw new Error(errorMsg)
             })
 
             const chatResult = await chatController.onChatPrompt(
@@ -936,11 +938,8 @@ describe('AgenticChatController', () => {
 
             // These checks will fail if a response error is returned.
             const typedChatResult = chatResult as ResponseError<ChatResult>
-            assert.strictEqual(typedChatResult.message, 'Error')
-            assert.strictEqual(
-                typedChatResult.data?.body,
-                'An error occurred when communicating with the model, check the logs for more information.'
-            )
+            assert.strictEqual(typedChatResult.message, errorMsg)
+            assert.strictEqual(typedChatResult.data?.body, errorMsg)
         })
 
         it('returns an auth follow up action if model request returns an auth error', async () => {
