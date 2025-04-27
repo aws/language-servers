@@ -108,6 +108,7 @@ import { ModelServiceException } from './errors'
 import { FileSearch, FileSearchParams } from './tools/fileSearch'
 import { diffLines } from 'diff'
 import { CodeSearch } from './tools/codeSearch'
+import { URI } from 'vscode-uri'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -287,7 +288,7 @@ export class AgenticChatController implements ChatHandlers {
         try {
             await this.#features.workspace.fs.mkdir(getUserPromptsDirectory(), { recursive: true })
             await this.#features.workspace.fs.writeFile(newFilePath, newFileContent, { mode: 0o600 })
-            await this.#features.lsp.window.showDocument({ uri: newFilePath })
+            await this.#features.lsp.window.showDocument({ uri: URI.file(newFilePath).toString() })
         } catch (e) {
             this.#features.logging.warn(`Error creating prompt file: ${e}`)
         }
@@ -1601,11 +1602,11 @@ export class AgenticChatController implements ChatHandlers {
                 fileContent: toolUse.fileChange?.after,
             })
         } else if (toolUse?.name === 'fsRead') {
-            await this.#features.lsp.window.showDocument({ uri: params.filePath })
+            await this.#features.lsp.window.showDocument({ uri: URI.file(params.filePath).toString() })
         } else {
             const absolutePath = params.fullPath ?? (await this.#resolveAbsolutePath(params.filePath))
             if (absolutePath) {
-                await this.#features.lsp.window.showDocument({ uri: absolutePath })
+                await this.#features.lsp.window.showDocument({ uri: URI.file(absolutePath).toString() })
             }
         }
     }
