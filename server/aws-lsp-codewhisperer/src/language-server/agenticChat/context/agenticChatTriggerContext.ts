@@ -11,6 +11,7 @@ import {
     GenerateAssistantResponseCommandInput,
     ChatMessage,
     ToolUse,
+    EnvState,
 } from '@amzn/codewhisperer-streaming'
 import {
     BedrockTools,
@@ -77,7 +78,21 @@ export class AgenticChatTriggerContext {
 
         return {
             ...documentContext,
-            userIntent: this.#guessIntentFromPrompt(params.prompt.prompt),
+            userIntent: undefined,
+        }
+    }
+
+    #mapPlatformToEnvState(platform: string): EnvState | undefined {
+        switch (platform) {
+            case 'darwin':
+                return { operatingSystem: 'macos' }
+            case 'linux':
+                return { operatingSystem: 'linux' }
+            case 'win32':
+            case 'cygwin':
+                return { operatingSystem: 'windows' }
+            default:
+                return undefined
         }
     }
 
@@ -135,6 +150,7 @@ export class AgenticChatTriggerContext {
                                       },
                                       tools,
                                       additionalContext: additionalContent,
+                                      envState: this.#mapPlatformToEnvState(process.platform),
                                   }
                                 : {
                                       tools,
@@ -144,6 +160,7 @@ export class AgenticChatTriggerContext {
                                           useRelevantDocuments: useRelevantDocuments,
                                           ...defaultEditorState,
                                       },
+                                      envState: this.#mapPlatformToEnvState(process.platform),
                                   },
                         userIntent: triggerContext.userIntent,
                         origin: 'IDE',
@@ -199,22 +216,6 @@ export class AgenticChatTriggerContext {
         } catch {
             return
         }
-    }
-
-    #guessIntentFromPrompt(prompt?: string): UserIntent | undefined {
-        if (prompt === undefined) {
-            return undefined
-        } else if (/^explain/i.test(prompt)) {
-            return UserIntent.EXPLAIN_CODE_SELECTION
-        } else if (/^refactor/i.test(prompt)) {
-            return UserIntent.SUGGEST_ALTERNATE_IMPLEMENTATION
-        } else if (/^fix/i.test(prompt)) {
-            return UserIntent.APPLY_COMMON_BEST_PRACTICES
-        } else if (/^optimize/i.test(prompt)) {
-            return UserIntent.IMPROVE_CODE
-        }
-
-        return undefined
     }
 
     async #getRelevantDocuments(
