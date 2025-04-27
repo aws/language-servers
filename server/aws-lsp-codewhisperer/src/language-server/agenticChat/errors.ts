@@ -1,4 +1,4 @@
-type AgenticChatErrorCode = 'QModelResponse' | 'AmazonQServiceManager'
+type AgenticChatErrorCode = 'QModelResponse' | 'AmazonQServiceManager' | 'FailedResult' | 'MaxAgentLoopIterations'
 
 export class AgenticChatError extends Error {
     constructor(
