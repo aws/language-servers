@@ -1403,7 +1403,7 @@ export class AgenticChatController implements ChatHandlers {
 
         // Show backend error messages to the customer.
         if (err.code === 'QModelResponse') {
-            this.#features.logging.error(`QModelResponse Error: ${JSON.stringify(err)}`)
+            this.#features.logging.error(`QModelResponse Error: ${JSON.stringify(err.cause)}`)
             return new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, err.message, {
                 type: 'answer',
                 body: err.message,
@@ -1412,6 +1412,7 @@ export class AgenticChatController implements ChatHandlers {
             })
         }
         this.#features.logging.error(`Unknown Error: ${JSON.stringify(err)}`)
+        this.#features.logging.log(`Error Cause: ${JSON.stringify(err.cause)}`)
         return new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, err.message, {
             type: 'answer',
             body: genericErrorMsg,
