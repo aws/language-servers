@@ -165,7 +165,8 @@ export class AgenticChatController implements ChatHandlers {
         this.#contextCommandsProvider = new ContextCommandsProvider(
             this.#features.logging,
             this.#features.chat,
-            this.#features.workspace
+            this.#features.workspace,
+            this.#features.lsp
         )
     }
 
