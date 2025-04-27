@@ -134,11 +134,15 @@ export class FsRead {
                 '- When you need to read specific line ranges from a file\n' +
                 '- When you need to analyze code or configuration files\n\n' +
                 '## When not to use\n' +
-                '- When the file is very large (>200K characters) and you need the full content\n' +
-                '- When you need to search for patterns across multiple files\n\n' +
+                '- When you need to search for patterns across multiple files\n' +
+                '- When you need to process files in binary format\n\n' +
                 '## Notes\n' +
                 '- This tool is more effective than running a command like `head -n` using `executeBash` tool\n' +
                 '- If the file exceeds 200K characters, this tool will only read the first 200K characters of the file with a `truncated=true` in the output\n' +
+                '- For large files (>200K characters), you may need to make multiple calls with specific `readRange` values, but ONLY do this if:\n' +
+                '  * The initial read was truncated (indicated by `truncated=true` in the output)\n' +
+                '  * A specific `readRange` is needed to focus on relevant sections\n' +
+                '  * The user explicitly asks to read more of the file\n' +
                 '- DO NOT re-read the file again using `readRange` unless explicitly asked by the user\n\n' +
                 '## Related tools\n' +
                 '- fsWrite: Use to modify the file after reading\n' +
