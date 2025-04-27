@@ -409,7 +409,12 @@ export const createMynahUi = (
                         },
                     ],
                     [
-                        { id: ContextPrompt.CancelButtonId, text: 'Cancel', status: 'clear' },
+                        {
+                            id: ContextPrompt.CancelButtonId,
+                            text: 'Cancel',
+                            status: 'clear',
+                            waitMandatoryFormItems: false,
+                        },
                         {
                             id: ContextPrompt.SubmitButtonId,
                             text: 'Create',

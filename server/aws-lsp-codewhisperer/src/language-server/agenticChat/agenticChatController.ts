@@ -251,6 +251,7 @@ export class AgenticChatController implements ChatHandlers {
         const newFilePath = getNewPromptFilePath(params.promptName)
         const newFileContent = ''
         try {
+            await this.#features.workspace.fs.mkdir(getUserPromptsDirectory(), { recursive: true })
             await this.#features.workspace.fs.writeFile(newFilePath, newFileContent, { mode: 0o600 })
             await this.#features.lsp.window.showDocument({ uri: newFilePath })
         } catch (e) {
