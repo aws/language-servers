@@ -928,6 +928,11 @@ export class AgenticChatController implements ChatHandlers {
         if (toolUse.name !== 'executeBash') {
             return
         }
+        const completedHeader: ChatMessage['header'] = {
+            body: 'shell',
+            status: { status: 'success', icon: 'ok', text: 'Completed' },
+            buttons: [],
+        }
         return new WritableStream({
             write: async chunk => {
                 if (this.#stoppedToolUses.has(toolUse.toolUseId!)) return
@@ -943,6 +948,7 @@ export class AgenticChatController implements ChatHandlers {
                     type: 'tool',
                     body: '```',
                     messageId: toolUse.toolUseId,
+                    header: completedHeader,
                 })
             },
         })
