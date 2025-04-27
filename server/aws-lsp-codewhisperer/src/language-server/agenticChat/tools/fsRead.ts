@@ -131,7 +131,8 @@ export class FsRead {
                 type: 'object',
                 properties: {
                     path: {
-                        description: 'Absolute path to a file, e.g. `/repo/file.py`.',
+                        description:
+                            'Absolute path to a file, e.g. `/repo/file.py` for linux or `d:\\repo\\file.py` for windows.',
                         type: 'string',
                     },
                     readRange: {

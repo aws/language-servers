@@ -10,7 +10,6 @@ import {
     AdditionalContentEntry,
     GenerateAssistantResponseCommandInput,
     ChatMessage,
-    ToolUse,
     EnvState,
 } from '@amzn/codewhisperer-streaming'
 import {
