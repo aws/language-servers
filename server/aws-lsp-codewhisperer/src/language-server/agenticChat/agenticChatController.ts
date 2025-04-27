@@ -1402,7 +1402,7 @@ export class AgenticChatController implements ChatHandlers {
             return createAuthFollowUpResult(authFollowType)
         }
 
-        // Show backend error messages to the customer.
+        // These are errors we want to show custom messages in chat for.
         if (err.code === 'QModelResponse' || err.code === 'MaxAgentLoopIterations') {
             this.#features.logging.error(`${err.code}: ${JSON.stringify(err.cause)}`)
             return new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, err.message, {
