@@ -554,6 +554,7 @@ export class AgenticChatController implements ChatHandlers {
                 break
             }
 
+            let content = ''
             let toolResults: ToolResult[]
             if (result.success) {
                 // Process tool uses and update the request input for the next iteration
@@ -565,8 +566,12 @@ export class AgenticChatController implements ChatHandlers {
                     status: ToolResultStatus.ERROR,
                     content: [{ text: result.error }],
                 }))
+                if (result.error.startsWith('ToolUse input is invalid JSON:')) {
+                    content =
+                        'Your toolUse input is incomplete because it is too large. Break this task down into multiple tool uses with smaller input.'
+                }
             }
-            currentRequestInput = this.#updateRequestInputWithToolResults(currentRequestInput, toolResults)
+            currentRequestInput = this.#updateRequestInputWithToolResults(currentRequestInput, toolResults, content)
         }
 
         if (iterationCount >= maxIterations) {
@@ -1269,7 +1274,8 @@ export class AgenticChatController implements ChatHandlers {
      */
     #updateRequestInputWithToolResults(
         requestInput: GenerateAssistantResponseCommandInput,
-        toolResults: ToolResult[]
+        toolResults: ToolResult[],
+        content: string
     ): GenerateAssistantResponseCommandInput {
         // Create a deep copy of the request input
         const updatedRequestInput = JSON.parse(JSON.stringify(requestInput)) as GenerateAssistantResponseCommandInput
@@ -1277,7 +1283,7 @@ export class AgenticChatController implements ChatHandlers {
         // Add tool results to the request
         updatedRequestInput.conversationState!.currentMessage!.userInputMessage!.userInputMessageContext!.toolResults =
             []
-        updatedRequestInput.conversationState!.currentMessage!.userInputMessage!.content = ''
+        updatedRequestInput.conversationState!.currentMessage!.userInputMessage!.content = content
 
         for (const toolResult of toolResults) {
             this.#debug(`ToolResult: ${JSON.stringify(toolResult)}`)
