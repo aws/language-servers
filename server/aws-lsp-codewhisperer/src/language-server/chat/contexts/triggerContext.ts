@@ -38,7 +38,7 @@ export class QChatTriggerContext {
 
         return {
             ...documentContext,
-            userIntent: undefined,
+            userIntent: this.#guessIntentFromPrompt(params.prompt.prompt),
             useRelevantDocuments,
             relevantDocuments,
         }
@@ -128,5 +128,21 @@ export class QChatTriggerContext {
             }
         }
         return []
+    }
+
+    #guessIntentFromPrompt(prompt?: string): UserIntent | undefined {
+        if (prompt === undefined) {
+            return undefined
+        } else if (/^explain/i.test(prompt)) {
+            return UserIntent.EXPLAIN_CODE_SELECTION
+        } else if (/^refactor/i.test(prompt)) {
+            return UserIntent.SUGGEST_ALTERNATE_IMPLEMENTATION
+        } else if (/^fix/i.test(prompt)) {
+            return UserIntent.APPLY_COMMON_BEST_PRACTICES
+        } else if (/^optimize/i.test(prompt)) {
+            return UserIntent.IMPROVE_CODE
+        }
+
+        return undefined
     }
 }
