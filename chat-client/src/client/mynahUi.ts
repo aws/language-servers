@@ -39,6 +39,8 @@ import {
     NotificationType,
     MynahUIProps,
     QuickActionCommand,
+    ChatItemFormItem,
+    ChatItemButton,
 } from '@aws/mynah-ui'
 import { VoteParams } from '../contracts/telemetry'
 import { Messager } from './messager'
@@ -46,9 +48,21 @@ import { ExportTabBarButtonId, TabFactory } from './tabs/tabFactory'
 import { disclaimerAcknowledgeButtonId, disclaimerCard } from './texts/disclaimer'
 import { ChatClientAdapter, ChatEventHandler } from '../contracts/chatClientAdapter'
 import { withAdapter } from './withAdapter'
-import { toDetailsWithoutIcon, toMynahButtons, toMynahContextCommand, toMynahHeader, toMynahIcon } from './utils'
+import {
+    toDetailsWithoutIcon,
+    toMynahButtons,
+    toMynahContextCommand,
+    toMynahFileList,
+    toMynahHeader,
+    toMynahIcon,
+} from './utils'
 import { ChatHistory, ChatHistoryList } from './features/history'
-import { pairProgrammingModeOff, pairProgrammingModeOn, programmerModeCard } from './texts/pairProgramming'
+import {
+    pairProgrammingModeOff,
+    pairProgrammingModeOn,
+    pairProgrammingPromptInput,
+    programmerModeCard,
+} from './texts/pairProgramming'
 
 export interface InboundChatApi {
     addChatResponse(params: ChatResult, tabId: string, isPartialResult: boolean): void
@@ -61,6 +75,7 @@ export interface InboundChatApi {
     listConversations(params: ListConversationsResult): void
     conversationClicked(params: ConversationClickResult): void
     getSerializedChat(requestId: string, params: GetSerializedChatParams): void
+    createTabId(openTab?: boolean): string | undefined
 }
 
 type ContextCommandGroups = MynahUIDataModel['contextCommands']
@@ -72,13 +87,36 @@ const ContextPrompt = {
     PromptNameFieldId: 'prompt-name',
 } as const
 
+const getTabPairProgrammingMode = (mynahUi: MynahUI, tabId: string) => {
+    const promptInputOptions = mynahUi.getTabData(tabId)?.getStore()?.promptInputOptions ?? []
+    return promptInputOptions.find(item => item.id === 'pair-programmer-mode')?.value === 'true'
+}
+
+const openTabKey = 'openTab'
+
 export const handlePromptInputChange = (mynahUi: MynahUI, tabId: string, optionsValues: Record<string, string>) => {
     const promptTypeValue = optionsValues['pair-programmer-mode']
+
+    const store = mynahUi.getTabData(tabId)?.getStore()
+    const currentPromptInputOptions = store?.promptInputOptions ?? []
+    const updatedPromptInputOptions: ChatItemFormItem[] = currentPromptInputOptions.map(item =>
+        item.id === 'pair-programmer-mode' ? ({ ...item, value: promptTypeValue } as ChatItemFormItem) : item
+    )
+    // If the option wasn't found, add it
+    if (!updatedPromptInputOptions.some(item => item.id === 'pair-programmer-mode')) {
+        updatedPromptInputOptions.push({ ...pairProgrammingPromptInput, value: promptTypeValue } as ChatItemFormItem)
+    }
+
     if (promptTypeValue === 'true') {
         mynahUi.addChatItem(tabId, pairProgrammingModeOn)
     } else {
         mynahUi.addChatItem(tabId, pairProgrammingModeOff)
     }
+
+    // Update the store with the new promptInputOptions array
+    mynahUi.updateStore(tabId, {
+        promptInputOptions: updatedPromptInputOptions,
+    })
 }
 
 export const handleChatPrompt = (
@@ -143,11 +181,9 @@ export const createMynahUi = (
     customChatClientAdapter?: ChatClientAdapter,
     featureConfig?: Map<string, any>
 ): [MynahUI, InboundChatApi] => {
-    const initialTabId = TabFactory.generateUniqueId()
     let disclaimerCardActive = !disclaimerAcknowledged
     let programmingModeCardActive = !pairProgrammingCardAcknowledged
     let contextCommandGroups: ContextCommandGroups | undefined
-    let isPairProgrammingMode = true
 
     let chatEventHandlers: ChatEventHandler = {
         onCodeInsertToCursorPosition(
@@ -201,7 +237,6 @@ export const createMynahUi = (
         },
         onReady: () => {
             messager.onUiReady()
-            messager.onTabAdd(initialTabId)
         },
         onFileClick: (tabId, filePath, deleted, messageId, eventId, fileDetails) => {
             messager.onFileClick({ tabId, filePath, messageId, fullPath: fileDetails?.data?.['fullPath'] })
@@ -223,6 +258,16 @@ export const createMynahUi = (
                         : []),
                 ],
                 ...(disclaimerCardActive ? { promptInputStickyCard: disclaimerCard } : {}),
+            }
+
+            const tabStore = mynahUi.getTabData(tabId).getStore()
+
+            // Tabs can be opened through different methods, including server-initiated 'openTab' requests.
+            // The 'openTab' request is specifically used for loading historical chat sessions with pre-existing messages.
+            // We check if tabMetadata.openTabKey exists - if it does and is set to true, we skip showing welcome messages
+            // since this indicates we're loading a previous chat session rather than starting a new one.
+            if (!tabStore?.tabMetadata || !tabStore.tabMetadata.openTabKey) {
+                defaultTabConfig.chatItems = tabFactory.getChatItems(true, programmingModeCardActive, [])
             }
             mynahUi.updateStore(tabId, defaultTabConfig)
             messager.onTabAdd(tabId)
@@ -339,6 +384,9 @@ export const createMynahUi = (
                 }
                 messager.onButtonClick(payload)
             }
+            if (action.id === 'stop-shell-command') {
+                messager.onStopChatResponse(tabId)
+            }
         },
         onContextSelected: (contextItem, tabId) => {
             if (contextItem.id === ContextPrompt.CreateItemId) {
@@ -365,7 +413,12 @@ export const createMynahUi = (
                         },
                     ],
                     [
-                        { id: ContextPrompt.CancelButtonId, text: 'Cancel', status: 'clear' },
+                        {
+                            id: ContextPrompt.CancelButtonId,
+                            text: 'Cancel',
+                            status: 'clear',
+                            waitMandatoryFormItems: false,
+                        },
                         {
                             id: ContextPrompt.SubmitButtonId,
                             text: 'Create',
@@ -409,9 +462,6 @@ export const createMynahUi = (
             throw new Error(`Unhandled tab bar button id: ${buttonId}`)
         },
         onPromptInputOptionChange: (tabId, optionsValues) => {
-            if (optionsValues['pair-programmer-mode'] !== undefined) {
-                isPairProgrammingMode = optionsValues['pair-programmer-mode'] === 'true'
-            }
             handlePromptInputChange(mynahUi, tabId, optionsValues)
             messager.onPromptInputOptionChange({ tabId, optionsValues })
         },
@@ -423,32 +473,21 @@ export const createMynahUi = (
                 // Update the tab defaults to hide the programmer mode card for new tabs
                 mynahUi.updateTabDefaults({
                     store: {
-                        chatItems: tabFactory.createTab(true, disclaimerCardActive, false).chatItems,
+                        chatItems: tabFactory.getChatItems(true, false),
                     },
                 })
             }
         },
         onStopChatResponse: tabId => {
-            const store = mynahUi.getTabData(tabId)?.getStore() || {}
-            const chatItems = store.chatItems || []
-            const updatedItems = chatItems.map(item => ({
-                ...item,
-                type: item.type === ChatItemType.ANSWER_STREAM ? ChatItemType.ANSWER : item.type,
-            }))
-            mynahUi.updateStore(tabId, { loadingChat: false, cancelButtonWhenLoading: true, chatItems: updatedItems })
+            updateFinalItemTypes(tabId)
             messager.onStopChatResponse(tabId)
         },
     }
 
     const mynahUiProps: MynahUIProps = {
-        tabs: {
-            [initialTabId]: {
-                isSelected: true,
-                store: tabFactory.createTab(true, disclaimerCardActive, programmingModeCardActive),
-            },
-        },
+        tabs: {},
         defaults: {
-            store: tabFactory.createTab(true, false, programmingModeCardActive),
+            store: tabFactory.createTab(false),
         },
         config: {
             maxTabs: 10,
@@ -472,11 +511,14 @@ export const createMynahUi = (
         return tabId ? mynahUi.getAllTabs()[tabId]?.store : undefined
     }
 
-    const createTabId = (needWelcomeMessages: boolean = false, chatMessages?: ChatMessage[]) => {
-        const tabId = mynahUi.updateStore(
-            '',
-            tabFactory.createTab(needWelcomeMessages, disclaimerCardActive, programmingModeCardActive, chatMessages)
-        )
+    // The 'openTab' parameter indicates whether this tab creation is initiated by 'openTab' server request
+    // to restore a previous chat session (true) or if it's a new client-side tab creation (false/undefined).
+    // This distinction helps maintain consistent tab behavior between fresh conversations and restored sessions.
+    const createTabId = (openTab?: boolean) => {
+        const tabId = mynahUi.updateStore('', {
+            ...tabFactory.createTab(disclaimerCardActive),
+            tabMetadata: { openTabKey: openTab ? true : false },
+        })
         if (tabId === undefined) {
             mynahUi.notify({
                 content: uiComponentsTexts.noMoreTabsTooltip,
@@ -519,7 +561,7 @@ export const createMynahUi = (
                                             : `line ${range.first} - ${range.second}`
                                     )
                                     .join(', ') || '',
-                            description: filePath,
+                            description: fileDetails.description,
                             clickable: true,
                             data: {
                                 fullPath: fileDetails.fullPath || '',
@@ -534,6 +576,7 @@ export const createMynahUi = (
     const addChatResponse = (chatResult: ChatResult, tabId: string, isPartialResult: boolean) => {
         const { type, ...chatResultWithoutType } = chatResult
         let header = toMynahHeader(chatResult.header)
+        const fileList = toMynahFileList(chatResult.fileList)
         const buttons = toMynahButtons(chatResult.buttons)
 
         if (chatResult.contextList !== undefined) {
@@ -542,6 +585,7 @@ export const createMynahUi = (
 
         const store = mynahUi.getTabData(tabId)?.getStore() || {}
         const chatItems = store.chatItems || []
+        const isPairProgrammingMode: boolean = getTabPairProgrammingMode(mynahUi, tabId)
 
         if (chatResult.additionalMessages?.length) {
             mynahUi.updateStore(tabId, {
@@ -557,7 +601,7 @@ export const createMynahUi = (
                             : am.type === 'directive'
                               ? ChatItemType.DIRECTIVE
                               : ChatItemType.ANSWER_STREAM,
-                    ...prepareChatItemFromMessage(am),
+                    ...prepareChatItemFromMessage(am, isPairProgrammingMode),
                 }
 
                 if (!chatItems.find(ci => ci.messageId === am.messageId)) {
@@ -569,12 +613,22 @@ export const createMynahUi = (
         }
 
         if (isPartialResult) {
+            const tempChatItem = {
+                body: '',
+                type: ChatItemType.ANSWER_STREAM,
+            }
+            mynahUi.addChatItem(tabId, tempChatItem)
+            mynahUi.updateStore(tabId, {
+                loadingChat: true,
+                cancelButtonWhenLoading: true,
+            })
             const chatItem = {
                 ...chatResult,
                 body: chatResult.body,
                 type: ChatItemType.ANSWER_STREAM,
                 header: header,
                 buttons: buttons,
+                fileList,
                 codeBlockActions: isPairProgrammingMode ? { 'insert-to-cursor': null } : undefined,
             }
 
@@ -584,6 +638,8 @@ export const createMynahUi = (
                 mynahUi.updateChatAnswerWithMessageId(tabId, chatResult.messageId!, chatItem)
             }
             return
+        } else {
+            updateFinalItemTypes(tabId)
         }
 
         // If chat response from server is an empty object don't do anything
@@ -660,7 +716,7 @@ export const createMynahUi = (
 
                 const chatItem: ChatItem = {
                     type: oldMessage.type,
-                    ...prepareChatItemFromMessage(updatedMessage),
+                    ...prepareChatItemFromMessage(updatedMessage, getTabPairProgrammingMode(mynahUi, tabId)),
                 }
 
                 mynahUi.updateChatAnswerWithMessageId(tabId, updatedMessage.messageId, chatItem)
@@ -668,9 +724,25 @@ export const createMynahUi = (
         }
     }
 
-    const prepareChatItemFromMessage = (message: ChatMessage): Partial<ChatItem> => {
+    const updateFinalItemTypes = (tabId: string) => {
+        const store = mynahUi.getTabData(tabId)?.getStore() || {}
+        const chatItems = store.chatItems || []
+        const updatedItems = chatItems.map(item => ({
+            ...item,
+            type: item.type === ChatItemType.ANSWER_STREAM && !item.body ? ChatItemType.ANSWER : item.type,
+        }))
+        mynahUi.updateStore(tabId, {
+            loadingChat: false,
+            cancelButtonWhenLoading: true,
+            chatItems: updatedItems,
+            promptInputDisabledState: false,
+        })
+    }
+
+    const prepareChatItemFromMessage = (message: ChatMessage, isPairProgrammingMode: boolean): Partial<ChatItem> => {
         const contextHeader = contextListToHeader(message.contextList)
         const header = contextHeader || toMynahHeader(message.header) // Is this mutually exclusive?
+        const fileList = toMynahFileList(message.fileList)
 
         let processedHeader = header
         if (message.type === 'tool') {
@@ -688,14 +760,30 @@ export const createMynahUi = (
             }
         }
 
+        // Check if header should be included
+        const includeHeader =
+            processedHeader &&
+            ((processedHeader.buttons !== undefined &&
+                processedHeader.buttons !== null &&
+                processedHeader.buttons.length > 0) ||
+                processedHeader.status !== undefined ||
+                processedHeader.icon !== undefined)
+
+        const padding =
+            message.type === 'tool' ? (fileList ? true : message.messageId?.endsWith('_permission')) : undefined
+
+        const processedButtons: ChatItemButton[] | undefined = toMynahButtons(message.buttons)?.map(button =>
+            button.id === 'undo-all-changes' ? { ...button, position: 'outside' } : button
+        )
+
         return {
             body: message.body,
-            header: processedHeader,
-            buttons: toMynahButtons(message.buttons),
-
+            header: includeHeader ? processedHeader : undefined,
+            buttons: processedButtons,
+            fileList,
             // file diffs in the header need space
             fullWidth: message.type === 'tool' && message.header?.buttons ? true : undefined,
-            padding: message.type === 'tool' ? false : undefined,
+            padding,
 
             codeBlockActions:
                 message.type === 'tool'
@@ -765,8 +853,11 @@ ${params.message}`,
             messager.onOpenTab(requestId, { tabId: params.tabId })
         } else {
             const messages = params.newTabOptions?.data?.messages
-            const tabId = createTabId(messages ? false : true, messages)
+            const tabId = createTabId(true)
             if (tabId) {
+                mynahUi.updateStore(tabId, {
+                    chatItems: tabFactory.getChatItems(messages ? false : true, programmingModeCardActive, messages),
+                })
                 messager.onOpenTab(requestId, { tabId })
             } else {
                 messager.onOpenTab(requestId, {
@@ -878,6 +969,7 @@ ${params.message}`,
         listConversations: listConversations,
         conversationClicked: conversationClicked,
         getSerializedChat: getSerializedChat,
+        createTabId: createTabId,
     }
 
     return [mynahUi, api]

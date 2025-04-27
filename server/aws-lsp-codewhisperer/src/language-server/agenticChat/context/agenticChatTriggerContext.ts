@@ -21,7 +21,6 @@ import {
     FileList,
     TextDocument,
     OPEN_WORKSPACE_INDEX_SETTINGS_BUTTON_ID,
-    ChatResult,
 } from '@aws/language-server-runtimes/server-interface'
 import { Features } from '../../types'
 import { DocumentContext, DocumentContextExtractor } from '../../chat/contexts/documentContext'
@@ -63,14 +62,12 @@ export class AgenticChatTriggerContext {
     #lsp: Features['lsp']
     #logging: Features['logging']
     #documentContextExtractor: DocumentContextExtractor
-    #toolUseLookup: Map<string, ToolUse & { oldContent?: string; chatResult?: ChatResult }>
 
     constructor({ workspace, lsp, logging }: Pick<Features, 'workspace' | 'lsp' | 'logging'> & Partial<Features>) {
         this.#workspace = workspace
         this.#lsp = lsp
         this.#logging = logging
         this.#documentContextExtractor = new DocumentContextExtractor({ logger: logging, workspace })
-        this.#toolUseLookup = new Map()
     }
 
     async getNewTriggerContext(params: ChatParams | InlineChatParams): Promise<TriggerContext> {
@@ -288,9 +285,5 @@ export class AgenticChatTriggerContext {
             this.#logging.error(`Error querying query vector index to get relevant documents: ${e}`)
             return []
         }
-    }
-
-    getToolUseLookup() {
-        return this.#toolUseLookup
     }
 }

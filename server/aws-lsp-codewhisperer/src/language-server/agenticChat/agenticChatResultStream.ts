@@ -109,6 +109,26 @@ export class AgenticChatResultStream {
                                         rootFolderTitle: c.contextList?.rootFolderTitle
                                             ? c.contextList.rootFolderTitle
                                             : (acc.contextList?.rootFolderTitle ?? ''),
+                                        details: {
+                                            ...(acc.contextList?.details ?? {}),
+                                            ...(c.contextList?.details ?? {}),
+                                        },
+                                    },
+                                }),
+                            ...(am.messageId === c.messageId &&
+                                (c.fileList || acc.fileList) && {
+                                    fileList: {
+                                        filePaths: [
+                                            ...(acc.fileList?.filePaths ?? []),
+                                            ...(c.fileList?.filePaths ?? []),
+                                        ],
+                                        rootFolderTitle: c.fileList?.rootFolderTitle
+                                            ? c.fileList.rootFolderTitle
+                                            : (acc.fileList?.rootFolderTitle ?? ''),
+                                        details: {
+                                            ...(acc.fileList?.details ?? {}),
+                                            ...(c.fileList?.details ?? {}),
+                                        },
                                     },
                                 }),
                             header: c.header ? { ...c.header } : { ...am.header },

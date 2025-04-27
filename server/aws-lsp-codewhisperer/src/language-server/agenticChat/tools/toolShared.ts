@@ -33,8 +33,13 @@ export interface CommandValidation {
 }
 
 export class ToolApprovalException extends Error {
-    constructor() {
-        super(`Tool execution invalidated`)
+    public override readonly message: string
+    public readonly shouldShowMessage: boolean
+
+    constructor(message: string = 'Tool execution invalidated', shouldShowMessage: boolean = true) {
+        super(message)
+        this.message = message
+        this.shouldShowMessage = shouldShowMessage
     }
 }
 export interface ExplanatoryParams {

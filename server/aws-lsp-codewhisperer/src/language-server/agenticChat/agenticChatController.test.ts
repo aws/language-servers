@@ -173,7 +173,11 @@ describe('AgenticChatController', () => {
         // Add agent with runTool method to testFeatures
         testFeatures.agent = {
             runTool: sinon.stub().resolves({}),
-            getTools: sinon.stub().returns([]),
+            getTools: sinon.stub().returns(
+                ['mock-tool-name', 'mock-tool-name-1', 'mock-tool-name-2'].map(toolName => ({
+                    toolSpecification: { name: toolName, description: 'Mock tool for testing' },
+                }))
+            ),
             addTool: sinon.stub().resolves(),
         }
 
@@ -894,7 +898,7 @@ describe('AgenticChatController', () => {
 
             const chatResult = await chatResultPromise
 
-            sinon.assert.callCount(testFeatures.lsp.sendProgress, mockChatResponseList.length + 1) // response length + loading message
+            sinon.assert.callCount(testFeatures.lsp.sendProgress, mockChatResponseList.length)
             assert.deepStrictEqual(chatResult, {
                 additionalMessages: [],
                 body: '\n\nHello World!',
@@ -911,7 +915,7 @@ describe('AgenticChatController', () => {
 
             const chatResult = await chatResultPromise
 
-            sinon.assert.callCount(testFeatures.lsp.sendProgress, mockChatResponseList.length + 1) // response length + loading message
+            sinon.assert.callCount(testFeatures.lsp.sendProgress, mockChatResponseList.length)
             assert.deepStrictEqual(chatResult, {
                 additionalMessages: [],
                 body: '\n\nHello World!',
@@ -920,7 +924,7 @@ describe('AgenticChatController', () => {
             })
         })
 
-        it('propagates error message to final chat result', async () => {
+        it('propagates model error back to client', async () => {
             generateAssistantResponseStub.callsFake(() => {
                 throw new Error('Error')
             })
@@ -931,9 +935,12 @@ describe('AgenticChatController', () => {
             )
 
             // These checks will fail if a response error is returned.
-            const typedChatResult = chatResult as ChatResult
-            assert.strictEqual(typedChatResult.type, 'answer')
-            assert.strictEqual(typedChatResult.body, 'Error')
+            const typedChatResult = chatResult as ResponseError<ChatResult>
+            assert.strictEqual(typedChatResult.message, 'Error')
+            assert.strictEqual(
+                typedChatResult.data?.body,
+                'An error occurred when communicating with the model, check the logs for more information.'
+            )
         })
 
         it('returns an auth follow up action if model request returns an auth error', async () => {
@@ -949,8 +956,8 @@ describe('AgenticChatController', () => {
 
             const chatResult = await chatResultPromise
 
-            // called once for error message propagation and once for loading message.
-            sinon.assert.callCount(testFeatures.lsp.sendProgress, 2)
+            // called once for error message propagation
+            sinon.assert.callCount(testFeatures.lsp.sendProgress, 1)
             assert.deepStrictEqual(chatResult, utils.createAuthFollowUpResult('full-auth'))
         })
 

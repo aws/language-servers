@@ -1,6 +1,7 @@
 import { MetricEvent, Telemetry } from '@aws/language-server-runtimes/server-interface/telemetry'
 import { TriggerType } from '@aws/chat-client-ui-types'
 import {
+    AgenticChatInteractionType,
     ChatInteractionType,
     ChatTelemetryEventMap,
     ChatTelemetryEventName,
@@ -168,7 +169,7 @@ export class ChatTelemetryController {
         }
     }
 
-    public emitToolUseSuggested(toolUse: ToolUse, conversationId: string) {
+    public emitToolUseSuggested(toolUse: ToolUse, conversationId: string, languageServerVersion: string) {
         this.#telemetry.emitMetric({
             name: ChatTelemetryEventName.ToolUseSuggested,
             data: {
@@ -178,6 +179,19 @@ export class ChatTelemetryController {
                 cwsprToolName: toolUse.name ?? '',
                 cwsprToolUseId: toolUse.toolUseId ?? '',
                 result: 'Succeeded',
+                languageServerVersion: languageServerVersion,
+            },
+        })
+    }
+
+    public emitInteractWithAgenticChat(interactionType: AgenticChatInteractionType, tabId: string) {
+        this.#telemetry.emitMetric({
+            name: ChatTelemetryEventName.InteractWithAgenticChat,
+            data: {
+                [CONVERSATION_ID_METRIC_KEY]: this.getConversationId(tabId),
+                cwsprChatConversationType: 'AgenticChat',
+                credentialStartUrl: this.#credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
+                cwsprAgenticChatInteractionType: interactionType,
             },
         })
     }
@@ -215,6 +229,7 @@ export class ChatTelemetryController {
                 chatFollowUpCount: metric.cwsprChatFollowUpCount,
                 chatConversationType: metric.cwsprChatConversationType,
                 chatActiveEditorImportCount: metric.cwsprChatActiveEditorImportCount,
+                languageServerVersion: metric.languageServerVersion,
             }
         )
     }
@@ -250,25 +265,26 @@ export class ChatTelemetryController {
         requestId?: string,
         errorReason?: string
     ) {
-        this.emitConversationMetric(
-            {
-                name: ChatTelemetryEventName.MessageResponseError,
-                data: {
-                    cwsprChatHasCodeSnippet: metric.cwsprChatHasCodeSnippet,
-                    cwsprChatTriggerInteraction: metric.cwsprChatTriggerInteraction,
-                    cwsprChatUserIntent: metric.cwsprChatUserIntent,
-                    cwsprChatProgrammingLanguage: metric.cwsprChatProgrammingLanguage,
-                    cwsprChatActiveEditorTotalCharacters: metric.cwsprChatActiveEditorTotalCharacters,
-                    cwsprChatActiveEditorImportCount: metric.cwsprChatActiveEditorImportCount,
-                    cwsprChatRepsonseCode: metric.cwsprChatRepsonseCode,
-                    cwsprChatRequestLength: metric.cwsprChatRequestLength,
-                    cwsprChatConversationType: metric.cwsprChatConversationType,
-                    requestId: requestId,
-                    reasonDesc: getTelemetryReasonDesc(errorReason),
-                },
+        this.#telemetry.emitMetric({
+            name: ChatTelemetryEventName.MessageResponseError,
+            data: {
+                cwsprChatHasCodeSnippet: metric.cwsprChatHasCodeSnippet,
+                cwsprChatTriggerInteraction: metric.cwsprChatTriggerInteraction,
+                cwsprChatUserIntent: metric.cwsprChatUserIntent,
+                cwsprChatProgrammingLanguage: metric.cwsprChatProgrammingLanguage,
+                cwsprChatActiveEditorTotalCharacters: metric.cwsprChatActiveEditorTotalCharacters,
+                cwsprChatActiveEditorImportCount: metric.cwsprChatActiveEditorImportCount,
+                cwsprChatRepsonseCode: metric.cwsprChatRepsonseCode,
+                cwsprChatRequestLength: metric.cwsprChatRequestLength,
+                cwsprChatConversationType: metric.cwsprChatConversationType,
+                requestId: requestId,
+                reasonDesc: getTelemetryReasonDesc(errorReason),
+                credentialStartUrl: this.#credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
+                result: 'Succeeded',
+                [CONVERSATION_ID_METRIC_KEY]: this.getConversationId(tabId),
+                languageServerVersion: metric.languageServerVersion,
             },
-            tabId
-        )
+        })
     }
 
     public enqueueCodeDiffEntry(params: Omit<InsertToCursorPositionParams, 'name'>) {

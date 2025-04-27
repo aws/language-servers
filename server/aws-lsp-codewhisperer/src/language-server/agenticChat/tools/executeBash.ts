@@ -241,10 +241,18 @@ export class ExecuteBash {
         this.logging.info(`Invoking bash command: "${params.command}" in cwd: "${params.cwd}"`)
 
         return new Promise(async (resolve, reject) => {
+            let finished = false
+            const abort = (err: Error) => {
+                if (!finished) {
+                    finished = true
+                    reject(err) // <─ propagate the error to caller
+                }
+            }
+
             // Check if cancelled before starting
             if (cancellationToken?.isCancellationRequested) {
                 this.logging.debug('Bash command execution cancelled before starting')
-                throw new CancellationError('user')
+                return abort(new CancellationError('user'))
             }
 
             this.logging.debug(`Spawning process with command: bash -c "${params.command}" (cwd=${params.cwd})`)
@@ -296,8 +304,8 @@ export class ExecuteBash {
                 waitForStreams: true,
                 onStdout: async (chunk: string) => {
                     if (cancellationToken?.isCancellationRequested) {
-                        this.logging.debug('Bash command execution cancelled during stderr processing')
-                        throw new CancellationError('user')
+                        this.logging.debug('Bash command execution cancelled during stdout processing')
+                        return abort(new CancellationError('user'))
                     }
                     const isFirst = getAndSetFirstChunk(false)
                     const timestamp = Date.now()
@@ -312,7 +320,7 @@ export class ExecuteBash {
                 onStderr: async (chunk: string) => {
                     if (cancellationToken?.isCancellationRequested) {
                         this.logging.debug('Bash command execution cancelled during stderr processing')
-                        throw new CancellationError('user')
+                        return abort(new CancellationError('user'))
                     }
                     const isFirst = getAndSetFirstChunk(false)
                     const timestamp = Date.now()
@@ -331,8 +339,22 @@ export class ExecuteBash {
             // Set up cancellation listener
             if (cancellationToken) {
                 cancellationToken.onCancellationRequested(() => {
-                    this.logging.debug('Cancellation requested, killing child process')
-                    this.childProcess?.stop()
+                    this.logging.debug('cancellation detected, killing child process')
+
+                    // Kill the process
+                    this.childProcess?.stop(false, 'SIGTERM')
+
+                    // After a short delay, force kill with SIGKILL if still running
+                    setTimeout(() => {
+                        if (this.childProcess && !this.childProcess.stopped) {
+                            this.logging.debug('Process still running after SIGTERM, sending SIGKILL')
+
+                            // Try to kill the process group with SIGKILL
+                            this.childProcess.stop(true, 'SIGKILL')
+                        }
+                    }, 500)
+                    // Return from the function after cancellation
+                    return abort(new CancellationError('user'))
                 })
             }
 
@@ -342,7 +364,7 @@ export class ExecuteBash {
                 // Check if cancelled after execution
                 if (cancellationToken?.isCancellationRequested) {
                     this.logging.debug('Bash command execution cancelled after completion')
-                    throw new CancellationError('user')
+                    return abort(new CancellationError('user'))
                 }
 
                 const exitStatus = result.exitCode ?? 0
@@ -374,7 +396,7 @@ export class ExecuteBash {
             } catch (err: any) {
                 // Check if this was due to cancellation
                 if (cancellationToken?.isCancellationRequested) {
-                    throw new CancellationError('user')
+                    return abort(new CancellationError('user'))
                 } else {
                     this.logging.error(`Failed to execute bash command '${params.command}': ${err.message}`)
                     reject(new Error(`Failed to execute command: ${err.message}`))
