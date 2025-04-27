@@ -377,6 +377,9 @@ export const createMynahUi = (
                 }
                 messager.onButtonClick(payload)
             }
+            if (action.id === 'stop-shell-command') {
+                messager.onStopChatResponse(tabId)
+            }
         },
         onContextSelected: (contextItem, tabId) => {
             if (contextItem.id === ContextPrompt.CreateItemId) {
