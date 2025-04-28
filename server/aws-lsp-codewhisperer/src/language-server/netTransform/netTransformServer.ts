@@ -49,7 +49,6 @@ const DownloadArtifactsCommand = 'aws/qNetTransform/downloadArtifacts'
 const CancelPollingCommand = 'aws/qNetTransform/cancelPolling'
 import { SDKInitializator } from '@aws/language-server-runtimes/server-interface'
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
-import { Console } from 'console'
 
 /**
  *
