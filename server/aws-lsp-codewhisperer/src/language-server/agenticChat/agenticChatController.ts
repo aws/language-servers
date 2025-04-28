@@ -926,27 +926,52 @@ export class AgenticChatController implements ChatHandlers {
         if (toolUse.name !== 'executeBash') {
             return
         }
+
+        const toolMsgId = toolUse.toolUseId!
+        const chatMsgId = chatResultStream.getResult().messageId
+        let headerEmitted = false
+
+        const initialHeader: ChatMessage['header'] = {
+            body: 'shell',
+            status: { status: 'success', icon: 'ok', text: '' },
+            buttons: [{ id: 'stop-shell-command', text: 'Stop', icon: 'stop' }],
+        }
+
         const completedHeader: ChatMessage['header'] = {
             body: 'shell',
             status: { status: 'success', icon: 'ok', text: 'Completed' },
             buttons: [],
         }
+
         return new WritableStream({
             write: async chunk => {
-                if (this.#stoppedToolUses.has(toolUse.toolUseId!)) return
+                if (this.#stoppedToolUses.has(toolMsgId)) return
+
                 await chatResultStream.writeResultBlock({
                     type: 'tool',
+                    messageId: toolMsgId,
                     body: chunk,
-                    messageId: toolUse.toolUseId,
+                    header: headerEmitted ? undefined : initialHeader,
                 })
+
+                headerEmitted = true
             },
+
             close: async () => {
-                if (this.#stoppedToolUses.has(toolUse.toolUseId!)) return
+                if (this.#stoppedToolUses.has(toolMsgId)) return
+
                 await chatResultStream.writeResultBlock({
                     type: 'tool',
+                    messageId: toolMsgId,
                     body: '```',
-                    messageId: toolUse.toolUseId,
                     header: completedHeader,
+                })
+
+                await chatResultStream.writeResultBlock({
+                    type: 'answer',
+                    messageId: chatMsgId,
+                    body: '',
+                    header: undefined,
                 })
             },
         })
