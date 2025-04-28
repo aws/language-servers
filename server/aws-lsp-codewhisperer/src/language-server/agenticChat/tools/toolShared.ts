@@ -64,32 +64,38 @@ export function isPathApproved(filePath: string, approvedPaths?: Set<string>): b
     }
 
     // Normalize path separators for consistent comparison
-    const normalizedPath = filePath.replace(/\\/g, '/')
+    const normalizedFilePath = filePath.replace(/\\\\/g, '/')
 
     // Check if the exact path is approved (try both original and normalized)
-    if (approvedPaths.has(filePath) || approvedPaths.has(normalizedPath)) {
+    if (approvedPaths.has(filePath) || approvedPaths.has(normalizedFilePath)) {
         return true
     }
 
-    // Check if any parent directory is approved
-    let currentPath = normalizedPath
-    const rootDir = path.parse(filePath).root.replace(/\\/g, '/')
+    // Get the root directory for traversal limits
+    const rootDir = path.parse(filePath).root.replace(/\\\\/g, '/')
 
-    while (currentPath !== rootDir) {
-        currentPath = path.dirname(currentPath).replace(/\\/g, '/')
+    // Check if any approved path is a parent of the file path using isParentFolder
+    for (const approvedPath of approvedPaths) {
+        const normalizedApprovedPath = approvedPath.replace(/\\\\/g, '/')
 
-        // Check both with and without trailing slash for compatibility
-        if (
-            approvedPaths.has(currentPath) ||
-            approvedPaths.has(currentPath + '/') ||
-            approvedPaths.has(currentPath.replace(/\/$/, ''))
-        ) {
+        // Check using the isParentFolder utility
+        if (workspaceUtils.isParentFolder(normalizedApprovedPath, normalizedFilePath)) {
             return true
         }
 
-        // Stop if we've reached the root
-        if (currentPath === '/' || currentPath === rootDir || currentPath === '.') {
-            break
+        // Also check with trailing slash variations to ensure consistency
+        if (normalizedApprovedPath.endsWith('/')) {
+            // Try without trailing slash
+            const withoutSlash = normalizedApprovedPath.slice(0, -1)
+            if (workspaceUtils.isParentFolder(withoutSlash, normalizedFilePath)) {
+                return true
+            }
+        } else {
+            // Try with trailing slash
+            const withSlash = normalizedApprovedPath + '/'
+            if (workspaceUtils.isParentFolder(withSlash, normalizedFilePath)) {
+                return true
+            }
         }
     }
 

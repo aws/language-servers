@@ -135,8 +135,6 @@ export class AgenticChatController implements ChatHandlers {
     #additionalContextProvider: AdditionalContextProvider
     #contextCommandsProvider: ContextCommandsProvider
     #stoppedToolUses = new Set<string>()
-    // Map to store approved paths per tab to avoid repeated validation
-    #approvedPaths = new Map<string, Set<string>>()
 
     /**
      * Determines the appropriate message ID for a tool use based on tool type and name
@@ -676,8 +674,8 @@ export class AgenticChatController implements ChatHandlers {
                         const { Tool } = toolMap[toolUse.name as keyof typeof toolMap]
                         const tool = new Tool(this.#features)
 
-                        // Get the approved paths for this tab
-                        const approvedPaths = this.#approvedPaths.get(tabId)
+                        // Get the approved paths from the session
+                        const approvedPaths = session.approvedPaths
 
                         // Pass the approved paths to the tool's requiresAcceptance method
                         const { requiresAcceptance, warning } = await tool.requiresAcceptance(
@@ -727,10 +725,10 @@ export class AgenticChatController implements ChatHandlers {
                     })
                 }
 
-                // After approval, add the path to the approved paths
+                // After approval, add the path to the approved paths in the session
                 const inputPath = (toolUse.input as any)?.path || (toolUse.input as any)?.cwd
                 if (inputPath) {
-                    this.#addApprovedPath(tabId, inputPath)
+                    session.addApprovedPath(inputPath)
                 }
 
                 const ws = this.#getWritableStream(chatResultStream, toolUse)
@@ -1684,9 +1682,6 @@ export class AgenticChatController implements ChatHandlers {
         this.#chatHistoryDb.updateTabOpenState(params.tabId, false)
         this.#chatSessionManagementService.deleteSession(params.tabId)
         this.#telemetryController.removeConversation(params.tabId)
-
-        // Clear approved paths for this tab
-        this.#approvedPaths.delete(params.tabId)
     }
 
     onQuickAction(params: QuickActionParams, _cancellationToken: CancellationToken) {
@@ -1903,29 +1898,6 @@ export class AgenticChatController implements ChatHandlers {
 
     #log(...messages: string[]) {
         this.#features.logging.log(messages.join(' '))
-    }
-
-    /**
-     * Adds a path to the approved paths list for a specific tab
-     * @param tabId The tab ID
-     * @param filePath The path to add
-     */
-    #addApprovedPath(tabId: string, filePath: string): void {
-        if (!filePath) {
-            return
-        }
-
-        let approvedPaths = this.#approvedPaths.get(tabId)
-        if (!approvedPaths) {
-            approvedPaths = new Set<string>()
-            this.#approvedPaths.set(tabId, approvedPaths)
-        }
-
-        // Normalize path separators for consistent comparison
-        const normalizedPath = filePath.replace(/\\/g, '/')
-        approvedPaths.add(normalizedPath)
-
-        this.#log(`Added approved path for tab ${tabId}: ${normalizedPath}`)
     }
 
     #debug(...messages: string[]) {

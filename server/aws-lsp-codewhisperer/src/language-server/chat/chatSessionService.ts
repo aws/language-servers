@@ -33,6 +33,8 @@ export class ChatSessionService {
         ToolUse & { fileChange?: FileChange; relatedToolUses?: Set<string>; chatResult?: ChatResult }
     > = new Map()
     #currentUndoAllId?: string
+    // Map to store approved paths to avoid repeated validation
+    #approvedPaths: Set<string> = new Set<string>()
 
     public get conversationId(): string | undefined {
         return this.#conversationId
@@ -70,6 +72,27 @@ export class ChatSessionService {
 
     public set currentUndoAllId(toolUseId: string | undefined) {
         this.#currentUndoAllId = toolUseId
+    }
+
+    /**
+     * Gets the set of approved paths for this session
+     */
+    public get approvedPaths(): Set<string> {
+        return this.#approvedPaths
+    }
+
+    /**
+     * Adds a path to the approved paths list for this session
+     * @param filePath The absolute path to add
+     */
+    public addApprovedPath(filePath: string): void {
+        if (!filePath) {
+            return
+        }
+
+        // Normalize path separators for consistent comparison
+        const normalizedPath = filePath.replace(/\\/g, '/')
+        this.#approvedPaths.add(normalizedPath)
     }
 
     constructor(amazonQServiceManager?: AmazonQBaseServiceManager) {
