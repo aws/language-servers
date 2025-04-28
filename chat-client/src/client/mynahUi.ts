@@ -456,7 +456,6 @@ export const createMynahUi = (
             }
         },
         onStopChatResponse: tabId => {
-            updateFinalItemTypes(tabId)
             messager.onStopChatResponse(tabId)
         },
     }
@@ -590,11 +589,6 @@ export const createMynahUi = (
         }
 
         if (isPartialResult) {
-            const tempChatItem = {
-                body: '',
-                type: ChatItemType.ANSWER_STREAM,
-            }
-            mynahUi.addChatItem(tabId, tempChatItem)
             mynahUi.updateStore(tabId, {
                 loadingChat: true,
                 cancelButtonWhenLoading: true,
@@ -615,8 +609,6 @@ export const createMynahUi = (
                 mynahUi.updateChatAnswerWithMessageId(tabId, chatResult.messageId!, chatItem)
             }
             return
-        } else {
-            updateFinalItemTypes(tabId)
         }
 
         // If chat response from server is an empty object don't do anything

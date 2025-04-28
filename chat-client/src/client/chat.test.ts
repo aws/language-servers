@@ -242,7 +242,11 @@ describe('Chat', () => {
             codeReference: undefined,
             fileList: undefined,
         })
-        assert.calledTwice(updateStoreStub)
+        assert.calledOnceWithExactly(updateStoreStub, tabId, {
+            loadingChat: false,
+            promptInputDisabledState: false,
+            cancelButtonWhenLoading: true,
+        })
     })
 
     it('partial chat response triggers ui events', () => {
