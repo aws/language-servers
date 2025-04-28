@@ -103,11 +103,15 @@ export const commandCategories = new Map<string, CommandCategory>([
     ['route', CommandCategory.Destructive],
     ['chown', CommandCategory.Destructive],
 ])
-export const maxBashToolResponseSize: number = 1024 * 1024 // 1MB
+export const maxToolResponseSize: number = 1024 * 1024 // 1MB
 export const lineCount: number = 1024
 export const destructiveCommandWarningMessage = '⚠️ WARNING: Destructive command detected:\n\n'
 export const mutateCommandWarningMessage = 'Mutation command:\n\n'
 
+/**
+ * Parameters for executing a command on the system shell.
+ * Works cross-platform: uses cmd.exe on Windows and bash on Unix-like systems.
+ */
 export interface ExecuteBashParams extends ExplanatoryParams {
     command: string
     cwd?: string
@@ -120,11 +124,21 @@ interface TimestampedChunk {
     isFirst: boolean
 }
 
+/**
+ * Output from executing a command on the system shell.
+ * Format is consistent across platforms (Windows, macOS, Linux).
+ */
 export interface ExecuteBashOutput {
     exitStatus: string
     stdout: string
     stderr: string
 }
+
+/**
+ * Static determination if the current platform should use Windows-style commands
+ * true if the platform should use Windows command shell, false for Unix-like shells
+ */
+const IS_WINDOWS_PLATFORM = process.platform === 'win32'
 
 export class ExecuteBash {
     private childProcess?: ChildProcess
@@ -137,7 +151,7 @@ export class ExecuteBash {
 
     public async validate(command: string): Promise<void> {
         if (!command.trim()) {
-            throw new Error('Bash command cannot be empty.')
+            throw new Error('Command cannot be empty.')
         }
 
         const args = split(command)
@@ -229,7 +243,21 @@ export class ExecuteBash {
     }
 
     private looksLikePath(arg: string): boolean {
-        return arg.startsWith('/') || arg.startsWith('./') || arg.startsWith('../')
+        if (IS_WINDOWS_PLATFORM) {
+            // Windows path patterns
+            return (
+                arg.startsWith('/') ||
+                arg.startsWith('./') ||
+                arg.startsWith('../') ||
+                arg.startsWith('\\\\') || // UNC path
+                arg.startsWith('.\\') ||
+                arg.startsWith('..\\') ||
+                /^[a-zA-Z]:[/\\]/.test(arg)
+            ) // Drive letter paths like C:\ or C:/
+        } else {
+            // Unix path patterns
+            return arg.startsWith('/') || arg.startsWith('./') || arg.startsWith('../')
+        }
     }
 
     // TODO: generalize cancellation logic for tools.
@@ -238,7 +266,10 @@ export class ExecuteBash {
         cancellationToken?: CancellationToken,
         updates?: WritableStream
     ): Promise<InvokeOutput> {
-        this.logging.info(`Invoking bash command: "${params.command}" in cwd: "${params.cwd}"`)
+        const { shellName, shellFlag } = IS_WINDOWS_PLATFORM
+            ? { shellName: 'cmd.exe', shellFlag: '/c' }
+            : { shellName: 'bash', shellFlag: '-c' }
+        this.logging.info(`Invoking ${shellName} command: "${params.command}" in cwd: "${params.cwd}"`)
 
         return new Promise(async (resolve, reject) => {
             let finished = false
@@ -251,11 +282,13 @@ export class ExecuteBash {
 
             // Check if cancelled before starting
             if (cancellationToken?.isCancellationRequested) {
-                this.logging.debug('Bash command execution cancelled before starting')
+                this.logging.debug('Command execution cancelled before starting')
                 return abort(new CancellationError('user'))
             }
 
-            this.logging.debug(`Spawning process with command: bash -c "${params.command}" (cwd=${params.cwd})`)
+            this.logging.debug(
+                `Spawning process with command: ${shellName} ${shellFlag} "${params.command}" (cwd=${params.cwd})`
+            )
 
             const stdoutBuffer: string[] = []
             const stderrBuffer: string[] = []
@@ -304,7 +337,7 @@ export class ExecuteBash {
                 waitForStreams: true,
                 onStdout: async (chunk: string) => {
                     if (cancellationToken?.isCancellationRequested) {
-                        this.logging.debug('Bash command execution cancelled during stdout processing')
+                        this.logging.debug('Command execution cancelled during stdout processing')
                         return abort(new CancellationError('user'))
                     }
                     const isFirst = getAndSetFirstChunk(false)
@@ -319,7 +352,7 @@ export class ExecuteBash {
                 },
                 onStderr: async (chunk: string) => {
                     if (cancellationToken?.isCancellationRequested) {
-                        this.logging.debug('Bash command execution cancelled during stderr processing')
+                        this.logging.debug('Command execution cancelled during stderr processing')
                         return abort(new CancellationError('user'))
                     }
                     const isFirst = getAndSetFirstChunk(false)
@@ -334,7 +367,12 @@ export class ExecuteBash {
                 },
             }
 
-            this.childProcess = new ChildProcess(this.logging, 'bash', ['-c', params.command], childProcessOptions)
+            this.childProcess = new ChildProcess(
+                this.logging,
+                shellName,
+                [shellFlag, params.command],
+                childProcessOptions
+            )
 
             // Set up cancellation listener
             if (cancellationToken) {
@@ -363,7 +401,7 @@ export class ExecuteBash {
 
                 // Check if cancelled after execution
                 if (cancellationToken?.isCancellationRequested) {
-                    this.logging.debug('Bash command execution cancelled after completion')
+                    this.logging.debug('Command execution cancelled after completion')
                     return abort(new CancellationError('user'))
                 }
 
@@ -373,11 +411,11 @@ export class ExecuteBash {
                 const success = exitStatus === 0 && !stderr
                 const [stdoutTrunc, stdoutSuffix] = ExecuteBash.truncateSafelyWithSuffix(
                     stdout,
-                    maxBashToolResponseSize / 3
+                    maxToolResponseSize / 3
                 )
                 const [stderrTrunc, stderrSuffix] = ExecuteBash.truncateSafelyWithSuffix(
                     stderr,
-                    maxBashToolResponseSize / 3
+                    maxToolResponseSize / 3
                 )
 
                 const outputJson: ExecuteBashOutput = {
@@ -398,7 +436,7 @@ export class ExecuteBash {
                 if (cancellationToken?.isCancellationRequested) {
                     return abort(new CancellationError('user'))
                 } else {
-                    this.logging.error(`Failed to execute bash command '${params.command}': ${err.message}`)
+                    this.logging.error(`Failed to execute ${shellName} command '${params.command}': ${err.message}`)
                     reject(new Error(`Failed to execute command: ${err.message}`))
                 }
             } finally {
@@ -432,8 +470,7 @@ export class ExecuteBash {
     }
 
     private static async whichCommand(logger: Logging, cmd: string): Promise<string> {
-        const isWindows = process.platform === 'win32'
-        const { command, args } = isWindows
+        const { command, args } = IS_WINDOWS_PLATFORM
             ? { command: 'where', args: [cmd] }
             : { command: 'sh', args: ['-c', `command -v ${cmd}`] }
         const cp = new processUtils.ChildProcess(logger, command, args, {
@@ -463,7 +500,8 @@ export class ExecuteBash {
     public getSpec() {
         return {
             name: 'executeBash',
-            description: 'Execute the specified bash command.',
+            description:
+                'Execute the specified command on the system shell (bash on Unix/Linux/macOS, cmd.exe on Windows).',
             inputSchema: {
                 type: 'object',
                 properties: {
@@ -474,11 +512,12 @@ export class ExecuteBash {
                     },
                     command: {
                         type: 'string',
-                        description: 'Bash command to execute',
+                        description:
+                            'Command to execute on the system shell. On Windows, this will run in cmd.exe; on Unix-like systems, this will run in bash.',
                     },
                     cwd: {
                         type: 'string',
-                        description: 'Parameter to set the current working directory for the bash command.',
+                        description: 'Parameter to set the current working directory for the command execution.',
                     },
                 },
                 required: ['command', 'cwd'],
