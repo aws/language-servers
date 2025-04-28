@@ -249,7 +249,22 @@ export class ExecuteBash {
             if (params.cwd) {
                 // Check if the cwd is already approved
                 if (!(approvedPaths && isPathApproved(params.cwd, approvedPaths))) {
-                    const isInWorkspace = workspaceUtils.isInWorkspace(getWorkspaceFolderPaths(this.lsp), params.cwd)
+                    const workspaceFolders = getWorkspaceFolderPaths(this.lsp)
+
+                    // If there are no workspace folders, we can't validate the path
+                    if (!workspaceFolders || workspaceFolders.length === 0) {
+                        return { requiresAcceptance: true, warning: outOfWorkspaceWarningmessage }
+                    }
+
+                    // Normalize paths for consistent comparison
+                    const normalizedCwd = params.cwd.replace(/\\/g, '/')
+                    const normalizedWorkspaceFolders = workspaceFolders.map(folder => folder.replace(/\\/g, '/'))
+
+                    // Check if the normalized cwd is in any of the normalized workspace folders
+                    const isInWorkspace = normalizedWorkspaceFolders.some(
+                        folder => normalizedCwd === folder || normalizedCwd.startsWith(folder + '/')
+                    )
+
                     if (!isInWorkspace) {
                         return { requiresAcceptance: true, warning: outOfWorkspaceWarningmessage }
                     }
