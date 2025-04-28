@@ -135,18 +135,10 @@ export interface ExecuteBashOutput {
 }
 
 /**
- * Tool for executing commands on the system shell.
- * Provides cross-platform support:
- * - Windows: Uses cmd.exe with /c flag
- * - Unix/Linux/macOS: Uses bash with -c flag
+ * Static determination if the current platform should use Windows-style commands
+ * true if the platform should use Windows command shell, false for Unix-like shells
  */
-/**
- * Determines if the current platform should use Windows-style commands
- * @returns true if the platform should use Windows command shell, false for Unix-like shells
- */
-function isWindowsPlatform(): boolean {
-    return process.platform === 'win32'
-}
+const IS_WINDOWS_PLATFORM = process.platform === 'win32'
 
 export class ExecuteBash {
     private childProcess?: ChildProcess
@@ -251,7 +243,7 @@ export class ExecuteBash {
     }
 
     private looksLikePath(arg: string): boolean {
-        if (isWindowsPlatform()) {
+        if (IS_WINDOWS_PLATFORM) {
             // Windows path patterns
             return (
                 arg.startsWith('/') ||
@@ -274,7 +266,7 @@ export class ExecuteBash {
         cancellationToken?: CancellationToken,
         updates?: WritableStream
     ): Promise<InvokeOutput> {
-        const { shellName, shellFlag } = isWindowsPlatform()
+        const { shellName, shellFlag } = IS_WINDOWS_PLATFORM
             ? { shellName: 'cmd.exe', shellFlag: '/c' }
             : { shellName: 'bash', shellFlag: '-c' }
         this.logging.info(`Invoking ${shellName} command: "${params.command}" in cwd: "${params.cwd}"`)
@@ -478,7 +470,7 @@ export class ExecuteBash {
     }
 
     private static async whichCommand(logger: Logging, cmd: string): Promise<string> {
-        const { command, args } = isWindowsPlatform()
+        const { command, args } = IS_WINDOWS_PLATFORM
             ? { command: 'where', args: [cmd] }
             : { command: 'sh', args: ['-c', `command -v ${cmd}`] }
         const cp = new processUtils.ChildProcess(logger, command, args, {
@@ -500,7 +492,8 @@ export class ExecuteBash {
 
     public async queueDescription(command: string, updates: WritableStream) {
         const writer = updates.getWriter()
-        await writer.write('```shell\n' + command + '\n```')
+        const codeBlockType = IS_WINDOWS_PLATFORM ? 'batch' : 'shell'
+        await writer.write('```' + codeBlockType + '\n' + command + '\n```')
         await writer.close()
         writer.releaseLock()
     }
