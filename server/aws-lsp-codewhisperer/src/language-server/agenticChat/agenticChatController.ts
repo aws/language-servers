@@ -580,7 +580,7 @@ export class AgenticChatController implements ChatHandlers {
         }
 
         if (iterationCount >= maxAgentLoopIterations) {
-            throw new AgenticChatError('Agent loop reached maximum iterations limit', 'MaxAgentLoopIterations')
+            throw new AgenticChatError('Agent loop reached iteration limit', 'MaxAgentLoopIterations')
         }
 
         this.#stoppedToolUses.clear()
