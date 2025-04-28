@@ -23,7 +23,6 @@ import {
 } from './errors'
 import {
     AmazonQBaseServiceManager,
-    AmazonQServiceAPI,
     BaseAmazonQServiceManager,
     QServiceManagerFeatures,
 } from './BaseAmazonQServiceManager'
@@ -59,19 +58,9 @@ import { parse } from '@aws-sdk/util-arn-parser'
  * - identityCenter: Connected via Identity Center
  *
  * AmazonQTokenServiceManager is a singleton class, which must be instantiated with Language Server runtimes [Features](https://github.com/aws/language-server-runtimes/blob/21d5d1dc7c73499475b7c88c98d2ce760e5d26c8/runtimes/server-interface/server.ts#L31-L42)
- * in the `amazonQServiceServer` via the `initInstance()` method. Dependencies of this class can access the singleton via the `AmazonQServiceAPI`
- * wrapper (recommended) or through `getInstance()`.
- *
- * To get access to current CodeWhispererServiceToken client object, call `getCodewhispererService()` method:
- *
- * @example
- *
- * const amazonQService = new AmazonQServiceAPI(() => AmazonQTokenServiceManager.getInstance());
- *
- * // after LSP handshake
- * const codewhispererService = amazonQService.getCodewhispererService();
- *
- * AmazonQTokenServiceManager.getInstance().getActiveProfileArn()
+ * in the `AmazonQServiceServer` via the `initBaseTokenServiceManager` factory. Dependencies of this class can access the singleton via
+ * the `getOrThrowBaseTokenServiceManager` factory or `getInstance()` method after the initialized notification has been received during
+ * the LSP hand shake.
  *
  */
 export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
@@ -143,27 +132,22 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         this.connectionType = 'none'
         this.state = 'PENDING_CONNECTION'
 
-        this.setupAuthListener()
-        this.setupConfigurationListeners()
-
         this.log('Manager instance is initialize')
     }
 
-    private setupAuthListener(): void {
-        this.features.credentialsProvider.onCredentialsDeleted((type: CredentialsType) => {
-            this.log(`Received credentials delete event for type: ${type}`)
-            if (type === 'iam') {
-                return
-            }
-            this.cancelActiveProfileChangeToken()
+    public handleOnCredentialsDeleted(type: CredentialsType): void {
+        this.log(`Received credentials delete event for type: ${type}`)
+        if (type === 'iam') {
+            return
+        }
+        this.cancelActiveProfileChangeToken()
 
-            this.resetCodewhispererService()
-            this.connectionType = 'none'
-            this.state = 'PENDING_CONNECTION'
-        })
+        this.resetCodewhispererService()
+        this.connectionType = 'none'
+        this.state = 'PENDING_CONNECTION'
     }
 
-    private async handleOnUpdateConfiguration(params: UpdateConfigurationParams, _token: CancellationToken) {
+    public async handleOnUpdateConfiguration(params: UpdateConfigurationParams, _token: CancellationToken) {
         try {
             if (params.section === Q_CONFIGURATION_SECTION && params.settings.profileArn !== undefined) {
                 const profileArn = params.settings.profileArn
@@ -197,17 +181,6 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
                 this.profileChangeTokenSource.dispose()
                 this.profileChangeTokenSource = undefined
             }
-        }
-    }
-
-    private setupConfigurationListeners(): void {
-        this.handleOnUpdateConfiguration = this.handleOnUpdateConfiguration.bind(this)
-
-        this.configurableLspHandlers.onUpdateConfiguration = async (
-            params: UpdateConfigurationParams,
-            token: CancellationToken
-        ) => {
-            await this.handleOnUpdateConfiguration(params, token)
         }
     }
 
@@ -602,8 +575,6 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         return this.enableDeveloperProfileSupport === undefined ? false : this.enableDeveloperProfileSupport
     }
 }
-
-export type AmazonQServiceToken = AmazonQServiceAPI<CodeWhispererServiceToken, StreamingClientServiceToken>
 
 export const initBaseTokenServiceManager = (features: QServiceManagerFeatures) =>
     AmazonQTokenServiceManager.initInstance(features)

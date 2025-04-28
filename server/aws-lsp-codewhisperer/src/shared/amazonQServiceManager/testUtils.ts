@@ -8,6 +8,11 @@ import {
     AmazonQServiceNotInitializedError,
 } from './errors'
 import { throws, deepStrictEqual } from 'assert'
+import {
+    CancellationToken,
+    CredentialsType,
+    UpdateConfigurationParams,
+} from '@aws/language-server-runtimes/server-interface'
 
 /**
  * A reusable test class that extends the abstract base class and allows for injecting features and service mocks.
@@ -60,6 +65,17 @@ export class TestAmazonQServiceManager extends BaseAmazonQServiceManager<
         }
 
         return this.cachedStreamingClient
+    }
+
+    public override handleOnCredentialsDeleted(_type: CredentialsType): void {
+        return
+    }
+
+    public override handleOnUpdateConfiguration(
+        _params: UpdateConfigurationParams,
+        _token: CancellationToken
+    ): Promise<void> {
+        return Promise.resolve()
     }
 
     public withCodeWhispererService<C extends CodeWhispererServiceBase>(service: C) {

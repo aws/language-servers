@@ -1,11 +1,8 @@
 import {
     CancellationToken,
-    CredentialsProvider,
     ExecuteCommandParams,
     InitializeParams,
     Server,
-    Workspace,
-    Logging,
 } from '@aws/language-server-runtimes/server-interface'
 import {
     emitTransformationJobArtifactsDownloadedFailure,
@@ -42,9 +39,7 @@ const PollTransformForPlanCommand = 'aws/qNetTransform/pollTransformForPlan'
 const GetTransformPlanCommand = 'aws/qNetTransform/getTransformPlan'
 const CancelTransformCommand = 'aws/qNetTransform/cancelTransform'
 const DownloadArtifactsCommand = 'aws/qNetTransform/downloadArtifacts'
-import { SDKInitializator } from '@aws/language-server-runtimes/server-interface'
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
-import { AmazonQServiceAPI } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
 
 /**
  *
@@ -53,9 +48,9 @@ import { AmazonQServiceAPI } from '../../shared/amazonQServiceManager/BaseAmazon
  */
 export const QNetTransformServerToken =
     (): Server =>
-    ({ credentialsProvider, workspace, logging, lsp, telemetry, runtime, sdkInitializator }) => {
-        const amazonQService = new AmazonQServiceAPI(() => AmazonQTokenServiceManager.getInstance())
-        const transformHandler = new TransformHandler(amazonQService, workspace, logging, runtime)
+    ({ workspace, logging, lsp, telemetry, runtime }) => {
+        let amazonQServiceManager: AmazonQTokenServiceManager
+        let transformHandler: TransformHandler
 
         const runTransformCommand = async (params: ExecuteCommandParams, _token: CancellationToken) => {
             try {
@@ -190,7 +185,15 @@ export const QNetTransformServerToken =
                 },
             }
         }
+
+        const onInitializedHandler = () => {
+            amazonQServiceManager = AmazonQTokenServiceManager.getInstance()
+
+            transformHandler = new TransformHandler(amazonQServiceManager, workspace, logging, runtime)
+        }
+
         lsp.addInitializer(onInitializeHandler)
+        lsp.onInitialized(onInitializedHandler)
         lsp.onExecuteCommand(onExecuteCommandHandler)
 
         return () => {}

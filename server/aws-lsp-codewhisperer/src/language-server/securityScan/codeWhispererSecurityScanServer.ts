@@ -20,7 +20,6 @@ import { v4 as uuidv4 } from 'uuid'
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 import { hasConnectionExpired } from '../../shared/utils'
 import { AmazonQServiceConnectionExpiredError } from '../../shared/amazonQServiceManager/errors'
-import { AmazonQServiceAPI } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
 
 const RunSecurityScanCommand = 'aws/codewhisperer/runSecurityScan'
 const CancelSecurityScanCommand = 'aws/codewhisperer/cancelSecurityScan'
@@ -28,8 +27,8 @@ const CancelSecurityScanCommand = 'aws/codewhisperer/cancelSecurityScan'
 export const SecurityScanServerToken =
     (): Server =>
     ({ credentialsProvider, workspace, logging, lsp, telemetry, runtime, sdkInitializator }) => {
-        const amazonQService = new AmazonQServiceAPI(() => AmazonQTokenServiceManager.getInstance())
-        const scanHandler = new SecurityScanHandler(amazonQService, workspace, logging)
+        let amazonQServiceManager: AmazonQTokenServiceManager
+        let scanHandler: SecurityScanHandler
 
         const diagnosticsProvider = new SecurityScanDiagnosticsProvider(lsp, logging)
 
@@ -241,8 +240,15 @@ export const SecurityScanServerToken =
             }
         }
 
+        const onInitializedHandler = async () => {
+            amazonQServiceManager = AmazonQTokenServiceManager.getInstance()
+
+            scanHandler = new SecurityScanHandler(amazonQServiceManager, workspace, logging)
+        }
+
         lsp.onExecuteCommand(onExecuteCommandHandler)
         lsp.addInitializer(onInitializeHandler)
+        lsp.onInitialized(onInitializedHandler)
         lsp.onDidChangeTextDocument(async p => {
             const textDocument = await workspace.getTextDocument(p.textDocument.uri)
             const languageId = getSupportedLanguageId(textDocument, supportedSecurityScanLanguages)

@@ -28,17 +28,17 @@ import {
 import * as validation from './validation'
 import path = require('path')
 import AdmZip = require('adm-zip')
-import { AmazonQServiceToken } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
+import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 
 const workspaceFolderName = 'artifactWorkspace'
 
 export class TransformHandler {
-    private amazonQService: AmazonQServiceToken
+    private serviceManager: AmazonQTokenServiceManager
     private workspace: Workspace
     private logging: Logging
     private runtime: Runtime
-    constructor(serviceManager: AmazonQServiceToken, workspace: Workspace, logging: Logging, runtime: Runtime) {
-        this.amazonQService = serviceManager
+    constructor(serviceManager: AmazonQTokenServiceManager, workspace: Workspace, logging: Logging, runtime: Runtime) {
+        this.serviceManager = serviceManager
         this.workspace = workspace
         this.logging = logging
         this.runtime = runtime
@@ -77,7 +77,7 @@ export class TransformHandler {
             const uploadId = await this.preTransformationUploadCode(payloadFilePath)
             const request = getCWStartTransformRequest(userInputrequest, uploadId, this.logging)
             this.logging.log('Sending request to start transform api: ' + JSON.stringify(request))
-            const response = await this.amazonQService
+            const response = await this.serviceManager
                 .getCodewhispererService()
                 .codeModernizerStartCodeTransformation(request)
             this.logging.log('Received transformation job Id: ' + response?.transformationJobId)
@@ -119,7 +119,7 @@ export class TransformHandler {
         const sha256 = await ArtifactManager.getSha256Async(payloadFileName)
         let response: CreateUploadUrlResponse
         try {
-            response = await this.amazonQService.getCodewhispererService().codeModernizerCreateUploadUrl({
+            response = await this.serviceManager.getCodewhispererService().codeModernizerCreateUploadUrl({
                 contentChecksum: sha256,
                 contentChecksumType: 'SHA_256',
                 uploadIntent: 'TRANSFORMATION',
@@ -189,7 +189,7 @@ export class TransformHandler {
             const getCodeTransformationRequest = {
                 transformationJobId: request.TransformationJobId,
             } as GetTransformationRequest
-            const response = await this.amazonQService
+            const response = await this.serviceManager
                 .getCodewhispererService()
                 .codeModernizerGetCodeTransformation(getCodeTransformationRequest)
             this.logging.log('Transformation status: ' + response.transformationJob?.status)
@@ -210,7 +210,7 @@ export class TransformHandler {
                 const getCodeTransformationPlanRequest = {
                     transformationJobId: request.TransformationJobId,
                 } as GetTransformationRequest
-                const response = await this.amazonQService
+                const response = await this.serviceManager
                     .getCodewhispererService()
                     .codeModernizerGetCodeTransformationPlan(getCodeTransformationPlanRequest)
                 return {
@@ -246,7 +246,7 @@ export class TransformHandler {
                 this.logging.log(
                     'Sending CancelTransformRequest with job Id: ' + stopCodeTransformationRequest.transformationJobId
                 )
-                const response = await this.amazonQService
+                const response = await this.serviceManager
                     .getCodewhispererService()
                     .codeModernizerStopCodeTransformation(stopCodeTransformationRequest)
                 this.logging.log('Transformation status: ' + response.transformationStatus)
@@ -294,7 +294,7 @@ export class TransformHandler {
         const getCodeTransformationRequest = {
             transformationJobId: request.TransformationJobId,
         } as GetTransformationRequest
-        let response = await this.amazonQService
+        let response = await this.serviceManager
             .getCodewhispererService()
             .codeModernizerGetCodeTransformation(getCodeTransformationRequest)
         this.logging.log('Start polling for transformation plan.')
@@ -311,7 +311,7 @@ export class TransformHandler {
                 const getCodeTransformationRequest = {
                     transformationJobId: request.TransformationJobId,
                 } as GetTransformationRequest
-                response = await this.amazonQService
+                response = await this.serviceManager
                     .getCodewhispererService()
                     .codeModernizerGetCodeTransformation(getCodeTransformationRequest)
                 this.logging.log('Transformation status: ' + response.transformationJob?.status)
@@ -358,7 +358,7 @@ export class TransformHandler {
     async downloadExportResultArchive(exportId: string, saveToDir: string) {
         let result
         try {
-            result = await this.amazonQService.getStreamingClient().client.exportResultArchive({
+            result = await this.serviceManager.getStreamingClient().client.exportResultArchive({
                 exportId,
                 exportIntent: ExportIntent.TRANSFORMATION,
             })

@@ -7,6 +7,11 @@ import {
 import { getAmazonQRegionAndEndpoint } from './configurationUtils'
 import { StreamingClientServiceIAM } from '../streamingClientService'
 import { AmazonQServiceAlreadyInitializedError, AmazonQServiceInitializationError } from './errors'
+import {
+    CancellationToken,
+    CredentialsType,
+    UpdateConfigurationParams,
+} from '@aws/language-server-runtimes/server-interface'
 
 export class AmazonQIAMServiceManager extends BaseAmazonQServiceManager<
     CodeWhispererServiceIAM,
@@ -71,6 +76,17 @@ export class AmazonQIAMServiceManager extends BaseAmazonQServiceManager<
             )
         }
         return this.cachedStreamingClient
+    }
+
+    public handleOnCredentialsDeleted(_type: CredentialsType): void {
+        return
+    }
+
+    public override handleOnUpdateConfiguration(
+        _params: UpdateConfigurationParams,
+        _token: CancellationToken
+    ): Promise<void> {
+        return Promise.resolve()
     }
 
     // For Unit Tests

@@ -12,29 +12,22 @@ import { makeUserContextObject } from '../../shared/telemetryUtils'
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
 import { TabBarController } from './tabBarController'
-import { AmazonQServiceAPI } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
+import { AmazonQServiceInitializationError } from '../../shared/amazonQServiceManager/errors'
+import { safeGet } from '../../shared/utils'
 
 export const QAgenticChatServer =
     // prettier-ignore
     (): Server => features => {
         const { chat, credentialsProvider, telemetry, logging, lsp, runtime, agent } = features
 
+        // AmazonQTokenServiceManager and TelemetryService are initialized in `onInitialized` handler to make sure Language Server connection is started
+        let amazonQServiceManager: AmazonQTokenServiceManager
+        let telemetryService: TelemetryService
 
-        const amazonQService = new AmazonQServiceAPI(() => AmazonQTokenServiceManager.getInstance())
-        const telemetryService = new TelemetryService(amazonQService, credentialsProvider, telemetry, logging)
-        
-        const chatSessionManagementService =
-            ChatSessionManagementService.getInstance().withAmazonQService(amazonQService)
-        const chatController = new AgenticChatController(
-            chatSessionManagementService,
-            features,
-            telemetryService,
-            amazonQService
-        )
+        let chatController: AgenticChatController
+        let chatSessionManagementService: ChatSessionManagementService
 
         lsp.addInitializer((params: InitializeParams) => {
-            telemetryService.updateUserContext(makeUserContextObject(params, runtime.platform, 'CHAT'))
-
             return {
                 capabilities: {},
                 awsServerCapabilities: {
@@ -59,7 +52,30 @@ export const QAgenticChatServer =
         }
 
         lsp.onInitialized(async () => {
-        await amazonQService.addDidChangeConfigurationListener(updateConfigurationHandler)
+            // Get initialized service manager and inject it to chatSessionManagementService to pass it down
+            amazonQServiceManager = AmazonQTokenServiceManager.getInstance()
+            chatSessionManagementService =
+                ChatSessionManagementService.getInstance().withAmazonQServiceManager(amazonQServiceManager)
+
+            telemetryService = new TelemetryService(amazonQServiceManager, credentialsProvider, telemetry, logging)
+
+            const clientParams = safeGet(
+                lsp.getClientInitializeParams(),
+                new AmazonQServiceInitializationError(
+                    'TelemetryService initialized before LSP connection was initialized.'
+                )
+            )
+
+            telemetryService.updateUserContext(makeUserContextObject(clientParams, runtime.platform, 'CHAT'))
+
+            chatController = new AgenticChatController(
+                chatSessionManagementService,
+                features,
+                telemetryService,
+                amazonQServiceManager
+            )
+
+            await amazonQServiceManager.addDidChangeConfigurationListener(updateConfigurationHandler)
         })
 
         chat.onTabAdd(params => {

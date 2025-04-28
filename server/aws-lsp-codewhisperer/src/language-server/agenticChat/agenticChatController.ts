@@ -79,10 +79,7 @@ import {
     AmazonQServicePendingProfileError,
     AmazonQServicePendingSigninError,
 } from '../../shared/amazonQServiceManager/errors'
-import {
-    AmazonQServiceToken,
-    AmazonQTokenServiceManager,
-} from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
+import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
 import { TabBarController } from './tabBarController'
 import { ChatDatabase } from './tools/chatDb/chatDb'
@@ -135,7 +132,7 @@ export class AgenticChatController implements ChatHandlers {
     #triggerContext: AgenticChatTriggerContext
     #customizationArn?: string
     #telemetryService: TelemetryService
-    #amazonQService?: AmazonQServiceToken
+    #serviceManager?: AmazonQTokenServiceManager
     #tabBarController: TabBarController
     #chatHistoryDb: ChatDatabase
     #additionalContextProvider: AdditionalContextProvider
@@ -158,14 +155,14 @@ export class AgenticChatController implements ChatHandlers {
         chatSessionManagementService: ChatSessionManagementService,
         features: Features,
         telemetryService: TelemetryService,
-        amazonQService?: AmazonQServiceToken
+        serviceManager?: AmazonQTokenServiceManager
     ) {
         this.#features = features
         this.#chatSessionManagementService = chatSessionManagementService
         this.#triggerContext = new AgenticChatTriggerContext(features)
         this.#telemetryController = new ChatTelemetryController(features, telemetryService)
         this.#telemetryService = telemetryService
-        this.#amazonQService = amazonQService
+        this.#serviceManager = serviceManager
         this.#chatHistoryDb = new ChatDatabase(features)
         this.#tabBarController = new TabBarController(features, this.#chatHistoryDb)
         this.#additionalContextProvider = new AdditionalContextProvider(features.workspace, features.lsp)
@@ -1513,11 +1510,11 @@ export class AgenticChatController implements ChatHandlers {
                 this.#customizationArn
             )
 
-            if (!this.#amazonQService) {
+            if (!this.#serviceManager) {
                 throw new Error('No AmazonQService has been attached')
             }
 
-            const client = this.#amazonQService.getStreamingClient()
+            const client = this.#serviceManager.getStreamingClient()
             response = await client.sendMessage(requestInput as SendMessageCommandInputCodeWhispererStreaming)
             this.#log('Response for inline chat', JSON.stringify(response.$metadata), JSON.stringify(response))
         } catch (err) {

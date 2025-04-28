@@ -38,7 +38,7 @@ describe('QConfigurationServerToken', () => {
 
     beforeEach(async () => {
         testFeatures = new TestFeatures()
-        testFeatures.lsp.getClientInitializeParams.returns(getInitializeParams())
+        testFeatures.setClientParams(getInitializeParams())
 
         AmazonQTokenServiceManager.resetInstance()
         AmazonQTokenServiceManager.initInstance(testFeatures)
@@ -55,7 +55,7 @@ describe('QConfigurationServerToken', () => {
         )
         listAvailableProfilesStub = sinon.stub(ServerConfigurationProvider.prototype, 'listAvailableProfiles')
 
-        await testFeatures.start(configurationServer)
+        await testFeatures.initialize(configurationServer)
     })
 
     afterEach(() => {
@@ -102,7 +102,7 @@ describe('ServerConfigurationProvider', () => {
     const setCredentials = setCredentialsForAmazonQTokenServiceManagerFactory(() => testFeatures)
 
     const setupServerConfigurationProvider = (developerProfiles = true) => {
-        testFeatures.lsp.getClientInitializeParams.returns(getInitializeParams(developerProfiles))
+        testFeatures.setClientParams(getInitializeParams(developerProfiles))
 
         AmazonQTokenServiceManager.resetInstance()
         AmazonQTokenServiceManager.initInstance(testFeatures)
@@ -110,16 +110,14 @@ describe('ServerConfigurationProvider', () => {
 
         amazonQServiceManager.setServiceFactory(sinon.stub().returns(codeWhispererService))
         serverConfigurationProvider = new ServerConfigurationProvider(
+            amazonQServiceManager,
             testFeatures.credentialsProvider,
             testFeatures.logging
         )
 
-        // trigger initialization
-        serverConfigurationProvider['listAllAvailableProfilesHandler']
-
         listAvailableProfilesHandlerSpy = sinon.spy(
             serverConfigurationProvider,
-            'cachedListAllAvailableProfilesHandler' as keyof ServerConfigurationProvider
+            'listAllAvailableProfilesHandler' as keyof ServerConfigurationProvider
         )
     }
 

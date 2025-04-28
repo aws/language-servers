@@ -12,7 +12,7 @@ import {
 } from '../../shared/streamingClientService'
 import { ChatResult } from '@aws/language-server-runtimes/server-interface'
 import { AgenticChatError, isInputTooLongError, wrapErrorWithCode } from '../agenticChat/errors'
-import { AmazonQServiceBase } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
+import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
 
 export type ChatSessionServiceConfig = CodeWhispererStreamingClientConfig
 type FileChange = { before?: string; after?: string }
@@ -35,7 +35,7 @@ export class ChatSessionService {
     #currentUndoAllId?: string
     // Map to store approved paths to avoid repeated validation
     #approvedPaths: Set<string> = new Set<string>()
-    #amazonQService?: AmazonQServiceBase
+    #serviceManager?: AmazonQBaseServiceManager
 
     public get conversationId(): string | undefined {
         return this.#conversationId
@@ -96,8 +96,8 @@ export class ChatSessionService {
         this.#approvedPaths.add(normalizedPath)
     }
 
-    constructor(amazonQService?: AmazonQServiceBase) {
-        this.#amazonQService = amazonQService
+    constructor(serviceManager?: AmazonQBaseServiceManager) {
+        this.#serviceManager = serviceManager
     }
 
     public async sendMessage(request: SendMessageCommandInput): Promise<SendMessageCommandOutput> {
@@ -107,11 +107,11 @@ export class ChatSessionService {
             request.conversationState.conversationId = this.#conversationId
         }
 
-        if (!this.#amazonQService) {
+        if (!this.#serviceManager) {
             throw new Error('No AmazonQService has been attached')
         }
 
-        const client = this.#amazonQService.getStreamingClient()
+        const client = this.#serviceManager.getStreamingClient()
 
         const response = await client.sendMessage(request, this.#abortController)
 
@@ -127,11 +127,11 @@ export class ChatSessionService {
             request.conversationState.conversationId = this.#conversationId
         }
 
-        if (!this.#amazonQService) {
+        if (!this.#serviceManager) {
             throw new AgenticChatError('amazonQServiceManager is not initialized', 'AmazonQServiceManager')
         }
-        
-        const client = this.#amazonQService.getStreamingClient()
+
+        const client = this.#serviceManager.getStreamingClient()
 
         if (client instanceof StreamingClientServiceToken) {
             try {

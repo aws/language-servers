@@ -16,7 +16,6 @@ import {
 import { Customizations } from '../../client/token/codewhispererbearertokenclient'
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 import { Q_CONFIGURATION_SECTION } from '../../shared/constants'
-import { AmazonQServiceAPI } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
 
 const Q_CUSTOMIZATIONS = 'customizations'
 const Q_DEVELOPER_PROFILES = 'developerProfiles'
@@ -27,7 +26,8 @@ export const Q_DEVELOPER_PROFILES_CONFIGURATION_SECTION = `${Q_CONFIGURATION_SEC
 export const QConfigurationServerToken =
     (): Server =>
     ({ credentialsProvider, lsp, logging }) => {
-        const serverConfigurationProvider = new ServerConfigurationProvider(credentialsProvider, logging)
+        let amazonQServiceManager: AmazonQTokenServiceManager
+        let serverConfigurationProvider: ServerConfigurationProvider
 
         lsp.addInitializer((params: InitializeParams) => {
             return {
@@ -42,6 +42,16 @@ export const QConfigurationServerToken =
                     },
                 },
             }
+        })
+
+        lsp.onInitialized(async () => {
+            amazonQServiceManager = AmazonQTokenServiceManager.getInstance()
+
+            serverConfigurationProvider = new ServerConfigurationProvider(
+                amazonQServiceManager,
+                credentialsProvider,
+                logging
+            )
         })
 
         lsp.extensions.onGetConfigurationFromServer(
@@ -61,7 +71,7 @@ export const QConfigurationServerToken =
 
                             throwIfCancelled(token)
 
-                            return AmazonQTokenServiceManager.getInstance().getEnableDeveloperProfileSupport()
+                            return amazonQServiceManager.getEnableDeveloperProfileSupport()
                                 ? { customizations, developerProfiles }
                                 : { customizations }
                         case Q_CUSTOMIZATIONS_CONFIGURATION_SECTION:
@@ -104,21 +114,25 @@ function throwIfCancelled(token: CancellationToken) {
 const ON_GET_CONFIGURATION_FROM_SERVER_ERROR_PREFIX = 'Failed to fetch: '
 
 export class ServerConfigurationProvider {
-    private cachedListAllAvailableProfilesHandler?: ListAllAvailableProfilesHandler
-    private cachedServiceManager?: AmazonQTokenServiceManager
+    private listAllAvailableProfilesHandler: ListAllAvailableProfilesHandler
 
     constructor(
+        private serviceManager: AmazonQTokenServiceManager,
         private credentialsProvider: CredentialsProvider,
         private logging: Logging
-    ) {}
+    ) {
+        this.listAllAvailableProfilesHandler = getListAllAvailableProfilesHandler(
+            this.serviceManager.getServiceFactory()
+        )
+    }
 
     async listAvailableProfiles(token: CancellationToken): Promise<AmazonQDeveloperProfile[]> {
-        try {
-            if (!this.serviceManager.getEnableDeveloperProfileSupport()) {
-                this.logging.debug('Q developer profiles disabled - returning empty list')
-                return []
-            }
+        if (!this.serviceManager.getEnableDeveloperProfileSupport()) {
+            this.logging.debug('Q developer profiles disabled - returning empty list')
+            return []
+        }
 
+        try {
             const profiles = await this.listAllAvailableProfilesHandler({
                 connectionType: this.credentialsProvider.getConnectionType(),
                 logging: this.logging,
@@ -149,23 +163,5 @@ export class ServerConfigurationProvider {
     private getResponseError(message: string, error: any): ResponseError {
         this.logging.error(`${message}: ${error}`)
         return new ResponseError(LSPErrorCodes.RequestFailed, message)
-    }
-
-    private get serviceManager(): AmazonQTokenServiceManager {
-        if (!this.cachedServiceManager) {
-            this.cachedServiceManager = AmazonQTokenServiceManager.getInstance()
-        }
-
-        return this.cachedServiceManager
-    }
-
-    private get listAllAvailableProfilesHandler(): ListAllAvailableProfilesHandler {
-        if (!this.cachedListAllAvailableProfilesHandler) {
-            this.cachedListAllAvailableProfilesHandler = getListAllAvailableProfilesHandler(
-                this.serviceManager.getServiceFactory()
-            )
-        }
-
-        return this.cachedListAllAvailableProfilesHandler
     }
 }

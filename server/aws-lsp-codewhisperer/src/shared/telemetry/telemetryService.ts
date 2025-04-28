@@ -29,11 +29,11 @@ import {
 } from './types'
 import { CodewhispererLanguage, getRuntimeLanguage } from '../languageDetection'
 import { CONVERSATION_ID_METRIC_KEY } from '../../language-server/chat/telemetry/chatTelemetryController'
-import { AmazonQService, AmazonQServiceBase } from '../amazonQServiceManager/BaseAmazonQServiceManager'
+import { AmazonQBaseServiceManager } from '../amazonQServiceManager/BaseAmazonQServiceManager'
 
 export class TelemetryService {
     // Using Base service manager here to support fallback cases such as in codeWhispererServer
-    private amazonQService: AmazonQServiceBase
+    private serviceManager: AmazonQBaseServiceManager
     private userContext: UserContext | undefined
     private optOutPreference!: OptOutPreference
     private enableTelemetryEventsToDestination: boolean
@@ -54,12 +54,12 @@ export class TelemetryService {
     }
 
     constructor(
-        serviceManager: AmazonQServiceBase,
+        serviceManager: AmazonQBaseServiceManager,
         credentialsProvider: CredentialsProvider,
         telemetry: Telemetry,
         logging: Logging
     ) {
-        this.amazonQService = serviceManager
+        this.serviceManager = serviceManager
         this.credentialsProvider = credentialsProvider
         this.telemetry = telemetry
         this.logging = logging
@@ -79,11 +79,11 @@ export class TelemetryService {
     }
 
     private getCredentialsType(): CredentialsType {
-        return this.amazonQService.getCodewhispererService().getCredentialsType()
+        return this.serviceManager.getCodewhispererService().getCredentialsType()
     }
 
     private getService(): CodeWhispererServiceToken {
-        const service = this.amazonQService.getCodewhispererService() as CodeWhispererServiceToken
+        const service = this.serviceManager.getCodewhispererService() as CodeWhispererServiceToken
 
         if (!service.sendTelemetryEvent) {
             throw new Error(
