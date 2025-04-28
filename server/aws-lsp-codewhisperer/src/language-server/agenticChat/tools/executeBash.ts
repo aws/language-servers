@@ -492,8 +492,7 @@ export class ExecuteBash {
 
     public async queueDescription(command: string, updates: WritableStream) {
         const writer = updates.getWriter()
-        const codeBlockType = IS_WINDOWS_PLATFORM ? 'batch' : 'shell'
-        await writer.write('```' + codeBlockType + '\n' + command + '\n```')
+        await writer.write('```shell\n' + command + '\n```')
         await writer.close()
         writer.releaseLock()
     }
