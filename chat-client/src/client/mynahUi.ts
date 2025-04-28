@@ -39,7 +39,6 @@ import {
     NotificationType,
     MynahUIProps,
     QuickActionCommand,
-    ChatItemFormItem,
     ChatItemButton,
 } from '@aws/mynah-ui'
 import { VoteParams } from '../contracts/telemetry'
@@ -57,12 +56,7 @@ import {
     toMynahIcon,
 } from './utils'
 import { ChatHistory, ChatHistoryList } from './features/history'
-import {
-    pairProgrammingModeOff,
-    pairProgrammingModeOn,
-    pairProgrammingPromptInput,
-    programmerModeCard,
-} from './texts/pairProgramming'
+import { pairProgrammingModeOff, pairProgrammingModeOn, programmerModeCard } from './texts/pairProgramming'
 
 export interface InboundChatApi {
     addChatResponse(params: ChatResult, tabId: string, isPartialResult: boolean): void
@@ -596,15 +590,7 @@ export const createMynahUi = (
         }
 
         if (isPartialResult) {
-            const tempChatItem = {
-                body: '',
-                type: ChatItemType.ANSWER_STREAM,
-            }
-            mynahUi.addChatItem(tabId, tempChatItem)
-            mynahUi.updateStore(tabId, {
-                loadingChat: true,
-                cancelButtonWhenLoading: true,
-            })
+            andLoadingMessageIfNeeded(tabId)
             const chatItem = {
                 ...chatResult,
                 body: chatResult.body,
@@ -703,6 +689,27 @@ export const createMynahUi = (
                 }
 
                 mynahUi.updateChatAnswerWithMessageId(tabId, updatedMessage.messageId, chatItem)
+            })
+        }
+    }
+
+    const andLoadingMessageIfNeeded = (tabId: string) => {
+        const loadingId = `loading-${tabId}`
+        const tempChatItem = {
+            body: '',
+            type: ChatItemType.ANSWER_STREAM,
+            messageId: loadingId,
+        }
+        const store = mynahUi.getTabData(tabId)?.getStore() || {}
+        const chatItems = store.chatItems || []
+        const hasLoading = chatItems.find(
+            item => item.messageId === loadingId && item.type === ChatItemType.ANSWER_STREAM
+        )
+        if (!hasLoading) {
+            mynahUi.addChatItem(tabId, tempChatItem)
+            mynahUi.updateStore(tabId, {
+                loadingChat: true,
+                cancelButtonWhenLoading: true,
             })
         }
     }
