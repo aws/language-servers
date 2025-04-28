@@ -11,7 +11,6 @@ import {
     GetTransformResponse,
     StartTransformRequest,
     StartTransformResponse,
-    CancelPollingRequest,
 } from './models'
 import {
     TransformationFailureEvent,
@@ -295,9 +294,9 @@ export const emitTransformationJobArtifactsDownloadedFailure = (
     })
 }
 
-export const emitCancelPollingTelemetry = (telemetry: Telemetry, request: CancelPollingRequest) => {
+export const emitCancelPollingTelemetry = (telemetry: Telemetry) => {
     const data: PollingCancelledEvent = {
-        CancelPollingEnabled: request.CancelPollingEnabled,
+        CancelPollingEnabled: true,
     }
 
     telemetry.emitMetric({
@@ -307,9 +306,9 @@ export const emitCancelPollingTelemetry = (telemetry: Telemetry, request: Cancel
     })
 }
 
-export const emitCancelPollingFailure = (telemetry: Telemetry, request: CancelPollingRequest, error: Error) => {
+export const emitCancelPollingFailure = (telemetry: Telemetry, error: Error) => {
     const data: PollingCancelledEvent = {
-        CancelPollingEnabled: request.CancelPollingEnabled,
+        CancelPollingEnabled: true,
     }
 
     telemetry.emitMetric({

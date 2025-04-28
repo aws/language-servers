@@ -49,10 +49,6 @@ export interface DownloadArtifactsRequest extends ExecuteCommandParams {
     SolutionRootPath: string
 }
 
-export interface CancelPollingRequest extends ExecuteCommandParams {
-    CancelPollingEnabled: boolean
-}
-
 export enum CancellationJobStatus {
     NOT_STARTED,
     IN_PROGRESS,

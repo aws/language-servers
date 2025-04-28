@@ -402,8 +402,8 @@ export class TransformHandler {
         }
     }
 
-    async cancelPollingAsync(cancelPollingEnabled: boolean) {
-        this.cancelPollingEnabled = cancelPollingEnabled
+    async cancelPollingAsync() {
+        this.cancelPollingEnabled = true
     }
 
     async extractAllEntriesTo(pathContainingArchive: string, zipEntries: AdmZip.IZipEntry[]) {

@@ -32,7 +32,6 @@ import {
     GetTransformPlanRequest,
     GetTransformRequest,
     StartTransformRequest,
-    CancelPollingRequest,
 } from './models'
 import { TransformHandler } from './transformHandler'
 
@@ -133,9 +132,8 @@ export const QNetTransformServerToken =
                         return response
                     }
                     case CancelPollingCommand: {
-                        const request = params as CancelPollingRequest
-                        await transformHandler.cancelPollingAsync(request.CancelPollingEnabled)
-                        emitCancelPollingTelemetry(telemetry, request)
+                        await transformHandler.cancelPollingAsync()
+                        emitCancelPollingTelemetry(telemetry)
                     }
                 }
                 return
@@ -179,8 +177,7 @@ export const QNetTransformServerToken =
                         break
                     }
                     case CancelPollingCommand: {
-                        const request = params as CancelPollingRequest
-                        emitCancelPollingFailure(telemetry, request, e)
+                        emitCancelPollingFailure(telemetry, e)
                         break
                     }
                 }
