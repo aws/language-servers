@@ -971,7 +971,7 @@ describe('AgenticChatController', () => {
             assert.deepStrictEqual(chatResult, utils.createAuthFollowUpResult('full-auth'))
         })
 
-        it.only('returns a ResponseError if response streams returns an error event', async () => {
+        it('returns a ResponseError if response streams returns an error event', async () => {
             generateAssistantResponseStub.callsFake(() => {
                 return Promise.resolve({
                     $metadata: {
