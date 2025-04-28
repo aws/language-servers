@@ -92,8 +92,6 @@ const getTabPairProgrammingMode = (mynahUi: MynahUI, tabId: string) => {
     return promptInputOptions.find(item => item.id === 'pair-programmer-mode')?.value === 'true'
 }
 
-const openTabKey = 'openTab'
-
 export const handlePromptInputChange = (mynahUi: MynahUI, tabId: string, optionsValues: Record<string, string>) => {
     const promptTypeValue = optionsValues['pair-programmer-mode']
 
@@ -125,7 +123,8 @@ export const handleChatPrompt = (
     prompt: ChatPrompt,
     messager: Messager,
     triggerType?: TriggerType,
-    _eventId?: string
+    _eventId?: string,
+    agenticMode?: boolean
 ) => {
     let userPrompt = prompt.escapedPrompt
     messager.onStopChatResponse(tabId)
@@ -162,9 +161,9 @@ export const handleChatPrompt = (
 
     // Set UI to loading state
     mynahUi.updateStore(tabId, {
-        loadingChat: true,
-        cancelButtonWhenLoading: true,
-        promptInputDisabledState: false,
+        loadingChat: !!agenticMode,
+        cancelButtonWhenLoading: !!agenticMode,
+        promptInputDisabledState: !agenticMode,
     })
 
     // Create initial empty response
@@ -179,7 +178,8 @@ export const createMynahUi = (
     disclaimerAcknowledged: boolean,
     pairProgrammingCardAcknowledged: boolean,
     customChatClientAdapter?: ChatClientAdapter,
-    featureConfig?: Map<string, any>
+    featureConfig?: Map<string, any>,
+    agenticMode?: boolean
 ): [MynahUI, InboundChatApi] => {
     let disclaimerCardActive = !disclaimerAcknowledged
     let programmingModeCardActive = !pairProgrammingCardAcknowledged
@@ -222,7 +222,15 @@ export const createMynahUi = (
                 mynahUi.updateStore(tabId, { promptInputDisabledState: false })
             } else {
                 const prompt = followUp.prompt ? followUp.prompt : followUp.pillText
-                handleChatPrompt(mynahUi, tabId, { prompt: prompt, escapedPrompt: prompt }, messager, 'click', eventId)
+                handleChatPrompt(
+                    mynahUi,
+                    tabId,
+                    { prompt: prompt, escapedPrompt: prompt },
+                    messager,
+                    'click',
+                    eventId,
+                    agenticMode
+                )
 
                 const payload: FollowUpClickParams = {
                     tabId,
@@ -233,7 +241,7 @@ export const createMynahUi = (
             }
         },
         onChatPrompt(tabId, prompt, eventId) {
-            handleChatPrompt(mynahUi, tabId, prompt, messager, 'click', eventId)
+            handleChatPrompt(mynahUi, tabId, prompt, messager, 'click', eventId, agenticMode)
         },
         onReady: () => {
             messager.onUiReady()
@@ -462,7 +470,9 @@ export const createMynahUi = (
             throw new Error(`Unhandled tab bar button id: ${buttonId}`)
         },
         onPromptInputOptionChange: (tabId, optionsValues) => {
-            handlePromptInputChange(mynahUi, tabId, optionsValues)
+            if (agenticMode) {
+                handlePromptInputChange(mynahUi, tabId, optionsValues)
+            }
             messager.onPromptInputOptionChange({ tabId, optionsValues })
         },
         onMessageDismiss: (tabId, messageId) => {
@@ -491,7 +501,11 @@ export const createMynahUi = (
         },
         config: {
             maxTabs: 10,
-            texts: uiComponentsTexts,
+            texts: {
+                ...uiComponentsTexts,
+                stopGenerating: agenticMode ? uiComponentsTexts.stopGenerating : 'Stop generating',
+                spinnerText: agenticMode ? uiComponentsTexts.spinnerText : 'Generating your answer...',
+            },
         },
     }
 
@@ -589,8 +603,8 @@ export const createMynahUi = (
 
         if (chatResult.additionalMessages?.length) {
             mynahUi.updateStore(tabId, {
-                loadingChat: true,
-                cancelButtonWhenLoading: true,
+                loadingChat: !!agenticMode,
+                cancelButtonWhenLoading: agenticMode,
             })
             chatResult.additionalMessages.forEach(am => {
                 const chatItem: ChatItem = {
@@ -613,15 +627,19 @@ export const createMynahUi = (
         }
 
         if (isPartialResult) {
-            const tempChatItem = {
-                body: '',
-                type: ChatItemType.ANSWER_STREAM,
+            if (agenticMode) {
+                // This stops showing spinner message all the time, but after result is handled message is duplicated for some reason.
+                const tempChatItem = {
+                    body: '',
+                    type: ChatItemType.ANSWER_STREAM,
+                }
+                mynahUi.addChatItem(tabId, tempChatItem)
             }
-            mynahUi.addChatItem(tabId, tempChatItem)
             mynahUi.updateStore(tabId, {
-                loadingChat: true,
-                cancelButtonWhenLoading: true,
+                loadingChat: !!agenticMode, // display loading spinner only in agentic mode when handling partial results
+                cancelButtonWhenLoading: agenticMode,
             })
+
             const chatItem = {
                 ...chatResult,
                 body: chatResult.body,
@@ -689,7 +707,7 @@ export const createMynahUi = (
 
         mynahUi.updateStore(tabId, {
             loadingChat: false,
-            cancelButtonWhenLoading: true,
+            cancelButtonWhenLoading: agenticMode,
             promptInputDisabledState: false,
         })
     }
@@ -698,7 +716,7 @@ export const createMynahUi = (
         const isChatLoading = params.state?.inProgress
         mynahUi.updateStore(params.tabId, {
             loadingChat: isChatLoading,
-            cancelButtonWhenLoading: true,
+            cancelButtonWhenLoading: agenticMode,
         })
         if (params.data?.messages.length) {
             const { tabId } = params
@@ -733,7 +751,7 @@ export const createMynahUi = (
         }))
         mynahUi.updateStore(tabId, {
             loadingChat: false,
-            cancelButtonWhenLoading: true,
+            cancelButtonWhenLoading: agenticMode,
             chatItems: updatedItems,
             promptInputDisabledState: false,
         })
@@ -822,7 +840,7 @@ export const createMynahUi = (
         ].join('')
         const chatPrompt: ChatPrompt = { prompt: body, escapedPrompt: body }
 
-        handleChatPrompt(mynahUi, tabId, chatPrompt, messager, params.triggerType)
+        handleChatPrompt(mynahUi, tabId, chatPrompt, messager, params.triggerType, undefined, agenticMode)
     }
 
     const showError = (params: ErrorParams) => {
@@ -837,7 +855,7 @@ ${params.message}`,
 
         mynahUi.updateStore(tabId, {
             loadingChat: false,
-            cancelButtonWhenLoading: true,
+            cancelButtonWhenLoading: agenticMode,
             promptInputDisabledState: false,
         })
 
