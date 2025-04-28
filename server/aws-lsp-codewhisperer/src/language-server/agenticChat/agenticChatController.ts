@@ -1146,14 +1146,14 @@ export class AgenticChatController implements ChatHandlers {
                 buttons = requiresAcceptance
                     ? [
                           {
-                              id: 'reject-shell-command',
-                              text: 'Reject',
-                              icon: 'cancel',
-                          },
-                          {
                               id: 'run-shell-command',
                               text: 'Run',
                               icon: 'play',
+                          },
+                          {
+                              id: 'reject-shell-command',
+                              text: 'Reject',
+                              icon: 'cancel',
                           },
                       ]
                     : []
