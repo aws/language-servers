@@ -48,7 +48,14 @@ import { ExportTabBarButtonId, TabFactory } from './tabs/tabFactory'
 import { disclaimerAcknowledgeButtonId, disclaimerCard } from './texts/disclaimer'
 import { ChatClientAdapter, ChatEventHandler } from '../contracts/chatClientAdapter'
 import { withAdapter } from './withAdapter'
-import { toDetailsWithoutIcon, toMynahButtons, toMynahContextCommand, toMynahHeader, toMynahIcon } from './utils'
+import {
+    toDetailsWithoutIcon,
+    toMynahButtons,
+    toMynahContextCommand,
+    toMynahFileList,
+    toMynahHeader,
+    toMynahIcon,
+} from './utils'
 import { ChatHistory, ChatHistoryList } from './features/history'
 import {
     pairProgrammingModeOff,
@@ -90,26 +97,9 @@ const openTabKey = 'openTab'
 export const handlePromptInputChange = (mynahUi: MynahUI, tabId: string, optionsValues: Record<string, string>) => {
     const promptTypeValue = optionsValues['pair-programmer-mode']
 
-    const store = mynahUi.getTabData(tabId)?.getStore()
-    const currentPromptInputOptions = store?.promptInputOptions ?? []
-    const updatedPromptInputOptions: ChatItemFormItem[] = currentPromptInputOptions.map(item =>
-        item.id === 'pair-programmer-mode' ? ({ ...item, value: promptTypeValue } as ChatItemFormItem) : item
-    )
-    // If the option wasn't found, add it
-    if (!updatedPromptInputOptions.some(item => item.id === 'pair-programmer-mode')) {
-        updatedPromptInputOptions.push({ ...pairProgrammingPromptInput, value: promptTypeValue } as ChatItemFormItem)
+    if (promptTypeValue != null) {
+        mynahUi.addChatItem(tabId, promptTypeValue === 'true' ? pairProgrammingModeOn : pairProgrammingModeOff)
     }
-
-    if (promptTypeValue === 'true') {
-        mynahUi.addChatItem(tabId, pairProgrammingModeOn)
-    } else {
-        mynahUi.addChatItem(tabId, pairProgrammingModeOff)
-    }
-
-    // Update the store with the new promptInputOptions array
-    mynahUi.updateStore(tabId, {
-        promptInputOptions: updatedPromptInputOptions,
-    })
 }
 
 export const handleChatPrompt = (
@@ -569,6 +559,7 @@ export const createMynahUi = (
     const addChatResponse = (chatResult: ChatResult, tabId: string, isPartialResult: boolean) => {
         const { type, ...chatResultWithoutType } = chatResult
         let header = toMynahHeader(chatResult.header)
+        const fileList = toMynahFileList(chatResult.fileList)
         const buttons = toMynahButtons(chatResult.buttons)
 
         if (chatResult.contextList !== undefined) {
@@ -620,6 +611,7 @@ export const createMynahUi = (
                 type: ChatItemType.ANSWER_STREAM,
                 header: header,
                 buttons: buttons,
+                fileList,
                 codeBlockActions: isPairProgrammingMode ? { 'insert-to-cursor': null } : undefined,
             }
 
@@ -733,6 +725,7 @@ export const createMynahUi = (
     const prepareChatItemFromMessage = (message: ChatMessage, isPairProgrammingMode: boolean): Partial<ChatItem> => {
         const contextHeader = contextListToHeader(message.contextList)
         const header = contextHeader || toMynahHeader(message.header) // Is this mutually exclusive?
+        const fileList = toMynahFileList(message.fileList)
 
         let processedHeader = header
         if (message.type === 'tool') {
@@ -750,19 +743,31 @@ export const createMynahUi = (
             }
         }
 
+        // Check if header should be included
+        const includeHeader =
+            processedHeader &&
+            ((processedHeader.buttons !== undefined &&
+                processedHeader.buttons !== null &&
+                processedHeader.buttons.length > 0) ||
+                processedHeader.status !== undefined ||
+                processedHeader.icon !== undefined)
+
+        const padding =
+            message.type === 'tool' ? (fileList ? true : message.messageId?.endsWith('_permission')) : undefined
+
         const processedButtons: ChatItemButton[] | undefined = toMynahButtons(message.buttons)?.map(button =>
             button.id === 'undo-all-changes' ? { ...button, position: 'outside' } : button
         )
 
         return {
             body: message.body,
-            header: processedHeader,
+            header: includeHeader ? processedHeader : undefined,
             buttons: processedButtons,
-
+            fileList,
             // file diffs in the header need space
             fullWidth: message.type === 'tool' && message.header?.buttons ? true : undefined,
-            padding: message.type === 'tool' ? (message.messageId?.endsWith('_permission') ? true : false) : undefined,
-
+            padding,
+            wrapCodes: message.type === 'tool',
             codeBlockActions:
                 message.type === 'tool'
                     ? { 'insert-to-cursor': null, copy: null }

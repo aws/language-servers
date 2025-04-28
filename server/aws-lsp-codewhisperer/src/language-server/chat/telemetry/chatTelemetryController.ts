@@ -1,6 +1,7 @@
 import { MetricEvent, Telemetry } from '@aws/language-server-runtimes/server-interface/telemetry'
 import { TriggerType } from '@aws/chat-client-ui-types'
 import {
+    AgenticChatInteractionType,
     ChatInteractionType,
     ChatTelemetryEventMap,
     ChatTelemetryEventName,
@@ -179,6 +180,18 @@ export class ChatTelemetryController {
                 cwsprToolUseId: toolUse.toolUseId ?? '',
                 result: 'Succeeded',
                 languageServerVersion: languageServerVersion,
+            },
+        })
+    }
+
+    public emitInteractWithAgenticChat(interactionType: AgenticChatInteractionType, tabId: string) {
+        this.#telemetry.emitMetric({
+            name: ChatTelemetryEventName.InteractWithAgenticChat,
+            data: {
+                [CONVERSATION_ID_METRIC_KEY]: this.getConversationId(tabId),
+                cwsprChatConversationType: 'AgenticChat',
+                credentialStartUrl: this.#credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
+                cwsprAgenticChatInteractionType: interactionType,
             },
         })
     }

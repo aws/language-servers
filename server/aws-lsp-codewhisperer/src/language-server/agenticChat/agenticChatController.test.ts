@@ -25,6 +25,7 @@ import {
     InlineChatResult,
     CancellationToken,
     CancellationTokenSource,
+    ErrorCodes,
 } from '@aws/language-server-runtimes/server-interface'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import * as assert from 'assert'
@@ -47,6 +48,7 @@ import { ChatDatabase } from './tools/chatDb/chatDb'
 import { LocalProjectContextController } from '../../shared/localProjectContextController'
 import { CancellationError } from '@aws/lsp-core'
 import { ToolApprovalException } from './tools/toolShared'
+import { genericErrorMsg } from './constants'
 
 describe('AgenticChatController', () => {
     const mockTabId = 'tab-1'
@@ -925,8 +927,9 @@ describe('AgenticChatController', () => {
         })
 
         it('propagates model error back to client', async () => {
+            const errorMsg = 'This is an error from the backend'
             generateAssistantResponseStub.callsFake(() => {
-                throw new Error('Error')
+                throw new Error(errorMsg)
             })
 
             const chatResult = await chatController.onChatPrompt(
@@ -936,11 +939,18 @@ describe('AgenticChatController', () => {
 
             // These checks will fail if a response error is returned.
             const typedChatResult = chatResult as ResponseError<ChatResult>
-            assert.strictEqual(typedChatResult.message, 'Error')
-            assert.strictEqual(
-                typedChatResult.data?.body,
-                'An error occurred when communicating with the model, check the logs for more information.'
+            assert.strictEqual(typedChatResult.message, errorMsg)
+            assert.strictEqual(typedChatResult.data?.body, errorMsg)
+        })
+
+        it('shows generic errorMsg on internal errors', async function () {
+            const chatResult = await chatController.onChatPrompt(
+                { tabId: mockTabId, prompt: { prompt: 'Hello' } },
+                undefined as any
             )
+
+            const typedChatResult = chatResult as ResponseError<ChatResult>
+            assert.strictEqual(typedChatResult.data?.body, genericErrorMsg)
         })
 
         it('returns an auth follow up action if model request returns an auth error', async () => {
@@ -961,7 +971,7 @@ describe('AgenticChatController', () => {
             assert.deepStrictEqual(chatResult, utils.createAuthFollowUpResult('full-auth'))
         })
 
-        it('returns a ResponseError if response streams return an error event', async () => {
+        it('returns a ResponseError if response streams returns an error event', async () => {
             generateAssistantResponseStub.callsFake(() => {
                 return Promise.resolve({
                     $metadata: {
@@ -982,7 +992,9 @@ describe('AgenticChatController', () => {
                 mockCancellationToken
             )
 
-            assert.deepStrictEqual(chatResult, new ResponseError(LSPErrorCodes.RequestFailed, 'some error'))
+            const typedChatResult = chatResult as ResponseError<ChatResult>
+            assert.strictEqual(typedChatResult.data?.body, genericErrorMsg)
+            assert.strictEqual(typedChatResult.message, 'some error')
         })
 
         it('returns a ResponseError if response streams return an invalid state event', async () => {
@@ -1006,7 +1018,9 @@ describe('AgenticChatController', () => {
                 mockCancellationToken
             )
 
-            assert.deepStrictEqual(chatResult, new ResponseError(LSPErrorCodes.RequestFailed, 'invalid state'))
+            const typedChatResult = chatResult as ResponseError<ChatResult>
+            assert.strictEqual(typedChatResult.data?.body, genericErrorMsg)
+            assert.strictEqual(typedChatResult.message, 'invalid state')
         })
 
         describe('#extractDocumentContext', () => {

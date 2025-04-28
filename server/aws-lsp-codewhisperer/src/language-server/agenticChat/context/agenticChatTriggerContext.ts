@@ -10,6 +10,7 @@ import {
     AdditionalContentEntry,
     GenerateAssistantResponseCommandInput,
     ChatMessage,
+    EnvState,
 } from '@amzn/codewhisperer-streaming'
 import {
     BedrockTools,
@@ -77,6 +78,20 @@ export class AgenticChatTriggerContext {
         }
     }
 
+    #mapPlatformToEnvState(platform: string): EnvState | undefined {
+        switch (platform) {
+            case 'darwin':
+                return { operatingSystem: 'macos' }
+            case 'linux':
+                return { operatingSystem: 'linux' }
+            case 'win32':
+            case 'cygwin':
+                return { operatingSystem: 'windows' }
+            default:
+                return undefined
+        }
+    }
+
     async getChatParamsFromTrigger(
         params: ChatParams | InlineChatParams,
         triggerContext: TriggerContext,
@@ -131,6 +146,7 @@ export class AgenticChatTriggerContext {
                                       },
                                       tools,
                                       additionalContext: additionalContent,
+                                      envState: this.#mapPlatformToEnvState(process.platform),
                                   }
                                 : {
                                       tools,
@@ -140,6 +156,7 @@ export class AgenticChatTriggerContext {
                                           useRelevantDocuments: useRelevantDocuments,
                                           ...defaultEditorState,
                                       },
+                                      envState: this.#mapPlatformToEnvState(process.platform),
                                   },
                         userIntent: triggerContext.userIntent,
                         origin: 'IDE',

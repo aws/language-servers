@@ -104,11 +104,13 @@ import { ListDirectory, ListDirectoryParams } from './tools/listDirectory'
 import { FsWrite, FsWriteParams } from './tools/fsWrite'
 import { ExecuteBash, ExecuteBashOutput, ExecuteBashParams } from './tools/executeBash'
 import { ExplanatoryParams, InvokeOutput, ToolApprovalException } from './tools/toolShared'
-import { ModelServiceException } from './errors'
 import { FileSearch, FileSearchParams } from './tools/fileSearch'
 import { loggingUtils } from '@aws/lsp-core'
 import { diffLines } from 'diff'
 import { CodeSearch } from './tools/codeSearch'
+import { genericErrorMsg, maxAgentLoopIterations } from './constants'
+import { URI } from 'vscode-uri'
+import { AgenticChatError } from './errors'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -206,6 +208,7 @@ export class AgenticChatController implements ChatHandlers {
             try {
                 await this.#undoFileChange(toolUseId, session.data)
                 this.#updateUndoButtonAfterClick(params.tabId, toolUseId, session.data)
+                this.#telemetryController.emitInteractWithAgenticChat('RejectDiff', params.tabId)
             } catch (err: any) {
                 return { success: false, failureReason: err.message }
             }
@@ -287,7 +290,7 @@ export class AgenticChatController implements ChatHandlers {
         try {
             await this.#features.workspace.fs.mkdir(getUserPromptsDirectory(), { recursive: true })
             await this.#features.workspace.fs.writeFile(newFilePath, newFileContent, { mode: 0o600 })
-            await this.#features.lsp.window.showDocument({ uri: newFilePath })
+            await this.#features.lsp.window.showDocument({ uri: URI.file(newFilePath).toString() })
         } catch (e) {
             this.#features.logging.warn(`Error creating prompt file: ${e}`)
         }
@@ -339,23 +342,25 @@ export class AgenticChatController implements ChatHandlers {
             cwsprChatConversationType: 'AgenticChat',
         })
 
-        const triggerContext = await this.#getTriggerContext(params, metric)
-        const isNewConversation = !session.conversationId
-        if (isNewConversation) {
-            // agentic chat does not support conversationId in API response,
-            // so we set it to random UUID per session, as other chat functionality
-            // depends on it
-            session.conversationId = uuid()
-        }
-
-        token.onCancellationRequested(() => {
-            this.#log('cancellation requested')
-            session.abortRequest()
-            session.rejectAllDeferredToolExecutions(new CancellationError('user'))
-        })
-
-        const chatResultStream = this.#getChatResultStream(params.partialResultToken)
         try {
+            const triggerContext = await this.#getTriggerContext(params, metric)
+            const isNewConversation = !session.conversationId
+            if (isNewConversation) {
+                // agentic chat does not support conversationId in API response,
+                // so we set it to random UUID per session, as other chat functionality
+                // depends on it
+                session.conversationId = uuid()
+            }
+
+            token.onCancellationRequested(() => {
+                this.#log('cancellation requested')
+                this.#telemetryController.emitInteractWithAgenticChat('StopChat', params.tabId)
+                session.abortRequest()
+                session.rejectAllDeferredToolExecutions(new CancellationError('user'))
+            })
+
+            const chatResultStream = this.#getChatResultStream(params.partialResultToken)
+
             const additionalContext = await this.#additionalContextProvider.getAdditionalContext(
                 triggerContext,
                 (params.prompt as any).context
@@ -469,10 +474,9 @@ export class AgenticChatController implements ChatHandlers {
         let currentRequestInput = { ...initialRequestInput }
         let finalResult: Result<AgenticChatResultWithMetadata, string> | null = null
         let iterationCount = 0
-        const maxIterations = 100 // Safety limit to prevent infinite loops
         metric.recordStart()
 
-        while (iterationCount < maxIterations) {
+        while (iterationCount < maxAgentLoopIterations) {
             iterationCount++
             this.#debug(`Agent loop iteration ${iterationCount} for conversation id:`, conversationIdentifier || '')
 
@@ -501,9 +505,11 @@ export class AgenticChatController implements ChatHandlers {
                 : this.#chatHistoryDb.getMessages(tabId)
 
             // Phase 3: Request Execution
-            const response = await this.fetchModelResponse(currentRequestInput, i =>
-                session.generateAssistantResponse(i)
+            this.#debug(
+                `Q Model Request: ${loggingUtils.formatObj(currentRequestInput, { depth: 5, omitKeys: ['history'] })}`
             )
+            const response = await session.generateAssistantResponse(currentRequestInput)
+            this.#debug(`Q Model Response: ${loggingUtils.formatObj(response, { depth: 5 })}`)
 
             //  Add the current user message to the history DB
             if (currentMessage && conversationIdentifier) {
@@ -578,8 +584,8 @@ export class AgenticChatController implements ChatHandlers {
             currentRequestInput = this.#updateRequestInputWithToolResults(currentRequestInput, toolResults, content)
         }
 
-        if (iterationCount >= maxIterations) {
-            this.#log('Agent loop reached maximum iterations limit')
+        if (iterationCount >= maxAgentLoopIterations) {
+            throw new AgenticChatError('Agent loop reached iteration limit', 'MaxAgentLoopIterations')
         }
 
         this.#stoppedToolUses.clear()
@@ -682,8 +688,15 @@ export class AgenticChatController implements ChatHandlers {
                                 warning
                             )
                             cachedButtonBlockId = await chatResultStream.writeResultBlock(confirmationResult)
+                            const isExecuteBash = toolUse.name === 'executeBash'
+                            if (isExecuteBash) {
+                                this.#telemetryController.emitInteractWithAgenticChat('GeneratedCommand', tabId)
+                            }
                             if (requiresAcceptance) {
                                 await this.waitForToolApproval(toolUse, chatResultStream, cachedButtonBlockId, session)
+                            }
+                            if (isExecuteBash) {
+                                this.#telemetryController.emitInteractWithAgenticChat('RunCommand', tabId)
                             }
                         }
                         break
@@ -759,6 +772,7 @@ export class AgenticChatController implements ChatHandlers {
                                 fileChange: { ...cachedToolUse.fileChange, after: doc?.getText() },
                             })
                         }
+                        this.#telemetryController.emitInteractWithAgenticChat('GeneratedDiff', tabId)
                         await chatResultStream.writeResultBlock(chatResult)
                         break
                     default:
@@ -891,22 +905,6 @@ export class AgenticChatController implements ChatHandlers {
             err instanceof ToolApprovalException ||
             (token?.isCancellationRequested ?? false)
         )
-    }
-
-    async fetchModelResponse<RequestType, ResponseType>(
-        requestInput: RequestType,
-        makeRequest: (requestInput: RequestType) => Promise<ResponseType>
-    ): Promise<ResponseType> {
-        // History can be thousands of lines, so we don't want it in the logs. The full history can be retrieved via requestId.
-        this.#debug(`Q Model Request: ${loggingUtils.formatObj(requestInput, { depth: 5, omitKeys: ['history'] })}`)
-        try {
-            const response = await makeRequest(requestInput)
-            this.#debug(`Q Model Response: ${loggingUtils.formatObj(response, { depth: 5 })}`)
-            return response
-        } catch (e) {
-            this.#features.logging.error(`Q Model Error: ${JSON.stringify(e)}`)
-            throw new ModelServiceException(e as Error)
-        }
     }
 
     #validateToolResult(toolUse: ToolUse, result: ToolResultContentBlock) {
@@ -1261,22 +1259,22 @@ export class AgenticChatController implements ChatHandlers {
                       ? `${itemCount} ${itemCount === 1 ? 'directory' : 'directories'} searched`
                       : `${itemCount} ${itemCount === 1 ? 'directory' : 'directories'} listed`
         }
-        const fileDetails: Record<string, FileDetails> = {}
+        const details: Record<string, FileDetails> = {}
         for (const item of filePathsPushed) {
-            fileDetails[item.relativeFilePath] = {
+            details[item.relativeFilePath] = {
                 lineRanges: item.lineRanges,
                 description: item.relativeFilePath,
             }
         }
 
-        const contextList: FileList = {
+        const fileList: FileList = {
             rootFolderTitle: title,
             filePaths: filePathsPushed.map(item => item.relativeFilePath),
-            details: fileDetails,
+            details,
         }
         return {
             type: 'tool',
-            contextList,
+            fileList,
             messageId: messageIdToUpdate,
             body: '',
         }
@@ -1321,9 +1319,9 @@ export class AgenticChatController implements ChatHandlers {
         triggerContext: TriggerContext,
         isNewConversation: boolean,
         chatResultStream: AgenticChatResultStream
-    ): Promise<ChatResult | ResponseError<ChatResult>> {
+    ): Promise<ChatResult> {
         if (!result.success) {
-            return new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, result.error)
+            throw new AgenticChatError(result.error, 'FailedResult')
         }
         const conversationId = session.conversationId
         this.#debug('Final session conversation id:', conversationId || '')
@@ -1390,17 +1388,6 @@ export class AgenticChatController implements ChatHandlers {
             this.#telemetryController.emitMessageResponseError(tabId, metric.metric, requestID, errorMessage)
         }
 
-        // return non-model errors back to the client as errors
-        if (!(err instanceof ModelServiceException)) {
-            this.#log(`unknown error ${err instanceof Error ? JSON.stringify(err) : 'unknown'}`)
-            this.#log(`stack ${err instanceof Error ? JSON.stringify(err.stack) : 'unknown'}`)
-            this.#log(`cause ${err instanceof Error ? JSON.stringify(err.cause) : 'unknown'}`)
-            return new ResponseError<ChatResult>(
-                LSPErrorCodes.RequestFailed,
-                err instanceof Error ? err.message : 'Unknown request error'
-            )
-        }
-
         if (err.cause instanceof AmazonQServicePendingSigninError) {
             this.#log(`Q Chat SSO Connection error: ${getErrorMessage(err)}`)
             return createAuthFollowUpResult('full-auth')
@@ -1422,9 +1409,21 @@ export class AgenticChatController implements ChatHandlers {
             return createAuthFollowUpResult(authFollowType)
         }
 
-        return new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, err.cause.message, {
+        // These are errors we want to show custom messages in chat for.
+        if (err.code === 'QModelResponse' || err.code === 'MaxAgentLoopIterations') {
+            this.#features.logging.error(`${err.code}: ${JSON.stringify(err.cause)}`)
+            return new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, err.message, {
+                type: 'answer',
+                body: err.message,
+                messageId: errorMessageId,
+                buttons: [],
+            })
+        }
+        this.#features.logging.error(`Unknown Error: ${JSON.stringify(err)}`)
+        this.#features.logging.log(`Error Cause: ${JSON.stringify(err.cause)}`)
+        return new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, err.message, {
             type: 'answer',
-            body: 'An error occurred when communicating with the model, check the logs for more information.',
+            body: genericErrorMsg,
             messageId: errorMessageId,
             buttons: [],
         })
@@ -1597,11 +1596,11 @@ export class AgenticChatController implements ChatHandlers {
                 fileContent: toolUse.fileChange?.after,
             })
         } else if (toolUse?.name === 'fsRead') {
-            await this.#features.lsp.window.showDocument({ uri: params.filePath })
+            await this.#features.lsp.window.showDocument({ uri: URI.file(params.filePath).toString() })
         } else {
             const absolutePath = params.fullPath ?? (await this.#resolveAbsolutePath(params.filePath))
             if (absolutePath) {
-                await this.#features.lsp.window.showDocument({ uri: absolutePath })
+                await this.#features.lsp.window.showDocument({ uri: URI.file(absolutePath).toString() })
             }
         }
     }
