@@ -25,6 +25,7 @@ import {
     InlineChatResult,
     CancellationToken,
     CancellationTokenSource,
+    ErrorCodes,
 } from '@aws/language-server-runtimes/server-interface'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import * as assert from 'assert'
@@ -970,7 +971,7 @@ describe('AgenticChatController', () => {
             assert.deepStrictEqual(chatResult, utils.createAuthFollowUpResult('full-auth'))
         })
 
-        it('returns a ResponseError if response streams return an error event', async () => {
+        it('returns a ResponseError if response streams returns an error event', async () => {
             generateAssistantResponseStub.callsFake(() => {
                 return Promise.resolve({
                     $metadata: {
@@ -991,7 +992,9 @@ describe('AgenticChatController', () => {
                 mockCancellationToken
             )
 
-            assert.deepStrictEqual(chatResult, new ResponseError(LSPErrorCodes.RequestFailed, 'some error'))
+            const typedChatResult = chatResult as ResponseError<ChatResult>
+            assert.strictEqual(typedChatResult.data?.body, genericErrorMsg)
+            assert.strictEqual(typedChatResult.message, 'some error')
         })
 
         it('returns a ResponseError if response streams return an invalid state event', async () => {
@@ -1015,7 +1018,9 @@ describe('AgenticChatController', () => {
                 mockCancellationToken
             )
 
-            assert.deepStrictEqual(chatResult, new ResponseError(LSPErrorCodes.RequestFailed, 'invalid state'))
+            const typedChatResult = chatResult as ResponseError<ChatResult>
+            assert.strictEqual(typedChatResult.data?.body, genericErrorMsg)
+            assert.strictEqual(typedChatResult.message, 'invalid state')
         })
 
         describe('#extractDocumentContext', () => {

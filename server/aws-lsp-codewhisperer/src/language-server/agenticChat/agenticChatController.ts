@@ -107,8 +107,9 @@ import { ExplanatoryParams, InvokeOutput, ToolApprovalException } from './tools/
 import { FileSearch, FileSearchParams } from './tools/fileSearch'
 import { diffLines } from 'diff'
 import { CodeSearch } from './tools/codeSearch'
-import { genericErrorMsg } from './constants'
+import { genericErrorMsg, maxAgentLoopIterations } from './constants'
 import { URI } from 'vscode-uri'
+import { AgenticChatError } from './errors'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -472,10 +473,9 @@ export class AgenticChatController implements ChatHandlers {
         let currentRequestInput = { ...initialRequestInput }
         let finalResult: Result<AgenticChatResultWithMetadata, string> | null = null
         let iterationCount = 0
-        const maxIterations = 100 // Safety limit to prevent infinite loops
         metric.recordStart()
 
-        while (iterationCount < maxIterations) {
+        while (iterationCount < maxAgentLoopIterations) {
             iterationCount++
             this.#debug(`Agent loop iteration ${iterationCount} for conversation id:`, conversationIdentifier || '')
 
@@ -579,8 +579,8 @@ export class AgenticChatController implements ChatHandlers {
             currentRequestInput = this.#updateRequestInputWithToolResults(currentRequestInput, toolResults, content)
         }
 
-        if (iterationCount >= maxIterations) {
-            this.#log('Agent loop reached maximum iterations limit')
+        if (iterationCount >= maxAgentLoopIterations) {
+            throw new AgenticChatError('Agent loop reached iteration limit', 'MaxAgentLoopIterations')
         }
 
         this.#stoppedToolUses.clear()
@@ -1312,9 +1312,9 @@ export class AgenticChatController implements ChatHandlers {
         triggerContext: TriggerContext,
         isNewConversation: boolean,
         chatResultStream: AgenticChatResultStream
-    ): Promise<ChatResult | ResponseError<ChatResult>> {
+    ): Promise<ChatResult> {
         if (!result.success) {
-            return new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, result.error)
+            throw new AgenticChatError(result.error, 'FailedResult')
         }
         const conversationId = session.conversationId
         this.#debug('Final session conversation id:', conversationId || '')
@@ -1402,9 +1402,9 @@ export class AgenticChatController implements ChatHandlers {
             return createAuthFollowUpResult(authFollowType)
         }
 
-        // Show backend error messages to the customer.
-        if (err.code === 'QModelResponse') {
-            this.#features.logging.error(`QModelResponse Error: ${JSON.stringify(err.cause)}`)
+        // These are errors we want to show custom messages in chat for.
+        if (err.code === 'QModelResponse' || err.code === 'MaxAgentLoopIterations') {
+            this.#features.logging.error(`${err.code}: ${JSON.stringify(err.cause)}`)
             return new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, err.message, {
                 type: 'answer',
                 body: err.message,
