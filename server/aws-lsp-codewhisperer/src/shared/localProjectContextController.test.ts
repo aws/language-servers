@@ -207,6 +207,75 @@ describe('LocalProjectContextController', () => {
         })
     })
 
+    describe('configuration options', () => {
+        let processEnvBackup: NodeJS.ProcessEnv
+
+        beforeEach(() => {
+            processEnvBackup = { ...process.env }
+        })
+
+        afterEach(() => {
+            process.env = processEnvBackup
+        })
+
+        it('should set GPU acceleration environment variable when enabled', async () => {
+            await controller.init({
+                enableGpuAcceleration: true,
+                vectorLib: vectorLibMock,
+            })
+            assert.strictEqual(process.env.Q_ENABLE_GPU, 'true')
+            sinonAssert.called(vectorLibMock.start)
+        })
+
+        it('should remove GPU acceleration environment variable when disabled', async () => {
+            process.env.Q_ENABLE_GPU = 'true'
+            await controller.init({
+                enableGpuAcceleration: false,
+                vectorLib: vectorLibMock,
+            })
+            assert.strictEqual(process.env.Q_ENABLE_GPU, undefined)
+            sinonAssert.called(vectorLibMock.start)
+        })
+
+        it('should set worker threads environment variable when specified', async () => {
+            await controller.init({
+                indexWorkerThreads: 4,
+                vectorLib: vectorLibMock,
+            })
+            assert.strictEqual(process.env.Q_WORKER_THREADS, '4')
+            sinonAssert.called(vectorLibMock.start)
+        })
+
+        it('should remove worker threads environment variable when not specified', async () => {
+            process.env.Q_WORKER_THREADS = '4'
+            await controller.init({
+                vectorLib: vectorLibMock,
+            })
+            assert.strictEqual(process.env.Q_WORKER_THREADS, undefined)
+            sinonAssert.called(vectorLibMock.start)
+        })
+
+        it('should ignore invalid worker thread counts', async () => {
+            process.env.Q_WORKER_THREADS = '4'
+            await controller.init({
+                indexWorkerThreads: 101,
+                vectorLib: vectorLibMock,
+            })
+            assert.strictEqual(process.env.Q_WORKER_THREADS, undefined)
+            sinonAssert.called(vectorLibMock.start)
+        })
+
+        it('should ignore negative worker thread counts', async () => {
+            process.env.Q_WORKER_THREADS = '4'
+            await controller.init({
+                indexWorkerThreads: -1,
+                vectorLib: vectorLibMock,
+            })
+            assert.strictEqual(process.env.Q_WORKER_THREADS, undefined)
+            sinonAssert.called(vectorLibMock.start)
+        })
+    })
+
     describe('dispose', () => {
         it('should clear and remove vector library reference', async () => {
             await controller.init({ vectorLib: vectorLibMock })

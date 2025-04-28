@@ -3,7 +3,7 @@ import { RuntimeProps } from '@aws/language-server-runtimes/runtimes/runtime'
 import {
     CodeWhispererSecurityScanServerTokenProxy,
     CodeWhispererServerTokenProxy,
-    QAgenticChatServerTokenProxy,
+    QChatServerTokenProxy,
     QConfigurationServerTokenProxy,
     QNetTransformServerTokenProxy,
     QLocalProjectContextServerTokenProxy,
@@ -22,7 +22,7 @@ const props: RuntimeProps = {
         CodeWhispererSecurityScanServerTokenProxy,
         QConfigurationServerTokenProxy,
         QNetTransformServerTokenProxy,
-        QAgenticChatServerTokenProxy,
+        QChatServerTokenProxy,
         IdentityServer.create,
         QLocalProjectContextServerTokenProxy,
     ],

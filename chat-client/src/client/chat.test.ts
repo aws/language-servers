@@ -18,6 +18,7 @@ import { createChat } from './chat'
 import sinon = require('sinon')
 import { TELEMETRY } from '../contracts/serverContracts'
 import {
+    ENTER_FOCUS,
     ERROR_MESSAGE_TELEMETRY_EVENT,
     SEND_TO_PROMPT_TELEMETRY_EVENT,
     TAB_ADD_TELEMETRY_EVENT,
@@ -65,18 +66,33 @@ describe('Chat', () => {
         global.ResizeObserver = undefined
     })
 
-    it('publishes ready event and initial tab add event, when initialized', () => {
-        assert.callCount(clientApi.postMessage, 4)
+    it('publishes ready event when initialized', () => {
+        assert.calledWithExactly(clientApi.postMessage.firstCall, { command: READY_NOTIFICATION_METHOD })
+    })
 
-        assert.calledWithExactly(clientApi.postMessage.firstCall, {
+    it('creates initial tab when chat options are provided', () => {
+        const bannerText = 'This is a test banner message'
+        const eventParams = {
+            command: CHAT_OPTIONS,
+            params: {
+                chatNotifications: {
+                    bannerText: bannerText,
+                },
+            },
+        }
+        const sendToPromptEvent = createInboundEvent(eventParams)
+        window.dispatchEvent(sendToPromptEvent)
+
+        assert.calledWithExactly(clientApi.postMessage.firstCall, { command: READY_NOTIFICATION_METHOD })
+
+        assert.calledWithExactly(clientApi.postMessage.secondCall, {
             command: TELEMETRY,
-            params: { name: 'enterFocus' },
+            params: { name: ENTER_FOCUS },
         })
-        assert.calledWithExactly(clientApi.postMessage.secondCall, { command: READY_NOTIFICATION_METHOD })
 
         assert.calledWithExactly(clientApi.postMessage.thirdCall, {
             command: TAB_ADD_NOTIFICATION_METHOD,
-            params: { tabId: initialTabId },
+            params: { tabId: sinon.match.string },
         })
 
         assert.calledWithExactly(clientApi.postMessage.lastCall, {
@@ -84,7 +100,7 @@ describe('Chat', () => {
             params: {
                 triggerType: 'click',
                 name: TAB_ADD_TELEMETRY_EVENT,
-                tabId: initialTabId,
+                tabId: sinon.match.string,
             },
         })
     })
@@ -204,7 +220,6 @@ describe('Chat', () => {
 
     it('complete chat response triggers ui events', () => {
         const endMessageStreamStub = sandbox.stub(mynahUi, 'endMessageStream')
-        const updateLastChatAnswerStub = sandbox.stub(mynahUi, 'updateLastChatAnswer')
         const updateStoreStub = sandbox.stub(mynahUi, 'updateStore')
 
         const tabId = '123'
@@ -217,17 +232,21 @@ describe('Chat', () => {
         })
         window.dispatchEvent(chatEvent)
 
-        assert.calledOnceWithExactly(endMessageStreamStub, tabId, '')
-        assert.calledOnceWithMatch(updateLastChatAnswerStub, tabId, { body })
-        assert.calledOnceWithExactly(updateStoreStub, tabId, {
-            loadingChat: false,
-            promptInputDisabledState: false,
+        assert.calledOnceWithExactly(endMessageStreamStub, tabId, '', {
+            header: undefined,
+            buttons: undefined,
+            body: 'some response',
+            followUp: {},
+            relatedContent: undefined,
+            canBeVoted: undefined,
+            codeReference: undefined,
+            fileList: undefined,
         })
+        assert.calledTwice(updateStoreStub)
     })
 
     it('partial chat response triggers ui events', () => {
         const endMessageStreamStub = sandbox.stub(mynahUi, 'endMessageStream')
-        const updateLastChatAnswerStub = sandbox.stub(mynahUi, 'updateLastChatAnswer')
         const updateStoreStub = sandbox.stub(mynahUi, 'updateStore')
 
         const tabId = '123'
@@ -240,15 +259,12 @@ describe('Chat', () => {
             isPartialResult: true,
         })
         window.dispatchEvent(chatEvent)
-
-        assert.calledOnceWithExactly(updateLastChatAnswerStub, tabId, { body, header: undefined })
         assert.notCalled(endMessageStreamStub)
-        assert.notCalled(updateStoreStub)
+        assert.calledOnce(updateStoreStub)
     })
 
     it('partial chat response with header triggers ui events', () => {
         const endMessageStreamStub = sandbox.stub(mynahUi, 'endMessageStream')
-        const updateLastChatAnswerStub = sandbox.stub(mynahUi, 'updateLastChatAnswer')
         const updateStoreStub = sandbox.stub(mynahUi, 'updateStore')
 
         const tabId = '123'
@@ -290,13 +306,8 @@ describe('Chat', () => {
         })
 
         window.dispatchEvent(chatEvent)
-
-        assert.calledOnceWithExactly(updateLastChatAnswerStub, tabId, {
-            ...params,
-            header: mockHeader,
-        })
         assert.notCalled(endMessageStreamStub)
-        assert.notCalled(updateStoreStub)
+        assert.calledOnce(updateStoreStub)
     })
 
     describe('chatOptions', () => {
@@ -314,9 +325,9 @@ describe('Chat', () => {
             assert.called(TabFactory.prototype.enableHistory)
             // @ts-ignore
             assert.called(TabFactory.prototype.enableExport)
-        })
+        }).timeout(20000)
 
-        it('does not enable history and export features support if flags are falsy', () => {
+        it('does not enable history and export features support if flags are falsy', async () => {
             const chatOptionsRequest = createInboundEvent({
                 command: CHAT_OPTIONS,
                 params: {
@@ -330,7 +341,7 @@ describe('Chat', () => {
             assert.notCalled(TabFactory.prototype.enableHistory)
             // @ts-ignore
             assert.notCalled(TabFactory.prototype.enableExport)
-        })
+        }).timeout(20000)
     })
 
     describe('onGetSerializedChat', () => {

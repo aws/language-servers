@@ -18,6 +18,7 @@ import {
     CopyCodeToClipboardParams,
     ERROR_MESSAGE,
     ErrorMessage,
+    FeatureContext,
     GENERIC_COMMAND,
     GenericCommandMessage,
     INSERT_TO_CURSOR_POSITION,
@@ -28,13 +29,21 @@ import {
     DISCLAIMER_ACKNOWLEDGED,
     ErrorResult,
     UiResultMessage,
+    CHAT_PROMPT_OPTION_ACKNOWLEDGED,
+    STOP_CHAT_RESPONSE,
+    OPEN_SETTINGS,
 } from '@aws/chat-client-ui-types'
 import {
+    BUTTON_CLICK_REQUEST_METHOD,
+    CHAT_OPTIONS_UPDATE_NOTIFICATION_METHOD,
     CHAT_REQUEST_METHOD,
+    CHAT_UPDATE_NOTIFICATION_METHOD,
     CONTEXT_COMMAND_NOTIFICATION_METHOD,
     CONVERSATION_CLICK_REQUEST_METHOD,
     CREATE_PROMPT_NOTIFICATION_METHOD,
+    ChatOptionsUpdateParams,
     ChatParams,
+    ChatUpdateParams,
     ContextCommandParams,
     ConversationClickParams,
     ConversationClickResult,
@@ -58,6 +67,8 @@ import {
     OPEN_TAB_REQUEST_METHOD,
     OpenTabParams,
     OpenTabResult,
+    PROMPT_INPUT_OPTION_CHANGE_METHOD,
+    PromptInputOptionChangeParams,
     QUICK_ACTION_REQUEST_METHOD,
     QuickActionParams,
     READY_NOTIFICATION_METHOD,
@@ -78,21 +89,25 @@ import { Messager, OutboundChatApi } from './messager'
 import { InboundChatApi, createMynahUi } from './mynahUi'
 import { TabFactory } from './tabs/tabFactory'
 import { ChatClientAdapter } from '../contracts/chatClientAdapter'
-import { toMynahIcon } from './utils'
+import { toMynahContextCommand, toMynahIcon } from './utils'
 
 const DEFAULT_TAB_DATA = {
     tabTitle: 'Chat',
     promptInputInfo:
         'Amazon Q Developer uses generative AI. You may need to verify responses. See the [AWS Responsible AI Policy](https://aws.amazon.com/machine-learning/responsible-ai/policy/).',
-    promptInputPlaceholder: 'Ask a question or enter "/" for quick actions',
+    promptInputPlaceholder: 'Ask a question. Use @ to add context, / for quick actions',
 }
 
-type ChatClientConfig = Pick<MynahUIDataModel, 'quickActionCommands'> & { disclaimerAcknowledged?: boolean }
+type ChatClientConfig = Pick<MynahUIDataModel, 'quickActionCommands'> & {
+    disclaimerAcknowledged?: boolean
+    pairProgrammingAcknowledged?: boolean
+}
 
 export const createChat = (
     clientApi: { postMessage: (msg: UiMessage | UiResultMessage | ServerMessage) => void },
     config?: ChatClientConfig,
-    chatClientAdapter?: ChatClientAdapter
+    chatClientAdapter?: ChatClientAdapter,
+    featureConfigSerialized?: string
 ) => {
     let mynahApi: InboundChatApi
 
@@ -100,6 +115,17 @@ export const createChat = (
         clientApi.postMessage(message)
     }
 
+    const parseFeatureConfig = (featureConfigSerialized?: string): Map<string, FeatureContext> => {
+        try {
+            const parsed = JSON.parse(featureConfigSerialized || '[]')
+            return new Map<string, FeatureContext>(parsed)
+        } catch (error) {
+            console.error('Error parsing feature config:', featureConfigSerialized, error)
+        }
+        return new Map()
+    }
+
+    const featureConfig: Map<string, FeatureContext> = parseFeatureConfig(featureConfigSerialized)
     /**
      * Handles incoming messages from the IDE or other sources.
      * Routes messages to appropriate handlers based on command type.
@@ -130,6 +156,9 @@ export const createChat = (
             case CHAT_REQUEST_METHOD:
                 mynahApi.addChatResponse(message.params, message.tabId, message.isPartialResult)
                 break
+            case CHAT_UPDATE_NOTIFICATION_METHOD:
+                mynahApi.updateChat(message.params as ChatUpdateParams)
+                break
             case OPEN_TAB_REQUEST_METHOD:
                 mynahApi.openTab(message.requestId, message.params as OpenTabParams)
                 break
@@ -154,8 +183,16 @@ export const createChat = (
             case GET_SERIALIZED_CHAT_REQUEST_METHOD:
                 mynahApi.getSerializedChat(message.requestId, message.params as GetSerializedChatParams)
                 break
+            case CHAT_OPTIONS_UPDATE_NOTIFICATION_METHOD:
+                tabFactory.setInfoMessages((message.params as ChatOptionsUpdateParams).chatNotifications)
+                break
             case CHAT_OPTIONS: {
                 const params = (message as ChatOptionsMessage).params
+
+                if (params?.chatNotifications) {
+                    tabFactory.setInfoMessages((message.params as ChatOptionsUpdateParams).chatNotifications)
+                }
+
                 if (params?.quickActions?.quickActionsCommandGroups) {
                     const quickActionCommandGroups = params.quickActions.quickActionsCommandGroups.map(group => ({
                         ...group,
@@ -175,9 +212,24 @@ export const createChat = (
                     tabFactory.enableExport()
                 }
 
+                const initialTabId = mynahApi.createTabId()
+                if (initialTabId) mynahUi.selectTab(initialTabId)
+
                 const allExistingTabs: MynahUITabStoreModel = mynahUi.getAllTabs()
+                const highlightCommand = featureConfig.get('highlightCommand')
+
                 for (const tabId in allExistingTabs) {
-                    mynahUi.updateStore(tabId, tabFactory.getDefaultTabData())
+                    mynahUi.updateStore(tabId, {
+                        ...tabFactory.getDefaultTabData(),
+                        contextCommands: highlightCommand
+                            ? [
+                                  {
+                                      groupName: 'Additional Commands',
+                                      commands: [toMynahContextCommand(highlightCommand)],
+                                  },
+                              ]
+                            : [],
+                    })
                 }
                 break
             }
@@ -240,6 +292,14 @@ export const createChat = (
         disclaimerAcknowledged: () => {
             sendMessageToClient({ command: DISCLAIMER_ACKNOWLEDGED })
         },
+        chatPromptOptionAcknowledged: (messageId: string) => {
+            sendMessageToClient({
+                command: CHAT_PROMPT_OPTION_ACKNOWLEDGED,
+                params: {
+                    messageId,
+                },
+            })
+        },
         onOpenTab: (requestId: string, params: OpenTabResult | ErrorResult) => {
             if ('tabId' in params) {
                 sendMessageToClient({
@@ -297,6 +357,18 @@ export const createChat = (
                 })
             }
         },
+        promptInputOptionChange: (params: PromptInputOptionChangeParams) => {
+            sendMessageToClient({ command: PROMPT_INPUT_OPTION_CHANGE_METHOD, params })
+        },
+        stopChatResponse: (tabId: string) => {
+            sendMessageToClient({ command: STOP_CHAT_RESPONSE, params: { tabId } })
+        },
+        sendButtonClickEvent: params => {
+            sendMessageToClient({ command: BUTTON_CLICK_REQUEST_METHOD, params: params })
+        },
+        onOpenSettings: (settingKey: string) => {
+            sendMessageToClient({ command: OPEN_SETTINGS, params: { settingKey } })
+        },
     }
 
     const messager = new Messager(chatApi)
@@ -308,7 +380,9 @@ export const createChat = (
         messager,
         tabFactory,
         config?.disclaimerAcknowledged ?? false,
-        chatClientAdapter
+        config?.pairProgrammingAcknowledged ?? false,
+        chatClientAdapter,
+        featureConfig
     )
 
     mynahApi = api

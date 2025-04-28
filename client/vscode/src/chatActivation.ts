@@ -1,5 +1,6 @@
 import {
     isValidAuthFollowUpType,
+    FeatureContext,
     INSERT_TO_CURSOR_POSITION,
     AUTH_FOLLOW_UP_CLICKED,
     CHAT_OPTIONS,
@@ -28,6 +29,9 @@ import {
     ShowSaveFileDialogRequestType,
     ShowSaveFileDialogParams,
     tabBarActionRequestType,
+    chatOptionsUpdateType,
+    buttonClickRequestType,
+    chatUpdateNotificationType,
 } from '@aws/language-server-runtimes/protocol'
 import { v4 as uuidv4 } from 'uuid'
 import { Uri, Webview, WebviewView, commands, window } from 'vscode'
@@ -41,7 +45,6 @@ import {
 } from 'vscode-languageclient/node'
 import * as jose from 'jose'
 import * as vscode from 'vscode'
-import * as fs from 'fs'
 
 export function registerChat(languageClient: LanguageClient, extensionUri: Uri, encryptionKey?: Buffer) {
     const webviewInitialized: Promise<Webview> = new Promise(resolveWebview => {
@@ -171,6 +174,14 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri, 
                                 tabBarActionRequestType.method
                             )
                             break
+                        case buttonClickRequestType.method:
+                            await handleRequest(
+                                languageClient,
+                                message.params,
+                                webviewView,
+                                buttonClickRequestType.method
+                            )
+                            break
                         case followUpClickNotificationType.method:
                             if (!isValidAuthFollowUpType(message.params.followUp.type))
                                 languageClient.sendNotification(followUpClickNotificationType, message.params)
@@ -178,13 +189,28 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri, 
                         default:
                             if (isServerEvent(message.command))
                                 languageClient.sendNotification(message.command, message.params)
+                            else languageClient.info(`[VSCode Client]  Unhandled command: ${message.command}`)
                             break
                     }
                 }, undefined)
 
+                languageClient.onNotification(chatOptionsUpdateType, params => {
+                    webviewView.webview.postMessage({
+                        command: chatOptionsUpdateType.method,
+                        params: params,
+                    })
+                })
+
                 languageClient.onNotification(contextCommandsNotificationType, params => {
                     webviewView.webview.postMessage({
                         command: contextCommandsNotificationType.method,
+                        params: params,
+                    })
+                })
+
+                languageClient.onNotification(chatUpdateNotificationType, params => {
+                    webviewView.webview.postMessage({
+                        command: chatUpdateNotificationType.method,
                         params: params,
                     })
                 })
@@ -399,12 +425,24 @@ function generateJS(webView: Webview, extensionUri: Uri): string {
     const chatUri = Uri.joinPath(assetsPath, 'build', 'amazonq-ui.js')
 
     const entrypoint = webView.asWebviewUri(chatUri)
+    const chatFeatures: Map<string, FeatureContext> = new Map()
+    chatFeatures.set('highlightCommand', {
+        variation: 'Context commands for chat',
+        value: {
+            stringValue: '@sage',
+        },
+    })
+    const stringifiedContextCommands = JSON.stringify(Array.from(chatFeatures.entries()))
 
     return `
     <script type="text/javascript" src="${entrypoint.toString()}" defer onload="init()"></script>
     <script type="text/javascript">
         const init = () => {
-            amazonQChat.createChat(acquireVsCodeApi(), {disclaimerAcknowledged: false});
+            amazonQChat.createChat(acquireVsCodeApi(), 
+                {disclaimerAcknowledged: false}, 
+                undefined,
+                JSON.stringify(${stringifiedContextCommands})
+            );
         }
     </script>
     `

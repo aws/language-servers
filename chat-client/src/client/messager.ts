@@ -21,6 +21,7 @@ import {
     TriggerType,
 } from '@aws/chat-client-ui-types'
 import {
+    ButtonClickParams,
     ChatParams,
     ConversationAction,
     ConversationClickParams,
@@ -34,6 +35,7 @@ import {
     LinkClickParams,
     ListConversationsParams,
     OpenTabResult,
+    PromptInputOptionChangeParams,
     QuickActionParams,
     SourceLinkClickParams,
     TabAddParams,
@@ -80,6 +82,7 @@ export interface OutboundChatApi {
     infoLinkClick(params: InfoLinkClickParams): void
     uiReady(): void
     disclaimerAcknowledged(): void
+    chatPromptOptionAcknowledged(messageId: string): void
     onOpenTab(requestId: string, result: OpenTabResult | ErrorResult): void
     createPrompt(params: CreatePromptParams): void
     fileClick(params: FileClickParams): void
@@ -87,6 +90,10 @@ export interface OutboundChatApi {
     conversationClick(params: ConversationClickParams): void
     tabBarAction(params: TabBarActionParams): void
     onGetSerializedChat(requestId: string, result: GetSerializedChatResult | ErrorResult): void
+    promptInputOptionChange(params: PromptInputOptionChangeParams): void
+    stopChatResponse(tabId: string): void
+    sendButtonClickEvent(params: ButtonClickParams): void
+    onOpenSettings(settingKey: string): void
 }
 
 export class Messager {
@@ -111,6 +118,10 @@ export class Messager {
 
     onDisclaimerAcknowledged = (): void => {
         this.chatApi.disclaimerAcknowledged()
+    }
+
+    onChatPromptOptionAcknowledged = (messageId: string): void => {
+        this.chatApi.chatPromptOptionAcknowledged(messageId)
     }
 
     onFocusStateChanged = (focusState: boolean): void => {
@@ -208,5 +219,21 @@ export class Messager {
 
     onGetSerializedChat = (requestId: string, result: GetSerializedChatResult | ErrorResult): void => {
         this.chatApi.onGetSerializedChat(requestId, result)
+    }
+
+    onPromptInputOptionChange = (params: PromptInputOptionChangeParams): void => {
+        this.chatApi.promptInputOptionChange(params)
+    }
+
+    onStopChatResponse = (tabId: string): void => {
+        this.chatApi.stopChatResponse(tabId)
+    }
+
+    onButtonClick = (params: ButtonClickParams): void => {
+        this.chatApi.sendButtonClickEvent(params)
+    }
+
+    onOpenSettings = (settingKey: string): void => {
+        this.chatApi.onOpenSettings(settingKey)
     }
 }

@@ -33,6 +33,7 @@ describe('ChatDb Utilities', () => {
                     content: 'Hello',
                     userInputMessageContext: {},
                     userIntent: undefined,
+                    origin: 'IDE',
                 },
             })
         })
@@ -51,9 +52,7 @@ describe('ChatDb Utilities', () => {
                 assistantResponseMessage: {
                     messageId: 'msg-1',
                     content: 'Response',
-                    references: [
-                        { url: 'test.js', recommendationContentSpan: { start: 10, end: 15 }, information: '' },
-                    ],
+                    toolUses: [],
                 },
             })
         })
@@ -70,12 +69,16 @@ describe('ChatDb Utilities', () => {
 
             const result = messageToChatMessage(message)
 
-            assert.deepStrictEqual(result, {
-                body: 'Hello',
-                type: 'prompt',
-                codeReference: [{ url: 'test.js', recommendationContentSpan: { start: 10, end: 15 }, information: '' }],
-                relatedContent: { content: [{ title: 'Sources', url: 'google.com' }] },
-            })
+            assert.deepStrictEqual(result, [
+                {
+                    body: 'Hello',
+                    type: 'prompt',
+                    codeReference: [
+                        { url: 'test.js', recommendationContentSpan: { start: 10, end: 15 }, information: '' },
+                    ],
+                    relatedContent: { content: [{ title: 'Sources', url: 'google.com' }] },
+                },
+            ])
         })
 
         it('should omit relatedContent when content array is empty', () => {
@@ -87,12 +90,14 @@ describe('ChatDb Utilities', () => {
 
             const result = messageToChatMessage(message)
 
-            assert.deepStrictEqual(result, {
-                body: 'Hello',
-                type: 'prompt',
-                relatedContent: undefined,
-                codeReference: undefined,
-            })
+            assert.deepStrictEqual(result, [
+                {
+                    body: 'Hello',
+                    type: 'prompt',
+                    relatedContent: undefined,
+                    codeReference: undefined,
+                },
+            ])
         })
     })
 

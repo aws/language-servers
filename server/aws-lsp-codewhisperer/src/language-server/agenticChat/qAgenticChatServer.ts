@@ -140,7 +140,7 @@ export const QAgenticChatServer =
         chat.onConversationClick(params => {
             return chatController.onConversationClick(params)
         })
-       
+
         chat.onCreatePrompt((params) => {
             return chatController.onCreatePrompt(params)
         })
@@ -151,6 +151,14 @@ export const QAgenticChatServer =
 
         chat.onTabBarAction(params => {
             return chatController.onTabBarAction(params)
+        })
+
+        chat.onPromptInputOptionChange(params => {
+            return chatController.onPromptInputOptionChange(params)
+        })
+
+        chat.onButtonClick(params => {
+            return chatController.onButtonClick(params)
         })
 
         logging.log('Q Chat server has been initialized')

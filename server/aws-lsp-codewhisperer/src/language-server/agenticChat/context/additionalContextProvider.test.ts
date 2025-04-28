@@ -7,6 +7,7 @@ import { AdditionalContextPrompt } from 'local-indexing'
 import { AdditionalContextProvider } from './addtionalContextProvider'
 import { getUserPromptsDirectory } from './contextUtils'
 import { LocalProjectContextController } from '../../../shared/localProjectContextController'
+import { workspaceUtils } from '@aws/lsp-core'
 
 describe('AdditionalContextProvider', () => {
     let provider: AdditionalContextProvider
@@ -54,6 +55,7 @@ describe('AdditionalContextProvider', () => {
                 uri: URI.file('/workspace').toString(),
                 name: 'test',
             }
+            sinon.stub(workspaceUtils, 'getWorkspaceFolderPaths').returns(['/workspace'])
             const triggerContext = {
                 workspaceFolder: mockWorkspaceFolder,
                 context: [],
@@ -61,15 +63,15 @@ describe('AdditionalContextProvider', () => {
             }
 
             fsExistsStub.resolves(true)
-            fsReadDirStub.resolves([{ name: 'rule1.prompt.md', isFile: () => true }])
+            fsReadDirStub.resolves([{ name: 'rule1.md', isFile: () => true }])
 
             getContextCommandPromptStub.resolves([
                 {
                     name: 'Test Rule',
                     description: 'Test Description',
                     content: 'Test Content',
-                    filePath: '/workspace/.amazonq/rules/rule1.prompt.md',
-                    relativePath: '.amazonq/rules/rule1.prompt.md',
+                    filePath: '/workspace/.amazonq/rules/rule1.md',
+                    relativePath: '.amazonq/rules/rule1.md',
                     startLine: 1,
                     endLine: 10,
                 },
@@ -94,6 +96,7 @@ describe('AdditionalContextProvider', () => {
                     type: 'code',
                     description: 'test',
                     innerContext: 'test',
+                    path: '1/test/path.ts',
                 },
             ]
 
@@ -118,6 +121,7 @@ describe('AdditionalContextProvider', () => {
                     type: 'file',
                     description: 'test',
                     innerContext: 'test',
+                    path: '1/test/path.ts',
                 },
             ]
 
@@ -134,8 +138,8 @@ describe('AdditionalContextProvider', () => {
 
     describe('getContextType', () => {
         const mockPrompt: AdditionalContextPrompt = {
-            filePath: path.join('/workspace', '.amazonq', 'rules', 'test.prompt.md'),
-            relativePath: path.join('.amazonq', 'rules', 'test.prompt.md'),
+            filePath: path.join('/workspace', '.amazonq', 'rules', 'test.md'),
+            relativePath: path.join('.amazonq', 'rules', 'test.md'),
             content: 'Sample content',
             name: 'Test Rule',
             description: 'Test Description',
@@ -151,8 +155,8 @@ describe('AdditionalContextProvider', () => {
         it('should identify prompt type for files in user prompts directory', () => {
             const userPromptsDir = getUserPromptsDirectory()
             const mockPrompt = {
-                filePath: path.join(userPromptsDir, 'test.prompt.md'),
-                relativePath: 'test.prompt.md',
+                filePath: path.join(userPromptsDir, 'test.md'),
+                relativePath: 'test.md',
                 content: 'Sample content',
                 name: 'Test Prompt',
                 description: 'Test Description',
@@ -184,37 +188,39 @@ describe('AdditionalContextProvider', () => {
 
     describe('collectWorkspaceRules', () => {
         it('should return empty array when no workspace folder', async () => {
-            const triggerContext = {
-                relativeFilePath: 'test.ts',
-                workspaceFolder: null,
-            }
+            // Mock empty workspace folders
+            sinon.stub(workspaceUtils, 'getWorkspaceFolderPaths').returns([])
 
-            const result = await provider.collectWorkspaceRules(triggerContext)
+            const result = await provider.collectWorkspaceRules()
 
             assert.deepStrictEqual(result, [])
         })
 
         it('should return rules files when they exist', async () => {
-            const mockWorkspaceFolder = {
-                uri: URI.file('/workspace').toString(),
-                name: 'test',
-            }
-            const triggerContext = {
-                relativeFilePath: 'test.ts',
-                workspaceFolder: mockWorkspaceFolder,
-            }
+            // Mock workspace folders
+            sinon.stub(workspaceUtils, 'getWorkspaceFolderPaths').returns(['/workspace'])
 
             fsExistsStub.resolves(true)
             fsReadDirStub.resolves([
-                { name: 'rule1.prompt.md', isFile: () => true },
-                { name: 'rule2.prompt.md', isFile: () => true },
+                { name: 'rule1.md', isFile: () => true },
+                { name: 'rule2.md', isFile: () => true },
             ])
 
-            const result = await provider.collectWorkspaceRules(triggerContext)
+            const result = await provider.collectWorkspaceRules()
 
             assert.deepStrictEqual(result, [
-                path.join('/workspace', '.amazonq', 'rules', 'rule1.prompt.md'),
-                path.join('/workspace', '.amazonq', 'rules', 'rule2.prompt.md'),
+                {
+                    workspaceFolder: '/workspace',
+                    type: 'file',
+                    relativePath: path.join('.amazonq', 'rules', 'rule1.md'),
+                    id: '',
+                },
+                {
+                    workspaceFolder: '/workspace',
+                    type: 'file',
+                    relativePath: path.join('.amazonq', 'rules', 'rule2.md'),
+                    id: '',
+                },
             ])
         })
     })

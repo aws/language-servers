@@ -20,6 +20,7 @@ import * as path from 'path'
 
 import * as ignore from 'ignore'
 import { fdir } from 'fdir'
+import { pathToFileURL } from 'url'
 
 const LIBRARY_DIR = (() => {
     if (require.main?.filename) {
@@ -42,6 +43,8 @@ export interface LocalProjectContextInitializationOptions {
     maxFileSizeMB?: number
     maxIndexSizeMB?: number
     indexCacheDirPath?: string
+    enableGpuAcceleration?: boolean
+    indexWorkerThreads?: number
 }
 
 export class LocalProjectContextController {
@@ -71,11 +74,15 @@ export class LocalProjectContextController {
         this.log = logging
     }
 
+    get isEnabled(): boolean {
+        return this._vecLib !== undefined && this._vecLib !== null
+    }
+
     public static async getInstance(): Promise<LocalProjectContextController> {
         try {
             await waitUntil(async () => this.instance, {
-                interval: 1000,
-                timeout: 60_000,
+                interval: 100,
+                timeout: 600,
                 truthy: true,
             })
 
@@ -85,7 +92,12 @@ export class LocalProjectContextController {
 
             return this.instance
         } catch (error) {
-            throw new Error(`Failed to get LocalProjectContextController instance: ${error}`)
+            // throw new Error(`Failed to get LocalProjectContextController instance: ${error}`)
+            return {
+                isEnabled: true,
+                getContextCommandItems: () => [],
+                shouldUpdateContextCommandSymbolsOnce: () => false,
+            } as unknown as LocalProjectContextController
         }
     }
 
@@ -97,8 +109,13 @@ export class LocalProjectContextController {
         maxFileSizeMB = this.DEFAULT_MAX_FILE_SIZE_MB,
         maxIndexSizeMB = this.DEFAULT_MAX_INDEX_SIZE_MB,
         indexCacheDirPath = path.join(homedir(), '.aws', 'amazonq', 'cache'),
+        enableGpuAcceleration = false,
+        indexWorkerThreads = 0,
     }: LocalProjectContextInitializationOptions = {}): Promise<void> {
         try {
+            if (this._vecLib) {
+                return
+            }
             this.includeSymlinks = includeSymlinks
             this.maxFileSizeMB = maxFileSizeMB
             this.maxIndexSizeMB = maxIndexSizeMB
@@ -107,8 +124,24 @@ export class LocalProjectContextController {
             if (indexCacheDirPath?.length > 0 && path.parse(indexCacheDirPath)) {
                 this.indexCacheDirPath = indexCacheDirPath
             }
-            const libraryPath = path.join(LIBRARY_DIR, 'dist', 'extension.js')
-            const vecLib = vectorLib ?? (await import(libraryPath))
+
+            if (enableGpuAcceleration) {
+                process.env.Q_ENABLE_GPU = 'true'
+            } else {
+                delete process.env.Q_ENABLE_GPU
+            }
+            if (indexWorkerThreads && indexWorkerThreads > 0 && indexWorkerThreads < 100) {
+                process.env.Q_WORKER_THREADS = indexWorkerThreads.toString()
+            } else {
+                delete process.env.Q_WORKER_THREADS
+            }
+            this.log.info(
+                `Vector library initializing with GPU acceleration: ${enableGpuAcceleration}, ` +
+                    `index worker thread count: ${indexWorkerThreads}`
+            )
+
+            const libraryPath = this.getVectorLibraryPath()
+            const vecLib = vectorLib ?? (await eval(`import("${libraryPath}")`))
             if (vecLib) {
                 this._vecLib = await vecLib.start(LIBRARY_DIR, this.clientName, this.indexCacheDirPath)
                 void this.buildIndex()
@@ -119,6 +152,19 @@ export class LocalProjectContextController {
         } catch (error) {
             this.log.error('Vector library failed to initialize:' + error)
         }
+    }
+
+    private getVectorLibraryPath(): string {
+        const libraryPath = path.join(LIBRARY_DIR, 'dist', 'extension.js')
+
+        if (process.platform === 'win32') {
+            // On Windows, the path must be loaded using a URL.
+            // Using the file path directly results in ERR_UNSUPPORTED_ESM_URL_SCHEME
+            // More details: https://github.com/nodejs/node/issues/31710
+            return pathToFileURL(libraryPath).toString()
+        }
+
+        return libraryPath
     }
 
     public async dispose(): Promise<void> {
@@ -154,6 +200,7 @@ export class LocalProjectContextController {
                     this.maxIndexSizeMB
                 )
                 await this._vecLib?.buildIndex(sourceFiles, this.indexCacheDirPath, 'all')
+                this.log.info('Context index built successfully')
             }
         } catch (error) {
             this.log.error(`Error building index: ${error}`)
@@ -223,6 +270,27 @@ export class LocalProjectContextController {
         } catch (error) {
             this.log.error(`Error in getContextCommandItems: ${error}`)
             return []
+        }
+    }
+
+    public async shouldUpdateContextCommand(filePaths: string[], isAdd: boolean): Promise<boolean> {
+        try {
+            const indexSeqNum = await this._vecLib?.getIndexSequenceNumber()
+            await this.updateIndex(filePaths, isAdd ? 'add' : 'remove')
+            await waitUntil(
+                async () => {
+                    const newIndexSeqNum = await this._vecLib?.getIndexSequenceNumber()
+                    if (newIndexSeqNum && indexSeqNum && newIndexSeqNum > indexSeqNum) {
+                        return true
+                    }
+                    return false
+                },
+                { interval: 500, timeout: 5_000, truthy: true }
+            )
+            return true
+        } catch (error) {
+            this.log.error(`Error in shouldUpdateContextCommand(: ${error}`)
+            return false
         }
     }
 

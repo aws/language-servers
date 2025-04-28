@@ -20,7 +20,12 @@ describe('ContextCommandsProvider', () => {
 
         testFeatures.workspace.fs.exists = fsExistsStub
         testFeatures.workspace.fs.readdir = fsReadDirStub
-        provider = new ContextCommandsProvider(testFeatures.logging, testFeatures.chat, testFeatures.workspace)
+        provider = new ContextCommandsProvider(
+            testFeatures.logging,
+            testFeatures.chat,
+            testFeatures.workspace,
+            testFeatures.lsp
+        )
         sinon.stub(provider, 'registerPromptFileWatcher').resolves()
     })
 

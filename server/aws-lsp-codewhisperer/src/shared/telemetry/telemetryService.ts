@@ -254,6 +254,7 @@ export class TelemetryService {
                     ...metric,
                     [CONVERSATION_ID_METRIC_KEY]: options.conversationId,
                     credentialStartUrl: this.credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
+                    result: 'Succeeded',
                 },
             })
         }
@@ -290,6 +291,7 @@ export class TelemetryService {
                     cwsprChatModificationPercentage: params.modificationPercentage,
                     codewhispererCustomizationArn: params.customizationArn,
                     credentialStartUrl: this.credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
+                    result: 'Succeeded',
                 },
             })
         }
@@ -398,6 +400,7 @@ export class TelemetryService {
             cwsprChatPromptContextCount: number
             cwsprChatPromptContextLength: number
             cwsprChatFocusFileContextLength: number
+            languageServerVersion?: string
         }>
     ) {
         if (!params.conversationId || !params.messageId) {
@@ -438,6 +441,8 @@ export class TelemetryService {
                     cwsprChatRuleContextLength: additionalParams.cwsprChatRuleContextLength,
                     cwsprChatPromptContextLength: additionalParams.cwsprChatPromptContextLength,
                     cwsprChatFocusFileContextLength: additionalParams.cwsprChatFileContextLength,
+                    result: 'Succeeded',
+                    languageServerVersion: additionalParams.languageServerVersion,
                 },
             })
         }

@@ -80,10 +80,7 @@ export class AgenticChatEventParser implements ChatResult {
         return this.#totalEvents
     }
 
-    public processPartialEvent(
-        chatEvent: ChatResponseStream,
-        contextList?: FileList
-    ): Result<ChatResultWithMetadata, string> {
+    public processPartialEvent(chatEvent: ChatResponseStream): Result<ChatResultWithMetadata, string> {
         const {
             messageMetadataEvent,
             followupPromptEvent,
@@ -113,9 +110,6 @@ export class AgenticChatEventParser implements ChatResult {
         } else if (invalidStateEvent) {
             this.error = invalidStateEvent.message ?? invalidStateEvent.reason ?? 'Invalid state'
         } else if (assistantResponseEvent?.content) {
-            if (contextList?.filePaths?.length) {
-                this.contextList = contextList
-            }
             this.#totalEvents.assistantResponseEvent += 1
             this.body = (this.body ?? '') + assistantResponseEvent.content
         } else if (toolUseEvent) {
@@ -136,10 +130,19 @@ export class AgenticChatEventParser implements ChatResult {
                 }
 
                 if (toolUseEvent.stop) {
-                    const parsedInput =
-                        typeof this.toolUses[toolUseId].input === 'string'
-                            ? JSON.parse(this.toolUses[toolUseId].input === '' ? '{}' : this.toolUses[toolUseId].input)
-                            : this.toolUses[toolUseId].input
+                    const finalInput = this.toolUses[toolUseId].input
+                    let parsedInput
+                    try {
+                        if (typeof finalInput === 'string') {
+                            parsedInput = JSON.parse(finalInput === '' ? '{}' : finalInput)
+                        } else {
+                            parsedInput = finalInput
+                        }
+                    } catch (err) {
+                        console.error(`Error parsing tool use input: ${this.toolUses[toolUseId].input}`, err)
+                        this.error = `ToolUse input is invalid JSON: "${this.toolUses[toolUseId].input}".`
+                        parsedInput = {}
+                    }
                     this.toolUses[toolUseId] = {
                         ...this.toolUses[toolUseId],
                         input: parsedInput,
@@ -193,7 +196,7 @@ export class AgenticChatEventParser implements ChatResult {
             relatedContent: this.relatedContent,
             followUp: this.followUp,
             codeReference: this.codeReference,
-            ...(this.contextList && { contextList: this.contextList }),
+            ...(this.contextList && { contextList: { ...this.contextList } }),
         }
 
         const chatResultWithMetadata = {

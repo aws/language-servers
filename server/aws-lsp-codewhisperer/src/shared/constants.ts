@@ -16,3 +16,13 @@ export const AWS_Q_ENDPOINT_URL_ENV_VAR = 'AWS_Q_ENDPOINT_URL'
 
 export const Q_CONFIGURATION_SECTION = 'aws.q'
 export const CODE_WHISPERER_CONFIGURATION_SECTION = 'aws.codeWhisperer'
+
+/**
+ * Names of directories relevant to the crash reporting functionality.
+ *
+ * Moved here to resolve circular dependency issues.
+ */
+export const crashMonitoringDirName = 'crashMonitoring'
+
+/** Matches Windows drive letter ("C:"). */
+export const driveLetterRegex = /^[a-zA-Z]\:/
