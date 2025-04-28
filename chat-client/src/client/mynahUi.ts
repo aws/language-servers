@@ -97,26 +97,9 @@ const openTabKey = 'openTab'
 export const handlePromptInputChange = (mynahUi: MynahUI, tabId: string, optionsValues: Record<string, string>) => {
     const promptTypeValue = optionsValues['pair-programmer-mode']
 
-    const store = mynahUi.getTabData(tabId)?.getStore()
-    const currentPromptInputOptions = store?.promptInputOptions ?? []
-    const updatedPromptInputOptions: ChatItemFormItem[] = currentPromptInputOptions.map(item =>
-        item.id === 'pair-programmer-mode' ? ({ ...item, value: promptTypeValue } as ChatItemFormItem) : item
-    )
-    // If the option wasn't found, add it
-    if (!updatedPromptInputOptions.some(item => item.id === 'pair-programmer-mode')) {
-        updatedPromptInputOptions.push({ ...pairProgrammingPromptInput, value: promptTypeValue } as ChatItemFormItem)
+    if (promptTypeValue != null) {
+        mynahUi.addChatItem(tabId, promptTypeValue === 'true' ? pairProgrammingModeOn : pairProgrammingModeOff)
     }
-
-    if (promptTypeValue === 'true') {
-        mynahUi.addChatItem(tabId, pairProgrammingModeOn)
-    } else {
-        mynahUi.addChatItem(tabId, pairProgrammingModeOff)
-    }
-
-    // Update the store with the new promptInputOptions array
-    mynahUi.updateStore(tabId, {
-        promptInputOptions: updatedPromptInputOptions,
-    })
 }
 
 export const handleChatPrompt = (
@@ -784,7 +767,7 @@ export const createMynahUi = (
             // file diffs in the header need space
             fullWidth: message.type === 'tool' && message.header?.buttons ? true : undefined,
             padding,
-
+            wrapCodes: message.type === 'tool',
             codeBlockActions:
                 message.type === 'tool'
                     ? { 'insert-to-cursor': null, copy: null }
