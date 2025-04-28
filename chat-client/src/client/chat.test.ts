@@ -264,7 +264,7 @@ describe('Chat', () => {
         })
         window.dispatchEvent(chatEvent)
         assert.notCalled(endMessageStreamStub)
-        assert.notCalled(updateStoreStub)
+        assert.calledOnce(updateStoreStub)
     })
 
     it('partial chat response with header triggers ui events', () => {
