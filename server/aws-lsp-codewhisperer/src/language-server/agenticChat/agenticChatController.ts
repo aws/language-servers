@@ -105,6 +105,7 @@ import { FsWrite, FsWriteParams } from './tools/fsWrite'
 import { ExecuteBash, ExecuteBashOutput, ExecuteBashParams } from './tools/executeBash'
 import { ExplanatoryParams, InvokeOutput, ToolApprovalException } from './tools/toolShared'
 import { FileSearch, FileSearchParams } from './tools/fileSearch'
+import { loggingUtils } from '@aws/lsp-core'
 import { diffLines } from 'diff'
 import { CodeSearch } from './tools/codeSearch'
 import { genericErrorMsg, maxAgentLoopIterations } from './constants'
@@ -504,9 +505,11 @@ export class AgenticChatController implements ChatHandlers {
                 : this.#chatHistoryDb.getMessages(tabId)
 
             // Phase 3: Request Execution
-            this.#log(`Q Model Request: ${JSON.stringify(currentRequestInput)}`)
+            this.#debug(
+                `Q Model Request: ${loggingUtils.formatObj(currentRequestInput, { depth: 5, omitKeys: ['history'] })}`
+            )
             const response = await session.generateAssistantResponse(currentRequestInput)
-            this.#log(`Q Model Response: ${JSON.stringify(response)}`)
+            this.#debug(`Q Model Response: ${loggingUtils.formatObj(response, { depth: 5 })}`)
 
             //  Add the current user message to the history DB
             if (currentMessage && conversationIdentifier) {
@@ -548,6 +551,8 @@ export class AgenticChatController implements ChatHandlers {
                         input: result.data!.toolUses[k].input,
                     })),
                 })
+            } else {
+                this.#features.logging.warn('No ChatResult body in response, skipping adding to history')
             }
 
             // Check if we have any tool uses that need to be processed
@@ -701,6 +706,7 @@ export class AgenticChatController implements ChatHandlers {
                         // no need to write tool message for code search.
                         break
                     default:
+                        this.#features.logging.warn(`Recieved unrecognized tool: ${toolUse.name}`)
                         await chatResultStream.writeResultBlock({
                             type: 'tool',
                             body: `${executeToolMessage(toolUse)}`,
@@ -771,6 +777,7 @@ export class AgenticChatController implements ChatHandlers {
                         await chatResultStream.writeResultBlock(chatResult)
                         break
                     default:
+                        this.#features.logging.warn(`Processing unrecognized tool: ${toolUse.name}`)
                         await chatResultStream.writeResultBlock({
                             type: 'tool',
                             body: toolResultMessage(toolUse, result),
@@ -804,7 +811,7 @@ export class AgenticChatController implements ChatHandlers {
                                     })
                                 }
                             } else {
-                                this.#features.logging.log('Failed to update tool block: no blockId is available.')
+                                this.#features.logging.warn('Failed to update tool block: no blockId is available.')
                             }
                         }
                         throw err
@@ -1813,7 +1820,7 @@ export class AgenticChatController implements ChatHandlers {
         contextList?: FileList
     ): Promise<Result<AgenticChatResultWithMetadata, string>> {
         const requestId = response.$metadata.requestId!
-        const chatEventParser = new AgenticChatEventParser(requestId, metric)
+        const chatEventParser = new AgenticChatEventParser(requestId, metric, this.#features.logging)
         const streamWriter = chatResultStream.getResultStreamWriter()
 
         // Display context transparency list once at the beginning of response

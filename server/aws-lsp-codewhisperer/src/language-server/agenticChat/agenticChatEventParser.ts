@@ -14,6 +14,8 @@ import {
 import { Result } from '../types'
 import { AddMessageEvent } from '../../shared/telemetry/types'
 import { Metric } from '../../shared/telemetry/metric'
+import { Features } from '@aws/language-server-runtimes/server-interface/server'
+import { loggingUtils } from '@aws/lsp-core'
 
 export type ChatResultWithMetadata = {
     chatResult: ChatResult
@@ -37,6 +39,7 @@ export class AgenticChatEventParser implements ChatResult {
     conversationId?: string
 
     #metric: Metric<AddMessageEvent>
+    #logging: Features['logging']
     #lastChunkTime: number = 0
     #totalEvents = {
         followupPromptEvent: 0,
@@ -71,9 +74,10 @@ export class AgenticChatEventParser implements ChatResult {
         }
     }
 
-    constructor(messageId: string, metric: Metric<AddMessageEvent>) {
+    constructor(messageId: string, metric: Metric<AddMessageEvent>, logging: Features['logging']) {
         this.messageId = messageId
         this.#metric = metric
+        this.#logging = logging
     }
 
     public get totalEvents() {
@@ -147,7 +151,9 @@ export class AgenticChatEventParser implements ChatResult {
                         ...this.toolUses[toolUseId],
                         input: parsedInput,
                     }
-                    console.log(`ToolUseEvent: ${toolUseId} ${name} ${this.toolUses[toolUseId].input}`)
+                    this.#logging.log(
+                        `ToolUseEvent: ${toolUseId} ${name} ${loggingUtils.formatObj(this.toolUses[toolUseId].input)}`
+                    )
                 }
             }
         } else if (followupPromptEvent?.followupPrompt) {
