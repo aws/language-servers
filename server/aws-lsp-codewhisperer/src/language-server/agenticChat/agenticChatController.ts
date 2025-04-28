@@ -1779,8 +1779,10 @@ export class AgenticChatController implements ChatHandlers {
         const streamWriter = chatResultStream.getResultStreamWriter()
 
         // Display context transparency list once at the beginning of response
-        if (contextList) {
+        // Use a flag to track if contextList has been sent already to avoid ux flickering
+        if (contextList && !session.contextListSent) {
             await streamWriter.write({ body: '', contextList })
+            session.contextListSent = true
         }
 
         for await (const chatEvent of response.generateAssistantResponseResponse!) {

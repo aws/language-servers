@@ -24,6 +24,7 @@ type DeferredHandler = {
 export class ChatSessionService {
     public shareCodeWhispererContentWithAWS = false
     public pairProgrammingMode: boolean = true
+    public contextListSent: boolean = false
     #abortController?: AbortController
     #conversationId?: string
     #amazonQServiceManager?: AmazonQBaseServiceManager
@@ -126,6 +127,7 @@ export class ChatSessionService {
     public clear(): void {
         this.#abortController?.abort()
         this.#conversationId = undefined
+        this.contextListSent = false
     }
 
     public dispose(): void {
