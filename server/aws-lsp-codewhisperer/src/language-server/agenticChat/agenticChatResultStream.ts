@@ -77,7 +77,7 @@ export class AgenticChatResultStream {
         }
 
         return chatResults
-            .filter(cr => cr.messageId == this.#state.messageId || only === undefined || only === cr.messageId)
+            .filter(cr => cr.messageId === this.#state.messageId || only === undefined || only === cr.messageId)
             .reduce<ChatResult>((acc, c) => {
                 if (c.messageId === this.#state.messageId) {
                     return {
@@ -85,6 +85,7 @@ export class AgenticChatResultStream {
                         buttons: [...(acc.buttons ?? []), ...(c.buttons ?? [])],
                         body: acc.body + AgenticChatResultStream.resultDelimiter + c.body,
                         ...(c.contextList && { contextList: c.contextList }),
+                        header: Object.prototype.hasOwnProperty.call(c, 'header') ? c.header : acc.header,
                     }
                 } else if (acc.additionalMessages!.some(am => am.messageId === c.messageId)) {
                     return {
@@ -131,7 +132,7 @@ export class AgenticChatResultStream {
                                         },
                                     },
                                 }),
-                            header: c.header ? { ...c.header } : { ...am.header },
+                            header: Object.prototype.hasOwnProperty.call(c, 'header') ? c.header : am.header,
                         })),
                     }
                 } else {
