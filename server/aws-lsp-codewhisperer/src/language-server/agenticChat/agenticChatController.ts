@@ -728,8 +728,9 @@ export class AgenticChatController implements ChatHandlers {
                 }
 
                 // After approval, add the path to the approved paths
-                if (path) {
-                    this.#addApprovedPath(tabId, (toolUse.input as any)?.path || (toolUse.input as any)?.cwd)
+                const inputPath = (toolUse.input as any)?.path || (toolUse.input as any)?.cwd
+                if (inputPath) {
+                    this.#addApprovedPath(tabId, inputPath)
                 }
 
                 const ws = this.#getWritableStream(chatResultStream, toolUse)
@@ -1907,16 +1908,24 @@ export class AgenticChatController implements ChatHandlers {
     /**
      * Adds a path to the approved paths list for a specific tab
      * @param tabId The tab ID
-     * @param path The path to add
+     * @param filePath The path to add
      */
-    #addApprovedPath(tabId: string, path: string): void {
+    #addApprovedPath(tabId: string, filePath: string): void {
+        if (!filePath) {
+            return
+        }
+
         let approvedPaths = this.#approvedPaths.get(tabId)
         if (!approvedPaths) {
             approvedPaths = new Set<string>()
             this.#approvedPaths.set(tabId, approvedPaths)
         }
-        approvedPaths.add(path)
-        this.#log(`Added approved path for tab ${tabId}: ${path}`)
+
+        // Normalize path separators for consistent comparison
+        const normalizedPath = filePath.replace(/\\/g, '/')
+        approvedPaths.add(normalizedPath)
+
+        this.#log(`Added approved path for tab ${tabId}: ${normalizedPath}`)
     }
 
     #debug(...messages: string[]) {

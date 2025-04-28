@@ -63,17 +63,33 @@ export function isPathApproved(filePath: string, approvedPaths?: Set<string>): b
         return false
     }
 
-    // Check if the exact path is approved
-    if (approvedPaths.has(filePath)) {
+    // Normalize path separators for consistent comparison
+    const normalizedPath = filePath.replace(/\\/g, '/')
+
+    // Check if the exact path is approved (try both original and normalized)
+    if (approvedPaths.has(filePath) || approvedPaths.has(normalizedPath)) {
         return true
     }
 
     // Check if any parent directory is approved
-    let currentPath = filePath
-    while (currentPath !== '/' && currentPath !== path.parse(currentPath).root) {
-        currentPath = path.dirname(currentPath)
-        if (approvedPaths.has(currentPath)) {
+    let currentPath = normalizedPath
+    const rootDir = path.parse(filePath).root.replace(/\\/g, '/')
+
+    while (currentPath !== rootDir) {
+        currentPath = path.dirname(currentPath).replace(/\\/g, '/')
+
+        // Check both with and without trailing slash for compatibility
+        if (
+            approvedPaths.has(currentPath) ||
+            approvedPaths.has(currentPath + '/') ||
+            approvedPaths.has(currentPath.replace(/\/$/, ''))
+        ) {
             return true
+        }
+
+        // Stop if we've reached the root
+        if (currentPath === '/' || currentPath === rootDir || currentPath === '.') {
+            break
         }
     }
 
