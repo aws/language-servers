@@ -1,7 +1,7 @@
 import { ChatResult, FileDetails, ChatMessage } from '@aws/language-server-runtimes/protocol'
 import { randomUUID } from 'crypto'
 
-interface ResultStreamWriter {
+export interface ResultStreamWriter {
     write(chunk: ChatResult, final?: boolean): Promise<void>
     close(): Promise<void>
 }
@@ -183,6 +183,10 @@ export class AgenticChatResultStream {
 
         return {
             write: async (intermediateChatResult: ChatMessage) => {
+                const isLoading = intermediateChatResult.messageId?.startsWith('loading-')
+                if (isLoading) {
+                    return await this.#sendProgress(intermediateChatResult)
+                }
                 this.#state.messageId = intermediateChatResult.messageId
                 const combinedResult = this.#joinResults(
                     [...this.#state.chatResultBlocks, intermediateChatResult],

@@ -16,6 +16,7 @@ import {
     ToolResultContentBlock,
     ToolResultStatus,
     ToolUse,
+    ToolUseEvent,
 } from '@amzn/codewhisperer-streaming'
 import {
     Button,
@@ -72,7 +73,7 @@ import { ChatTelemetryController } from '../chat/telemetry/chatTelemetryControll
 import { QuickAction } from '../chat/quickActions'
 import { Metric } from '../../shared/telemetry/metric'
 import { getErrorMessage, getHttpStatusCode, isAwsError, isNullish, isObject } from '../../shared/utils'
-import { HELP_MESSAGE } from '../chat/constants'
+import { HELP_MESSAGE, loadingMessage } from '../chat/constants'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import {
     AmazonQServicePendingProfileError,
@@ -87,7 +88,7 @@ import {
     ChatResultWithMetadata as AgenticChatResultWithMetadata,
 } from './agenticChatEventParser'
 import { ChatSessionService } from '../chat/chatSessionService'
-import { AgenticChatResultStream } from './agenticChatResultStream'
+import { AgenticChatResultStream, ResultStreamWriter } from './agenticChatResultStream'
 import { executeToolMessage, toolErrorMessage, toolResultMessage } from './textFormatting'
 import {
     AdditionalContentEntryAddition,
@@ -107,7 +108,7 @@ import { ExplanatoryParams, InvokeOutput, ToolApprovalException } from './tools/
 import { FileSearch, FileSearchParams } from './tools/fileSearch'
 import { diffLines } from 'diff'
 import { CodeSearch } from './tools/codeSearch'
-import { genericErrorMsg, maxAgentLoopIterations } from './constants'
+import { genericErrorMsg, maxAgentLoopIterations, loadingThresholdMs } from './constants'
 import { URI } from 'vscode-uri'
 import { AgenticChatError } from './errors'
 
@@ -503,10 +504,16 @@ export class AgenticChatController implements ChatHandlers {
                 ? []
                 : this.#chatHistoryDb.getMessages(tabId)
 
+            // Add loading message before making the request
+            const loadingMessageId = `loading-${uuid()}`
+            await chatResultStream.writeResultBlock({ ...loadingMessage, messageId: loadingMessageId })
+
             // Phase 3: Request Execution
             this.#log(`Q Model Request: ${JSON.stringify(currentRequestInput)}`)
             const response = await session.generateAssistantResponse(currentRequestInput)
             this.#log(`Q Model Response: ${JSON.stringify(response)}`)
+
+            await chatResultStream.removeResultBlock(loadingMessageId)
 
             //  Add the current user message to the history DB
             if (currentMessage && conversationIdentifier) {
@@ -1784,6 +1791,8 @@ export class AgenticChatController implements ChatHandlers {
             await streamWriter.write({ body: '', contextList })
         }
 
+        const toolUseStartTimes: Record<string, number> = {}
+        const toolUseLoadingTimeouts: Record<string, NodeJS.Timeout> = {}
         for await (const chatEvent of response.generateAssistantResponseResponse!) {
             if (chatEvent.assistantResponseEvent) {
                 await this.#showUndoAllIfRequired(chatResultStream, session)
@@ -1799,6 +1808,15 @@ export class AgenticChatController implements ChatHandlers {
             if (chatEvent.assistantResponseEvent) {
                 await streamWriter.write(result.data.chatResult)
             }
+
+            if (chatEvent.toolUseEvent) {
+                await this.#showLoadingIfRequired(
+                    chatEvent.toolUseEvent,
+                    streamWriter,
+                    toolUseStartTimes,
+                    toolUseLoadingTimeouts
+                )
+            }
         }
         await streamWriter.close()
 
@@ -1811,6 +1829,41 @@ export class AgenticChatController implements ChatHandlers {
         })
 
         return chatEventParser.getResult()
+    }
+
+    /**
+     * This is needed to handle the case where a toolUseEvent takes a long time to resolve the stream and looks like
+     * nothing is happening.
+     */
+    async #showLoadingIfRequired(
+        toolUseEvent: ToolUseEvent,
+        streamWriter: ResultStreamWriter,
+        toolUseStartTimes: Record<string, number>,
+        toolUseLoadingTimeouts: Record<string, NodeJS.Timeout>
+    ) {
+        const toolUseId = toolUseEvent.toolUseId
+        if (!toolUseEvent.stop && toolUseId) {
+            if (!toolUseStartTimes[toolUseId]) {
+                toolUseStartTimes[toolUseId] = Date.now()
+                this.#debug(`ToolUseEvent ${toolUseId} started`)
+                toolUseLoadingTimeouts[toolUseId] = setTimeout(async () => {
+                    this.#debug(
+                        `ToolUseEvent ${toolUseId} is taking longer than ${loadingThresholdMs}ms, showing loading indicator`
+                    )
+                    await streamWriter.write({ ...loadingMessage, messageId: `loading-${toolUseId}` })
+                }, loadingThresholdMs)
+            }
+        } else if (toolUseEvent.stop && toolUseId) {
+            if (toolUseStartTimes[toolUseId]) {
+                const duration = Date.now() - toolUseStartTimes[toolUseId]
+                this.#debug(`ToolUseEvent ${toolUseId} finished streaming after ${duration}ms`)
+                if (toolUseLoadingTimeouts[toolUseId]) {
+                    clearTimeout(toolUseLoadingTimeouts[toolUseId])
+                    delete toolUseLoadingTimeouts[toolUseId]
+                }
+                delete toolUseStartTimes[toolUseId]
+            }
+        }
     }
 
     async #processSendMessageResponseForInlineChat(

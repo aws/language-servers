@@ -14,6 +14,7 @@ import {
 import { Result } from '../types'
 import { AddMessageEvent } from '../../shared/telemetry/types'
 import { Metric } from '../../shared/telemetry/metric'
+import { AgenticChatResultStream } from './agenticChatResultStream'
 
 export type ChatResultWithMetadata = {
     chatResult: ChatResult
