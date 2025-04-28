@@ -89,11 +89,25 @@ export class ListDirectory {
         return {
             name: 'listDirectory',
             description:
-                'List the contents of a directory and its subdirectories, it will ignore directories such as `build/`, `out/`, `dist/` and `node_modules/`.\
-                \n * Use this tool for discovery such as exploring the codebase or project. This tool is more effective than running a command like \`ls\` using `executeBash` tool.\
-                \n * Useful to try to understand the file structure before diving deeper into specific files.\
-                \n * Do not use this tool to confirm the existence of files you may have created, as the user will let you know if the files were created successfully or not.\
-                \n * Results clearly distinguish between files, directories or symlinks with [F], [D] and [L] prefixes.',
+                'List the contents of a directory and its subdirectories.\n\n' +
+                '## Overview\n' +
+                'This tool recursively lists directory contents, ignoring common build and dependency directories.\n\n' +
+                '## When to use\n' +
+                '- When exploring a codebase or project structure\n' +
+                '- When you need to discover files in a directory hierarchy\n' +
+                '- When you need to understand the organization of a project\n\n' +
+                '## When not to use\n' +
+                '- When you already know the exact file path you need\n' +
+                '- When you need to confirm the existence of files you may have created (the user will let you know if files were created successfully)\n' +
+                '- When you need to search for specific file patterns (consider using a search tool instead)\n\n' +
+                '## Notes\n' +
+                '- This tool will ignore directories such as `build/`, `out/`, `dist/` and `node_modules/`\n' +
+                '- This tool is more effective than running a command like `ls` using `executeBash` tool\n' +
+                '- Results clearly distinguish between files, directories or symlinks with [F], [D] and [L] prefixes\n' +
+                '- Use the `maxDepth` parameter to control how deep the directory traversal goes\n\n' +
+                '## Related tools\n' +
+                '- fsRead: Use to examine files after finding them\n' +
+                '- fsWrite: Use to modify files after finding them',
             inputSchema: {
                 type: 'object',
                 properties: {
