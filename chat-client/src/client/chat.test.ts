@@ -311,7 +311,7 @@ describe('Chat', () => {
 
         window.dispatchEvent(chatEvent)
         assert.notCalled(endMessageStreamStub)
-        assert.notCalled(updateStoreStub)
+        assert.calledOnce(updateStoreStub)
     })
 
     describe('chatOptions', () => {
