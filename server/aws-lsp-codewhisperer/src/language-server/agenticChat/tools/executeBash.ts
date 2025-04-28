@@ -144,7 +144,7 @@ export interface ExecuteBashOutput {
  * Determines if the current platform should use Windows-style commands
  * @returns true if the platform should use Windows command shell, false for Unix-like shells
  */
-export function isWindowsPlatform(): boolean {
+function isWindowsPlatform(): boolean {
     return process.platform === 'win32'
 }
 
