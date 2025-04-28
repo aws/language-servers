@@ -23,9 +23,7 @@ import {
     InsertToCursorPositionParams,
     TextDocumentEdit,
     InlineChatResult,
-    CancellationToken,
     CancellationTokenSource,
-    ErrorCodes,
 } from '@aws/language-server-runtimes/server-interface'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import * as assert from 'assert'
@@ -1025,6 +1023,26 @@ describe('AgenticChatController', () => {
             const typedChatResult = chatResult as ResponseError<ChatResult>
             assert.strictEqual(typedChatResult.data?.body, genericErrorMsg)
             assert.strictEqual(typedChatResult.message, 'invalid state')
+        })
+
+        it('returns a user-friendly message when input is too long', async () => {
+            generateAssistantResponseStub.restore()
+            generateAssistantResponseStub = sinon.stub(CodeWhispererStreaming.prototype, 'generateAssistantResponse')
+            generateAssistantResponseStub.callsFake(() => {
+                const error = new Error('Input is too long')
+                throw error
+            })
+
+            const chatResult = await chatController.onChatPrompt(
+                { tabId: mockTabId, prompt: { prompt: 'Hello with large context' } },
+                mockCancellationToken
+            )
+
+            const typedChatResult = chatResult as ResponseError<ChatResult>
+            assert.strictEqual(
+                typedChatResult.data?.body,
+                'Too much context loaded. Please start a new conversation or ask about specific files.'
+            )
         })
 
         describe('#extractDocumentContext', () => {
