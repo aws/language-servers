@@ -767,7 +767,7 @@ export const createMynahUi = (
             // file diffs in the header need space
             fullWidth: message.type === 'tool' && message.header?.buttons ? true : undefined,
             padding,
-
+            wrapCodes: message.type === 'tool',
             codeBlockActions:
                 message.type === 'tool'
                     ? { 'insert-to-cursor': null, copy: null }
