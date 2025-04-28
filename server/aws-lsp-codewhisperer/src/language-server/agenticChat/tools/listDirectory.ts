@@ -52,8 +52,11 @@ export class ListDirectory {
         await closeWriter(writer)
     }
 
-    public async requiresAcceptance(params: ListDirectoryParams): Promise<CommandValidation> {
-        return requiresPathAcceptance(params.path, this.lsp, this.logging)
+    public async requiresAcceptance(
+        params: ListDirectoryParams,
+        approvedPaths?: Set<string>
+    ): Promise<CommandValidation> {
+        return requiresPathAcceptance(params.path, this.lsp, this.logging, approvedPaths)
     }
 
     public async invoke(params: ListDirectoryParams, token?: CancellationToken): Promise<InvokeOutput> {

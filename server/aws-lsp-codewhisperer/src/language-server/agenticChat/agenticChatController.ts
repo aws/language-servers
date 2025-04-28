@@ -135,6 +135,8 @@ export class AgenticChatController implements ChatHandlers {
     #additionalContextProvider: AdditionalContextProvider
     #contextCommandsProvider: ContextCommandsProvider
     #stoppedToolUses = new Set<string>()
+    // Map to store approved paths per tab to avoid repeated validation
+    #approvedPaths = new Map<string, Set<string>>()
 
     /**
      * Determines the appropriate message ID for a tool use based on tool type and name
@@ -673,7 +675,15 @@ export class AgenticChatController implements ChatHandlers {
 
                         const { Tool } = toolMap[toolUse.name as keyof typeof toolMap]
                         const tool = new Tool(this.#features)
-                        const { requiresAcceptance, warning } = await tool.requiresAcceptance(toolUse.input as any)
+
+                        // Get the approved paths for this tab
+                        const approvedPaths = this.#approvedPaths.get(tabId)
+
+                        // Pass the approved paths to the tool's requiresAcceptance method
+                        const { requiresAcceptance, warning } = await tool.requiresAcceptance(
+                            toolUse.input as any,
+                            approvedPaths
+                        )
 
                         if (requiresAcceptance || toolUse.name === 'executeBash') {
                             // for executeBash, we till send the confirmation message without action buttons
@@ -715,6 +725,11 @@ export class AgenticChatController implements ChatHandlers {
                         ...toolUse,
                         fileChange: { before: document?.getText() },
                     })
+                }
+
+                // After approval, add the path to the approved paths
+                if (path) {
+                    this.#addApprovedPath(tabId, (toolUse.input as any)?.path || (toolUse.input as any)?.cwd)
                 }
 
                 const ws = this.#getWritableStream(chatResultStream, toolUse)
@@ -1118,6 +1133,8 @@ export class AgenticChatController implements ChatHandlers {
                       ]
                     : []
                 header = {
+                    icon: 'warning',
+                    iconForegroundStatus: 'warning',
                     body: 'shell',
                     buttons,
                 }
@@ -1666,6 +1683,9 @@ export class AgenticChatController implements ChatHandlers {
         this.#chatHistoryDb.updateTabOpenState(params.tabId, false)
         this.#chatSessionManagementService.deleteSession(params.tabId)
         this.#telemetryController.removeConversation(params.tabId)
+
+        // Clear approved paths for this tab
+        this.#approvedPaths.delete(params.tabId)
     }
 
     onQuickAction(params: QuickActionParams, _cancellationToken: CancellationToken) {
@@ -1882,6 +1902,21 @@ export class AgenticChatController implements ChatHandlers {
 
     #log(...messages: string[]) {
         this.#features.logging.log(messages.join(' '))
+    }
+
+    /**
+     * Adds a path to the approved paths list for a specific tab
+     * @param tabId The tab ID
+     * @param path The path to add
+     */
+    #addApprovedPath(tabId: string, path: string): void {
+        let approvedPaths = this.#approvedPaths.get(tabId)
+        if (!approvedPaths) {
+            approvedPaths = new Set<string>()
+            this.#approvedPaths.set(tabId, approvedPaths)
+        }
+        approvedPaths.add(path)
+        this.#log(`Added approved path for tab ${tabId}: ${path}`)
     }
 
     #debug(...messages: string[]) {

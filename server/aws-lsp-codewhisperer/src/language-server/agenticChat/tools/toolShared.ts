@@ -1,6 +1,7 @@
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 import { workspaceUtils } from '@aws/lsp-core'
 import { getWorkspaceFolderPaths } from '@aws/lsp-core/out/util/workspaceUtils'
+import * as path from 'path'
 
 interface Output<Kind, Content> {
     kind: Kind
@@ -52,20 +53,56 @@ export enum OutputKind {
 }
 
 /**
+ * Checks if a path has already been approved
+ * @param path The path to check
+ * @param approvedPaths Set of approved paths
+ * @returns True if the path or any parent directory has been approved
+ */
+export function isPathApproved(filePath: string, approvedPaths?: Set<string>): boolean {
+    if (!approvedPaths || approvedPaths.size === 0) {
+        return false
+    }
+
+    // Check if the exact path is approved
+    if (approvedPaths.has(filePath)) {
+        return true
+    }
+
+    // Check if any parent directory is approved
+    let currentPath = filePath
+    while (currentPath !== '/' && currentPath !== path.parse(currentPath).root) {
+        currentPath = path.dirname(currentPath)
+        if (approvedPaths.has(currentPath)) {
+            return true
+        }
+    }
+
+    return false
+}
+
+/**
  * Shared implementation to check if a file path requires user acceptance.
  * Returns true when the file is not resolvable within our workspace (i.e., is outside of our workspace).
+ * If the path has already been approved (in approvedPaths), returns false.
  *
  * @param path The file path to check
  * @param lsp The LSP feature to get workspace folders
  * @param logging Optional logging feature for better error reporting
+ * @param approvedPaths Optional set of paths that have already been approved
  * @returns CommandValidation object with requiresAcceptance flag
  */
 export async function requiresPathAcceptance(
     path: string,
     lsp: Features['lsp'],
-    logging: Features['logging']
+    logging: Features['logging'],
+    approvedPaths?: Set<string>
 ): Promise<CommandValidation> {
     try {
+        // First check if the path is already approved
+        if (isPathApproved(path, approvedPaths)) {
+            return { requiresAcceptance: false }
+        }
+
         const workspaceFolders = getWorkspaceFolderPaths(lsp)
         if (!workspaceFolders || workspaceFolders.length === 0) {
             if (logging) {

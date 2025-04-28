@@ -130,8 +130,8 @@ export class FsWrite {
         updateWriter.releaseLock()
     }
 
-    public async requiresAcceptance(params: FsWriteParams): Promise<CommandValidation> {
-        return requiresPathAcceptance(params.path, this.lsp, this.logging)
+    public async requiresAcceptance(params: FsWriteParams, approvedPaths?: Set<string>): Promise<CommandValidation> {
+        return requiresPathAcceptance(params.path, this.lsp, this.logging, approvedPaths)
     }
 
     private async handleCreate(params: CreateParams, sanitizedPath: string): Promise<void> {
