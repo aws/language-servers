@@ -2,6 +2,32 @@ import { ChatResult, FileDetails, ChatMessage } from '@aws/language-server-runti
 import { randomUUID } from 'crypto'
 
 export interface ResultStreamWriter {
+    /**
+     * Writes a result block to the chat result stream.
+     *
+     * This method sends a partial result to the client during a streaming response.
+     * It handles various types of content including assistant responses, loading indicators,
+     * and context lists that should be displayed to the user.
+     *
+     * @param result - The result block to write to the stream
+     * @param final - Optional flag indicating if this is the final write in the stream
+     *
+     * @returns A Promise that resolves when the write operation is complete
+     *
+     * @throws Will throw an error if the stream has been closed or if writing fails
+     *
+     * @example
+     * // Write a regular text response
+     * await streamWriter.write({ body: 'Hello, how can I help?', type: 'answer-stream' });
+     *
+     * // Write a loading indicator for a tool use operation
+     * // Note: This will be treated as a separate block and not joined with other results
+     * await streamWriter.write({ body: '', type: 'answer-stream', messageId: `loading-${toolUseId}` });
+     *
+     * // Write context files information
+     * await streamWriter.write({ body: '', contextList: files });
+     */
+
     write(chunk: ChatResult, final?: boolean): Promise<void>
     close(): Promise<void>
 }
