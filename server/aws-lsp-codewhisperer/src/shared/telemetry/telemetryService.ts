@@ -391,6 +391,15 @@ export class TelemetryService {
             chatFollowUpCount?: number
             chatConversationType: ChatConversationType
             chatActiveEditorImportCount?: number
+            cwsprChatHasContextList: boolean
+            cwsprChatFolderContextCount: number
+            cwsprChatFileContextCount: number
+            cwsprChatFileContextLength: number
+            cwsprChatRuleContextCount: number
+            cwsprChatRuleContextLength: number
+            cwsprChatPromptContextCount: number
+            cwsprChatPromptContextLength: number
+            cwsprChatFocusFileContextLength: number
             languageServerVersion?: string
         }>
     ) {
@@ -423,6 +432,15 @@ export class TelemetryService {
                     cwsprChatActiveEditorTotalCharacters: params.activeEditorTotalCharacters,
                     cwsprChatActiveEditorImportCount: additionalParams.chatActiveEditorImportCount,
                     codewhispererCustomizationArn: params.customizationArn,
+                    cwsprChatHasContextList: additionalParams.cwsprChatHasContextList,
+                    cwsprChatFolderContextCount: additionalParams.cwsprChatFolderContextCount,
+                    cwsprChatFileContextCount: additionalParams.cwsprChatFileContextCount,
+                    cwsprChatRuleContextCount: additionalParams.cwsprChatRuleContextCount,
+                    cwsprChatPromptContextCount: additionalParams.cwsprChatPromptContextCount,
+                    cwsprChatFileContextLength: additionalParams.cwsprChatFileContextLength,
+                    cwsprChatRuleContextLength: additionalParams.cwsprChatRuleContextLength,
+                    cwsprChatPromptContextLength: additionalParams.cwsprChatPromptContextLength,
+                    cwsprChatFocusFileContextLength: additionalParams.cwsprChatFileContextLength,
                     result: 'Succeeded',
                     languageServerVersion: additionalParams.languageServerVersion,
                 },
