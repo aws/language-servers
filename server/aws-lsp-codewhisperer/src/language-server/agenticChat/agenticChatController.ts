@@ -564,6 +564,7 @@ export class AgenticChatController implements ChatHandlers {
             if (result.success) {
                 // Process tool uses and update the request input for the next iteration
                 toolResults = await this.#processToolUses(pendingToolUses, chatResultStream, session, tabId, token)
+                metric.setDimension('cwsprChatConversationType', 'AgenticChatWithToolUse')
             } else {
                 // Send an error card to UI?
                 toolResults = pendingToolUses.map(toolUse => ({
