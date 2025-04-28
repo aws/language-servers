@@ -337,11 +337,13 @@ describe('AgenticChatController', () => {
             const chatResult = await chatResultPromise
 
             sinon.assert.callCount(testFeatures.lsp.sendProgress, 0)
+
             assert.deepStrictEqual(chatResult, {
                 additionalMessages: [],
                 body: '\n\nHello World!',
                 messageId: 'mock-message-id',
                 buttons: [],
+                header: undefined,
             })
         })
 
@@ -906,6 +908,7 @@ describe('AgenticChatController', () => {
                 body: '\n\nHello World!',
                 messageId: 'mock-message-id',
                 buttons: [],
+                header: undefined,
             })
         })
 
@@ -923,6 +926,7 @@ describe('AgenticChatController', () => {
                 body: '\n\nHello World!',
                 messageId: 'mock-message-id',
                 buttons: [],
+                header: undefined,
             })
         })
 

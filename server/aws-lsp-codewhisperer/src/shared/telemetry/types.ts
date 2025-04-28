@@ -231,6 +231,17 @@ export type AddMessageEvent = {
     cwsprChatConversationType: ChatConversationType
     codewhispererCustomizationArn?: string
     languageServerVersion?: string
+
+    // context related metrics
+    cwsprChatHasContextList?: boolean
+    cwsprChatFolderContextCount?: number
+    cwsprChatFileContextCount?: number
+    cwsprChatFileContextLength?: number
+    cwsprChatRuleContextCount?: number
+    cwsprChatRuleContextLength?: number
+    cwsprChatPromptContextCount?: number
+    cwsprChatPromptContextLength?: number
+    cwsprChatFocusFileContextLength?: number
 }
 
 export type EnterFocusChatEvent = {

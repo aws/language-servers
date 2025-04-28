@@ -106,6 +106,7 @@ import { FsWrite, FsWriteParams } from './tools/fsWrite'
 import { ExecuteBash, ExecuteBashOutput, ExecuteBashParams } from './tools/executeBash'
 import { ExplanatoryParams, InvokeOutput, ToolApprovalException } from './tools/toolShared'
 import { FileSearch, FileSearchParams } from './tools/fileSearch'
+import { loggingUtils } from '@aws/lsp-core'
 import { diffLines } from 'diff'
 import { CodeSearch } from './tools/codeSearch'
 import { genericErrorMsg, maxAgentLoopIterations, loadingThresholdMs } from './constants'
@@ -509,9 +510,11 @@ export class AgenticChatController implements ChatHandlers {
             await chatResultStream.writeResultBlock({ ...loadingMessage, messageId: loadingMessageId })
 
             // Phase 3: Request Execution
-            this.#log(`Q Model Request: ${JSON.stringify(currentRequestInput)}`)
+            this.#debug(
+                `Q Model Request: ${loggingUtils.formatObj(currentRequestInput, { depth: 5, omitKeys: ['history'] })}`
+            )
             const response = await session.generateAssistantResponse(currentRequestInput)
-            this.#log(`Q Model Response: ${JSON.stringify(response)}`)
+            this.#debug(`Q Model Response: ${loggingUtils.formatObj(response, { depth: 5 })}`)
 
             await chatResultStream.removeResultBlock(loadingMessageId)
 
@@ -555,6 +558,8 @@ export class AgenticChatController implements ChatHandlers {
                         input: result.data!.toolUses[k].input,
                     })),
                 })
+            } else {
+                this.#features.logging.warn('No ChatResult body in response, skipping adding to history')
             }
 
             // Check if we have any tool uses that need to be processed
@@ -708,6 +713,7 @@ export class AgenticChatController implements ChatHandlers {
                         // no need to write tool message for code search.
                         break
                     default:
+                        this.#features.logging.warn(`Recieved unrecognized tool: ${toolUse.name}`)
                         await chatResultStream.writeResultBlock({
                             type: 'tool',
                             body: `${executeToolMessage(toolUse)}`,
@@ -778,6 +784,7 @@ export class AgenticChatController implements ChatHandlers {
                         await chatResultStream.writeResultBlock(chatResult)
                         break
                     default:
+                        this.#features.logging.warn(`Processing unrecognized tool: ${toolUse.name}`)
                         await chatResultStream.writeResultBlock({
                             type: 'tool',
                             body: toolResultMessage(toolUse, result),
@@ -811,7 +818,7 @@ export class AgenticChatController implements ChatHandlers {
                                     })
                                 }
                             } else {
-                                this.#features.logging.log('Failed to update tool block: no blockId is available.')
+                                this.#features.logging.warn('Failed to update tool block: no blockId is available.')
                             }
                         }
                         throw err
@@ -933,27 +940,52 @@ export class AgenticChatController implements ChatHandlers {
         if (toolUse.name !== 'executeBash') {
             return
         }
+
+        const toolMsgId = toolUse.toolUseId!
+        const chatMsgId = chatResultStream.getResult().messageId
+        let headerEmitted = false
+
+        const initialHeader: ChatMessage['header'] = {
+            body: 'shell',
+            status: { status: 'success', icon: 'ok', text: '' },
+            buttons: [{ id: 'stop-shell-command', text: 'Stop', icon: 'stop' }],
+        }
+
         const completedHeader: ChatMessage['header'] = {
             body: 'shell',
             status: { status: 'success', icon: 'ok', text: 'Completed' },
             buttons: [],
         }
+
         return new WritableStream({
             write: async chunk => {
-                if (this.#stoppedToolUses.has(toolUse.toolUseId!)) return
+                if (this.#stoppedToolUses.has(toolMsgId)) return
+
                 await chatResultStream.writeResultBlock({
                     type: 'tool',
+                    messageId: toolMsgId,
                     body: chunk,
-                    messageId: toolUse.toolUseId,
+                    header: headerEmitted ? undefined : initialHeader,
                 })
+
+                headerEmitted = true
             },
+
             close: async () => {
-                if (this.#stoppedToolUses.has(toolUse.toolUseId!)) return
+                if (this.#stoppedToolUses.has(toolMsgId)) return
+
                 await chatResultStream.writeResultBlock({
                     type: 'tool',
+                    messageId: toolMsgId,
                     body: '```',
-                    messageId: toolUse.toolUseId,
                     header: completedHeader,
+                })
+
+                await chatResultStream.writeResultBlock({
+                    type: 'answer',
+                    messageId: chatMsgId,
+                    body: '',
+                    header: undefined,
                 })
             },
         })
@@ -1344,6 +1376,18 @@ export class AgenticChatController implements ChatHandlers {
 
         metric.setDimension('codewhispererCustomizationArn', this.#customizationArn)
         metric.setDimension('languageServerVersion', this.#features.runtime.serverInfo.version)
+        if (triggerContext.contextInfo) {
+            metric.mergeWith({
+                cwsprChatHasContextList: triggerContext.documentReference?.filePaths?.length ? true : false,
+                cwsprChatFolderContextCount: triggerContext.contextInfo.contextCount.folderContextCount,
+                cwsprChatFileContextCount: triggerContext.contextInfo.contextCount.fileContextCount,
+                cwsprChatRuleContextCount: triggerContext.contextInfo.contextCount.ruleContextCount,
+                cwsprChatPromptContextCount: triggerContext.contextInfo.contextCount.promptContextCount,
+                cwsprChatFileContextLength: triggerContext.contextInfo.contextLength.fileContextLength,
+                cwsprChatRuleContextLength: triggerContext.contextInfo.contextLength.ruleContextLength,
+                cwsprChatPromptContextLength: triggerContext.contextInfo.contextLength.promptContextLength,
+            })
+        }
         await this.#telemetryController.emitAddMessageMetric(params.tabId, metric.metric)
 
         this.#telemetryController.updateTriggerInfo(params.tabId, {
@@ -1783,7 +1827,7 @@ export class AgenticChatController implements ChatHandlers {
         contextList?: FileList
     ): Promise<Result<AgenticChatResultWithMetadata, string>> {
         const requestId = response.$metadata.requestId!
-        const chatEventParser = new AgenticChatEventParser(requestId, metric)
+        const chatEventParser = new AgenticChatEventParser(requestId, metric, this.#features.logging)
         const streamWriter = chatResultStream.getResultStreamWriter()
 
         // Display context transparency list once at the beginning of response

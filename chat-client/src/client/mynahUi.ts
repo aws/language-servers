@@ -39,7 +39,6 @@ import {
     NotificationType,
     MynahUIProps,
     QuickActionCommand,
-    ChatItemFormItem,
     ChatItemButton,
 } from '@aws/mynah-ui'
 import { VoteParams } from '../contracts/telemetry'
@@ -57,12 +56,7 @@ import {
     toMynahIcon,
 } from './utils'
 import { ChatHistory, ChatHistoryList } from './features/history'
-import {
-    pairProgrammingModeOff,
-    pairProgrammingModeOn,
-    pairProgrammingPromptInput,
-    programmerModeCard,
-} from './texts/pairProgramming'
+import { pairProgrammingModeOff, pairProgrammingModeOn, programmerModeCard } from './texts/pairProgramming'
 
 export interface InboundChatApi {
     addChatResponse(params: ChatResult, tabId: string, isPartialResult: boolean): void

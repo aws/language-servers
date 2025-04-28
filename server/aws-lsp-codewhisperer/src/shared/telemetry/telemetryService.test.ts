@@ -825,7 +825,17 @@ describe('TelemetryService', () => {
                     responseLength: 3000,
                     numberOfCodeBlocks: 0,
                 },
-                {}
+                {
+                    cwsprChatHasContextList: true,
+                    cwsprChatFolderContextCount: 0,
+                    cwsprChatFileContextCount: 0,
+                    cwsprChatRuleContextCount: 0,
+                    cwsprChatPromptContextCount: 0,
+                    cwsprChatFileContextLength: 0,
+                    cwsprChatRuleContextLength: 0,
+                    cwsprChatPromptContextLength: 0,
+                    cwsprChatFocusFileContextLength: 0,
+                }
             )
 
             const expectedEvent = {
@@ -878,6 +888,15 @@ describe('TelemetryService', () => {
                     codewhispererCustomizationArn: 'cust-123',
                     result: 'Succeeded',
                     languageServerVersion: undefined,
+                    cwsprChatHasContextList: true,
+                    cwsprChatFolderContextCount: 0,
+                    cwsprChatFileContextCount: 0,
+                    cwsprChatRuleContextCount: 0,
+                    cwsprChatPromptContextCount: 0,
+                    cwsprChatFileContextLength: 0,
+                    cwsprChatRuleContextLength: 0,
+                    cwsprChatPromptContextLength: 0,
+                    cwsprChatFocusFileContextLength: 0,
                 },
             })
         })
