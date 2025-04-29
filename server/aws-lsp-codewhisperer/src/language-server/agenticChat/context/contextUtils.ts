@@ -8,11 +8,13 @@ export interface ContextInfo {
         folderContextCount: number
         promptContextCount: number
         ruleContextCount: number
+        codeContextCount: number
     }
     contextLength: {
         fileContextLength: number
         ruleContextLength: number
         promptContextLength: number
+        codeContextLength: number
     }
 }
 
@@ -22,11 +24,13 @@ export const initialContextInfo: ContextInfo = {
         folderContextCount: 0,
         promptContextCount: 0,
         ruleContextCount: 0,
+        codeContextCount: 0,
     },
     contextLength: {
         fileContextLength: 0,
         ruleContextLength: 0,
         promptContextLength: 0,
+        codeContextLength: 0,
     },
 }
 

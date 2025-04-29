@@ -740,9 +740,11 @@ describe('TelemetryService', () => {
                     cwsprChatFileContextCount: 0,
                     cwsprChatRuleContextCount: 0,
                     cwsprChatPromptContextCount: 0,
+                    cwsprChatCodeContextCount: 2,
                     cwsprChatFileContextLength: 0,
                     cwsprChatRuleContextLength: 0,
                     cwsprChatPromptContextLength: 0,
+                    cwsprChatCodeContextLength: 500,
                     cwsprChatFocusFileContextLength: 0,
                 }
             )
@@ -802,9 +804,11 @@ describe('TelemetryService', () => {
                     cwsprChatFileContextCount: 0,
                     cwsprChatRuleContextCount: 0,
                     cwsprChatPromptContextCount: 0,
+                    cwsprChatCodeContextCount: 2,
                     cwsprChatFileContextLength: 0,
                     cwsprChatRuleContextLength: 0,
                     cwsprChatPromptContextLength: 0,
+                    cwsprChatCodeContextLength: 500,
                     cwsprChatFocusFileContextLength: 0,
                 },
             })

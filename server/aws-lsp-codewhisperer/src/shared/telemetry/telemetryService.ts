@@ -399,6 +399,8 @@ export class TelemetryService {
             cwsprChatRuleContextLength: number
             cwsprChatPromptContextCount: number
             cwsprChatPromptContextLength: number
+            cwsprChatCodeContextCount: number
+            cwsprChatCodeContextLength: number
             cwsprChatFocusFileContextLength: number
             languageServerVersion?: string
         }>
@@ -441,6 +443,8 @@ export class TelemetryService {
                     cwsprChatRuleContextLength: additionalParams.cwsprChatRuleContextLength,
                     cwsprChatPromptContextLength: additionalParams.cwsprChatPromptContextLength,
                     cwsprChatFocusFileContextLength: additionalParams.cwsprChatFileContextLength,
+                    cwsprChatCodeContextCount: additionalParams.cwsprChatCodeContextCount,
+                    cwsprChatCodeContextLength: additionalParams.cwsprChatCodeContextLength,
                     result: 'Succeeded',
                     languageServerVersion: additionalParams.languageServerVersion,
                 },
