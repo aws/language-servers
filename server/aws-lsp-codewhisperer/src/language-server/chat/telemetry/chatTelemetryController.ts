@@ -282,7 +282,7 @@ export class ChatTelemetryController {
                 cwsprChatProgrammingLanguage: metric.cwsprChatProgrammingLanguage,
                 cwsprChatActiveEditorTotalCharacters: metric.cwsprChatActiveEditorTotalCharacters,
                 cwsprChatActiveEditorImportCount: metric.cwsprChatActiveEditorImportCount,
-                cwsprChatRepsonseCode: metric.cwsprChatRepsonseCode,
+                cwsprChatResponseCode: metric.cwsprChatResponseCode,
                 cwsprChatRequestLength: metric.cwsprChatRequestLength,
                 cwsprChatConversationType: metric.cwsprChatConversationType,
                 requestId: requestId,
