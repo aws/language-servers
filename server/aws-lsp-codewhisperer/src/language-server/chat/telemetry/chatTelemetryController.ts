@@ -239,6 +239,7 @@ export class ChatTelemetryController {
                 cwsprChatPromptContextLength: metric.cwsprChatPromptContextLength,
                 cwsprChatCodeContextLength: metric.cwsprChatCodeContextLength,
                 cwsprChatCodeContextCount: metric.cwsprChatCodeContextCount,
+                cwsprChatFocusFileContextLength: metric.cwsprChatFocusFileContextLength,
                 languageServerVersion: metric.languageServerVersion,
             }
         )

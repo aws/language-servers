@@ -1404,6 +1404,7 @@ export class AgenticChatController implements ChatHandlers {
                 cwsprChatPromptContextLength: triggerContext.contextInfo.contextLength.promptContextLength,
                 cwsprChatCodeContextCount: triggerContext.contextInfo.contextCount.codeContextCount,
                 cwsprChatCodeContextLength: triggerContext.contextInfo.contextLength.codeContextLength,
+                cwsprChatFocusFileContextLength: triggerContext.text?.length,
             })
         }
         await this.#telemetryController.emitAddMessageMetric(params.tabId, metric.metric)
