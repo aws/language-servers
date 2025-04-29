@@ -45,6 +45,7 @@ export interface LocalProjectContextInitializationOptions {
     indexCacheDirPath?: string
     enableGpuAcceleration?: boolean
     indexWorkerThreads?: number
+    enableIndexing?: boolean
 }
 
 export class LocalProjectContextController {
@@ -55,6 +56,7 @@ export class LocalProjectContextController {
     private _contextCommandSymbolsUpdated = false
     private readonly clientName: string
     private readonly log: Logging
+    private _isIndexingEnabled: boolean = false
 
     private ignoreFilePatterns?: string[]
     private includeSymlinks?: boolean
@@ -111,11 +113,10 @@ export class LocalProjectContextController {
         indexCacheDirPath = path.join(homedir(), '.aws', 'amazonq', 'cache'),
         enableGpuAcceleration = false,
         indexWorkerThreads = 0,
+        enableIndexing = false,
     }: LocalProjectContextInitializationOptions = {}): Promise<void> {
         try {
-            if (this._vecLib) {
-                return
-            }
+            // update states according to configuration
             this.includeSymlinks = includeSymlinks
             this.maxFileSizeMB = maxFileSizeMB
             this.maxIndexSizeMB = maxIndexSizeMB
@@ -140,11 +141,25 @@ export class LocalProjectContextController {
                     `index worker thread count: ${indexWorkerThreads}`
             )
 
+            // build index if vecLib was initialized but indexing was not enabled before
+            if (this._vecLib) {
+                if (enableIndexing && !this._isIndexingEnabled) {
+                    void this.buildIndex()
+                }
+                this._isIndexingEnabled = enableIndexing
+                return
+            }
+
+            // initialize vecLib and index if needed
+            this._isIndexingEnabled = enableIndexing
+
             const libraryPath = this.getVectorLibraryPath()
             const vecLib = vectorLib ?? (await eval(`import("${libraryPath}")`))
             if (vecLib) {
                 this._vecLib = await vecLib.start(LIBRARY_DIR, this.clientName, this.indexCacheDirPath)
-                void this.buildIndex()
+                if (enableIndexing) {
+                    void this.buildIndex()
+                }
                 LocalProjectContextController.instance = this
             } else {
                 this.log.warn(`Vector library could not be imported from: ${libraryPath}`)
@@ -219,7 +234,7 @@ export class LocalProjectContextController {
                     merged.push(addition)
                 }
             }
-            if (this._vecLib) {
+            if (this._vecLib && this._isIndexingEnabled) {
                 await this.buildIndex()
             }
         } catch (error) {

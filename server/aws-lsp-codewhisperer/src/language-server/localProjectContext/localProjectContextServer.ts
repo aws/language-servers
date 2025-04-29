@@ -119,26 +119,25 @@ export const LocalProjectContextServer =
         const updateConfigurationHandler = async (updatedConfig: AmazonQWorkspaceConfig) => {
             logging.log('Updating configuration of local context server')
             try {
-                if (localProjectContextEnabled !== updatedConfig.projectContext?.enableLocalIndexing) {
-                    localProjectContextEnabled = updatedConfig.projectContext?.enableLocalIndexing === true
+                localProjectContextEnabled = updatedConfig.projectContext?.enableLocalIndexing === true
 
-                    logging.log(
-                        `Setting project context enabled to ${updatedConfig.projectContext?.enableLocalIndexing}`
-                    )
-                    localProjectContextEnabled
-                        ? await localProjectContextController.init({
-                              enableGpuAcceleration: updatedConfig?.projectContext?.enableGpuAcceleration,
-                              indexWorkerThreads: updatedConfig?.projectContext?.indexWorkerThreads,
-                              ignoreFilePatterns: updatedConfig.projectContext?.localIndexing?.ignoreFilePatterns,
-                              maxFileSizeMB: updatedConfig.projectContext?.localIndexing?.maxFileSizeMB,
-                              maxIndexSizeMB: updatedConfig.projectContext?.localIndexing?.maxIndexSizeMB,
-                          })
-                        : await localProjectContextController.dispose()
-                }
+                logging.log(
+                    `Setting project context indexing enabled to ${updatedConfig.projectContext?.enableLocalIndexing}`
+                )
+                await localProjectContextController.init({
+                    enableGpuAcceleration: updatedConfig?.projectContext?.enableGpuAcceleration,
+                    indexWorkerThreads: updatedConfig?.projectContext?.indexWorkerThreads,
+                    ignoreFilePatterns: updatedConfig.projectContext?.localIndexing?.ignoreFilePatterns,
+                    maxFileSizeMB: updatedConfig.projectContext?.localIndexing?.maxFileSizeMB,
+                    maxIndexSizeMB: updatedConfig.projectContext?.localIndexing?.maxIndexSizeMB,
+                    enableIndexing: localProjectContextEnabled,
+                })
             } catch (error) {
                 logging.error(`Error handling configuration change: ${error}`)
             }
         }
 
-        return () => {}
+        return async () => {
+            await localProjectContextController?.dispose()
+        }
     }
