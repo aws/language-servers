@@ -1,10 +1,20 @@
-import { BearerCredentials, CredentialsProvider, Position } from '@aws/language-server-runtimes/server-interface'
+import {
+    AwsResponseError,
+    BearerCredentials,
+    CredentialsProvider,
+    Position,
+} from '@aws/language-server-runtimes/server-interface'
 import { AWSError } from 'aws-sdk'
 import { distance } from 'fastest-levenshtein'
 import { Suggestion } from './codeWhispererService'
 import { CodewhispererCompletionType } from './telemetry/types'
 import { BUILDER_ID_START_URL, crashMonitoringDirName, driveLetterRegex, MISSING_BEARER_TOKEN_ERROR } from './constants'
-import { CodeWhispererStreamingServiceException } from '@aws/codewhisperer-streaming-client'
+import {
+    CodeWhispererStreamingServiceException,
+    ServiceQuotaExceededException,
+    ThrottlingException,
+    ThrottlingExceptionReason,
+} from '@aws/codewhisperer-streaming-client'
 import { ServiceException } from '@smithy/smithy-client'
 import { getAuthFollowUpType } from '../language-server/chat/utils'
 export type SsoConnectionType = 'builderId' | 'identityCenter' | 'none'
@@ -14,7 +24,67 @@ export function isAwsError(error: unknown): error is AWSError {
         return false
     }
 
+    // TODO: do SDK v3 errors have `.code` ?
     return error instanceof Error && hasCode(error) && hasTime(error)
+}
+
+export function isAwsThrottlingError(e: unknown): e is ThrottlingException {
+    // Non-AWS HTTP throttling error:
+    // const statusCode = getHttpStatusCode(e)
+    // if (statusCode === 429 || e.message.includes('Too many requests')) {
+    //     return true
+    // }
+
+    if (e instanceof ThrottlingException || (isAwsError(e) && e.code === 'ThrottlingException')) {
+        return true
+    }
+
+    return false
+}
+
+/**
+ * Special case of throttling error: "free tier" limit reached.
+ *
+ * See `client/token/bearer-token-service.json`.
+ */
+export function isFreeTierLimitError(e: unknown): e is ThrottlingException {
+    if (!isAwsThrottlingError(e)) {
+        return false
+    }
+
+    if (e.reason == ThrottlingExceptionReason.MONTHLY_REQUEST_COUNT) {
+        return true
+    }
+
+    return false
+}
+
+export function isQuotaExceededError(e: unknown): e is AWSError {
+    // From client/token/bearer-token-service.json
+    if (isFreeTierLimitError(e)) {
+        return true
+    }
+
+    // https://github.com/aws/aws-toolkit-vscode/blob/db673c9b74b36591bb5642b3da7d4bc7ae2afaf4/packages/core/src/amazonqFeatureDev/client/featureDev.ts#L199
+    // "Backend service will throw ServiceQuota if code generation iteration limit is reached".
+    if (e instanceof ServiceQuotaExceededException || (isAwsError(e) && e.code == 'ServiceQuotaExceededException')) {
+        return true
+    }
+
+    // https://github.com/aws/aws-toolkit-vscode/blob/db673c9b74b36591bb5642b3da7d4bc7ae2afaf4/packages/core/src/amazonqFeatureDev/client/featureDev.ts#L199
+    // "API Front-end will throw Throttling if conversation limit is reached.
+    // API Front-end monitors StartCodeGeneration for throttling"
+    if (
+        isAwsThrottlingError(e) &&
+        (e.message.includes('reached for this month') ||
+            e.message.includes('limit for this month') ||
+            e.message.includes('limit reached') ||
+            e.message.includes('limit for number of iterations'))
+    ) {
+        return true
+    }
+
+    return false
 }
 
 /**

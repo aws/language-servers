@@ -6,6 +6,7 @@ import {
     Logging,
     SDKInitializator,
 } from '@aws/language-server-runtimes/server-interface'
+import { waitUntil } from '@aws/lsp-core/out/util/timeoutUtils'
 import { AWSError, ConfigurationOptions, CredentialProviderChain, Credentials } from 'aws-sdk'
 import { PromiseResult } from 'aws-sdk/lib/request'
 import { Request } from 'aws-sdk/lib/core'
@@ -149,13 +150,18 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
     }
 }
 
+/**
+ * Hint: to get an instance of this: `AmazonQTokenServiceManager.getInstance().getCodewhispererService()`
+ */
 export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     client: CodeWhispererTokenClient
+    /** Debounce getSubscriptionStatus by storing the current, pending promise (if any). */
+    #getSubscriptionStatusPromise: ReturnType<typeof this.createSubscriptionToken> | undefined
 
     constructor(
-        credentialsProvider: CredentialsProvider,
+        private credentialsProvider: CredentialsProvider,
         workspace: Workspace,
-        logging: Logging,
+        private logging: Logging,
         codeWhispererRegion: string,
         codeWhispererEndpoint: string,
         sdkInitializator: SDKInitializator
@@ -166,16 +172,26 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
             endpoint: this.codeWhispererEndpoint,
             onRequestSetup: [
                 req => {
+                    logging.debug(`CodeWhispererServiceToken: req=${req.operation}`)
                     this.trackRequest(req)
-                    req.on('build', ({ httpRequest }) => {
-                        const creds = credentialsProvider.getCredentials('bearer') as BearerCredentials
-                        if (!creds?.token) {
-                            throw new Error('Authorization failed, bearer token is not set')
+                    req.on('build', async ({ httpRequest }) => {
+                        try {
+                            const creds = credentialsProvider.getCredentials('bearer') as BearerCredentials
+                            if (!creds?.token) {
+                                throw new Error('Authorization failed, bearer token is not set')
+                            }
+                            httpRequest.headers['Authorization'] = `Bearer ${creds.token}`
+                            httpRequest.headers['x-amzn-codewhisperer-optout'] =
+                                `${!this.shareCodeWhispererContentWithAWS}`
+                        } catch (err) {
+                            this.completeRequest(req)
+                            throw err
                         }
-                        httpRequest.headers['Authorization'] = `Bearer ${creds.token}`
-                        httpRequest.headers['x-amzn-codewhisperer-optout'] = `${!this.shareCodeWhispererContentWithAWS}`
                     })
                     req.on('complete', () => {
+                        this.completeRequest(req)
+                    })
+                    req.on('error', () => {
                         this.completeRequest(req)
                     })
                 },
@@ -348,5 +364,37 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
      */
     async listFeatureEvaluations(request: CodeWhispererTokenClient.ListFeatureEvaluationsRequest) {
         return this.client.listFeatureEvaluations(this.withProfileArn(request)).promise()
+    }
+
+    /**
+     * cool api you have there 🥹
+     */
+    async createSubscriptionToken(request: CodeWhispererTokenClient.CreateSubscriptionTokenRequest) {
+        return this.client.createSubscriptionToken(this.withProfileArn(request)).promise()
+    }
+
+    /**
+     * Gets the Subscription status of the given user.
+     */
+    async getSubscriptionStatus(): ReturnType<typeof this.createSubscriptionToken> {
+        // Debounce.
+        if (this.#getSubscriptionStatusPromise) {
+            // this.logging.debug('getSubscriptionStatus: debounced')
+            return this.#getSubscriptionStatusPromise
+        }
+
+        this.#getSubscriptionStatusPromise = (async () => {
+            try {
+                const resp = await this.createSubscriptionToken({
+                    accountId: '111111111111', // Special dummy account for checking Subscription status.
+                    // clientToken: this.credentialsProvider.getCredentials('bearer').token,
+                })
+                return resp
+            } finally {
+                this.#getSubscriptionStatusPromise = undefined
+            }
+        })()
+
+        return this.#getSubscriptionStatusPromise
     }
 }
