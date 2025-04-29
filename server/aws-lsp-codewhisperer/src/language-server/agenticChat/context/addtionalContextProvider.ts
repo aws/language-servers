@@ -59,7 +59,7 @@ export class AdditionalContextProvider {
                 return 'prompt'
             }
         }
-        return prompt.name
+        return 'file'
     }
 
     async getAdditionalContext(
