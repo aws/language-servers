@@ -277,7 +277,7 @@ export class AgenticChatController implements ChatHandlers {
                 if (updatedDetails[filePath]) {
                     updatedDetails[filePath] = {
                         ...updatedDetails[filePath],
-                        clickable: false,
+                        clickable: false as any,
                     }
                 }
             }
