@@ -29,6 +29,7 @@ import { LocalProjectContextController } from '../../shared/localProjectContextC
 import { QueryInlineProjectContextRequestV2 } from 'local-indexing'
 import { URI } from 'vscode-uri'
 import { waitUntil } from '@aws/lsp-core/out/util/timeoutUtils'
+import { RecentEditTracker } from '../../language-server/inline-completion/codeEditTracker'
 
 type CrossFileSupportedLanguage =
     | 'java'
@@ -60,6 +61,12 @@ interface Chunk {
     nextContent: string
     score?: number
 }
+
+export async function fetchRecentEdits(
+    document: TextDocument,
+    position: Position,
+    workspace: RecentEditTracker
+): Promise<void> {}
 
 export async function fetchSupplementalContextForSrc(
     document: TextDocument,

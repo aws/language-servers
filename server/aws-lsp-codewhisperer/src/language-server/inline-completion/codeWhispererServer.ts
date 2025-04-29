@@ -634,10 +634,11 @@ export const CodewhispererServerFactory =
                     })
                 }
             )
+            // TODO : Initialize codeEditTracker
 
-            /* 
+            /*
                             Calling handleDidChangeConfiguration once to ensure we get configuration atleast once at start up
-                            
+
                             TODO: TODO: consider refactoring such responsibilities to common service manager config/initialisation server
                         */
             await amazonQServiceManager.handleDidChangeConfiguration()
@@ -649,6 +650,8 @@ export const CodewhispererServerFactory =
         lsp.onInitialized(onInitializedHandler)
 
         lsp.onDidChangeTextDocument(async p => {
+            console.log('NEP Dhanak')
+            // TODO : Entry point for EditTracking
             const textDocument = await workspace.getTextDocument(p.textDocument.uri)
             const languageId = getSupportedLanguageId(textDocument)
 
@@ -656,6 +659,9 @@ export const CodewhispererServerFactory =
                 return
             }
 
+            logging.log(`Document changed: ${p.textDocument.uri}`)
+
+            // Track token counts for code percentage metrics
             p.contentChanges.forEach(change => {
                 codePercentageTracker.countTotalTokens(languageId, change.text, false)
             })
@@ -665,6 +671,17 @@ export const CodewhispererServerFactory =
                 timeSinceLastUserModification = new Date().getTime() - lastUserModificationTime
             }
             lastUserModificationTime = new Date().getTime()
+        })
+
+        // TODO: Handle LSP Methods textDocument/didOpen, textDocument/didClose
+        lsp.onDidOpenTextDocument(p => {
+            logging.log(`NEP Document opened: ${p.textDocument.uri}`)
+            const fullText = p.textDocument.text
+            logging.log(`NEP Document contents: ${fullText}`)
+        })
+
+        lsp.onDidCloseTextDocument(p => {
+            logging.log(`NEP Document closed: ${p.textDocument.uri}`)
         })
 
         logging.log('Amazon Q Inline Suggestion server has been initialised')
