@@ -71,6 +71,13 @@ export class AmazonQServiceNoProfileSupportError extends AmazonQError {
     }
 }
 
+export class AmazonQServiceProfileThrottlingError extends AmazonQError {
+    constructor(message: string = 'Amazon Q Profile has encountered throttling error') {
+        super(message, 'E_AMAZON_Q_PROFILE_THROTTLING')
+        this.name = 'AmazonQServiceProfileThrottlingError'
+    }
+}
+
 export class AmazonQServiceConnectionExpiredError extends AmazonQError {
     constructor(message: string = 'Current authentication token is expired.') {
         super(message, 'E_AMAZON_Q_CONNECTION_EXPIRED')
