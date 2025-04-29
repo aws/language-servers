@@ -23,7 +23,7 @@ import { CodeWhispererSession, SessionManager } from './session/sessionManager'
 import { CodePercentageTracker } from './codePercentage'
 import { CodeWhispererPerceivedLatencyEvent, CodeWhispererServiceInvocationEvent } from '../../shared/telemetry/types'
 import { getCompletionType, getEndPositionForAcceptedSuggestion, isAwsError, safeGet } from '../../shared/utils'
-import { makeUserContextObject } from '../../shared/telemetryUtils'
+import { getIdeCategory, makeUserContextObject } from '../../shared/telemetryUtils'
 import { fetchSupplementalContext } from '../../shared/supplementalContextUtil/supplementalContextUtil'
 import { textUtils } from '@aws/lsp-core'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
@@ -292,7 +292,7 @@ export const CodewhispererServerFactory =
                     let ideCategory: string | undefined = ''
                     const initializeParams = lsp.getClientInitializeParams()
                     if (initializeParams !== undefined) {
-                        ideCategory = makeUserContextObject(initializeParams, runtime.platform, 'INLINE')?.ideCategory
+                        ideCategory = getIdeCategory(initializeParams)
                     }
                     const autoTriggerResult = autoTrigger({
                         fileContext, // The left/right file context and programming language

@@ -60,7 +60,7 @@ const mapClientNameToIdeCategory = (clientName: string): string | undefined => {
 
 // Use InitializeParams.initializationOptions.aws.clientInfo.extension to derive IDE Category from calling client
 // https://github.com/aws/language-server-runtimes/blob/main/runtimes/protocol/lsp.ts#L60-L69
-const getIdeCategory = (initializeParams: InitializeParams) => {
+export const getIdeCategory = (initializeParams: InitializeParams) => {
     let ideCategory
     if (initializeParams.initializationOptions?.aws?.clientInfo?.extension?.name) {
         ideCategory = mapClientNameToIdeCategory(initializeParams.initializationOptions.aws.clientInfo.extension.name)
