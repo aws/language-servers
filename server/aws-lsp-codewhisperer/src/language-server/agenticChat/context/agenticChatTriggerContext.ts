@@ -219,7 +219,6 @@ export class AgenticChatTriggerContext {
                                       },
                                       tools,
                                       envState: this.#mapPlatformToEnvState(process.platform),
-
                                   }
                                 : {
                                       tools,
