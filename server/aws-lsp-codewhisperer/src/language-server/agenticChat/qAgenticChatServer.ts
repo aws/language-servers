@@ -13,7 +13,7 @@ import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/A
 import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
 import { TabBarController } from './tabBarController'
 import { AmazonQServiceInitializationError } from '../../shared/amazonQServiceManager/errors'
-import { safeGet } from '../../shared/utils'
+import { safeGet, getSsoConnectionType } from '../../shared/utils'
 
 export const QAgenticChatServer =
     // prettier-ignore
@@ -50,6 +50,8 @@ export const QAgenticChatServer =
             logging.debug('Updating configuration of agentic chat server')
             chatController.updateConfiguration(updatedConfig)
         }
+
+        const isFreeTierUser = getSsoConnectionType(credentialsProvider)
 
         lsp.onInitialized(async () => {
             // Get initialized service manager and inject it to chatSessionManagementService to pass it down

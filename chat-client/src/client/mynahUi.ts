@@ -171,6 +171,8 @@ export const createMynahUi = (
 ): [MynahUI, InboundChatApi] => {
     let disclaimerCardActive = !disclaimerAcknowledged
     let programmingModeCardActive = !pairProgrammingCardAcknowledged
+    const isFreeTierLimitReached = true
+    let paidTierCardActive = isFreeTierLimitReached
     let contextCommandGroups: ContextCommandGroups | undefined
 
     let chatEventHandlers: ChatEventHandler = {
@@ -264,7 +266,12 @@ export const createMynahUi = (
             // We check if tabMetadata.openTabKey exists - if it does and is set to true, we skip showing welcome messages
             // since this indicates we're loading a previous chat session rather than starting a new one.
             if (!tabStore?.tabMetadata || !tabStore.tabMetadata.openTabKey) {
-                defaultTabConfig.chatItems = tabFactory.getChatItems(true, programmingModeCardActive, [])
+                defaultTabConfig.chatItems = tabFactory.getChatItems(
+                    true,
+                    programmingModeCardActive,
+                    paidTierCardActive,
+                    []
+                )
             }
             mynahUi.updateStore(tabId, defaultTabConfig)
             messager.onTabAdd(tabId)
@@ -465,6 +472,14 @@ export const createMynahUi = (
             }
             messager.onPromptInputOptionChange({ tabId, optionsValues })
         },
+        onPromptInputButtonClick: (tabId, buttonId, eventId) => {
+            const payload: ButtonClickParams = {
+                tabId,
+                messageId: 'not-a-message',
+                buttonId: buttonId,
+            }
+            messager.onPromptInputButtonClick(payload)
+        },
         onMessageDismiss: (tabId, messageId) => {
             if (messageId === programmerModeCard.messageId) {
                 programmingModeCardActive = false
@@ -473,7 +488,7 @@ export const createMynahUi = (
                 // Update the tab defaults to hide the programmer mode card for new tabs
                 mynahUi.updateTabDefaults({
                     store: {
-                        chatItems: tabFactory.getChatItems(true, false),
+                        chatItems: tabFactory.getChatItems(true, false, false),
                     },
                 })
             }
@@ -494,7 +509,7 @@ export const createMynahUi = (
             },
         },
         defaults: {
-            store: tabFactory.createTab(false),
+            store: tabFactory.createTab(false, paidTierCardActive),
         },
         config: {
             maxTabs: 10,
@@ -534,7 +549,7 @@ export const createMynahUi = (
     // This distinction helps maintain consistent tab behavior between fresh conversations and restored sessions.
     const createTabId = (openTab?: boolean) => {
         const tabId = mynahUi.updateStore('', {
-            ...tabFactory.createTab(disclaimerCardActive),
+            ...tabFactory.createTab(disclaimerCardActive, paidTierCardActive),
             tabMetadata: { openTabKey: openTab ? true : false },
         })
         if (tabId === undefined) {
@@ -998,7 +1013,12 @@ ${params.message}`,
             const tabId = createTabId(true)
             if (tabId) {
                 mynahUi.updateStore(tabId, {
-                    chatItems: tabFactory.getChatItems(messages ? false : true, programmingModeCardActive, messages),
+                    chatItems: tabFactory.getChatItems(
+                        messages ? false : true,
+                        programmingModeCardActive,
+                        paidTierCardActive,
+                        messages
+                    ),
                 })
                 messager.onOpenTab(requestId, { tabId })
             } else {
