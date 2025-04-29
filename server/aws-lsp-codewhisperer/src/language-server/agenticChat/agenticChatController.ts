@@ -374,6 +374,7 @@ export class AgenticChatController implements ChatHandlers {
         try {
             const triggerContext = await this.#getTriggerContext(params, metric)
             const isNewConversation = !session.conversationId
+            session.contextListSent = false
             if (isNewConversation) {
                 // agentic chat does not support conversationId in API response,
                 // so we set it to random UUID per session, as other chat functionality
