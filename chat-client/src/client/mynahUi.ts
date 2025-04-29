@@ -137,11 +137,18 @@ export const handleChatPrompt = (
     })
 
     // Set UI to loading state
-    mynahUi.updateStore(tabId, {
-        loadingChat: !!agenticMode,
-        cancelButtonWhenLoading: !!agenticMode,
-        promptInputDisabledState: !agenticMode,
-    })
+    if (agenticMode) {
+        mynahUi.updateStore(tabId, {
+            loadingChat: true,
+            cancelButtonWhenLoading: true,
+            promptInputDisabledState: false,
+        })
+    } else {
+        mynahUi.updateStore(tabId, {
+            loadingChat: true,
+            promptInputDisabledState: true,
+        })
+    }
 
     // Create initial empty response
     mynahUi.addChatItem(tabId, {
@@ -479,6 +486,7 @@ export const createMynahUi = (
             maxTabs: 10,
             texts: {
                 ...uiComponentsTexts,
+                // Fallback to original texts in non-agentic chat mode
                 stopGenerating: agenticMode ? uiComponentsTexts.stopGenerating : 'Stop generating',
                 spinnerText: agenticMode ? uiComponentsTexts.spinnerText : 'Generating your answer...',
             },
