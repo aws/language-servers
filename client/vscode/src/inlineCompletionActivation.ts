@@ -59,10 +59,9 @@ export function registerInlineCompletion(languageClient: LanguageClient) {
         sessionId: string,
         itemId: string,
         requestStartTime: number,
-        firstCompletionDisplayLatency?: number,
-        isEdit?: boolean // POC-NEP: Added isEdit parameter to track edit suggestions
+        firstCompletionDisplayLatency?: number
     ) => {
-        console.log('OnInlineAcceptance called with: ', sessionId, itemId, isEdit ? '(edit)' : '(completion)')
+        console.log('OnInlineAcceptance called with: ', sessionId, itemId)
         const params: LogInlineCompletionSessionResultsParams = {
             sessionId: sessionId,
             completionSessionResult: {
@@ -70,7 +69,6 @@ export function registerInlineCompletion(languageClient: LanguageClient) {
                     seen: true,
                     accepted: true,
                     discarded: false,
-                    isEdit: isEdit || false, // POC-NEP: Track if this was an edit suggestion
                 },
             },
             totalSessionDisplayTime: Date.now() - requestStartTime,
@@ -115,8 +113,7 @@ export class CodeWhispererInlineCompletionItemProvider implements InlineCompleti
         list.items.forEach((item: InlineCompletionItemWithReferences) => {
             // POC-NEP: Set isInlineEdit flag if this is an edit suggestion
             // This is the key to enabling the edit suggestion UI in VSCode
-            const isEdit = item.insertTextFormat === 2 && item.insertText !== '' && item.insertText !== undefined
-            if (item.isEdit) {
+            if (item.isInlineEdit) {
                 ;(item as any).isInlineEdit = true
                 ;(item as any).showInlineEditMenu = true
                 console.log('Setting isInlineEdit=true for item', item.itemId)
@@ -125,7 +122,7 @@ export class CodeWhispererInlineCompletionItemProvider implements InlineCompleti
             item.command = {
                 command: 'aws.sample-vscode-ext-amazonq.accept',
                 title: 'On acceptance',
-                arguments: [list.sessionId, item.itemId, requestStartTime, firstCompletionDisplayLatency, item.isEdit],
+                arguments: [list.sessionId, item.itemId, requestStartTime, firstCompletionDisplayLatency],
             }
         })
 
