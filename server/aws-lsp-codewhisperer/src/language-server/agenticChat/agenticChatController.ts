@@ -1392,6 +1392,10 @@ export class AgenticChatController implements ChatHandlers {
 
         metric.setDimension('codewhispererCustomizationArn', this.#customizationArn)
         metric.setDimension('languageServerVersion', this.#features.runtime.serverInfo.version)
+        const profileArn = AmazonQTokenServiceManager.getInstance(this.#features).getActiveProfileArn()
+        if (profileArn) {
+            this.#telemetryService.updateProfileArn(profileArn)
+        }
         if (triggerContext.contextInfo) {
             metric.mergeWith({
                 cwsprChatHasContextList: triggerContext.documentReference?.filePaths?.length ? true : false,
