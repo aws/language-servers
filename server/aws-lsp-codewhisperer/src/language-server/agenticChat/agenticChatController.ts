@@ -1481,7 +1481,7 @@ export class AgenticChatController implements ChatHandlers {
 
         // These are errors we want to show custom messages in chat for.
         if (['QModelResponse', 'MaxAgentLoopIterations', 'InputTooLong'].includes(err.code)) {
-            this.#features.logging.error(`${err.code}: ${JSON.stringify(err)} `)
+            this.#features.logging.error(`${loggingUtils.formatErr(err)}`)
             return new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, err.message, {
                 type: 'answer',
                 body: err.message,
@@ -1489,8 +1489,7 @@ export class AgenticChatController implements ChatHandlers {
                 buttons: [],
             })
         }
-        this.#features.logging.error(`Unknown Error: ${JSON.stringify(err)}`)
-        this.#features.logging.log(`Error Cause: ${JSON.stringify(err.cause)}`)
+        this.#features.logging.error(`Unknown Error: ${loggingUtils.formatErr(err)}`)
         return new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, err.message, {
             type: 'answer',
             body: requestID ? genericErrorMsg + `\n\nRequest ID: ${requestID}` : genericErrorMsg,
