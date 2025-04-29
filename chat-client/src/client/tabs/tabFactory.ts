@@ -10,6 +10,7 @@ import { disclaimerCard } from '../texts/disclaimer'
 import { ChatMessage } from '@aws/language-server-runtimes-types'
 import { ChatHistory } from '../features/history'
 import { pairProgrammingPromptInput, programmerModeCard } from '../texts/pairProgramming'
+import { paidTierCard } from '../texts/paidTier'
 
 export type DefaultTabData = MynahUIDataModel
 
@@ -46,6 +47,7 @@ export class TabFactory {
     public getChatItems(
         needWelcomeMessages: boolean,
         pairProgrammingCardActive: boolean,
+        paidTierCardActive: boolean,
         chatMessages?: ChatMessage[]
     ): ChatItem[] {
         return [
@@ -53,6 +55,7 @@ export class TabFactory {
             ...(needWelcomeMessages
                 ? [
                       ...(this.agenticMode && pairProgrammingCardActive ? [programmerModeCard] : []),
+                      ...(paidTierCardActive ? [paidTierCard] : []),
                       {
                           type: ChatItemType.ANSWER,
                           body: `Hi, I'm Amazon Q. I can answer your software development questions. 
