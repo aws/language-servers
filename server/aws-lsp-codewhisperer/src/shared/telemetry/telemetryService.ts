@@ -414,6 +414,7 @@ export class TelemetryService {
         if (!params.conversationId || !params.messageId) {
             return
         }
+        const timeBetweenChunks = params.timeBetweenChunks?.slice(0, 100)
 
         if (this.enableTelemetryEventsToDestination) {
             this.telemetry.emitMetric({
@@ -433,7 +434,7 @@ export class TelemetryService {
                     cwsprChatFollowUpCount: additionalParams.chatFollowUpCount,
                     cwsprTimeToFirstChunk: params.timeToFirstChunkMilliseconds,
                     cwsprChatFullResponseLatency: params.fullResponselatency,
-                    cwsprChatTimeBetweenChunks: params.timeBetweenChunks,
+                    cwsprChatTimeBetweenChunks: timeBetweenChunks,
                     cwsprChatRequestLength: params.requestLength,
                     cwsprChatResponseLength: params.responseLength,
                     cwsprChatConversationType: additionalParams.chatConversationType,
@@ -462,7 +463,7 @@ export class TelemetryService {
             hasCodeSnippet: params.hasCodeSnippet,
             activeEditorTotalCharacters: params.activeEditorTotalCharacters,
             timeToFirstChunkMilliseconds: params.timeToFirstChunkMilliseconds,
-            timeBetweenChunks: params.timeBetweenChunks,
+            timeBetweenChunks: timeBetweenChunks,
             fullResponselatency: params.fullResponselatency,
             requestLength: params.requestLength,
             responseLength: params.responseLength,
