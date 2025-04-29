@@ -45,8 +45,9 @@ export const CodewhispererInlineCompletionLanguages = [
 
 export function registerInlineCompletion(languageClient: LanguageClient) {
     const inlineCompletionProvider = new CodeWhispererInlineCompletionItemProvider(languageClient)
-    // POC-NEP: The displayName parameter is not supported in this version of VSCode API
-    // We'll need to add it when the API is updated
+    // POC-NEP: The displayName parameter would allow us to show "Amazon Q" in the UI
+    // when suggestions are displayed. This is not supported in the current VSCode API
+    // but will be added in a future version.
     languages.registerInlineCompletionItemProvider(CodewhispererInlineCompletionLanguages, inlineCompletionProvider)
 
     commands.registerCommand('aws.sample-vscode-ext-amazonq.invokeInlineCompletion', async (...args: any) => {
@@ -111,10 +112,10 @@ export class CodeWhispererInlineCompletionItemProvider implements InlineCompleti
         const firstCompletionDisplayLatency = Date.now() - requestStartTime
         // Add completion session tracking and attach onAcceptance command to each item to record used decision
         list.items.forEach((item: InlineCompletionItemWithReferences) => {
-            // POC-NEP: Set isInlineEdit flag if this is an edit suggestion
-            // This is the key to enabling the edit suggestion UI in VSCode
+            // POC-NEP: Set VSCode UI properties for edit suggestions
+            // The isInlineEdit property comes from our type definition and needs to be
+            // applied to the VSCode-specific property with the same name
             if (item.isInlineEdit) {
-                ;(item as any).isInlineEdit = true
                 ;(item as any).showInlineEditMenu = true
                 console.log('Setting isInlineEdit=true for item', item.itemId)
             }
