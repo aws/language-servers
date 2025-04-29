@@ -442,7 +442,7 @@ export class TelemetryService {
                     cwsprChatFileContextLength: additionalParams.cwsprChatFileContextLength,
                     cwsprChatRuleContextLength: additionalParams.cwsprChatRuleContextLength,
                     cwsprChatPromptContextLength: additionalParams.cwsprChatPromptContextLength,
-                    cwsprChatFocusFileContextLength: additionalParams.cwsprChatFileContextLength,
+                    cwsprChatFocusFileContextLength: additionalParams.cwsprChatFocusFileContextLength,
                     cwsprChatCodeContextCount: additionalParams.cwsprChatCodeContextCount,
                     cwsprChatCodeContextLength: additionalParams.cwsprChatCodeContextLength,
                     result: 'Succeeded',
