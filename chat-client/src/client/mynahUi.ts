@@ -467,6 +467,11 @@ export const createMynahUi = (
         },
         config: {
             maxTabs: 10,
+            // RTS max user input is 600k, we need to leave around 500 chars to user to type the question
+            // beside, MynahUI will automatically crop it depending on the available chars left from the prompt field itself by using a 96 chars of threshold
+            // if we want to max user input as 599500, need to configure the maxUserInput as 599596
+            maxUserInput: 599596,
+            userInputLengthWarningThreshold: 550000,
             texts: uiComponentsTexts,
         },
     }
