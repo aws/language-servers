@@ -45,6 +45,8 @@ export const CodewhispererInlineCompletionLanguages = [
 
 export function registerInlineCompletion(languageClient: LanguageClient) {
     const inlineCompletionProvider = new CodeWhispererInlineCompletionItemProvider(languageClient)
+    // POC-NEP: The displayName parameter is not supported in this version of VSCode API
+    // We'll need to add it when the API is updated
     languages.registerInlineCompletionItemProvider(CodewhispererInlineCompletionLanguages, inlineCompletionProvider)
 
     commands.registerCommand('aws.sample-vscode-ext-amazonq.invokeInlineCompletion', async (...args: any) => {
@@ -57,9 +59,10 @@ export function registerInlineCompletion(languageClient: LanguageClient) {
         sessionId: string,
         itemId: string,
         requestStartTime: number,
-        firstCompletionDisplayLatency?: number
+        firstCompletionDisplayLatency?: number,
+        isEdit?: boolean // POC-NEP: Added isEdit parameter to track edit suggestions
     ) => {
-        console.log('OnInlineAcceptance called with: ', sessionId, itemId)
+        console.log('OnInlineAcceptance called with: ', sessionId, itemId, isEdit ? '(edit)' : '(completion)')
         const params: LogInlineCompletionSessionResultsParams = {
             sessionId: sessionId,
             completionSessionResult: {
@@ -67,6 +70,7 @@ export function registerInlineCompletion(languageClient: LanguageClient) {
                     seen: true,
                     accepted: true,
                     discarded: false,
+                    isEdit: isEdit || false, // POC-NEP: Track if this was an edit suggestion
                 },
             },
             totalSessionDisplayTime: Date.now() - requestStartTime,
@@ -109,10 +113,19 @@ export class CodeWhispererInlineCompletionItemProvider implements InlineCompleti
         const firstCompletionDisplayLatency = Date.now() - requestStartTime
         // Add completion session tracking and attach onAcceptance command to each item to record used decision
         list.items.forEach((item: InlineCompletionItemWithReferences) => {
+            // POC-NEP: Set isInlineEdit flag if this is an edit suggestion
+            // This is the key to enabling the edit suggestion UI in VSCode
+            const isEdit = item.insertTextFormat === 2 && item.insertText !== '' && item.insertText !== undefined
+            if (item.isEdit) {
+                ;(item as any).isInlineEdit = true
+                ;(item as any).showInlineEditMenu = true
+                console.log('Setting isInlineEdit=true for item', item.itemId)
+            }
+
             item.command = {
                 command: 'aws.sample-vscode-ext-amazonq.accept',
                 title: 'On acceptance',
-                arguments: [list.sessionId, item.itemId, requestStartTime, firstCompletionDisplayLatency],
+                arguments: [list.sessionId, item.itemId, requestStartTime, firstCompletionDisplayLatency, item.isEdit],
             }
         })
 
