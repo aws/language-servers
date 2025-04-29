@@ -46,7 +46,7 @@ import { ChatDatabase } from './tools/chatDb/chatDb'
 import { LocalProjectContextController } from '../../shared/localProjectContextController'
 import { CancellationError } from '@aws/lsp-core'
 import { ToolApprovalException } from './tools/toolShared'
-import { genericErrorMsg } from './constants'
+import { generateAssistantResponseInputLimit, genericErrorMsg } from './constants'
 import { MISSING_BEARER_TOKEN_ERROR } from '../../shared/constants'
 import {
     AmazonQError,
@@ -949,6 +949,18 @@ describe('AgenticChatController', () => {
             const typedChatResult = chatResult as ResponseError<ChatResult>
             assert.strictEqual(typedChatResult.message, errorMsg)
             assert.strictEqual(typedChatResult.data?.body, errorMsg)
+        })
+
+        it('does not make backend request when input is too long ', async function () {
+            const input = 'X'.repeat(generateAssistantResponseInputLimit + 1)
+            const chatResult = await chatController.onChatPrompt(
+                { tabId: mockTabId, prompt: { prompt: input } },
+                mockCancellationToken
+            )
+
+            const typedChatResult = chatResult as ResponseError<ChatResult>
+            assert.ok(typedChatResult.message.includes('too long'))
+            assert.ok(typedChatResult.data?.body?.includes('too long'))
         })
 
         it('shows generic errorMsg on internal errors', async function () {

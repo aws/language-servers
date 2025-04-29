@@ -111,7 +111,12 @@ import { FileSearch, FileSearchParams } from './tools/fileSearch'
 import { loggingUtils } from '@aws/lsp-core'
 import { diffLines } from 'diff'
 import { CodeSearch } from './tools/codeSearch'
-import { genericErrorMsg, maxAgentLoopIterations, loadingThresholdMs } from './constants'
+import {
+    genericErrorMsg,
+    maxAgentLoopIterations,
+    loadingThresholdMs,
+    generateAssistantResponseInputLimit,
+} from './constants'
 import { URI } from 'vscode-uri'
 import { AgenticChatError } from './errors'
 
@@ -547,9 +552,7 @@ export class AgenticChatController implements ChatHandlers {
             await chatResultStream.writeResultBlock({ ...loadingMessage, messageId: loadingMessageId })
 
             // Phase 3: Request Execution
-            this.#debug(
-                `Q Model Request: ${loggingUtils.formatObj(currentRequestInput, { depth: 5, omitKeys: ['history'] })}`
-            )
+            this.#validateRequest(currentRequestInput)
             const response = await session.generateAssistantResponse(currentRequestInput)
             this.#debug(`Q Model Response: ${loggingUtils.formatObj(response, { depth: 5 })}`)
 
@@ -643,6 +646,21 @@ export class AgenticChatController implements ChatHandlers {
                 data: { chatResult: {}, toolUses: {} },
             }
         )
+    }
+
+    /**
+     * performs pre-validation of request before sending to backend service.
+     * @param request
+     */
+    #validateRequest(request: GenerateAssistantResponseCommandInput) {
+        this.#debug(`Q Model Request: ${loggingUtils.formatObj(request, { depth: 5, omitKeys: ['history'] })}`)
+        const message = request.conversationState?.currentMessage?.userInputMessage?.content
+        if (message && message.length > generateAssistantResponseInputLimit) {
+            throw new AgenticChatError(
+                `Message is too long with ${message.length} characters, max is ${generateAssistantResponseInputLimit}`,
+                'MessageTooLong'
+            )
+        }
     }
 
     /**
@@ -1511,7 +1529,7 @@ export class AgenticChatController implements ChatHandlers {
         }
 
         // These are errors we want to show custom messages in chat for.
-        if (['QModelResponse', 'MaxAgentLoopIterations', 'InputTooLong'].includes(err.code)) {
+        if (['QModelResponse', 'MaxAgentLoopIterations', 'InputTooLong', 'MessageTooLong'].includes(err.code)) {
             this.#features.logging.error(`${loggingUtils.formatErr(err)}`)
             return new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, err.message, {
                 type: 'answer',
