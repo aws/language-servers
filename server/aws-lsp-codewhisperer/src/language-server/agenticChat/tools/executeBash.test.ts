@@ -14,7 +14,7 @@ describe('ExecuteBash Tool', () => {
 
     before(function () {
         features = new TestFeatures()
-        features.lsp.getClientInitializeParams.returns({
+        features.setClientParams({
             workspaceFolders: [{ uri: URI.file(workspaceFolder).toString(), name: 'test' }],
         } as InitializeParams)
     })

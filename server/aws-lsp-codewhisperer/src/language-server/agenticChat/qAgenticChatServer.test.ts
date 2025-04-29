@@ -45,7 +45,7 @@ describe('QAgenticChatServer', () => {
                 },
             },
         }
-        testFeatures.lsp.getClientInitializeParams.returns(cachedInitializeParams)
+        testFeatures.setClientParams(cachedInitializeParams)
 
         AmazonQTokenServiceManager.resetInstance()
 

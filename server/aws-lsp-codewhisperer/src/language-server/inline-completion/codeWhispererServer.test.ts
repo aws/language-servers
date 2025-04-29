@@ -54,7 +54,7 @@ const updateConfiguration = async (
     features.lsp.workspace.getConfiguration.returns(getConfigurationReturns ?? Promise.resolve({}))
 
     // Mocked trigger of didChangeConfiguration in amazonQServer
-    await TestAmazonQServiceManager.getInstance()['handleDidChangeConfiguration']()
+    await TestAmazonQServiceManager.getInstance().handleDidChangeConfiguration()
 
     // Invoke event twice to ensure LSP Router propagates didChangeConfiguration notification and allows time for it to take effect in tests
     await features.openDocument(SOME_FILE).doChangeConfiguration()
@@ -64,10 +64,10 @@ const updateConfiguration = async (
 }
 
 const startServer = async (features: TestFeatures, server: Server): Promise<TestFeatures> => {
-    await features.start(server)
+    await features.initialize(server)
 
     // Mocked trigger of didChangeConfiguration in amazonQServer
-    await TestAmazonQServiceManager.getInstance()['handleDidChangeConfiguration']()
+    await TestAmazonQServiceManager.getInstance().handleDidChangeConfiguration()
 
     return features
 }
@@ -126,8 +126,6 @@ describe('CodeWhisperer Server', () => {
 
             TestAmazonQServiceManager.resetInstance()
             server = CodewhispererServerFactory(() => initBaseTestServiceManager(features, service))
-
-            features.lsp.getClientInitializeParams.returns({} as InitializeParams)
 
             // Return no specific configuration for CodeWhisperer
             features.lsp.workspace.getConfiguration.returns(Promise.resolve({}))
@@ -572,8 +570,6 @@ describe('CodeWhisperer Server', () => {
                     initBaseTestServiceManager(test_features, test_service)
                 )
 
-                features.lsp.getClientInitializeParams.returns({} as InitializeParams)
-
                 test_features.credentialsProvider.hasCredentials.returns(true)
                 test_features.credentialsProvider.getConnectionType.returns('builderId')
 
@@ -664,8 +660,6 @@ describe('CodeWhisperer Server', () => {
             //@ts-ignore
             features.logging = console
             server = CodewhispererServerFactory(() => initBaseTestServiceManager(features, service))
-
-            features.lsp.getClientInitializeParams.returns({} as InitializeParams)
         })
 
         afterEach(() => {
@@ -1006,8 +1000,6 @@ describe('CodeWhisperer Server', () => {
             features = new TestFeatures()
             server = CodewhispererServerFactory(() => initBaseTestServiceManager(features, service))
 
-            features.lsp.getClientInitializeParams.returns({} as InitializeParams)
-
             // Return no specific configuration for CodeWhisperer
             features.lsp.workspace.getConfiguration.returns(Promise.resolve({}))
 
@@ -1143,8 +1135,6 @@ describe('CodeWhisperer Server', () => {
 
             server = CodewhispererServerFactory(() => initBaseTestServiceManager(features, service))
 
-            features.lsp.getClientInitializeParams.returns({} as InitializeParams)
-
             // Start the server and open a document
             await startServer(features, server)
 
@@ -1255,7 +1245,6 @@ describe('CodeWhisperer Server', () => {
             features = new TestFeatures()
             server = CodewhispererServerFactory(() => initBaseTestServiceManager(features, service))
 
-            features.lsp.getClientInitializeParams.returns({} as InitializeParams)
             // Return no specific configuration for CodeWhisperer
             features.lsp.workspace.getConfiguration.returns(Promise.resolve({}))
 
@@ -1696,7 +1685,6 @@ describe('CodeWhisperer Server', () => {
             features = new TestFeatures()
             server = CodewhispererServerFactory(() => initBaseTestServiceManager(features, service))
 
-            features.lsp.getClientInitializeParams.returns({} as InitializeParams)
             // Return no specific configuration for CodeWhisperer
             features.lsp.workspace.getConfiguration.returns(Promise.resolve({}))
 

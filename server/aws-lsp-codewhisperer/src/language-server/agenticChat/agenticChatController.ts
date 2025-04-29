@@ -1509,7 +1509,7 @@ export class AgenticChatController implements ChatHandlers {
             )
 
             if (!this.#serviceManager) {
-                throw new Error('No AmazonQService has been attached')
+                throw new Error('amazonQServiceManager is not initialized')
             }
 
             const client = this.#serviceManager.getStreamingClient()

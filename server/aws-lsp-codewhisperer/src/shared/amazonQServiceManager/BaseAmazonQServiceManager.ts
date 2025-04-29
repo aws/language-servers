@@ -160,21 +160,6 @@ export abstract class BaseAmazonQServiceManager<
         await Promise.allSettled(listenPromises)
     }
 
-    public setupCommonLspHandlers(): void {
-        this.handleDidChangeConfiguration = this.handleDidChangeConfiguration.bind(this)
-
-        this.features.lsp.onInitialized(async () => {
-            await this.handleDidChangeConfiguration()
-        })
-
-        this.features.lsp.didChangeConfiguration(async () => {
-            this.logging.debug('Received didChangeconfiguration event')
-            await this.handleDidChangeConfiguration()
-        })
-
-        this.logging.debug('Attached onInitialized and didChangeConfiguration lsp listeners.')
-    }
-
     constructor(features: QServiceManagerFeatures) {
         if (!features || !features.logging || !features.lsp) {
             throw new AmazonQServiceInitializationError(
