@@ -201,7 +201,10 @@ export class AgenticChatController implements ChatHandlers {
                 }
             }
             params.buttonId === 'reject-shell-command'
-                ? handler.reject(new ToolApprovalException('Command was rejected.', true))
+                ? (() => {
+                      handler.reject(new ToolApprovalException('Command was rejected.', true))
+                      this.#stoppedToolUses.add(messageId)
+                  })()
                 : handler.resolve()
             return {
                 success: true,
@@ -253,19 +256,45 @@ export class AgenticChatController implements ChatHandlers {
         if (!cachedToolUse) {
             return
         }
+        const fileList = cachedToolUse.chatResult?.header?.fileList
+        const button = cachedToolUse.chatResult?.header?.buttons?.filter(button => button.id !== 'undo-changes')
+
+        const updatedHeader = {
+            ...cachedToolUse.chatResult?.header,
+            buttons: button,
+            status: {
+                status: 'error' as const,
+                icon: 'cancel',
+                text: 'Change discarded',
+            },
+            muted: true,
+        }
+
+        if (fileList && fileList.filePaths && fileList.details) {
+            const updatedFileList = {
+                ...fileList,
+                muted: true,
+            }
+            const updatedDetails = { ...fileList.details }
+            for (const filePath of fileList.filePaths) {
+                if (updatedDetails[filePath]) {
+                    ;(updatedDetails[filePath] as any) = {
+                        ...updatedDetails[filePath],
+                        clickable: false,
+                    } as Partial<FileDetails>
+                }
+            }
+            updatedFileList.details = updatedDetails
+            updatedHeader.fileList = updatedFileList
+        }
+
         this.#features.chat.sendChatUpdate({
             tabId,
             data: {
                 messages: [
                     {
                         ...cachedToolUse.chatResult,
-                        header: {
-                            ...cachedToolUse.chatResult?.header,
-                            buttons: cachedToolUse.chatResult?.header?.buttons?.filter(
-                                button => button.id !== 'undo-changes'
-                            ),
-                            status: { status: 'error', icon: 'cancel', text: 'Change discarded' },
-                        },
+                        header: updatedHeader,
                     },
                 ],
             },
@@ -341,6 +370,9 @@ export class AgenticChatController implements ChatHandlers {
             return new ResponseError<ChatResult>(ErrorCodes.InternalError, sessionResult.error)
         }
 
+        session.rejectAllDeferredToolExecutions(new ToolApprovalException('Command ignored: new prompt', false))
+        await this.#invalidateAllShellCommands(params.tabId, session)
+
         const metric = new Metric<CombinedConversationEvent>({
             cwsprChatConversationType: 'AgenticChat',
         })
@@ -348,6 +380,7 @@ export class AgenticChatController implements ChatHandlers {
         try {
             const triggerContext = await this.#getTriggerContext(params, metric)
             const isNewConversation = !session.conversationId
+            session.contextListSent = false
             if (isNewConversation) {
                 // agentic chat does not support conversationId in API response,
                 // so we set it to random UUID per session, as other chat functionality
@@ -359,6 +392,7 @@ export class AgenticChatController implements ChatHandlers {
                 this.#log('cancellation requested')
                 this.#telemetryController.emitInteractWithAgenticChat('StopChat', params.tabId)
                 session.abortRequest()
+                void this.#invalidateAllShellCommands(params.tabId, session)
                 session.rejectAllDeferredToolExecutions(new CancellationError('user'))
             })
 
@@ -602,8 +636,6 @@ export class AgenticChatController implements ChatHandlers {
             throw new AgenticChatError('Agent loop reached iteration limit', 'MaxAgentLoopIterations')
         }
 
-        this.#stoppedToolUses.clear()
-
         return (
             finalResult || {
                 success: false,
@@ -665,7 +697,8 @@ export class AgenticChatController implements ChatHandlers {
                 if (!availableToolNames.includes(toolUse.name)) {
                     throw new Error(`Tool ${toolUse.name} is not available in the current mode`)
                 }
-                if (toolUse.name !== 'fsWrite') {
+                // fsRead and listDirectory write to an existing card and could show nothing in the current position
+                if (!['fsWrite', 'fsRead', 'listDirectory'].includes(toolUse.name)) {
                     await this.#showUndoAllIfRequired(chatResultStream, session)
                 }
                 const { explanation } = toolUse.input as unknown as ExplanatoryParams
@@ -859,8 +892,6 @@ export class AgenticChatController implements ChatHandlers {
                     status: 'error',
                     content: [{ json: { error: err instanceof Error ? err.message : 'Unknown error' } }],
                 })
-            } finally {
-                this.#stoppedToolUses.delete(toolUse.toolUseId!)
             }
         }
 
@@ -871,6 +902,9 @@ export class AgenticChatController implements ChatHandlers {
      * Updates the currentUndoAllId state in the session
      */
     #updateUndoAllState(toolUse: ToolUse, session: ChatSessionService) {
+        if (toolUse.name === 'fsRead' || toolUse.name === 'listDirectory') {
+            return
+        }
         if (toolUse.name === 'fsWrite') {
             if (session.currentUndoAllId === undefined) {
                 session.currentUndoAllId = toolUse.toolUseId
@@ -967,7 +1001,6 @@ export class AgenticChatController implements ChatHandlers {
 
         const initialHeader: ChatMessage['header'] = {
             body: 'shell',
-            status: { status: 'success', icon: 'ok', text: '' },
             buttons: [{ id: 'stop-shell-command', text: 'Stop', icon: 'stop' }],
         }
 
@@ -1007,6 +1040,8 @@ export class AgenticChatController implements ChatHandlers {
                     body: '',
                     header: undefined,
                 })
+
+                this.#stoppedToolUses.add(toolMsgId)
             },
         })
     }
@@ -1029,20 +1064,16 @@ export class AgenticChatController implements ChatHandlers {
                 body: '```shell\n' + (toolUse.input as unknown as ExecuteBashParams).command + '\n',
                 header: {
                     body: 'shell',
-                    status: {
-                        status: isAccept ? 'success' : 'error',
-                        icon: isAccept ? 'ok' : 'cancel',
-                        text: isAccept ? 'Accepted' : 'Rejected',
-                    },
-                    buttons: isAccept
-                        ? [
-                              {
-                                  id: 'stop-shell-command',
-                                  text: 'Stop',
-                                  icon: 'stop',
+                    ...(isAccept
+                        ? {}
+                        : {
+                              status: {
+                                  status: 'error',
+                                  icon: 'cancel',
+                                  text: 'Rejected',
                               },
-                          ]
-                        : [],
+                          }),
+                    buttons: isAccept ? [{ id: 'stop-shell-command', text: 'Stop', icon: 'stop' }] : [],
                 },
             }
         }
@@ -1481,7 +1512,7 @@ export class AgenticChatController implements ChatHandlers {
 
         // These are errors we want to show custom messages in chat for.
         if (['QModelResponse', 'MaxAgentLoopIterations', 'InputTooLong'].includes(err.code)) {
-            this.#features.logging.error(`${err.code}: ${JSON.stringify(err)} `)
+            this.#features.logging.error(`${loggingUtils.formatErr(err)}`)
             return new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, err.message, {
                 type: 'answer',
                 body: err.message,
@@ -1489,8 +1520,7 @@ export class AgenticChatController implements ChatHandlers {
                 buttons: [],
             })
         }
-        this.#features.logging.error(`Unknown Error: ${JSON.stringify(err)}`)
-        this.#features.logging.log(`Error Cause: ${JSON.stringify(err.cause)}`)
+        this.#features.logging.error(`Unknown Error: ${loggingUtils.formatErr(err)}`)
         return new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, err.message, {
             type: 'answer',
             body: requestID ? genericErrorMsg + `\n\nRequest ID: ${requestID}` : genericErrorMsg,
@@ -1842,6 +1872,36 @@ export class AgenticChatController implements ChatHandlers {
         })
 
         return triggerContext
+    }
+
+    async #invalidateAllShellCommands(tabId: string, session: ChatSessionService) {
+        for (const [toolUseId, toolUse] of session.toolUseLookup.entries()) {
+            if (toolUse.name !== 'executeBash' || this.#stoppedToolUses.has(toolUseId)) continue
+
+            const params = toolUse.input as unknown as ExecuteBashParams
+            const command = params.command
+
+            await this.#features.chat.sendChatUpdate({
+                tabId,
+                state: { inProgress: false },
+                data: {
+                    messages: [
+                        {
+                            messageId: toolUseId,
+                            type: 'tool',
+                            body: `\`\`\`shell\n${command}\n\`\`\``,
+                            header: {
+                                body: 'shell',
+                                status: { status: 'info', icon: 'info', text: 'Ignored' },
+                                buttons: [],
+                            },
+                        },
+                    ],
+                },
+            })
+
+            this.#stoppedToolUses.add(toolUseId)
+        }
     }
 
     async #processGenerateAssistantResponseResponse(
