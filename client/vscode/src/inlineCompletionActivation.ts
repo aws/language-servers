@@ -52,6 +52,7 @@ export function registerInlineCompletion(languageClient: LanguageClient) {
 
     commands.registerCommand('aws.sample-vscode-ext-amazonq.invokeInlineCompletion', async (...args: any) => {
         // Register manual trigger command for InlineCompletions
+        console.log('Manual trigger for inline completion invoked')
         await commands.executeCommand(`editor.action.inlineSuggest.trigger`)
     })
 
@@ -90,43 +91,62 @@ export class CodeWhispererInlineCompletionItemProvider implements InlineCompleti
         token: CancellationToken
     ): Promise<InlineCompletionItem[] | InlineCompletionList> {
         const requestStartTime = Date.now()
-        const request: InlineCompletionWithReferencesParams = {
-            textDocument: {
+
+        try {
+            console.log('Sending inline completion request with context:', {
                 uri: document.uri.toString(),
-            },
-            position,
-            context,
+                position: { line: position.line, character: position.character },
+                triggerKind: context.triggerKind,
+            })
+
+            // Create a request object that matches the protocol's expected structure
+            const request = {
+                textDocument: {
+                    uri: document.uri.toString(),
+                },
+                position: {
+                    line: position.line,
+                    character: position.character,
+                },
+                context: {
+                    triggerKind: context.triggerKind,
+                },
+            }
+
+            // Use the raw sendRequest method to avoid type checking issues
+            const response = await this.languageClient.sendRequest(
+                'aws/textDocument/inlineCompletionWithReferences',
+                request,
+                token
+            )
+
+            const list: InlineCompletionListWithReferences = response as InlineCompletionListWithReferences
+            this.languageClient.info(`Client: Received ${list.items.length} suggestions`)
+
+            console.log('Got inlineCompletionsWithReferences from server', list)
+
+            const firstCompletionDisplayLatency = Date.now() - requestStartTime
+            // Add completion session tracking and attach onAcceptance command to each item to record used decision
+            list.items.forEach((item: InlineCompletionItemWithReferences) => {
+                // POC-NEP: Set VSCode UI properties for edit suggestions
+                // The isInlineEdit property comes from our type definition and needs to be
+                // applied to the VSCode-specific property with the same name
+                if (item.isInlineEdit) {
+                    ;(item as any).showInlineEditMenu = true
+                    console.log('Setting isInlineEdit=true for item', item.itemId)
+                }
+
+                item.command = {
+                    command: 'aws.sample-vscode-ext-amazonq.accept',
+                    title: 'On acceptance',
+                    arguments: [list.sessionId, item.itemId, requestStartTime, firstCompletionDisplayLatency],
+                }
+            })
+
+            return list as InlineCompletionList
+        } catch (error) {
+            console.error('Error in provideInlineCompletionItems:', error)
+            return { items: [] }
         }
-
-        const response = await this.languageClient.sendRequest(
-            inlineCompletionWithReferencesRequestType,
-            request,
-            token
-        )
-
-        const list: InlineCompletionListWithReferences = response as InlineCompletionListWithReferences
-        this.languageClient.info(`Client: Received ${list.items.length} suggestions`)
-
-        console.log('Got inlineCompletionsWithReferences from server', list)
-
-        const firstCompletionDisplayLatency = Date.now() - requestStartTime
-        // Add completion session tracking and attach onAcceptance command to each item to record used decision
-        list.items.forEach((item: InlineCompletionItemWithReferences) => {
-            // POC-NEP: Set VSCode UI properties for edit suggestions
-            // The isInlineEdit property comes from our type definition and needs to be
-            // applied to the VSCode-specific property with the same name
-            if (item.isInlineEdit) {
-                ;(item as any).showInlineEditMenu = true
-                console.log('Setting isInlineEdit=true for item', item.itemId)
-            }
-
-            item.command = {
-                command: 'aws.sample-vscode-ext-amazonq.accept',
-                title: 'On acceptance',
-                arguments: [list.sessionId, item.itemId, requestStartTime, firstCompletionDisplayLatency],
-            }
-        })
-
-        return list as InlineCompletionList
     }
 }
