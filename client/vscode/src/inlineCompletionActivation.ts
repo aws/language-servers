@@ -132,7 +132,7 @@ export class CodeWhispererInlineCompletionItemProvider implements InlineCompleti
                 // POC-NEP: Set VSCode UI properties for edit suggestions
                 // The isInlineEdit property comes from our type definition and needs to be
                 // applied to the VSCode-specific property with the same name
-                if (item.isInlineEdit) {
+                if ((item as any).isInlineEdit) {
                     ;(item as any).showInlineEditMenu = true
                     console.log('Setting isInlineEdit=true for item', item.itemId)
                 }
