@@ -176,6 +176,7 @@ export class AdditionalContextProvider {
                         second: item.name === 'symbol' ? item.endLine : -1,
                     },
                 ],
+                description: item.path,
                 fullPath: item.path,
             }
         }
