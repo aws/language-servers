@@ -131,7 +131,11 @@ export const handleChatPrompt = (
         const context = prompt.context?.map(c => (typeof c === 'string' ? { command: c } : c))
         messager.onChatPrompt({ prompt, tabId, context }, triggerType)
     }
-    // Add user prompt to UI
+
+    initializeChatResponse(mynahUi, tabId, userPrompt)
+}
+
+const initializeChatResponse = (mynahUi: MynahUI, tabId: string, userPrompt?: string) => {
     mynahUi.addChatItem(tabId, {
         type: ChatItemType.PROMPT,
         body: userPrompt,
@@ -772,7 +776,12 @@ export const createMynahUi = (
         const tabId = getOrCreateTabId()
         if (!tabId) return
 
-        mynahUi.addToUserPrompt(tabId, params.selection, 'code')
+        if (params.autoSubmit && params.prompt) {
+            messager.onChatPrompt({ prompt: params.prompt, tabId, context: undefined }, 'contextMenu')
+            initializeChatResponse(mynahUi, tabId, params.prompt.prompt)
+        } else {
+            mynahUi.addToUserPrompt(tabId, params.selection, 'code')
+        }
         messager.onSendToPrompt(params, tabId)
     }
 
