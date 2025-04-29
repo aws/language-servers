@@ -204,6 +204,10 @@ export class LocalProjectContextController {
     async buildIndex(): Promise<void> {
         try {
             if (this._vecLib) {
+                if (!this.workspaceFolders.length) {
+                    this.log.info('skip building index because no workspace folder found')
+                    return
+                }
                 const sourceFiles = await this.processWorkspaceFolders(
                     this.workspaceFolders,
                     this.ignoreFilePatterns,
@@ -213,7 +217,9 @@ export class LocalProjectContextController {
                     this.maxFileSizeMB,
                     this.maxIndexSizeMB
                 )
-                await this._vecLib?.buildIndex(sourceFiles, this.indexCacheDirPath, 'all')
+
+                const projectRoot = this.workspaceFolders.sort()[0].uri
+                await this._vecLib?.buildIndex(sourceFiles, projectRoot, 'all')
                 this.log.info('Context index built successfully')
             }
         } catch (error) {
