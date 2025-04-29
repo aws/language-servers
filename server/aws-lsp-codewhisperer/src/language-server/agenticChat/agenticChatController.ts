@@ -665,7 +665,8 @@ export class AgenticChatController implements ChatHandlers {
                 if (!availableToolNames.includes(toolUse.name)) {
                     throw new Error(`Tool ${toolUse.name} is not available in the current mode`)
                 }
-                if (toolUse.name !== 'fsWrite') {
+                // fsRead and listDirectory write to an existing card and could show nothing in the current position
+                if (['fsWrite', 'fsRead', 'listDirectory'].includes(toolUse.name)) {
                     await this.#showUndoAllIfRequired(chatResultStream, session)
                 }
                 const { explanation } = toolUse.input as unknown as ExplanatoryParams
@@ -871,6 +872,9 @@ export class AgenticChatController implements ChatHandlers {
      * Updates the currentUndoAllId state in the session
      */
     #updateUndoAllState(toolUse: ToolUse, session: ChatSessionService) {
+        if (toolUse.name === 'fsRead' || toolUse.name === 'listDirectory') {
+            return
+        }
         if (toolUse.name === 'fsWrite') {
             if (session.currentUndoAllId === undefined) {
                 session.currentUndoAllId = toolUse.toolUseId
