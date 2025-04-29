@@ -242,6 +242,8 @@ export type AddMessageEvent = {
     cwsprChatPromptContextCount?: number
     cwsprChatPromptContextLength?: number
     cwsprChatFocusFileContextLength?: number
+    cwsprChatCodeContextCount?: number
+    cwsprChatCodeContextLength?: number
 }
 
 export type EnterFocusChatEvent = {

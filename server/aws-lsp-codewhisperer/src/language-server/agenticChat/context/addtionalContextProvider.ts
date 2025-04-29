@@ -50,6 +50,9 @@ export class AdditionalContextProvider {
     }
 
     getContextType(prompt: AdditionalContextPrompt): string {
+        if (prompt.name === 'symbol') {
+            return 'code'
+        }
         if (prompt.filePath.endsWith(promptFileExtension)) {
             if (pathUtils.isInDirectory(path.join('.amazonq', 'rules'), prompt.relativePath)) {
                 return 'rule'
@@ -81,15 +84,18 @@ export class AdditionalContextProvider {
             let fileContextCount = 0
             let folderContextCount = 0
             let promptContextCount = 0
+            let codeContextCount = 0
             additionalContextCommands.push(...this.mapToContextCommandItems(context, workspaceFolderPath))
             for (const c of context) {
                 if (typeof context !== 'string') {
-                    if (c.id === 'file') {
-                        fileContextCount++
-                    } else if (c.id === 'folder') {
-                        folderContextCount++
-                    } else if (c.id === 'prompt') {
+                    if (c.id === 'prompt') {
                         promptContextCount++
+                    } else if (c.label === 'file') {
+                        fileContextCount++
+                    } else if (c.label === 'folder') {
+                        folderContextCount++
+                    } else if (c.label === 'code') {
+                        codeContextCount++
                     }
                 }
             }
@@ -98,6 +104,7 @@ export class AdditionalContextProvider {
                 fileContextCount,
                 folderContextCount,
                 promptContextCount,
+                codeContextCount,
             }
         }
 
@@ -117,6 +124,7 @@ export class AdditionalContextProvider {
         let ruleContextLength = 0
         let fileContextLength = 0
         let promptContextLength = 0
+        let codeContextLength = 0
         for (const prompt of prompts.slice(0, 20)) {
             const contextType = this.getContextType(prompt)
             const description =
@@ -140,17 +148,20 @@ export class AdditionalContextProvider {
             contextEntry.push(entry)
 
             if (contextType === 'rule') {
-                fileContextLength += prompt.content.length
+                ruleContextLength += prompt.content.length
             } else if (contextType === 'prompt') {
                 promptContextLength += prompt.content.length
+            } else if (contextType === 'code') {
+                codeContextLength += prompt.content.length
             } else {
-                ruleContextLength += prompt.content.length
+                fileContextLength += prompt.content.length
             }
         }
         triggerContext.contextInfo.contextLength = {
             ruleContextLength,
             fileContextLength,
             promptContextLength,
+            codeContextLength,
         }
         return contextEntry
     }
