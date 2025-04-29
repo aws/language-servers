@@ -178,7 +178,7 @@ describe('RecentEditTracker', function () {
             // The remaining snapshots should be the most recent ones
             // The oldest snapshots should have been removed
             for (let i = 0; i < snapshots.length; i++) {
-                const expectedContent = snapshotContents[snapshotContents.length - snapshots.length + i]
+                const expectedContent: string = snapshotContents[snapshotContents.length - snapshots.length + i]
                 assert.strictEqual(snapshots[i].content, expectedContent)
             }
         })
