@@ -10,6 +10,8 @@ import {
     AdditionalContentEntry,
     GenerateAssistantResponseCommandInput,
     ChatMessage,
+    ContentType,
+    ProgrammingLanguage,
 } from '@amzn/codewhisperer-streaming'
 import {
     BedrockTools,
@@ -91,7 +93,7 @@ export class AgenticChatTriggerContext {
         const { prompt } = params
         const defaultEditorState = { workspaceFolders: workspaceUtils.getWorkspaceFolderPaths(this.#lsp) }
 
-        const useRelevantDocuments = 'context' in params ? params.context?.some(c => c.command === '@workspace') : false
+        const hasWorkspace = 'context' in params ? params.context?.some(c => c.command === '@workspace') : false
 
         let promptContent = prompt.escapedPrompt ?? prompt.prompt
 
@@ -101,13 +103,83 @@ export class AgenticChatTriggerContext {
             promptContent = promptContent.replace(/\*\*@sage\*\*/g, '@sage')
         }
 
-        if (useRelevantDocuments) {
+        if (hasWorkspace) {
             promptContent = promptContent?.replace(/^@workspace\/?/, '')
         }
 
-        const relevantDocuments = useRelevantDocuments
+        // Get workspace documents if @workspace is used
+        let relevantDocuments = hasWorkspace
             ? await this.#getRelevantDocuments(promptContent ?? '', chatResultStream)
-            : undefined
+            : []
+
+        // Process additionalContent items if present
+        if (additionalContent) {
+            for (const item of additionalContent) {
+                // Determine programming language from file extension or type
+                let programmingLanguage: ProgrammingLanguage | undefined = undefined
+
+                if (item.relativePath) {
+                    const ext = path.extname(item.relativePath).toLowerCase()
+                    const langMap: Record<string, string> = {
+                        '.py': 'python',
+                        '.js': 'javascript',
+                        '.java': 'java',
+                        '.cs': 'csharp',
+                        '.ts': 'typescript',
+                        '.c': 'c',
+                        '.cpp': 'cpp',
+                        '.go': 'go',
+                        '.kt': 'kotlin',
+                        '.php': 'php',
+                        '.rb': 'ruby',
+                        '.rs': 'rust',
+                        '.scala': 'scala',
+                        '.sh': 'shell',
+                        '.sql': 'sql',
+                        '.json': 'json',
+                        '.yaml': 'yaml',
+                        '.yml': 'yaml',
+                        '.vue': 'vue',
+                        '.tf': 'tf',
+                        '.tsx': 'tsx',
+                        '.jsx': 'jsx',
+                        '.sv': 'systemverilog',
+                        '.dart': 'dart',
+                        '.lua': 'lua',
+                        '.swift': 'swift',
+                        '.hcl': 'hcl',
+                        '.ps1': 'powershell',
+                        '.r': 'r',
+                    }
+
+                    if (ext in langMap) {
+                        programmingLanguage = { languageName: langMap[ext] }
+                    } else {
+                        programmingLanguage = { languageName: 'plaintext' }
+                    }
+                }
+
+                const filteredType =
+                    item.type === 'file'
+                        ? ContentType.FILE
+                        : item.type === 'rule' || item.type === 'prompt'
+                          ? ContentType.PROMPT
+                          : item.type === 'symbol'
+                            ? ContentType.CODE
+                            : undefined
+                // Create the relevant text document
+                const relevantTextDocument: RelevantTextDocumentAddition = {
+                    text: item.innerContext,
+                    relativeFilePath: item.path,
+                    programmingLanguage,
+                    type: filteredType,
+                    startLine: item.startLine || -1,
+                    endLine: item.endLine || -1,
+                }
+                relevantDocuments.push(relevantTextDocument)
+            }
+        }
+        const useRelevantDocuments = relevantDocuments.length !== 0
 
         const data: GenerateAssistantResponseCommandInput = {
             conversationState: {
@@ -125,18 +197,16 @@ export class AgenticChatTriggerContext {
                                               programmingLanguage: triggerContext.programmingLanguage,
                                               relativeFilePath: triggerContext.relativeFilePath,
                                           },
-                                          relevantDocuments: relevantDocuments,
+                                          relevantDocuments: useRelevantDocuments ? relevantDocuments : undefined,
                                           useRelevantDocuments: useRelevantDocuments,
                                           ...defaultEditorState,
                                       },
                                       tools,
-                                      additionalContext: additionalContent,
                                   }
                                 : {
                                       tools,
-                                      additionalContext: additionalContent,
                                       editorState: {
-                                          relevantDocuments: relevantDocuments,
+                                          relevantDocuments: useRelevantDocuments ? relevantDocuments : undefined,
                                           useRelevantDocuments: useRelevantDocuments,
                                           ...defaultEditorState,
                                       },
@@ -256,9 +326,13 @@ export class AgenticChatTriggerContext {
                         programmingLanguage: {
                             languageName: chunk.programmingLanguage,
                         },
+                        type: 'workspace',
                     })
                 } else {
-                    relevantTextDocuments.push(baseDocument)
+                    relevantTextDocuments.push({
+                        ...baseDocument,
+                        type: 'workspace',
+                    })
                 }
             }
 

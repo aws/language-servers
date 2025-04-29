@@ -1,7 +1,7 @@
 import { FileDetails, QuickActionCommand, FileList, ContextCommand } from '@aws/language-server-runtimes/protocol'
 import { AdditionalContextPrompt, ContextCommandItem, ContextCommandItemType } from 'local-indexing'
 import * as path from 'path'
-import { AdditionalContentEntryAddition, TriggerContext } from './agenticChatTriggerContext'
+import { AdditionalContentEntryAddition, TriggerContext, workspaceChunkMaxSize } from './agenticChatTriggerContext'
 import { URI } from 'vscode-uri'
 import { Lsp, Workspace } from '@aws/language-server-runtimes/server-interface'
 import { pathUtils, workspaceUtils } from '@aws/lsp-core'
@@ -56,7 +56,7 @@ export class AdditionalContextProvider {
                 return 'prompt'
             }
         }
-        return 'file'
+        return prompt.name
     }
 
     async getAdditionalContext(
@@ -104,7 +104,7 @@ export class AdditionalContextProvider {
             const entry = {
                 name: prompt.name.substring(0, additionalContentNameLimit),
                 description: description.substring(0, additionalContentNameLimit),
-                innerContext: prompt.content.substring(0, additionalContentInnerContextLimit),
+                innerContext: prompt.content.substring(0, workspaceChunkMaxSize),
                 type: contextType,
                 path: prompt.filePath,
                 relativePath: relativePath,
