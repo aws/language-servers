@@ -50,7 +50,9 @@ describe('Chat', () => {
             postMessage: sandbox.stub(),
         }
 
-        mynahUi = createChat(clientApi)
+        mynahUi = createChat(clientApi, {
+            agenticMode: true,
+        })
     })
 
     afterEach(() => {
@@ -392,7 +394,13 @@ describe('Chat', () => {
                 handleMessageReceive: handleMessageReceiveStub,
                 isSupportedTab: () => false,
             }
-            mynahUi = createChat(clientApi, {}, clientAdapter as ChatClientAdapter)
+            mynahUi = createChat(
+                clientApi,
+                {
+                    agenticMode: true,
+                },
+                clientAdapter as ChatClientAdapter
+            )
 
             const tabId = '123'
             const body = 'some response'

@@ -582,10 +582,10 @@ export const createMynahUi = (
         const chatItems = store.chatItems || []
         const isPairProgrammingMode: boolean = getTabPairProgrammingMode(mynahUi, tabId)
 
-        if (chatResult.additionalMessages?.length) {
+        if (agenticMode && chatResult.additionalMessages?.length) {
             mynahUi.updateStore(tabId, {
-                loadingChat: !!agenticMode,
-                cancelButtonWhenLoading: agenticMode,
+                loadingChat: true,
+                cancelButtonWhenLoading: true,
             })
             chatResult.additionalMessages.forEach(am => {
                 const chatItem: ChatItem = {
@@ -609,33 +609,40 @@ export const createMynahUi = (
 
         if (isPartialResult) {
             if (agenticMode) {
-                // This stops showing spinner message all the time, but after result is handled message is duplicated for some reason.
-                const tempChatItem = {
-                    body: '',
+                mynahUi.updateStore(tabId, {
+                    loadingChat: true,
+                    cancelButtonWhenLoading: true,
+                })
+                const chatItem = {
+                    ...chatResult,
+                    body: chatResult.body,
                     type: ChatItemType.ANSWER_STREAM,
+                    header: header,
+                    buttons: buttons,
+                    fileList,
+                    codeBlockActions: isPairProgrammingMode ? { 'insert-to-cursor': null } : undefined,
                 }
-                mynahUi.addChatItem(tabId, tempChatItem)
-            }
-            mynahUi.updateStore(tabId, {
-                loadingChat: !!agenticMode, // display loading spinner only in agentic mode when handling partial results
-                cancelButtonWhenLoading: agenticMode,
-            })
 
-            const chatItem = {
-                ...chatResult,
-                body: chatResult.body,
-                type: ChatItemType.ANSWER_STREAM,
-                header: header,
-                buttons: buttons,
-                fileList,
-                codeBlockActions: isPairProgrammingMode ? { 'insert-to-cursor': null } : undefined,
-            }
-
-            if (!chatItems.find(ci => ci.messageId === chatResult.messageId)) {
-                mynahUi.addChatItem(tabId, chatItem)
+                if (!chatItems.find(ci => ci.messageId === chatResult.messageId)) {
+                    mynahUi.addChatItem(tabId, chatItem)
+                } else {
+                    mynahUi.updateChatAnswerWithMessageId(tabId, chatResult.messageId!, chatItem)
+                }
             } else {
-                mynahUi.updateChatAnswerWithMessageId(tabId, chatResult.messageId!, chatItem)
+                const chatItem = {
+                    ...chatResult,
+                    body: chatResult.body,
+                    type: ChatItemType.ANSWER_STREAM,
+                    header: header,
+                    buttons: buttons,
+                    fileList,
+                    canBeVoted: false, // Voting will be enable only after whole message is rendered
+                }
+                // Legacy message handling
+                // type for MynahUI differs from ChatResult types so we ignore it
+                mynahUi.updateLastChatAnswer(tabId, chatItem)
             }
+
             return
         }
 
@@ -672,23 +679,45 @@ export const createMynahUi = (
               }
             : {}
 
-        mynahUi.endMessageStream(tabId, chatResult.messageId ?? '', {
-            header: header,
-            buttons: buttons,
-            body: chatResult.body,
-            followUp: followUps,
-            relatedContent: chatResult.relatedContent,
-            canBeVoted: chatResult.canBeVoted,
-            codeReference: chatResult.codeReference,
-            fileList: chatResult.fileList,
-            // messageId excluded
-        })
+        if (agenticMode) {
+            mynahUi.endMessageStream(tabId, chatResult.messageId ?? '', {
+                header: header,
+                buttons: buttons,
+                body: chatResult.body,
+                followUp: followUps,
+                relatedContent: chatResult.relatedContent,
+                canBeVoted: chatResult.canBeVoted,
+                codeReference: chatResult.codeReference,
+                fileList: chatResult.fileList,
+                // messageId excluded
+            })
 
-        mynahUi.updateStore(tabId, {
-            loadingChat: false,
-            cancelButtonWhenLoading: agenticMode,
-            promptInputDisabledState: false,
-        })
+            mynahUi.updateStore(tabId, {
+                loadingChat: false,
+                cancelButtonWhenLoading: true,
+                promptInputDisabledState: false,
+            })
+        } else {
+            // Legacy handling
+            mynahUi.updateLastChatAnswer(tabId, {
+                header: header,
+                buttons: buttons,
+                body: chatResult.body,
+                messageId: chatResult.messageId,
+                followUp: followUps,
+                relatedContent: chatResult.relatedContent,
+                canBeVoted: chatResult.canBeVoted,
+                codeReference: chatResult.codeReference,
+                fileList: chatResult.fileList,
+                // messageId excluded
+            })
+            mynahUi.endMessageStream(tabId, chatResult.messageId ?? '')
+            mynahUi.updateStore(tabId, {
+                loadingChat: false,
+                cancelButtonWhenLoading: false,
+                promptInputDisabledState: false,
+            })
+        }
     }
 
     const updateChat = (params: ChatUpdateParams) => {
