@@ -254,10 +254,11 @@ export class AgenticChatController implements ChatHandlers {
             return
         }
         const fileList = cachedToolUse.chatResult?.header?.fileList
+        const button = cachedToolUse.chatResult?.header?.buttons?.filter(button => button.id !== 'undo-changes')
 
         const updatedHeader = {
             ...cachedToolUse.chatResult?.header,
-            buttons: cachedToolUse.chatResult?.header?.buttons?.filter(button => button.id !== 'undo-changes'),
+            buttons: button,
             status: {
                 status: 'error' as const,
                 icon: 'cancel',
