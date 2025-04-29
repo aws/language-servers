@@ -104,10 +104,7 @@ export class ListDirectory {
                 '- This tool will ignore directories such as `build/`, `out/`, `dist/` and `node_modules/`\n' +
                 '- This tool is more effective than running a command like `ls` using `executeBash` tool\n' +
                 '- Results clearly distinguish between files, directories or symlinks with [F], [D] and [L] prefixes\n' +
-                '- Use the `maxDepth` parameter to control how deep the directory traversal goes\n\n' +
-                '## Related tools\n' +
-                '- fsRead: Use to examine files after finding them\n' +
-                '- fsWrite: Use to modify files after finding them',
+                '- Use the `maxDepth` parameter to control how deep the directory traversal goes',
             inputSchema: {
                 type: 'object',
                 properties: {
