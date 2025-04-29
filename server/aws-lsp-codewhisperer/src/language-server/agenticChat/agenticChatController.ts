@@ -666,7 +666,7 @@ export class AgenticChatController implements ChatHandlers {
                     throw new Error(`Tool ${toolUse.name} is not available in the current mode`)
                 }
                 // fsRead and listDirectory write to an existing card and could show nothing in the current position
-                if (['fsWrite', 'fsRead', 'listDirectory'].includes(toolUse.name)) {
+                if (!['fsWrite', 'fsRead', 'listDirectory'].includes(toolUse.name)) {
                     await this.#showUndoAllIfRequired(chatResultStream, session)
                 }
                 const { explanation } = toolUse.input as unknown as ExplanatoryParams
