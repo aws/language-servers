@@ -151,6 +151,10 @@ export const QAgenticChatServer =
             return chatController.onPromptInputOptionChange(params)
         })
 
+        // ;(chat as any).onPromptInputButtonClick((params: any) => {
+        //     chatController.setPaidTierMode(params.tabId, 'paidtier')
+        // })
+
         chat.onButtonClick(params => {
             return chatController.onButtonClick(params)
         })
