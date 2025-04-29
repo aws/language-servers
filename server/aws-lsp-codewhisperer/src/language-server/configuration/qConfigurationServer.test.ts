@@ -8,7 +8,13 @@ import {
 } from './qConfigurationServer'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import { CodeWhispererServiceToken } from '../../shared/codeWhispererService'
-import { CancellationTokenSource, InitializeParams, Server } from '@aws/language-server-runtimes/server-interface'
+import {
+    CancellationTokenSource,
+    InitializeParams,
+    LSPErrorCodes,
+    ResponseError,
+    Server,
+} from '@aws/language-server-runtimes/server-interface'
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 import { setCredentialsForAmazonQTokenServiceManagerFactory } from '../../shared/testUtils'
 import { Q_CONFIGURATION_SECTION } from '../../shared/constants'
@@ -38,9 +44,11 @@ describe('QConfigurationServerToken', () => {
 
     beforeEach(async () => {
         testFeatures = new TestFeatures()
-        testFeatures.lsp.getClientInitializeParams.returns(getInitializeParams())
+        testFeatures.setClientParams(getInitializeParams())
 
-        amazonQServiceManager = AmazonQTokenServiceManager.getInstance(testFeatures)
+        AmazonQTokenServiceManager.resetInstance()
+        AmazonQTokenServiceManager.initInstance(testFeatures)
+        amazonQServiceManager = AmazonQTokenServiceManager.getInstance()
 
         const codeWhispererService = stubInterface<CodeWhispererServiceToken>()
         const configurationServer: Server = QConfigurationServerToken()
@@ -53,13 +61,12 @@ describe('QConfigurationServerToken', () => {
         )
         listAvailableProfilesStub = sinon.stub(ServerConfigurationProvider.prototype, 'listAvailableProfiles')
 
-        await testFeatures.start(configurationServer)
+        await testFeatures.initialize(configurationServer)
     })
 
     afterEach(() => {
         sinon.restore()
         testFeatures.dispose()
-        AmazonQTokenServiceManager.resetInstance()
     })
 
     it(`calls all list methods when ${Q_CONFIGURATION_SECTION} is requested`, () => {
@@ -101,11 +108,12 @@ describe('ServerConfigurationProvider', () => {
     const setCredentials = setCredentialsForAmazonQTokenServiceManagerFactory(() => testFeatures)
 
     const setupServerConfigurationProvider = (developerProfiles = true) => {
-        testFeatures.lsp.getClientInitializeParams.returns(getInitializeParams(developerProfiles))
+        testFeatures.setClientParams(getInitializeParams(developerProfiles))
 
         AmazonQTokenServiceManager.resetInstance()
+        AmazonQTokenServiceManager.initInstance(testFeatures)
+        amazonQServiceManager = AmazonQTokenServiceManager.getInstance()
 
-        amazonQServiceManager = AmazonQTokenServiceManager.getInstance(testFeatures)
         amazonQServiceManager.setServiceFactory(sinon.stub().returns(codeWhispererService))
         serverConfigurationProvider = new ServerConfigurationProvider(
             amazonQServiceManager,
@@ -164,5 +172,22 @@ describe('ServerConfigurationProvider', () => {
         await serverConfigurationProvider.listAvailableProfiles(tokenSource.token)
 
         sinon.assert.calledOnce(listAvailableProfilesHandlerSpy)
+    })
+
+    it('records error code when listAvailableProfiles throws throttling error', async () => {
+        const awsError = new Error('Throttling') as any
+        awsError.code = 'ThrottlingException'
+        awsError.name = 'ThrottlingException'
+        codeWhispererService.listAvailableProfiles.rejects(awsError)
+
+        try {
+            await serverConfigurationProvider.listAvailableProfiles(tokenSource.token)
+            assert.fail('Expected method to throw')
+        } catch (error) {
+            const responseError = error as ResponseError<{ awsErrorCode: string }>
+            assert.strictEqual(responseError.code, LSPErrorCodes.RequestFailed)
+            assert.strictEqual(responseError.data?.awsErrorCode, 'E_AMAZON_Q_PROFILE_THROTTLING')
+            sinon.assert.calledOnce(listAvailableProfilesHandlerSpy)
+        }
     })
 })

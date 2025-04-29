@@ -1,4 +1,4 @@
-import { CodeWhispererServiceBase, CodeWhispererServiceIAM } from '../codeWhispererService'
+import { CodeWhispererServiceIAM } from '../codeWhispererService'
 import {
     AmazonQBaseServiceManager,
     BaseAmazonQServiceManager,
@@ -6,6 +6,12 @@ import {
 } from './BaseAmazonQServiceManager'
 import { getAmazonQRegionAndEndpoint } from './configurationUtils'
 import { StreamingClientServiceIAM } from '../streamingClientService'
+import { AmazonQServiceAlreadyInitializedError, AmazonQServiceInitializationError } from './errors'
+import {
+    CancellationToken,
+    CredentialsType,
+    UpdateConfigurationParams,
+} from '@aws/language-server-runtimes/server-interface'
 
 export class AmazonQIAMServiceManager extends BaseAmazonQServiceManager<
     CodeWhispererServiceIAM,
@@ -22,15 +28,27 @@ export class AmazonQIAMServiceManager extends BaseAmazonQServiceManager<
         this.endpoint = amazonQRegionAndEndpoint.endpoint
     }
 
-    public static getInstance(features: QServiceManagerFeatures): AmazonQIAMServiceManager {
+    public static initInstance(features: QServiceManagerFeatures): AmazonQIAMServiceManager {
         if (!AmazonQIAMServiceManager.instance) {
             AmazonQIAMServiceManager.instance = new AmazonQIAMServiceManager(features)
+
+            return AmazonQIAMServiceManager.instance
+        }
+
+        throw new AmazonQServiceAlreadyInitializedError()
+    }
+
+    public static getInstance(): AmazonQIAMServiceManager {
+        if (!AmazonQIAMServiceManager.instance) {
+            throw new AmazonQServiceInitializationError(
+                'Amazon Q service has not been initialized yet. Make sure the Amazon Q service server is present and properly initialized.'
+            )
         }
 
         return AmazonQIAMServiceManager.instance
     }
 
-    public getCodewhispererService(): CodeWhispererServiceBase {
+    public getCodewhispererService() {
         if (!this.cachedCodewhispererService) {
             this.cachedCodewhispererService = new CodeWhispererServiceIAM(
                 this.features.credentialsProvider,
@@ -59,8 +77,25 @@ export class AmazonQIAMServiceManager extends BaseAmazonQServiceManager<
         }
         return this.cachedStreamingClient
     }
+
+    public handleOnCredentialsDeleted(_type: CredentialsType): void {
+        return
+    }
+
+    public override handleOnUpdateConfiguration(
+        _params: UpdateConfigurationParams,
+        _token: CancellationToken
+    ): Promise<void> {
+        return Promise.resolve()
+    }
+
+    // For Unit Tests
+    public static resetInstance(): void {
+        AmazonQIAMServiceManager.instance = null
+    }
 }
 
-export const initBaseIAMServiceManager = (features: QServiceManagerFeatures): AmazonQBaseServiceManager => {
-    return AmazonQIAMServiceManager.getInstance(features)
-}
+export const initBaseIAMServiceManager = (features: QServiceManagerFeatures) =>
+    AmazonQIAMServiceManager.initInstance(features)
+
+export const getOrThrowBaseIAMServiceManager = (): AmazonQBaseServiceManager => AmazonQIAMServiceManager.getInstance()

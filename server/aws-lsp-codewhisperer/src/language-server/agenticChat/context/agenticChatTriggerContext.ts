@@ -12,6 +12,7 @@ import {
     ChatMessage,
     ContentType,
     ProgrammingLanguage,
+    EnvState,
 } from '@amzn/codewhisperer-streaming'
 import {
     BedrockTools,
@@ -30,11 +31,12 @@ import { LocalProjectContextController } from '../../../shared/localProjectConte
 import * as path from 'path'
 import { RelevantTextDocument } from '@amzn/codewhisperer-streaming'
 import { AgenticChatResultStream } from '../agenticChatResultStream'
+import { ContextInfo } from './contextUtils'
 
 export interface TriggerContext extends Partial<DocumentContext> {
     userIntent?: UserIntent
     triggerType?: TriggerType
-    workspaceRulesCount?: number
+    contextInfo?: ContextInfo
     documentReference?: FileList
 }
 export type LineInfo = { startLine: number; endLine: number }
@@ -76,6 +78,20 @@ export class AgenticChatTriggerContext {
         return {
             ...documentContext,
             userIntent: undefined,
+        }
+    }
+
+    #mapPlatformToEnvState(platform: string): EnvState | undefined {
+        switch (platform) {
+            case 'darwin':
+                return { operatingSystem: 'macos' }
+            case 'linux':
+                return { operatingSystem: 'linux' }
+            case 'win32':
+            case 'cygwin':
+                return { operatingSystem: 'windows' }
+            default:
+                return undefined
         }
     }
 
@@ -202,6 +218,8 @@ export class AgenticChatTriggerContext {
                                           ...defaultEditorState,
                                       },
                                       tools,
+                                      envState: this.#mapPlatformToEnvState(process.platform),
+
                                   }
                                 : {
                                       tools,
@@ -210,6 +228,7 @@ export class AgenticChatTriggerContext {
                                           useRelevantDocuments: useRelevantDocuments,
                                           ...defaultEditorState,
                                       },
+                                      envState: this.#mapPlatformToEnvState(process.platform),
                                   },
                         userIntent: triggerContext.userIntent,
                         origin: 'IDE',

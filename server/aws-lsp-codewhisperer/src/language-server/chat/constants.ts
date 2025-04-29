@@ -1,3 +1,5 @@
+import { ChatMessage } from '@aws/language-server-runtimes/protocol'
+
 const userGuideURL = 'https://docs.aws.amazon.com/amazonq/latest/aws-builder-use-ug/getting-started.html'
 
 export const HELP_MESSAGE = `I'm Amazon Q, a generative AI assistant. Learn more about me below. Your feedback will help me improve.
@@ -39,3 +41,10 @@ export const DEFAULT_EXCLUDE_PATTERNS = [
     // OS specific files
     '.DS_Store',
 ]
+
+export const loadingMessage: ChatMessage = {
+    body: '',
+    // @ts-ignore
+    // TODO: Add this to runtimes
+    type: 'answer-stream',
+}

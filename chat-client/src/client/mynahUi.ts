@@ -39,7 +39,6 @@ import {
     NotificationType,
     MynahUIProps,
     QuickActionCommand,
-    ChatItemFormItem,
     ChatItemButton,
 } from '@aws/mynah-ui'
 import { VoteParams } from '../contracts/telemetry'
@@ -57,12 +56,7 @@ import {
     toMynahIcon,
 } from './utils'
 import { ChatHistory, ChatHistoryList } from './features/history'
-import {
-    pairProgrammingModeOff,
-    pairProgrammingModeOn,
-    pairProgrammingPromptInput,
-    programmerModeCard,
-} from './texts/pairProgramming'
+import { pairProgrammingModeOff, pairProgrammingModeOn, programmerModeCard } from './texts/pairProgramming'
 
 export interface InboundChatApi {
     addChatResponse(params: ChatResult, tabId: string, isPartialResult: boolean): void
@@ -97,26 +91,9 @@ const openTabKey = 'openTab'
 export const handlePromptInputChange = (mynahUi: MynahUI, tabId: string, optionsValues: Record<string, string>) => {
     const promptTypeValue = optionsValues['pair-programmer-mode']
 
-    const store = mynahUi.getTabData(tabId)?.getStore()
-    const currentPromptInputOptions = store?.promptInputOptions ?? []
-    const updatedPromptInputOptions: ChatItemFormItem[] = currentPromptInputOptions.map(item =>
-        item.id === 'pair-programmer-mode' ? ({ ...item, value: promptTypeValue } as ChatItemFormItem) : item
-    )
-    // If the option wasn't found, add it
-    if (!updatedPromptInputOptions.some(item => item.id === 'pair-programmer-mode')) {
-        updatedPromptInputOptions.push({ ...pairProgrammingPromptInput, value: promptTypeValue } as ChatItemFormItem)
+    if (promptTypeValue != null) {
+        mynahUi.addChatItem(tabId, promptTypeValue === 'true' ? pairProgrammingModeOn : pairProgrammingModeOff)
     }
-
-    if (promptTypeValue === 'true') {
-        mynahUi.addChatItem(tabId, pairProgrammingModeOn)
-    } else {
-        mynahUi.addChatItem(tabId, pairProgrammingModeOff)
-    }
-
-    // Update the store with the new promptInputOptions array
-    mynahUi.updateStore(tabId, {
-        promptInputOptions: updatedPromptInputOptions,
-    })
 }
 
 export const handleChatPrompt = (
@@ -154,7 +131,11 @@ export const handleChatPrompt = (
         const context = prompt.context?.map(c => (typeof c === 'string' ? { command: c } : c))
         messager.onChatPrompt({ prompt, tabId, context }, triggerType)
     }
-    // Add user prompt to UI
+
+    initializeChatResponse(mynahUi, tabId, userPrompt)
+}
+
+const initializeChatResponse = (mynahUi: MynahUI, tabId: string, userPrompt?: string) => {
     mynahUi.addChatItem(tabId, {
         type: ChatItemType.PROMPT,
         body: userPrompt,
@@ -479,7 +460,6 @@ export const createMynahUi = (
             }
         },
         onStopChatResponse: tabId => {
-            updateFinalItemTypes(tabId)
             messager.onStopChatResponse(tabId)
         },
     }
@@ -491,6 +471,11 @@ export const createMynahUi = (
         },
         config: {
             maxTabs: 10,
+            // RTS max user input is 600k, we need to leave around 500 chars to user to type the question
+            // beside, MynahUI will automatically crop it depending on the available chars left from the prompt field itself by using a 96 chars of threshold
+            // if we want to max user input as 599500, need to configure the maxUserInput as 599596
+            maxUserInput: 599596,
+            userInputLengthWarningThreshold: 550000,
             texts: uiComponentsTexts,
         },
     }
@@ -613,11 +598,6 @@ export const createMynahUi = (
         }
 
         if (isPartialResult) {
-            const tempChatItem = {
-                body: '',
-                type: ChatItemType.ANSWER_STREAM,
-            }
-            mynahUi.addChatItem(tabId, tempChatItem)
             mynahUi.updateStore(tabId, {
                 loadingChat: true,
                 cancelButtonWhenLoading: true,
@@ -638,8 +618,6 @@ export const createMynahUi = (
                 mynahUi.updateChatAnswerWithMessageId(tabId, chatResult.messageId!, chatItem)
             }
             return
-        } else {
-            updateFinalItemTypes(tabId)
         }
 
         // If chat response from server is an empty object don't do anything
@@ -784,7 +762,7 @@ export const createMynahUi = (
             // file diffs in the header need space
             fullWidth: message.type === 'tool' && message.header?.buttons ? true : undefined,
             padding,
-
+            wrapCodes: message.type === 'tool',
             codeBlockActions:
                 message.type === 'tool'
                     ? { 'insert-to-cursor': null, copy: null }
@@ -798,7 +776,12 @@ export const createMynahUi = (
         const tabId = getOrCreateTabId()
         if (!tabId) return
 
-        mynahUi.addToUserPrompt(tabId, params.selection, 'code')
+        if (params.autoSubmit && params.prompt) {
+            messager.onChatPrompt({ prompt: params.prompt, tabId, context: undefined }, 'contextMenu')
+            initializeChatResponse(mynahUi, tabId, params.prompt.prompt)
+        } else {
+            mynahUi.addToUserPrompt(tabId, params.selection, 'code')
+        }
         messager.onSendToPrompt(params, tabId)
     }
 

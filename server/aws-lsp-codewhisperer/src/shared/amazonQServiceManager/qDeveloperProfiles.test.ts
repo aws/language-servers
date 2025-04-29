@@ -14,6 +14,7 @@ import {
     signalsAWSQDeveloperProfilesEnabled,
 } from './qDeveloperProfiles'
 import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../../shared/constants'
+import { AmazonQServiceProfileThrottlingError } from './errors'
 
 const SOME_Q_DEVELOPER_PROFILE_ARN = 'some-random-q-developer-profile-arn'
 const SOME_Q_DEVELOPER_PROFILE_NAME = 'some-random-q-developer-profile-name'
@@ -73,6 +74,28 @@ describe('ListAllAvailableProfiles Handler', () => {
             EXPECTED_DEVELOPER_PROFILES_LIST.length
         )
         assert.deepStrictEqual(profiles, EXPECTED_DEVELOPER_PROFILES_LIST)
+    })
+
+    it('should throw error when listAvailableProfiles throws throttling error', async () => {
+        const awsError = new Error('Throttling') as any
+        awsError.code = 'ThrottlingException'
+        awsError.name = 'ThrottlingException'
+        codeWhispererService.listAvailableProfiles.rejects(awsError)
+
+        try {
+            const profiles = await handler({
+                connectionType: 'identityCenter',
+                logging,
+                endpoints: SOME_AWS_Q_ENDPOINTS,
+                token: tokenSource.token,
+            })
+            assert.fail('Expected method to throw')
+        } catch (error) {
+            assert.ok(
+                error instanceof AmazonQServiceProfileThrottlingError,
+                'Error should be instance of AmazonQServiceError'
+            )
+        }
     })
 
     UNHAPPY_SSO_CONNECTION_TYPES.forEach((connectionType: SsoConnectionType) => {
