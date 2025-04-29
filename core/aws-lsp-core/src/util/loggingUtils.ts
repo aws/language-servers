@@ -20,3 +20,11 @@ export function formatObj(
         2
     )
 }
+
+export function formatErr(err: unknown): string {
+    if (err instanceof Error) {
+        const errObj = { ...err, name: err.name, message: err.message, cause: err.cause }
+        return formatObj(errObj, { maxStringLength: 1000 })
+    }
+    return `Error: ${formatObj(err)}`
+}
