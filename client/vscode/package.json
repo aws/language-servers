@@ -16,15 +16,7 @@
     },
     "main": "./out/extension.js",
     "activationEvents": [
-        "onLanguage:yaml",
-        "onLanguage:json",
-        "onLanguage:typescript",
-        "onLanguage:javascript",
-        "onLanguage:java",
-        "onLanguage:python",
-        "onLanguage:partiql",
-        "onLanguage:csharp",
-        "onCommand:aws.sample-vscode-ext-amazonq.accept"
+        "*"
     ],
     "contributes": {
         "commands": [
@@ -345,7 +337,11 @@
         "@types/uuid": "^9.0.8",
         "@types/vscode": "^1.98.0",
         "jose": "^5.2.4",
+        "shx": "^0.4.0",
         "typescript": "^5.5.3",
         "vscode-languageclient": "^9.0.1"
+    },
+    "dependencies": {
+        "awsdocuments-ls-client": "file:"
     }
 }

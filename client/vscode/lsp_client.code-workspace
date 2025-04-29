@@ -1,0 +1,125 @@
+{
+    "folders": [
+        {
+            "name": "VSCodeLSPClient",
+            "path": "/Users/floralph/Source/language-servers/client/vscode/",
+        },
+        {
+            "name": "InlineFlareServer",
+            "path": "/Users/floralph/Source/language-servers/server/aws-lsp-codewhisperer/",
+        },
+    ],
+    "tasks": {
+        "version": "2.0.0",
+        "tasks": [
+            {
+                "label": "compile:vscode-client",
+                "type": "shell",
+                "command": "cd /Users/floralph/Source/language-servers/client/vscode/ && npm run compile",
+                "group": {
+                    "kind": "build",
+                    "isDefault": true,
+                },
+                "problemMatcher": ["$tsc"],
+            },
+            {
+                "label": "compile:flare-server",
+                "type": "shell",
+                "command": "cd /Users/floralph/Source/language-servers/server/aws-lsp-codewhisperer/ && npm run compile",
+                "group": "build",
+                "problemMatcher": ["$tsc"],
+            },
+            {
+                "label": "compile:all",
+                "dependsOn": ["compile:vscode-client", "compile:flare-server"],
+                "group": {
+                    "kind": "build",
+                    "isDefault": true,
+                },
+            },
+        ],
+    },
+    "settings": {
+        "editor.formatOnSave": true,
+        "editor.tabSize": 4,
+        "files.trimTrailingWhitespace": true,
+        "files.insertFinalNewline": true,
+        "files.trimFinalNewlines": true,
+        "editor.rulers": [80, 100],
+        "editor.renderWhitespace": "boundary",
+        "workbench.colorTheme": "Default Dark+",
+        "workbench.startupEditor": "none",
+        "explorer.confirmDelete": true,
+        "explorer.confirmDragAndDrop": true,
+        "search.exclude": {
+            "**/out": true,
+            "**/build": true,
+        },
+        "typescript.updateImportsOnFileMove.enabled": "always",
+        "javascript.updateImportsOnFileMove.enabled": "always",
+        "javascript.suggest.autoImports": true,
+        "typescript.suggest.autoImports": true,
+        "editor.codeActionsOnSave": {
+            "source.fixAll.eslint": "explicit",
+        },
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
+        "[typescript]": {
+            "editor.defaultFormatter": "esbenp.prettier-vscode",
+        },
+        "[javascript]": {
+            "editor.defaultFormatter": "esbenp.prettier-vscode",
+        },
+        "git.enableSmartCommit": true,
+        "git.confirmSync": false,
+        "git.autofetch": true,
+        "debug.javascript.autoAttachFilter": "smart",
+        "debug.toolBarLocation": "docked",
+        "problems.showCurrentInStatus": true,
+        "javascript.validate.enable": true,
+        "typescript.validate.enable": true,
+        "files.autoSave": "onFocusChange",
+        "editor.bracketPairColorization.enabled": true,
+        "editor.guides.bracketPairs": true,
+        "editor.suggestSelection": "first",
+        "editor.inlineSuggest.enabled": true,
+    },
+    "extensions": {
+        "recommendations": ["editorconfig.editorconfig", "esbenp.prettier-vscode", "dbaeumer.vscode-eslint"],
+    },
+    "launch": {
+        "version": "0.2.0",
+        "configurations": [
+            {
+                "name": "Q Developer Inline Completions",
+                "type": "extensionHost",
+                "request": "launch",
+                "runtimeExecutable": "${execPath}",
+                "args": [
+                    "--extensionDevelopmentPath=/Users/floralph/Source/language-servers/client/vscode",
+                    "--disable-extensions",
+                ],
+                "outFiles": ["/Users/floralph/Source/language-servers/**/*.js"],
+                "env": {
+                    "LSP_SERVER": "/Users/floralph/Source/language-servers/app/aws-lsp-codewhisperer-runtimes/out/token-standalone.js",
+                    "ENABLE_INLINE_COMPLETION": "true",
+                    "ENABLE_ENCRYPTION": "true",
+                    "ENABLE_TOKEN_PROVIDER": "true",
+                    "ENABLE_CUSTOM_COMMANDS": "true",
+                    "ENABLE_CHAT": "true",
+                    "ENABLE_CUSTOMIZATIONS": "true",
+                    "ENABLE_AMAZON_Q_PROFILES": "false",
+                    "ENABLE_AWS_Q_SECTION": "true",
+                },
+                "preLaunchTask": "compile:all",
+            },
+            {
+                "name": "Attach to Flare Server",
+                "type": "node",
+                "request": "attach",
+                "port": 6012,
+                "restart": true,
+                "timeout": 20000,
+            },
+        ],
+    },
+}

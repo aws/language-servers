@@ -62,7 +62,7 @@ export async function activateDocumentsLanguageServer(extensionContext: Extensio
     const enableBearerTokenProvider = process.env.ENABLE_TOKEN_PROVIDER === 'true'
     const enableEncryptionInit = process.env.ENABLE_ENCRYPTION === 'true'
 
-    const debugOptions = { execArgv: ['--nolazy', '--inspect=6012'] }
+    const debugOptions = { execArgv: ['--nolazy', '--inspect=6012', '--enable-source-maps'] }
 
     // If the extension is launch in debug mode the debug server options are use
     // Otherwise the run options are used

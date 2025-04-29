@@ -41,6 +41,7 @@ export const CodewhispererInlineCompletionLanguages = [
     { scheme: 'file', language: 'scala' },
     { scheme: 'file', language: 'vue' },
     { scheme: 'file', language: 'csharp' },
+    { scheme: 'file', language: 'python' },
 ]
 
 export function registerInlineCompletion(languageClient: LanguageClient) {
