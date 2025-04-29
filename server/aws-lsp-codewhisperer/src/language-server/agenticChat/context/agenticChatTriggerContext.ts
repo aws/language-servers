@@ -29,11 +29,12 @@ import { LocalProjectContextController } from '../../../shared/localProjectConte
 import * as path from 'path'
 import { RelevantTextDocument } from '@amzn/codewhisperer-streaming'
 import { AgenticChatResultStream } from '../agenticChatResultStream'
+import { ContextInfo } from './contextUtils'
 
 export interface TriggerContext extends Partial<DocumentContext> {
     userIntent?: UserIntent
     triggerType?: TriggerType
-    workspaceRulesCount?: number
+    contextInfo?: ContextInfo
     documentReference?: FileList
 }
 export type LineInfo = { startLine: number; endLine: number }

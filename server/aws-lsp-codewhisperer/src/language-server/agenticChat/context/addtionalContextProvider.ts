@@ -9,6 +9,7 @@ import {
     additionalContentInnerContextLimit,
     additionalContentNameLimit,
     getUserPromptsDirectory,
+    initialContextInfo,
     promptFileExtension,
 } from './contextUtils'
 import { LocalProjectContextController } from '../../../shared/localProjectContextController'
@@ -63,6 +64,9 @@ export class AdditionalContextProvider {
         triggerContext: TriggerContext,
         context?: ContextCommand[]
     ): Promise<AdditionalContentEntryAddition[]> {
+        if (!triggerContext.contextInfo) {
+            triggerContext.contextInfo = initialContextInfo
+        }
         const additionalContextCommands: ContextCommandItem[] = []
         const workspaceRules = await this.collectWorkspaceRules()
         let workspaceFolderPath = triggerContext.workspaceFolder?.uri
@@ -72,9 +76,29 @@ export class AdditionalContextProvider {
         if (workspaceRules.length > 0) {
             additionalContextCommands.push(...workspaceRules)
         }
-        triggerContext.workspaceRulesCount = workspaceRules.length
+        triggerContext.contextInfo.contextCount.ruleContextCount = workspaceRules.length
         if (context) {
+            let fileContextCount = 0
+            let folderContextCount = 0
+            let promptContextCount = 0
             additionalContextCommands.push(...this.mapToContextCommandItems(context, workspaceFolderPath))
+            for (const c of context) {
+                if (typeof context !== 'string') {
+                    if (c.id === 'file') {
+                        fileContextCount++
+                    } else if (c.id === 'folder') {
+                        folderContextCount++
+                    } else if (c.id === 'prompt') {
+                        promptContextCount++
+                    }
+                }
+            }
+            triggerContext.contextInfo!.contextCount = {
+                ...triggerContext.contextInfo!.contextCount,
+                fileContextCount,
+                folderContextCount,
+                promptContextCount,
+            }
         }
 
         if (additionalContextCommands.length === 0) {
@@ -90,6 +114,9 @@ export class AdditionalContextProvider {
         }
 
         const contextEntry: AdditionalContentEntryAddition[] = []
+        let ruleContextLength = 0
+        let fileContextLength = 0
+        let promptContextLength = 0
         for (const prompt of prompts.slice(0, 20)) {
             const contextType = this.getContextType(prompt)
             const description =
@@ -100,7 +127,6 @@ export class AdditionalContextProvider {
             const relativePath = prompt.filePath.startsWith(getUserPromptsDirectory())
                 ? path.basename(prompt.filePath)
                 : path.relative(workspaceFolderPath, prompt.filePath)
-
             const entry = {
                 name: prompt.name.substring(0, additionalContentNameLimit),
                 description: description.substring(0, additionalContentNameLimit),
@@ -111,8 +137,20 @@ export class AdditionalContextProvider {
                 startLine: prompt.startLine,
                 endLine: prompt.endLine,
             }
-
             contextEntry.push(entry)
+
+            if (contextType === 'rule') {
+                fileContextLength += prompt.content.length
+            } else if (contextType === 'prompt') {
+                promptContextLength += prompt.content.length
+            } else {
+                ruleContextLength += prompt.content.length
+            }
+        }
+        triggerContext.contextInfo.contextLength = {
+            ruleContextLength,
+            fileContextLength,
+            promptContextLength,
         }
         return contextEntry
     }

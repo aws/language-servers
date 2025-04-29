@@ -4,22 +4,29 @@ import { expect } from 'chai'
 import { CodeWhispererServiceBase } from '../codeWhispererService'
 import { stubCodeWhispererService } from '../testUtils'
 import { initBaseTestServiceManager, TestAmazonQServiceManager } from './testUtils'
-import { AmazonQBaseServiceManager, CONFIGURATION_CHANGE_IN_PROGRESS_MSG } from './BaseAmazonQServiceManager'
+import {
+    AmazonQBaseServiceManager,
+    BaseAmazonQServiceManager,
+    CONFIGURATION_CHANGE_IN_PROGRESS_MSG,
+} from './BaseAmazonQServiceManager'
 import { CODE_WHISPERER_CONFIGURATION_SECTION, Q_CONFIGURATION_SECTION } from '../constants'
 
 describe('BaseAmazonQServiceManager', () => {
     let features: TestFeatures
     let serviceStub: StubbedInstance<CodeWhispererServiceBase>
     let serviceManager: AmazonQBaseServiceManager
-
+    let handleDidChangeConfigurationSpy: sinon.SinonSpy
     beforeEach(() => {
         features = new TestFeatures()
+
+        handleDidChangeConfigurationSpy = sinon.spy(BaseAmazonQServiceManager.prototype, 'handleDidChangeConfiguration')
 
         serviceStub = stubCodeWhispererService()
         serviceManager = initBaseTestServiceManager(features, serviceStub)
     })
 
     afterEach(() => {
+        sinon.restore()
         TestAmazonQServiceManager.resetInstance()
     })
 
@@ -57,10 +64,6 @@ describe('BaseAmazonQServiceManager', () => {
             sinon.assert.calledTwice(mockListener)
             expect(mockListener.lastCall.args[0]).to.deep.equal(serviceManager.getConfiguration())
         })
-    })
-
-    it('hooks handleDidChangeConfiguration to LSP server during construction', () => {
-        sinon.assert.calledOnce(features.lsp.didChangeConfiguration)
     })
 
     it('ignores calls to handleDidChangeConfiguration when a request is already inflight', async () => {

@@ -54,8 +54,8 @@ export class FsRead {
         await closeWriter(updateWriter)
     }
 
-    public async requiresAcceptance(params: FsReadParams): Promise<CommandValidation> {
-        return requiresPathAcceptance(params.path, this.lsp, this.logging)
+    public async requiresAcceptance(params: FsReadParams, approvedPaths?: Set<string>): Promise<CommandValidation> {
+        return requiresPathAcceptance(params.path, this.lsp, this.logging, approvedPaths)
     }
 
     public async invoke(params: FsReadParams): Promise<InvokeOutput> {

@@ -39,14 +39,11 @@ import {
     AmazonQServiceConnectionExpiredError,
     AmazonQServiceInitializationError,
 } from '../../shared/amazonQServiceManager/errors'
-import {
-    AmazonQBaseServiceManager,
-    QServiceManagerFeatures,
-} from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
-import { initBaseTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
+import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
+import { getOrThrowBaseTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
-import { initBaseIAMServiceManager } from '../../shared/amazonQServiceManager/AmazonQIAMServiceManager'
 import { hasConnectionExpired } from '../../shared/utils'
+import { getOrThrowBaseIAMServiceManager } from '../../shared/amazonQServiceManager/AmazonQIAMServiceManager'
 
 const EMPTY_RESULT = { sessionId: '', items: [] }
 export const CONTEXT_CHARACTERS_LIMIT = 10240
@@ -238,7 +235,7 @@ interface AcceptedInlineSuggestionEntry extends AcceptedSuggestionEntry {
 }
 
 export const CodewhispererServerFactory =
-    (serviceManager: (features: QServiceManagerFeatures) => AmazonQBaseServiceManager): Server =>
+    (serviceManager: () => AmazonQBaseServiceManager): Server =>
     ({ credentialsProvider, lsp, workspace, telemetry, logging, runtime, sdkInitializator }) => {
         let lastUserModificationTime: number
         let timeSinceLastUserModification: number = 0
@@ -258,6 +255,12 @@ export const CodewhispererServerFactory =
         // CodePercentage and codeDiff tracker have a dependency on TelemetryService, so initialization is also delayed to `onInitialized` handler
         let codePercentageTracker: CodePercentageTracker
         let codeDiffTracker: CodeDiffTracker<AcceptedInlineSuggestionEntry>
+
+        lsp.addInitializer((params: InitializeParams) => {
+            return {
+                capabilities: {},
+            }
+        })
 
         const onInlineCompletionHandler = async (
             params: InlineCompletionWithReferencesParams,
@@ -367,11 +370,12 @@ export const CodewhispererServerFactory =
                     })
 
                     // Add extra context to request context
-                    const { extraContext } = amazonQServiceManager.getConfiguration().inlineSuggestions
+                    const {extraContext} = amazonQServiceManager.getConfiguration().inlineSuggestions
                     if (extraContext) {
                         requestContext.fileContext.leftFileContent = extraContext + '\n' + requestContext.fileContext.leftFileContent
                     }
-                    return codeWhispererService.generateSuggestions({
+
+                return codeWhispererService.generateSuggestions({
                         ...requestContext,
                         fileContext: {
                             ...requestContext.fileContext,
@@ -598,14 +602,7 @@ export const CodewhispererServerFactory =
         }
 
         const onInitializedHandler = async () => {
-            amazonQServiceManager = serviceManager({
-                credentialsProvider,
-                lsp,
-                logging,
-                runtime,
-                sdkInitializator,
-                workspace,
-            })
+            amazonQServiceManager = serviceManager()
 
             const clientParams = safeGet(
                 lsp.getClientInitializeParams(),
@@ -635,12 +632,6 @@ export const CodewhispererServerFactory =
                 }
             )
 
-            /* 
-                            Calling handleDidChangeConfiguration once to ensure we get configuration atleast once at start up
-                            
-                            TODO: TODO: consider refactoring such responsibilities to common service manager config/initialisation server
-                        */
-            await amazonQServiceManager.handleDidChangeConfiguration()
             await amazonQServiceManager.addDidChangeConfigurationListener(updateConfiguration)
         }
 
@@ -675,5 +666,5 @@ export const CodewhispererServerFactory =
         }
     }
 
-export const CodeWhispererServerIAM = CodewhispererServerFactory(initBaseIAMServiceManager)
-export const CodeWhispererServerToken = CodewhispererServerFactory(initBaseTokenServiceManager)
+export const CodeWhispererServerIAM = CodewhispererServerFactory(getOrThrowBaseIAMServiceManager)
+export const CodeWhispererServerToken = CodewhispererServerFactory(getOrThrowBaseTokenServiceManager)

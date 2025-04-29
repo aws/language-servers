@@ -241,21 +241,9 @@ export const SecurityScanServerToken =
         }
 
         const onInitializedHandler = async () => {
-            amazonQServiceManager = AmazonQTokenServiceManager.getInstance({
-                lsp,
-                logging,
-                runtime,
-                credentialsProvider,
-                sdkInitializator,
-                workspace,
-            })
+            amazonQServiceManager = AmazonQTokenServiceManager.getInstance()
+
             scanHandler = new SecurityScanHandler(amazonQServiceManager, workspace, logging)
-            /* 
-                        Calling handleDidChangeConfiguration once to ensure we get configuration atleast once at start up
-                        
-                        TODO: TODO: consider refactoring such responsibilities to common service manager config/initialisation server
-                    */
-            await amazonQServiceManager.handleDidChangeConfiguration()
         }
 
         lsp.onExecuteCommand(onExecuteCommandHandler)

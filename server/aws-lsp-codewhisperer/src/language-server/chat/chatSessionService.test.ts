@@ -3,13 +3,13 @@ import * as assert from 'assert'
 import sinon, { StubbedInstance, stubInterface } from 'ts-sinon'
 import { ChatSessionService } from './chatSessionService'
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
-import { AmazonQIAMServiceManager } from '../../shared/amazonQServiceManager/AmazonQIAMServiceManager'
 import { StreamingClientServiceToken, StreamingClientServiceIAM } from '../../shared/streamingClientService'
+import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
 
 describe('Chat Session Service', () => {
     let abortStub: sinon.SinonStub<any, any>
     let chatSessionService: ChatSessionService
-    let amazonQServiceManager: StubbedInstance<AmazonQTokenServiceManager>
+    let amazonQServiceManager: StubbedInstance<AmazonQBaseServiceManager>
     let codeWhispererStreamingClient: StubbedInstance<StreamingClientServiceToken>
     const mockConversationId = 'mockConversationId'
 
@@ -33,7 +33,7 @@ describe('Chat Session Service', () => {
         codeWhispererStreamingClient = stubInterface<StreamingClientServiceToken>()
         codeWhispererStreamingClient.sendMessage.callsFake(() => Promise.resolve(mockRequestResponse))
 
-        amazonQServiceManager = stubInterface<AmazonQTokenServiceManager>()
+        amazonQServiceManager = stubInterface<AmazonQBaseServiceManager>()
         amazonQServiceManager.getStreamingClient.returns(codeWhispererStreamingClient)
 
         abortStub = sinon.stub(AbortController.prototype, 'abort')
@@ -55,7 +55,7 @@ describe('Chat Session Service', () => {
 
             await assert.rejects(
                 chatSessionService.sendMessage(mockRequestParams),
-                new Error('amazonQServiceManager is not initialized')
+                new Error('No AmazonQService has been attached')
             )
         })
 
@@ -149,7 +149,7 @@ describe('Chat Session Service', () => {
             const codeWhispererStreamingClientIAM = stubInterface<StreamingClientServiceIAM>()
             codeWhispererStreamingClientIAM.sendMessage.callsFake(() => Promise.resolve(mockRequestResponse))
 
-            const amazonQServiceManagerIAM = stubInterface<AmazonQIAMServiceManager>()
+            const amazonQServiceManagerIAM = stubInterface<AmazonQBaseServiceManager>()
             amazonQServiceManagerIAM.getStreamingClient.returns(codeWhispererStreamingClientIAM)
 
             const chatSessionServiceIAM = new ChatSessionService(amazonQServiceManagerIAM)
@@ -164,7 +164,7 @@ describe('Chat Session Service', () => {
             const codeWhispererStreamingClientIAM = stubInterface<StreamingClientServiceIAM>()
             codeWhispererStreamingClientIAM.sendMessage.callsFake(() => Promise.resolve(mockRequestResponse))
 
-            const amazonQServiceManagerIAM = stubInterface<AmazonQIAMServiceManager>()
+            const amazonQServiceManagerIAM = stubInterface<AmazonQBaseServiceManager>()
             amazonQServiceManagerIAM.getStreamingClient.returns(codeWhispererStreamingClientIAM)
 
             const chatSessionServiceIAM = new ChatSessionService(amazonQServiceManagerIAM)
@@ -208,7 +208,7 @@ describe('Chat Session Service', () => {
         const codeWhispererStreamingClientIAM = stubInterface<StreamingClientServiceIAM>()
         codeWhispererStreamingClientIAM.sendMessage.callsFake(() => Promise.resolve(mockRequestResponse))
 
-        const amazonQServiceManagerIAM = stubInterface<AmazonQIAMServiceManager>()
+        const amazonQServiceManagerIAM = stubInterface<AmazonQBaseServiceManager>()
         amazonQServiceManagerIAM.getStreamingClient.returns(codeWhispererStreamingClientIAM)
 
         const chatSessionServiceIAM = new ChatSessionService(amazonQServiceManagerIAM)
@@ -222,5 +222,82 @@ describe('Chat Session Service', () => {
 
         sinon.assert.calledOnce(abortStub)
         assert.strictEqual(chatSessionServiceIAM.conversationId, undefined)
+    })
+
+    describe('Approved Paths', () => {
+        let chatSessionService: ChatSessionService
+
+        beforeEach(() => {
+            chatSessionService = new ChatSessionService()
+        })
+
+        it('should initialize with an empty set of approved paths', () => {
+            const approvedPaths = chatSessionService.approvedPaths
+            assert.strictEqual(approvedPaths.size, 0)
+            assert.ok(approvedPaths instanceof Set)
+        })
+
+        it('should add a path to approved paths', () => {
+            const testPath = '/test/path/file.js'
+            chatSessionService.addApprovedPath(testPath)
+
+            const approvedPaths = chatSessionService.approvedPaths
+            assert.strictEqual(approvedPaths.size, 1)
+            assert.ok(approvedPaths.has(testPath))
+        })
+
+        it('should not add empty paths', () => {
+            chatSessionService.addApprovedPath('')
+            chatSessionService.addApprovedPath(undefined as unknown as string)
+
+            const approvedPaths = chatSessionService.approvedPaths
+            assert.strictEqual(approvedPaths.size, 0)
+        })
+
+        it('should normalize Windows-style paths', () => {
+            const windowsPath = 'C:\\Users\\test\\file.js'
+            const normalizedPath = 'C:/Users/test/file.js'
+
+            chatSessionService.addApprovedPath(windowsPath)
+
+            const approvedPaths = chatSessionService.approvedPaths
+            assert.strictEqual(approvedPaths.size, 1)
+            assert.ok(approvedPaths.has(normalizedPath))
+            assert.ok(!approvedPaths.has(windowsPath))
+        })
+
+        it('should handle multiple paths correctly', () => {
+            const paths = ['/path/one/file.js', '/path/two/file.js', 'C:\\path\\three\\file.js']
+
+            paths.forEach(p => chatSessionService.addApprovedPath(p))
+
+            const approvedPaths = chatSessionService.approvedPaths
+            assert.strictEqual(approvedPaths.size, 3)
+            assert.ok(approvedPaths.has(paths[0]))
+            assert.ok(approvedPaths.has(paths[1]))
+            assert.ok(approvedPaths.has('C:/path/three/file.js'))
+        })
+
+        it('should not add duplicate paths', () => {
+            const testPath = '/test/path/file.js'
+
+            chatSessionService.addApprovedPath(testPath)
+            chatSessionService.addApprovedPath(testPath)
+
+            const approvedPaths = chatSessionService.approvedPaths
+            assert.strictEqual(approvedPaths.size, 1)
+        })
+
+        it('should treat normalized paths as the same path', () => {
+            const unixPath = '/test/path/file.js'
+            const windowsPath = '/test\\path\\file.js'
+
+            chatSessionService.addApprovedPath(unixPath)
+            chatSessionService.addApprovedPath(windowsPath)
+
+            const approvedPaths = chatSessionService.approvedPaths
+            assert.strictEqual(approvedPaths.size, 1)
+            assert.ok(approvedPaths.has(unixPath))
+        })
     })
 })

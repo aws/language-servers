@@ -16,6 +16,7 @@ import {
     ToolResultContentBlock,
     ToolResultStatus,
     ToolUse,
+    ToolUseEvent,
 } from '@amzn/codewhisperer-streaming'
 import {
     Button,
@@ -72,7 +73,7 @@ import { ChatTelemetryController } from '../chat/telemetry/chatTelemetryControll
 import { QuickAction } from '../chat/quickActions'
 import { Metric } from '../../shared/telemetry/metric'
 import { getErrorMessage, getHttpStatusCode, isAwsError, isNullish, isObject } from '../../shared/utils'
-import { HELP_MESSAGE } from '../chat/constants'
+import { HELP_MESSAGE, loadingMessage } from '../chat/constants'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import {
     AmazonQServicePendingProfileError,
@@ -87,7 +88,7 @@ import {
     ChatResultWithMetadata as AgenticChatResultWithMetadata,
 } from './agenticChatEventParser'
 import { ChatSessionService } from '../chat/chatSessionService'
-import { AgenticChatResultStream } from './agenticChatResultStream'
+import { AgenticChatResultStream, ResultStreamWriter } from './agenticChatResultStream'
 import { executeToolMessage, toolErrorMessage, toolResultMessage } from './textFormatting'
 import {
     AdditionalContentEntryAddition,
@@ -105,10 +106,12 @@ import { FsWrite, FsWriteParams } from './tools/fsWrite'
 import { ExecuteBash, ExecuteBashOutput, ExecuteBashParams } from './tools/executeBash'
 import { ExplanatoryParams, InvokeOutput, ToolApprovalException } from './tools/toolShared'
 import { FileSearch, FileSearchParams } from './tools/fileSearch'
+import { loggingUtils } from '@aws/lsp-core'
 import { diffLines } from 'diff'
 import { CodeSearch } from './tools/codeSearch'
-import { genericErrorMsg } from './constants'
+import { genericErrorMsg, maxAgentLoopIterations, loadingThresholdMs } from './constants'
 import { URI } from 'vscode-uri'
+import { AgenticChatError } from './errors'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -129,7 +132,7 @@ export class AgenticChatController implements ChatHandlers {
     #triggerContext: AgenticChatTriggerContext
     #customizationArn?: string
     #telemetryService: TelemetryService
-    #amazonQServiceManager?: AmazonQTokenServiceManager
+    #serviceManager?: AmazonQTokenServiceManager
     #tabBarController: TabBarController
     #chatHistoryDb: ChatDatabase
     #additionalContextProvider: AdditionalContextProvider
@@ -152,14 +155,14 @@ export class AgenticChatController implements ChatHandlers {
         chatSessionManagementService: ChatSessionManagementService,
         features: Features,
         telemetryService: TelemetryService,
-        amazonQServiceManager?: AmazonQTokenServiceManager
+        serviceManager?: AmazonQTokenServiceManager
     ) {
         this.#features = features
         this.#chatSessionManagementService = chatSessionManagementService
         this.#triggerContext = new AgenticChatTriggerContext(features)
         this.#telemetryController = new ChatTelemetryController(features, telemetryService)
         this.#telemetryService = telemetryService
-        this.#amazonQServiceManager = amazonQServiceManager
+        this.#serviceManager = serviceManager
         this.#chatHistoryDb = new ChatDatabase(features)
         this.#tabBarController = new TabBarController(features, this.#chatHistoryDb)
         this.#additionalContextProvider = new AdditionalContextProvider(features.workspace, features.lsp)
@@ -440,7 +443,7 @@ export class AgenticChatController implements ChatHandlers {
         chatResultStream: AgenticChatResultStream
     ): Promise<GenerateAssistantResponseCommandInput> {
         this.#debug('Preparing request input')
-        const profileArn = AmazonQTokenServiceManager.getInstance(this.#features).getActiveProfileArn()
+        const profileArn = AmazonQTokenServiceManager.getInstance().getActiveProfileArn()
         const requestInput = await this.#triggerContext.getChatParamsFromTrigger(
             params,
             triggerContext,
@@ -472,10 +475,9 @@ export class AgenticChatController implements ChatHandlers {
         let currentRequestInput = { ...initialRequestInput }
         let finalResult: Result<AgenticChatResultWithMetadata, string> | null = null
         let iterationCount = 0
-        const maxIterations = 100 // Safety limit to prevent infinite loops
         metric.recordStart()
 
-        while (iterationCount < maxIterations) {
+        while (iterationCount < maxAgentLoopIterations) {
             iterationCount++
             this.#debug(`Agent loop iteration ${iterationCount} for conversation id:`, conversationIdentifier || '')
 
@@ -503,10 +505,18 @@ export class AgenticChatController implements ChatHandlers {
                 ? []
                 : this.#chatHistoryDb.getMessages(tabId)
 
+            // Add loading message before making the request
+            const loadingMessageId = `loading-${uuid()}`
+            await chatResultStream.writeResultBlock({ ...loadingMessage, messageId: loadingMessageId })
+
             // Phase 3: Request Execution
-            this.#log(`Q Model Request: ${JSON.stringify(currentRequestInput)}`)
+            this.#debug(
+                `Q Model Request: ${loggingUtils.formatObj(currentRequestInput, { depth: 5, omitKeys: ['history'] })}`
+            )
             const response = await session.generateAssistantResponse(currentRequestInput)
-            this.#log(`Q Model Response: ${JSON.stringify(response)}`)
+            this.#debug(`Q Model Response: ${loggingUtils.formatObj(response, { depth: 5 })}`)
+
+            await chatResultStream.removeResultBlock(loadingMessageId)
 
             //  Add the current user message to the history DB
             if (currentMessage && conversationIdentifier) {
@@ -548,6 +558,8 @@ export class AgenticChatController implements ChatHandlers {
                         input: result.data!.toolUses[k].input,
                     })),
                 })
+            } else {
+                this.#features.logging.warn('No ChatResult body in response, skipping adding to history')
             }
 
             // Check if we have any tool uses that need to be processed
@@ -564,6 +576,7 @@ export class AgenticChatController implements ChatHandlers {
             if (result.success) {
                 // Process tool uses and update the request input for the next iteration
                 toolResults = await this.#processToolUses(pendingToolUses, chatResultStream, session, tabId, token)
+                metric.setDimension('cwsprChatConversationType', 'AgenticChatWithToolUse')
             } else {
                 // Send an error card to UI?
                 toolResults = pendingToolUses.map(toolUse => ({
@@ -579,8 +592,8 @@ export class AgenticChatController implements ChatHandlers {
             currentRequestInput = this.#updateRequestInputWithToolResults(currentRequestInput, toolResults, content)
         }
 
-        if (iterationCount >= maxIterations) {
-            this.#log('Agent loop reached maximum iterations limit')
+        if (iterationCount >= maxAgentLoopIterations) {
+            throw new AgenticChatError('Agent loop reached iteration limit', 'MaxAgentLoopIterations')
         }
 
         this.#stoppedToolUses.clear()
@@ -673,7 +686,15 @@ export class AgenticChatController implements ChatHandlers {
 
                         const { Tool } = toolMap[toolUse.name as keyof typeof toolMap]
                         const tool = new Tool(this.#features)
-                        const { requiresAcceptance, warning } = await tool.requiresAcceptance(toolUse.input as any)
+
+                        // Get the approved paths from the session
+                        const approvedPaths = session.approvedPaths
+
+                        // Pass the approved paths to the tool's requiresAcceptance method
+                        const { requiresAcceptance, warning } = await tool.requiresAcceptance(
+                            toolUse.input as any,
+                            approvedPaths
+                        )
 
                         if (requiresAcceptance || toolUse.name === 'executeBash') {
                             // for executeBash, we till send the confirmation message without action buttons
@@ -700,6 +721,7 @@ export class AgenticChatController implements ChatHandlers {
                         // no need to write tool message for code search.
                         break
                     default:
+                        this.#features.logging.warn(`Recieved unrecognized tool: ${toolUse.name}`)
                         await chatResultStream.writeResultBlock({
                             type: 'tool',
                             body: `${executeToolMessage(toolUse)}`,
@@ -715,6 +737,12 @@ export class AgenticChatController implements ChatHandlers {
                         ...toolUse,
                         fileChange: { before: document?.getText() },
                     })
+                }
+
+                // After approval, add the path to the approved paths in the session
+                const inputPath = (toolUse.input as any)?.path || (toolUse.input as any)?.cwd
+                if (inputPath) {
+                    session.addApprovedPath(inputPath)
                 }
 
                 const ws = this.#getWritableStream(chatResultStream, toolUse)
@@ -770,6 +798,7 @@ export class AgenticChatController implements ChatHandlers {
                         await chatResultStream.writeResultBlock(chatResult)
                         break
                     default:
+                        this.#features.logging.warn(`Processing unrecognized tool: ${toolUse.name}`)
                         await chatResultStream.writeResultBlock({
                             type: 'tool',
                             body: toolResultMessage(toolUse, result),
@@ -803,7 +832,7 @@ export class AgenticChatController implements ChatHandlers {
                                     })
                                 }
                             } else {
-                                this.#features.logging.log('Failed to update tool block: no blockId is available.')
+                                this.#features.logging.warn('Failed to update tool block: no blockId is available.')
                             }
                         }
                         throw err
@@ -925,27 +954,52 @@ export class AgenticChatController implements ChatHandlers {
         if (toolUse.name !== 'executeBash') {
             return
         }
+
+        const toolMsgId = toolUse.toolUseId!
+        const chatMsgId = chatResultStream.getResult().messageId
+        let headerEmitted = false
+
+        const initialHeader: ChatMessage['header'] = {
+            body: 'shell',
+            status: { status: 'success', icon: 'ok', text: '' },
+            buttons: [{ id: 'stop-shell-command', text: 'Stop', icon: 'stop' }],
+        }
+
         const completedHeader: ChatMessage['header'] = {
             body: 'shell',
             status: { status: 'success', icon: 'ok', text: 'Completed' },
             buttons: [],
         }
+
         return new WritableStream({
             write: async chunk => {
-                if (this.#stoppedToolUses.has(toolUse.toolUseId!)) return
+                if (this.#stoppedToolUses.has(toolMsgId)) return
+
                 await chatResultStream.writeResultBlock({
                     type: 'tool',
+                    messageId: toolMsgId,
                     body: chunk,
-                    messageId: toolUse.toolUseId,
+                    header: headerEmitted ? undefined : initialHeader,
                 })
+
+                headerEmitted = true
             },
+
             close: async () => {
-                if (this.#stoppedToolUses.has(toolUse.toolUseId!)) return
+                if (this.#stoppedToolUses.has(toolMsgId)) return
+
                 await chatResultStream.writeResultBlock({
                     type: 'tool',
+                    messageId: toolMsgId,
                     body: '```',
-                    messageId: toolUse.toolUseId,
                     header: completedHeader,
+                })
+
+                await chatResultStream.writeResultBlock({
+                    type: 'answer',
+                    messageId: chatMsgId,
+                    body: '',
+                    header: undefined,
                 })
             },
         })
@@ -1106,18 +1160,20 @@ export class AgenticChatController implements ChatHandlers {
                 buttons = requiresAcceptance
                     ? [
                           {
-                              id: 'reject-shell-command',
-                              text: 'Reject',
-                              icon: 'cancel',
-                          },
-                          {
                               id: 'run-shell-command',
                               text: 'Run',
                               icon: 'play',
                           },
+                          {
+                              id: 'reject-shell-command',
+                              text: 'Reject',
+                              icon: 'cancel',
+                          },
                       ]
                     : []
                 header = {
+                    icon: 'warning',
+                    iconForegroundStatus: 'warning',
                     body: 'shell',
                     buttons,
                 }
@@ -1312,9 +1368,9 @@ export class AgenticChatController implements ChatHandlers {
         triggerContext: TriggerContext,
         isNewConversation: boolean,
         chatResultStream: AgenticChatResultStream
-    ): Promise<ChatResult | ResponseError<ChatResult>> {
+    ): Promise<ChatResult> {
         if (!result.success) {
-            return new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, result.error)
+            throw new AgenticChatError(result.error, 'FailedResult')
         }
         const conversationId = session.conversationId
         this.#debug('Final session conversation id:', conversationId || '')
@@ -1336,6 +1392,18 @@ export class AgenticChatController implements ChatHandlers {
 
         metric.setDimension('codewhispererCustomizationArn', this.#customizationArn)
         metric.setDimension('languageServerVersion', this.#features.runtime.serverInfo.version)
+        if (triggerContext.contextInfo) {
+            metric.mergeWith({
+                cwsprChatHasContextList: triggerContext.documentReference?.filePaths?.length ? true : false,
+                cwsprChatFolderContextCount: triggerContext.contextInfo.contextCount.folderContextCount,
+                cwsprChatFileContextCount: triggerContext.contextInfo.contextCount.fileContextCount,
+                cwsprChatRuleContextCount: triggerContext.contextInfo.contextCount.ruleContextCount,
+                cwsprChatPromptContextCount: triggerContext.contextInfo.contextCount.promptContextCount,
+                cwsprChatFileContextLength: triggerContext.contextInfo.contextLength.fileContextLength,
+                cwsprChatRuleContextLength: triggerContext.contextInfo.contextLength.ruleContextLength,
+                cwsprChatPromptContextLength: triggerContext.contextInfo.contextLength.promptContextLength,
+            })
+        }
         await this.#telemetryController.emitAddMessageMetric(params.tabId, metric.metric)
 
         this.#telemetryController.updateTriggerInfo(params.tabId, {
@@ -1362,10 +1430,9 @@ export class AgenticChatController implements ChatHandlers {
         tabId: string,
         metric: Metric<CombinedConversationEvent>
     ): ChatResult | ResponseError<ChatResult> {
+        let errorMessage: string | undefined
+        let requestID: string | undefined
         if (isAwsError(err) || (isObject(err) && typeof getHttpStatusCode(err) === 'number')) {
-            let errorMessage: string | undefined
-            let requestID: string | undefined
-
             if (err instanceof CodeWhispererStreamingServiceException) {
                 errorMessage = err.message
                 requestID = err.$metadata.requestId
@@ -1402,9 +1469,9 @@ export class AgenticChatController implements ChatHandlers {
             return createAuthFollowUpResult(authFollowType)
         }
 
-        // Show backend error messages to the customer.
-        if (err.code === 'QModelResponse') {
-            this.#features.logging.error(`QModelResponse Error: ${JSON.stringify(err.cause)}`)
+        // These are errors we want to show custom messages in chat for.
+        if (['QModelResponse', 'MaxAgentLoopIterations', 'InputTooLong'].includes(err.code)) {
+            this.#features.logging.error(`${err.code}: ${JSON.stringify(err)} `)
             return new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, err.message, {
                 type: 'answer',
                 body: err.message,
@@ -1416,7 +1483,7 @@ export class AgenticChatController implements ChatHandlers {
         this.#features.logging.log(`Error Cause: ${JSON.stringify(err.cause)}`)
         return new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, err.message, {
             type: 'answer',
-            body: genericErrorMsg,
+            body: requestID ? genericErrorMsg + `\n\nRequest ID: ${requestID}` : genericErrorMsg,
             messageId: errorMessageId,
             buttons: [],
         })
@@ -1443,11 +1510,11 @@ export class AgenticChatController implements ChatHandlers {
                 this.#customizationArn
             )
 
-            if (!this.#amazonQServiceManager) {
-                throw new Error('amazonQServiceManager is not initialized')
+            if (!this.#serviceManager) {
+                throw new Error('No AmazonQService has been attached')
             }
 
-            const client = this.#amazonQServiceManager.getStreamingClient()
+            const client = this.#serviceManager.getStreamingClient()
             response = await client.sendMessage(requestInput as SendMessageCommandInputCodeWhispererStreaming)
             this.#log('Response for inline chat', JSON.stringify(response.$metadata), JSON.stringify(response))
         } catch (err) {
@@ -1775,14 +1842,18 @@ export class AgenticChatController implements ChatHandlers {
         contextList?: FileList
     ): Promise<Result<AgenticChatResultWithMetadata, string>> {
         const requestId = response.$metadata.requestId!
-        const chatEventParser = new AgenticChatEventParser(requestId, metric)
+        const chatEventParser = new AgenticChatEventParser(requestId, metric, this.#features.logging)
         const streamWriter = chatResultStream.getResultStreamWriter()
 
         // Display context transparency list once at the beginning of response
-        if (contextList) {
+        // Use a flag to track if contextList has been sent already to avoid ux flickering
+        if (contextList && !session.contextListSent) {
             await streamWriter.write({ body: '', contextList })
+            session.contextListSent = true
         }
 
+        const toolUseStartTimes: Record<string, number> = {}
+        const toolUseLoadingTimeouts: Record<string, NodeJS.Timeout> = {}
         for await (const chatEvent of response.generateAssistantResponseResponse!) {
             if (chatEvent.assistantResponseEvent) {
                 await this.#showUndoAllIfRequired(chatResultStream, session)
@@ -1798,6 +1869,15 @@ export class AgenticChatController implements ChatHandlers {
             if (chatEvent.assistantResponseEvent) {
                 await streamWriter.write(result.data.chatResult)
             }
+
+            if (chatEvent.toolUseEvent) {
+                await this.#showLoadingIfRequired(
+                    chatEvent.toolUseEvent,
+                    streamWriter,
+                    toolUseStartTimes,
+                    toolUseLoadingTimeouts
+                )
+            }
         }
         await streamWriter.close()
 
@@ -1810,6 +1890,41 @@ export class AgenticChatController implements ChatHandlers {
         })
 
         return chatEventParser.getResult()
+    }
+
+    /**
+     * This is needed to handle the case where a toolUseEvent takes a long time to resolve the stream and looks like
+     * nothing is happening.
+     */
+    async #showLoadingIfRequired(
+        toolUseEvent: ToolUseEvent,
+        streamWriter: ResultStreamWriter,
+        toolUseStartTimes: Record<string, number>,
+        toolUseLoadingTimeouts: Record<string, NodeJS.Timeout>
+    ) {
+        const toolUseId = toolUseEvent.toolUseId
+        if (!toolUseEvent.stop && toolUseId) {
+            if (!toolUseStartTimes[toolUseId]) {
+                toolUseStartTimes[toolUseId] = Date.now()
+                this.#debug(`ToolUseEvent ${toolUseId} started`)
+                toolUseLoadingTimeouts[toolUseId] = setTimeout(async () => {
+                    this.#debug(
+                        `ToolUseEvent ${toolUseId} is taking longer than ${loadingThresholdMs}ms, showing loading indicator`
+                    )
+                    await streamWriter.write({ ...loadingMessage, messageId: `loading-${toolUseId}` })
+                }, loadingThresholdMs)
+            }
+        } else if (toolUseEvent.stop && toolUseId) {
+            if (toolUseStartTimes[toolUseId]) {
+                const duration = Date.now() - toolUseStartTimes[toolUseId]
+                this.#debug(`ToolUseEvent ${toolUseId} finished streaming after ${duration}ms`)
+                if (toolUseLoadingTimeouts[toolUseId]) {
+                    clearTimeout(toolUseLoadingTimeouts[toolUseId])
+                    delete toolUseLoadingTimeouts[toolUseId]
+                }
+                delete toolUseStartTimes[toolUseId]
+            }
+        }
     }
 
     async #processSendMessageResponseForInlineChat(

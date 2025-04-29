@@ -22,6 +22,13 @@ export class AmazonQServiceNotInitializedError extends AmazonQError {
     }
 }
 
+export class AmazonQServiceAlreadyInitializedError extends AmazonQError {
+    constructor(message: string = 'Amazon Q service manager was already previously initialized') {
+        super(message, 'E_AMAZON_Q_ALREADY_INITIALIZED_ERROR')
+        this.name = 'AmazonQServiceAlreadyInitializationError'
+    }
+}
+
 export class AmazonQServicePendingSigninError extends AmazonQError {
     constructor(message: string = 'Amazon Q service is not signed in') {
         super(message, 'E_AMAZON_Q_PENDING_CONNECTION')

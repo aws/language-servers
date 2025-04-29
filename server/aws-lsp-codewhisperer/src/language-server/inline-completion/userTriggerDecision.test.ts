@@ -193,12 +193,14 @@ describe('Telemetry', () => {
 
             // Start the server and open a document
             await features.start(server)
+            await TestAmazonQServiceManager.getInstance()['handleDidChangeConfiguration']()
 
             features.openDocument(SOME_FILE).openDocument(SOME_FILE_WITH_ALT_CASED_LANGUAGE_ID)
         })
 
         afterEach(() => {
             TestAmazonQServiceManager.resetInstance()
+            features.dispose()
         })
 
         const aUserTriggerDecision = (override: object = {}) => {
