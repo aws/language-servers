@@ -153,24 +153,6 @@ export class ChatController implements ChatHandlers {
                 this.#telemetryController.emitMessageResponseError(params.tabId, metric.metric)
             }
 
-            if (err instanceof AmazonQServicePendingSigninError) {
-                this.#log(`Q Chat SSO Connection error: ${getErrorMessage(err)}`)
-
-                return createAuthFollowUpResult('full-auth')
-            }
-
-            if (err instanceof AmazonQServicePendingProfileError) {
-                this.#log(`Q Chat SSO Connection error: ${getErrorMessage(err)}`)
-
-                const followUpResult = createAuthFollowUpResult('use-supported-auth')
-                // Access first element in array
-                if (followUpResult.followUp?.options) {
-                    followUpResult.followUp.options[0].pillText = 'Select Q Developer Profile'
-                }
-
-                return followUpResult
-            }
-
             const authFollowType = getAuthFollowUpType(err)
 
             if (authFollowType) {

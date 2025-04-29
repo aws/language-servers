@@ -76,6 +76,7 @@ import { getErrorMessage, getHttpStatusCode, isAwsError, isNullish, isObject } f
 import { HELP_MESSAGE, loadingMessage } from '../chat/constants'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import {
+    AmazonQError,
     AmazonQServicePendingProfileError,
     AmazonQServicePendingSigninError,
 } from '../../shared/amazonQServiceManager/errors'
@@ -415,6 +416,7 @@ export class AgenticChatController implements ChatHandlers {
                 },
                 params.partialResultToken
             )
+
             if (this.isUserAction(err, token)) {
                 /**
                  * when the session is aborted it generates an error.
@@ -1448,24 +1450,20 @@ export class AgenticChatController implements ChatHandlers {
             this.#telemetryController.emitMessageResponseError(tabId, metric.metric, requestID, errorMessage)
         }
 
-        if (err.cause instanceof AmazonQServicePendingSigninError) {
-            this.#log(`Q Chat SSO Connection error: ${getErrorMessage(err)}`)
-            return createAuthFollowUpResult('full-auth')
+        let authFollowType: ReturnType<typeof getAuthFollowUpType> = undefined
+        // first check if there is an AmazonQ related auth follow up
+        if (err.cause instanceof AmazonQError) {
+            authFollowType = getAuthFollowUpType(err.cause)
         }
 
-        if (err.cause instanceof AmazonQServicePendingProfileError) {
-            this.#log(`Q Chat SSO Connection error: ${getErrorMessage(err)}`)
-            const followUpResult = createAuthFollowUpResult('use-supported-auth')
-            // Access first element in array
-            if (followUpResult.followUp?.options) {
-                followUpResult.followUp.options[0].pillText = 'Select Q Developer Profile'
-            }
-            return followUpResult
+        // if not check full error for auth follow up
+        if (!authFollowType) {
+            authFollowType = getAuthFollowUpType(err)
         }
 
-        const authFollowType = getAuthFollowUpType(err)
         if (authFollowType) {
             this.#log(`Q auth error: ${getErrorMessage(err)}`)
+
             return createAuthFollowUpResult(authFollowType)
         }
 
