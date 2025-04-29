@@ -8,16 +8,18 @@ import {
     TextDocument,
     commands,
     languages,
+    workspace,
+    window,
+    Range,
+    TextDocumentChangeEvent,
 } from 'vscode'
 import { LanguageClient } from 'vscode-languageclient/node'
 import {
-    InlineCompletionItemWithReferences,
-    InlineCompletionListWithReferences,
-    InlineCompletionWithReferencesParams,
-    inlineCompletionWithReferencesRequestType,
     logInlineCompletionSessionResultsNotificationType,
     LogInlineCompletionSessionResultsParams,
+    InlineCompletionListWithReferences,
 } from '@aws/language-server-runtimes/protocol'
+import { applyPatch } from 'diff'
 
 export const CodewhispererInlineCompletionLanguages = [
     { scheme: 'file', language: 'typescript' },
@@ -51,10 +53,26 @@ export function registerInlineCompletion(languageClient: LanguageClient) {
     // but will be added in a future version.
     languages.registerInlineCompletionItemProvider(CodewhispererInlineCompletionLanguages, inlineCompletionProvider)
 
+    // Register manual trigger command for InlineCompletions
     commands.registerCommand('aws.sample-vscode-ext-amazonq.invokeInlineCompletion', async (...args: any) => {
-        // Register manual trigger command for InlineCompletions
         console.log('Manual trigger for inline completion invoked')
         await commands.executeCommand(`editor.action.inlineSuggest.trigger`)
+    })
+
+    // TODO-NEP: Wire up commands and handlers for accept/reject operations that the suggested edits UI supports
+
+    // Simple implementation of automated triggers
+    workspace.onDidChangeTextDocument(async (e: TextDocumentChangeEvent) => {
+        const editor = window.activeTextEditor
+        if (!editor || e.document !== editor.document || !isLanguageSupported(e.document)) {
+            return
+        }
+
+        // Only trigger on special characters or Enter key
+        if (shouldTriggerCompletion(e)) {
+            console.log('Auto-trigger for inline completion')
+            await commands.executeCommand('editor.action.inlineSuggest.trigger')
+        }
     })
 
     // Simple implementation of logInlineCompletionSessionResultsNotification
@@ -82,8 +100,83 @@ export function registerInlineCompletion(languageClient: LanguageClient) {
     commands.registerCommand('aws.sample-vscode-ext-amazonq.accept', onInlineAcceptance)
 }
 
+// Helper function to check if a document's language is supported
+function isLanguageSupported(document: TextDocument): boolean {
+    return CodewhispererInlineCompletionLanguages.some(
+        lang => lang.language === document.languageId && lang.scheme === document.uri.scheme
+    )
+}
+
+// Helper function to determine if we should trigger a completion
+function shouldTriggerCompletion(e: TextDocumentChangeEvent): boolean {
+    if (e.contentChanges.length === 0) {
+        return false
+    }
+
+    const change = e.contentChanges[0]
+    const text = change.text
+
+    // Trigger on special characters
+    if (['{', '}', '(', ')', '[', ']', ':', ';', '.'].includes(text)) {
+        return true
+    }
+
+    // Trigger on Enter key (newline)
+    if (text === '\n' || text === '\r\n') {
+        return true
+    }
+
+    return false
+}
+
 export class CodeWhispererInlineCompletionItemProvider implements InlineCompletionItemProvider {
     constructor(private readonly languageClient: LanguageClient) {}
+
+    /**
+     * Generates a unified diff format string for text modifications
+     * @param text - The input text to generate diff for
+     * @param startLine - The starting line number for the diff
+     * @returns A string containing the diff in unified diff format showing:
+     *          - Original and modified line numbers
+     *          - First line with added suffix
+     *          - Second line removed
+     *          - Third line added as new
+     */
+    private getTestDiff(text: string, startLine: number) {
+        const lines = text.split('\n')
+        const diff = [
+            `@@ -${startLine},3 +${startLine},3 @@`,
+            '-' + lines[0],
+            '-' + lines[1],
+            '-' + lines[2],
+            '+' + lines[0] + ' // Added suffix in line 0;',
+            '+' + lines[1] + ' // Added suffix in line 1;',
+            '+' + lines[2] + ' // Added suffix in line 2;',
+        ].join('\n')
+        console.log('Generated diff:', diff)
+        return diff
+    }
+
+    /**
+     * Calculates the original file range from a unified diff with line and column pairs
+     * @param diffText The unified diff text
+     * @returns The range for the original file with line and column pairs
+     */
+    private calculateOriginalDiffRange(diffText: string, document: TextDocument): Range {
+        // Extract the range information from the header
+        const headerMatch = diffText.match(/@@ -(\d+),(\d+) \+(\d+),(\d+) @@/)
+
+        if (!headerMatch) {
+            throw new Error('Invalid diff format')
+        }
+
+        const startLine = parseInt(headerMatch[1], 10)
+        const lineCount = parseInt(headerMatch[2], 10)
+        const endLine = startLine + lineCount - 1
+
+        // Use VSCode's Position.CHARACTER_LIMIT for the end column
+        return new Range(new Position(startLine - 1, 0), new Position(endLine, 0))
+    }
 
     async provideInlineCompletionItems(
         document: TextDocument,
@@ -100,8 +193,7 @@ export class CodeWhispererInlineCompletionItemProvider implements InlineCompleti
                 triggerKind: context.triggerKind,
             })
 
-            // Create a request object that matches the protocol's expected structure
-            const request = {
+            const lspRequest = {
                 textDocument: {
                     uri: document.uri.toString(),
                 },
@@ -114,39 +206,48 @@ export class CodeWhispererInlineCompletionItemProvider implements InlineCompleti
                 },
             }
 
-            // Use the raw sendRequest method to avoid type checking issues
-            const response = await this.languageClient.sendRequest(
-                'aws/textDocument/inlineCompletionWithReferences',
-                request,
-                token
-            )
+            const response = (await Promise.race([
+                this.languageClient.sendRequest('aws/textDocument/inlineCompletionWithReferences', lspRequest, token),
+                new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error('LSP Server did not response in 5s')), 5000)
+                ),
+            ])) as InlineCompletionListWithReferences
 
-            const list: InlineCompletionListWithReferences = response as InlineCompletionListWithReferences
-            this.languageClient.info(`Client: Received ${list.items.length} suggestions`)
+            console.debug('LSP Response:', JSON.stringify(response, null, 2))
 
-            console.log('Got inlineCompletionsWithReferences from server', list)
+            if (response.items.length == 0) {
+                console.log('Returning early')
+                return []
+            }
+            const diff: string = response.items[0].insertText.toString()
+            console.log()
+            const diffRange: Range = this.calculateOriginalDiffRange(diff, document)
 
-            const firstCompletionDisplayLatency = Date.now() - requestStartTime
-            // Add completion session tracking and attach onAcceptance command to each item to record used decision
-            list.items.forEach((item: InlineCompletionItemWithReferences) => {
-                // POC-NEP: Set VSCode UI properties for edit suggestions
-                // The isInlineEdit property comes from our type definition and needs to be
-                // applied to the VSCode-specific property with the same name
-                if ((item as any).isInlineEdit) {
-                    ;(item as any).showInlineEditMenu = true
-                    console.log('Setting isInlineEdit=true for item', item.itemId)
-                }
+            if (!document.validateRange(diffRange)) {
+                // throw error and raise exception
+                throw new Error('Invalid range')
+            }
 
-                item.command = {
-                    command: 'aws.sample-vscode-ext-amazonq.accept',
-                    title: 'On acceptance',
-                    arguments: [list.sessionId, item.itemId, requestStartTime, firstCompletionDisplayLatency],
-                }
+            const updatedText = applyPatch(document.getText(diffRange), diff)
+
+            if (!updatedText) {
+                console.log('No updated content')
+                this.languageClient.info(`Client: Received empty suggestions`)
+                return []
+            }
+
+            const completionsList = [new InlineCompletionItem(updatedText, diffRange)]
+            completionsList.forEach((item: InlineCompletionItem) => {
+                // eslint-disable-next-line no-extra-semi
+                ;(item as any).isInlineEdit = true
+                ;(item as any).showInlineEditMenu = true
             })
 
-            return list as InlineCompletionList
+            console.log('Completions list' + completionsList)
+
+            return { items: completionsList } as InlineCompletionList
         } catch (error) {
-            console.error('Error in provideInlineCompletionItems:', error)
+            console.error('Stack trace:', (error as Error).stack)
             return { items: [] }
         }
     }

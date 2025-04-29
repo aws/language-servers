@@ -12,5 +12,9 @@
         "sourceMap": true
     },
     "files": [],
-    "references": []
+    "references": [
+        { "path": "./core/aws-lsp-core" },
+        { "path": "./core/codewhisperer-streaming" },
+        { "path": "./core/q-developer-streaming-client" }
+    ]
 }

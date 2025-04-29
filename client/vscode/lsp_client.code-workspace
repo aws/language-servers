@@ -2,11 +2,11 @@
     "folders": [
         {
             "name": "VSCodeLSPClient",
-            "path": "/Users/floralph/Source/language-servers/client/vscode/",
+            "path": "/Users/dhanak/KiwiFlare/language-servers/client/vscode",
         },
         {
             "name": "InlineFlareServer",
-            "path": "/Users/floralph/Source/language-servers/server/aws-lsp-codewhisperer/",
+            "path": "/Users/dhanak/KiwiFlare/language-servers/server/aws-lsp-codewhisperer",
         },
     ],
     "tasks": {
@@ -15,19 +15,73 @@
             {
                 "label": "compile:vscode-client",
                 "type": "shell",
-                "command": "cd /Users/floralph/Source/language-servers/client/vscode/ && npm run compile",
+                "command": "npm",
+                "args": ["run", "compile"],
                 "group": {
                     "kind": "build",
                     "isDefault": true,
                 },
                 "problemMatcher": ["$tsc"],
+                "presentation": {
+                    "reveal": "always",
+                    "focus": true,
+                    "panel": "shared",
+                },
+                "options": {
+                    "cwd": "${workspaceFolder:VSCodeLSPClient}",
+                },
+                "isBackground": false,
+            },
+            {
+                "label": "watch:vscode-client",
+                "type": "shell",
+                "command": "tsc",
+                "args": ["--watch"],
+                "group": "build",
+                "problemMatcher": ["$tsc-watch"],
+                "presentation": {
+                    "reveal": "always",
+                    "focus": true,
+                    "panel": "shared",
+                },
+                "options": {
+                    "cwd": "${workspaceFolder:VSCodeLSPClient}",
+                },
+                "isBackground": true,
             },
             {
                 "label": "compile:flare-server",
                 "type": "shell",
-                "command": "cd /Users/floralph/Source/language-servers/server/aws-lsp-codewhisperer/ && npm run compile",
+                "command": "npm",
+                "args": ["run", "compile"],
                 "group": "build",
                 "problemMatcher": ["$tsc"],
+                "presentation": {
+                    "reveal": "always",
+                    "focus": true,
+                    "panel": "shared",
+                },
+                "options": {
+                    "cwd": "${workspaceFolder:InlineFlareServer}",
+                },
+                "isBackground": false,
+            },
+            {
+                "label": "watch:flare-server",
+                "type": "shell",
+                "command": "tsc",
+                "args": ["--watch"],
+                "group": "build",
+                "problemMatcher": ["$tsc-watch"],
+                "presentation": {
+                    "reveal": "always",
+                    "focus": true,
+                    "panel": "shared",
+                },
+                "options": {
+                    "cwd": "${workspaceFolder:InlineFlareServer}",
+                },
+                "isBackground": true,
             },
             {
                 "label": "compile:all",
@@ -36,6 +90,23 @@
                     "kind": "build",
                     "isDefault": true,
                 },
+                "presentation": {
+                    "reveal": "always",
+                    "focus": true,
+                    "panel": "shared",
+                },
+                "dependsOrder": "parallel",
+            },
+            {
+                "label": "watch:all",
+                "dependsOn": ["watch:vscode-client", "watch:flare-server"],
+                "group": "build",
+                "presentation": {
+                    "reveal": "always",
+                    "focus": true,
+                    "panel": "shared",
+                },
+                "dependsOrder": "parallel",
             },
         ],
     },
@@ -95,12 +166,13 @@
                 "request": "launch",
                 "runtimeExecutable": "${execPath}",
                 "args": [
-                    "--extensionDevelopmentPath=/Users/floralph/Source/language-servers/client/vscode",
+                    "--extensionDevelopmentPath=${workspaceFolder:VSCodeLSPClient}/",
                     "--disable-extensions",
+                    "--enable-proposed-api=aws.awsdocuments-ls-client",
                 ],
-                "outFiles": ["/Users/floralph/Source/language-servers/**/*.js"],
+                "outFiles": ["/Users/dhanak/KiwiFlare/**/*.js"],
                 "env": {
-                    "LSP_SERVER": "/Users/floralph/Source/language-servers/app/aws-lsp-codewhisperer-runtimes/out/token-standalone.js",
+                    "LSP_SERVER": "/Users/dhanak/KiwiFlare/language-servers/app/aws-lsp-codewhisperer-runtimes/out/token-standalone.js",
                     "ENABLE_INLINE_COMPLETION": "true",
                     "ENABLE_ENCRYPTION": "true",
                     "ENABLE_TOKEN_PROVIDER": "true",
@@ -109,6 +181,10 @@
                     "ENABLE_CUSTOMIZATIONS": "true",
                     "ENABLE_AMAZON_Q_PROFILES": "false",
                     "ENABLE_AWS_Q_SECTION": "true",
+                    "LSP_LOGGING_ENABLED": "true",
+                    "LSP_LOG_PATH": "/tmp/lsp_log/",
+                    // "HTTPS_PROXY": "http://127.0.0.1:8888",
+                    // "AWS_CA_BUNDLE": "/path/to/cert.pem"
                 },
                 "preLaunchTask": "compile:all",
             },

@@ -544,6 +544,10 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
 
     // For Unit Tests
     public static resetInstance(): void {
+        if (AmazonQTokenServiceManager.instance) {
+            AmazonQTokenServiceManager.instance.resetCodewhispererService()
+            AmazonQTokenServiceManager.instance = null
+        }
         AmazonQTokenServiceManager.instance = null
     }
 

@@ -7,7 +7,14 @@ export type CrossFileStrategy = 'OpenTabs_BM25'
 
 export type ProjectContextStrategy = 'codemap'
 
-export type SupplementalContextStrategy = CrossFileStrategy | ProjectContextStrategy | UtgStrategy | 'Empty'
+export type RecentEdits = 'recentEdits'
+
+export type SupplementalContextStrategy =
+    | CrossFileStrategy
+    | ProjectContextStrategy
+    | UtgStrategy
+    | RecentEdits
+    | 'Empty'
 
 export interface CodeWhispererSupplementalContext {
     isUtg: boolean
@@ -16,6 +23,7 @@ export interface CodeWhispererSupplementalContext {
     contentsLength: number
     latency: number
     strategy: SupplementalContextStrategy
+    timeOffset?: number
 }
 
 export interface CodeWhispererSupplementalContextItem {

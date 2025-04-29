@@ -224,6 +224,10 @@
     ],
     "compounds": [
         {
+            "name": "NEP: Launch as VSCode Extension + Debugging",
+            "configurations": ["CodeWhisperer Server Token", "Attach to AWS Documents Language Server"]
+        },
+        {
             "name": "Launch as VSCode Extension + Debugging",
             "configurations": ["CodeWhisperer Agentic Server Token", "Attach to AWS Documents Language Server"]
         }

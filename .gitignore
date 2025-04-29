@@ -26,3 +26,6 @@ app/aws-lsp-partiql-*
 
 # Mynah
 !mynah-ui/dist
+
+# Workspace
+client/vscode/lsp_client.code-workspace

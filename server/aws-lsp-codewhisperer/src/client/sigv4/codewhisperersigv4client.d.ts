@@ -18,115 +18,115 @@ declare class CodeWhispererSigV4Client extends Service {
   constructor(options?: CodeWhispererSigV4Client.Types.ClientConfiguration)
   config: Config & CodeWhispererSigV4Client.Types.ClientConfiguration;
   /**
-   * 
+   *
    */
   createCodeScan(params: CodeWhispererSigV4Client.Types.CreateCodeScanRequest, callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.CreateCodeScanResponse) => void): Request<CodeWhispererSigV4Client.Types.CreateCodeScanResponse, AWSError>;
   /**
-   * 
+   *
    */
   createCodeScan(callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.CreateCodeScanResponse) => void): Request<CodeWhispererSigV4Client.Types.CreateCodeScanResponse, AWSError>;
   /**
-   * 
+   *
    */
   createCodeScanUploadUrl(params: CodeWhispererSigV4Client.Types.CreateUploadUrlRequest, callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.CreateUploadUrlResponse) => void): Request<CodeWhispererSigV4Client.Types.CreateUploadUrlResponse, AWSError>;
   /**
-   * 
+   *
    */
   createCodeScanUploadUrl(callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.CreateUploadUrlResponse) => void): Request<CodeWhispererSigV4Client.Types.CreateUploadUrlResponse, AWSError>;
   /**
-   * 
+   *
    */
   createProfile(params: CodeWhispererSigV4Client.Types.CreateProfileRequest, callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.CreateProfileResponse) => void): Request<CodeWhispererSigV4Client.Types.CreateProfileResponse, AWSError>;
   /**
-   * 
+   *
    */
   createProfile(callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.CreateProfileResponse) => void): Request<CodeWhispererSigV4Client.Types.CreateProfileResponse, AWSError>;
   /**
-   * 
+   *
    */
   deleteProfile(params: CodeWhispererSigV4Client.Types.DeleteProfileRequest, callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.DeleteProfileResponse) => void): Request<CodeWhispererSigV4Client.Types.DeleteProfileResponse, AWSError>;
   /**
-   * 
+   *
    */
   deleteProfile(callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.DeleteProfileResponse) => void): Request<CodeWhispererSigV4Client.Types.DeleteProfileResponse, AWSError>;
   /**
-   * 
+   *
    */
   generateRecommendations(params: CodeWhispererSigV4Client.Types.GenerateRecommendationsRequest, callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.GenerateRecommendationsResponse) => void): Request<CodeWhispererSigV4Client.Types.GenerateRecommendationsResponse, AWSError>;
   /**
-   * 
+   *
    */
   generateRecommendations(callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.GenerateRecommendationsResponse) => void): Request<CodeWhispererSigV4Client.Types.GenerateRecommendationsResponse, AWSError>;
   /**
-   * 
+   *
    */
   getAccessToken(params: CodeWhispererSigV4Client.Types.GetAccessTokenRequest, callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.GetAccessTokenResponse) => void): Request<CodeWhispererSigV4Client.Types.GetAccessTokenResponse, AWSError>;
   /**
-   * 
+   *
    */
   getAccessToken(callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.GetAccessTokenResponse) => void): Request<CodeWhispererSigV4Client.Types.GetAccessTokenResponse, AWSError>;
   /**
-   * 
+   *
    */
   getCodeScan(params: CodeWhispererSigV4Client.Types.GetCodeScanRequest, callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.GetCodeScanResponse) => void): Request<CodeWhispererSigV4Client.Types.GetCodeScanResponse, AWSError>;
   /**
-   * 
+   *
    */
   getCodeScan(callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.GetCodeScanResponse) => void): Request<CodeWhispererSigV4Client.Types.GetCodeScanResponse, AWSError>;
   /**
-   * 
+   *
    */
   listCodeScanFindings(params: CodeWhispererSigV4Client.Types.ListCodeScanFindingsRequest, callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.ListCodeScanFindingsResponse) => void): Request<CodeWhispererSigV4Client.Types.ListCodeScanFindingsResponse, AWSError>;
   /**
-   * 
+   *
    */
   listCodeScanFindings(callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.ListCodeScanFindingsResponse) => void): Request<CodeWhispererSigV4Client.Types.ListCodeScanFindingsResponse, AWSError>;
   /**
-   * 
+   *
    */
   listProfiles(params: CodeWhispererSigV4Client.Types.ListProfilesRequest, callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.ListProfilesResponse) => void): Request<CodeWhispererSigV4Client.Types.ListProfilesResponse, AWSError>;
   /**
-   * 
+   *
    */
   listProfiles(callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.ListProfilesResponse) => void): Request<CodeWhispererSigV4Client.Types.ListProfilesResponse, AWSError>;
   /**
-   * 
+   *
    */
   listRecommendations(params: CodeWhispererSigV4Client.Types.ListRecommendationsRequest, callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.ListRecommendationsResponse) => void): Request<CodeWhispererSigV4Client.Types.ListRecommendationsResponse, AWSError>;
   /**
-   * 
+   *
    */
   listRecommendations(callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.ListRecommendationsResponse) => void): Request<CodeWhispererSigV4Client.Types.ListRecommendationsResponse, AWSError>;
   /**
-   * 
+   *
    */
   listTagsForResource(params: CodeWhispererSigV4Client.Types.ListTagsForResourceRequest, callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.ListTagsForResourceResponse) => void): Request<CodeWhispererSigV4Client.Types.ListTagsForResourceResponse, AWSError>;
   /**
-   * 
+   *
    */
   listTagsForResource(callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.ListTagsForResourceResponse) => void): Request<CodeWhispererSigV4Client.Types.ListTagsForResourceResponse, AWSError>;
   /**
-   * 
+   *
    */
   tagResource(params: CodeWhispererSigV4Client.Types.TagResourceRequest, callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.TagResourceResponse) => void): Request<CodeWhispererSigV4Client.Types.TagResourceResponse, AWSError>;
   /**
-   * 
+   *
    */
   tagResource(callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.TagResourceResponse) => void): Request<CodeWhispererSigV4Client.Types.TagResourceResponse, AWSError>;
   /**
-   * 
+   *
    */
   untagResource(params: CodeWhispererSigV4Client.Types.UntagResourceRequest, callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.UntagResourceResponse) => void): Request<CodeWhispererSigV4Client.Types.UntagResourceResponse, AWSError>;
   /**
-   * 
+   *
    */
   untagResource(callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.UntagResourceResponse) => void): Request<CodeWhispererSigV4Client.Types.UntagResourceResponse, AWSError>;
   /**
-   * 
+   *
    */
   updateProfile(params: CodeWhispererSigV4Client.Types.UpdateProfileRequest, callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.UpdateProfileResponse) => void): Request<CodeWhispererSigV4Client.Types.UpdateProfileResponse, AWSError>;
   /**
-   * 
+   *
    */
   updateProfile(callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.UpdateProfileResponse) => void): Request<CodeWhispererSigV4Client.Types.UpdateProfileResponse, AWSError>;
 }
@@ -367,5 +367,3 @@ declare namespace CodeWhispererSigV4Client {
   export import Types = CodeWhispererSigV4Client;
 }
 export = CodeWhispererSigV4Client;
-
-    

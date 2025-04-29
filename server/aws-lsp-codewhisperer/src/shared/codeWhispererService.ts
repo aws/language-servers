@@ -20,14 +20,15 @@ import {
     RequestExtras,
 } from '../client/token/codewhisperer'
 
-// Define our own Suggestion interface to wrap the differences between Token and IAM Client
+import { PredictionType, GenerateCompletionsResponse } from '../client/token/codewhispererbearertokenclient'
+
 export interface Suggestion extends CodeWhispererTokenClient.Completion, CodeWhispererSigv4Client.Recommendation {
     itemId: string
 }
 
-export interface GenerateSuggestionsRequest
-    extends CodeWhispererTokenClient.GenerateCompletionsRequest,
-        CodeWhispererSigv4Client.GenerateRecommendationsRequest {
+export interface GenerateSuggestionsRequest extends CodeWhispererTokenClient.GenerateCompletionsRequest {
+    // TODO : This is broken due to Interface 'GenerateSuggestionsRequest' cannot simultaneously extend types 'GenerateCompletionsRequest' and 'GenerateRecommendationsRequest'.
+    //CodeWhispererSigv4Client.GenerateRecommendationsRequest {
     maxResults: number
 }
 
@@ -39,8 +40,14 @@ export interface ResponseContext {
     nextToken?: string
 }
 
+export enum SuggestionType {
+    EDIT = 'EDIT',
+    COMPLETION = 'COMPLETION',
+}
+
 export interface GenerateSuggestionsResponse {
     suggestions: Suggestion[]
+    suggestionType?: SuggestionType
     responseContext: ResponseContext
 }
 
@@ -131,7 +138,18 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
         // add error check
         if (this.customizationArn) request = { ...request, customizationArn: this.customizationArn }
 
+        console.log(
+            '[CWSPR-API] generateRecommendations request:',
+            JSON.stringify(request),
+            `time: ${Date.now() / 1000}s`
+        )
         const response = await this.client.generateRecommendations(request).promise()
+        console.log(
+            '[CWSPR-API] generateRecommendations response:',
+            JSON.stringify(response),
+            `time: ${Date.now() / 1000}s`
+        )
+
         const responseContext = {
             requestId: response?.$response?.requestId,
             codewhispererSessionId: response?.$response?.httpResponse?.headers['x-amzn-sessionid'],
@@ -144,6 +162,7 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
 
         return {
             suggestions: response.recommendations as Suggestion[],
+            suggestionType: SuggestionType.COMPLETION,
             responseContext,
         }
     }
@@ -161,6 +180,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         sdkInitializator: SDKInitializator
     ) {
         super(codeWhispererRegion, codeWhispererEndpoint)
+
         const options: CodeWhispererTokenClientConfigurationOptions = {
             region: this.codeWhispererRegion,
             endpoint: this.codeWhispererEndpoint,
@@ -168,15 +188,40 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
                 req => {
                     this.trackRequest(req)
                     req.on('build', ({ httpRequest }) => {
-                        const creds = credentialsProvider.getCredentials('bearer') as BearerCredentials
-                        if (!creds?.token) {
-                            throw new Error('Authorization failed, bearer token is not set')
+                        try {
+                            const creds = credentialsProvider.getCredentials('bearer') as BearerCredentials
+                            if (!creds?.token) {
+                                throw new Error('Authorization failed, bearer token is not set')
+                            }
+                            httpRequest.headers['Authorization'] = `Bearer ${creds.token}`
+                            httpRequest.headers['x-amzn-codewhisperer-optout'] =
+                                `${!this.shareCodeWhispererContentWithAWS}`
+                            console.debug('CWSPR Request Headers:', JSON.stringify(httpRequest.headers, null, 2))
+                            console.debug(
+                                'CWSPR Request Body:',
+                                httpRequest.body
+                                    ? JSON.stringify(JSON.parse(httpRequest.body.toString()), null, 2)
+                                    : 'No body'
+                            )
+                        } catch (error) {
+                            console.error('CWSPR Error during request build:', error)
+                            throw error
                         }
-                        httpRequest.headers['Authorization'] = `Bearer ${creds.token}`
-                        httpRequest.headers['x-amzn-codewhisperer-optout'] = `${!this.shareCodeWhispererContentWithAWS}`
                     })
-                    req.on('complete', () => {
+                    req.on('send', () => {
+                        console.log('CWSPR Request details:', req)
+                    })
+                    req.on('complete', response => {
+                        console.log('CWSPR Request completed with response:', response)
                         this.completeRequest(req)
+                    })
+                    req.on('error', (e, k) => {
+                        console.log('CWSPR Request failed with error:', e, 'and response:', k)
+                    })
+                    // Final outcome events
+                    req.on('success', (response: AWS.Response<any, AWSError>) => {
+                        console.log('RequestId:', response.requestId)
+                        console.debug('CWSPR Completed Succesfully', JSON.stringify(response.data, null, 2))
                     })
                 },
             ],
@@ -199,22 +244,61 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         // add error check
         if (this.customizationArn) request.customizationArn = this.customizationArn
 
+        console.log('[CWSPR] generateCompletions request:', JSON.stringify(request), `time: ${Date.now() / 1000}s`)
+
         const response = await this.client.generateCompletions(this.withProfileArn(request)).promise()
+
+        console.log('[CWSPR] generateCompletions response:', JSON.stringify(response), `time: ${Date.now() / 1000}s`)
+
         const responseContext = {
             requestId: response?.$response?.requestId,
             codewhispererSessionId: response?.$response?.httpResponse?.headers['x-amzn-sessionid'],
             nextToken: response.nextToken,
         }
 
-        for (const recommendation of response?.completions ?? []) {
-            Object.assign(recommendation, { itemId: this.generateItemId() })
-        }
+        return this.mapCodeWhispererApiResponseToSuggestion(response, responseContext)
+    }
 
-        return {
-            suggestions: response.completions as Suggestion[],
-            responseContext,
+    private mapCodeWhispererApiResponseToSuggestion(
+        apiResponse: GenerateCompletionsResponse,
+        responseContext: ResponseContext
+    ): GenerateSuggestionsResponse {
+        // Return suggestions based on whether we have completions or predictions
+        // For now completions and edits are mutually exclusive
+
+        if (apiResponse.predictions && apiResponse.predictions.length > 0) {
+            const suggestionType = apiResponse.predictions[0].edit ? SuggestionType.EDIT : SuggestionType.COMPLETION
+
+            var suggestions: Suggestion[]
+
+            if (suggestionType === SuggestionType.COMPLETION) {
+                suggestions = apiResponse.predictions.map(prediction => ({
+                    content: prediction.completion?.content ?? '',
+                    references: prediction.completion?.references ?? [],
+                    itemId: this.generateItemId(),
+                }))
+            } else {
+                suggestions = apiResponse.predictions.map(prediction => ({
+                    content: prediction.edit?.content ?? '',
+                    references: prediction.edit?.references ?? [],
+                    itemId: this.generateItemId(),
+                }))
+            }
+
+            return {
+                suggestions: suggestions,
+                suggestionType: suggestionType,
+                responseContext: responseContext,
+            }
+        } else {
+            return {
+                suggestions: apiResponse.completions as Suggestion[],
+                suggestionType: SuggestionType.COMPLETION,
+                responseContext: responseContext,
+            }
         }
     }
+
     public async codeModernizerCreateUploadUrl(
         request: CodeWhispererTokenClient.CreateUploadUrlRequest
     ): Promise<CodeWhispererTokenClient.CreateUploadUrlResponse> {

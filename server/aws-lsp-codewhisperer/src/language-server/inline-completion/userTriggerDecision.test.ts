@@ -14,6 +14,7 @@ import { CodeWhispererServiceBase, ResponseContext, Suggestion } from '../../sha
 import { CodeWhispererSession, SessionManager } from './session/sessionManager'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import { initBaseTestServiceManager, TestAmazonQServiceManager } from '../../shared/amazonQServiceManager/testUtils'
+import { SuggestionType, SuggestionTypes } from 'aws-sdk/clients/kendra'
 
 describe('Telemetry', () => {
     const sandbox = sinon.createSandbox()
