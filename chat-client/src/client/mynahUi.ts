@@ -649,6 +649,19 @@ export const createMynahUi = (
               }
             : {}
 
+        const chatItem = {
+            ...chatResult,
+            body: chatResult.body,
+            type: ChatItemType.ANSWER_STREAM,
+            header: header,
+            buttons: buttons,
+            codeBlockActions: isPairProgrammingMode ? { 'insert-to-cursor': null } : undefined,
+        }
+
+        if (!chatItems.find(ci => ci.messageId === chatResult.messageId)) {
+            mynahUi.addChatItem(tabId, chatItem)
+        }
+
         mynahUi.endMessageStream(tabId, chatResult.messageId ?? '', {
             header: header,
             buttons: buttons,
