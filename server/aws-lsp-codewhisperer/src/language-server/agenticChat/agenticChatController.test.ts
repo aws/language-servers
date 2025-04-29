@@ -961,6 +961,7 @@ describe('AgenticChatController', () => {
             const typedChatResult = chatResult as ResponseError<ChatResult>
             assert.ok(typedChatResult.message.includes('too long'))
             assert.ok(typedChatResult.data?.body?.includes('too long'))
+            assert.ok(generateAssistantResponseStub.notCalled)
         })
 
         it('shows generic errorMsg on internal errors', async function () {
