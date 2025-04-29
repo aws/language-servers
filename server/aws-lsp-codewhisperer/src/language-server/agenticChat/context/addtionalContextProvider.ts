@@ -6,7 +6,6 @@ import { URI } from 'vscode-uri'
 import { Lsp, Workspace } from '@aws/language-server-runtimes/server-interface'
 import { pathUtils, workspaceUtils } from '@aws/lsp-core'
 import {
-    additionalContentInnerContextLimit,
     additionalContentNameLimit,
     getUserPromptsDirectory,
     initialContextInfo,
