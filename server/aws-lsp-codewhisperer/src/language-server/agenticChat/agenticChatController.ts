@@ -251,6 +251,9 @@ export class AgenticChatController implements ChatHandlers {
             this.#stoppedToolUses.add(params.messageId)
             await this.#renderStoppedShellCommand(params.tabId, params.messageId)
             return { success: true }
+        } else if (params.buttonId === 'upgrade-q') {
+            this.#features.logging.warn('clicked upgrade-to-pro-button')
+            return { success: true }
         } else {
             return {
                 success: false,
