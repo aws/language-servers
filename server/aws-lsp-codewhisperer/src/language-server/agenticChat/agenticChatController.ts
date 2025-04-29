@@ -275,10 +275,10 @@ export class AgenticChatController implements ChatHandlers {
             const updatedDetails = { ...fileList.details }
             for (const filePath of fileList.filePaths) {
                 if (updatedDetails[filePath]) {
-                    updatedDetails[filePath] = {
+                    ;(updatedDetails[filePath] as any) = {
                         ...updatedDetails[filePath],
-                        clickable: false as any,
-                    }
+                        clickable: false,
+                    } as Partial<FileDetails>
                 }
             }
             updatedFileList.details = updatedDetails
