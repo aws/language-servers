@@ -577,6 +577,15 @@ export const createMynahUi = (
     }
 
     const addChatResponse = (chatResult: ChatResult, tabId: string, isPartialResult: boolean) => {
+        if (agenticMode) {
+            agenticAddChatResponse(chatResult, tabId, isPartialResult)
+        } else {
+            legacyAddChatResponse(chatResult, tabId, isPartialResult)
+        }
+    }
+
+    // addChatResponse handler to support Agentic chat UX changes for handling responses streaming.
+    const agenticAddChatResponse = (chatResult: ChatResult, tabId: string, isPartialResult: boolean) => {
         const { type, ...chatResultWithoutType } = chatResult
         let header = toMynahHeader(chatResult.header)
         const fileList = toMynahFileList(chatResult.fileList)
@@ -590,7 +599,7 @@ export const createMynahUi = (
         const chatItems = store.chatItems || []
         const isPairProgrammingMode: boolean = getTabPairProgrammingMode(mynahUi, tabId)
 
-        if (agenticMode && chatResult.additionalMessages?.length) {
+        if (chatResult.additionalMessages?.length) {
             mynahUi.updateStore(tabId, {
                 loadingChat: true,
                 cancelButtonWhenLoading: true,
@@ -616,41 +625,25 @@ export const createMynahUi = (
         }
 
         if (isPartialResult) {
-            if (agenticMode) {
-                mynahUi.updateStore(tabId, {
-                    loadingChat: true,
-                    cancelButtonWhenLoading: true,
-                })
-                const chatItem = {
-                    ...chatResult,
-                    body: chatResult.body,
-                    type: ChatItemType.ANSWER_STREAM,
-                    header: header,
-                    buttons: buttons,
-                    fileList,
-                    codeBlockActions: isPairProgrammingMode ? { 'insert-to-cursor': null } : undefined,
-                }
-
-                if (!chatItems.find(ci => ci.messageId === chatResult.messageId)) {
-                    mynahUi.addChatItem(tabId, chatItem)
-                } else {
-                    mynahUi.updateChatAnswerWithMessageId(tabId, chatResult.messageId!, chatItem)
-                }
-            } else {
-                const chatItem = {
-                    ...chatResult,
-                    body: chatResult.body,
-                    type: ChatItemType.ANSWER_STREAM,
-                    header: header,
-                    buttons: buttons,
-                    fileList,
-                    canBeVoted: false, // Voting will be enable only after whole message is rendered
-                }
-                // Legacy message handling
-                // type for MynahUI differs from ChatResult types so we ignore it
-                mynahUi.updateLastChatAnswer(tabId, chatItem)
+            mynahUi.updateStore(tabId, {
+                loadingChat: true,
+                cancelButtonWhenLoading: true,
+            })
+            const chatItem = {
+                ...chatResult,
+                body: chatResult.body,
+                type: ChatItemType.ANSWER_STREAM,
+                header: header,
+                buttons: buttons,
+                fileList,
+                codeBlockActions: isPairProgrammingMode ? { 'insert-to-cursor': null } : undefined,
             }
 
+            if (!chatItems.find(ci => ci.messageId === chatResult.messageId)) {
+                mynahUi.addChatItem(tabId, chatItem)
+            } else {
+                mynahUi.updateChatAnswerWithMessageId(tabId, chatResult.messageId!, chatItem)
+            }
             return
         }
 
@@ -658,7 +651,6 @@ export const createMynahUi = (
         if (Object.keys(chatResult).length === 0) {
             return
         }
-
         // If the response is auth follow-up show it as a system prompt
         const followUpOptions = chatResult.followUp?.options
         const isValidAuthFollowUp =
@@ -679,7 +671,6 @@ export const createMynahUi = (
             // mynahUi.updateStore(tabId, { promptInputDisabledState: true })
             return
         }
-
         const followUps = chatResult.followUp
             ? {
                   text: chatResult.followUp.text ?? 'Suggested follow up questions:',
@@ -687,44 +678,111 @@ export const createMynahUi = (
               }
             : {}
 
-        if (agenticMode) {
-            mynahUi.endMessageStream(tabId, chatResult.messageId ?? '', {
-                header: header,
-                buttons: buttons,
-                body: chatResult.body,
-                followUp: followUps,
-                relatedContent: chatResult.relatedContent,
-                canBeVoted: chatResult.canBeVoted,
-                codeReference: chatResult.codeReference,
-                fileList: chatResult.fileList,
-                // messageId excluded
+        mynahUi.endMessageStream(tabId, chatResult.messageId ?? '', {
+            header: header,
+            buttons: buttons,
+            body: chatResult.body,
+            followUp: followUps,
+            relatedContent: chatResult.relatedContent,
+            canBeVoted: chatResult.canBeVoted,
+            codeReference: chatResult.codeReference,
+            fileList: chatResult.fileList,
+            // messageId excluded
+        })
+
+        mynahUi.updateStore(tabId, {
+            loadingChat: false,
+            cancelButtonWhenLoading: true,
+            promptInputDisabledState: false,
+        })
+    }
+
+    // addChatResponse handler to support extensions that haven't migrated to agentic chat yet
+    const legacyAddChatResponse = (chatResult: ChatResult, tabId: string, isPartialResult: boolean) => {
+        const { type, ...chatResultWithoutType } = chatResult
+        let header = undefined
+
+        if (chatResult.contextList !== undefined) {
+            header = {
+                fileList: {
+                    fileTreeTitle: '',
+                    filePaths: chatResult.contextList.filePaths?.map(file => file),
+                    rootFolderTitle: 'Context',
+                    flatList: true,
+                    collapsed: true,
+                    hideFileCount: true,
+                    details: Object.fromEntries(
+                        Object.entries(chatResult.contextList.details || {}).map(([filePath, fileDetails]) => [
+                            filePath,
+                            {
+                                label:
+                                    fileDetails.lineRanges
+                                        ?.map(range =>
+                                            range.first === -1 || range.second === -1
+                                                ? ''
+                                                : `line ${range.first} - ${range.second}`
+                                        )
+                                        .join(', ') || '',
+                                description: filePath,
+                                clickable: true,
+                            },
+                        ])
+                    ),
+                },
+            }
+        }
+
+        if (isPartialResult) {
+            // @ts-ignore - type for MynahUI differs from ChatResult types so we ignore it
+            mynahUi.updateLastChatAnswer(tabId, { ...chatResultWithoutType, header: header })
+            return
+        }
+
+        // If chat response from server is an empty object don't do anything
+        if (Object.keys(chatResult).length === 0) {
+            return
+        }
+        // If the response is auth follow-up show it as a system prompt
+        const followUpOptions = chatResult.followUp?.options
+        const isValidAuthFollowUp =
+            followUpOptions &&
+            followUpOptions.length > 0 &&
+            followUpOptions[0].type &&
+            isValidAuthFollowUpType(followUpOptions[0].type)
+        if (chatResult.body === '' && isValidAuthFollowUp) {
+            // @ts-ignore - type for MynahUI differs from ChatResult types so we ignore it
+            mynahUi.addChatItem(tabId, {
+                type: ChatItemType.SYSTEM_PROMPT,
+                ...chatResultWithoutType,
             })
 
-            mynahUi.updateStore(tabId, {
-                loadingChat: false,
-                cancelButtonWhenLoading: true,
-                promptInputDisabledState: false,
-            })
-        } else {
-            // Legacy handling
-            mynahUi.updateLastChatAnswer(tabId, {
-                header: header,
-                buttons: buttons,
-                body: chatResult.body,
-                messageId: chatResult.messageId,
-                followUp: followUps,
-                relatedContent: chatResult.relatedContent,
-                canBeVoted: chatResult.canBeVoted,
-                codeReference: chatResult.codeReference,
-                fileList: chatResult.fileList,
-            })
-            mynahUi.endMessageStream(tabId, chatResult.messageId ?? '')
-            mynahUi.updateStore(tabId, {
-                loadingChat: false,
-                cancelButtonWhenLoading: false,
-                promptInputDisabledState: false,
-            })
+            // TODO, prompt should be disabled until user is authenticated
+            // Currently we don't have a mechanism to notify chat-client about auth changes
+            // mynahUi.updateStore(tabId, { promptInputDisabledState: true })
+            return
         }
+        const followUps = chatResult.followUp
+            ? {
+                  text: chatResult.followUp.text ?? 'Suggested follow up questions:',
+                  options: chatResult.followUp.options,
+              }
+            : {}
+
+        mynahUi.updateLastChatAnswer(tabId, {
+            header: header,
+            body: chatResult.body,
+            messageId: chatResult.messageId,
+            followUp: followUps,
+            relatedContent: chatResult.relatedContent,
+            canBeVoted: chatResult.canBeVoted,
+        })
+
+        mynahUi.endMessageStream(tabId, chatResult.messageId ?? '')
+
+        mynahUi.updateStore(tabId, {
+            loadingChat: false,
+            promptInputDisabledState: false,
+        })
     }
 
     const updateChat = (params: ChatUpdateParams) => {
