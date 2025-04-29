@@ -1,6 +1,6 @@
 // Port from VSC https://github.com/aws/aws-toolkit-vscode/blob/741c2c481bcf0dca2d9554e32dc91d8514b1b1d1/packages/core/src/codewhispererChat/tools/executeBash.ts#L134
 
-import { CommandValidation, ExplanatoryParams, InvokeOutput } from './toolShared'
+import { CommandValidation, ExplanatoryParams, InvokeOutput, isPathApproved } from './toolShared'
 import { split } from 'shlex'
 import { Logging } from '@aws/language-server-runtimes/server-interface'
 import { CancellationError, processUtils, workspaceUtils } from '@aws/lsp-core'
@@ -105,8 +105,9 @@ export const commandCategories = new Map<string, CommandCategory>([
 ])
 export const maxToolResponseSize: number = 1024 * 1024 // 1MB
 export const lineCount: number = 1024
-export const destructiveCommandWarningMessage = '⚠️ WARNING: Potentially destructive command detected:\n\n'
+export const destructiveCommandWarningMessage = 'WARNING: Potentially destructive command detected:\n\n'
 export const mutateCommandWarningMessage = 'Mutation command:\n\n'
+export const outOfWorkspaceWarningmessage = 'Execution out of workspace scope:\n\n'
 
 /**
  * Parameters for executing a command on the system shell.
@@ -176,7 +177,10 @@ export class ExecuteBash {
         ExecuteBash.handleChunk(chunk.content, buffer, writer)
     }
 
-    public async requiresAcceptance(params: ExecuteBashParams): Promise<CommandValidation> {
+    public async requiresAcceptance(
+        params: ExecuteBashParams,
+        approvedPaths?: Set<string>
+    ): Promise<CommandValidation> {
         try {
             const args = split(params.command)
             if (!args || args.length === 0) {
@@ -214,6 +218,12 @@ export class ExecuteBash {
                     if (this.looksLikePath(arg)) {
                         // If not absolute, resolve using workingDirectory if available.
                         const fullPath = !isAbsolute(arg) && params.cwd ? join(params.cwd, arg) : arg
+
+                        // Check if the path is already approved
+                        if (approvedPaths && isPathApproved(fullPath, approvedPaths)) {
+                            continue
+                        }
+
                         const isInWorkspace = workspaceUtils.isInWorkspace(getWorkspaceFolderPaths(this.lsp), fullPath)
                         if (!isInWorkspace) {
                             return { requiresAcceptance: true, warning: destructiveCommandWarningMessage }
@@ -235,6 +245,33 @@ export class ExecuteBash {
                         return { requiresAcceptance: true }
                 }
             }
+            // Finally, check if the cwd is outside the workspace
+            if (params.cwd) {
+                // Check if the cwd is already approved
+                if (!(approvedPaths && isPathApproved(params.cwd, approvedPaths))) {
+                    const workspaceFolders = getWorkspaceFolderPaths(this.lsp)
+
+                    // If there are no workspace folders, we can't validate the path
+                    if (!workspaceFolders || workspaceFolders.length === 0) {
+                        return { requiresAcceptance: true, warning: outOfWorkspaceWarningmessage }
+                    }
+
+                    // Normalize paths for consistent comparison
+                    const normalizedCwd = params.cwd.replace(/\\/g, '/')
+                    const normalizedWorkspaceFolders = workspaceFolders.map(folder => folder.replace(/\\/g, '/'))
+
+                    // Check if the normalized cwd is in any of the normalized workspace folders
+                    const isInWorkspace = normalizedWorkspaceFolders.some(
+                        folder => normalizedCwd === folder || normalizedCwd.startsWith(folder + '/')
+                    )
+
+                    if (!isInWorkspace) {
+                        return { requiresAcceptance: true, warning: outOfWorkspaceWarningmessage }
+                    }
+                }
+            }
+
+            // If we've checked all commands and none required acceptance, we're good
             return { requiresAcceptance: false }
         } catch (error) {
             this.logging.warn(`Error while checking acceptance: ${(error as Error).message}`)

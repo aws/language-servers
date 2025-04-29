@@ -686,7 +686,15 @@ export class AgenticChatController implements ChatHandlers {
 
                         const { Tool } = toolMap[toolUse.name as keyof typeof toolMap]
                         const tool = new Tool(this.#features)
-                        const { requiresAcceptance, warning } = await tool.requiresAcceptance(toolUse.input as any)
+
+                        // Get the approved paths from the session
+                        const approvedPaths = session.approvedPaths
+
+                        // Pass the approved paths to the tool's requiresAcceptance method
+                        const { requiresAcceptance, warning } = await tool.requiresAcceptance(
+                            toolUse.input as any,
+                            approvedPaths
+                        )
 
                         if (requiresAcceptance || toolUse.name === 'executeBash') {
                             // for executeBash, we till send the confirmation message without action buttons
@@ -729,6 +737,12 @@ export class AgenticChatController implements ChatHandlers {
                         ...toolUse,
                         fileChange: { before: document?.getText() },
                     })
+                }
+
+                // After approval, add the path to the approved paths in the session
+                const inputPath = (toolUse.input as any)?.path || (toolUse.input as any)?.cwd
+                if (inputPath) {
+                    session.addApprovedPath(inputPath)
                 }
 
                 const ws = this.#getWritableStream(chatResultStream, toolUse)
@@ -1158,6 +1172,8 @@ export class AgenticChatController implements ChatHandlers {
                       ]
                     : []
                 header = {
+                    icon: 'warning',
+                    iconForegroundStatus: 'warning',
                     body: 'shell',
                     buttons,
                 }
