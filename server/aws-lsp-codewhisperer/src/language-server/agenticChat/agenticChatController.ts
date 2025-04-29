@@ -118,7 +118,7 @@ import {
     generateAssistantResponseInputLimit,
 } from './constants'
 import { URI } from 'vscode-uri'
-import { AgenticChatError } from './errors'
+import { AgenticChatError, customerFacingErrorCodes } from './errors'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -1528,8 +1528,7 @@ export class AgenticChatController implements ChatHandlers {
             return createAuthFollowUpResult(authFollowType)
         }
 
-        // These are errors we want to show custom messages in chat for.
-        if (['QModelResponse', 'MaxAgentLoopIterations', 'InputTooLong', 'PromptCharacterLimit'].includes(err.code)) {
+        if (customerFacingErrorCodes.includes(err.code)) {
             this.#features.logging.error(`${loggingUtils.formatErr(err)}`)
             return new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, err.message, {
                 type: 'answer',
