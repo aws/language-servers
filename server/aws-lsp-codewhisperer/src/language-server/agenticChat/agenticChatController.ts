@@ -1430,10 +1430,9 @@ export class AgenticChatController implements ChatHandlers {
         tabId: string,
         metric: Metric<CombinedConversationEvent>
     ): ChatResult | ResponseError<ChatResult> {
+        let errorMessage: string | undefined
+        let requestID: string | undefined
         if (isAwsError(err) || (isObject(err) && typeof getHttpStatusCode(err) === 'number')) {
-            let errorMessage: string | undefined
-            let requestID: string | undefined
-
             if (err instanceof CodeWhispererStreamingServiceException) {
                 errorMessage = err.message
                 requestID = err.$metadata.requestId
@@ -1471,8 +1470,8 @@ export class AgenticChatController implements ChatHandlers {
         }
 
         // These are errors we want to show custom messages in chat for.
-        if (err.code === 'QModelResponse' || err.code === 'MaxAgentLoopIterations') {
-            this.#features.logging.error(`${err.code}: ${JSON.stringify(err.cause)}`)
+        if (['QModelResponse', 'MaxAgentLoopIterations', 'InputTooLong'].includes(err.code)) {
+            this.#features.logging.error(`${err.code}: ${JSON.stringify(err)} `)
             return new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, err.message, {
                 type: 'answer',
                 body: err.message,
@@ -1484,7 +1483,7 @@ export class AgenticChatController implements ChatHandlers {
         this.#features.logging.log(`Error Cause: ${JSON.stringify(err.cause)}`)
         return new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, err.message, {
             type: 'answer',
-            body: genericErrorMsg,
+            body: requestID ? genericErrorMsg + `\n\nRequest ID: ${requestID}` : genericErrorMsg,
             messageId: errorMessageId,
             buttons: [],
         })

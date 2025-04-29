@@ -1,5 +1,6 @@
 import {
     CodeWhispererStreamingClientConfig,
+    CodeWhispererStreamingServiceException,
     GenerateAssistantResponseCommandInput,
     GenerateAssistantResponseCommandOutput,
     ToolUse,
@@ -12,7 +13,7 @@ import {
     SendMessageCommandOutput,
 } from '../../shared/streamingClientService'
 import { ChatResult } from '@aws/language-server-runtimes/server-interface'
-import { AgenticChatError, wrapErrorWithCode } from '../agenticChat/errors'
+import { AgenticChatError, isInputTooLongError, wrapErrorWithCode } from '../agenticChat/errors'
 
 export type ChatSessionServiceConfig = CodeWhispererStreamingClientConfig
 type FileChange = { before?: string; after?: string }
@@ -137,6 +138,18 @@ export class ChatSessionService {
             try {
                 return await client.generateAssistantResponse(request, this.#abortController)
             } catch (e) {
+                if (isInputTooLongError(e)) {
+                    let requestId
+                    if (e instanceof CodeWhispererStreamingServiceException) {
+                        requestId = e.$metadata?.requestId
+                    }
+                    throw new AgenticChatError(
+                        'Too much context loaded. Please start a new conversation or ask about specific files.',
+                        'InputTooLong',
+                        e instanceof Error ? e : undefined,
+                        requestId
+                    )
+                }
                 throw wrapErrorWithCode(e, 'QModelResponse')
             }
         } else {

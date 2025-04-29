@@ -10,6 +10,7 @@ import {
     FileSystemAdapter,
     Message,
     TabType,
+    chatMessageToMessage,
     groupTabsByDate,
     messageToChatMessage,
     messageToStreamingMessage,
@@ -17,6 +18,7 @@ import {
 } from './util'
 import { ChatMessage } from '@aws/language-server-runtimes/protocol'
 import { Workspace } from '@aws/language-server-runtimes/server-interface'
+import { ChatMessage as StreamingMessage } from '@amzn/codewhisperer-streaming'
 
 describe('ChatDb Utilities', () => {
     describe('messageToStreamingMessage', () => {
@@ -98,6 +100,62 @@ describe('ChatDb Utilities', () => {
                     codeReference: undefined,
                 },
             ])
+        })
+    })
+
+    describe('chatMessageToMessage', () => {
+        it('should convert userInputMessage to prompt Message', () => {
+            const chatMessage: StreamingMessage = {
+                userInputMessage: {
+                    content: 'Hello',
+                    userInputMessageContext: {
+                        toolResults: [],
+                    },
+                },
+            }
+
+            const result = chatMessageToMessage(chatMessage)
+
+            assert.deepStrictEqual(result, {
+                body: 'Hello',
+                origin: 'IDE',
+                type: 'prompt',
+                userInputMessageContext: {
+                    toolResults: [],
+                },
+                userIntent: undefined,
+            })
+        })
+
+        it('should convert assistantResponseMessage to answer Message', () => {
+            const chatMessage: StreamingMessage = {
+                assistantResponseMessage: {
+                    messageId: 'msg-123',
+                    content: 'Response content',
+                    toolUses: [
+                        {
+                            toolUseId: 'tool-1',
+                            name: 'testTool',
+                            input: { key: 'value' },
+                        },
+                    ],
+                },
+            }
+
+            const result = chatMessageToMessage(chatMessage)
+
+            assert.deepStrictEqual(result, {
+                body: 'Response content',
+                type: 'answer',
+                messageId: 'msg-123',
+                toolUses: [
+                    {
+                        toolUseId: 'tool-1',
+                        name: 'testTool',
+                        input: { key: 'value' },
+                    },
+                ],
+            })
         })
     })
 
