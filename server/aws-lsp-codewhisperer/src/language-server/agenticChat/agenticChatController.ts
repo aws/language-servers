@@ -253,19 +253,44 @@ export class AgenticChatController implements ChatHandlers {
         if (!cachedToolUse) {
             return
         }
+        const fileList = cachedToolUse.chatResult?.header?.fileList
+
+        const updatedHeader = {
+            ...cachedToolUse.chatResult?.header,
+            buttons: cachedToolUse.chatResult?.header?.buttons?.filter(button => button.id !== 'undo-changes'),
+            status: {
+                status: 'error' as const,
+                icon: 'cancel',
+                text: 'Change discarded',
+            },
+            muted: true,
+        }
+
+        if (fileList && fileList.filePaths && fileList.details) {
+            const updatedFileList = {
+                ...fileList,
+                muted: true,
+            }
+            const updatedDetails = { ...fileList.details }
+            for (const filePath of fileList.filePaths) {
+                if (updatedDetails[filePath]) {
+                    updatedDetails[filePath] = {
+                        ...updatedDetails[filePath],
+                        clickable: false,
+                    }
+                }
+            }
+            updatedFileList.details = updatedDetails
+            updatedHeader.fileList = updatedFileList
+        }
+
         this.#features.chat.sendChatUpdate({
             tabId,
             data: {
                 messages: [
                     {
                         ...cachedToolUse.chatResult,
-                        header: {
-                            ...cachedToolUse.chatResult?.header,
-                            buttons: cachedToolUse.chatResult?.header?.buttons?.filter(
-                                button => button.id !== 'undo-changes'
-                            ),
-                            status: { status: 'error', icon: 'cancel', text: 'Change discarded' },
-                        },
+                        header: updatedHeader,
                     },
                 ],
             },
