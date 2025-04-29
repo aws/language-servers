@@ -658,7 +658,7 @@ export class AgenticChatController implements ChatHandlers {
         if (message && message.length > generateAssistantResponseInputLimit) {
             throw new AgenticChatError(
                 `Message is too long with ${message.length} characters, max is ${generateAssistantResponseInputLimit}`,
-                'MessageTooLong'
+                'PromptCharacterLimit'
             )
         }
     }
@@ -1529,7 +1529,7 @@ export class AgenticChatController implements ChatHandlers {
         }
 
         // These are errors we want to show custom messages in chat for.
-        if (['QModelResponse', 'MaxAgentLoopIterations', 'InputTooLong', 'MessageTooLong'].includes(err.code)) {
+        if (['QModelResponse', 'MaxAgentLoopIterations', 'InputTooLong', 'PromptCharacterLimit'].includes(err.code)) {
             this.#features.logging.error(`${loggingUtils.formatErr(err)}`)
             return new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, err.message, {
                 type: 'answer',

@@ -6,7 +6,7 @@ type AgenticChatErrorCode =
     | 'FailedResult' // general error when processing tool results
     | 'MaxAgentLoopIterations'
     | 'InputTooLong' // too much context given to backend service.
-    | 'MessageTooLong' // customer prompt exceeds
+    | 'PromptCharacterLimit' // customer prompt exceeds
 
 export class AgenticChatError extends Error {
     constructor(
