@@ -717,7 +717,6 @@ export const createMynahUi = (
                 canBeVoted: chatResult.canBeVoted,
                 codeReference: chatResult.codeReference,
                 fileList: chatResult.fileList,
-                // messageId excluded
             })
             mynahUi.endMessageStream(tabId, chatResult.messageId ?? '')
             mynahUi.updateStore(tabId, {
