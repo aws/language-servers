@@ -96,7 +96,7 @@ describe('ChatController', () => {
     let emitConversationMetricStub: sinon.SinonStub
 
     let testFeatures: TestFeatures
-    let amazonQServiceManager: AmazonQTokenServiceManager
+    let serviceManager: AmazonQTokenServiceManager
     let chatSessionManagementService: ChatSessionManagementService
     let chatController: ChatController
     let telemetryService: TelemetryService
@@ -143,9 +143,10 @@ describe('ChatController', () => {
 
         AmazonQTokenServiceManager.resetInstance()
 
-        amazonQServiceManager = AmazonQTokenServiceManager.getInstance(testFeatures)
+        serviceManager = AmazonQTokenServiceManager.initInstance(testFeatures)
+
         chatSessionManagementService = ChatSessionManagementService.getInstance()
-        chatSessionManagementService.withAmazonQServiceManager(amazonQServiceManager)
+        chatSessionManagementService.withAmazonQServiceManager(serviceManager)
 
         const mockCredentialsProvider: CredentialsProvider = {
             hasCredentials: sinon.stub().returns(true),
@@ -164,12 +165,12 @@ describe('ChatController', () => {
             onClientTelemetry: sinon.stub(),
         }
 
-        telemetryService = new TelemetryService(amazonQServiceManager, mockCredentialsProvider, telemetry, logging)
+        telemetryService = new TelemetryService(serviceManager, mockCredentialsProvider, telemetry, logging)
         chatController = new ChatController(
             chatSessionManagementService,
             testFeatures,
             telemetryService,
-            amazonQServiceManager
+            serviceManager
         )
     })
 

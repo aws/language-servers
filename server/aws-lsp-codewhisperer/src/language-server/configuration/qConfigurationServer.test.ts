@@ -38,9 +38,11 @@ describe('QConfigurationServerToken', () => {
 
     beforeEach(async () => {
         testFeatures = new TestFeatures()
-        testFeatures.lsp.getClientInitializeParams.returns(getInitializeParams())
+        testFeatures.setClientParams(getInitializeParams())
 
-        amazonQServiceManager = AmazonQTokenServiceManager.getInstance(testFeatures)
+        AmazonQTokenServiceManager.resetInstance()
+        AmazonQTokenServiceManager.initInstance(testFeatures)
+        amazonQServiceManager = AmazonQTokenServiceManager.getInstance()
 
         const codeWhispererService = stubInterface<CodeWhispererServiceToken>()
         const configurationServer: Server = QConfigurationServerToken()
@@ -53,13 +55,12 @@ describe('QConfigurationServerToken', () => {
         )
         listAvailableProfilesStub = sinon.stub(ServerConfigurationProvider.prototype, 'listAvailableProfiles')
 
-        await testFeatures.start(configurationServer)
+        await testFeatures.initialize(configurationServer)
     })
 
     afterEach(() => {
         sinon.restore()
         testFeatures.dispose()
-        AmazonQTokenServiceManager.resetInstance()
     })
 
     it(`calls all list methods when ${Q_CONFIGURATION_SECTION} is requested`, () => {
@@ -101,11 +102,12 @@ describe('ServerConfigurationProvider', () => {
     const setCredentials = setCredentialsForAmazonQTokenServiceManagerFactory(() => testFeatures)
 
     const setupServerConfigurationProvider = (developerProfiles = true) => {
-        testFeatures.lsp.getClientInitializeParams.returns(getInitializeParams(developerProfiles))
+        testFeatures.setClientParams(getInitializeParams(developerProfiles))
 
         AmazonQTokenServiceManager.resetInstance()
+        AmazonQTokenServiceManager.initInstance(testFeatures)
+        amazonQServiceManager = AmazonQTokenServiceManager.getInstance()
 
-        amazonQServiceManager = AmazonQTokenServiceManager.getInstance(testFeatures)
         amazonQServiceManager.setServiceFactory(sinon.stub().returns(codeWhispererService))
         serverConfigurationProvider = new ServerConfigurationProvider(
             amazonQServiceManager,

@@ -115,7 +115,7 @@ describe('AgenticChatController', () => {
     let emitConversationMetricStub: sinon.SinonStub
 
     let testFeatures: TestFeatures
-    let amazonQServiceManager: AmazonQTokenServiceManager
+    let serviceManager: AmazonQTokenServiceManager
     let chatSessionManagementService: ChatSessionManagementService
     let chatController: AgenticChatController
     let telemetryService: TelemetryService
@@ -208,9 +208,9 @@ describe('AgenticChatController', () => {
 
         AmazonQTokenServiceManager.resetInstance()
 
-        amazonQServiceManager = AmazonQTokenServiceManager.getInstance(testFeatures)
+        serviceManager = AmazonQTokenServiceManager.initInstance(testFeatures)
         chatSessionManagementService = ChatSessionManagementService.getInstance()
-        chatSessionManagementService.withAmazonQServiceManager(amazonQServiceManager)
+        chatSessionManagementService.withAmazonQServiceManager(serviceManager)
 
         const mockCredentialsProvider: CredentialsProvider = {
             hasCredentials: sinon.stub().returns(true),
@@ -231,12 +231,12 @@ describe('AgenticChatController', () => {
 
         getMessagesStub = sinon.stub(ChatDatabase.prototype, 'getMessages')
 
-        telemetryService = new TelemetryService(amazonQServiceManager, mockCredentialsProvider, telemetry, logging)
+        telemetryService = new TelemetryService(serviceManager, mockCredentialsProvider, telemetry, logging)
         chatController = new AgenticChatController(
             chatSessionManagementService,
             testFeatures,
             telemetryService,
-            amazonQServiceManager
+            serviceManager
         )
     })
 

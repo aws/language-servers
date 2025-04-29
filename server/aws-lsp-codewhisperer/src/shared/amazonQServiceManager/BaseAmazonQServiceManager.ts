@@ -1,9 +1,12 @@
 import {
+    CancellationToken,
     CredentialsProvider,
+    CredentialsType,
     Logging,
     Lsp,
     Runtime,
     SDKInitializator,
+    UpdateConfigurationParams,
     Workspace,
 } from '@aws/language-server-runtimes/server-interface'
 import { CodeWhispererServiceBase } from '../codeWhispererService'
@@ -14,6 +17,7 @@ import {
 } from './configurationUtils'
 import { AmazonQServiceInitializationError } from './errors'
 import { StreamingClientServiceBase } from '../streamingClientService'
+
 export interface QServiceManagerFeatures {
     lsp: Lsp
     logging: Logging
@@ -30,13 +34,14 @@ type DidChangeConfigurationListener = (updatedConfig: AmazonQWorkspaceConfig) =>
 
 /**
  * BaseAmazonQServiceManager is a base abstract class that can be generically extended
- * to manage a centralized CodeWhispererService that extends CodeWhispererServiceBase and a centralized StreamingClientService that extends StreamingClientServiceBase.
+ * to manage a centralized CodeWhispererService that extends CodeWhispererServiceBase and
+ * a centralized StreamingClientService that extends StreamingClientServiceBase.
  *
- * It implements `handleDidChangeConfiguration` and hooks it into the passed LSP server's
- * `didChangeConfiguration` notification. Servers can listen to the completion of these
- * configuration updates by attaching a listener that handles the updated configuration as
- * needed. The base class also triggers the `updateCachedServiceConfig` method, updating
- * the cached service if defined.
+ * It implements `handleDidChangeConfiguration` which is intended to be passed to the LSP server's
+ * `didChangeConfiguration` and `onInitialized` handlers in the AmazonQServiceServer. Servers **should
+ * not call this method directly** and can instead listen to  the completion of these configuration
+ * updates by attaching a listener that handles the updated configuration as needed. The base class also
+ * triggers the `updateCachedServiceConfig` method, updating the cached CodeWhisperer service if defined.
  *
  * @example
  *
@@ -47,6 +52,23 @@ type DidChangeConfigurationListener = (updatedConfig: AmazonQWorkspaceConfig) =>
  * await serviceManager.handleDidChangeConfiguration()
  * // configuration is updated and listener invoked with updatedConfig
  * ```
+ *
+ * Concrete implementations can define reponses to the `UpdateConfiguration` request and the on
+ * credentials deleted event produced by the runtime's CredentialsProvider through the respective
+ * abstract methods `handleOnUpdateConfiguration` and `handleOnCredentialsDeleted`. These handlers
+ * are then wired accordingly in the `AmazonQServiceServer`. **Dependent servers should not call
+ * these handlers directly**.
+ *
+ * @remarks
+ *
+ * 1. `BaseAmazonQServiceManager` is intended to be extended as a singleton which should only be
+ * initialized in the corresponding `AmazonQServiceServer`. Other servers should not attempt to
+ * initialize any concrete implementation of this class.
+ *
+ * 2. For testing, be aware that if other server's unit tests depend on the (LSP) handling defined by
+ *  this class and provided through `AmazonQServiceServer`, the responses from this class (such as
+ * `handleDidChangeConfiguration`) have to be manually triggered in your mock routines.
+ *
  */
 export abstract class BaseAmazonQServiceManager<
     C extends CodeWhispererServiceBase,
@@ -61,18 +83,30 @@ export abstract class BaseAmazonQServiceManager<
     private handleDidChangeConfigurationListeners = new Set<DidChangeConfigurationListener>()
     private isConfigChangeInProgress = false
 
-    abstract getCodewhispererService(): CodeWhispererServiceBase
-    abstract getStreamingClient(): StreamingClientServiceBase
+    abstract getCodewhispererService(): C
+    abstract getStreamingClient(): S
 
-    /**
-     * This method calls `getAmazonQRelatedWorkspaceConfigs`, updates the configurationCache and
-     * notifies all attached listeners. The method exits early if an update is already in progress,
-     * meaning that completion of the promise **does not guarantee** the configuration state is updated
-     * yet.
-     *
-     * **Avoid calling this method directly** for processing configuration updates, and attach a listener
-     * instead.
-     */
+    public getConfiguration(): Readonly<AmazonQWorkspaceConfig> {
+        return this.configurationCache.getConfig()
+    }
+
+    public async addDidChangeConfigurationListener(listener: DidChangeConfigurationListener) {
+        this.handleDidChangeConfigurationListeners.add(listener)
+
+        // invoke the listener once at attachment to bring them up-to-date
+        const currentConfig = this.getConfiguration()
+        await listener(currentConfig)
+
+        this.logging.log('Attached new listener and notified of current config.')
+    }
+
+    public removeDidChangeConfigurationListener(listener: DidChangeConfigurationListener) {
+        this.handleDidChangeConfigurationListeners.delete(listener)
+    }
+
+    abstract handleOnCredentialsDeleted(type: CredentialsType): void
+    abstract handleOnUpdateConfiguration(params: UpdateConfigurationParams, token: CancellationToken): Promise<void>
+
     public async handleDidChangeConfiguration(): Promise<void> {
         if (this.isConfigChangeInProgress) {
             this.logging.debug(CONFIGURATION_CHANGE_IN_PROGRESS_MSG)
@@ -81,7 +115,6 @@ export abstract class BaseAmazonQServiceManager<
 
         try {
             this.isConfigChangeInProgress = true
-
             const amazonQConfig = await getAmazonQRelatedWorkspaceConfigs(this.features.lsp, this.features.logging)
             this.configurationCache.updateConfig(amazonQConfig)
 
@@ -112,24 +145,6 @@ export abstract class BaseAmazonQServiceManager<
         }
     }
 
-    public getConfiguration(): Readonly<AmazonQWorkspaceConfig> {
-        return this.configurationCache.getConfig()
-    }
-
-    public async addDidChangeConfigurationListener(listener: DidChangeConfigurationListener) {
-        this.handleDidChangeConfigurationListeners.add(listener)
-
-        // invoke the listener once at attachment to bring them up-to-date
-        const currentConfig = this.getConfiguration()
-        await listener(currentConfig)
-
-        this.logging.log('Attached new listener and notified of current config.')
-    }
-
-    public removeDidChangeConfigurationListener(listener: DidChangeConfigurationListener) {
-        this.handleDidChangeConfigurationListeners.delete(listener)
-    }
-
     private async notifyDidChangeConfigurationListeners(): Promise<void> {
         this.logging.debug('Notifying did change configuration listeners')
 
@@ -145,6 +160,21 @@ export abstract class BaseAmazonQServiceManager<
         await Promise.allSettled(listenPromises)
     }
 
+    public setupCommonLspHandlers(): void {
+        this.handleDidChangeConfiguration = this.handleDidChangeConfiguration.bind(this)
+
+        this.features.lsp.onInitialized(async () => {
+            await this.handleDidChangeConfiguration()
+        })
+
+        this.features.lsp.didChangeConfiguration(async () => {
+            this.logging.debug('Received didChangeconfiguration event')
+            await this.handleDidChangeConfiguration()
+        })
+
+        this.logging.debug('Attached onInitialized and didChangeConfiguration lsp listeners.')
+    }
+
     constructor(features: QServiceManagerFeatures) {
         if (!features || !features.logging || !features.lsp) {
             throw new AmazonQServiceInitializationError(
@@ -154,13 +184,6 @@ export abstract class BaseAmazonQServiceManager<
 
         this.features = features
         this.logging = features.logging
-
-        this.handleDidChangeConfiguration = this.handleDidChangeConfiguration.bind(this)
-
-        this.features.lsp.didChangeConfiguration(async () => {
-            this.logging.debug('Received didChangeconfiguration event')
-            await this.handleDidChangeConfiguration()
-        })
 
         this.logging.debug('BaseAmazonQServiceManager functionality initialized')
     }

@@ -53,9 +53,21 @@ const updateConfiguration = async (
 ): Promise<TestFeatures> => {
     features.lsp.workspace.getConfiguration.returns(getConfigurationReturns ?? Promise.resolve({}))
 
+    // Mocked trigger of didChangeConfiguration in amazonQServer
+    await TestAmazonQServiceManager.getInstance()['handleDidChangeConfiguration']()
+
     // Invoke event twice to ensure LSP Router propagates didChangeConfiguration notification and allows time for it to take effect in tests
     await features.openDocument(SOME_FILE).doChangeConfiguration()
     await features.openDocument(SOME_FILE).doChangeConfiguration()
+
+    return features
+}
+
+const startServer = async (features: TestFeatures, server: Server): Promise<TestFeatures> => {
+    await features.start(server)
+
+    // Mocked trigger of didChangeConfiguration in amazonQServer
+    await TestAmazonQServiceManager.getInstance()['handleDidChangeConfiguration']()
 
     return features
 }
@@ -112,6 +124,7 @@ describe('CodeWhisperer Server', () => {
             //@ts-ignore
             features.logging = console
 
+            TestAmazonQServiceManager.resetInstance()
             server = CodewhispererServerFactory(() => initBaseTestServiceManager(features, service))
 
             features.lsp.getClientInitializeParams.returns({} as InitializeParams)
@@ -120,7 +133,7 @@ describe('CodeWhisperer Server', () => {
             features.lsp.workspace.getConfiguration.returns(Promise.resolve({}))
 
             // Start the server and open a document
-            await features.start(server)
+            await startServer(features, server)
 
             features
                 .openDocument(SOME_FILE)
@@ -265,6 +278,7 @@ describe('CodeWhisperer Server', () => {
 
             await updateConfiguration(
                 features,
+
                 Promise.resolve({
                     inlineSuggestions: {
                         extraContext,
@@ -567,7 +581,7 @@ describe('CodeWhisperer Server', () => {
                 test_features.lsp.workspace.getConfiguration.returns(Promise.resolve({}))
 
                 // Start the server and open a document
-                await test_features.start(test_server)
+                await startServer(test_features, test_server)
 
                 // Open files supporting cross-file context
                 test_features
@@ -638,7 +652,6 @@ describe('CodeWhisperer Server', () => {
         beforeEach(async () => {
             // Set up the server with a mock service, returning predefined recommendations
             service = stubCodeWhispererService()
-            service.customizationArn = undefined
             service.generateSuggestions.returns(
                 Promise.resolve({
                     suggestions: EXPECTED_SUGGESTION_LIST,
@@ -648,6 +661,8 @@ describe('CodeWhisperer Server', () => {
 
             // Initialize the features, but don't start server yet
             features = new TestFeatures()
+            //@ts-ignore
+            features.logging = console
             server = CodewhispererServerFactory(() => initBaseTestServiceManager(features, service))
 
             features.lsp.getClientInitializeParams.returns({} as InitializeParams)
@@ -660,7 +675,7 @@ describe('CodeWhisperer Server', () => {
 
         it('should return all recommendations if no settings are specificed', async () => {
             features.lsp.workspace.getConfiguration.returns(Promise.resolve({}))
-            await features.start(server)
+            await startServer(features, server)
             const result = await features.openDocument(SOME_FILE).doInlineCompletionWithReferences(
                 {
                     textDocument: { uri: SOME_FILE.uri },
@@ -676,7 +691,7 @@ describe('CodeWhisperer Server', () => {
 
         it('should filter recommendations with references if GetConfiguration is not handled by the client', async () => {
             features.lsp.workspace.getConfiguration.returns(Promise.reject(new Error('GetConfiguration failed')))
-            await features.start(server)
+            await startServer(features, server)
             const result = await features.openDocument(SOME_FILE).doInlineCompletionWithReferences(
                 {
                     textDocument: { uri: SOME_FILE.uri },
@@ -694,7 +709,7 @@ describe('CodeWhisperer Server', () => {
             features.lsp.workspace.getConfiguration.returns(
                 Promise.resolve({ includeSuggestionsWithCodeReferences: true })
             )
-            await features.start(server)
+            await startServer(features, server)
             const result = await features.openDocument(SOME_FILE).doInlineCompletionWithReferences(
                 {
                     textDocument: { uri: SOME_FILE.uri },
@@ -712,7 +727,7 @@ describe('CodeWhisperer Server', () => {
             features.lsp.workspace.getConfiguration.returns(
                 Promise.resolve({ includeSuggestionsWithCodeReferences: false })
             )
-            await features.start(server)
+            await startServer(features, server)
             const result = await features.openDocument(SOME_FILE).doInlineCompletionWithReferences(
                 {
                     textDocument: { uri: SOME_FILE.uri },
@@ -730,7 +745,7 @@ describe('CodeWhisperer Server', () => {
             features.lsp.workspace.getConfiguration.returns(
                 Promise.resolve({ includeSuggestionsWithCodeReferences: true })
             )
-            await features.start(server)
+            await startServer(features, server)
 
             const afterConfigChange = await updateConfiguration(
                 features,
@@ -754,7 +769,7 @@ describe('CodeWhisperer Server', () => {
             features.lsp.workspace.getConfiguration.returns(
                 Promise.resolve({ includeSuggestionsWithCodeReferences: false })
             )
-            await features.start(server)
+            await startServer(features, server)
 
             const afterConfigChange = await updateConfiguration(
                 features,
@@ -778,7 +793,7 @@ describe('CodeWhisperer Server', () => {
             features.lsp.workspace.getConfiguration.returns(
                 Promise.resolve({ includeSuggestionsWithCodeReferences: true })
             )
-            await features.start(server)
+            await startServer(features, server)
 
             const EXPECTED_SUGGESTION: Suggestion[] = [{ itemId: 'cwspr-item-id', content: HELLO_WORLD_IN_CSHARP }]
             service.generateSuggestions.returns(
@@ -804,7 +819,7 @@ describe('CodeWhisperer Server', () => {
             features.lsp.workspace.getConfiguration.returns(
                 Promise.resolve({ includeSuggestionsWithCodeReferences: true })
             )
-            await features.start(server)
+            await startServer(features, server)
 
             const cutOffLine = 2
             const lines = HELLO_WORLD_IN_CSHARP.split('\n')
@@ -870,7 +885,7 @@ describe('CodeWhisperer Server', () => {
             features.lsp.workspace.getConfiguration.returns(
                 Promise.resolve({ includeSuggestionsWithCodeReferences: true })
             )
-            await features.start(server)
+            await startServer(features, server)
 
             const cutOffLine = 2
             const lines = HELLO_WORLD_IN_CSHARP.split('\n')
@@ -943,7 +958,7 @@ describe('CodeWhisperer Server', () => {
                 features.lsp.workspace.getConfiguration.returns(
                     Promise.resolve({ includeSuggestionsWithCodeReferences: false })
                 )
-                await features.start(server)
+                await startServer(features, server)
 
                 const result = await features.openDocument(SOME_FILE).doInlineCompletionWithReferences(
                     {
@@ -997,7 +1012,7 @@ describe('CodeWhisperer Server', () => {
             features.lsp.workspace.getConfiguration.returns(Promise.resolve({}))
 
             // Start the server and open a document
-            await features.start(server)
+            await startServer(features, server)
 
             features.openDocument(SOME_FILE)
         })
@@ -1131,7 +1146,7 @@ describe('CodeWhisperer Server', () => {
             features.lsp.getClientInitializeParams.returns({} as InitializeParams)
 
             // Start the server and open a document
-            await features.start(server)
+            await startServer(features, server)
 
             features.openDocument(SOME_FILE)
         })
@@ -1245,7 +1260,7 @@ describe('CodeWhisperer Server', () => {
             features.lsp.workspace.getConfiguration.returns(Promise.resolve({}))
 
             // Start the server and open a document
-            await features.start(server)
+            await startServer(features, server)
 
             features.openDocument(SOME_FILE)
         })
@@ -1686,7 +1701,7 @@ describe('CodeWhisperer Server', () => {
             features.lsp.workspace.getConfiguration.returns(Promise.resolve({}))
 
             // Start the server and open a document
-            await features.start(server)
+            await startServer(features, server)
 
             features.openDocument(SOME_FILE).openDocument(SOME_FILE_WITH_ALT_CASED_LANGUAGE_ID)
         })
