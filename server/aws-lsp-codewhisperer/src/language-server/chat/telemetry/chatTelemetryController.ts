@@ -188,10 +188,11 @@ export class ChatTelemetryController {
         this.#telemetry.emitMetric({
             name: ChatTelemetryEventName.InteractWithAgenticChat,
             data: {
-                [CONVERSATION_ID_METRIC_KEY]: this.getConversationId(tabId),
+                [CONVERSATION_ID_METRIC_KEY]: this.getConversationId(tabId) ?? '',
                 cwsprChatConversationType: 'AgenticChat',
                 credentialStartUrl: this.#credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
                 cwsprAgenticChatInteractionType: interactionType,
+                result: 'Succeeded',
             },
         })
     }
