@@ -151,8 +151,6 @@ export class LocalProjectContextController {
             }
 
             // initialize vecLib and index if needed
-            this._isIndexingEnabled = enableIndexing
-
             const libraryPath = this.getVectorLibraryPath()
             const vecLib = vectorLib ?? (await eval(`import("${libraryPath}")`))
             if (vecLib) {
@@ -161,6 +159,7 @@ export class LocalProjectContextController {
                     void this.buildIndex()
                 }
                 LocalProjectContextController.instance = this
+                this._isIndexingEnabled = enableIndexing
             } else {
                 this.log.warn(`Vector library could not be imported from: ${libraryPath}`)
             }
@@ -235,7 +234,7 @@ export class LocalProjectContextController {
                 }
             }
             if (this._vecLib && this._isIndexingEnabled) {
-                await this.buildIndex()
+                void this.buildIndex()
             }
         } catch (error) {
             this.log.error(`Error in updateWorkspaceFolders: ${error}`)
