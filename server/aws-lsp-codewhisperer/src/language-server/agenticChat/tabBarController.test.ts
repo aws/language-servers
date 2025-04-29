@@ -109,7 +109,7 @@ describe('TabBarController', () => {
         })
 
         it('should attach Export action if client supports window.showSaveFileDialog protocol', async () => {
-            testFeatures.lsp.getClientInitializeParams.returns({
+            testFeatures.setClientParams({
                 initializationOptions: {
                     aws: {
                         awsClientCapabilities: {
@@ -268,7 +268,7 @@ describe('TabBarController', () => {
         let fsWriteFileStub: sinon.SinonStub
 
         beforeEach(() => {
-            testFeatures.lsp.getClientInitializeParams.returns({
+            testFeatures.setClientParams({
                 workspaceFolders: [
                     {
                         uri: 'file:///testworkspace',

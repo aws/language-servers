@@ -256,12 +256,6 @@ export const CodewhispererServerFactory =
         let codePercentageTracker: CodePercentageTracker
         let codeDiffTracker: CodeDiffTracker<AcceptedInlineSuggestionEntry>
 
-        lsp.addInitializer((params: InitializeParams) => {
-            return {
-                capabilities: {},
-            }
-        })
-
         const onInlineCompletionHandler = async (
             params: InlineCompletionWithReferencesParams,
             token: CancellationToken

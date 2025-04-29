@@ -118,7 +118,7 @@ describe('AmazonQTokenServiceManager', () => {
                 },
             },
         }
-        features.lsp.getClientInitializeParams.returns(cachedInitializeParams)
+        features.setClientParams(cachedInitializeParams)
 
         AmazonQTokenServiceManager.initInstance(features)
         amazonQTokenServiceManager = AmazonQTokenServiceManager.getInstance()
@@ -244,7 +244,7 @@ describe('AmazonQTokenServiceManager', () => {
         })
 
         it('should initialize service with region set by client', async () => {
-            features.lsp.getClientInitializeParams.returns({
+            features.setClientParams({
                 processId: 0,
                 rootUri: 'some-root-uri',
                 capabilities: {},
@@ -1072,7 +1072,7 @@ describe('AmazonQTokenServiceManager', () => {
 
     describe('Initialize', () => {
         it('should throw when initialize is called before LSP has been initialized with InitializeParams', () => {
-            features.lsp.getClientInitializeParams.returns(undefined)
+            features.resetClientParams()
 
             assert.throws(() => AmazonQTokenServiceManager.initInstance(features), AmazonQServiceInitializationError)
         })

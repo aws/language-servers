@@ -29,7 +29,7 @@ describe('QChatServer', () => {
                 },
             },
         }
-        testFeatures.lsp.getClientInitializeParams.returns(cachedInitializeParams)
+        testFeatures.setClientParams(cachedInitializeParams)
 
         TestAmazonQServiceManager.resetInstance()
         amazonQServiceManager = initBaseTestServiceManager(testFeatures)

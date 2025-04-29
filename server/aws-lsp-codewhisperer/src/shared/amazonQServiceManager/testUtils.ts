@@ -11,6 +11,7 @@ import { throws, deepStrictEqual } from 'assert'
 import {
     CancellationToken,
     CredentialsType,
+    InitializeParams,
     UpdateConfigurationParams,
 } from '@aws/language-server-runtimes/server-interface'
 
@@ -144,7 +145,7 @@ export const generateSingletonInitializationTests = <
 
     beforeEach(() => {
         testFeatures = new TestFeatures()
-        testFeatures.lsp.getClientInitializeParams.returns({} as any)
+        testFeatures.setClientParams({} as InitializeParams)
     })
 
     afterEach(() => {
