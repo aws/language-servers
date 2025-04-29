@@ -143,10 +143,7 @@ export class FsRead {
                 '  * The initial read was truncated (indicated by `truncated=true` in the output)\n' +
                 '  * A specific `readRange` is needed to focus on relevant sections\n' +
                 '  * The user explicitly asks to read more of the file\n' +
-                '- DO NOT re-read the file again using `readRange` unless explicitly asked by the user\n\n' +
-                '## Related tools\n' +
-                '- fsWrite: Use to modify the file after reading\n' +
-                '- listDirectory: Use to find files before reading them',
+                '- DO NOT re-read the file again using `readRange` unless explicitly asked by the user',
             inputSchema: {
                 type: 'object',
                 properties: {
