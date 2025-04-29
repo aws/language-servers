@@ -343,9 +343,13 @@ export class ChatDatabase {
 
     formatChatHistoryMessage(message: Message): Message {
         if (message.type === ('prompt' as ChatItemType)) {
+            const hasToolResults = message.userInputMessageContext?.toolResults
             return {
                 ...message,
                 userInputMessageContext: {
+                    // keep falcon context when inputMessage is not a toolResult message
+                    editorState: hasToolResults ? undefined : message.userInputMessageContext?.editorState,
+                    additionalContext: hasToolResults ? undefined : message.userInputMessageContext?.additionalContext,
                     // Only keep toolResults in history
                     toolResults: message.userInputMessageContext?.toolResults,
                 },
@@ -515,6 +519,21 @@ export class ChatDatabase {
                     }
                 } catch (e) {
                     this.#features.logging.error(`Error counting toolResults: ${String(e)}`)
+                }
+            }
+            if (message.userInputMessageContext?.editorState) {
+                try {
+                    count += JSON.stringify(message.userInputMessageContext?.editorState).length
+                } catch (e) {
+                    this.#features.logging.error(`Error counting editorState: ${String(e)}`)
+                }
+            }
+
+            if (message.userInputMessageContext?.additionalContext) {
+                try {
+                    count += JSON.stringify(message.userInputMessageContext?.additionalContext).length
+                } catch (e) {
+                    this.#features.logging.error(`Error counting additionalContext: ${String(e)}`)
                 }
             }
         }
