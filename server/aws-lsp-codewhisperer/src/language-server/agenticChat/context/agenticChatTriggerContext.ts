@@ -52,6 +52,9 @@ export type RelevantTextDocumentAddition = RelevantTextDocument & LineInfo
 // limit for each chunk of @workspace
 export const workspaceChunkMaxSize = 40_960
 
+// limit for the length of additionalContent
+export const additionalContextMaxLength = 100
+
 export interface DocumentReference {
     readonly relativeFilePath: string
     readonly lineRanges: Array<{ first: number; second: number }>

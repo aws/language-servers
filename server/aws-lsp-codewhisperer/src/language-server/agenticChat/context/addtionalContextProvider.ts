@@ -1,7 +1,12 @@
 import { FileDetails, QuickActionCommand, FileList, ContextCommand } from '@aws/language-server-runtimes/protocol'
 import { AdditionalContextPrompt, ContextCommandItem, ContextCommandItemType } from 'local-indexing'
 import * as path from 'path'
-import { AdditionalContentEntryAddition, TriggerContext, workspaceChunkMaxSize } from './agenticChatTriggerContext'
+import {
+    AdditionalContentEntryAddition,
+    additionalContextMaxLength,
+    TriggerContext,
+    workspaceChunkMaxSize,
+} from './agenticChatTriggerContext'
 import { URI } from 'vscode-uri'
 import { Lsp, Workspace } from '@aws/language-server-runtimes/server-interface'
 import { pathUtils, workspaceUtils } from '@aws/lsp-core'
@@ -124,7 +129,7 @@ export class AdditionalContextProvider {
         let fileContextLength = 0
         let promptContextLength = 0
         let codeContextLength = 0
-        for (const prompt of prompts.slice(0, 20)) {
+        for (const prompt of prompts.slice(0, additionalContextMaxLength)) {
             const contextType = this.getContextType(prompt)
             const description =
                 contextType === 'rule' || contextType === 'prompt'

@@ -8,6 +8,7 @@ import * as chokidar from 'chokidar'
 import {
     ChatResponseStream,
     CodeWhispererStreaming,
+    ContentType,
     GenerateAssistantResponseCommandInput,
     SendMessageCommandInput,
 } from '@amzn/codewhisperer-streaming'
@@ -1135,14 +1136,14 @@ describe('AgenticChatController', () => {
                                 relativeFilePath: '1.ts',
                                 startLine: -1,
                                 text: 'text',
-                                type: 'workspace',
+                                type: ContentType.WORKSPACE,
                             },
                             {
                                 endLine: -1,
                                 relativeFilePath: '2.ts',
                                 startLine: -1,
                                 text: 'text2',
-                                type: 'workspace',
+                                type: ContentType.WORKSPACE,
                             },
                         ],
                         useRelevantDocuments: true,
