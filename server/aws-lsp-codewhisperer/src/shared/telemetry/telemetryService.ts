@@ -49,6 +49,7 @@ export class TelemetryService {
     private telemetry: Telemetry
     private credentialsProvider: CredentialsProvider
     private logging: Logging
+    private profileArn: string | undefined
 
     private readonly cwInteractionTypeMap: Record<ChatInteractionType, ChatMessageInteractionType> = {
         [ChatInteractionType.InsertAtCursor]: 'INSERT_AT_CURSOR',
@@ -81,6 +82,10 @@ export class TelemetryService {
 
     public updateOptOutPreference(optOutPreference: OptOutPreference): void {
         this.optOutPreference = optOutPreference
+    }
+
+    public updateProfileArn(profileArn: string) {
+        this.profileArn = profileArn
     }
 
     public updateEnableTelemetryEventsToDestination(enableTelemetryEventsToDestination: boolean): void {
@@ -155,6 +160,9 @@ export class TelemetryService {
             }
             if (this.optOutPreference !== undefined) {
                 request.optOutPreference = this.optOutPreference
+            }
+            if (this.profileArn !== undefined) {
+                request.profileArn = this.profileArn
             }
             await this.getService().sendTelemetryEvent(request)
         } catch (error) {
@@ -400,11 +408,24 @@ export class TelemetryService {
             chatFollowUpCount?: number
             chatConversationType: ChatConversationType
             chatActiveEditorImportCount?: number
+            cwsprChatHasContextList: boolean
+            cwsprChatFolderContextCount: number
+            cwsprChatFileContextCount: number
+            cwsprChatFileContextLength: number
+            cwsprChatRuleContextCount: number
+            cwsprChatRuleContextLength: number
+            cwsprChatPromptContextCount: number
+            cwsprChatPromptContextLength: number
+            cwsprChatCodeContextCount: number
+            cwsprChatCodeContextLength: number
+            cwsprChatFocusFileContextLength: number
+            languageServerVersion?: string
         }>
     ) {
         if (!params.conversationId || !params.messageId) {
             return
         }
+        const timeBetweenChunks = params.timeBetweenChunks?.slice(0, 100)
 
         if (this.enableTelemetryEventsToDestination) {
             this.telemetry.emitMetric({
@@ -424,14 +445,26 @@ export class TelemetryService {
                     cwsprChatFollowUpCount: additionalParams.chatFollowUpCount,
                     cwsprTimeToFirstChunk: params.timeToFirstChunkMilliseconds,
                     cwsprChatFullResponseLatency: params.fullResponselatency,
-                    cwsprChatTimeBetweenChunks: params.timeBetweenChunks,
+                    cwsprChatTimeBetweenChunks: timeBetweenChunks,
                     cwsprChatRequestLength: params.requestLength,
                     cwsprChatResponseLength: params.responseLength,
                     cwsprChatConversationType: additionalParams.chatConversationType,
                     cwsprChatActiveEditorTotalCharacters: params.activeEditorTotalCharacters,
                     cwsprChatActiveEditorImportCount: additionalParams.chatActiveEditorImportCount,
                     codewhispererCustomizationArn: params.customizationArn,
+                    cwsprChatHasContextList: additionalParams.cwsprChatHasContextList,
+                    cwsprChatFolderContextCount: additionalParams.cwsprChatFolderContextCount,
+                    cwsprChatFileContextCount: additionalParams.cwsprChatFileContextCount,
+                    cwsprChatRuleContextCount: additionalParams.cwsprChatRuleContextCount,
+                    cwsprChatPromptContextCount: additionalParams.cwsprChatPromptContextCount,
+                    cwsprChatFileContextLength: additionalParams.cwsprChatFileContextLength,
+                    cwsprChatRuleContextLength: additionalParams.cwsprChatRuleContextLength,
+                    cwsprChatPromptContextLength: additionalParams.cwsprChatPromptContextLength,
+                    cwsprChatFocusFileContextLength: additionalParams.cwsprChatFocusFileContextLength,
+                    cwsprChatCodeContextCount: additionalParams.cwsprChatCodeContextCount,
+                    cwsprChatCodeContextLength: additionalParams.cwsprChatCodeContextLength,
                     result: 'Succeeded',
+                    languageServerVersion: additionalParams.languageServerVersion,
                 },
             })
         }
@@ -443,7 +476,7 @@ export class TelemetryService {
             hasCodeSnippet: params.hasCodeSnippet,
             activeEditorTotalCharacters: params.activeEditorTotalCharacters,
             timeToFirstChunkMilliseconds: params.timeToFirstChunkMilliseconds,
-            timeBetweenChunks: params.timeBetweenChunks,
+            timeBetweenChunks: timeBetweenChunks,
             fullResponselatency: params.fullResponselatency,
             requestLength: params.requestLength,
             responseLength: params.responseLength,

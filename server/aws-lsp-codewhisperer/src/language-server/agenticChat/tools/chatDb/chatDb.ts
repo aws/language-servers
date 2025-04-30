@@ -4,6 +4,7 @@
  */
 import * as Loki from 'lokijs'
 import {
+    chatMessageToMessage,
     Conversation,
     FileSystemAdapter,
     groupTabsByDate,
@@ -342,9 +343,13 @@ export class ChatDatabase {
 
     formatChatHistoryMessage(message: Message): Message {
         if (message.type === ('prompt' as ChatItemType)) {
+            const hasToolResults = message.userInputMessageContext?.toolResults
             return {
                 ...message,
                 userInputMessageContext: {
+                    // keep falcon context when inputMessage is not a toolResult message
+                    editorState: hasToolResults ? undefined : message.userInputMessageContext?.editorState,
+                    additionalContext: hasToolResults ? undefined : message.userInputMessageContext?.additionalContext,
                     // Only keep toolResults in history
                     toolResults: message.userInputMessageContext?.toolResults,
                 },
@@ -356,7 +361,7 @@ export class ChatDatabase {
     /**
      * Fixes the history to maintain the following invariants:
      * 1. The history contains at most MaxConversationHistoryMessages messages. Oldest messages are dropped.
-     * 2. The history character length is <= MaxConversationHistoryCharacters. Oldest messages are dropped.
+     * 2. The history character length is <= MaxConversationHistoryCharacters - newUserMessageCharacterCount. Oldest messages are dropped.
      * 3. The first message is from the user. Oldest messages are dropped if needed.
      * 4. The last message is from the assistant. The last message is dropped if it is from the user.
      * 5. If the last message is from the assistant and it contains tool uses, and a next user
@@ -388,8 +393,8 @@ export class ChatDatabase {
         //  Drop empty assistant partial if it’s the last message
         this.handleEmptyAssistantMessage(allMessages)
 
-        //  Make sure max characters ≤ MaxConversationHistoryCharacters
-        allMessages = this.trimMessagesToMaxLength(allMessages)
+        //  Make sure max characters ≤ MaxConversationHistoryCharacters - newUserMessageCharacterCount
+        allMessages = this.trimMessagesToMaxLength(allMessages, newUserMessage)
 
         //  Ensure messages in history a valid for server side checks
         this.ensureValidMessageSequence(allMessages)
@@ -462,9 +467,15 @@ export class ChatDatabase {
         }
     }
 
-    private trimMessagesToMaxLength(messages: Message[]): Message[] {
-        let totalCharacters = this.calculateCharacterCount(messages)
-        while (totalCharacters > MaxConversationHistoryCharacters && messages.length > 2) {
+    private trimMessagesToMaxLength(messages: Message[], newUserMessage: ChatMessage): Message[] {
+        let totalCharacters = this.calculateHistoryCharacterCount(messages)
+        this.#features.logging.debug(`Current history characters: ${totalCharacters}`)
+        const currentUserInputCharacterCount = this.calculateCurrentMessageCharacterCount(
+            chatMessageToMessage(newUserMessage)
+        )
+        this.#features.logging.debug(`Current user message characters: ${currentUserInputCharacterCount}`)
+        const maxHistoryCharacterSize = Math.max(0, MaxConversationHistoryCharacters - currentUserInputCharacterCount)
+        while (totalCharacters > maxHistoryCharacterSize && messages.length > 2) {
             // Find the next valid user message to start from
             const indexToTrim = this.findIndexToTrim(messages)
             if (indexToTrim !== undefined && indexToTrim > 0) {
@@ -478,12 +489,13 @@ export class ChatDatabase {
                 )
                 return []
             }
-            totalCharacters = this.calculateCharacterCount(messages)
+            totalCharacters = this.calculateHistoryCharacterCount(messages)
+            this.#features.logging.debug(`Current history characters: ${totalCharacters}`)
         }
         return messages
     }
 
-    private calculateCharacterCount(allMessages: Message[]): number {
+    private calculateHistoryCharacterCount(allMessages: Message[]): number {
         let count = 0
         for (const message of allMessages) {
             // Count characters of all message text
@@ -509,8 +521,78 @@ export class ChatDatabase {
                     this.#features.logging.error(`Error counting toolResults: ${String(e)}`)
                 }
             }
+            if (message.userInputMessageContext?.editorState) {
+                try {
+                    count += JSON.stringify(message.userInputMessageContext?.editorState).length
+                } catch (e) {
+                    this.#features.logging.error(`Error counting editorState: ${String(e)}`)
+                }
+            }
+
+            if (message.userInputMessageContext?.additionalContext) {
+                try {
+                    count += JSON.stringify(message.userInputMessageContext?.additionalContext).length
+                } catch (e) {
+                    this.#features.logging.error(`Error counting additionalContext: ${String(e)}`)
+                }
+            }
         }
-        this.#features.logging.debug(`Current history characters: ${count}`)
+        return count
+    }
+
+    private calculateCurrentMessageCharacterCount(message: Message): number {
+        let count = 0
+        // Count characters of message text
+        count += message.body.length
+
+        // Count characters in tool uses
+        if (message.toolUses) {
+            try {
+                for (const toolUse of message.toolUses) {
+                    count += JSON.stringify(toolUse).length
+                }
+            } catch (e) {
+                this.#features.logging.error(`Error counting toolUses: ${String(e)}`)
+            }
+        }
+        // Count characters in tool results
+        if (message.userInputMessageContext?.toolResults) {
+            try {
+                for (const toolResul of message.userInputMessageContext.toolResults) {
+                    count += JSON.stringify(toolResul).length
+                }
+            } catch (e) {
+                this.#features.logging.error(`Error counting toolResults: ${String(e)}`)
+            }
+        }
+        // Count characters in tool spec for the current user message
+        if (message.userInputMessageContext?.tools) {
+            try {
+                for (const toolSpec of message.userInputMessageContext.tools) {
+                    count += JSON.stringify(toolSpec).length
+                }
+            } catch (e) {
+                this.#features.logging.error(`Error counting tool spec length: ${String(e)}`)
+            }
+        }
+
+        if (message.userInputMessageContext?.additionalContext) {
+            try {
+                for (const addtionalContext of message.userInputMessageContext.additionalContext) {
+                    count += JSON.stringify(addtionalContext).length
+                }
+            } catch (e) {
+                this.#features.logging.error(`Error counting addtionalContext length: ${String(e)}`)
+            }
+        }
+
+        if (message.userInputMessageContext?.editorState) {
+            try {
+                count += JSON.stringify(message.userInputMessageContext?.editorState).length
+            } catch (e) {
+                this.#features.logging.error(`Error counting editorState length: ${String(e)}`)
+            }
+        }
         return count
     }
 

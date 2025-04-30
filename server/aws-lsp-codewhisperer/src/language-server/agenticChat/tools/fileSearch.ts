@@ -1,5 +1,5 @@
 // FileSearch tool based on ListDirectory implementation
-import { CommandValidation, InvokeOutput, validatePath } from './toolShared'
+import { CommandValidation, InvokeOutput, requiresPathAcceptance, validatePath } from './toolShared'
 import { workspaceUtils } from '@aws/lsp-core'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 import { sanitize } from '@aws/lsp-core/out/util/path'
@@ -68,8 +68,8 @@ export class FileSearch {
         await closeWriter(writer)
     }
 
-    public async requiresAcceptance(params: FileSearchParams): Promise<CommandValidation> {
-        return { requiresAcceptance: !workspaceUtils.isInWorkspace(getWorkspaceFolderPaths(this.lsp), params.path) }
+    public async requiresAcceptance(params: FileSearchParams, approvedPaths?: Set<string>): Promise<CommandValidation> {
+        return requiresPathAcceptance(params.path, this.lsp, this.logging, approvedPaths)
     }
 
     public async invoke(params: FileSearchParams): Promise<InvokeOutput> {

@@ -23,7 +23,6 @@ import {
     InsertToCursorPositionParams,
     TextDocumentEdit,
     InlineChatResult,
-    CancellationToken,
     CancellationTokenSource,
 } from '@aws/language-server-runtimes/server-interface'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
@@ -47,6 +46,13 @@ import { ChatDatabase } from './tools/chatDb/chatDb'
 import { LocalProjectContextController } from '../../shared/localProjectContextController'
 import { CancellationError } from '@aws/lsp-core'
 import { ToolApprovalException } from './tools/toolShared'
+import { generateAssistantResponseInputLimit, genericErrorMsg } from './constants'
+import { MISSING_BEARER_TOKEN_ERROR } from '../../shared/constants'
+import {
+    AmazonQError,
+    AmazonQServicePendingProfileError,
+    AmazonQServicePendingSigninError,
+} from '../../shared/amazonQServiceManager/errors'
 
 describe('AgenticChatController', () => {
     const mockTabId = 'tab-1'
@@ -115,7 +121,7 @@ describe('AgenticChatController', () => {
     let emitConversationMetricStub: sinon.SinonStub
 
     let testFeatures: TestFeatures
-    let amazonQServiceManager: AmazonQTokenServiceManager
+    let serviceManager: AmazonQTokenServiceManager
     let chatSessionManagementService: ChatSessionManagementService
     let chatController: AgenticChatController
     let telemetryService: TelemetryService
@@ -173,7 +179,11 @@ describe('AgenticChatController', () => {
         // Add agent with runTool method to testFeatures
         testFeatures.agent = {
             runTool: sinon.stub().resolves({}),
-            getTools: sinon.stub().returns([]),
+            getTools: sinon.stub().returns(
+                ['mock-tool-name', 'mock-tool-name-1', 'mock-tool-name-2'].map(toolName => ({
+                    toolSpecification: { name: toolName, description: 'Mock tool for testing' },
+                }))
+            ),
             addTool: sinon.stub().resolves(),
         }
 
@@ -192,7 +202,7 @@ describe('AgenticChatController', () => {
             },
         }
         testFeatures.lsp.window.showDocument = sinon.stub()
-        testFeatures.lsp.getClientInitializeParams.returns(cachedInitializeParams)
+        testFeatures.setClientParams(cachedInitializeParams)
         setCredentials('builderId')
 
         activeTabSpy = sinon.spy(ChatTelemetryController.prototype, 'activeTabId', ['get', 'set'])
@@ -204,9 +214,9 @@ describe('AgenticChatController', () => {
 
         AmazonQTokenServiceManager.resetInstance()
 
-        amazonQServiceManager = AmazonQTokenServiceManager.getInstance(testFeatures)
+        serviceManager = AmazonQTokenServiceManager.initInstance(testFeatures)
         chatSessionManagementService = ChatSessionManagementService.getInstance()
-        chatSessionManagementService.withAmazonQServiceManager(amazonQServiceManager)
+        chatSessionManagementService.withAmazonQServiceManager(serviceManager)
 
         const mockCredentialsProvider: CredentialsProvider = {
             hasCredentials: sinon.stub().returns(true),
@@ -227,12 +237,12 @@ describe('AgenticChatController', () => {
 
         getMessagesStub = sinon.stub(ChatDatabase.prototype, 'getMessages')
 
-        telemetryService = new TelemetryService(amazonQServiceManager, mockCredentialsProvider, telemetry, logging)
+        telemetryService = new TelemetryService(serviceManager, mockCredentialsProvider, telemetry, logging)
         chatController = new AgenticChatController(
             chatSessionManagementService,
             testFeatures,
             telemetryService,
-            amazonQServiceManager
+            serviceManager
         )
     })
 
@@ -331,11 +341,13 @@ describe('AgenticChatController', () => {
             const chatResult = await chatResultPromise
 
             sinon.assert.callCount(testFeatures.lsp.sendProgress, 0)
+
             assert.deepStrictEqual(chatResult, {
                 additionalMessages: [],
                 body: '\n\nHello World!',
                 messageId: 'mock-message-id',
                 buttons: [],
+                header: undefined,
             })
         })
 
@@ -894,12 +906,13 @@ describe('AgenticChatController', () => {
 
             const chatResult = await chatResultPromise
 
-            sinon.assert.callCount(testFeatures.lsp.sendProgress, mockChatResponseList.length + 1) // response length + loading message
+            sinon.assert.callCount(testFeatures.lsp.sendProgress, mockChatResponseList.length + 1) // response length + 1 loading messages
             assert.deepStrictEqual(chatResult, {
                 additionalMessages: [],
                 body: '\n\nHello World!',
                 messageId: 'mock-message-id',
                 buttons: [],
+                header: undefined,
             })
         })
 
@@ -911,18 +924,20 @@ describe('AgenticChatController', () => {
 
             const chatResult = await chatResultPromise
 
-            sinon.assert.callCount(testFeatures.lsp.sendProgress, mockChatResponseList.length + 1) // response length + loading message
+            sinon.assert.callCount(testFeatures.lsp.sendProgress, mockChatResponseList.length + 1) // response length + 1 loading message
             assert.deepStrictEqual(chatResult, {
                 additionalMessages: [],
                 body: '\n\nHello World!',
                 messageId: 'mock-message-id',
                 buttons: [],
+                header: undefined,
             })
         })
 
-        it('propagates error message to final chat result', async () => {
+        it('propagates model error back to client', async () => {
+            const errorMsg = 'This is an error from the backend'
             generateAssistantResponseStub.callsFake(() => {
-                throw new Error('Error')
+                throw new Error(errorMsg)
             })
 
             const chatResult = await chatController.onChatPrompt(
@@ -931,30 +946,70 @@ describe('AgenticChatController', () => {
             )
 
             // These checks will fail if a response error is returned.
-            const typedChatResult = chatResult as ChatResult
-            assert.strictEqual(typedChatResult.type, 'answer')
-            assert.strictEqual(typedChatResult.body, 'Error')
+            const typedChatResult = chatResult as ResponseError<ChatResult>
+            assert.strictEqual(typedChatResult.message, errorMsg)
+            assert.strictEqual(typedChatResult.data?.body, errorMsg)
         })
 
-        it('returns an auth follow up action if model request returns an auth error', async () => {
-            generateAssistantResponseStub.callsFake(() => {
-                throw new Error('Error')
-            })
-
-            sinon.stub(utils, 'getAuthFollowUpType').returns('full-auth')
-            const chatResultPromise = chatController.onChatPrompt(
-                { tabId: mockTabId, prompt: { prompt: 'Hello' }, partialResultToken: 1 },
+        it('does not make backend request when input is too long ', async function () {
+            const input = 'X'.repeat(generateAssistantResponseInputLimit + 1)
+            const chatResult = await chatController.onChatPrompt(
+                { tabId: mockTabId, prompt: { prompt: input } },
                 mockCancellationToken
             )
 
-            const chatResult = await chatResultPromise
-
-            // called once for error message propagation and once for loading message.
-            sinon.assert.callCount(testFeatures.lsp.sendProgress, 2)
-            assert.deepStrictEqual(chatResult, utils.createAuthFollowUpResult('full-auth'))
+            const typedChatResult = chatResult as ResponseError<ChatResult>
+            assert.ok(typedChatResult.message.includes('too long'))
+            assert.ok(typedChatResult.data?.body?.includes('too long'))
+            assert.ok(generateAssistantResponseStub.notCalled)
         })
 
-        it('returns a ResponseError if response streams return an error event', async () => {
+        it('shows generic errorMsg on internal errors', async function () {
+            const chatResult = await chatController.onChatPrompt(
+                { tabId: mockTabId, prompt: { prompt: 'Hello' } },
+                undefined as any
+            )
+
+            const typedChatResult = chatResult as ResponseError<ChatResult>
+            assert.strictEqual(typedChatResult.data?.body, genericErrorMsg)
+        })
+
+        const authFollowUpTestCases = [
+            {
+                expectedAuthFollowUp: 'full-auth',
+                error: new Error(MISSING_BEARER_TOKEN_ERROR),
+            },
+            {
+                expectedAuthFollowUp: 'full-auth',
+                error: new AmazonQServicePendingSigninError(),
+            },
+            {
+                expectedAuthFollowUp: 'use-supported-auth',
+                error: new AmazonQServicePendingProfileError(),
+            },
+        ]
+
+        authFollowUpTestCases.forEach(testCase => {
+            it(`returns ${testCase.expectedAuthFollowUp} follow up action when model request returns auth error: '${testCase.error instanceof AmazonQError ? testCase.error.code : testCase.error.message}'`, async () => {
+                generateAssistantResponseStub.callsFake(() => {
+                    throw testCase.error
+                })
+
+                const chatResultPromise = chatController.onChatPrompt(
+                    { tabId: mockTabId, prompt: { prompt: 'Hello' }, partialResultToken: 1 },
+                    mockCancellationToken
+                )
+
+                const chatResult = await chatResultPromise
+
+                // called once for error message propagation and once for loading message.
+                sinon.assert.callCount(testFeatures.lsp.sendProgress, 2)
+                // @ts-ignore
+                assert.deepStrictEqual(chatResult, utils.createAuthFollowUpResult(testCase.expectedAuthFollowUp))
+            })
+        })
+
+        it('returns a ResponseError if response streams returns an error event', async () => {
             generateAssistantResponseStub.callsFake(() => {
                 return Promise.resolve({
                     $metadata: {
@@ -975,7 +1030,9 @@ describe('AgenticChatController', () => {
                 mockCancellationToken
             )
 
-            assert.deepStrictEqual(chatResult, new ResponseError(LSPErrorCodes.RequestFailed, 'some error'))
+            const typedChatResult = chatResult as ResponseError<ChatResult>
+            assert.strictEqual(typedChatResult.data?.body, genericErrorMsg)
+            assert.strictEqual(typedChatResult.message, 'some error')
         })
 
         it('returns a ResponseError if response streams return an invalid state event', async () => {
@@ -999,7 +1056,29 @@ describe('AgenticChatController', () => {
                 mockCancellationToken
             )
 
-            assert.deepStrictEqual(chatResult, new ResponseError(LSPErrorCodes.RequestFailed, 'invalid state'))
+            const typedChatResult = chatResult as ResponseError<ChatResult>
+            assert.strictEqual(typedChatResult.data?.body, genericErrorMsg)
+            assert.strictEqual(typedChatResult.message, 'invalid state')
+        })
+
+        it('returns a user-friendly message when input is too long', async () => {
+            generateAssistantResponseStub.restore()
+            generateAssistantResponseStub = sinon.stub(CodeWhispererStreaming.prototype, 'generateAssistantResponse')
+            generateAssistantResponseStub.callsFake(() => {
+                const error = new Error('Input is too long')
+                throw error
+            })
+
+            const chatResult = await chatController.onChatPrompt(
+                { tabId: mockTabId, prompt: { prompt: 'Hello with large context' } },
+                mockCancellationToken
+            )
+
+            const typedChatResult = chatResult as ResponseError<ChatResult>
+            assert.strictEqual(
+                typedChatResult.data?.body,
+                'Too much context loaded. Please start a new conversation or ask about specific files.'
+            )
         })
 
         describe('#extractDocumentContext', () => {

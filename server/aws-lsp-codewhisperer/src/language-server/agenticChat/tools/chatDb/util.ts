@@ -17,6 +17,8 @@ import {
     UserInputMessageContext,
     UserIntent,
     ToolUse,
+    UserInputMessage,
+    AssistantResponseMessage,
 } from '@amzn/codewhisperer-streaming'
 import { Workspace } from '@aws/language-server-runtimes/server-interface'
 
@@ -121,6 +123,36 @@ export function messageToChatMessage(msg: Message): ChatMessage[] {
         }
     }
     return chatMessages
+}
+
+/**
+ * Converts codewhisperer-streaming ChatMessage to Message
+ */
+export function chatMessageToMessage(chatMessage: StreamingMessage): Message {
+    if ('userInputMessage' in chatMessage) {
+        const userInputMessage = chatMessage.userInputMessage as UserInputMessage
+        return {
+            body: userInputMessage.content || '',
+            type: 'prompt',
+            userIntent: userInputMessage.userIntent,
+            origin: userInputMessage.origin || 'IDE',
+            userInputMessageContext: userInputMessage.userInputMessageContext || {},
+        }
+    } else if ('assistantResponseMessage' in chatMessage) {
+        const assistantResponseMessage = chatMessage.assistantResponseMessage as AssistantResponseMessage
+        return {
+            body: assistantResponseMessage.content || '',
+            type: 'answer',
+            messageId: assistantResponseMessage.messageId,
+            toolUses: assistantResponseMessage.toolUses || [],
+        }
+    } else {
+        // Default fallback for unexpected message format
+        return {
+            body: '',
+            type: 'prompt',
+        }
+    }
 }
 
 /**

@@ -29,6 +29,7 @@ import {
     ShowSaveFileDialogRequestType,
     ShowSaveFileDialogParams,
     tabBarActionRequestType,
+    chatOptionsUpdateType,
     buttonClickRequestType,
     chatUpdateNotificationType,
 } from '@aws/language-server-runtimes/protocol'
@@ -45,7 +46,12 @@ import {
 import * as jose from 'jose'
 import * as vscode from 'vscode'
 
-export function registerChat(languageClient: LanguageClient, extensionUri: Uri, encryptionKey?: Buffer) {
+export function registerChat(
+    languageClient: LanguageClient,
+    extensionUri: Uri,
+    encryptionKey?: Buffer,
+    agenticMode?: boolean
+) {
     const webviewInitialized: Promise<Webview> = new Promise(resolveWebview => {
         const provider = {
             resolveWebviewView(webviewView: WebviewView) {
@@ -193,6 +199,13 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri, 
                     }
                 }, undefined)
 
+                languageClient.onNotification(chatOptionsUpdateType, params => {
+                    webviewView.webview.postMessage({
+                        command: chatOptionsUpdateType.method,
+                        params: params,
+                    })
+                })
+
                 languageClient.onNotification(contextCommandsNotificationType, params => {
                     webviewView.webview.postMessage({
                         command: contextCommandsNotificationType.method,
@@ -260,7 +273,7 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri, 
                 registerHandlerWithResponseRouter(openTabRequestType.method)
                 registerHandlerWithResponseRouter(getSerializedChatRequestType.method)
 
-                webviewView.webview.html = getWebviewContent(webviewView.webview, extensionUri)
+                webviewView.webview.html = getWebviewContent(webviewView.webview, extensionUri, !!agenticMode)
 
                 registerGenericCommand('aws.sample-vscode-ext-amazonq.explainCode', 'Explain', webviewView.webview)
                 registerGenericCommand('aws.sample-vscode-ext-amazonq.refactorCode', 'Refactor', webviewView.webview)
@@ -380,7 +393,7 @@ async function handleRequest(
     })
 }
 
-function getWebviewContent(webView: Webview, extensionUri: Uri) {
+function getWebviewContent(webView: Webview, extensionUri: Uri, agenticMode: boolean) {
     return `
     <!DOCTYPE html>
     <html lang="en">
@@ -391,7 +404,7 @@ function getWebviewContent(webView: Webview, extensionUri: Uri) {
         ${generateCss()}
     </head>
     <body>
-        ${generateJS(webView, extensionUri)}
+        ${generateJS(webView, extensionUri, agenticMode)}
     </body>
     </html>`
 }
@@ -412,7 +425,7 @@ function generateCss() {
     </style>`
 }
 
-function generateJS(webView: Webview, extensionUri: Uri): string {
+function generateJS(webView: Webview, extensionUri: Uri, agenticMode: boolean): string {
     const assetsPath = Uri.joinPath(extensionUri)
     const chatUri = Uri.joinPath(assetsPath, 'build', 'amazonq-ui.js')
 
@@ -431,7 +444,7 @@ function generateJS(webView: Webview, extensionUri: Uri): string {
     <script type="text/javascript">
         const init = () => {
             amazonQChat.createChat(acquireVsCodeApi(), 
-                {disclaimerAcknowledged: false}, 
+                {disclaimerAcknowledged: false, agenticMode: ${!!agenticMode}}, 
                 undefined,
                 JSON.stringify(${stringifiedContextCommands})
             );
