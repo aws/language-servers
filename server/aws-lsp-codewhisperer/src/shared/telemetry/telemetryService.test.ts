@@ -919,12 +919,7 @@ describe('TelemetryService', () => {
             })
 
             codeWhisperServiceStub.getCredentialsType.returns('bearer')
-            telemetryService = new TelemetryService(
-                baseAmazonQServiceManagerStub,
-                mockCredentialsProvider,
-                telemetry,
-                logging
-            )
+            telemetryService = new TelemetryService(serviceManagerStub, mockCredentialsProvider, telemetry, logging)
         })
 
         afterEach(() => {
@@ -976,12 +971,7 @@ describe('TelemetryService', () => {
 
         it('should not send InlineChatEvent when credentialsType is IAM', () => {
             codeWhisperServiceStub.getCredentialsType.returns('iam')
-            telemetryService = new TelemetryService(
-                baseAmazonQServiceManagerStub,
-                mockCredentialsProvider,
-                telemetry,
-                logging
-            )
+            telemetryService = new TelemetryService(serviceManagerStub, mockCredentialsProvider, telemetry, logging)
             const timestamp = new Date()
             telemetryService.emitInlineChatResultLog({
                 requestId: 'mock-request-id',
@@ -1008,12 +998,7 @@ describe('TelemetryService', () => {
                     startUrl: BUILDER_ID_START_URL,
                 },
             })
-            telemetryService = new TelemetryService(
-                baseAmazonQServiceManagerStub,
-                mockCredentialsProvider,
-                telemetry,
-                logging
-            )
+            telemetryService = new TelemetryService(serviceManagerStub, mockCredentialsProvider, telemetry, logging)
             telemetryService.updateOptOutPreference('OPTOUT')
             const timestamp = new Date()
             telemetryService.emitInlineChatResultLog({
