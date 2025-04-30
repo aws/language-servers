@@ -78,7 +78,8 @@ describe('initializeUtils', () => {
 
             const result = getWorkspaceFolders(logging, params)
 
-            assert.deepStrictEqual(result, [{ name: sampleWorkspaceName, uri: pathUri }])
+            const expectedName = path.basename(URI.parse(pathUri).fsPath)
+            assert.deepStrictEqual(result, [{ name: expectedName, uri: pathUri }])
         })
 
         it('should handle rootUri with special characters', () => {
