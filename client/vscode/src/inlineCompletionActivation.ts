@@ -8,6 +8,10 @@ import {
     TextDocument,
     commands,
     languages,
+    workspace,
+    window,
+    TextDocumentChangeEvent,
+    TextEditor,
 } from 'vscode'
 import { LanguageClient } from 'vscode-languageclient/node'
 import {
@@ -51,10 +55,26 @@ export function registerInlineCompletion(languageClient: LanguageClient) {
     // but will be added in a future version.
     languages.registerInlineCompletionItemProvider(CodewhispererInlineCompletionLanguages, inlineCompletionProvider)
 
+    // Register manual trigger command for InlineCompletions
     commands.registerCommand('aws.sample-vscode-ext-amazonq.invokeInlineCompletion', async (...args: any) => {
-        // Register manual trigger command for InlineCompletions
         console.log('Manual trigger for inline completion invoked')
         await commands.executeCommand(`editor.action.inlineSuggest.trigger`)
+    })
+
+    // TODO-NEP: Wire up commands and handlers for accept/reject operations that the suggested edits UI supports
+
+    // Simple implementation of automated triggers
+    workspace.onDidChangeTextDocument(async (e: TextDocumentChangeEvent) => {
+        const editor = window.activeTextEditor
+        if (!editor || e.document !== editor.document || !isLanguageSupported(e.document)) {
+            return
+        }
+
+        // Only trigger on special characters or Enter key
+        if (shouldTriggerCompletion(e)) {
+            console.log('Auto-trigger for inline completion')
+            await commands.executeCommand('editor.action.inlineSuggest.trigger')
+        }
     })
 
     // Simple implementation of logInlineCompletionSessionResultsNotification
@@ -80,6 +100,35 @@ export function registerInlineCompletion(languageClient: LanguageClient) {
         languageClient.sendNotification(logInlineCompletionSessionResultsNotificationType, params)
     }
     commands.registerCommand('aws.sample-vscode-ext-amazonq.accept', onInlineAcceptance)
+}
+
+// Helper function to check if a document's language is supported
+function isLanguageSupported(document: TextDocument): boolean {
+    return CodewhispererInlineCompletionLanguages.some(
+        lang => lang.language === document.languageId && lang.scheme === document.uri.scheme
+    )
+}
+
+// Helper function to determine if we should trigger a completion
+function shouldTriggerCompletion(e: TextDocumentChangeEvent): boolean {
+    if (e.contentChanges.length === 0) {
+        return false
+    }
+
+    const change = e.contentChanges[0]
+    const text = change.text
+
+    // Trigger on special characters
+    if (['{', '}', '(', ')', '[', ']', ':', ';', '.'].includes(text)) {
+        return true
+    }
+
+    // Trigger on Enter key (newline)
+    if (text === '\n' || text === '\r\n') {
+        return true
+    }
+
+    return false
 }
 
 export class CodeWhispererInlineCompletionItemProvider implements InlineCompletionItemProvider {
