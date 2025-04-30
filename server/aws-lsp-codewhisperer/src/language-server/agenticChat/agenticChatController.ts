@@ -559,8 +559,9 @@ export class AgenticChatController implements ChatHandlers {
             // Phase 3: Request Execution
             this.#validateRequest(currentRequestInput)
             const response = await session.generateAssistantResponse(currentRequestInput)
-            this.#debug(`Q Model Response: ${loggingUtils.formatObj(response, { depth: 5 })}`)
-
+            this.#features.logging.info(
+                `generateAssistantResponse Response: ${loggingUtils.formatObj(response.$metadata)}`
+            )
             await chatResultStream.removeResultBlock(loadingMessageId)
 
             //  Add the current user message to the history DB
@@ -659,7 +660,7 @@ export class AgenticChatController implements ChatHandlers {
      */
     #validateRequest(request: GenerateAssistantResponseCommandInput) {
         // Note: these logs are very noisy, but contain information redacted on the backend.
-        this.#debug(`Q Model Request: ${JSON.stringify(request, undefined, 2)}`)
+        this.#debug(`generateAssistantResponse Request: ${JSON.stringify(request, undefined, 2)}`)
         const message = request.conversationState?.currentMessage?.userInputMessage?.content
         if (message && message.length > generateAssistantResponseInputLimit) {
             throw new AgenticChatError(
