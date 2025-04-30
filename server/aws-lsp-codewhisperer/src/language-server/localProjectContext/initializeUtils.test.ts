@@ -5,7 +5,7 @@ import { URI } from 'vscode-uri'
 import * as path from 'path'
 import assert = require('assert')
 
-describe('workspaceUtils', () => {
+describe('initializeUtils', () => {
     describe('getWorkspaceFolders', () => {
         const sampleWorkspaceUri = 'file:///path/to/folder'
         const sampleWorkspaceName = 'folder'
