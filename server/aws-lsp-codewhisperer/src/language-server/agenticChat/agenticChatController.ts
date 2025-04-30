@@ -653,7 +653,9 @@ export class AgenticChatController implements ChatHandlers {
      * @param request
      */
     #validateRequest(request: GenerateAssistantResponseCommandInput) {
-        this.#debug(`Q Model Request: ${loggingUtils.formatObj(request, { depth: 5, omitKeys: ['history'] })}`)
+        this.#debug(
+            `Q Model Request: ${loggingUtils.formatObj(request, { depth: 12, maxStringLength: 100, omitKeys: ['tools'] })}`
+        )
         const message = request.conversationState?.currentMessage?.userInputMessage?.content
         if (message && message.length > generateAssistantResponseInputLimit) {
             throw new AgenticChatError(
