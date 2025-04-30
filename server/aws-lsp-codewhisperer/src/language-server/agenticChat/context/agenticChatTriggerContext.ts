@@ -180,7 +180,7 @@ export class AgenticChatTriggerContext {
                         ? ContentType.FILE
                         : item.type === 'rule' || item.type === 'prompt'
                           ? ContentType.PROMPT
-                          : item.type === 'symbol'
+                          : item.type === 'code'
                             ? ContentType.CODE
                             : undefined
                 // Create the relevant text document
@@ -344,12 +344,12 @@ export class AgenticChatTriggerContext {
                         programmingLanguage: {
                             languageName: chunk.programmingLanguage,
                         },
-                        type: 'workspace',
+                        type: ContentType.WORKSPACE,
                     })
                 } else {
                     relevantTextDocuments.push({
                         ...baseDocument,
-                        type: 'workspace',
+                        type: ContentType.WORKSPACE,
                     })
                 }
             }
