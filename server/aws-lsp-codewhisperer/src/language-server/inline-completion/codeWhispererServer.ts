@@ -44,7 +44,7 @@ import { getOrThrowBaseTokenServiceManager } from '../../shared/amazonQServiceMa
 import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
 import { hasConnectionExpired } from '../../shared/utils'
 import { getOrThrowBaseIAMServiceManager } from '../../shared/amazonQServiceManager/AmazonQIAMServiceManager'
-import { WorkspaceFolderManager } from '../workspaceContext/workspaceFolderManager'
+// import { WorkspaceFolderManager } from '../workspaceContext/workspaceFolderManager'
 import path = require('path')
 import { getRelativePath } from '../workspaceContext/util'
 
@@ -74,12 +74,13 @@ const getFileContext = (params: {
     })
 
     let relativeFileName = params.textDocument.uri
-    const workspaceFolder = WorkspaceFolderManager.getInstance()?.getWorkspaceFolder(params.textDocument.uri)
-    if (workspaceFolder) {
-        relativeFileName = getRelativePath(workspaceFolder, params.textDocument.uri)
-    } else {
-        relativeFileName = path.basename(params.textDocument.uri)
-    }
+    relativeFileName = path.basename(params.textDocument.uri)
+    // const workspaceFolder = WorkspaceFolderManager.getInstance()?.getWorkspaceFolder(params.textDocument.uri)
+    // if (workspaceFolder) {
+    // relativeFileName = getRelativePath(workspaceFolder, params.textDocument.uri)
+    // } else {
+    // relativeFileName = path.basename(params.textDocument.uri)
+    // }
 
     return {
         filename: relativeFileName,
@@ -300,8 +301,8 @@ export const CodewhispererServerFactory =
                     const maxResults = isAutomaticLspTriggerKind ? 1 : 5
                     const selectionRange = params.context.selectedCompletionInfo?.range
                     const fileContext = getFileContext({ textDocument, inferredLanguageId, position: params.position })
-                    const workspaceFolder = WorkspaceFolderManager.getInstance()?.getWorkspaceFolder(params.textDocument.uri)
-                    const workspaceId = WorkspaceFolderManager.getInstance()?.getWorkspaceId(workspaceFolder)
+                    // const workspaceFolder = WorkspaceFolderManager.getInstance()?.getWorkspaceFolder(params.textDocument.uri)
+                    // const workspaceId = WorkspaceFolderManager.getInstance()?.getWorkspaceId(workspaceFolder)
                     // TODO: Can we get this derived from a keyboard event in the future?
                     // This picks the last non-whitespace character, if any, before the cursor
                     const triggerCharacter = fileContext.leftFileContent.trim().at(-1) ?? ''
@@ -396,7 +397,7 @@ export const CodewhispererServerFactory =
                                 .slice(0, CONTEXT_CHARACTERS_LIMIT)
                                 .replaceAll('\r\n', '\n'),
                         },
-                        workspaceId: workspaceId,
+                        // workspaceId: workspaceId,
                     })
                         .then(async suggestionResponse => {
                             codePercentageTracker.countInvocation(inferredLanguageId)
