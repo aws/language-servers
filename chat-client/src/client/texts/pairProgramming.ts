@@ -6,19 +6,19 @@ export const programmerModeCard: ChatItem = {
     header: {
         icon: 'code-block',
         iconStatus: 'primary',
-        body: '### Pair Programmer',
+        body: '### An interactive, agentic coding experience',
     },
     messageId: 'programmerModeCardId',
     fullWidth: true,
     canBeDismissed: true,
-    body: 'Amazon Q Developer chat can now write code and run shell commands on your behalf. Disable Pair Programmer if you prefer a read-only experience.',
+    body: 'Amazon Q Developer can now help you write, modify, and maintain code by seamlessly taking actions on your behalf such as reading files, generating code diffs, and running commands.',
 }
 
 export const pairProgrammingPromptInput: ChatItemFormItem = {
     type: 'switch',
     id: 'pair-programmer-mode',
-    tooltip: 'Turn off for read only responses',
-    alternateTooltip: 'Turn on to allow Q to run commands and generate code diffs',
+    tooltip: 'Turn off agentic coding experience',
+    alternateTooltip: 'Turn on agentic coding experience',
     value: 'true',
     icon: 'code-block',
 }
@@ -27,12 +27,12 @@ export const pairProgrammingModeOn: ChatItem = {
     type: ChatItemType.DIRECTIVE,
     contentHorizontalAlignment: 'center',
     fullWidth: true,
-    body: 'Pair programmer mode ON',
+    body: 'Turn on agentic coding experience',
 }
 
 export const pairProgrammingModeOff: ChatItem = {
     type: ChatItemType.DIRECTIVE,
     contentHorizontalAlignment: 'center',
     fullWidth: true,
-    body: 'Pair programmer mode OFF',
+    body: 'Turn off agentic coding experience',
 }
