@@ -242,7 +242,7 @@ export class ExecuteBash {
                     case CommandCategory.ReadOnly:
                         continue
                     default:
-                        return { requiresAcceptance: true }
+                        continue
                 }
             }
             // Finally, check if the cwd is outside the workspace
