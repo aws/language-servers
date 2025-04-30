@@ -159,14 +159,7 @@ export const WorkspaceContextServer = (): Server => features => {
     }
 
     lsp.onInitialized(async params => {
-        amazonQServiceManager = AmazonQTokenServiceManager.getInstance({
-            credentialsProvider,
-            lsp,
-            logging,
-            runtime,
-            sdkInitializator,
-            workspace,
-        })
+        amazonQServiceManager = AmazonQTokenServiceManager.getInstance()
 
         artifactManager = new ArtifactManager(workspace, logging, workspaceFolders)
         dependencyDiscoverer = new DependencyDiscoverer(workspace, logging, workspaceFolders, artifactManager)
