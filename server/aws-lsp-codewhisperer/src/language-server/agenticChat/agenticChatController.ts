@@ -398,7 +398,7 @@ export class AgenticChatController implements ChatHandlers {
                 await this.#getChatResultStream(params.partialResultToken).writeResultBlock({
                     type: 'directive',
                     messageId: 'stopped' + uuid(),
-                    body: 'You stoppped your current work, please provide additional examples or ask another question.',
+                    body: 'You stopped your current work, please provide additional examples or ask another question.',
                 })
                 this.#telemetryController.emitInteractWithAgenticChat('StopChat', params.tabId)
                 session.abortRequest()
