@@ -1,17 +1,21 @@
 import {
     CodeWhispererStreamingClientConfig,
+    CodeWhispererStreamingServiceException,
     GenerateAssistantResponseCommandInput,
     GenerateAssistantResponseCommandOutput,
+    ToolUse,
 } from '@amzn/codewhisperer-streaming'
-
-import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
 import {
     StreamingClientServiceToken,
     SendMessageCommandInput,
     SendMessageCommandOutput,
 } from '../../shared/streamingClientService'
+import { ChatResult } from '@aws/language-server-runtimes/server-interface'
+import { AgenticChatError, isInputTooLongError, wrapErrorWithCode } from '../agenticChat/errors'
+import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
 
 export type ChatSessionServiceConfig = CodeWhispererStreamingClientConfig
+type FileChange = { before?: string; after?: string }
 
 type DeferredHandler = {
     resolve: () => void
@@ -20,10 +24,18 @@ type DeferredHandler = {
 export class ChatSessionService {
     public shareCodeWhispererContentWithAWS = false
     public pairProgrammingMode: boolean = true
+    public contextListSent: boolean = false
     #abortController?: AbortController
     #conversationId?: string
-    #amazonQServiceManager?: AmazonQBaseServiceManager
     #deferredToolExecution: Record<string, DeferredHandler> = {}
+    #toolUseLookup: Map<
+        string,
+        ToolUse & { fileChange?: FileChange; relatedToolUses?: Set<string>; chatResult?: ChatResult }
+    > = new Map()
+    #currentUndoAllId?: string
+    // Map to store approved paths to avoid repeated validation
+    #approvedPaths: Set<string> = new Set<string>()
+    #serviceManager?: AmazonQBaseServiceManager
 
     public get conversationId(): string | undefined {
         return this.#conversationId
@@ -51,8 +63,41 @@ export class ChatSessionService {
         this.#deferredToolExecution = {}
     }
 
-    constructor(amazonQServiceManager?: AmazonQBaseServiceManager) {
-        this.#amazonQServiceManager = amazonQServiceManager
+    public get toolUseLookup() {
+        return this.#toolUseLookup
+    }
+
+    public get currentUndoAllId(): string | undefined {
+        return this.#currentUndoAllId
+    }
+
+    public set currentUndoAllId(toolUseId: string | undefined) {
+        this.#currentUndoAllId = toolUseId
+    }
+
+    /**
+     * Gets the set of approved paths for this session
+     */
+    public get approvedPaths(): Set<string> {
+        return this.#approvedPaths
+    }
+
+    /**
+     * Adds a path to the approved paths list for this session
+     * @param filePath The absolute path to add
+     */
+    public addApprovedPath(filePath: string): void {
+        if (!filePath) {
+            return
+        }
+
+        // Normalize path separators for consistent comparison
+        const normalizedPath = filePath.replace(/\\/g, '/')
+        this.#approvedPaths.add(normalizedPath)
+    }
+
+    constructor(serviceManager?: AmazonQBaseServiceManager) {
+        this.#serviceManager = serviceManager
     }
 
     public async sendMessage(request: SendMessageCommandInput): Promise<SendMessageCommandOutput> {
@@ -62,11 +107,11 @@ export class ChatSessionService {
             request.conversationState.conversationId = this.#conversationId
         }
 
-        if (!this.#amazonQServiceManager) {
+        if (!this.#serviceManager) {
             throw new Error('amazonQServiceManager is not initialized')
         }
 
-        const client = this.#amazonQServiceManager.getStreamingClient()
+        const client = this.#serviceManager.getStreamingClient()
 
         const response = await client.sendMessage(request, this.#abortController)
 
@@ -82,15 +127,30 @@ export class ChatSessionService {
             request.conversationState.conversationId = this.#conversationId
         }
 
-        if (!this.#amazonQServiceManager) {
-            throw new Error('amazonQServiceManager is not initialized')
+        if (!this.#serviceManager) {
+            throw new AgenticChatError('amazonQServiceManager is not initialized', 'AmazonQServiceManager')
         }
 
-        const client = this.#amazonQServiceManager.getStreamingClient()
+        const client = this.#serviceManager.getStreamingClient()
 
         if (client instanceof StreamingClientServiceToken) {
-            const response = await client.generateAssistantResponse(request, this.#abortController)
-            return response
+            try {
+                return await client.generateAssistantResponse(request, this.#abortController)
+            } catch (e) {
+                if (isInputTooLongError(e)) {
+                    let requestId
+                    if (e instanceof CodeWhispererStreamingServiceException) {
+                        requestId = e.$metadata?.requestId
+                    }
+                    throw new AgenticChatError(
+                        'Too much context loaded. Please start a new conversation or ask about specific files.',
+                        'InputTooLong',
+                        e instanceof Error ? e : undefined,
+                        requestId
+                    )
+                }
+                throw wrapErrorWithCode(e, 'QModelResponse')
+            }
         } else {
             // error
             return Promise.reject(
@@ -102,6 +162,7 @@ export class ChatSessionService {
     public clear(): void {
         this.#abortController?.abort()
         this.#conversationId = undefined
+        this.contextListSent = false
     }
 
     public dispose(): void {

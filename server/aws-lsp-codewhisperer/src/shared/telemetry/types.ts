@@ -166,6 +166,7 @@ export enum ChatTelemetryEventName {
     MessageResponseError = 'amazonq_messageResponseError',
     ModifyCode = 'amazonq_modifyCode',
     ToolUseSuggested = 'amazonq_toolUseSuggested',
+    InteractWithAgenticChat = 'amazonq_interactWithAgenticChat',
 }
 
 export interface ChatTelemetryEventMap {
@@ -180,6 +181,7 @@ export interface ChatTelemetryEventMap {
     [ChatTelemetryEventName.MessageResponseError]: MessageResponseErrorEvent
     [ChatTelemetryEventName.ModifyCode]: ModifyCodeEvent
     [ChatTelemetryEventName.ToolUseSuggested]: ToolUseSuggestedEvent
+    [ChatTelemetryEventName.InteractWithAgenticChat]: InteractWithAgenticChatEvent
 }
 
 export type ToolUseSuggestedEvent = {
@@ -188,6 +190,14 @@ export type ToolUseSuggestedEvent = {
     cwsprChatConversationType: ChatConversationType
     cwsprToolName: string
     cwsprToolUseId: string
+    languageServerVersion?: string
+}
+
+export type InteractWithAgenticChatEvent = {
+    credentialStartUrl?: string
+    cwsprChatConversationId: string
+    cwsprChatConversationType: ChatConversationType
+    cwsprAgenticChatInteractionType: AgenticChatInteractionType
 }
 
 export type ModifyCodeEvent = {
@@ -220,6 +230,20 @@ export type AddMessageEvent = {
     cwsprChatResponseLength?: number
     cwsprChatConversationType: ChatConversationType
     codewhispererCustomizationArn?: string
+    languageServerVersion?: string
+
+    // context related metrics
+    cwsprChatHasContextList?: boolean
+    cwsprChatFolderContextCount?: number
+    cwsprChatFileContextCount?: number
+    cwsprChatFileContextLength?: number
+    cwsprChatRuleContextCount?: number
+    cwsprChatRuleContextLength?: number
+    cwsprChatPromptContextCount?: number
+    cwsprChatPromptContextLength?: number
+    cwsprChatFocusFileContextLength?: number
+    cwsprChatCodeContextCount?: number
+    cwsprChatCodeContextLength?: number
 }
 
 export type EnterFocusChatEvent = {
@@ -253,6 +277,8 @@ export enum ChatInteractionType {
 }
 
 export type ChatConversationType = 'Chat' | 'Assign' | 'Transform' | 'AgenticChat' | 'AgenticChatWithToolUse'
+
+export type AgenticChatInteractionType = 'RejectDiff' | 'GeneratedDiff' | 'RunCommand' | 'GeneratedCommand' | 'StopChat'
 
 export type InteractWithMessageEvent = {
     credentialStartUrl?: string
@@ -289,6 +315,7 @@ export type MessageResponseErrorEvent = {
     cwsprChatRepsonseCode: number
     cwsprChatRequestLength?: number
     cwsprChatConversationType: ChatConversationType
+    languageServerVersion?: string
 }
 
 export type RunCommandEvent = {

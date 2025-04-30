@@ -182,7 +182,6 @@ describe('Telemetry', () => {
 
             // Return no specific configuration for CodeWhisperer
             features.lsp.workspace.getConfiguration.returns(Promise.resolve({}))
-            features.lsp.getClientInitializeParams.returns({} as InitializeParams)
 
             // Return credentialsStartUrl value
             features.credentialsProvider.getConnectionMetadata.returns({
@@ -192,13 +191,15 @@ describe('Telemetry', () => {
             })
 
             // Start the server and open a document
-            await features.start(server)
+            await features.initialize(server)
+            await TestAmazonQServiceManager.getInstance().handleDidChangeConfiguration()
 
             features.openDocument(SOME_FILE).openDocument(SOME_FILE_WITH_ALT_CASED_LANGUAGE_ID)
         })
 
         afterEach(() => {
             TestAmazonQServiceManager.resetInstance()
+            features.dispose()
         })
 
         const aUserTriggerDecision = (override: object = {}) => {

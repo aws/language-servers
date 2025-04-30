@@ -14,7 +14,7 @@ describe('ExecuteBash Tool', () => {
 
     before(function () {
         features = new TestFeatures()
-        features.lsp.getClientInitializeParams.returns({
+        features.setClientParams({
             workspaceFolders: [{ uri: URI.file(workspaceFolder).toString(), name: 'test' }],
         } as InitializeParams)
     })
@@ -36,7 +36,7 @@ describe('ExecuteBash Tool', () => {
         const execBash = new ExecuteBash(features)
         await assert.rejects(
             execBash.validate('   '),
-            /Bash command cannot be empty/i,
+            /command cannot be empty/i,
             'Expected an error for empty command'
         )
     })

@@ -130,8 +130,8 @@ export class FsWrite {
         updateWriter.releaseLock()
     }
 
-    public async requiresAcceptance(params: FsWriteParams): Promise<CommandValidation> {
-        return requiresPathAcceptance(params.path, this.lsp, this.logging)
+    public async requiresAcceptance(params: FsWriteParams, approvedPaths?: Set<string>): Promise<CommandValidation> {
+        return requiresPathAcceptance(params.path, this.lsp, this.logging, approvedPaths)
     }
 
     private async handleCreate(params: CreateParams, sanitizedPath: string): Promise<void> {
@@ -162,17 +162,30 @@ export class FsWrite {
         return {
             name: 'fsWrite',
             description:
-                'A tool for creating and editing a file.\n * The `create` command will override the file at `path` if it already exists as a file, \
-                and otherwise create a new file\n * The `append` command will add content to the end of an existing file, \
-                automatically adding a newline if the file does not end with one. \
-                The file must exist.\n Notes for using the `strReplace` command:\n * \
-                IMPORTANT: Only use the `strReplace` command for simple, isolated single-line replacements. \
-                If you are editing multiple lines, always prefer the `create` command and replace the entire file content instead.\n * \
-                The `oldStr` parameter should match EXACTLY one or more consecutive lines from the original file. Be mindful of whitespaces!\n * \
-                If the `oldStr` parameter is not unique in the file, the replacement will not be performed. \
-                Make sure to include enough context in `oldStr` to make it unique\n * \
-                The `newStr` parameter should contain the edited lines that should replace the `oldStr`. \
-                The `insert` command will insert `newStr` after `insertLine` and place it on its own line.',
+                'A tool for creating and editing a file.\n\n' +
+                '## Overview\n' +
+                'This tool provides multiple commands for file operations including creating, replacing, inserting, and appending content.\n\n' +
+                '## When to use\n' +
+                '- When creating new files (create)\n' +
+                '- When replacing specific text in existing files (strReplace)\n' +
+                '- When inserting text at a specific line (insert)\n' +
+                '- When adding text to the end of a file (append)\n\n' +
+                '## When not to use\n' +
+                '- When you only need to read file content (use fsRead instead)\n' +
+                '- When you need to delete a file (no delete operation is available)\n' +
+                '- When you need to rename or move a file\n\n' +
+                '## Command details\n' +
+                '- The `create` command will override the file at `path` if it already exists as a file, and otherwise create a new file. Use this command for initial file creation, such as scaffolding a new project. You should also use this command when overwriting large boilerplate files where you want to replace the entire content at once.\n' +
+                '- The `insert` command will insert `newStr` after `insertLine` and place it on its own line.\n' +
+                '- The `append` command will add content to the end of an existing file, automatically adding a newline if the file does not end with one.\n' +
+                '- The `strReplace` command will replace `oldStr` in an existing file with `newStr`.\n\n' +
+                '## IMPORTANT Notes for using the `strReplace` command\n' +
+                '- Use this command to delete code by using empty `newStr` parameter.\n' +
+                '- If you need to make small changes to an existing file, consider using `strReplace` command to avoid unnecessary rewriting the entire file.\n' +
+                '- Prefer the `create` command if the complexity or number of changes would make `strReplace` unwieldy or error-prone.\n' +
+                '- The `oldStr` parameter should match EXACTLY one or more consecutive lines from the original file. Be mindful of whitespaces! Include just the changing lines, and a few surrounding lines if needed for uniqueness. Do not include long runs of unchanging lines in `oldStr`.\n' +
+                '- The `newStr` parameter should contain the edited lines that should replace the `oldStr`.\n' +
+                '- When multiple edits to the same file are needed, combine them into a single call whenever possible. This improves efficiency by reducing the number of tool calls and ensures the file remains in a consistent state.',
             inputSchema: {
                 type: 'object',
                 properties: {
@@ -208,26 +221,14 @@ export class FsWrite {
                         type: 'string',
                     },
                     path: {
-                        description: 'Absolute path to file or directory, e.g. `/repo/file.py` or `/repo`.',
+                        description:
+                            'Absolute path to a file, e.g. `/repo/file.py` for Unix-like system including Unix/Linux/macOS or `d:\\repo\\file.py` for Windows.',
                         type: 'string',
                     },
                 },
                 required: ['command', 'path'],
             },
         } as const
-    }
-}
-
-const getFinalContent = (params: FsWriteParams, oldContent: string): string => {
-    switch (params.command) {
-        case 'append':
-            return getAppendContent(params, oldContent)
-        case 'create':
-            return params.fileText
-        case 'insert':
-            return getInsertContent(params, oldContent)
-        case 'strReplace':
-            return getStrReplaceContent(params, oldContent)
     }
 }
 
@@ -272,9 +273,4 @@ const getStrReplaceContent = (params: StrReplaceParams, oldContent: string) => {
 
 const escapeRegExp = (string: string) => {
     return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-}
-
-export const getDiffChanges = (params: FsWriteParams, oldContent: string): Change[] => {
-    const finalContent = getFinalContent(params, oldContent)
-    return diffLines(oldContent, finalContent)
 }

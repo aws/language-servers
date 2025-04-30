@@ -16,6 +16,7 @@ import {
 import { Customizations } from '../../client/token/codewhispererbearertokenclient'
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 import { Q_CONFIGURATION_SECTION } from '../../shared/constants'
+import { AmazonQError } from '../../shared/amazonQServiceManager/errors'
 
 const Q_CUSTOMIZATIONS = 'customizations'
 const Q_DEVELOPER_PROFILES = 'developerProfiles'
@@ -25,7 +26,7 @@ export const Q_DEVELOPER_PROFILES_CONFIGURATION_SECTION = `${Q_CONFIGURATION_SEC
 
 export const QConfigurationServerToken =
     (): Server =>
-    ({ credentialsProvider, lsp, logging, runtime, workspace, sdkInitializator }) => {
+    ({ credentialsProvider, lsp, logging }) => {
         let amazonQServiceManager: AmazonQTokenServiceManager
         let serverConfigurationProvider: ServerConfigurationProvider
 
@@ -45,27 +46,13 @@ export const QConfigurationServerToken =
         })
 
         lsp.onInitialized(async () => {
-            amazonQServiceManager = AmazonQTokenServiceManager.getInstance({
-                credentialsProvider,
-                lsp,
-                logging,
-                runtime,
-                workspace,
-                sdkInitializator,
-            })
+            amazonQServiceManager = AmazonQTokenServiceManager.getInstance()
 
             serverConfigurationProvider = new ServerConfigurationProvider(
                 amazonQServiceManager,
                 credentialsProvider,
                 logging
             )
-
-            /* 
-                            Calling handleDidChangeConfiguration once to ensure we get configuration atleast once at start up
-                            
-                            TODO: TODO: consider refactoring such responsibilities to common service manager config/initialisation server
-                        */
-            await amazonQServiceManager.handleDidChangeConfiguration()
         })
 
         lsp.extensions.onGetConfigurationFromServer(
@@ -155,6 +142,16 @@ export class ServerConfigurationProvider {
 
             return profiles
         } catch (error) {
+            if (error instanceof AmazonQError) {
+                this.logging.error(error.message)
+                throw new ResponseError(
+                    LSPErrorCodes.RequestFailed,
+                    `${ON_GET_CONFIGURATION_FROM_SERVER_ERROR_PREFIX}${Q_DEVELOPER_PROFILES}`,
+                    {
+                        awsErrorCode: error.code,
+                    }
+                )
+            }
             throw this.getResponseError(
                 `${ON_GET_CONFIGURATION_FROM_SERVER_ERROR_PREFIX}${Q_DEVELOPER_PROFILES}`,
                 error

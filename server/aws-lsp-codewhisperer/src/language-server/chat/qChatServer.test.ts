@@ -4,18 +4,18 @@ import sinon from 'ts-sinon'
 import { ChatController } from './chatController'
 import { ChatSessionManagementService } from './chatSessionManagementService'
 import { QChatServerFactory } from './qChatServer'
-import { TestAmazonQServiceManager } from '../../shared/amazonQServiceManager/testUtils'
+import { initBaseTestServiceManager, TestAmazonQServiceManager } from '../../shared/amazonQServiceManager/testUtils'
 
 describe('QChatServer', () => {
     const mockTabId = 'mockTabId'
     let disposeStub: sinon.SinonStub
-    let withAmazonQServiceManagerSpy: sinon.SinonSpy
+    let withAmazonQServiceSpy: sinon.SinonSpy
     let testFeatures: TestFeatures
     let amazonQServiceManager: TestAmazonQServiceManager
     let disposeServer: () => void
     let chatSessionManagementService: ChatSessionManagementService
 
-    beforeEach(async () => {
+    beforeEach(() => {
         testFeatures = new TestFeatures()
         // @ts-ignore
         const cachedInitializeParams: InitializeParams = {
@@ -29,19 +29,20 @@ describe('QChatServer', () => {
                 },
             },
         }
-        testFeatures.lsp.getClientInitializeParams.returns(cachedInitializeParams)
+        testFeatures.setClientParams(cachedInitializeParams)
 
-        amazonQServiceManager = TestAmazonQServiceManager.getInstance(testFeatures)
+        TestAmazonQServiceManager.resetInstance()
+        amazonQServiceManager = initBaseTestServiceManager(testFeatures)
         disposeStub = sinon.stub(ChatSessionManagementService.prototype, 'dispose')
         chatSessionManagementService = ChatSessionManagementService.getInstance()
-        withAmazonQServiceManagerSpy = sinon.spy(chatSessionManagementService, 'withAmazonQServiceManager')
+        withAmazonQServiceSpy = sinon.spy(chatSessionManagementService, 'withAmazonQServiceManager')
 
         const chatServerFactory: Server = QChatServerFactory(() => amazonQServiceManager)
 
         disposeServer = chatServerFactory(testFeatures)
 
         // Trigger initialize notification
-        await testFeatures.lsp.onInitialized.firstCall.firstArg()
+        testFeatures.doSendInitializedNotification()
     })
 
     afterEach(() => {
@@ -51,7 +52,7 @@ describe('QChatServer', () => {
     })
 
     it('should initialize ChatSessionManagementService with AmazonQTokenServiceManager instance', () => {
-        sinon.assert.calledOnceWithExactly(withAmazonQServiceManagerSpy, amazonQServiceManager)
+        sinon.assert.calledOnceWithExactly(withAmazonQServiceSpy, amazonQServiceManager)
     })
 
     it('dispose should dispose all chat session services', () => {
