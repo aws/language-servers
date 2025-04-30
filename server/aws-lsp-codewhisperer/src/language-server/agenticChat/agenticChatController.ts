@@ -560,7 +560,7 @@ export class AgenticChatController implements ChatHandlers {
             this.#validateRequest(currentRequestInput)
             const response = await session.generateAssistantResponse(currentRequestInput)
             this.#features.logging.info(
-                `generateAssistantResponse Response: ${loggingUtils.formatObj(response.$metadata)}`
+                `generateAssistantResponse ResponseMetadata: ${loggingUtils.formatObj(response.$metadata)}`
             )
             await chatResultStream.removeResultBlock(loadingMessageId)
 
