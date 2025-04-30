@@ -29,6 +29,7 @@ import {
     ShowSaveFileDialogRequestType,
     ShowSaveFileDialogParams,
     tabBarActionRequestType,
+    chatOptionsUpdateType,
     buttonClickRequestType,
     chatUpdateNotificationType,
 } from '@aws/language-server-runtimes/protocol'
@@ -44,7 +45,6 @@ import {
 } from 'vscode-languageclient/node'
 import * as jose from 'jose'
 import * as vscode from 'vscode'
-import * as fs from 'fs'
 
 export function registerChat(languageClient: LanguageClient, extensionUri: Uri, encryptionKey?: Buffer) {
     const webviewInitialized: Promise<Webview> = new Promise(resolveWebview => {
@@ -189,9 +189,17 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri, 
                         default:
                             if (isServerEvent(message.command))
                                 languageClient.sendNotification(message.command, message.params)
+                            else languageClient.info(`[VSCode Client]  Unhandled command: ${message.command}`)
                             break
                     }
                 }, undefined)
+
+                languageClient.onNotification(chatOptionsUpdateType, params => {
+                    webviewView.webview.postMessage({
+                        command: chatOptionsUpdateType.method,
+                        params: params,
+                    })
+                })
 
                 languageClient.onNotification(contextCommandsNotificationType, params => {
                     webviewView.webview.postMessage({

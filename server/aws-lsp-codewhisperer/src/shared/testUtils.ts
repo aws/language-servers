@@ -3,6 +3,7 @@ import { CodeWhispererServiceBase, ResponseContext, Suggestion } from './codeWhi
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import { SsoConnectionType } from './utils'
 import { stubInterface } from 'ts-sinon'
+import { StreamingClientServiceBase } from './streamingClientService'
 
 export const HELLO_WORLD_IN_CSHARP = `class HelloWorld
 {

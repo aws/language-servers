@@ -13,7 +13,7 @@
         "test": "node scripts/test-runner.js"
     },
     "dependencies": {
-        "@aws/language-server-runtimes": "^0.2.74",
+        "@aws/language-server-runtimes": "^0.2.77",
         "@aws/lsp-codewhisperer": "*",
         "copyfiles": "^2.4.1",
         "cross-env": "^7.0.3",

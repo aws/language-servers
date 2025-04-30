@@ -96,6 +96,7 @@ describe('AdditionalContextProvider', () => {
                     type: 'code',
                     description: 'test',
                     innerContext: 'test',
+                    path: '1/test/path.ts',
                 },
             ]
 
@@ -120,6 +121,7 @@ describe('AdditionalContextProvider', () => {
                     type: 'file',
                     description: 'test',
                     innerContext: 'test',
+                    path: '1/test/path.ts',
                 },
             ]
 

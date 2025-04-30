@@ -28,12 +28,13 @@
     },
     "dependencies": {
         "@amzn/amazon-q-developer-streaming-client": "file:../../core/q-developer-streaming-client/amzn-amazon-q-developer-streaming-client-1.0.0.tgz",
-        "@amzn/codewhisperer-streaming": "file:../../core/codewhisperer-streaming/amzn-codewhisperer-streaming-1.0.4.tgz",
+        "@amzn/codewhisperer-streaming": "file:../../core/codewhisperer-streaming/amzn-codewhisperer-streaming-1.0.0.tgz",
         "@aws-sdk/util-arn-parser": "^3.723.0",
         "@aws-sdk/util-retry": "^3.374.0",
-        "@aws/chat-client-ui-types": "^0.1.28",
+        "@aws/chat-client-ui-types": "^0.1.32",
         "@aws/language-server-runtimes": "^0.2.75",
         "@aws/lsp-core": "^0.0.3",
+        "@modelcontextprotocol/sdk": "^1.9.0",
         "@smithy/node-http-handler": "^2.5.0",
         "adm-zip": "^0.5.10",
         "archiver": "^7.0.1",
@@ -51,8 +52,7 @@
         "picomatch": "^4.0.2",
         "shlex": "2.1.2",
         "uuid": "^11.0.5",
-        "vscode-uri": "^3.1.0",
-        "@modelcontextprotocol/sdk": "^1.9.0"
+        "vscode-uri": "^3.1.0"
     },
     "devDependencies": {
         "@types/adm-zip": "^0.5.5",
