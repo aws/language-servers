@@ -76,7 +76,7 @@ describe('LocalProjectContextController', () => {
     describe('init', () => {
         it('should initialize vector library successfully', async () => {
             const buildIndexSpy = spy(controller, 'buildIndex')
-            await controller.init({ vectorLib: vectorLibMock })
+            await controller.init({ vectorLib: vectorLibMock, enableIndexing: true })
 
             sinonAssert.notCalled(logging.error)
             sinonAssert.called(vectorLibMock.start)
@@ -90,6 +90,16 @@ describe('LocalProjectContextController', () => {
             await controller.init({ vectorLib: vectorLibMock })
 
             sinonAssert.called(logging.error)
+        })
+
+        it('should not call buildIndex if not enabled', async () => {
+            const buildIndexSpy = spy(controller, 'buildIndex')
+            await controller.init({ vectorLib: vectorLibMock, enableIndexing: false })
+
+            sinonAssert.notCalled(logging.error)
+            sinonAssert.called(vectorLibMock.start)
+            const vecLib = await vectorLibMock.start()
+            sinonAssert.notCalled(buildIndexSpy)
         })
     })
 

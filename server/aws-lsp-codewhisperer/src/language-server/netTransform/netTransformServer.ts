@@ -1,13 +1,9 @@
 import {
     CancellationToken,
-    CredentialsProvider,
     ExecuteCommandParams,
     InitializeParams,
     Server,
-    Workspace,
-    Logging,
 } from '@aws/language-server-runtimes/server-interface'
-import { CodeWhispererServiceToken } from '../../shared/codeWhispererService'
 import {
     emitTransformationJobArtifactsDownloadedFailure,
     emitTransformationJobArtifactsDownloadedTelemetry,
@@ -55,19 +51,11 @@ import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/A
  * @returns  NetTransform server
  */
 export const QNetTransformServerToken =
-    (
-        service: (
-            credentialsProvider: CredentialsProvider,
-            workspace: Workspace,
-            logging: Logging,
-            awsQRegion: string,
-            awsQEndpointUrl: string,
-            sdkInitializator: SDKInitializator
-        ) => CodeWhispererServiceToken
-    ): Server =>
-    ({ credentialsProvider, workspace, logging, lsp, telemetry, runtime, sdkInitializator }) => {
+    (): Server =>
+    ({ workspace, logging, lsp, telemetry, runtime }) => {
         let amazonQServiceManager: AmazonQTokenServiceManager
         let transformHandler: TransformHandler
+
         const runTransformCommand = async (params: ExecuteCommandParams, _token: CancellationToken) => {
             try {
                 switch (params.command) {
@@ -193,24 +181,6 @@ export const QNetTransformServerToken =
         }
 
         const onInitializeHandler = async (params: InitializeParams) => {
-            amazonQServiceManager = AmazonQTokenServiceManager.getInstance({
-                lsp,
-                logging,
-                runtime,
-                credentialsProvider,
-                sdkInitializator,
-                workspace,
-            })
-
-            transformHandler = new TransformHandler(amazonQServiceManager, workspace, logging, runtime)
-
-            /* 
-                    Calling handleDidChangeConfiguration once to ensure we get configuration atleast once at start up
-                    
-                    TODO: TODO: consider refactoring such responsibilities to common service manager config/initialisation server
-                */
-            await amazonQServiceManager.handleDidChangeConfiguration()
-
             return {
                 capabilities: {
                     executeCommandProvider: {
@@ -228,7 +198,15 @@ export const QNetTransformServerToken =
                 },
             }
         }
+
+        const onInitializedHandler = () => {
+            amazonQServiceManager = AmazonQTokenServiceManager.getInstance()
+
+            transformHandler = new TransformHandler(amazonQServiceManager, workspace, logging, runtime)
+        }
+
         lsp.addInitializer(onInitializeHandler)
+        lsp.onInitialized(onInitializedHandler)
         lsp.onExecuteCommand(onExecuteCommandHandler)
 
         return () => {}

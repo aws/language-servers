@@ -1,6 +1,6 @@
 // Port from VSC https://github.com/aws/aws-toolkit-vscode/blob/741c2c481bcf0dca2d9554e32dc91d8514b1b1d1/packages/core/src/codewhispererChat/tools/executeBash.ts#L134
 
-import { CommandValidation, ExplanatoryParams, InvokeOutput } from './toolShared'
+import { CommandValidation, ExplanatoryParams, InvokeOutput, isPathApproved } from './toolShared'
 import { split } from 'shlex'
 import { Logging } from '@aws/language-server-runtimes/server-interface'
 import { CancellationError, processUtils, workspaceUtils } from '@aws/lsp-core'
@@ -103,11 +103,16 @@ export const commandCategories = new Map<string, CommandCategory>([
     ['route', CommandCategory.Destructive],
     ['chown', CommandCategory.Destructive],
 ])
-export const maxBashToolResponseSize: number = 1024 * 1024 // 1MB
+export const maxToolResponseSize: number = 1024 * 1024 // 1MB
 export const lineCount: number = 1024
-export const destructiveCommandWarningMessage = '⚠️ WARNING: Destructive command detected:\n\n'
+export const destructiveCommandWarningMessage = 'WARNING: Potentially destructive command detected:\n\n'
 export const mutateCommandWarningMessage = 'Mutation command:\n\n'
+export const outOfWorkspaceWarningmessage = 'Execution out of workspace scope:\n\n'
 
+/**
+ * Parameters for executing a command on the system shell.
+ * Works cross-platform: uses cmd.exe on Windows and bash on Unix-like systems.
+ */
 export interface ExecuteBashParams extends ExplanatoryParams {
     command: string
     cwd?: string
@@ -120,11 +125,21 @@ interface TimestampedChunk {
     isFirst: boolean
 }
 
+/**
+ * Output from executing a command on the system shell.
+ * Format is consistent across platforms (Windows, macOS, Linux).
+ */
 export interface ExecuteBashOutput {
     exitStatus: string
     stdout: string
     stderr: string
 }
+
+/**
+ * Static determination if the current platform should use Windows-style commands
+ * true if the platform should use Windows command shell, false for Unix-like shells
+ */
+const IS_WINDOWS_PLATFORM = process.platform === 'win32'
 
 export class ExecuteBash {
     private childProcess?: ChildProcess
@@ -137,7 +152,7 @@ export class ExecuteBash {
 
     public async validate(command: string): Promise<void> {
         if (!command.trim()) {
-            throw new Error('Bash command cannot be empty.')
+            throw new Error('Command cannot be empty.')
         }
 
         const args = split(command)
@@ -159,11 +174,13 @@ export class ExecuteBash {
         writer?: WritableStreamDefaultWriter
     ): void {
         const buffer = chunk.isStdout ? stdoutBuffer : stderrBuffer
-        const content = chunk.isFirst ? '```console\n' + chunk.content : chunk.content
-        ExecuteBash.handleChunk(content, buffer, writer)
+        ExecuteBash.handleChunk(chunk.content, buffer, writer)
     }
 
-    public async requiresAcceptance(params: ExecuteBashParams): Promise<CommandValidation> {
+    public async requiresAcceptance(
+        params: ExecuteBashParams,
+        approvedPaths?: Set<string>
+    ): Promise<CommandValidation> {
         try {
             const args = split(params.command)
             if (!args || args.length === 0) {
@@ -201,6 +218,12 @@ export class ExecuteBash {
                     if (this.looksLikePath(arg)) {
                         // If not absolute, resolve using workingDirectory if available.
                         const fullPath = !isAbsolute(arg) && params.cwd ? join(params.cwd, arg) : arg
+
+                        // Check if the path is already approved
+                        if (approvedPaths && isPathApproved(fullPath, approvedPaths)) {
+                            continue
+                        }
+
                         const isInWorkspace = workspaceUtils.isInWorkspace(getWorkspaceFolderPaths(this.lsp), fullPath)
                         if (!isInWorkspace) {
                             return { requiresAcceptance: true, warning: destructiveCommandWarningMessage }
@@ -222,6 +245,33 @@ export class ExecuteBash {
                         return { requiresAcceptance: true }
                 }
             }
+            // Finally, check if the cwd is outside the workspace
+            if (params.cwd) {
+                // Check if the cwd is already approved
+                if (!(approvedPaths && isPathApproved(params.cwd, approvedPaths))) {
+                    const workspaceFolders = getWorkspaceFolderPaths(this.lsp)
+
+                    // If there are no workspace folders, we can't validate the path
+                    if (!workspaceFolders || workspaceFolders.length === 0) {
+                        return { requiresAcceptance: true, warning: outOfWorkspaceWarningmessage }
+                    }
+
+                    // Normalize paths for consistent comparison
+                    const normalizedCwd = params.cwd.replace(/\\/g, '/')
+                    const normalizedWorkspaceFolders = workspaceFolders.map(folder => folder.replace(/\\/g, '/'))
+
+                    // Check if the normalized cwd is in any of the normalized workspace folders
+                    const isInWorkspace = normalizedWorkspaceFolders.some(
+                        folder => normalizedCwd === folder || normalizedCwd.startsWith(folder + '/')
+                    )
+
+                    if (!isInWorkspace) {
+                        return { requiresAcceptance: true, warning: outOfWorkspaceWarningmessage }
+                    }
+                }
+            }
+
+            // If we've checked all commands and none required acceptance, we're good
             return { requiresAcceptance: false }
         } catch (error) {
             this.logging.warn(`Error while checking acceptance: ${(error as Error).message}`)
@@ -230,25 +280,52 @@ export class ExecuteBash {
     }
 
     private looksLikePath(arg: string): boolean {
-        return arg.startsWith('/') || arg.startsWith('./') || arg.startsWith('../')
+        if (IS_WINDOWS_PLATFORM) {
+            // Windows path patterns
+            return (
+                arg.startsWith('/') ||
+                arg.startsWith('./') ||
+                arg.startsWith('../') ||
+                arg.startsWith('\\\\') || // UNC path
+                arg.startsWith('.\\') ||
+                arg.startsWith('..\\') ||
+                /^[a-zA-Z]:[/\\]/.test(arg)
+            ) // Drive letter paths like C:\ or C:/
+        } else {
+            // Unix path patterns
+            return arg.startsWith('/') || arg.startsWith('./') || arg.startsWith('../')
+        }
     }
 
     // TODO: generalize cancellation logic for tools.
     public async invoke(
         params: ExecuteBashParams,
-        updates?: WritableStream,
-        cancellationToken?: CancellationToken
+        cancellationToken?: CancellationToken,
+        updates?: WritableStream
     ): Promise<InvokeOutput> {
-        this.logging.info(`Invoking bash command: "${params.command}" in cwd: "${params.cwd}"`)
+        const { shellName, shellFlag } = IS_WINDOWS_PLATFORM
+            ? { shellName: 'cmd.exe', shellFlag: '/c' }
+            : { shellName: 'bash', shellFlag: '-c' }
+        this.logging.info(`Invoking ${shellName} command: "${params.command}" in cwd: "${params.cwd}"`)
 
         return new Promise(async (resolve, reject) => {
-            // Check if cancelled before starting
-            if (cancellationToken?.isCancellationRequested) {
-                this.logging.debug('Bash command execution cancelled before starting')
-                throw new CancellationError('user')
+            let finished = false
+            const abort = (err: Error) => {
+                if (!finished) {
+                    finished = true
+                    reject(err) // <─ propagate the error to caller
+                }
             }
 
-            this.logging.debug(`Spawning process with command: bash -c "${params.command}" (cwd=${params.cwd})`)
+            // Check if cancelled before starting
+            if (cancellationToken?.isCancellationRequested) {
+                this.logging.debug('Command execution cancelled before starting')
+                return abort(new CancellationError('user'))
+            }
+
+            this.logging.debug(
+                `Spawning process with command: ${shellName} ${shellFlag} "${params.command}" (cwd=${params.cwd})`
+            )
 
             const stdoutBuffer: string[] = []
             const stderrBuffer: string[] = []
@@ -297,8 +374,8 @@ export class ExecuteBash {
                 waitForStreams: true,
                 onStdout: async (chunk: string) => {
                     if (cancellationToken?.isCancellationRequested) {
-                        this.logging.debug('Bash command execution cancelled during stderr processing')
-                        throw new CancellationError('user')
+                        this.logging.debug('Command execution cancelled during stdout processing')
+                        return abort(new CancellationError('user'))
                     }
                     const isFirst = getAndSetFirstChunk(false)
                     const timestamp = Date.now()
@@ -312,8 +389,8 @@ export class ExecuteBash {
                 },
                 onStderr: async (chunk: string) => {
                     if (cancellationToken?.isCancellationRequested) {
-                        this.logging.debug('Bash command execution cancelled during stderr processing')
-                        throw new CancellationError('user')
+                        this.logging.debug('Command execution cancelled during stderr processing')
+                        return abort(new CancellationError('user'))
                     }
                     const isFirst = getAndSetFirstChunk(false)
                     const timestamp = Date.now()
@@ -327,13 +404,32 @@ export class ExecuteBash {
                 },
             }
 
-            this.childProcess = new ChildProcess(this.logging, 'bash', ['-c', params.command], childProcessOptions)
+            this.childProcess = new ChildProcess(
+                this.logging,
+                shellName,
+                [shellFlag, params.command],
+                childProcessOptions
+            )
 
             // Set up cancellation listener
             if (cancellationToken) {
                 cancellationToken.onCancellationRequested(() => {
-                    this.logging.debug('Cancellation requested, killing child process')
-                    this.childProcess?.stop()
+                    this.logging.debug('cancellation detected, killing child process')
+
+                    // Kill the process
+                    this.childProcess?.stop(false, 'SIGTERM')
+
+                    // After a short delay, force kill with SIGKILL if still running
+                    setTimeout(() => {
+                        if (this.childProcess && !this.childProcess.stopped) {
+                            this.logging.debug('Process still running after SIGTERM, sending SIGKILL')
+
+                            // Try to kill the process group with SIGKILL
+                            this.childProcess.stop(true, 'SIGKILL')
+                        }
+                    }, 500)
+                    // Return from the function after cancellation
+                    return abort(new CancellationError('user'))
                 })
             }
 
@@ -342,8 +438,8 @@ export class ExecuteBash {
 
                 // Check if cancelled after execution
                 if (cancellationToken?.isCancellationRequested) {
-                    this.logging.debug('Bash command execution cancelled after completion')
-                    throw new CancellationError('user')
+                    this.logging.debug('Command execution cancelled after completion')
+                    return abort(new CancellationError('user'))
                 }
 
                 const exitStatus = result.exitCode ?? 0
@@ -352,11 +448,11 @@ export class ExecuteBash {
                 const success = exitStatus === 0 && !stderr
                 const [stdoutTrunc, stdoutSuffix] = ExecuteBash.truncateSafelyWithSuffix(
                     stdout,
-                    maxBashToolResponseSize / 3
+                    maxToolResponseSize / 3
                 )
                 const [stderrTrunc, stderrSuffix] = ExecuteBash.truncateSafelyWithSuffix(
                     stderr,
-                    maxBashToolResponseSize / 3
+                    maxToolResponseSize / 3
                 )
 
                 const outputJson: ExecuteBashOutput = {
@@ -375,9 +471,9 @@ export class ExecuteBash {
             } catch (err: any) {
                 // Check if this was due to cancellation
                 if (cancellationToken?.isCancellationRequested) {
-                    throw new CancellationError('user')
+                    return abort(new CancellationError('user'))
                 } else {
-                    this.logging.error(`Failed to execute bash command '${params.command}': ${err.message}`)
+                    this.logging.error(`Failed to execute ${shellName} command '${params.command}': ${err.message}`)
                     reject(new Error(`Failed to execute command: ${err.message}`))
                 }
             } finally {
@@ -411,8 +507,7 @@ export class ExecuteBash {
     }
 
     private static async whichCommand(logger: Logging, cmd: string): Promise<string> {
-        const isWindows = process.platform === 'win32'
-        const { command, args } = isWindows
+        const { command, args } = IS_WINDOWS_PLATFORM
             ? { command: 'where', args: [cmd] }
             : { command: 'sh', args: ['-c', `command -v ${cmd}`] }
         const cp = new processUtils.ChildProcess(logger, command, args, {
@@ -442,7 +537,8 @@ export class ExecuteBash {
     public getSpec() {
         return {
             name: 'executeBash',
-            description: 'Execute the specified bash command.',
+            description:
+                'Execute the specified command on the system shell (bash on Unix/Linux/macOS, cmd.exe on Windows).',
             inputSchema: {
                 type: 'object',
                 properties: {
@@ -453,11 +549,12 @@ export class ExecuteBash {
                     },
                     command: {
                         type: 'string',
-                        description: 'Bash command to execute',
+                        description:
+                            'Command to execute on the system shell. On Windows, this will run in cmd.exe; on Unix-like systems, this will run in bash.',
                     },
                     cwd: {
                         type: 'string',
-                        description: 'Parameter to set the current working directory for the bash command.',
+                        description: 'Parameter to set the current working directory for the command execution.',
                     },
                 },
                 required: ['command', 'cwd'],

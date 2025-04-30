@@ -1,7 +1,9 @@
 import { sanitize } from '@aws/lsp-core/out/util/path'
 import { URI } from 'vscode-uri'
-import { CommandValidation, InvokeOutput, validatePath } from './toolShared'
+import { CommandValidation, InvokeOutput, requiresPathAcceptance, validatePath } from './toolShared'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
+import { workspaceUtils } from '@aws/lsp-core'
+import { getWorkspaceFolderPaths } from '@aws/lsp-core/out/util/workspaceUtils'
 
 // Port of https://github.com/aws/aws-toolkit-vscode/blob/5a0404eb0e2c637ca3bd119714f5c7a24634f746/packages/core/src/codewhispererChat/tools/fsRead.ts#L17
 
@@ -14,10 +16,12 @@ export class FsRead {
     static maxResponseSize = 200_000
     private readonly logging: Features['logging']
     private readonly workspace: Features['workspace']
+    private readonly lsp: Features['lsp']
 
-    constructor(features: Pick<Features, 'workspace' | 'logging'> & Partial<Features>) {
+    constructor(features: Pick<Features, 'lsp' | 'workspace' | 'logging'> & Partial<Features>) {
         this.logging = features.logging
         this.workspace = features.workspace
+        this.lsp = features.lsp
     }
 
     public async validate(params: FsReadParams): Promise<void> {
@@ -50,9 +54,8 @@ export class FsRead {
         await closeWriter(updateWriter)
     }
 
-    public async requiresAcceptance(params: FsReadParams): Promise<CommandValidation> {
-        // true when the file is not resolvable within our workspace. i.e. is outside of our workspace.
-        return { requiresAcceptance: !(await this.workspace.getTextDocument(URI.file(params.path).toString())) }
+    public async requiresAcceptance(params: FsReadParams, approvedPaths?: Set<string>): Promise<CommandValidation> {
+        return requiresPathAcceptance(params.path, this.lsp, this.logging, approvedPaths)
     }
 
     public async invoke(params: FsReadParams): Promise<InvokeOutput> {
@@ -123,12 +126,30 @@ export class FsRead {
         return {
             name: 'fsRead',
             description:
-                'A tool for reading a file.\n * This tool returns the contents of a file, and the optional `readRange` determines what range of lines will be read from the specified file.\n * If the file exceeds 200K characters, this tool will only read the first 200K characters of the file with a `truncated=true` in the output',
+                'A tool for reading a file.\n\n' +
+                '## Overview\n' +
+                'This tool returns the contents of a file, with optional line range specification.\n\n' +
+                '## When to use\n' +
+                '- When you need to examine the content of a file\n' +
+                '- When you need to read specific line ranges from a file\n' +
+                '- When you need to analyze code or configuration files\n\n' +
+                '## When not to use\n' +
+                '- When you need to search for patterns across multiple files\n' +
+                '- When you need to process files in binary format\n\n' +
+                '## Notes\n' +
+                '- This tool is more effective than running a command like `head -n` using `executeBash` tool\n' +
+                '- If the file exceeds 200K characters, this tool will only read the first 200K characters of the file with a `truncated=true` in the output\n' +
+                '- For large files (>200K characters), you may need to make multiple calls with specific `readRange` values, but ONLY do this if:\n' +
+                '  * The initial read was truncated (indicated by `truncated=true` in the output)\n' +
+                '  * A specific `readRange` is needed to focus on relevant sections\n' +
+                '  * The user explicitly asks to read more of the file\n' +
+                '- DO NOT re-read the file again using `readRange` unless explicitly asked by the user',
             inputSchema: {
                 type: 'object',
                 properties: {
                     path: {
-                        description: 'Absolute path to a file, e.g. `/repo/file.py`.',
+                        description:
+                            'Absolute path to a file, e.g. `/repo/file.py` for Unix-like system including Unix/Linux/macOS or `d:\\repo\\file.py` for Windows.',
                         type: 'string',
                     },
                     readRange: {

@@ -179,7 +179,7 @@ describe('makeUserContextObject', () => {
     it('should handle all possible client name values to define ideCategory', () => {
         const clientNames = [
             'AmazonQ-For-VSCode',
-            'Amazon-Q-For-JetBrains',
+            'Amazon Q For JetBrains',
             'AmazonQ-For-Eclipse',
             'AWS-Toolkit-For-VisualStudio',
         ]
@@ -193,7 +193,7 @@ describe('makeUserContextObject', () => {
                 case 'AmazonQ-For-VSCode':
                     assert.strictEqual(result?.ideCategory, 'VSCODE')
                     break
-                case 'Amazon-Q-For-JetBrains':
+                case 'Amazon Q For JetBrains':
                     assert.strictEqual(result?.ideCategory, 'JETBRAINS')
                     break
                 case 'AmazonQ-For-Eclipse':

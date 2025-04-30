@@ -59,10 +59,10 @@ class HelloWorld
 
             // Return no specific configuration for CodeWhisperer
             features.lsp.workspace.getConfiguration.returns(Promise.resolve({}))
-            features.lsp.getClientInitializeParams.returns({} as InitializeParams)
 
             // Start the server and open a document
-            await features.start(server)
+            await features.initialize(server)
+            await TestAmazonQServiceManager.getInstance().handleDidChangeConfiguration()
 
             features.openDocument(SOME_FILE)
         })

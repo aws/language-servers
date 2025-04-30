@@ -60,7 +60,8 @@ export interface SecurityScanRequestParams extends ExecuteCommandParams {
 export interface SecurityScanResponse {
     status: SecurityScanStatus
     findings?: SecurityScanFindings
-    error?: string
+    errorMessage?: string
+    exception?: Error
 }
 
 export interface SecurityScanFindings {

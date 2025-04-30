@@ -22,20 +22,28 @@ import { truncateOverlapWithRightContext } from './mergeRightUtils'
 import { CodeWhispererSession, SessionManager } from './session/sessionManager'
 import { CodePercentageTracker } from './codePercentage'
 import { CodeWhispererPerceivedLatencyEvent, CodeWhispererServiceInvocationEvent } from '../../shared/telemetry/types'
-import { getCompletionType, getEndPositionForAcceptedSuggestion, isAwsError, safeGet } from '../../shared/utils'
-import { makeUserContextObject } from '../../shared/telemetryUtils'
+import {
+    getCompletionType,
+    getEndPositionForAcceptedSuggestion,
+    getErrorMessage,
+    isAwsError,
+    safeGet,
+} from '../../shared/utils'
+import { getIdeCategory, makeUserContextObject } from '../../shared/telemetryUtils'
 import { fetchSupplementalContext } from '../../shared/supplementalContextUtil/supplementalContextUtil'
 import { textUtils } from '@aws/lsp-core'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import { AcceptedSuggestionEntry, CodeDiffTracker } from './codeDiffTracker'
-import { AmazonQError, AmazonQServiceInitializationError } from '../../shared/amazonQServiceManager/errors'
 import {
-    AmazonQBaseServiceManager,
-    QServiceManagerFeatures,
-} from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
-import { initBaseTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
+    AmazonQError,
+    AmazonQServiceConnectionExpiredError,
+    AmazonQServiceInitializationError,
+} from '../../shared/amazonQServiceManager/errors'
+import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
+import { getOrThrowBaseTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
-import { initBaseIAMServiceManager } from '../../shared/amazonQServiceManager/AmazonQIAMServiceManager'
+import { hasConnectionExpired } from '../../shared/utils'
+import { getOrThrowBaseIAMServiceManager } from '../../shared/amazonQServiceManager/AmazonQIAMServiceManager'
 
 const EMPTY_RESULT = { sessionId: '', items: [] }
 export const CONTEXT_CHARACTERS_LIMIT = 10240
@@ -227,7 +235,7 @@ interface AcceptedInlineSuggestionEntry extends AcceptedSuggestionEntry {
 }
 
 export const CodewhispererServerFactory =
-    (serviceManager: (features: QServiceManagerFeatures) => AmazonQBaseServiceManager): Server =>
+    (serviceManager: () => AmazonQBaseServiceManager): Server =>
     ({ credentialsProvider, lsp, workspace, telemetry, logging, runtime, sdkInitializator }) => {
         let lastUserModificationTime: number
         let timeSinceLastUserModification: number = 0
@@ -289,11 +297,16 @@ export const CodewhispererServerFactory =
                     const codewhispererAutoTriggerType = triggerType(fileContext)
                     const previousDecision =
                         sessionManager.getPreviousSession()?.getAggregatedUserTriggerDecision() ?? ''
+                    let ideCategory: string | undefined = ''
+                    const initializeParams = lsp.getClientInitializeParams()
+                    if (initializeParams !== undefined) {
+                        ideCategory = getIdeCategory(initializeParams)
+                    }
                     const autoTriggerResult = autoTrigger({
                         fileContext, // The left/right file context and programming language
                         lineNum: params.position.line, // the line number of the invocation, this is the line of the cursor
                         char: triggerCharacter, // Add the character just inserted, if any, before the invication position
-                        ide: '', // TODO: Fetch the IDE in a platform-agnostic way (from the initialize request?)
+                        ide: ideCategory ?? '',
                         os: '', // TODO: We should get this in a platform-agnostic way (i.e., compatible with the browser)
                         previousDecision, // The last decision by the user on the previous invocation
                         triggerType: codewhispererAutoTriggerType, // The 2 trigger types currently influencing the Auto-Trigger are SpecialCharacter and Enter
@@ -356,11 +369,12 @@ export const CodewhispererServerFactory =
                     })
 
                     // Add extra context to request context
-                    const { extraContext } = amazonQServiceManager.getConfiguration().inlineSuggestions
+                    const {extraContext} = amazonQServiceManager.getConfiguration().inlineSuggestions
                     if (extraContext) {
                         requestContext.fileContext.leftFileContent = extraContext + '\n' + requestContext.fileContext.leftFileContent
                     }
-                    return codeWhispererService.generateSuggestions({
+
+                return codeWhispererService.generateSuggestions({
                         ...requestContext,
                         fileContext: {
                             ...requestContext.fileContext,
@@ -480,6 +494,9 @@ export const CodewhispererServerFactory =
                                 throw error
                             }
 
+                            if (hasConnectionExpired(error)) {
+                                throw new AmazonQServiceConnectionExpiredError(getErrorMessage(error))
+                            }
                             return EMPTY_RESULT
                         })
                 })
@@ -584,14 +601,7 @@ export const CodewhispererServerFactory =
         }
 
         const onInitializedHandler = async () => {
-            amazonQServiceManager = serviceManager({
-                credentialsProvider,
-                lsp,
-                logging,
-                runtime,
-                sdkInitializator,
-                workspace,
-            })
+            amazonQServiceManager = serviceManager()
 
             const clientParams = safeGet(
                 lsp.getClientInitializeParams(),
@@ -621,12 +631,6 @@ export const CodewhispererServerFactory =
                 }
             )
 
-            /* 
-                            Calling handleDidChangeConfiguration once to ensure we get configuration atleast once at start up
-                            
-                            TODO: TODO: consider refactoring such responsibilities to common service manager config/initialisation server
-                        */
-            await amazonQServiceManager.handleDidChangeConfiguration()
             await amazonQServiceManager.addDidChangeConfigurationListener(updateConfiguration)
         }
 
@@ -661,5 +665,5 @@ export const CodewhispererServerFactory =
         }
     }
 
-export const CodeWhispererServerIAM = CodewhispererServerFactory(initBaseIAMServiceManager)
-export const CodeWhispererServerToken = CodewhispererServerFactory(initBaseTokenServiceManager)
+export const CodeWhispererServerIAM = CodewhispererServerFactory(getOrThrowBaseIAMServiceManager)
+export const CodeWhispererServerToken = CodewhispererServerFactory(getOrThrowBaseTokenServiceManager)
