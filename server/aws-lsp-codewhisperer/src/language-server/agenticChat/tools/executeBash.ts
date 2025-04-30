@@ -216,8 +216,17 @@ export class ExecuteBash {
                 // For each command, validate arguments for path safety within workspace
                 for (const arg of cmdArgs) {
                     if (this.looksLikePath(arg)) {
-                        // If not absolute, resolve using workingDirectory if available.
-                        const fullPath = !isAbsolute(arg) && params.cwd ? join(params.cwd, arg) : arg
+                        // Special handling for tilde paths in Unix-like systems
+                        let fullPath: string
+                        if (!IS_WINDOWS_PLATFORM && arg.startsWith('~')) {
+                            // Treat tilde paths as absolute paths (they will be expanded by the shell)
+                            return { requiresAcceptance: true, warning: destructiveCommandWarningMessage }
+                        } else if (!isAbsolute(arg) && params.cwd) {
+                            // If not absolute, resolve using workingDirectory if available
+                            fullPath = join(params.cwd, arg)
+                        } else {
+                            fullPath = arg
+                        }
 
                         // Check if the path is already approved
                         if (approvedPaths && isPathApproved(fullPath, approvedPaths)) {
@@ -242,7 +251,7 @@ export class ExecuteBash {
                     case CommandCategory.ReadOnly:
                         continue
                     default:
-                        continue
+                        return { requiresAcceptance: true }
                 }
             }
             // Finally, check if the cwd is outside the workspace
@@ -289,11 +298,12 @@ export class ExecuteBash {
                 arg.startsWith('\\\\') || // UNC path
                 arg.startsWith('.\\') ||
                 arg.startsWith('..\\') ||
-                /^[a-zA-Z]:[/\\]/.test(arg)
+                /^[a-zA-Z]:[/\\]/.test(arg) ||
+                arg.startsWith('%') // Windows environment variables like %USERPROFILE%
             ) // Drive letter paths like C:\ or C:/
         } else {
             // Unix path patterns
-            return arg.startsWith('/') || arg.startsWith('./') || arg.startsWith('../')
+            return arg.startsWith('/') || arg.startsWith('./') || arg.startsWith('../') || arg.startsWith('~')
         }
     }
 
