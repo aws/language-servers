@@ -29,7 +29,7 @@ import {
     isAwsError,
     safeGet,
 } from '../../shared/utils'
-import { makeUserContextObject } from '../../shared/telemetryUtils'
+import { getIdeCategory, makeUserContextObject } from '../../shared/telemetryUtils'
 import { fetchSupplementalContext } from '../../shared/supplementalContextUtil/supplementalContextUtil'
 import { textUtils } from '@aws/lsp-core'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
@@ -297,11 +297,16 @@ export const CodewhispererServerFactory =
                     const codewhispererAutoTriggerType = triggerType(fileContext)
                     const previousDecision =
                         sessionManager.getPreviousSession()?.getAggregatedUserTriggerDecision() ?? ''
+                    let ideCategory: string | undefined = ''
+                    const initializeParams = lsp.getClientInitializeParams()
+                    if (initializeParams !== undefined) {
+                        ideCategory = getIdeCategory(initializeParams)
+                    }
                     const autoTriggerResult = autoTrigger({
                         fileContext, // The left/right file context and programming language
                         lineNum: params.position.line, // the line number of the invocation, this is the line of the cursor
                         char: triggerCharacter, // Add the character just inserted, if any, before the invication position
-                        ide: '', // TODO: Fetch the IDE in a platform-agnostic way (from the initialize request?)
+                        ide: ideCategory ?? '',
                         os: '', // TODO: We should get this in a platform-agnostic way (i.e., compatible with the browser)
                         previousDecision, // The last decision by the user on the previous invocation
                         triggerType: codewhispererAutoTriggerType, // The 2 trigger types currently influencing the Auto-Trigger are SpecialCharacter and Enter
