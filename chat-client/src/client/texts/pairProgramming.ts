@@ -6,7 +6,7 @@ export const programmerModeCard: ChatItem = {
     header: {
         icon: 'code-block',
         iconStatus: 'primary',
-        body: '## Pair Programmer',
+        body: '### Pair Programmer',
     },
     messageId: 'programmerModeCardId',
     fullWidth: true,
