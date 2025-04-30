@@ -1,5 +1,3 @@
-import { expect } from 'chai'
-import { getWorkspaceFolders } from './initializeUtils'
 import { InitializeParams, WorkspaceFolder } from '@aws/language-server-runtimes/protocol'
 import { URI } from 'vscode-uri'
 import * as path from 'path'
@@ -7,6 +5,7 @@ import assert = require('assert')
 import sinon = require('sinon')
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
+import { getWorkspaceFolders } from './initializeUtils'
 
 describe('initializeUtils', () => {
     let logging: Features['logging']
@@ -63,12 +62,12 @@ describe('initializeUtils', () => {
             assert.deepStrictEqual(result, [sampleWorkspaceFolder])
         })
 
-        it('should use "workspace" as folder name when URI basename is empty', () => {
+        it('should use uri as folder name when URI basename is empty', () => {
             const rootUri = 'file:///'
             const params = createParams({ rootUri })
             const result = getWorkspaceFolders(logging, params)
 
-            assert.deepStrictEqual(result, [{ name: 'workspace', uri: rootUri }])
+            assert.deepStrictEqual(result, [{ name: rootUri, uri: rootUri }])
         })
 
         it('should handle Windows paths correctly', () => {

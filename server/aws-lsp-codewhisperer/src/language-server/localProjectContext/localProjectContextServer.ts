@@ -4,7 +4,7 @@ import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import { LocalProjectContextController } from '../../shared/localProjectContextController'
 import { languageByExtension } from '../../shared/languageDetection'
 import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
-import { getWorkspaceFolders } from './initializeUtils'
+import { getWorkspaceFolders } from '../../shared/initializeUtils'
 import { URI } from 'vscode-uri'
 
 export const LocalProjectContextServer =
