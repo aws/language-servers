@@ -183,6 +183,7 @@ describe('AgenticChatController', () => {
 
         additionalContextProviderStub = sinon.stub(AdditionalContextProvider.prototype, 'getAdditionalContext')
         additionalContextProviderStub.resolves([])
+
         // @ts-ignore
         const cachedInitializeParams: InitializeParams = {
             initializationOptions: {

@@ -157,7 +157,7 @@ export const createMynahUi = (
     pairProgrammingCardAcknowledged: boolean,
     customChatClientAdapter?: ChatClientAdapter,
     featureConfig?: Map<string, any>
-): [MynahUI, InboundChatApi] => {
+): [MynahUI, InboundChatApi, ChatHistoryList] => {
     let disclaimerCardActive = !disclaimerAcknowledged
     let programmingModeCardActive = !pairProgrammingCardAcknowledged
     let contextCommandGroups: ContextCommandGroups | undefined
@@ -250,6 +250,7 @@ export const createMynahUi = (
             messager.onTabAdd(tabId)
         },
         onTabRemove: (tabId: string) => {
+            chatHistoryList.deleteTabIdMapping(tabId)
             messager.onTabRemove(tabId)
         },
         onTabChange: (tabId: string) => {
@@ -820,18 +821,40 @@ ${params.message}`,
     }
 
     const openTab = (requestId: string, params: OpenTabParams) => {
+        // When we receive params.tabId - focus on the tab by id
         if (params.tabId) {
             if (params.tabId !== mynahUi.getSelectedTabId()) {
                 mynahUi.selectTab(params.tabId)
             }
+
+            // TODO: Add check for edge case, when requested tabId is not in Mynah store anymore
             messager.onOpenTab(requestId, { tabId: params.tabId })
         } else {
+            // @ts-ignore - need to start sending historyId from server as part of request. Pending change in runtimes
+            const historyId = params.newTabOptions?.data?.historyId
+            if (historyId) {
+                // if we see this history id in tabs map - do not create new tab, focus on existing one instead
+                const cachedTabId = chatHistoryList.getTabId(historyId)
+                if (cachedTabId) {
+                    console.log('Open tab was requested for already loaded chat', historyId, cachedTabId)
+                    messager.onOpenTab(requestId, { tabId: cachedTabId })
+                    return
+                }
+            }
+
+            // Open new tab
             const messages = params.newTabOptions?.data?.messages
             const tabId = createTabId(true)
             if (tabId) {
                 mynahUi.updateStore(tabId, {
                     chatItems: tabFactory.getChatItems(messages ? false : true, programmingModeCardActive, messages),
                 })
+
+                if (historyId) {
+                    // Cache tab to history mapping to restore it in case server crashes.
+                    chatHistoryList.setTabIdMapping(historyId, tabId)
+                }
+
                 messager.onOpenTab(requestId, { tabId })
             } else {
                 messager.onOpenTab(requestId, {
@@ -946,7 +969,7 @@ ${params.message}`,
         createTabId: createTabId,
     }
 
-    return [mynahUi, api]
+    return [mynahUi, api, chatHistoryList]
 }
 
 export const DEFAULT_HELP_PROMPT = 'What can Amazon Q help me with?'

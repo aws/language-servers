@@ -112,6 +112,7 @@ import { CodeSearch } from './tools/codeSearch'
 import { genericErrorMsg, maxAgentLoopIterations, loadingThresholdMs } from './constants'
 import { URI } from 'vscode-uri'
 import { AgenticChatError } from './errors'
+import { HistoryTabMapping } from './qAgenticChatServer'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -155,7 +156,7 @@ export class AgenticChatController implements ChatHandlers {
         chatSessionManagementService: ChatSessionManagementService,
         features: Features,
         telemetryService: TelemetryService,
-        serviceManager?: AmazonQTokenServiceManager
+        serviceManager: AmazonQTokenServiceManager
     ) {
         this.#features = features
         this.#chatSessionManagementService = chatSessionManagementService
@@ -1671,8 +1672,13 @@ export class AgenticChatController implements ChatHandlers {
 
     onLinkClick() {}
 
-    async onReady() {
-        await this.#tabBarController.loadChats()
+    /**
+     * Initialize server and client state as part of initial initialization process.
+     * Can be called on initial loading or from initialized chat client after server crash.
+     */
+    async initializeServices(clientState?: any) {
+        await this.#tabBarController.loadChats(clientState)
+
         try {
             const localProjectContextController = await LocalProjectContextController.getInstance()
             const contextItems = await localProjectContextController.getContextCommandItems()
@@ -1681,6 +1687,22 @@ export class AgenticChatController implements ChatHandlers {
         } catch (error) {
             this.#log('Error initializing context commands: ' + error)
         }
+    }
+
+    async onReady() {
+        this.initializeServices()
+    }
+
+    /**
+     * Restore state onRestoreState event is sent from client to server.
+     * Client sends this notification when reconnection to the server is detected, ex. after server process crash.
+     * Server can gracefully restore it's own in-memory state or update client if changes were detected after restart.
+     */
+    async onRestoreState(clientState: { historyTabMapping?: HistoryTabMapping }) {
+        // Wait how history database to fully load to prevent potential race condition during language server restart after crash.
+        await this.#chatHistoryDb.waitForDbInitialization()
+
+        this.initializeServices(clientState)
     }
 
     onSendFeedback({ tabId, feedbackPayload }: FeedbackParams) {

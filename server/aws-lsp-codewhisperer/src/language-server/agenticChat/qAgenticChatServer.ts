@@ -15,6 +15,11 @@ import { TabBarController } from './tabBarController'
 import { AmazonQServiceInitializationError } from '../../shared/amazonQServiceManager/errors'
 import { safeGet } from '../../shared/utils'
 
+// TODO: POC, pending change in Runtimes
+export type HistoryTabMapping = {
+    [historyId: string]: string
+}
+
 export const QAgenticChatServer =
     // prettier-ignore
     (): Server => features => {
@@ -83,9 +88,24 @@ export const QAgenticChatServer =
 
             return chatController.onTabAdd(params)
         })
+
+        // Chat onReady is sent only once at Chat initialisation.
+        // After language server crash, if Chat Client is not reinitialized, onReady is not triggered, 
+        // leaving client in inconsistent state.
         chat.onReady(() => {
             logging.log(`Received ready notification`)
             return chatController.onReady()
+        })
+
+        // Chat onRestoreState is send from Client after CHAT_OPTIONS from initialization handshake are received,
+        // and client was already initialized.
+        // This can happen after language server process crash and reconnect, as client will not re-send `onReady` event.
+        // @ts-ignore - poc, pending change in runtimes
+        chat.onRestoreState(async (state: {
+            historyTabMapping?: HistoryTabMapping,
+        }) => {
+            logging.log('Received restore state request')
+            return chatController.onRestoreState(state)
         })
 
         chat.onTabChange(params => {

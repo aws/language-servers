@@ -182,6 +182,9 @@ export function registerChat(languageClient: LanguageClient, extensionUri: Uri, 
                                 buttonClickRequestType.method
                             )
                             break
+                        case 'aws/chat/restoreChatState':
+                            languageClient.sendNotification('aws/chat/restoreChatState', message.params)
+                            break
                         case followUpClickNotificationType.method:
                             if (!isValidAuthFollowUpType(message.params.followUp.type))
                                 languageClient.sendNotification(followUpClickNotificationType, message.params)

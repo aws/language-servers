@@ -17,6 +17,7 @@ import {
 } from '@aws/language-server-runtimes-types'
 import { URI, Utils } from 'vscode-uri'
 import { InitializeParams } from '@aws/language-server-runtimes/server-interface'
+import { HistoryTabMapping } from './qAgenticChatServer'
 
 /**
  * Controller for managing chat history and export functionality.
@@ -138,7 +139,7 @@ export class TabBarController {
         // Handle user click on conversation in history
         if (!params.action) {
             const openTabID = this.#chatHistoryDb.getOpenTabId(historyID)
-            // If conversation is already open, focus its tab. Otherwise, open new tab with conversation.
+            // If conversation is already open, focus on that tab in UI. Otherwise, open new tab with conversation.
             if (openTabID) {
                 await this.#features.chat.openTab({ tabId: openTabID })
             } else {
@@ -221,7 +222,15 @@ export class TabBarController {
                 conv.messages.flatMap(msg => messageToChatMessage(msg))
             )
 
-            const { tabId } = await this.#features.chat.openTab({ newTabOptions: { data: { messages } } })
+            const { tabId } = await this.#features.chat.openTab({
+                newTabOptions: {
+                    data: {
+                        messages,
+                        // @ts-ignore - poc, pending change in runtimes
+                        historyId: selectedTab.historyId,
+                    },
+                },
+            })
             this.#chatHistoryDb.setHistoryIdMapping(tabId, selectedTab.historyId)
             this.#chatHistoryDb.updateTabOpenState(tabId, true)
         }
@@ -230,17 +239,47 @@ export class TabBarController {
     /**
      * When IDE is opened, restore chats that were previously open in IDE for the current workspace.
      */
-    async loadChats() {
+    async loadChats(clientState?: any) {
         if (this.#loadedChats) {
+            this.#features.logging.log('loadChats: Chats already loaded')
             return
         }
+
         this.#loadedChats = true
+
+        if (clientState) {
+            this.#features.logging.log('Loading chats from client state')
+            this.restoreChatsFromClientState(clientState)
+            return
+        }
+
+        // If client state is not available, try to load chats from history db
+        await this.loadChatsFromDb()
+    }
+
+    async loadChatsFromDb() {
+        // If client state is not available, try to load chats from history db
+        this.#features.logging.log('Loading chats from history db')
         const openConversations = this.#chatHistoryDb.getOpenTabs()
         if (openConversations) {
             for (const conversation of openConversations) {
                 if (conversation.conversations && conversation.conversations.length > 0) {
                     await this.restoreTab(conversation)
                 }
+            }
+        }
+    }
+
+    /**
+     * Restore TabId and HistoryId mapping in server memory from client session data.
+     * Used only if server has not loaded chats, but UI was loaded, e.g. after server crash.
+     */
+    async restoreChatsFromClientState(clientState: { historyTabMapping: HistoryTabMapping }) {
+        for (const [historyId, tabId] of Object.entries(clientState.historyTabMapping)) {
+            const selectedTab = this.#chatHistoryDb.getTab(historyId)
+            if (selectedTab) {
+                this.#chatHistoryDb.setHistoryIdMapping(tabId, historyId)
+                this.#chatHistoryDb.updateTabOpenState(tabId, true)
             }
         }
     }

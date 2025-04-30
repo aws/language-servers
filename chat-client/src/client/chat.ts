@@ -90,6 +90,7 @@ import { InboundChatApi, createMynahUi } from './mynahUi'
 import { TabFactory } from './tabs/tabFactory'
 import { ChatClientAdapter } from '../contracts/chatClientAdapter'
 import { toMynahContextCommand, toMynahIcon } from './utils'
+import { ChatHistoryList } from './features/history'
 
 const DEFAULT_TAB_DATA = {
     tabTitle: 'Chat',
@@ -110,6 +111,7 @@ export const createChat = (
     featureConfigSerialized?: string
 ) => {
     let mynahApi: InboundChatApi
+    let chatClientInitialized: boolean = false
 
     const sendMessageToClient = (message: UiMessage | UiResultMessage | ServerMessage) => {
         clientApi.postMessage(message)
@@ -187,6 +189,24 @@ export const createChat = (
                 tabFactory.setInfoMessages((message.params as ChatOptionsUpdateParams).chatNotifications)
                 break
             case CHAT_OPTIONS: {
+                if (chatClientInitialized) {
+                    // Chat Options are received when chat client was already initialized after language server crash.
+                    // Sync client state with language server to gracefully restore history and other state if needed.
+                    const historyTabMapping = history.getTabMapping()
+
+                    sendMessageToClient({
+                        // @ts-ignore - pending update in runtimes
+                        command: 'aws/chat/restoreChatState',
+                        // @ts-ignore - pending update in runtimes
+                        params: { historyTabMapping },
+                    })
+
+                    // Do not re-initialize rest of the options.
+                    break
+                }
+
+                chatClientInitialized = true
+
                 const params = (message as ChatOptionsMessage).params
 
                 if (params?.chatNotifications) {
@@ -231,6 +251,7 @@ export const createChat = (
                             : [],
                     })
                 }
+
                 break
             }
             default:
@@ -376,7 +397,7 @@ export const createChat = (
         ...(config?.quickActionCommands ? config.quickActionCommands : []),
     ])
 
-    const [mynahUi, api] = createMynahUi(
+    const [mynahUi, api, history] = createMynahUi(
         messager,
         tabFactory,
         config?.disclaimerAcknowledged ?? false,

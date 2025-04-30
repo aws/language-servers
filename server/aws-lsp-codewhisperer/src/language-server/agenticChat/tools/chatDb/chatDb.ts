@@ -81,6 +81,46 @@ export class ChatDatabase {
         return ChatDatabase.#instance
     }
 
+    isInitialized() {
+        return this.#initialized
+    }
+
+    async waitForDbInitialization(timeoutMs = 10000): Promise<void> {
+        // Check if DB is already initialized
+        if (this.isInitialized()) {
+            this.#features.logging.debug('ChatHistoryDb already initialized')
+            return
+        }
+
+        return new Promise<void>((resolve, reject) => {
+            // Set timeout for initialization
+            const timeout = setTimeout(() => {
+                if (checkInterval) {
+                    clearInterval(checkInterval)
+                }
+                this.#features.logging.warn(`ChatHistoryDb initialization timed out after ${timeoutMs}ms`)
+                reject(new Error('ChatHistoryDb initialization timed out'))
+            }, timeoutMs)
+
+            // Set up listener for initialization event
+            const checkInterval = setInterval(() => {
+                try {
+                    if (this.isInitialized()) {
+                        clearTimeout(timeout)
+                        clearInterval(checkInterval)
+                        this.#features.logging.log('ChatHistoryDb successfully initialized')
+                        resolve()
+                    }
+                } catch (error) {
+                    clearTimeout(timeout)
+                    clearInterval(checkInterval)
+                    this.#features.logging.error('Error checking DB initialization status:')
+                    reject(error)
+                }
+            }, 100)
+        })
+    }
+
     public close() {
         this.#db.close()
         ChatDatabase.#instance = undefined

@@ -16,6 +16,7 @@ interface MynahDetailedList {
 
 export class ChatHistoryList {
     historyDetailedList: MynahDetailedList | undefined
+    private tabMapping: Map<string, string> = new Map()
 
     constructor(
         private mynahUi: MynahUI,
@@ -123,5 +124,26 @@ export class ChatHistoryList {
             default:
                 throw new Error(`Unsupported action: ${actionText}`)
         }
+    }
+
+    setTabIdMapping(historyId: string, tabId: string) {
+        this.tabMapping.set(historyId, tabId)
+    }
+
+    deleteTabIdMapping(tabId: string) {
+        // Delete all items by value.
+        for (const [historyId, cachedTabId] of this.tabMapping) {
+            if (tabId === cachedTabId) {
+                this.tabMapping.delete(historyId)
+            }
+        }
+    }
+
+    getTabMapping() {
+        return Object.fromEntries(this.tabMapping)
+    }
+
+    getTabId(historyId: string) {
+        return this.tabMapping.get(historyId)
     }
 }
