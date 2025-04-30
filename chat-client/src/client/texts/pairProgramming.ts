@@ -17,8 +17,8 @@ export const programmerModeCard: ChatItem = {
 export const pairProgrammingPromptInput: ChatItemFormItem = {
     type: 'switch',
     id: 'pair-programmer-mode',
-    tooltip: 'Turn OFF agentic coding experience',
-    alternateTooltip: 'Turn ON agentic coding experience',
+    tooltip: 'Agentic coding experience - OFF',
+    alternateTooltip: 'Agentic coding experience - ON',
     value: 'true',
     icon: 'code-block',
 }
