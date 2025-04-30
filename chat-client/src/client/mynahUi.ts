@@ -492,7 +492,7 @@ export const createMynahUi = (
     const mynahUiProps: MynahUIProps = {
         tabs: {},
         defaults: {
-            store: tabFactory.createTab(false),
+            store: tabFactory.createTab(false, paidTierCardActive),
         },
         config: {
             maxTabs: 10,
@@ -531,7 +531,7 @@ export const createMynahUi = (
     // This distinction helps maintain consistent tab behavior between fresh conversations and restored sessions.
     const createTabId = (openTab?: boolean) => {
         const tabId = mynahUi.updateStore('', {
-            ...tabFactory.createTab(disclaimerCardActive),
+            ...tabFactory.createTab(disclaimerCardActive, paidTierCardActive),
             tabMetadata: { openTabKey: openTab ? true : false },
         })
         if (tabId === undefined) {
