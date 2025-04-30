@@ -101,6 +101,7 @@ const DEFAULT_TAB_DATA = {
 type ChatClientConfig = Pick<MynahUIDataModel, 'quickActionCommands'> & {
     disclaimerAcknowledged?: boolean
     pairProgrammingAcknowledged?: boolean
+    agenticMode?: boolean
 }
 
 export const createChat = (
@@ -126,6 +127,7 @@ export const createChat = (
     }
 
     const featureConfig: Map<string, FeatureContext> = parseFeatureConfig(featureConfigSerialized)
+
     /**
      * Handles incoming messages from the IDE or other sources.
      * Routes messages to appropriate handlers based on command type.
@@ -376,13 +378,18 @@ export const createChat = (
         ...(config?.quickActionCommands ? config.quickActionCommands : []),
     ])
 
+    if (config?.agenticMode) {
+        tabFactory.enableAgenticMode()
+    }
+
     const [mynahUi, api] = createMynahUi(
         messager,
         tabFactory,
         config?.disclaimerAcknowledged ?? false,
         config?.pairProgrammingAcknowledged ?? false,
         chatClientAdapter,
-        featureConfig
+        featureConfig,
+        !!config?.agenticMode
     )
 
     mynahApi = api

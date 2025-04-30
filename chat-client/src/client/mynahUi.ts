@@ -86,8 +86,6 @@ const getTabPairProgrammingMode = (mynahUi: MynahUI, tabId: string) => {
     return promptInputOptions.find(item => item.id === 'pair-programmer-mode')?.value === 'true'
 }
 
-const openTabKey = 'openTab'
-
 export const handlePromptInputChange = (mynahUi: MynahUI, tabId: string, optionsValues: Record<string, string>) => {
     const promptTypeValue = optionsValues['pair-programmer-mode']
 
@@ -102,7 +100,8 @@ export const handleChatPrompt = (
     prompt: ChatPrompt,
     messager: Messager,
     triggerType?: TriggerType,
-    _eventId?: string
+    _eventId?: string,
+    agenticMode?: boolean
 ) => {
     let userPrompt = prompt.escapedPrompt
     messager.onStopChatResponse(tabId)
@@ -142,11 +141,18 @@ const initializeChatResponse = (mynahUi: MynahUI, tabId: string, userPrompt?: st
     })
 
     // Set UI to loading state
-    mynahUi.updateStore(tabId, {
-        loadingChat: true,
-        cancelButtonWhenLoading: true,
-        promptInputDisabledState: false,
-    })
+    if (agenticMode) {
+        mynahUi.updateStore(tabId, {
+            loadingChat: true,
+            cancelButtonWhenLoading: true,
+            promptInputDisabledState: false,
+        })
+    } else {
+        mynahUi.updateStore(tabId, {
+            loadingChat: true,
+            promptInputDisabledState: true,
+        })
+    }
 
     // Create initial empty response
     mynahUi.addChatItem(tabId, {
@@ -160,7 +166,8 @@ export const createMynahUi = (
     disclaimerAcknowledged: boolean,
     pairProgrammingCardAcknowledged: boolean,
     customChatClientAdapter?: ChatClientAdapter,
-    featureConfig?: Map<string, any>
+    featureConfig?: Map<string, any>,
+    agenticMode?: boolean
 ): [MynahUI, InboundChatApi] => {
     let disclaimerCardActive = !disclaimerAcknowledged
     let programmingModeCardActive = !pairProgrammingCardAcknowledged
@@ -203,7 +210,15 @@ export const createMynahUi = (
                 mynahUi.updateStore(tabId, { promptInputDisabledState: false })
             } else {
                 const prompt = followUp.prompt ? followUp.prompt : followUp.pillText
-                handleChatPrompt(mynahUi, tabId, { prompt: prompt, escapedPrompt: prompt }, messager, 'click', eventId)
+                handleChatPrompt(
+                    mynahUi,
+                    tabId,
+                    { prompt: prompt, escapedPrompt: prompt },
+                    messager,
+                    'click',
+                    eventId,
+                    agenticMode
+                )
 
                 const payload: FollowUpClickParams = {
                     tabId,
@@ -214,7 +229,7 @@ export const createMynahUi = (
             }
         },
         onChatPrompt(tabId, prompt, eventId) {
-            handleChatPrompt(mynahUi, tabId, prompt, messager, 'click', eventId)
+            handleChatPrompt(mynahUi, tabId, prompt, messager, 'click', eventId, agenticMode)
         },
         onReady: () => {
             messager.onUiReady()
@@ -443,7 +458,9 @@ export const createMynahUi = (
             throw new Error(`Unhandled tab bar button id: ${buttonId}`)
         },
         onPromptInputOptionChange: (tabId, optionsValues) => {
-            handlePromptInputChange(mynahUi, tabId, optionsValues)
+            if (agenticMode) {
+                handlePromptInputChange(mynahUi, tabId, optionsValues)
+            }
             messager.onPromptInputOptionChange({ tabId, optionsValues })
         },
         onMessageDismiss: (tabId, messageId) => {
@@ -471,12 +488,17 @@ export const createMynahUi = (
         },
         config: {
             maxTabs: 10,
+            texts: {
+                ...uiComponentsTexts,
+                // Fallback to original texts in non-agentic chat mode
+                stopGenerating: agenticMode ? uiComponentsTexts.stopGenerating : 'Stop generating',
+                spinnerText: agenticMode ? uiComponentsTexts.spinnerText : 'Generating your answer...',
+            },
             // RTS max user input is 600k, we need to leave around 500 chars to user to type the question
             // beside, MynahUI will automatically crop it depending on the available chars left from the prompt field itself by using a 96 chars of threshold
             // if we want to max user input as 599500, need to configure the maxUserInput as 599596
             maxUserInput: 599596,
             userInputLengthWarningThreshold: 550000,
-            texts: uiComponentsTexts,
         },
     }
 
@@ -559,6 +581,15 @@ export const createMynahUi = (
     }
 
     const addChatResponse = (chatResult: ChatResult, tabId: string, isPartialResult: boolean) => {
+        if (agenticMode) {
+            agenticAddChatResponse(chatResult, tabId, isPartialResult)
+        } else {
+            legacyAddChatResponse(chatResult, tabId, isPartialResult)
+        }
+    }
+
+    // addChatResponse handler to support Agentic chat UX changes for handling responses streaming.
+    const agenticAddChatResponse = (chatResult: ChatResult, tabId: string, isPartialResult: boolean) => {
         const { type, ...chatResultWithoutType } = chatResult
         let header = toMynahHeader(chatResult.header)
         const fileList = toMynahFileList(chatResult.fileList)
@@ -624,7 +655,6 @@ export const createMynahUi = (
         if (Object.keys(chatResult).length === 0) {
             return
         }
-
         // If the response is auth follow-up show it as a system prompt
         const followUpOptions = chatResult.followUp?.options
         const isValidAuthFollowUp =
@@ -645,7 +675,6 @@ export const createMynahUi = (
             // mynahUi.updateStore(tabId, { promptInputDisabledState: true })
             return
         }
-
         const followUps = chatResult.followUp
             ? {
                   text: chatResult.followUp.text ?? 'Suggested follow up questions:',
@@ -685,11 +714,99 @@ export const createMynahUi = (
         })
     }
 
+    // addChatResponse handler to support extensions that haven't migrated to agentic chat yet
+    const legacyAddChatResponse = (chatResult: ChatResult, tabId: string, isPartialResult: boolean) => {
+        const { type, ...chatResultWithoutType } = chatResult
+        let header = undefined
+
+        if (chatResult.contextList !== undefined) {
+            header = {
+                fileList: {
+                    fileTreeTitle: '',
+                    filePaths: chatResult.contextList.filePaths?.map(file => file),
+                    rootFolderTitle: 'Context',
+                    flatList: true,
+                    collapsed: true,
+                    hideFileCount: true,
+                    details: Object.fromEntries(
+                        Object.entries(chatResult.contextList.details || {}).map(([filePath, fileDetails]) => [
+                            filePath,
+                            {
+                                label:
+                                    fileDetails.lineRanges
+                                        ?.map(range =>
+                                            range.first === -1 || range.second === -1
+                                                ? ''
+                                                : `line ${range.first} - ${range.second}`
+                                        )
+                                        .join(', ') || '',
+                                description: filePath,
+                                clickable: true,
+                            },
+                        ])
+                    ),
+                },
+            }
+        }
+
+        if (isPartialResult) {
+            // @ts-ignore - type for MynahUI differs from ChatResult types so we ignore it
+            mynahUi.updateLastChatAnswer(tabId, { ...chatResultWithoutType, header: header })
+            return
+        }
+
+        // If chat response from server is an empty object don't do anything
+        if (Object.keys(chatResult).length === 0) {
+            return
+        }
+        // If the response is auth follow-up show it as a system prompt
+        const followUpOptions = chatResult.followUp?.options
+        const isValidAuthFollowUp =
+            followUpOptions &&
+            followUpOptions.length > 0 &&
+            followUpOptions[0].type &&
+            isValidAuthFollowUpType(followUpOptions[0].type)
+        if (chatResult.body === '' && isValidAuthFollowUp) {
+            // @ts-ignore - type for MynahUI differs from ChatResult types so we ignore it
+            mynahUi.addChatItem(tabId, {
+                type: ChatItemType.SYSTEM_PROMPT,
+                ...chatResultWithoutType,
+            })
+
+            // TODO, prompt should be disabled until user is authenticated
+            // Currently we don't have a mechanism to notify chat-client about auth changes
+            // mynahUi.updateStore(tabId, { promptInputDisabledState: true })
+            return
+        }
+        const followUps = chatResult.followUp
+            ? {
+                  text: chatResult.followUp.text ?? 'Suggested follow up questions:',
+                  options: chatResult.followUp.options,
+              }
+            : {}
+
+        mynahUi.updateLastChatAnswer(tabId, {
+            header: header,
+            body: chatResult.body,
+            messageId: chatResult.messageId,
+            followUp: followUps,
+            relatedContent: chatResult.relatedContent,
+            canBeVoted: chatResult.canBeVoted,
+        })
+
+        mynahUi.endMessageStream(tabId, chatResult.messageId ?? '')
+
+        mynahUi.updateStore(tabId, {
+            loadingChat: false,
+            promptInputDisabledState: false,
+        })
+    }
+
     const updateChat = (params: ChatUpdateParams) => {
         const isChatLoading = params.state?.inProgress
         mynahUi.updateStore(params.tabId, {
             loadingChat: isChatLoading,
-            cancelButtonWhenLoading: true,
+            cancelButtonWhenLoading: agenticMode,
         })
         if (params.data?.messages.length) {
             const { tabId } = params
@@ -724,7 +841,7 @@ export const createMynahUi = (
         }))
         mynahUi.updateStore(tabId, {
             loadingChat: false,
-            cancelButtonWhenLoading: true,
+            cancelButtonWhenLoading: agenticMode,
             chatItems: updatedItems,
             promptInputDisabledState: false,
         })
@@ -818,7 +935,7 @@ export const createMynahUi = (
         ].join('')
         const chatPrompt: ChatPrompt = { prompt: body, escapedPrompt: body }
 
-        handleChatPrompt(mynahUi, tabId, chatPrompt, messager, params.triggerType)
+        handleChatPrompt(mynahUi, tabId, chatPrompt, messager, params.triggerType, undefined, agenticMode)
     }
 
     const showError = (params: ErrorParams) => {
@@ -833,7 +950,7 @@ ${params.message}`,
 
         mynahUi.updateStore(tabId, {
             loadingChat: false,
-            cancelButtonWhenLoading: true,
+            cancelButtonWhenLoading: agenticMode,
             promptInputDisabledState: false,
         })
 
