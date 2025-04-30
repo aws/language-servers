@@ -275,26 +275,30 @@ export class WorkspaceFolderManager {
 
             if (websocketClient) {
                 for (const language of programmingLanguages) {
-                    websocketClient.send(
-                        JSON.stringify({
-                            method: 'workspace/didChangeWorkspaceFolders',
-                            params: {
-                                workspaceFoldersChangeEvent: {
-                                    added: [],
-                                    removed: [
-                                        {
-                                            uri: '/',
-                                            name: folder.name,
-                                        },
-                                    ],
+                    websocketClient
+                        .send(
+                            JSON.stringify({
+                                method: 'workspace/didChangeWorkspaceFolders',
+                                params: {
+                                    workspaceFoldersChangeEvent: {
+                                        added: [],
+                                        removed: [
+                                            {
+                                                uri: '/',
+                                                name: folder.name,
+                                            },
+                                        ],
+                                    },
+                                    workspaceChangeMetadata: {
+                                        workspaceId: this.getWorkspaces().get(folder.uri)?.workspaceId ?? '',
+                                        programmingLanguage: language,
+                                    },
                                 },
-                                workspaceChangeMetadata: {
-                                    workspaceId: this.getWorkspaces().get(folder.uri)?.workspaceId ?? '',
-                                    programmingLanguage: language,
-                                },
-                            },
+                            })
+                        )
+                        .catch(e => {
+                            this.logging.error(`Error sending didChangeWorkspaceFolders message: ${e}`)
                         })
-                    )
                 }
                 websocketClient.disconnect()
             }
@@ -369,7 +373,9 @@ export class WorkspaceFolderManager {
             )
             workspaceDetails.messageQueue?.push(message)
         } else {
-            workspaceDetails.webSocketClient.send(message)
+            workspaceDetails.webSocketClient.send(message).catch(e => {
+                this.logging.error(`Error sending didChangeDependencyPaths message: ${e}`)
+            })
         }
     }
 
@@ -741,7 +747,9 @@ export class WorkspaceFolderManager {
         const workspaceDetails = this.workspaceMap.get(workspaceRoot)
         while (workspaceDetails?.messageQueue && workspaceDetails.messageQueue.length > 0) {
             const message = workspaceDetails.messageQueue.shift()
-            workspaceDetails.webSocketClient?.send(message)
+            workspaceDetails.webSocketClient?.send(message).catch(error => {
+                this.logging.error(`Error sending message: ${error}`)
+            })
         }
     }
 
@@ -817,7 +825,11 @@ export class WorkspaceFolderManager {
             if (workspaceDetails.webSocketClient) {
                 inMemoryQueueEvents.forEach((event, index) => {
                     try {
-                        workspaceDetails.webSocketClient?.send(event)
+                        workspaceDetails.webSocketClient?.send(event).catch(error => {
+                            this.logging.error(
+                                `Error sending event: ${error instanceof Error ? error.message : 'Unknown error'}, eventIndex=${index}`
+                            )
+                        })
                         this.logging.log(`Successfully sent event ${index + 1}/${inMemoryQueueEvents.length}`)
                     } catch (error) {
                         this.logging.error(

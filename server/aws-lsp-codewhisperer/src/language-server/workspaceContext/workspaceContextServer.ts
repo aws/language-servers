@@ -290,7 +290,9 @@ export const WorkspaceContextServer = (): Server => features => {
             logging.log(`WebSocket client is not connected yet: ${workspaceRoot.uri}, adding didSave message to queue`)
             workspaceDetails.messageQueue?.push(message)
         } else {
-            workspaceDetails.webSocketClient.send(message)
+            workspaceDetails.webSocketClient.send(message).catch(error => {
+                logging.error(`Error while sending didSave message: ${error}`)
+            })
         }
     })
 
@@ -344,7 +346,9 @@ export const WorkspaceContextServer = (): Server => features => {
                     )
                     workspaceDetails.messageQueue?.push(message)
                 } else {
-                    workspaceDetails.webSocketClient.send(message)
+                    workspaceDetails.webSocketClient.send(message).catch(error => {
+                        logging.error(`Error while sending didCreateFiles message: ${error}`)
+                    })
                 }
             }
         }
@@ -393,7 +397,9 @@ export const WorkspaceContextServer = (): Server => features => {
                     )
                     workspaceDetails.messageQueue?.push(message)
                 } else {
-                    workspaceDetails.webSocketClient.send(message)
+                    workspaceDetails.webSocketClient.send(message).catch(error => {
+                        logging.error(`Error while sending didDeleteFiles message: ${error}`)
+                    })
                 }
             }
         }
@@ -441,7 +447,9 @@ export const WorkspaceContextServer = (): Server => features => {
                     )
                     workspaceDetails.messageQueue?.push(message)
                 } else {
-                    workspaceDetails.webSocketClient.send(message)
+                    workspaceDetails.webSocketClient.send(message).catch(error => {
+                        logging.error(`Error while sending didRenameFiles message: ${error}`)
+                    })
                 }
             }
         }

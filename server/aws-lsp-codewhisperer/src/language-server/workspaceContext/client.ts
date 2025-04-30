@@ -104,7 +104,7 @@ export class WebSocketClient {
         while (this.messageQueue.length > 0) {
             const message = this.messageQueue.shift()
             if (message) {
-                this.send(message)
+                this.send(message).catch(error => this.logging.error(`Error sending message: ${error}`))
             }
         }
     }
