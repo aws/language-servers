@@ -347,6 +347,7 @@ describe('AgenticChatController', () => {
                 body: '\n\nHello World!',
                 messageId: 'mock-message-id',
                 buttons: [],
+                codeReference: [],
                 header: undefined,
             })
         })
@@ -911,6 +912,7 @@ describe('AgenticChatController', () => {
                 additionalMessages: [],
                 body: '\n\nHello World!',
                 messageId: 'mock-message-id',
+                codeReference: [],
                 buttons: [],
                 header: undefined,
             })
@@ -930,6 +932,7 @@ describe('AgenticChatController', () => {
                 body: '\n\nHello World!',
                 messageId: 'mock-message-id',
                 buttons: [],
+                codeReference: [],
                 header: undefined,
             })
         })

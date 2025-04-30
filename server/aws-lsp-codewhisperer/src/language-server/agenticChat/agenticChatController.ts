@@ -1972,7 +1972,8 @@ export class AgenticChatController implements ChatHandlers {
                 return result
             }
 
-            if (chatEvent.assistantResponseEvent) {
+            // make sure to save code reference events
+            if (chatEvent.assistantResponseEvent || chatEvent.codeReferenceEvent) {
                 await streamWriter.write(result.data.chatResult)
             }
 
