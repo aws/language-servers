@@ -393,8 +393,13 @@ export class AgenticChatController implements ChatHandlers {
                 session.conversationId = uuid()
             }
 
-            token.onCancellationRequested(() => {
+            token.onCancellationRequested(async () => {
                 this.#log('cancellation requested')
+                await this.#getChatResultStream(params.partialResultToken).writeResultBlock({
+                    type: 'directive',
+                    messageId: 'stopped' + uuid(),
+                    body: 'You stoppped your current work, please provide additional examples or ask another question.',
+                })
                 this.#telemetryController.emitInteractWithAgenticChat('StopChat', params.tabId)
                 session.abortRequest()
                 void this.#invalidateAllShellCommands(params.tabId, session)
