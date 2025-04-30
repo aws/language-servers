@@ -29,7 +29,7 @@ import {
     isAwsError,
     safeGet,
 } from '../../shared/utils'
-import { makeUserContextObject } from '../../shared/telemetryUtils'
+import { getIdeCategory, makeUserContextObject } from '../../shared/telemetryUtils'
 import { fetchSupplementalContext } from '../../shared/supplementalContextUtil/supplementalContextUtil'
 import { textUtils } from '@aws/lsp-core'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
