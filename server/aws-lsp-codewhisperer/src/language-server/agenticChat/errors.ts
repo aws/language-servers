@@ -1,12 +1,19 @@
 import { CodeWhispererStreamingServiceException } from '@amzn/codewhisperer-streaming'
 
 type AgenticChatErrorCode =
-    | 'QModelResponse'
-    | 'AmazonQServiceManager'
-    | 'FailedResult'
+    | 'QModelResponse' // generic backend error.
+    | 'AmazonQServiceManager' // AmazonQServiceManager failed to initialize.
+    | 'FailedResult' // general error when processing tool results
     | 'MaxAgentLoopIterations'
-    | 'InputTooLong'
+    | 'InputTooLong' // too much context given to backend service.
+    | 'PromptCharacterLimit' // customer prompt exceeds
 
+export const customerFacingErrorCodes: AgenticChatErrorCode[] = [
+    'QModelResponse',
+    'MaxAgentLoopIterations',
+    'InputTooLong',
+    'PromptCharacterLimit',
+]
 export class AgenticChatError extends Error {
     constructor(
         message: string,
