@@ -6,7 +6,7 @@ export function getWorkspaceFolders(params?: InitializeParams): WorkspaceFolder[
     if (!params) {
         return []
     }
-    const getFolderName = (uri: string) => path.basename(URI.parse(uri).path) || 'workspace'
+    const getFolderName = (uri: string) => path.posix.basename(URI.parse(uri).path) || 'workspace'
     if (params.workspaceFolders) {
         return params.workspaceFolders
     }
