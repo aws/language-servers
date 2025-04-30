@@ -30,6 +30,7 @@ import { URI } from 'vscode-uri'
 import { LocalProjectContextController } from '../../../shared/localProjectContextController'
 import * as path from 'path'
 import { RelevantTextDocument } from '@amzn/codewhisperer-streaming'
+import { languageByExtension } from '../../../shared/languageDetection'
 import { AgenticChatResultStream } from '../agenticChatResultStream'
 import { ContextInfo } from './contextUtils'
 
@@ -139,42 +140,10 @@ export class AgenticChatTriggerContext {
 
                 if (item.relativePath) {
                     const ext = path.extname(item.relativePath).toLowerCase()
-                    const langMap: Record<string, string> = {
-                        '.py': 'python',
-                        '.js': 'javascript',
-                        '.java': 'java',
-                        '.cs': 'csharp',
-                        '.ts': 'typescript',
-                        '.c': 'c',
-                        '.cpp': 'cpp',
-                        '.go': 'go',
-                        '.kt': 'kotlin',
-                        '.php': 'php',
-                        '.rb': 'ruby',
-                        '.rs': 'rust',
-                        '.scala': 'scala',
-                        '.sh': 'shell',
-                        '.sql': 'sql',
-                        '.json': 'json',
-                        '.yaml': 'yaml',
-                        '.yml': 'yaml',
-                        '.vue': 'vue',
-                        '.tf': 'tf',
-                        '.tsx': 'tsx',
-                        '.jsx': 'jsx',
-                        '.sv': 'systemverilog',
-                        '.dart': 'dart',
-                        '.lua': 'lua',
-                        '.swift': 'swift',
-                        '.hcl': 'hcl',
-                        '.ps1': 'powershell',
-                        '.r': 'r',
-                    }
+                    const language = languageByExtension[ext]
 
-                    if (ext in langMap) {
-                        programmingLanguage = { languageName: langMap[ext] }
-                    } else {
-                        programmingLanguage = { languageName: 'plaintext' }
+                    if (language) {
+                        programmingLanguage = { languageName: language }
                     }
                 }
 
@@ -190,7 +159,7 @@ export class AgenticChatTriggerContext {
                 const relevantTextDocument: RelevantTextDocumentAddition = {
                     text: item.innerContext,
                     relativeFilePath: item.path,
-                    programmingLanguage,
+                    programmingLanguage: programmingLanguage,
                     type: filteredType,
                     startLine: item.startLine || -1,
                     endLine: item.endLine || -1,
