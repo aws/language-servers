@@ -856,7 +856,10 @@ export const createMynahUi = (
         if (message.type === 'tool') {
             processedHeader = { ...header }
             if (header?.buttons) {
-                processedHeader.buttons = header.buttons.map(button => ({ ...button, status: 'clear' }))
+                processedHeader.buttons = header.buttons.map(button => ({
+                    ...button,
+                    status: button.status ?? 'clear',
+                }))
             }
             if (header?.fileList) {
                 processedHeader.fileList = {

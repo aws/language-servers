@@ -26,11 +26,13 @@ export const pairProgrammingPromptInput: ChatItemFormItem = {
 export const pairProgrammingModeOn: ChatItem = {
     type: ChatItemType.DIRECTIVE,
     contentHorizontalAlignment: 'center',
+    fullWidth: true,
     body: 'Pair programmer mode ON',
 }
 
 export const pairProgrammingModeOff: ChatItem = {
     type: ChatItemType.DIRECTIVE,
     contentHorizontalAlignment: 'center',
+    fullWidth: true,
     body: 'Pair programmer mode OFF',
 }

@@ -1210,7 +1210,19 @@ export class AgenticChatController implements ChatHandlers {
         toolType?: string
     ): ChatResult {
         let buttons: Button[] = []
-        let header: { body: string; buttons: Button[]; icon?: string; iconForegroundStatus?: string }
+        let header: {
+            body: string
+            buttons: Button[]
+            icon?: string
+            iconForegroundStatus?: string
+            status?: {
+                status?: Status
+                position?: 'left' | 'right'
+                description?: string
+                icon?: string
+                text?: string
+            }
+        }
         let body: string
 
         switch (toolType || toolUse.name) {
@@ -1231,8 +1243,12 @@ export class AgenticChatController implements ChatHandlers {
                       ]
                     : []
                 header = {
-                    icon: 'warning',
-                    iconForegroundStatus: 'warning',
+                    status: {
+                        icon: 'warning',
+                        status: 'warning',
+                        position: 'left',
+                        // TODO: Add `description` if necessary to show a tooltip
+                    },
                     body: 'shell',
                     buttons,
                 }
