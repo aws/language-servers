@@ -886,7 +886,9 @@ export const createMynahUi = (
         const processedButtons: ChatItemButton[] | undefined = toMynahButtons(message.buttons)?.map(button =>
             button.id === 'undo-all-changes' ? { ...button, position: 'outside' } : button
         )
-
+        // Adding this conditional check to show the stop message in the center.
+        const contentHorizontalAlignment: ChatItem['contentHorizontalAlignment'] =
+            message.type === 'directive' && message.messageId?.startsWith('stopped') ? 'center' : undefined
         return {
             body: message.body,
             header: includeHeader ? processedHeader : undefined,
@@ -895,6 +897,7 @@ export const createMynahUi = (
             // file diffs in the header need space
             fullWidth: message.type === 'tool' && message.header?.buttons ? true : undefined,
             padding,
+            contentHorizontalAlignment,
             wrapCodes: message.type === 'tool',
             codeBlockActions:
                 message.type === 'tool'
