@@ -997,8 +997,9 @@ export class AgenticChatController implements ChatHandlers {
         let maxToolResponseSize
         switch (toolUse.name) {
             case 'fsRead':
-                maxToolResponseSize = 200_000
-                break
+            case 'executeBash':
+                // fsRead and executeBash already have truncation logic
+                return
             case 'listDirectory':
                 maxToolResponseSize = 30_000
                 break
