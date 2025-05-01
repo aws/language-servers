@@ -973,7 +973,7 @@ export class AgenticChatController implements ChatHandlers {
                 {
                     id: 'undo-all-changes',
                     text: 'Undo all changes',
-                    icon: 'revert',
+                    icon: 'undo',
                     status: 'clear',
                     keepCardAfterClick: false,
                 },
