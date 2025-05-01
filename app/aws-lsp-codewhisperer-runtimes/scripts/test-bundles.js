@@ -52,7 +52,7 @@ async function testAllBundles() {
             await testBundle(path.join(buildDir, file))
             console.info(`✓ ${file} test passed`)
         } catch (error) {
-            console.info(`✗ ${file} test failed:`, error)
+            console.error(`✗ ${file} test failed:`, error)
             process.exit(1)
         }
     }
