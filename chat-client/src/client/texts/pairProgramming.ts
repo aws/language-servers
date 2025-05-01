@@ -11,14 +11,14 @@ export const programmerModeCard: ChatItem = {
     messageId: 'programmerModeCardId',
     fullWidth: true,
     canBeDismissed: true,
-    body: 'Amazon Q Developer can now help you write, modify, and maintain code by seamlessly taking actions on your behalf such as reading files, generating code diffs, and running commands.',
+    body: 'Amazon Q can now help you write, modify, and maintain code by combining the power of natural language understanding with the ability to take actions on your behalf such as directly making code changes, modifying files, and running commands.',
 }
 
 export const pairProgrammingPromptInput: ChatItemFormItem = {
     type: 'switch',
     id: 'pair-programmer-mode',
-    tooltip: 'Turn OFF agentic coding experience',
-    alternateTooltip: 'Turn ON agentic coding experience',
+    tooltip: 'Turn OFF agentic coding',
+    alternateTooltip: 'Turn ON agentic coding',
     value: 'true',
     icon: 'code-block',
 }
@@ -27,12 +27,12 @@ export const pairProgrammingModeOn: ChatItem = {
     type: ChatItemType.DIRECTIVE,
     contentHorizontalAlignment: 'center',
     fullWidth: true,
-    body: 'Agentic coding experience - ON',
+    body: 'Agentic coding - ON',
 }
 
 export const pairProgrammingModeOff: ChatItem = {
     type: ChatItemType.DIRECTIVE,
     contentHorizontalAlignment: 'center',
     fullWidth: true,
-    body: 'Agentic coding experience - OFF',
+    body: 'Agentic coding - OFF',
 }
