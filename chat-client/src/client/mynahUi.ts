@@ -617,7 +617,7 @@ export const createMynahUi = (
                             : am.type === 'directive'
                               ? ChatItemType.DIRECTIVE
                               : ChatItemType.ANSWER_STREAM,
-                    ...prepareChatItemFromMessage(am, isPairProgrammingMode),
+                    ...prepareChatItemFromMessage(am, isPairProgrammingMode, isPartialResult),
                 }
 
                 if (!chatItems.find(ci => ci.messageId === am.messageId)) {
@@ -847,7 +847,11 @@ export const createMynahUi = (
         })
     }
 
-    const prepareChatItemFromMessage = (message: ChatMessage, isPairProgrammingMode: boolean): Partial<ChatItem> => {
+    const prepareChatItemFromMessage = (
+        message: ChatMessage,
+        isPairProgrammingMode: boolean,
+        isPartialResult?: boolean
+    ): Partial<ChatItem> => {
         const contextHeader = contextListToHeader(message.contextList)
         const header = contextHeader || toMynahHeader(message.header) // Is this mutually exclusive?
         const fileList = toMynahFileList(message.fileList)
@@ -867,6 +871,11 @@ export const createMynahUi = (
                     fileTreeTitle: '',
                     hideFileCount: true,
                     details: toDetailsWithoutIcon(header.fileList.details),
+                }
+            }
+            if (!isPartialResult) {
+                if (processedHeader) {
+                    processedHeader.status = undefined
                 }
             }
         }
