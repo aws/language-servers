@@ -37,6 +37,8 @@ export class TransformHandler {
     private workspace: Workspace
     private logging: Logging
     private runtime: Runtime
+    private cancelPollingEnabled: Boolean = false
+
     constructor(serviceManager: AmazonQTokenServiceManager, workspace: Workspace, logging: Logging, runtime: Runtime) {
         this.serviceManager = serviceManager
         this.workspace = workspace
@@ -184,6 +186,13 @@ export class TransformHandler {
         }
         return headersObj
     }
+    /**
+     * Retrieves the status and details of a transformation job.
+     * Includes error code when the job has failed.
+     *
+     * @param request - The request containing the transformation job ID
+     * @returns The transformation job details with error code if applicable, or null if the request fails
+     */
     async getTransformation(request: GetTransformRequest) {
         try {
             const getCodeTransformationRequest = {
@@ -193,8 +202,13 @@ export class TransformHandler {
                 .getCodewhispererService()
                 .codeModernizerGetCodeTransformation(getCodeTransformationRequest)
             this.logging.log('Transformation status: ' + response.transformationJob?.status)
+
+            // Use validation function to determine the error code
+            const errorCode = validation.getTransformationErrorCode(response.transformationJob)
+
             return {
                 TransformationJob: response.transformationJob,
+                ErrorCode: errorCode,
             } as GetTransformResponse
         } catch (e: any) {
             const errorMessage = (e as Error).message ?? 'Error in GetTransformation API call'
@@ -306,6 +320,13 @@ export class TransformHandler {
 
         while (status != PollTransformationStatus.TIMEOUT && !failureStates.includes(status)) {
             try {
+                if (this.cancelPollingEnabled) {
+                    // Reset the flag
+                    this.cancelPollingEnabled = false
+                    return {
+                        TransformationJob: response.transformationJob,
+                    } as GetTransformResponse
+                }
                 const apiStartTime = Date.now()
 
                 const getCodeTransformationRequest = {
@@ -391,6 +412,10 @@ export class TransformHandler {
                 Error: errorMessage,
             } as DownloadArtifactsResponse
         }
+    }
+
+    async cancelPollingAsync() {
+        this.cancelPollingEnabled = true
     }
 
     async extractAllEntriesTo(pathContainingArchive: string, zipEntries: AdmZip.IZipEntry[]) {

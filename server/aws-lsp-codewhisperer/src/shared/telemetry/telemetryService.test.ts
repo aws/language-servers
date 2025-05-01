@@ -788,7 +788,7 @@ describe('TelemetryService', () => {
                     cwsprChatSourceLinkCount: undefined,
                     cwsprChatReferencesCount: undefined,
                     cwsprChatFollowUpCount: undefined,
-                    cwsprTimeToFirstChunk: 100,
+                    cwsprChatTimeToFirstChunk: 100,
                     cwsprChatFullResponseLatency: 400,
                     cwsprChatTimeBetweenChunks: undefined,
                     cwsprChatRequestLength: 100,

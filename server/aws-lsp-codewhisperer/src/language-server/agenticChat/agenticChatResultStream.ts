@@ -112,6 +112,7 @@ export class AgenticChatResultStream {
                         body: acc.body + AgenticChatResultStream.resultDelimiter + c.body,
                         ...(c.contextList && { contextList: c.contextList }),
                         header: Object.prototype.hasOwnProperty.call(c, 'header') ? c.header : acc.header,
+                        codeReference: [...(acc.codeReference ?? []), ...(c.codeReference ?? [])],
                     }
                 } else if (acc.additionalMessages!.some(am => am.messageId === c.messageId)) {
                     return {
@@ -223,6 +224,9 @@ export class AgenticChatResultStream {
                 return await this.#sendProgress(combinedResult)
             },
             close: async () => {
+                if (!this.#state.isLocked) {
+                    return
+                }
                 if (lastResult) {
                     this.#state.chatResultBlocks.push(lastResult)
                 }

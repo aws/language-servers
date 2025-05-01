@@ -218,7 +218,7 @@ export class LocalProjectContextController {
                     this.maxIndexSizeMB
                 )
 
-                const projectRoot = this.workspaceFolders.sort()[0].uri
+                const projectRoot = URI.parse(this.workspaceFolders.sort()[0].uri).fsPath
                 await this._vecLib?.buildIndex(sourceFiles, projectRoot, 'all')
                 this.log.info('Context index built successfully')
             }

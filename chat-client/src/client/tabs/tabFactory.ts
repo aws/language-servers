@@ -38,6 +38,7 @@ export class TabFactory {
             ...this.getDefaultTabData(),
             ...(disclaimerCardActive ? { promptInputStickyCard: disclaimerCard } : {}),
             promptInputOptions: this.agenticMode ? [pairProgrammingPromptInput] : [],
+            cancelButtonWhenLoading: this.agenticMode, // supported for agentic chat only
         }
         return tabData
     }

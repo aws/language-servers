@@ -102,9 +102,12 @@ export class AgenticChatEventParser implements ChatResult {
                 cwsprChatTimeBetweenChunks: [],
             })
         } else {
-            this.#metric.mergeWith({
-                cwsprChatTimeBetweenChunks: [Date.now() - this.#lastChunkTime],
-            })
+            const chatTime = Date.now() - this.#lastChunkTime
+            if (chatTime !== 0) {
+                this.#metric.mergeWith({
+                    cwsprChatTimeBetweenChunks: [chatTime],
+                })
+            }
         }
 
         this.#lastChunkTime = Date.now()
@@ -143,7 +146,9 @@ export class AgenticChatEventParser implements ChatResult {
                             parsedInput = finalInput
                         }
                     } catch (err) {
-                        console.error(`Error parsing tool use input: ${this.toolUses[toolUseId].input}`, err)
+                        this.#logging.error(
+                            `Error parsing tool use input: ${this.toolUses[toolUseId].input}:${loggingUtils.formatErr(err)}`
+                        )
                         this.error = `ToolUse input is invalid JSON: "${this.toolUses[toolUseId].input}".`
                         parsedInput = {}
                     }

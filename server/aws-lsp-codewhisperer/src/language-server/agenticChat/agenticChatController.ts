@@ -73,7 +73,7 @@ import { ChatSessionManagementService } from '../chat/chatSessionManagementServi
 import { ChatTelemetryController } from '../chat/telemetry/chatTelemetryController'
 import { QuickAction } from '../chat/quickActions'
 import { Metric } from '../../shared/telemetry/metric'
-import { getErrorMessage, getHttpStatusCode, isAwsError, isNullish, isObject } from '../../shared/utils'
+import { getErrorMessage, getHttpStatusCode, getRequestID, isAwsError, isNullish, isObject } from '../../shared/utils'
 import { HELP_MESSAGE, loadingMessage } from '../chat/constants'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import {
@@ -105,20 +105,22 @@ import { CancellationError, workspaceUtils } from '@aws/lsp-core'
 import { FsRead, FsReadParams } from './tools/fsRead'
 import { ListDirectory, ListDirectoryParams } from './tools/listDirectory'
 import { FsWrite, FsWriteParams } from './tools/fsWrite'
-import { ExecuteBash, ExecuteBashOutput, ExecuteBashParams } from './tools/executeBash'
-import { ExplanatoryParams, InvokeOutput, ToolApprovalException } from './tools/toolShared'
+import { ExecuteBash, ExecuteBashParams } from './tools/executeBash'
+import { ExplanatoryParams, ToolApprovalException } from './tools/toolShared'
 import { FileSearch, FileSearchParams } from './tools/fileSearch'
 import { loggingUtils } from '@aws/lsp-core'
 import { diffLines } from 'diff'
-import { CodeSearch } from './tools/codeSearch'
 import {
     genericErrorMsg,
     maxAgentLoopIterations,
     loadingThresholdMs,
     generateAssistantResponseInputLimit,
+    outputLimitExceedsPartialMsg,
+    responseTimeoutMs,
+    responseTimeoutPartialMsg,
 } from './constants'
 import { URI } from 'vscode-uri'
-import { AgenticChatError, customerFacingErrorCodes } from './errors'
+import { AgenticChatError, customerFacingErrorCodes, unactionableErrorCodes } from './errors'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -393,8 +395,13 @@ export class AgenticChatController implements ChatHandlers {
                 session.conversationId = uuid()
             }
 
-            token.onCancellationRequested(() => {
+            token.onCancellationRequested(async () => {
                 this.#log('cancellation requested')
+                await this.#getChatResultStream(params.partialResultToken).writeResultBlock({
+                    type: 'directive',
+                    messageId: 'stopped' + uuid(),
+                    body: 'You stopped your current work, please provide additional examples or ask another question.',
+                })
                 this.#telemetryController.emitInteractWithAgenticChat('StopChat', params.tabId)
                 session.abortRequest()
                 void this.#invalidateAllShellCommands(params.tabId, session)
@@ -517,6 +524,7 @@ export class AgenticChatController implements ChatHandlers {
         let currentRequestInput = { ...initialRequestInput }
         let finalResult: Result<AgenticChatResultWithMetadata, string> | null = null
         let iterationCount = 0
+        let shouldDisplayMessage = true
         metric.recordStart()
 
         while (iterationCount < maxAgentLoopIterations) {
@@ -554,8 +562,9 @@ export class AgenticChatController implements ChatHandlers {
             // Phase 3: Request Execution
             this.#validateRequest(currentRequestInput)
             const response = await session.generateAssistantResponse(currentRequestInput)
-            this.#debug(`Q Model Response: ${loggingUtils.formatObj(response, { depth: 5 })}`)
-
+            this.#features.logging.info(
+                `generateAssistantResponse ResponseMetadata: ${loggingUtils.formatObj(response.$metadata)}`
+            )
             await chatResultStream.removeResultBlock(loadingMessageId)
 
             //  Add the current user message to the history DB
@@ -566,11 +575,13 @@ export class AgenticChatController implements ChatHandlers {
                     userIntent: currentMessage.userInputMessage?.userIntent,
                     origin: currentMessage.userInputMessage?.origin,
                     userInputMessageContext: currentMessage.userInputMessage?.userInputMessageContext,
+                    shouldDisplayMessage: shouldDisplayMessage,
                 })
             }
+            shouldDisplayMessage = true
 
             // Phase 4: Response Processing
-            const result = await this.#processGenerateAssistantResponseResponse(
+            const result = await this.#processGenerateAssistantResponseResponseWithTimeout(
                 response,
                 metric.mergeWith({
                     cwsprChatResponseCode: response.$metadata.httpStatusCode,
@@ -580,6 +591,19 @@ export class AgenticChatController implements ChatHandlers {
                 session,
                 documentReference
             )
+            // This is needed to handle the case where the response stream times out
+            // and we want to auto-retry
+            if (!result.success && result.error.startsWith(responseTimeoutPartialMsg)) {
+                const content =
+                    'You took too long to respond - try to split up the work into smaller steps. Do not apologize.'
+                this.#chatHistoryDb.addMessage(tabId, 'cwc', conversationIdentifier ?? '', {
+                    body: 'Response timed out - message took too long to generate',
+                    type: 'answer',
+                    shouldDisplayMessage: false,
+                })
+                currentRequestInput = this.#updateRequestInputWithToolResults(currentRequestInput, [], content)
+                continue
+            }
 
             //  Add the current assistantResponse message to the history DB
             if (result.data?.chatResult.body !== undefined) {
@@ -592,11 +616,14 @@ export class AgenticChatController implements ChatHandlers {
                         result.data.chatResult.relatedContent.content.length > 0
                             ? result.data?.chatResult.relatedContent
                             : undefined,
-                    toolUses: Object.keys(result.data?.toolUses!).map(k => ({
-                        toolUseId: result.data!.toolUses[k].toolUseId,
-                        name: result.data!.toolUses[k].name,
-                        input: result.data!.toolUses[k].input,
-                    })),
+                    toolUses: Object.keys(result.data?.toolUses!)
+                        .filter(k => result.data!.toolUses[k].stop)
+                        .map(k => ({
+                            toolUseId: result.data!.toolUses[k].toolUseId,
+                            name: result.data!.toolUses[k].name,
+                            input: result.data!.toolUses[k].input,
+                        })),
+                    shouldDisplayMessage: shouldDisplayMessage,
                 })
             } else {
                 this.#features.logging.warn('No ChatResult body in response, skipping adding to history')
@@ -616,8 +643,9 @@ export class AgenticChatController implements ChatHandlers {
             if (result.success) {
                 // Process tool uses and update the request input for the next iteration
                 toolResults = await this.#processToolUses(pendingToolUses, chatResultStream, session, tabId, token)
-                if (toolResults.some(toolResult => toolResult.status === ToolResultStatus.ERROR)) {
-                    content = 'There was an error processing one or more tool uses. Please try again.'
+                if (toolResults.some(toolResult => this.#shouldSendBackErrorContent(toolResult))) {
+                    content = 'There was an error processing one or more tool uses. Try again, do not apologize.'
+                    shouldDisplayMessage = false
                 }
                 metric.setDimension('cwsprChatConversationType', 'AgenticChatWithToolUse')
             } else {
@@ -629,7 +657,8 @@ export class AgenticChatController implements ChatHandlers {
                 }))
                 if (result.error.startsWith('ToolUse input is invalid JSON:')) {
                     content =
-                        'Your toolUse input is incomplete because it is too large. Break this task down into multiple tool uses with smaller input.'
+                        'Your toolUse input is incomplete because it is too large. Break this task down into multiple tool uses with smaller input. Do not apologize.'
+                    shouldDisplayMessage = false
                 }
             }
             currentRequestInput = this.#updateRequestInputWithToolResults(currentRequestInput, toolResults, content)
@@ -653,7 +682,8 @@ export class AgenticChatController implements ChatHandlers {
      * @param request
      */
     #validateRequest(request: GenerateAssistantResponseCommandInput) {
-        this.#debug(`Q Model Request: ${loggingUtils.formatObj(request, { depth: 5, omitKeys: ['history'] })}`)
+        // Note: these logs are very noisy, but contain information redacted on the backend.
+        this.#debug(`generateAssistantResponse Request: ${JSON.stringify(request, undefined, 2)}`)
         const message = request.conversationState?.currentMessage?.userInputMessage?.content
         if (message && message.length > generateAssistantResponseInputLimit) {
             throw new AgenticChatError(
@@ -907,13 +937,26 @@ export class AgenticChatController implements ChatHandlers {
                 this.#log(`Error running tool ${toolUse.name}:`, errMsg)
                 results.push({
                     toolUseId: toolUse.toolUseId,
-                    status: 'error',
+                    status: ToolResultStatus.ERROR,
                     content: [{ json: { error: err instanceof Error ? err.message : 'Unknown error' } }],
                 })
             }
         }
 
         return results
+    }
+
+    #shouldSendBackErrorContent(toolResult: ToolResult) {
+        if (toolResult.status === ToolResultStatus.ERROR) {
+            for (const content of toolResult.content ?? []) {
+                if (content.json && JSON.stringify(content.json).includes(outputLimitExceedsPartialMsg)) {
+                    // do not send the content response back for this case to avoid unnecessary messages
+                    return false
+                }
+            }
+            return true
+        }
+        return false
     }
 
     /**
@@ -965,7 +1008,7 @@ export class AgenticChatController implements ChatHandlers {
                 {
                     id: 'undo-all-changes',
                     text: 'Undo all changes',
-                    icon: 'revert',
+                    icon: 'undo',
                     status: 'clear',
                     keepCardAfterClick: false,
                 },
@@ -991,10 +1034,11 @@ export class AgenticChatController implements ChatHandlers {
         let maxToolResponseSize
         switch (toolUse.name) {
             case 'fsRead':
-                maxToolResponseSize = 200_000
-                break
+            case 'executeBash':
+                // fsRead and executeBash already have truncation logic
+                return
             case 'listDirectory':
-                maxToolResponseSize = 30_000
+                maxToolResponseSize = 50_000
                 break
             default:
                 maxToolResponseSize = 100_000
@@ -1004,7 +1048,7 @@ export class AgenticChatController implements ChatHandlers {
             (result.text && result.text.length > maxToolResponseSize) ||
             (result.json && JSON.stringify(result.json).length > maxToolResponseSize)
         ) {
-            throw Error(`${toolUse.name} output exceeds maximum character limit of ${maxToolResponseSize}`)
+            throw Error(`${toolUse.name} ${outputLimitExceedsPartialMsg} ${maxToolResponseSize}`)
         }
     }
 
@@ -1207,7 +1251,19 @@ export class AgenticChatController implements ChatHandlers {
         toolType?: string
     ): ChatResult {
         let buttons: Button[] = []
-        let header: { body: string; buttons: Button[]; icon?: string; iconForegroundStatus?: string }
+        let header: {
+            body: string
+            buttons: Button[]
+            icon?: string
+            iconForegroundStatus?: string
+            status?: {
+                status?: Status
+                position?: 'left' | 'right'
+                description?: string
+                icon?: string
+                text?: string
+            }
+        }
         let body: string
 
         switch (toolType || toolUse.name) {
@@ -1221,20 +1277,25 @@ export class AgenticChatController implements ChatHandlers {
                           },
                           {
                               id: 'reject-shell-command',
-                              status: 'dimmed-clear' as Status,
                               text: 'Reject',
                               icon: 'cancel',
                           },
                       ]
                     : []
                 header = {
-                    icon: 'warning',
-                    iconForegroundStatus: 'warning',
+                    status: requiresAcceptance
+                        ? {
+                              icon: 'warning',
+                              status: 'warning',
+                              position: 'left',
+                              // TODO: Add `description` if necessary to show a tooltip
+                          }
+                        : {},
                     body: 'shell',
                     buttons,
                 }
                 const commandString = (toolUse.input as unknown as ExecuteBashParams).command
-                body = '```shell\n' + commandString + '\n'
+                body = '```shell\n' + commandString
                 break
 
             case 'fsWrite':
@@ -1493,22 +1554,22 @@ export class AgenticChatController implements ChatHandlers {
         tabId: string,
         metric: Metric<CombinedConversationEvent>
     ): ChatResult | ResponseError<ChatResult> {
-        let errorMessage: string | undefined
-        let requestID: string | undefined
-        if (isAwsError(err) || (isObject(err) && typeof getHttpStatusCode(err) === 'number')) {
-            if (err instanceof CodeWhispererStreamingServiceException) {
-                errorMessage = err.message
-                requestID = err.$metadata.requestId
-            } else if (err?.cause?.message) {
-                errorMessage = err?.cause?.message
-                requestID = err.cause?.$metadata.requestId
-            } else if (err instanceof Error || err?.message) {
-                errorMessage = err.message
-            }
+        const errorMessage = getErrorMessage(err)
+        const requestID = getRequestID(err) ?? ''
+        metric.setDimension('cwsprChatResponseCode', getHttpStatusCode(err) ?? 0)
+        metric.setDimension('languageServerVersion', this.#features.runtime.serverInfo.version)
 
-            metric.setDimension('cwsprChatResponseCode', getHttpStatusCode(err) ?? 0)
-            metric.setDimension('languageServerVersion', this.#features.runtime.serverInfo.version)
-            this.#telemetryController.emitMessageResponseError(tabId, metric.metric, requestID, errorMessage)
+        // use custom error message for unactionable errors (user-dependent errors like PromptCharacterLimit)
+        if (err.code && err.code in unactionableErrorCodes) {
+            const customErrMessage = unactionableErrorCodes[err.code as keyof typeof unactionableErrorCodes]
+            this.#telemetryController.emitMessageResponseError(tabId, metric.metric, requestID, customErrMessage)
+        } else {
+            this.#telemetryController.emitMessageResponseError(
+                tabId,
+                metric.metric,
+                requestID,
+                errorMessage ?? genericErrorMsg
+            )
         }
 
         let authFollowType: ReturnType<typeof getAuthFollowUpType> = undefined
@@ -1909,7 +1970,7 @@ export class AgenticChatController implements ChatHandlers {
                             body: `\`\`\`shell\n${command}\n\`\`\``,
                             header: {
                                 body: 'shell',
-                                status: { status: 'info', icon: 'info', text: 'Ignored' },
+                                status: { icon: 'block', text: 'Ignored' },
                                 buttons: [],
                             },
                         },
@@ -1921,20 +1982,61 @@ export class AgenticChatController implements ChatHandlers {
         }
     }
 
-    async #processGenerateAssistantResponseResponse(
+    async #processGenerateAssistantResponseResponseWithTimeout(
         response: GenerateAssistantResponseCommandOutput,
         metric: Metric<AddMessageEvent>,
         chatResultStream: AgenticChatResultStream,
         session: ChatSessionService,
         contextList?: FileList
     ): Promise<Result<AgenticChatResultWithMetadata, string>> {
+        const abortController = new AbortController()
+        const timeoutPromise = new Promise<never>((_, reject) => {
+            setTimeout(() => {
+                abortController.abort()
+                reject(
+                    new AgenticChatError(
+                        `${responseTimeoutPartialMsg} ${responseTimeoutMs}ms`,
+                        'ResponseProcessingTimeout'
+                    )
+                )
+            }, responseTimeoutMs)
+        })
+        const streamWriter = chatResultStream.getResultStreamWriter()
+        const processResponsePromise = this.#processGenerateAssistantResponseResponse(
+            response,
+            metric,
+            chatResultStream,
+            streamWriter,
+            session,
+            contextList,
+            abortController.signal
+        )
+        try {
+            return await Promise.race([processResponsePromise, timeoutPromise])
+        } catch (err) {
+            await streamWriter.close()
+            if (err instanceof AgenticChatError && err.code === 'ResponseProcessingTimeout') {
+                return { success: false, error: err.message }
+            }
+            throw err
+        }
+    }
+
+    async #processGenerateAssistantResponseResponse(
+        response: GenerateAssistantResponseCommandOutput,
+        metric: Metric<AddMessageEvent>,
+        chatResultStream: AgenticChatResultStream,
+        streamWriter: ResultStreamWriter,
+        session: ChatSessionService,
+        contextList?: FileList,
+        abortSignal?: AbortSignal
+    ): Promise<Result<AgenticChatResultWithMetadata, string>> {
         const requestId = response.$metadata.requestId!
         const chatEventParser = new AgenticChatEventParser(requestId, metric, this.#features.logging)
-        const streamWriter = chatResultStream.getResultStreamWriter()
 
         // Display context transparency list once at the beginning of response
         // Use a flag to track if contextList has been sent already to avoid ux flickering
-        if (contextList && !session.contextListSent) {
+        if (contextList?.filePaths && contextList.filePaths.length > 0 && !session.contextListSent) {
             await streamWriter.write({ body: '', contextList })
             session.contextListSent = true
         }
@@ -1942,6 +2044,9 @@ export class AgenticChatController implements ChatHandlers {
         const toolUseStartTimes: Record<string, number> = {}
         const toolUseLoadingTimeouts: Record<string, NodeJS.Timeout> = {}
         for await (const chatEvent of response.generateAssistantResponseResponse!) {
+            if (abortSignal?.aborted) {
+                throw new Error('Operation was aborted')
+            }
             if (chatEvent.assistantResponseEvent) {
                 await this.#showUndoAllIfRequired(chatResultStream, session)
             }
@@ -1953,7 +2058,8 @@ export class AgenticChatController implements ChatHandlers {
                 return result
             }
 
-            if (chatEvent.assistantResponseEvent) {
+            // make sure to save code reference events
+            if (chatEvent.assistantResponseEvent || chatEvent.codeReferenceEvent) {
                 await streamWriter.write(result.data.chatResult)
             }
 
