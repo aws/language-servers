@@ -19,6 +19,7 @@ export async function readDirectoryRecursively(
     token?: CancellationToken
 ): Promise<string[]> {
     const dirExists = await features.workspace.fs.exists(folderPath)
+    const excludeEntries = options?.excludeEntries ?? []
     if (!dirExists) {
         throw new Error(`Directory does not exist: ${folderPath}`)
     }
@@ -55,7 +56,6 @@ export async function readDirectoryRecursively(
             features.logging.warn(errMsg)
             continue
         }
-        const excludeEntries = options?.excludeEntries ?? []
         for (const entry of entries) {
             const childPath = getEntryPath(entry)
             const childPathParts = childPath.split(path.sep)
