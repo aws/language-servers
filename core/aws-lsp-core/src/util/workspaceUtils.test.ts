@@ -178,7 +178,7 @@ describe('workspaceUtils', function () {
             const result = (
                 await readDirectoryRecursively(testFeatures, tempFolder.path, {
                     customFormatCallback: getEntryPath,
-                    excludePatterns: [/.*-bad/],
+                    excludeEntries: [/.*-bad/],
                 })
             ).sort()
             assert.deepStrictEqual(
@@ -202,7 +202,7 @@ describe('workspaceUtils', function () {
             const result = (
                 await readDirectoryRecursively(testFeatures, tempFolder.path, {
                     customFormatCallback: getEntryPath,
-                    excludePatterns: ['-bad'],
+                    excludeEntries: ['-bad'],
                 })
             ).sort()
             assert.deepStrictEqual(

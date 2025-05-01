@@ -105,7 +105,7 @@ describe('ListDirectory Tool', () => {
         assert.ok(!hasFileC, 'Should not list fileC.md under node_modules in the directory output')
     })
 
-    it('includes directories that only start with ignored pattern', async () => {
+    it('includes files that only start with ignored pattern', async () => {
         const nestedFolder = await tempFolder.nest('foo')
         await nestedFolder.write('output.md', 'this is some text')
 

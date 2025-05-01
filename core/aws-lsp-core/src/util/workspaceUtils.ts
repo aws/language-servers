@@ -7,13 +7,12 @@ import { CancellationError } from './awsError'
 type ElementType<T> = T extends (infer U)[] ? U : never
 type Dirent = ElementType<Awaited<ReturnType<Features['workspace']['fs']['readdir']>>>
 
-// Port of https://github.com/aws/aws-toolkit-vscode/blob/dfee9f7a400e677e91a75e9c20d9515a52a6fad4/packages/core/src/shared/utilities/workspaceUtils.ts#L699
 export async function readDirectoryRecursively(
     features: Pick<Features, 'workspace' | 'logging'> & Partial<Features>,
     folderPath: string,
     options?: {
         maxDepth?: number
-        excludePatterns?: (string | RegExp)[]
+        excludeEntries?: (string | RegExp)[]
         customFormatCallback?: (entry: Dirent) => string
         failOnError?: boolean
     },
@@ -56,12 +55,11 @@ export async function readDirectoryRecursively(
             features.logging.warn(errMsg)
             continue
         }
-        // Apply the pattern to each part individually
-        const excludeParts = options?.excludePatterns ?? []
+        const excludeEntries = options?.excludeEntries ?? []
         for (const entry of entries) {
             const childPath = getEntryPath(entry)
             const childPathParts = childPath.split(path.sep)
-            if (childPathParts.some(part => excludeParts.includes(part))) {
+            if (childPathParts.some(part => excludeEntries.includes(part))) {
                 continue
             }
             results.push(formatter(entry))

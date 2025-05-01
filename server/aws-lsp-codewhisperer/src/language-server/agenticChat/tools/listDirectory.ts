@@ -3,7 +3,7 @@ import { CommandValidation, InvokeOutput, requiresPathAcceptance, validatePath }
 import { CancellationError, workspaceUtils } from '@aws/lsp-core'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 import { sanitize } from '@aws/lsp-core/out/util/path'
-import { DEFAULT_EXCLUDE_PATTERNS } from '../../chat/constants'
+import { DEFAULT_EXCLUDE_ENTRIES } from '../../chat/constants'
 import { CancellationToken } from '@aws/language-server-runtimes/protocol'
 
 export interface ListDirectoryParams {
@@ -64,7 +64,7 @@ export class ListDirectory {
             const listing = await workspaceUtils.readDirectoryRecursively(
                 { workspace: this.workspace, logging: this.logging },
                 path,
-                { maxDepth: params.maxDepth, excludePatterns: DEFAULT_EXCLUDE_PATTERNS },
+                { maxDepth: params.maxDepth, excludeEntries: DEFAULT_EXCLUDE_ENTRIES },
                 token
             )
             return this.createOutput(listing.join('\n'))
