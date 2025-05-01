@@ -110,6 +110,14 @@ export class ContextCommandsProvider implements Disposable {
 
     async mapContextCommandItems(items: ContextCommandItem[]): Promise<ContextCommandGroup[]> {
         const folderCmds: ContextCommand[] = []
+        folderCmds.push({
+            command: 'Testpath',
+            description: 'somepath',
+            route: ['/somepath'],
+            id: 'somepath',
+            label: 'folder',
+            icon: 'folder',
+        })
         const folderCmdGroup: ContextCommand = {
             command: 'Folders',
             children: [

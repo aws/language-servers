@@ -1757,7 +1757,7 @@ export class AgenticChatController implements ChatHandlers {
         this.#telemetryController.removeConversation(params.tabId)
     }
 
-    onQuickAction(params: QuickActionParams, _cancellationToken: CancellationToken) {
+    async onQuickAction(params: QuickActionParams, _cancellationToken: CancellationToken) {
         switch (params.quickAction) {
             case QuickAction.Clear: {
                 const sessionResult = this.#chatSessionManagementService.getSession(params.tabId)
@@ -1788,6 +1788,10 @@ export class AgenticChatController implements ChatHandlers {
                     messageId: uuid(),
                     body: HELP_MESSAGE,
                 }
+
+            case '/crash':
+                // throw new Error("FATAL: Planted process crash")
+                process.kill(process.pid, 'SIGINT')
             default:
                 return {}
         }

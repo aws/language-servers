@@ -40,7 +40,11 @@ export const QAgenticChatServer =
                         quickActions: {
                             quickActionsCommandGroups: [
                                 {
-                                    commands: [HELP_QUICK_ACTION, CLEAR_QUICK_ACTION],
+                                    commands: [HELP_QUICK_ACTION, CLEAR_QUICK_ACTION, {
+                                        command: '/crash',
+                                        description: 'Crash language server',
+                                        icon: 'cancel',
+                                    }],
                                 },
                             ],
                         },

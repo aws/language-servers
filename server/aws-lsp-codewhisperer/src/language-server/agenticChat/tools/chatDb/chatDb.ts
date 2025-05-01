@@ -164,6 +164,7 @@ export class ChatDatabase {
                 indices: ['updatedAt', 'isOpen'],
             })
         }
+        // await new Promise((resolve) => setTimeout(resolve, 5000)) // loading delay
         this.#initialized = true
     }
 
