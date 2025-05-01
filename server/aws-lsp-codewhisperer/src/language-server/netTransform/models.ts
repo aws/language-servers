@@ -1,6 +1,17 @@
 import { ExecuteCommandParams } from 'vscode-languageserver'
 import { TransformationJob, TransformationPlan } from '../../client/token/codewhispererbearertokenclient'
 
+/**
+ * Error codes for transformation job failures.
+ * Additional error codes can be added here as needed for different failure scenarios.
+ */
+export enum TransformationErrorCode {
+    NONE = 'NONE',
+    QUOTA_EXCEEDED = 'QUOTA_EXCEEDED',
+    UNKNOWN_ERROR = 'UNKNOWN_ERROR',
+    // TODO: Add more error codes as needed for different failure scenarios
+}
+
 export interface StartTransformRequest extends ExecuteCommandParams {
     SolutionRootPath: string
     SolutionFilePath: string
@@ -28,8 +39,20 @@ export interface GetTransformRequest extends ExecuteCommandParams {
     TransformationJobId: string
 }
 
+/**
+ * Response for a get transformation request.
+ * Contains the transformation job details and any error information.
+ */
 export interface GetTransformResponse {
+    /**
+     * The transformation job details
+     */
     TransformationJob: TransformationJob
+
+    /**
+     * Error code if the transformation job failed
+     */
+    ErrorCode: TransformationErrorCode
 }
 
 export interface GetTransformPlanRequest extends ExecuteCommandParams {
