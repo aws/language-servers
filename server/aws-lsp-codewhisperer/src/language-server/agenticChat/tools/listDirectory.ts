@@ -4,7 +4,6 @@ import { CancellationError, workspaceUtils } from '@aws/lsp-core'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 import { sanitize } from '@aws/lsp-core/out/util/path'
 import { DEFAULT_EXCLUDE_PATTERNS } from '../../chat/constants'
-import { getWorkspaceFolderPaths } from '@aws/lsp-core/out/util/workspaceUtils'
 import { CancellationToken } from '@aws/language-server-runtimes/protocol'
 
 export interface ListDirectoryParams {

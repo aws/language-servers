@@ -56,9 +56,12 @@ export async function readDirectoryRecursively(
             features.logging.warn(errMsg)
             continue
         }
+        // Apply the pattern to each part individually
+        const excludeParts = options?.excludePatterns ?? []
         for (const entry of entries) {
             const childPath = getEntryPath(entry)
-            if (options?.excludePatterns?.some(pattern => new RegExp(pattern).test(childPath))) {
+            const childPathParts = childPath.split(path.sep)
+            if (childPathParts.some(part => excludeParts.includes(part))) {
                 continue
             }
             results.push(formatter(entry))
