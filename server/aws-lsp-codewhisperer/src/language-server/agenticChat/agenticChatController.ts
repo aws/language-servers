@@ -597,11 +597,13 @@ export class AgenticChatController implements ChatHandlers {
                         result.data.chatResult.relatedContent.content.length > 0
                             ? result.data?.chatResult.relatedContent
                             : undefined,
-                    toolUses: Object.keys(result.data?.toolUses!).map(k => ({
-                        toolUseId: result.data!.toolUses[k].toolUseId,
-                        name: result.data!.toolUses[k].name,
-                        input: result.data!.toolUses[k].input,
-                    })),
+                    toolUses: Object.keys(result.data?.toolUses!)
+                        .filter(k => result.data!.toolUses[k].stop)
+                        .map(k => ({
+                            toolUseId: result.data!.toolUses[k].toolUseId,
+                            name: result.data!.toolUses[k].name,
+                            input: result.data!.toolUses[k].input,
+                        })),
                 })
             } else {
                 this.#features.logging.warn('No ChatResult body in response, skipping adding to history')
