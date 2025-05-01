@@ -12,7 +12,7 @@ export async function readDirectoryRecursively(
     folderPath: string,
     options?: {
         maxDepth?: number
-        excludeEntries?: (string | RegExp)[]
+        excludeEntries?: string[]
         customFormatCallback?: (entry: Dirent) => string
         failOnError?: boolean
     },
