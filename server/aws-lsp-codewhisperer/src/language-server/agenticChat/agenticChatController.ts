@@ -393,8 +393,13 @@ export class AgenticChatController implements ChatHandlers {
                 session.conversationId = uuid()
             }
 
-            token.onCancellationRequested(() => {
+            token.onCancellationRequested(async () => {
                 this.#log('cancellation requested')
+                await this.#getChatResultStream(params.partialResultToken).writeResultBlock({
+                    type: 'directive',
+                    messageId: 'stopped' + uuid(),
+                    body: 'You stopped your current work, please provide additional examples or ask another question.',
+                })
                 this.#telemetryController.emitInteractWithAgenticChat('StopChat', params.tabId)
                 session.abortRequest()
                 void this.#invalidateAllShellCommands(params.tabId, session)
@@ -653,7 +658,8 @@ export class AgenticChatController implements ChatHandlers {
      * @param request
      */
     #validateRequest(request: GenerateAssistantResponseCommandInput) {
-        this.#debug(`Q Model Request: ${loggingUtils.formatObj(request, { depth: 5, omitKeys: ['history'] })}`)
+        // Note: these logs are very noisy, but contain information redacted on the backend.
+        this.#debug(`Q Model Request: ${JSON.stringify(request, undefined, 2)}`)
         const message = request.conversationState?.currentMessage?.userInputMessage?.content
         if (message && message.length > generateAssistantResponseInputLimit) {
             throw new AgenticChatError(
@@ -991,8 +997,9 @@ export class AgenticChatController implements ChatHandlers {
         let maxToolResponseSize
         switch (toolUse.name) {
             case 'fsRead':
-                maxToolResponseSize = 200_000
-                break
+            case 'executeBash':
+                // fsRead and executeBash already have truncation logic
+                return
             case 'listDirectory':
                 maxToolResponseSize = 30_000
                 break
@@ -1207,7 +1214,19 @@ export class AgenticChatController implements ChatHandlers {
         toolType?: string
     ): ChatResult {
         let buttons: Button[] = []
-        let header: { body: string; buttons: Button[]; icon?: string; iconForegroundStatus?: string }
+        let header: {
+            body: string
+            buttons: Button[]
+            icon?: string
+            iconForegroundStatus?: string
+            status?: {
+                status?: Status
+                position?: 'left' | 'right'
+                description?: string
+                icon?: string
+                text?: string
+            }
+        }
         let body: string
 
         switch (toolType || toolUse.name) {
@@ -1228,8 +1247,12 @@ export class AgenticChatController implements ChatHandlers {
                       ]
                     : []
                 header = {
-                    icon: 'warning',
-                    iconForegroundStatus: 'warning',
+                    status: {
+                        icon: 'warning',
+                        status: 'warning',
+                        position: 'left',
+                        // TODO: Add `description` if necessary to show a tooltip
+                    },
                     body: 'shell',
                     buttons,
                 }
@@ -1953,7 +1976,8 @@ export class AgenticChatController implements ChatHandlers {
                 return result
             }
 
-            if (chatEvent.assistantResponseEvent) {
+            // make sure to save code reference events
+            if (chatEvent.assistantResponseEvent || chatEvent.codeReferenceEvent) {
                 await streamWriter.write(result.data.chatResult)
             }
 

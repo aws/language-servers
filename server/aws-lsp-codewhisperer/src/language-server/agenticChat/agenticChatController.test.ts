@@ -8,6 +8,7 @@ import * as chokidar from 'chokidar'
 import {
     ChatResponseStream,
     CodeWhispererStreaming,
+    ContentType,
     GenerateAssistantResponseCommandInput,
     SendMessageCommandInput,
 } from '@amzn/codewhisperer-streaming'
@@ -347,6 +348,7 @@ describe('AgenticChatController', () => {
                 body: '\n\nHello World!',
                 messageId: 'mock-message-id',
                 buttons: [],
+                codeReference: [],
                 header: undefined,
             })
         })
@@ -911,6 +913,7 @@ describe('AgenticChatController', () => {
                 additionalMessages: [],
                 body: '\n\nHello World!',
                 messageId: 'mock-message-id',
+                codeReference: [],
                 buttons: [],
                 header: undefined,
             })
@@ -930,6 +933,7 @@ describe('AgenticChatController', () => {
                 body: '\n\nHello World!',
                 messageId: 'mock-message-id',
                 buttons: [],
+                codeReference: [],
                 header: undefined,
             })
         })
@@ -1148,12 +1152,14 @@ describe('AgenticChatController', () => {
                                 relativeFilePath: '1.ts',
                                 startLine: -1,
                                 text: 'text',
+                                type: ContentType.WORKSPACE,
                             },
                             {
                                 endLine: -1,
                                 relativeFilePath: '2.ts',
                                 startLine: -1,
                                 text: 'text2',
+                                type: ContentType.WORKSPACE,
                             },
                         ],
                         useRelevantDocuments: true,

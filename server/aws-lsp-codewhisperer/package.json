@@ -1,6 +1,6 @@
 {
     "name": "@aws/lsp-codewhisperer",
-    "version": "0.0.32",
+    "version": "0.0.33",
     "description": "CodeWhisperer Language Server",
     "main": "out/index.js",
     "repository": {
@@ -28,12 +28,12 @@
     },
     "dependencies": {
         "@amzn/amazon-q-developer-streaming-client": "file:../../core/q-developer-streaming-client/amzn-amazon-q-developer-streaming-client-1.0.0.tgz",
-        "@amzn/codewhisperer-streaming": "file:../../core/codewhisperer-streaming/amzn-codewhisperer-streaming-1.0.0.tgz",
+        "@amzn/codewhisperer-streaming": "file:../../core/codewhisperer-streaming/amzn-codewhisperer-streaming-1.0.6.tgz",
         "@aws-sdk/util-arn-parser": "^3.723.0",
         "@aws-sdk/util-retry": "^3.374.0",
         "@aws/chat-client-ui-types": "^0.1.32",
         "@aws/language-server-runtimes": "^0.2.75",
-        "@aws/lsp-core": "^0.0.3",
+        "@aws/lsp-core": "^0.0.4",
         "@modelcontextprotocol/sdk": "^1.9.0",
         "@smithy/node-http-handler": "^2.5.0",
         "adm-zip": "^0.5.10",

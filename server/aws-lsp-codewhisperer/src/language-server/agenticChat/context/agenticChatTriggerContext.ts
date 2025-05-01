@@ -10,6 +10,8 @@ import {
     AdditionalContentEntry,
     GenerateAssistantResponseCommandInput,
     ChatMessage,
+    ContentType,
+    ProgrammingLanguage,
     EnvState,
 } from '@amzn/codewhisperer-streaming'
 import {
@@ -28,6 +30,7 @@ import { URI } from 'vscode-uri'
 import { LocalProjectContextController } from '../../../shared/localProjectContextController'
 import * as path from 'path'
 import { RelevantTextDocument } from '@amzn/codewhisperer-streaming'
+import { languageByExtension } from '../../../shared/languageDetection'
 import { AgenticChatResultStream } from '../agenticChatResultStream'
 import { ContextInfo } from './contextUtils'
 
@@ -49,6 +52,9 @@ export type RelevantTextDocumentAddition = RelevantTextDocument & LineInfo
 
 // limit for each chunk of @workspace
 export const workspaceChunkMaxSize = 40_960
+
+// limit for the length of additionalContent
+export const additionalContextMaxLength = 100
 
 export interface DocumentReference {
     readonly relativeFilePath: string
@@ -107,7 +113,7 @@ export class AgenticChatTriggerContext {
         const { prompt } = params
         const defaultEditorState = { workspaceFolders: workspaceUtils.getWorkspaceFolderPaths(this.#lsp) }
 
-        const useRelevantDocuments = 'context' in params ? params.context?.some(c => c.command === '@workspace') : false
+        const hasWorkspace = 'context' in params ? params.context?.some(c => c.command === '@workspace') : false
 
         let promptContent = prompt.escapedPrompt ?? prompt.prompt
 
@@ -117,13 +123,51 @@ export class AgenticChatTriggerContext {
             promptContent = promptContent.replace(/\*\*@sage\*\*/g, '@sage')
         }
 
-        if (useRelevantDocuments) {
+        if (hasWorkspace) {
             promptContent = promptContent?.replace(/^@workspace\/?/, '')
         }
 
-        const relevantDocuments = useRelevantDocuments
+        // Get workspace documents if @workspace is used
+        let relevantDocuments = hasWorkspace
             ? await this.#getRelevantDocuments(promptContent ?? '', chatResultStream)
-            : undefined
+            : []
+
+        // Process additionalContent items if present
+        if (additionalContent) {
+            for (const item of additionalContent) {
+                // Determine programming language from file extension or type
+                let programmingLanguage: ProgrammingLanguage | undefined = undefined
+
+                if (item.relativePath) {
+                    const ext = path.extname(item.relativePath).toLowerCase()
+                    const language = languageByExtension[ext]
+
+                    if (language) {
+                        programmingLanguage = { languageName: language }
+                    }
+                }
+
+                const filteredType =
+                    item.type === 'file'
+                        ? ContentType.FILE
+                        : item.type === 'rule' || item.type === 'prompt'
+                          ? ContentType.PROMPT
+                          : item.type === 'code'
+                            ? ContentType.CODE
+                            : undefined
+                // Create the relevant text document
+                const relevantTextDocument: RelevantTextDocumentAddition = {
+                    text: item.innerContext,
+                    relativeFilePath: item.path,
+                    programmingLanguage: programmingLanguage,
+                    type: filteredType,
+                    startLine: item.startLine || -1,
+                    endLine: item.endLine || -1,
+                }
+                relevantDocuments.push(relevantTextDocument)
+            }
+        }
+        const useRelevantDocuments = relevantDocuments.length !== 0
 
         const data: GenerateAssistantResponseCommandInput = {
             conversationState: {
@@ -141,19 +185,17 @@ export class AgenticChatTriggerContext {
                                               programmingLanguage: triggerContext.programmingLanguage,
                                               relativeFilePath: triggerContext.relativeFilePath,
                                           },
-                                          relevantDocuments: relevantDocuments,
+                                          relevantDocuments: useRelevantDocuments ? relevantDocuments : undefined,
                                           useRelevantDocuments: useRelevantDocuments,
                                           ...defaultEditorState,
                                       },
                                       tools,
-                                      additionalContext: additionalContent,
                                       envState: this.#mapPlatformToEnvState(process.platform),
                                   }
                                 : {
                                       tools,
-                                      additionalContext: additionalContent,
                                       editorState: {
-                                          relevantDocuments: relevantDocuments,
+                                          relevantDocuments: useRelevantDocuments ? relevantDocuments : undefined,
                                           useRelevantDocuments: useRelevantDocuments,
                                           ...defaultEditorState,
                                       },
@@ -274,9 +316,13 @@ export class AgenticChatTriggerContext {
                         programmingLanguage: {
                             languageName: chunk.programmingLanguage,
                         },
+                        type: ContentType.WORKSPACE,
                     })
                 } else {
-                    relevantTextDocuments.push(baseDocument)
+                    relevantTextDocuments.push({
+                        ...baseDocument,
+                        type: ContentType.WORKSPACE,
+                    })
                 }
             }
 

@@ -37,6 +37,8 @@ export class TransformHandler {
     private workspace: Workspace
     private logging: Logging
     private runtime: Runtime
+    private cancelPollingEnabled: Boolean = false
+
     constructor(serviceManager: AmazonQTokenServiceManager, workspace: Workspace, logging: Logging, runtime: Runtime) {
         this.serviceManager = serviceManager
         this.workspace = workspace
@@ -306,6 +308,13 @@ export class TransformHandler {
 
         while (status != PollTransformationStatus.TIMEOUT && !failureStates.includes(status)) {
             try {
+                if (this.cancelPollingEnabled) {
+                    // Reset the flag
+                    this.cancelPollingEnabled = false
+                    return {
+                        TransformationJob: response.transformationJob,
+                    } as GetTransformResponse
+                }
                 const apiStartTime = Date.now()
 
                 const getCodeTransformationRequest = {
@@ -391,6 +400,10 @@ export class TransformHandler {
                 Error: errorMessage,
             } as DownloadArtifactsResponse
         }
+    }
+
+    async cancelPollingAsync() {
+        this.cancelPollingEnabled = true
     }
 
     async extractAllEntriesTo(pathContainingArchive: string, zipEntries: AdmZip.IZipEntry[]) {
