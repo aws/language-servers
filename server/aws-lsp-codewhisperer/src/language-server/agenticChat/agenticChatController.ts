@@ -1247,12 +1247,14 @@ export class AgenticChatController implements ChatHandlers {
                       ]
                     : []
                 header = {
-                    status: {
-                        icon: 'warning',
-                        status: 'warning',
-                        position: 'left',
-                        // TODO: Add `description` if necessary to show a tooltip
-                    },
+                    status: requiresAcceptance
+                        ? {
+                              icon: 'warning',
+                              status: 'warning',
+                              position: 'left',
+                              // TODO: Add `description` if necessary to show a tooltip
+                          }
+                        : {},
                     body: 'shell',
                     buttons,
                 }
