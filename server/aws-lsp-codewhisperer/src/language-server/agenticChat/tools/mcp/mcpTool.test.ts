@@ -7,6 +7,7 @@ import { expect } from 'chai'
 import { McpTool } from './mcpTool'
 import { McpManager } from './mcpManager'
 import type { McpToolDefinition } from './mcpTypes'
+import sinon from 'ts-sinon'
 
 describe('McpTool', () => {
     const fakeFeatures = {
@@ -28,22 +29,28 @@ describe('McpTool', () => {
         inputSchema: {},
     }
 
-    afterEach(async () => {
+    beforeEach(async () => {
+        // Tear down any existing singleton so we start fresh
         try {
             await McpManager.instance.close()
         } catch {
-            // ignore
+            // ignore if it wasn't initialized
         }
     })
 
-    it('invoke() throws when server is not connected', async () => {
-        // Initialize McpManager with no config paths → zero servers
-        await McpManager.init([], fakeFeatures)
-
-        const tool = new McpTool(fakeFeatures, definition)
-
+    afterEach(async () => {
+        sinon.restore()
         try {
-            await tool.invoke({}) // should throw
+            await McpManager.instance.close()
+        } catch {}
+    })
+
+    it('invoke() throws when server is not connected', async () => {
+        await McpManager.init([], fakeFeatures)
+        sinon.stub(McpManager.prototype, 'callTool').rejects(new Error(`MCP: server 'nope' not connected`))
+        const tool = new McpTool(fakeFeatures, definition)
+        try {
+            await tool.invoke({})
             throw new Error('Expected invoke() to throw')
         } catch (err: any) {
             expect(err).to.be.instanceOf(Error)
