@@ -4,6 +4,7 @@ import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import { LocalProjectContextController } from '../../shared/localProjectContextController'
 import { languageByExtension } from '../../shared/languageDetection'
 import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
+import { getWorkspaceFolders } from '../../shared/initializeUtils'
 import { URI } from 'vscode-uri'
 
 export const LocalProjectContextServer =
@@ -16,9 +17,10 @@ export const LocalProjectContextServer =
         let localProjectContextEnabled: boolean = false
 
         lsp.addInitializer((params: InitializeParams) => {
+            const workspaceFolders = getWorkspaceFolders(logging, params)
             localProjectContextController = new LocalProjectContextController(
                 params.clientInfo?.name ?? 'unknown',
-                params.workspaceFolders ?? [],
+                workspaceFolders,
                 logging
             )
 
