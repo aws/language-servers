@@ -150,6 +150,7 @@ const initializeChatResponse = (mynahUi: MynahUI, tabId: string, userPrompt?: st
     } else {
         mynahUi.updateStore(tabId, {
             loadingChat: true,
+            cancelButtonWhenLoading: false,
             promptInputDisabledState: true,
         })
     }
@@ -798,6 +799,7 @@ export const createMynahUi = (
 
         mynahUi.updateStore(tabId, {
             loadingChat: false,
+            cancelButtonWhenLoading: false,
             promptInputDisabledState: false,
         })
     }
