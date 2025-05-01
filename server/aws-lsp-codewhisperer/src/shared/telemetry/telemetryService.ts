@@ -434,7 +434,7 @@ export class TelemetryService {
                     cwsprChatSourceLinkCount: additionalParams.chatSourceLinkCount,
                     cwsprChatReferencesCount: additionalParams.chatReferencesCount,
                     cwsprChatFollowUpCount: additionalParams.chatFollowUpCount,
-                    cwsprTimeToFirstChunk: params.timeToFirstChunkMilliseconds,
+                    cwsprChatTimeToFirstChunk: params.timeToFirstChunkMilliseconds,
                     cwsprChatFullResponseLatency: params.fullResponselatency,
                     cwsprChatTimeBetweenChunks: timeBetweenChunks,
                     cwsprChatRequestLength: params.requestLength,

@@ -102,9 +102,12 @@ export class AgenticChatEventParser implements ChatResult {
                 cwsprChatTimeBetweenChunks: [],
             })
         } else {
-            this.#metric.mergeWith({
-                cwsprChatTimeBetweenChunks: [Date.now() - this.#lastChunkTime],
-            })
+            const chatTime = Date.now() - this.#lastChunkTime
+            if (chatTime !== 0) {
+                this.#metric.mergeWith({
+                    cwsprChatTimeBetweenChunks: [chatTime],
+                })
+            }
         }
 
         this.#lastChunkTime = Date.now()
