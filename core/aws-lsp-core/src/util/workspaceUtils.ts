@@ -60,6 +60,7 @@ export async function readDirectoryRecursively(
             const childPath = getEntryPath(entry)
             const childPathParts = childPath.split(path.sep)
             if (childPathParts.some(part => excludeEntries.includes(part))) {
+                features.logging.log(`Skipping path ${childPath} due to match in [${excludeEntries.join(', ')}]`)
                 continue
             }
             results.push(formatter(entry))
