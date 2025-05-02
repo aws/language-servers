@@ -34,6 +34,12 @@ interface QConfigurationSections {
     developerProfiles?: AmazonQDeveloperProfile[]
 }
 
+// Feature flag interface for client capabilities
+interface QClientCapabilities {
+    developerProfiles?: boolean
+    customizationsWithMetadata?: boolean
+}
+
 type QConfigurationResponse =
     | QConfigurationSections
     | QConfigurationSections['customizations']
@@ -44,8 +50,17 @@ export const QConfigurationServerToken =
     ({ credentialsProvider, lsp, logging }) => {
         let amazonQServiceManager: AmazonQTokenServiceManager
         let serverConfigurationProvider: ServerConfigurationProvider
+        let enableCustomizationsWithMetadata = false
 
         lsp.addInitializer((params: InitializeParams) => {
+            // Check for feature flag in client capabilities
+            const qCapabilities = params.initializationOptions?.aws?.awsClientCapabilities?.q as
+                | QClientCapabilities
+                | undefined
+            enableCustomizationsWithMetadata = !!qCapabilities?.customizationsWithMetadata
+
+            logging.debug(`Feature flag enableCustomizationsWithMetadata: ${enableCustomizationsWithMetadata}`)
+
             return {
                 capabilities: {},
                 awsServerCapabilities: {
@@ -77,16 +92,29 @@ export const QConfigurationServerToken =
             ): Promise<QConfigurationResponse | void> => {
                 const section = params.section
 
-                let customizations: Customizations
-                let developerProfiles: AmazonQDeveloperProfile[]
+                let customizations: Customizations | CustomizationWithMetadata[] = []
+                let developerProfiles: AmazonQDeveloperProfile[] = []
 
                 try {
                     switch (section) {
                         case Q_CONFIGURATION_SECTION:
-                            ;[customizations, developerProfiles] = await Promise.all([
-                                serverConfigurationProvider.listAvailableCustomizations(),
-                                serverConfigurationProvider.listAvailableProfiles(token),
-                            ])
+                            if (
+                                enableCustomizationsWithMetadata &&
+                                amazonQServiceManager.getEnableDeveloperProfileSupport()
+                            ) {
+                                logging.debug('Using enhanced customizations with metadata')
+                                // Use the new method to get customizations with metadata
+                                ;[customizations, developerProfiles] = await Promise.all([
+                                    serverConfigurationProvider.listAllAvailableCustomizationsWithMetadata(token),
+                                    serverConfigurationProvider.listAvailableProfiles(token),
+                                ])
+                            } else {
+                                // Use the original method for backward compatibility
+                                ;[customizations, developerProfiles] = await Promise.all([
+                                    serverConfigurationProvider.listAvailableCustomizations(),
+                                    serverConfigurationProvider.listAvailableProfiles(token),
+                                ])
+                            }
 
                             throwIfCancelled(token)
 
@@ -94,7 +122,16 @@ export const QConfigurationServerToken =
                                 ? { customizations, developerProfiles }
                                 : { customizations }
                         case Q_CUSTOMIZATIONS_CONFIGURATION_SECTION:
-                            customizations = await serverConfigurationProvider.listAvailableCustomizations()
+                            if (
+                                enableCustomizationsWithMetadata &&
+                                amazonQServiceManager.getEnableDeveloperProfileSupport()
+                            ) {
+                                logging.debug('Using enhanced customizations with metadata for customizations section')
+                                customizations =
+                                    await serverConfigurationProvider.listAllAvailableCustomizationsWithMetadata(token)
+                            } else {
+                                customizations = await serverConfigurationProvider.listAvailableCustomizations()
+                            }
 
                             return customizations
                         case Q_DEVELOPER_PROFILES_CONFIGURATION_SECTION:

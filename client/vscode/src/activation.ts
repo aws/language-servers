@@ -109,6 +109,7 @@ export async function activateDocumentsLanguageServer(extensionContext: Extensio
                 awsClientCapabilities: {
                     q: {
                         developerProfiles: process.env.ENABLE_AMAZON_Q_PROFILES === 'true',
+                        customizationsWithMetadata: process.env.ENABLE_CUSTOMIZATIONS_WITH_METADATA === 'true',
                     },
                     window: {
                         notifications: true,
