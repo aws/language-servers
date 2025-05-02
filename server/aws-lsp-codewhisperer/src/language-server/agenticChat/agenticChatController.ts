@@ -212,9 +212,9 @@ export class AgenticChatController implements ChatHandlers {
             }
             params.buttonId === 'reject-shell-command'
                 ? (() => {
-                      handler.reject(new ToolApprovalException('Command was rejected.', true))
-                      this.#stoppedToolUses.add(messageId)
-                  })()
+                    handler.reject(new ToolApprovalException('Command was rejected.', true))
+                    this.#stoppedToolUses.add(messageId)
+                })()
                 : handler.resolve()
             return {
                 success: true,
@@ -288,7 +288,7 @@ export class AgenticChatController implements ChatHandlers {
             const updatedDetails = { ...fileList.details }
             for (const filePath of fileList.filePaths) {
                 if (updatedDetails[filePath]) {
-                    ;(updatedDetails[filePath] as any) = {
+                    ; (updatedDetails[filePath] as any) = {
                         ...updatedDetails[filePath],
                         clickable: false,
                     } as Partial<FileDetails>
@@ -616,7 +616,7 @@ export class AgenticChatController implements ChatHandlers {
                     codeReference: result.data.chatResult.codeReference,
                     relatedContent:
                         result.data.chatResult.relatedContent?.content &&
-                        result.data.chatResult.relatedContent.content.length > 0
+                            result.data.chatResult.relatedContent.content.length > 0
                             ? result.data?.chatResult.relatedContent
                             : undefined,
                     toolUses: Object.keys(result.data?.toolUses!)
@@ -1163,12 +1163,12 @@ export class AgenticChatController implements ChatHandlers {
                     ...(isAccept
                         ? {}
                         : {
-                              status: {
-                                  status: 'error',
-                                  icon: 'cancel',
-                                  text: 'Rejected',
-                              },
-                          }),
+                            status: {
+                                status: 'error',
+                                icon: 'cancel',
+                                text: 'Rejected',
+                            },
+                        }),
                     buttons: isAccept ? [{ id: 'stop-shell-command', text: 'Stop', icon: 'stop' }] : [],
                 },
             }
@@ -1304,26 +1304,26 @@ export class AgenticChatController implements ChatHandlers {
             case 'executeBash':
                 buttons = requiresAcceptance
                     ? [
-                          {
-                              id: 'run-shell-command',
-                              text: 'Run',
-                              icon: 'play',
-                          },
-                          {
-                              id: 'reject-shell-command',
-                              text: 'Reject',
-                              icon: 'cancel',
-                          },
-                      ]
+                        {
+                            id: 'run-shell-command',
+                            text: 'Run',
+                            icon: 'play',
+                        },
+                        {
+                            id: 'reject-shell-command',
+                            text: 'Reject',
+                            icon: 'cancel',
+                        },
+                    ]
                     : []
                 header = {
                     status: requiresAcceptance
                         ? {
-                              icon: 'warning',
-                              status: 'warning',
-                              position: 'left',
-                              // TODO: Add `description` if necessary to show a tooltip
-                          }
+                            icon: 'warning',
+                            status: 'warning',
+                            position: 'left',
+                            // TODO: Add `description` if necessary to show a tooltip
+                        }
                         : {},
                     body: 'shell',
                     buttons,
@@ -1476,8 +1476,8 @@ export class AgenticChatController implements ChatHandlers {
                 toolUse.name === 'fsRead'
                     ? `${itemCount} file${itemCount > 1 ? 's' : ''} read`
                     : toolUse.name === 'fileSearch'
-                      ? `${itemCount} ${itemCount === 1 ? 'directory' : 'directories'} searched`
-                      : `${itemCount} ${itemCount === 1 ? 'directory' : 'directories'} listed`
+                        ? `${itemCount} ${itemCount === 1 ? 'directory' : 'directories'} searched`
+                        : `${itemCount} ${itemCount === 1 ? 'directory' : 'directories'} listed`
         }
         const details: Record<string, FileDetails> = {}
         for (const item of filePathsPushed) {
@@ -1710,9 +1710,9 @@ export class AgenticChatController implements ChatHandlers {
 
             return result.success
                 ? {
-                      ...result.data.chatResult,
-                      requestId: response.$metadata.requestId,
-                  }
+                    ...result.data.chatResult,
+                    requestId: response.$metadata.requestId,
+                }
                 : new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, result.error)
         } catch (err) {
             this.#log(
