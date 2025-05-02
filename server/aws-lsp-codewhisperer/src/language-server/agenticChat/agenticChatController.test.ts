@@ -1149,6 +1149,7 @@ describe('AgenticChatController', () => {
                         relevantDocuments: [
                             {
                                 endLine: -1,
+                                path: '/test/1.ts',
                                 relativeFilePath: '1.ts',
                                 startLine: -1,
                                 text: 'text',
@@ -1156,6 +1157,7 @@ describe('AgenticChatController', () => {
                             },
                             {
                                 endLine: -1,
+                                path: '/test/2.ts',
                                 relativeFilePath: '2.ts',
                                 startLine: -1,
                                 text: 'text2',

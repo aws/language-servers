@@ -1962,7 +1962,7 @@ export class AgenticChatController implements ChatHandlers {
 
         // Display context transparency list once at the beginning of response
         // Use a flag to track if contextList has been sent already to avoid ux flickering
-        if (contextList && !session.contextListSent) {
+        if (contextList?.filePaths && contextList.filePaths.length > 0 && !session.contextListSent) {
             await streamWriter.write({ body: '', contextList })
             session.contextListSent = true
         }
