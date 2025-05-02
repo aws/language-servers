@@ -1937,7 +1937,7 @@ export class AgenticChatController implements ChatHandlers {
                             body: `\`\`\`shell\n${command}\n\`\`\``,
                             header: {
                                 body: 'shell',
-                                status: { status: 'info', icon: 'info', text: 'Ignored' },
+                                status: { icon: 'block', text: 'Ignored' },
                                 buttons: [],
                             },
                         },
