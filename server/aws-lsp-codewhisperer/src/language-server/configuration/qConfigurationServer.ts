@@ -103,7 +103,6 @@ export const QConfigurationServerToken =
                                 amazonQServiceManager.getEnableDeveloperProfileSupport()
                             ) {
                                 logging.debug('Using enhanced customizations with metadata')
-                                // Use the new method to get customizations with metadata
                                 ;[customizations, developerProfiles] = await Promise.all([
                                     serverConfigurationProvider.listAllAvailableCustomizationsWithMetadata(token),
                                     serverConfigurationProvider.listAvailableProfiles(token),
@@ -130,6 +129,7 @@ export const QConfigurationServerToken =
                                 customizations =
                                     await serverConfigurationProvider.listAllAvailableCustomizationsWithMetadata(token)
                             } else {
+                                // Use the original method for backward compatibility
                                 customizations = await serverConfigurationProvider.listAvailableCustomizations()
                             }
 
@@ -242,7 +242,6 @@ export class ServerConfigurationProvider {
 
     async listAllAvailableCustomizationsWithMetadata(token: CancellationToken): Promise<CustomizationWithMetadata[]> {
         try {
-            // First fetch all available profiles
             const profiles = await this.listAllAvailableProfilesHandler({
                 connectionType: this.credentialsProvider.getConnectionType(),
                 logging: this.logging,
@@ -253,43 +252,43 @@ export class ServerConfigurationProvider {
                 throw new ResponseError(LSPErrorCodes.RequestCancelled, 'Request cancelled')
             }
 
-            // Initialize result array
-            const allCustomizations: CustomizationWithMetadata[] = []
+            // Filter out profiles without region information
+            const validProfiles = profiles.filter(profile => profile.identityDetails?.region)
 
-            // For each profile, fetch customizations
-            for (const profile of profiles) {
-                if (token.isCancellationRequested) {
-                    throw new ResponseError(LSPErrorCodes.RequestCancelled, 'Request cancelled')
-                }
-
-                const region = profile.identityDetails?.region
-                if (!region) {
-                    continue
-                }
-
-                try {
-                    const customizations = await this.listAvailableCustomizationsForProfileAndRegion(
-                        profile.arn,
-                        region
-                    )
-
-                    // Add metadata to each customization
-                    const customizationsWithMetadata = customizations.map(customization => ({
-                        ...customization,
-                        region,
-                        profileArn: profile.arn,
-                    }))
-
-                    allCustomizations.push(...customizationsWithMetadata)
-                } catch (error) {
-                    this.logging.error(
-                        `Failed to fetch customizations for profile ${profile.arn} in region ${region}: ${error}`
-                    )
-                    // Continue with other profiles even if one fails
-                }
+            if (validProfiles.length === 0) {
+                return []
             }
 
-            return allCustomizations
+            // Create an array of promises for fetching customizations for each profile
+            const customizationPromises = validProfiles.map(profile => {
+                const region = profile.identityDetails!.region
+                return this.listAvailableCustomizationsForProfileAndRegion(profile.arn, region)
+                    .then(customizations => {
+                        if (token.isCancellationRequested) {
+                            throw new ResponseError(LSPErrorCodes.RequestCancelled, 'Request cancelled')
+                        }
+
+                        return customizations.map(customization => ({
+                            ...customization,
+                            region,
+                            profileArn: profile.arn,
+                        }))
+                    })
+                    .catch(error => {
+                        if (error instanceof ResponseError) {
+                            throw error
+                        }
+
+                        this.logging.error(
+                            `Failed to fetch customizations for profile ${profile.arn} in region ${region}: ${error}`
+                        )
+                        return [] as CustomizationWithMetadata[]
+                    })
+            })
+
+            const results = await Promise.all(customizationPromises)
+
+            return results.flat()
         } catch (error) {
             if (error instanceof ResponseError) {
                 throw error
