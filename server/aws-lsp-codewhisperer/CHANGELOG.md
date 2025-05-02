@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.0.34](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.33...lsp-codewhisperer/v0.0.34) (2025-05-02)
+
+
+### Features
+
+* add request id to default log level ([#1221](https://github.com/aws/language-servers/issues/1221)) ([fe31f26](https://github.com/aws/language-servers/commit/fe31f266eb481d9899c4924f878fe49f6bfe94aa))
+* **amazonq:** add error code handling for transformation jobs ([#1174](https://github.com/aws/language-servers/issues/1174)) ([634587c](https://github.com/aws/language-servers/commit/634587c93f08315f0676608b6f8687d309104cac))
+
+
+### Bug Fixes
+
+* add support for determing workspace folder with root uri/path on initialize ([#1210](https://github.com/aws/language-servers/issues/1210)) ([5fd3174](https://github.com/aws/language-servers/commit/5fd3174f386fd0e97b8f631d26f457f574d145c4))
+* fix for permission case for execute bash ([66612cd](https://github.com/aws/language-servers/commit/66612cd5fe625dba6d951bc300e538e896e5f392))
+* fix for permission case for execute bash ([#1220](https://github.com/aws/language-servers/issues/1220)) ([66612cd](https://github.com/aws/language-servers/commit/66612cd5fe625dba6d951bc300e538e896e5f392))
+* fix the extra line on executeBash and wrong warning msg for outside workspace ([#1240](https://github.com/aws/language-servers/issues/1240)) ([eacc047](https://github.com/aws/language-servers/commit/eacc0475f2fe0362c155a2bd6be1715b2561d356))
+* only keep toolUses with `stop` = true in history ([#1235](https://github.com/aws/language-servers/issues/1235)) ([1edb6af](https://github.com/aws/language-servers/commit/1edb6af0425a3613d7dccb795b7d8178bf1c803c))
+* removing warning icon for shell commands ([#1233](https://github.com/aws/language-servers/issues/1233)) ([18b2a18](https://github.com/aws/language-servers/commit/18b2a183ddeb3b58e3ebc9931cea08c1cf781bb7))
+* typo in cwsprChatTimeToFirstChunk and remove all zeros ([#1222](https://github.com/aws/language-servers/issues/1222)) ([4c940bc](https://github.com/aws/language-servers/commit/4c940bc20a3417e39d66ea73532f99a312d05e35))
+* update undo-all-changes button icon to undo ([#1238](https://github.com/aws/language-servers/issues/1238)) ([6ebd5eb](https://github.com/aws/language-servers/commit/6ebd5eb8896a487189b79b1bbf1612ec9e95d064))
+
 ## [0.0.33](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.32...lsp-codewhisperer/v0.0.33) (2025-05-01)
 
 
