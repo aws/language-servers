@@ -103,12 +103,17 @@ export const QConfigurationServerToken =
                                 amazonQServiceManager.getEnableDeveloperProfileSupport()
                             ) {
                                 logging.debug('Using enhanced customizations with metadata')
-                                ;[customizations, developerProfiles] = await Promise.all([
-                                    serverConfigurationProvider.listAllAvailableCustomizationsWithMetadata(token),
-                                    serverConfigurationProvider.listAvailableProfiles(token),
-                                ])
+
+                                // Fetch profiles first
+                                developerProfiles = await serverConfigurationProvider.listAvailableProfiles(token)
+
+                                // Then use those profiles to fetch customizations
+                                customizations =
+                                    await serverConfigurationProvider.listAllAvailableCustomizationsWithMetadata(
+                                        developerProfiles,
+                                        token
+                                    )
                             } else {
-                                // Use the original method for backward compatibility
                                 ;[customizations, developerProfiles] = await Promise.all([
                                     serverConfigurationProvider.listAvailableCustomizations(),
                                     serverConfigurationProvider.listAvailableProfiles(token),
@@ -125,11 +130,18 @@ export const QConfigurationServerToken =
                                 enableCustomizationsWithMetadata &&
                                 amazonQServiceManager.getEnableDeveloperProfileSupport()
                             ) {
-                                logging.debug('Using enhanced customizations with metadata for customizations section')
+                                logging.debug('Using enhanced customizations with metadata')
+
+                                // Fetch profiles first
+                                const profiles = await serverConfigurationProvider.listAvailableProfiles(token)
+
+                                // Then use those profiles to fetch customizations
                                 customizations =
-                                    await serverConfigurationProvider.listAllAvailableCustomizationsWithMetadata(token)
+                                    await serverConfigurationProvider.listAllAvailableCustomizationsWithMetadata(
+                                        profiles,
+                                        token
+                                    )
                             } else {
-                                // Use the original method for backward compatibility
                                 customizations = await serverConfigurationProvider.listAvailableCustomizations()
                             }
 
@@ -240,31 +252,27 @@ export class ServerConfigurationProvider {
         }
     }
 
-    async listAllAvailableCustomizationsWithMetadata(token: CancellationToken): Promise<CustomizationWithMetadata[]> {
+    async listAllAvailableCustomizationsWithMetadata(
+        availableProfiles: AmazonQDeveloperProfile[],
+        token?: CancellationToken
+    ): Promise<CustomizationWithMetadata[]> {
         try {
-            const profiles = await this.listAllAvailableProfilesHandler({
-                connectionType: this.credentialsProvider.getConnectionType(),
-                logging: this.logging,
-                token: token,
-            })
-
-            if (token.isCancellationRequested) {
+            if (token?.isCancellationRequested) {
                 throw new ResponseError(LSPErrorCodes.RequestCancelled, 'Request cancelled')
             }
 
             // Filter out profiles without region information
-            const validProfiles = profiles.filter(profile => profile.identityDetails?.region)
+            const validProfiles = availableProfiles.filter(profile => profile.identityDetails?.region)
 
             if (validProfiles.length === 0) {
                 return []
             }
 
-            // Create an array of promises for fetching customizations for each profile
             const customizationPromises = validProfiles.map(profile => {
                 const region = profile.identityDetails!.region
                 return this.listAvailableCustomizationsForProfileAndRegion(profile.arn, region)
                     .then(customizations => {
-                        if (token.isCancellationRequested) {
+                        if (token?.isCancellationRequested) {
                             throw new ResponseError(LSPErrorCodes.RequestCancelled, 'Request cancelled')
                         }
 

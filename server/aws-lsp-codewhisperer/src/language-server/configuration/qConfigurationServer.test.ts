@@ -9,6 +9,7 @@ import {
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import { CodeWhispererServiceToken } from '../../shared/codeWhispererService'
 import {
+    CancellationToken,
     CancellationTokenSource,
     InitializeParams,
     LSPErrorCodes,
@@ -153,6 +154,7 @@ describe('QConfigurationServerToken', () => {
 
     it('uses listAllAvailableCustomizationsWithMetadata when feature flag is enabled', async () => {
         await setupTest(true, true)
+        listAvailableProfilesStub.resolves(mockProfiles)
 
         await testFeatures.lsp.extensions.onGetConfigurationFromServer.firstCall.firstArg(
             { section: Q_CONFIGURATION_SECTION },
@@ -162,6 +164,9 @@ describe('QConfigurationServerToken', () => {
         sinon.assert.notCalled(listAvailableCustomizationsStub)
         sinon.assert.calledOnce(listAllAvailableCustomizationsWithMetadataStub)
         sinon.assert.calledOnce(listAvailableProfilesStub)
+
+        // Verify profiles are passed to the customizations method
+        sinon.assert.calledWith(listAllAvailableCustomizationsWithMetadataStub, mockProfiles, sinon.match.any)
     })
 
     it('uses listAvailableCustomizations when feature flag is disabled', async () => {
@@ -192,6 +197,7 @@ describe('QConfigurationServerToken', () => {
 
     it('uses listAllAvailableCustomizationsWithMetadata for customizations section when feature flag is enabled', async () => {
         await setupTest(true, true)
+        listAvailableProfilesStub.resolves(mockProfiles)
 
         await testFeatures.lsp.extensions.onGetConfigurationFromServer.firstCall.firstArg(
             { section: Q_CUSTOMIZATIONS_CONFIGURATION_SECTION },
@@ -200,7 +206,10 @@ describe('QConfigurationServerToken', () => {
 
         sinon.assert.notCalled(listAvailableCustomizationsStub)
         sinon.assert.calledOnce(listAllAvailableCustomizationsWithMetadataStub)
-        sinon.assert.notCalled(listAvailableProfilesStub)
+        sinon.assert.calledOnce(listAvailableProfilesStub)
+
+        // Verify profiles are passed to the customizations method
+        sinon.assert.calledWith(listAllAvailableCustomizationsWithMetadataStub, mockProfiles, sinon.match.any)
     })
 })
 
@@ -367,6 +376,7 @@ describe('ServerConfigurationProvider', () => {
                 .resolves([{ arn: 'customization3', name: 'Customization 3' }])
 
             const result = await serverConfigurationProvider.listAllAvailableCustomizationsWithMetadata(
+                mockProfiles,
                 tokenSource.token
             )
 
@@ -389,8 +399,41 @@ describe('ServerConfigurationProvider', () => {
             })
 
             // Verify the stubs were called correctly
-            sinon.assert.calledOnce(listAllAvailableProfilesHandlerStub)
+            sinon.assert.notCalled(listAllAvailableProfilesHandlerStub)
             sinon.assert.calledTwice(listAvailableCustomizationsForProfileAndRegionStub)
+        })
+
+        it('uses provided profiles instead of fetching them', async () => {
+            // Setup stub for listAvailableCustomizationsForProfileAndRegion
+            const listAvailableCustomizationsForProfileAndRegionStub = sinon.stub(
+                serverConfigurationProvider,
+                'listAvailableCustomizationsForProfileAndRegion'
+            )
+
+            // Return different customizations for each profile
+            listAvailableCustomizationsForProfileAndRegionStub
+                .withArgs(mockProfiles[0].arn, mockProfiles[0].identityDetails!.region)
+                .resolves([{ arn: 'customization1', name: 'Customization 1' }])
+
+            // Call with provided profiles
+            const result = await serverConfigurationProvider.listAllAvailableCustomizationsWithMetadata(
+                [mockProfiles[0]], // Only pass the first profile
+                tokenSource.token
+            )
+
+            // Verify the results
+            assert.strictEqual(result.length, 1)
+            assert.deepStrictEqual(result[0], {
+                arn: 'customization1',
+                name: 'Customization 1',
+                region: 'us-east-1',
+                profileArn: mockProfiles[0].arn,
+            })
+
+            // Verify the profile handler was NOT called
+            sinon.assert.notCalled(listAllAvailableProfilesHandlerStub)
+            // Verify only one customization call was made
+            sinon.assert.calledOnce(listAvailableCustomizationsForProfileAndRegionStub)
         })
 
         it('continues processing if fetching customizations for one profile fails', async () => {
@@ -411,6 +454,7 @@ describe('ServerConfigurationProvider', () => {
                 .rejects(new Error('Failed to fetch customizations'))
 
             const result = await serverConfigurationProvider.listAllAvailableCustomizationsWithMetadata(
+                mockProfiles,
                 tokenSource.token
             )
 
@@ -435,7 +479,10 @@ describe('ServerConfigurationProvider', () => {
             tokenSource.cancel()
 
             try {
-                await serverConfigurationProvider.listAllAvailableCustomizationsWithMetadata(tokenSource.token)
+                await serverConfigurationProvider.listAllAvailableCustomizationsWithMetadata(
+                    mockProfiles,
+                    tokenSource.token
+                )
                 assert.fail('Expected method to throw')
             } catch (err) {
                 const responseError = err as ResponseError<any>
