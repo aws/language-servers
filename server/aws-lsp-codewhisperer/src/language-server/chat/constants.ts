@@ -31,7 +31,7 @@ export const HELP_MESSAGE = `I'm Amazon Q, a generative AI assistant. Learn more
 
 export const DEFAULT_HELP_FOLLOW_UP_PROMPT = 'How can Amazon Q help me?'
 
-export const DEFAULT_EXCLUDE_PATTERNS = [
+export const DEFAULT_EXCLUDE_ENTRIES = [
     // Dependency directories
     'node_modules',
     // Build outputs
