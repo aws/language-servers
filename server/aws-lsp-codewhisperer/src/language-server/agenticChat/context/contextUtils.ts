@@ -63,6 +63,16 @@ export const getNewPromptFilePath = (promptName: string): string => {
     return finalPath
 }
 
+/**
+ * Merges a RelevantTextDocumentAddition array into a FileList, which is used to display list of context files.
+ * This function combines document fragments from the same file, merging overlapping
+ * or consecutive line ranges to create a more compact representation.
+ *
+ * @param documents - Array of RelevantTextDocumentAddition objects containing file paths and line ranges
+ * @returns A FileList object with merged file paths and consolidated line ranges
+ *
+ * Ported from https://github.com/aws/aws-toolkit-vscode/blob/master/packages/core/src/codewhispererChat/controllers/chat/controller.ts#L1239
+ */
 export function mergeRelevantTextDocuments(documents: RelevantTextDocumentAddition[]): FileList {
     if (documents.length === 0) {
         return { filePaths: [], details: {} }
