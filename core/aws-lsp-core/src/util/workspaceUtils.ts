@@ -7,19 +7,19 @@ import { CancellationError } from './awsError'
 type ElementType<T> = T extends (infer U)[] ? U : never
 type Dirent = ElementType<Awaited<ReturnType<Features['workspace']['fs']['readdir']>>>
 
-// Port of https://github.com/aws/aws-toolkit-vscode/blob/dfee9f7a400e677e91a75e9c20d9515a52a6fad4/packages/core/src/shared/utilities/workspaceUtils.ts#L699
 export async function readDirectoryRecursively(
     features: Pick<Features, 'workspace' | 'logging'> & Partial<Features>,
     folderPath: string,
     options?: {
         maxDepth?: number
-        excludePatterns?: (string | RegExp)[]
+        excludeEntries?: string[]
         customFormatCallback?: (entry: Dirent) => string
         failOnError?: boolean
     },
     token?: CancellationToken
 ): Promise<string[]> {
     const dirExists = await features.workspace.fs.exists(folderPath)
+    const excludeEntries = options?.excludeEntries ?? []
     if (!dirExists) {
         throw new Error(`Directory does not exist: ${folderPath}`)
     }
@@ -58,7 +58,8 @@ export async function readDirectoryRecursively(
         }
         for (const entry of entries) {
             const childPath = getEntryPath(entry)
-            if (options?.excludePatterns?.some(pattern => new RegExp(pattern).test(childPath))) {
+            if (excludeEntries.includes(entry.name)) {
+                features.logging.log(`Skipping path ${childPath} due to match in [${excludeEntries.join(', ')}]`)
                 continue
             }
             results.push(formatter(entry))

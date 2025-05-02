@@ -3,8 +3,7 @@ import { CommandValidation, InvokeOutput, requiresPathAcceptance, validatePath }
 import { workspaceUtils } from '@aws/lsp-core'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 import { sanitize } from '@aws/lsp-core/out/util/path'
-import { DEFAULT_EXCLUDE_PATTERNS } from '../../chat/constants'
-import { getWorkspaceFolderPaths } from '@aws/lsp-core/out/util/workspaceUtils'
+import { DEFAULT_EXCLUDE_ENTRIES } from '../../chat/constants'
 
 export interface FileSearchParams {
     path: string
@@ -79,7 +78,7 @@ export class FileSearch {
             const listing = await workspaceUtils.readDirectoryRecursively(
                 { workspace: this.workspace, logging: this.logging },
                 path,
-                { maxDepth: params.maxDepth, excludePatterns: DEFAULT_EXCLUDE_PATTERNS }
+                { maxDepth: params.maxDepth, excludeEntries: DEFAULT_EXCLUDE_ENTRIES }
             )
 
             // Create regex pattern for filtering
