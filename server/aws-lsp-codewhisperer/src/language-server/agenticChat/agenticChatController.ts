@@ -1262,7 +1262,7 @@ export class AgenticChatController implements ChatHandlers {
                     buttons,
                 }
                 const commandString = (toolUse.input as unknown as ExecuteBashParams).command
-                body = '```shell\n' + commandString + '\n'
+                body = '```shell\n' + commandString
                 break
 
             case 'fsWrite':
