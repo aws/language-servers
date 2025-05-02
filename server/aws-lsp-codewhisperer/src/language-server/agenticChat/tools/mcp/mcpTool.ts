@@ -34,7 +34,11 @@ export class McpTool {
     }
 
     public requiresAcceptance(_input: any): CommandValidation {
-        return { requiresAcceptance: false }
+        // todo: read from config
+        return {
+            requiresAcceptance: true,
+            warning: `About to invoke MCP tool “${this.def.toolName}”. Do you want to proceed?`,
+        }
     }
 
     public async invoke(input: any): Promise<InvokeOutput> {

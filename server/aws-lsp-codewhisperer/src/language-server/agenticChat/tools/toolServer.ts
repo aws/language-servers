@@ -72,6 +72,7 @@ export const McpToolsServer: Server = ({ workspace, logging, lsp, agent }) => {
             const namespaced = `${def.serverName}_${def.toolName}`
             const tool = new McpTool({ logging, workspace, lsp }, def)
 
+            //todo: handle enable/disable here
             agent.addTool(
                 { name: namespaced, description: baseSpec.description, inputSchema: baseSpec.inputSchema },
                 (input: any) => tool.invoke(input)

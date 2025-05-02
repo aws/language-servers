@@ -121,6 +121,9 @@ import {
 } from './constants'
 import { URI } from 'vscode-uri'
 import { AgenticChatError, customerFacingErrorCodes, unactionableErrorCodes } from './errors'
+import { McpManager } from './tools/mcp/mcpManager'
+import { McpTool } from './tools/mcp/mcpTool'
+import { processMcpToolUseMessage } from './tools/mcp/mcpUtils'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -209,9 +212,9 @@ export class AgenticChatController implements ChatHandlers {
             }
             params.buttonId === 'reject-shell-command'
                 ? (() => {
-                      handler.reject(new ToolApprovalException('Command was rejected.', true))
-                      this.#stoppedToolUses.add(messageId)
-                  })()
+                    handler.reject(new ToolApprovalException('Command was rejected.', true))
+                    this.#stoppedToolUses.add(messageId)
+                })()
                 : handler.resolve()
             return {
                 success: true,
@@ -285,7 +288,7 @@ export class AgenticChatController implements ChatHandlers {
             const updatedDetails = { ...fileList.details }
             for (const filePath of fileList.filePaths) {
                 if (updatedDetails[filePath]) {
-                    ;(updatedDetails[filePath] as any) = {
+                    ; (updatedDetails[filePath] as any) = {
                         ...updatedDetails[filePath],
                         clickable: false,
                     } as Partial<FileDetails>
@@ -613,7 +616,7 @@ export class AgenticChatController implements ChatHandlers {
                     codeReference: result.data.chatResult.codeReference,
                     relatedContent:
                         result.data.chatResult.relatedContent?.content &&
-                        result.data.chatResult.relatedContent.content.length > 0
+                            result.data.chatResult.relatedContent.content.length > 0
                             ? result.data?.chatResult.relatedContent
                             : undefined,
                     toolUses: Object.keys(result.data?.toolUses!)
@@ -807,13 +810,31 @@ export class AgenticChatController implements ChatHandlers {
                     case 'codeSearch':
                         // no need to write tool message for code search.
                         break
+                    // — DEFAULT ⇒ MCP tools
                     default:
-                        this.#features.logging.warn(`Recieved unrecognized tool: ${toolUse.name}`)
-                        await chatResultStream.writeResultBlock({
-                            type: 'tool',
-                            body: `${executeToolMessage(toolUse)}`,
-                            messageId: toolUse.toolUseId,
-                        })
+                        // toolUse.name is in format <server>_<tool>
+                        const toolName = toolUse.name.split('_').slice(1).join('_')
+                        const def = McpManager.instance.getAllTools().find(d => d.toolName === toolName)
+                        if (def) {
+                            const mcpTool = new McpTool(this.#features, def)
+                            const { requiresAcceptance, warning } = await mcpTool.requiresAcceptance(toolUse.input)
+                            if (requiresAcceptance) {
+                                const confirmation = this.#processToolConfirmation(toolUse, requiresAcceptance, warning)
+                                cachedButtonBlockId = await chatResultStream.writeResultBlock(confirmation)
+                                await this.waitForToolApproval(toolUse, chatResultStream, cachedButtonBlockId, session)
+                            }
+
+                            await chatResultStream.writeResultBlock({
+                                type: 'tool',
+                                body: `${executeToolMessage(toolUse)}`,
+                                messageId: toolUse.toolUseId,
+                                header: {
+                                    icon: 'tools',
+                                    body: def.toolName || toolUse.name,
+                                },
+                            })
+                            break
+                        }
                         break
                 }
 
@@ -884,13 +905,26 @@ export class AgenticChatController implements ChatHandlers {
                         this.#telemetryController.emitInteractWithAgenticChat('GeneratedDiff', tabId)
                         await chatResultStream.writeResultBlock(chatResult)
                         break
+                    // — DEFAULT ⇒ MCP tools
                     default:
-                        this.#features.logging.warn(`Processing unrecognized tool: ${toolUse.name}`)
-                        await chatResultStream.writeResultBlock({
-                            type: 'tool',
-                            body: toolResultMessage(toolUse, result),
-                            messageId: toolUse.toolUseId,
-                        })
+                        const def = McpManager.instance
+                            .getAllTools()
+                            .find(d => `${d.serverName}_${d.toolName}` === toolUse.name)
+                        if (def) {
+                            const message = toolResultMessage(toolUse, result)
+                            const messageBody = processMcpToolUseMessage(message)
+                            await chatResultStream.writeResultBlock({
+                                type: 'tool',
+                                messageId: toolUse.toolUseId,
+                                body: messageBody,
+                            })
+                        } else {
+                            await chatResultStream.writeResultBlock({
+                                type: 'tool',
+                                messageId: toolUse.toolUseId,
+                                body: toolResultMessage(toolUse, result),
+                            })
+                        }
                         break
                 }
                 this.#updateUndoAllState(toolUse, session)
@@ -1129,12 +1163,12 @@ export class AgenticChatController implements ChatHandlers {
                     ...(isAccept
                         ? {}
                         : {
-                              status: {
-                                  status: 'error',
-                                  icon: 'cancel',
-                                  text: 'Rejected',
-                              },
-                          }),
+                            status: {
+                                status: 'error',
+                                icon: 'cancel',
+                                text: 'Rejected',
+                            },
+                        }),
                     buttons: isAccept ? [{ id: 'stop-shell-command', text: 'Stop', icon: 'stop' }] : [],
                 },
             }
@@ -1270,26 +1304,26 @@ export class AgenticChatController implements ChatHandlers {
             case 'executeBash':
                 buttons = requiresAcceptance
                     ? [
-                          {
-                              id: 'run-shell-command',
-                              text: 'Run',
-                              icon: 'play',
-                          },
-                          {
-                              id: 'reject-shell-command',
-                              text: 'Reject',
-                              icon: 'cancel',
-                          },
-                      ]
+                        {
+                            id: 'run-shell-command',
+                            text: 'Run',
+                            icon: 'play',
+                        },
+                        {
+                            id: 'reject-shell-command',
+                            text: 'Reject',
+                            icon: 'cancel',
+                        },
+                    ]
                     : []
                 header = {
                     status: requiresAcceptance
                         ? {
-                              icon: 'warning',
-                              status: 'warning',
-                              position: 'left',
-                              // TODO: Add `description` if necessary to show a tooltip
-                          }
+                            icon: 'warning',
+                            status: 'warning',
+                            position: 'left',
+                            // TODO: Add `description` if necessary to show a tooltip
+                        }
                         : {},
                     body: 'shell',
                     buttons,
@@ -1319,7 +1353,8 @@ export class AgenticChatController implements ChatHandlers {
 
             case 'fsRead':
             case 'listDirectory':
-            default:
+            case 'fileSearch':
+            case 'codeSearch':
                 buttons = [
                     {
                         id: 'allow-tools',
@@ -1337,6 +1372,25 @@ export class AgenticChatController implements ChatHandlers {
                 // ⚠️ Warning: This accesses files outside the workspace
                 const readFilePath = (toolUse.input as unknown as FsReadParams | ListDirectoryParams).path
                 body = `I need permission to read files and list directories outside the workspace.\n\`${readFilePath}\``
+                break
+            // — DEFAULT ⇒ MCP tools
+            default:
+                buttons = [
+                    {
+                        id: 'allow-tools',
+                        text: 'Allow',
+                        icon: 'ok',
+                        status: 'clear',
+                    },
+                ]
+                header = {
+                    icon: 'tools',
+                    iconForegroundStatus: 'warning',
+                    body: `#### MCP tool: ${toolUse.name}`,
+                    buttons,
+                }
+                const argsJson = JSON.stringify(toolUse.input, null, 2)
+                body = '```json\n' + argsJson + '\n```'
                 break
         }
 
@@ -1422,8 +1476,8 @@ export class AgenticChatController implements ChatHandlers {
                 toolUse.name === 'fsRead'
                     ? `${itemCount} file${itemCount > 1 ? 's' : ''} read`
                     : toolUse.name === 'fileSearch'
-                      ? `${itemCount} ${itemCount === 1 ? 'directory' : 'directories'} searched`
-                      : `${itemCount} ${itemCount === 1 ? 'directory' : 'directories'} listed`
+                        ? `${itemCount} ${itemCount === 1 ? 'directory' : 'directories'} searched`
+                        : `${itemCount} ${itemCount === 1 ? 'directory' : 'directories'} listed`
         }
         const details: Record<string, FileDetails> = {}
         for (const item of filePathsPushed) {
@@ -1656,9 +1710,9 @@ export class AgenticChatController implements ChatHandlers {
 
             return result.success
                 ? {
-                      ...result.data.chatResult,
-                      requestId: response.$metadata.requestId,
-                  }
+                    ...result.data.chatResult,
+                    requestId: response.$metadata.requestId,
+                }
                 : new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, result.error)
         } catch (err) {
             this.#log(

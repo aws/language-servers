@@ -54,8 +54,42 @@ import {
     AmazonQServicePendingProfileError,
     AmazonQServicePendingSigninError,
 } from '../../shared/amazonQServiceManager/errors'
+import { McpManager } from './tools/mcp/mcpManager'
+import { McpTool } from './tools/mcp/mcpTool'
 
 describe('AgenticChatController', () => {
+    let mcpInstanceStub: sinon.SinonStub
+
+    beforeEach(() => {
+        mcpInstanceStub = sinon.stub(McpManager, 'instance').get(() => ({
+            getAllTools: () => [
+                {
+                    serverName: 'server1',
+                    toolName: 'server1_tool1',
+                    description: 'Mock MCP tool 1',
+                    inputSchema: {},
+                },
+                {
+                    serverName: 'server2',
+                    toolName: 'server2_tool2',
+                    description: 'Mock MCP tool 2',
+                    inputSchema: {},
+                },
+                {
+                    serverName: 'server3',
+                    toolName: 'server3_tool3',
+                    description: 'Mock MCP tool 3',
+                    inputSchema: {},
+                },
+            ],
+            callTool: (_s: string, _t: string, _a: any) => Promise.resolve({}),
+        }))
+    })
+
+    afterEach(() => {
+        mcpInstanceStub.restore()
+        sinon.restore()
+    })
     const mockTabId = 'tab-1'
     const mockConversationId = 'mock-conversation-id'
     const mockMessageId = 'mock-message-id'
@@ -248,8 +282,8 @@ describe('AgenticChatController', () => {
     })
 
     afterEach(() => {
-        sinon.restore()
         chatController.dispose()
+        sinon.restore()
         ChatSessionManagementService.reset()
     })
 
