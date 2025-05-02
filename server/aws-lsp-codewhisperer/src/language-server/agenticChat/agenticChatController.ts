@@ -105,17 +105,17 @@ import { CancellationError, workspaceUtils } from '@aws/lsp-core'
 import { FsRead, FsReadParams } from './tools/fsRead'
 import { ListDirectory, ListDirectoryParams } from './tools/listDirectory'
 import { FsWrite, FsWriteParams } from './tools/fsWrite'
-import { ExecuteBash, ExecuteBashOutput, ExecuteBashParams } from './tools/executeBash'
-import { ExplanatoryParams, InvokeOutput, ToolApprovalException } from './tools/toolShared'
+import { ExecuteBash, ExecuteBashParams } from './tools/executeBash'
+import { ExplanatoryParams, ToolApprovalException } from './tools/toolShared'
 import { FileSearch, FileSearchParams } from './tools/fileSearch'
 import { loggingUtils } from '@aws/lsp-core'
 import { diffLines } from 'diff'
-import { CodeSearch } from './tools/codeSearch'
 import {
     genericErrorMsg,
     maxAgentLoopIterations,
     loadingThresholdMs,
     generateAssistantResponseInputLimit,
+    outputLimitExceedsPartialMsg,
 } from './constants'
 import { URI } from 'vscode-uri'
 import { AgenticChatError, customerFacingErrorCodes } from './errors'
@@ -624,8 +624,8 @@ export class AgenticChatController implements ChatHandlers {
             if (result.success) {
                 // Process tool uses and update the request input for the next iteration
                 toolResults = await this.#processToolUses(pendingToolUses, chatResultStream, session, tabId, token)
-                if (toolResults.some(toolResult => toolResult.status === ToolResultStatus.ERROR)) {
-                    content = 'There was an error processing one or more tool uses. Please try again.'
+                if (toolResults.some(toolResult => this.#shouldSendBackErrorContent(toolResult))) {
+                    content = 'There was an error processing one or more tool uses. Try again, do not apologize.'
                 }
                 metric.setDimension('cwsprChatConversationType', 'AgenticChatWithToolUse')
             } else {
@@ -637,7 +637,7 @@ export class AgenticChatController implements ChatHandlers {
                 }))
                 if (result.error.startsWith('ToolUse input is invalid JSON:')) {
                     content =
-                        'Your toolUse input is incomplete because it is too large. Break this task down into multiple tool uses with smaller input.'
+                        'Your toolUse input is incomplete because it is too large. Break this task down into multiple tool uses with smaller input. Do not apologize.'
                 }
             }
             currentRequestInput = this.#updateRequestInputWithToolResults(currentRequestInput, toolResults, content)
@@ -916,13 +916,26 @@ export class AgenticChatController implements ChatHandlers {
                 this.#log(`Error running tool ${toolUse.name}:`, errMsg)
                 results.push({
                     toolUseId: toolUse.toolUseId,
-                    status: 'error',
+                    status: ToolResultStatus.ERROR,
                     content: [{ json: { error: err instanceof Error ? err.message : 'Unknown error' } }],
                 })
             }
         }
 
         return results
+    }
+
+    #shouldSendBackErrorContent(toolResult: ToolResult) {
+        if (toolResult.status === ToolResultStatus.ERROR) {
+            for (const content of toolResult.content ?? []) {
+                if (content.json && JSON.stringify(content.json).includes(outputLimitExceedsPartialMsg)) {
+                    // do not send the content response back for this case to avoid unnecessary messages
+                    return false
+                }
+            }
+            return true
+        }
+        return false
     }
 
     /**
@@ -1004,7 +1017,7 @@ export class AgenticChatController implements ChatHandlers {
                 // fsRead and executeBash already have truncation logic
                 return
             case 'listDirectory':
-                maxToolResponseSize = 30_000
+                maxToolResponseSize = 50_000
                 break
             default:
                 maxToolResponseSize = 100_000
@@ -1014,7 +1027,7 @@ export class AgenticChatController implements ChatHandlers {
             (result.text && result.text.length > maxToolResponseSize) ||
             (result.json && JSON.stringify(result.json).length > maxToolResponseSize)
         ) {
-            throw Error(`${toolUse.name} output exceeds maximum character limit of ${maxToolResponseSize}`)
+            throw Error(`${toolUse.name} ${outputLimitExceedsPartialMsg} ${maxToolResponseSize}`)
         }
     }
 
