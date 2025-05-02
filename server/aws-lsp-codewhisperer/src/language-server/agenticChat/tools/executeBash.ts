@@ -226,7 +226,7 @@ export class ExecuteBash {
 
                         const isInWorkspace = workspaceUtils.isInWorkspace(getWorkspaceFolderPaths(this.lsp), fullPath)
                         if (!isInWorkspace) {
-                            return { requiresAcceptance: true, warning: destructiveCommandWarningMessage }
+                            return { requiresAcceptance: true, warning: outOfWorkspaceWarningmessage }
                         }
                     }
                 }
