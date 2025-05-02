@@ -32,7 +32,7 @@ import * as path from 'path'
 import { RelevantTextDocument } from '@amzn/codewhisperer-streaming'
 import { languageByExtension } from '../../../shared/languageDetection'
 import { AgenticChatResultStream } from '../agenticChatResultStream'
-import { ContextInfo } from './contextUtils'
+import { ContextInfo, mergeFileLists, mergeRelevantTextDocuments } from './contextUtils'
 
 export interface TriggerContext extends Partial<DocumentContext> {
     userIntent?: UserIntent
@@ -48,18 +48,13 @@ export type AdditionalContentEntryAddition = AdditionalContentEntry & {
     path: string
 } & LineInfo
 
-export type RelevantTextDocumentAddition = RelevantTextDocument & LineInfo
+export type RelevantTextDocumentAddition = RelevantTextDocument & LineInfo & { path: string }
 
 // limit for each chunk of @workspace
 export const workspaceChunkMaxSize = 40_960
 
 // limit for the length of additionalContent
 export const additionalContextMaxLength = 100
-
-export interface DocumentReference {
-    readonly relativeFilePath: string
-    readonly lineRanges: Array<{ first: number; second: number }>
-}
 
 export class AgenticChatTriggerContext {
     private static readonly DEFAULT_CURSOR_STATE: CursorState = { position: { line: 0, character: 0 } }
@@ -132,6 +127,10 @@ export class AgenticChatTriggerContext {
             ? await this.#getRelevantDocuments(promptContent ?? '', chatResultStream)
             : []
 
+        const workspaceFileList = mergeRelevantTextDocuments(relevantDocuments)
+        triggerContext.documentReference = triggerContext.documentReference
+            ? mergeFileLists(triggerContext.documentReference, workspaceFileList)
+            : workspaceFileList
         // Process additionalContent items if present
         if (additionalContent) {
             for (const item of additionalContent) {
@@ -158,7 +157,8 @@ export class AgenticChatTriggerContext {
                 // Create the relevant text document
                 const relevantTextDocument: RelevantTextDocumentAddition = {
                     text: item.innerContext,
-                    relativeFilePath: item.path,
+                    path: item.path,
+                    relativeFilePath: item.relativePath,
                     programmingLanguage: programmingLanguage,
                     type: filteredType,
                     startLine: item.startLine || -1,
@@ -305,6 +305,7 @@ export class AgenticChatTriggerContext {
                 const text = chunk.context ?? chunk.content
                 const baseDocument = {
                     text,
+                    path: chunk.filePath,
                     relativeFilePath: chunk.relativePath ?? path.basename(chunk.filePath),
                     startLine: chunk.startLine ?? -1,
                     endLine: chunk.endLine ?? -1,
