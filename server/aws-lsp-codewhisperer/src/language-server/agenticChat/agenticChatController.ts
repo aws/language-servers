@@ -73,7 +73,7 @@ import { ChatSessionManagementService } from '../chat/chatSessionManagementServi
 import { ChatTelemetryController } from '../chat/telemetry/chatTelemetryController'
 import { QuickAction } from '../chat/quickActions'
 import { Metric } from '../../shared/telemetry/metric'
-import { getErrorMessage, getHttpStatusCode, isAwsError, isNullish, isObject } from '../../shared/utils'
+import { getErrorMessage, getHttpStatusCode, getRequestID, isAwsError, isNullish, isObject } from '../../shared/utils'
 import { HELP_MESSAGE, loadingMessage } from '../chat/constants'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import {
@@ -120,7 +120,7 @@ import {
     responseTimeoutPartialMsg,
 } from './constants'
 import { URI } from 'vscode-uri'
-import { AgenticChatError, customerFacingErrorCodes } from './errors'
+import { AgenticChatError, customerFacingErrorCodes, unactionableErrorCodes } from './errors'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -1548,22 +1548,22 @@ export class AgenticChatController implements ChatHandlers {
         tabId: string,
         metric: Metric<CombinedConversationEvent>
     ): ChatResult | ResponseError<ChatResult> {
-        let errorMessage: string | undefined
-        let requestID: string | undefined
-        if (isAwsError(err) || (isObject(err) && typeof getHttpStatusCode(err) === 'number')) {
-            if (err instanceof CodeWhispererStreamingServiceException) {
-                errorMessage = err.message
-                requestID = err.$metadata.requestId
-            } else if (err?.cause?.message) {
-                errorMessage = err?.cause?.message
-                requestID = err.cause?.$metadata.requestId
-            } else if (err instanceof Error || err?.message) {
-                errorMessage = err.message
-            }
+        const errorMessage = getErrorMessage(err)
+        const requestID = getRequestID(err)
+        metric.setDimension('cwsprChatResponseCode', getHttpStatusCode(err) ?? 0)
+        metric.setDimension('languageServerVersion', this.#features.runtime.serverInfo.version)
 
-            metric.setDimension('cwsprChatResponseCode', getHttpStatusCode(err) ?? 0)
-            metric.setDimension('languageServerVersion', this.#features.runtime.serverInfo.version)
-            this.#telemetryController.emitMessageResponseError(tabId, metric.metric, requestID, errorMessage)
+        // use custom error message for unactionable errors (user-dependent errors like PromptCharacterLimit)
+        if (err.code && err.code in unactionableErrorCodes) {
+            const customErrMessage = unactionableErrorCodes[err.code as keyof typeof unactionableErrorCodes]
+            this.#telemetryController.emitMessageResponseError(tabId, metric.metric, requestID, customErrMessage)
+        } else {
+            this.#telemetryController.emitMessageResponseError(
+                tabId,
+                metric.metric,
+                requestID,
+                errorMessage ?? genericErrorMsg
+            )
         }
 
         let authFollowType: ReturnType<typeof getAuthFollowUpType> = undefined
