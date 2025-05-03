@@ -603,6 +603,10 @@ export const createMynahUi = (
         const chatItems = store.chatItems || []
         const isPairProgrammingMode: boolean = getTabPairProgrammingMode(mynahUi, tabId)
 
+        // Check if this is a stopped or rejected response that should be muted
+        const shouldMute =
+            // Check for status indicating stopped/rejected
+            chatResult.header?.status?.text === 'Stopped' || chatResult.header?.status?.text === 'Rejected'
         if (chatResult.additionalMessages?.length) {
             mynahUi.updateStore(tabId, {
                 loadingChat: true,
@@ -618,6 +622,8 @@ export const createMynahUi = (
                               ? ChatItemType.DIRECTIVE
                               : ChatItemType.ANSWER_STREAM,
                     ...prepareChatItemFromMessage(am, isPairProgrammingMode, isPartialResult),
+                    // Apply muted if the message should be muted
+                    ...(shouldMute ? { muted: true } : {}),
                 }
 
                 if (!chatItems.find(ci => ci.messageId === am.messageId)) {
@@ -641,6 +647,8 @@ export const createMynahUi = (
                 buttons: buttons,
                 fileList,
                 codeBlockActions: isPairProgrammingMode ? { 'insert-to-cursor': null } : undefined,
+                // Apply muted if the message should be muted
+                ...(shouldMute ? { muted: true } : {}),
             }
 
             if (!chatItems.find(ci => ci.messageId === chatResult.messageId)) {
@@ -668,6 +676,8 @@ export const createMynahUi = (
                 ...chatResultWithoutType, // type for MynahUI differs from ChatResult types so we ignore it
                 header: header,
                 buttons: buttons,
+                // Apply muted if the message should be muted
+                ...(shouldMute ? { muted: true } : {}),
             })
 
             // TODO, prompt should be disabled until user is authenticated
@@ -689,6 +699,8 @@ export const createMynahUi = (
             header: header,
             buttons: buttons,
             codeBlockActions: isPairProgrammingMode ? { 'insert-to-cursor': null } : undefined,
+            // Apply muted if the message should be muted
+            ...(shouldMute ? { muted: true } : {}),
         }
 
         if (!chatItems.find(ci => ci.messageId === chatResult.messageId)) {
@@ -822,11 +834,18 @@ export const createMynahUi = (
                 const oldMessage = chatItems.find(ci => ci.messageId === updatedMessage.messageId)
                 if (!oldMessage) return
 
+                // Check if this message should be muted
+                const shouldMute =
+                    // Check for status indicating stopped/rejected
+                    updatedMessage.header?.status?.text === 'Stopped' ||
+                    updatedMessage.header?.status?.text === 'Rejected'
+
                 const chatItem: ChatItem = {
                     type: oldMessage.type,
                     ...prepareChatItemFromMessage(updatedMessage, getTabPairProgrammingMode(mynahUi, tabId)),
+                    // Apply muted if the message should be muted
+                    ...(shouldMute ? { muted: true } : {}),
                 }
-
                 mynahUi.updateChatAnswerWithMessageId(tabId, updatedMessage.messageId, chatItem)
             })
         }
