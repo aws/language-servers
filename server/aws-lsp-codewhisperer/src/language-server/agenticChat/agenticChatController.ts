@@ -116,6 +116,8 @@ import {
     loadingThresholdMs,
     generateAssistantResponseInputLimit,
     outputLimitExceedsPartialMsg,
+    responseTimeoutMs,
+    responseTimeoutPartialMsg,
 } from './constants'
 import { URI } from 'vscode-uri'
 import { AgenticChatError, customerFacingErrorCodes } from './errors'
@@ -576,7 +578,7 @@ export class AgenticChatController implements ChatHandlers {
             }
 
             // Phase 4: Response Processing
-            const result = await this.#processGenerateAssistantResponseResponse(
+            const result = await this.#processGenerateAssistantResponseResponseWithTimeout(
                 response,
                 metric.mergeWith({
                     cwsprChatResponseCode: response.$metadata.httpStatusCode,
@@ -586,6 +588,19 @@ export class AgenticChatController implements ChatHandlers {
                 session,
                 documentReference
             )
+            // This is needed to handle the case where the response stream times out
+            // and we want to auto-retry
+            if (!result.success && result.error.startsWith(responseTimeoutPartialMsg)) {
+                const content =
+                    'You took too long to respond - try to split up the work into smaller steps. Do not apologize.'
+                this.#chatHistoryDb.addMessage(tabId, 'cwc', conversationIdentifier ?? '', {
+                    body: 'Response timed out - message took too long to generate',
+                    type: 'answer',
+                    shouldDisplayMessage: false,
+                })
+                currentRequestInput = this.#updateRequestInputWithToolResults(currentRequestInput, [], content)
+                continue
+            }
 
             //  Add the current assistantResponse message to the history DB
             if (result.data?.chatResult.body !== undefined) {
@@ -1962,16 +1977,57 @@ export class AgenticChatController implements ChatHandlers {
         }
     }
 
-    async #processGenerateAssistantResponseResponse(
+    async #processGenerateAssistantResponseResponseWithTimeout(
         response: GenerateAssistantResponseCommandOutput,
         metric: Metric<AddMessageEvent>,
         chatResultStream: AgenticChatResultStream,
         session: ChatSessionService,
         contextList?: FileList
     ): Promise<Result<AgenticChatResultWithMetadata, string>> {
+        const abortController = new AbortController()
+        const timeoutPromise = new Promise<never>((_, reject) => {
+            setTimeout(() => {
+                abortController.abort()
+                reject(
+                    new AgenticChatError(
+                        `${responseTimeoutPartialMsg} ${responseTimeoutMs}ms`,
+                        'ResponseProcessingTimeout'
+                    )
+                )
+            }, responseTimeoutMs)
+        })
+        const streamWriter = chatResultStream.getResultStreamWriter()
+        const processResponsePromise = this.#processGenerateAssistantResponseResponse(
+            response,
+            metric,
+            chatResultStream,
+            streamWriter,
+            session,
+            contextList,
+            abortController.signal
+        )
+        try {
+            return await Promise.race([processResponsePromise, timeoutPromise])
+        } catch (err) {
+            await streamWriter.close()
+            if (err instanceof AgenticChatError && err.code === 'ResponseProcessingTimeout') {
+                return { success: false, error: err.message }
+            }
+            throw err
+        }
+    }
+
+    async #processGenerateAssistantResponseResponse(
+        response: GenerateAssistantResponseCommandOutput,
+        metric: Metric<AddMessageEvent>,
+        chatResultStream: AgenticChatResultStream,
+        streamWriter: ResultStreamWriter,
+        session: ChatSessionService,
+        contextList?: FileList,
+        abortSignal?: AbortSignal
+    ): Promise<Result<AgenticChatResultWithMetadata, string>> {
         const requestId = response.$metadata.requestId!
         const chatEventParser = new AgenticChatEventParser(requestId, metric, this.#features.logging)
-        const streamWriter = chatResultStream.getResultStreamWriter()
 
         // Display context transparency list once at the beginning of response
         // Use a flag to track if contextList has been sent already to avoid ux flickering
@@ -1983,6 +2039,9 @@ export class AgenticChatController implements ChatHandlers {
         const toolUseStartTimes: Record<string, number> = {}
         const toolUseLoadingTimeouts: Record<string, NodeJS.Timeout> = {}
         for await (const chatEvent of response.generateAssistantResponseResponse!) {
+            if (abortSignal?.aborted) {
+                throw new Error('Operation was aborted')
+            }
             if (chatEvent.assistantResponseEvent) {
                 await this.#showUndoAllIfRequired(chatResultStream, session)
             }
