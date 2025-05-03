@@ -7,6 +7,7 @@ type AgenticChatErrorCode =
     | 'MaxAgentLoopIterations'
     | 'InputTooLong' // too much context given to backend service.
     | 'PromptCharacterLimit' // customer prompt exceeds
+    | 'ResponseProcessingTimeout' // response didn't finish streaming in the allowed time
 
 export const customerFacingErrorCodes: AgenticChatErrorCode[] = [
     'QModelResponse',
