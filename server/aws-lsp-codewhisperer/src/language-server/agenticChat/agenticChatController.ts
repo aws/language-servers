@@ -788,7 +788,7 @@ export class AgenticChatController implements ChatHandlers {
                         const approvedPaths = session.approvedPaths
 
                         // Pass the approved paths to the tool's requiresAcceptance method
-                        const { requiresAcceptance, warning } = await tool.requiresAcceptance(
+                        const { requiresAcceptance, warning, commandCategory } = await tool.requiresAcceptance(
                             toolUse.input as any,
                             approvedPaths
                         )
@@ -798,7 +798,8 @@ export class AgenticChatController implements ChatHandlers {
                             const confirmationResult = this.#processToolConfirmation(
                                 toolUse,
                                 requiresAcceptance,
-                                warning
+                                warning,
+                                commandCategory
                             )
                             cachedButtonBlockId = await chatResultStream.writeResultBlock(confirmationResult)
                             const isExecuteBash = toolUse.name === 'executeBash'
@@ -1064,6 +1065,22 @@ export class AgenticChatController implements ChatHandlers {
         }
     }
 
+    /**
+     * Get a description for the tooltip based on command category
+     * @param commandCategory The category of the command (0: normal, 1: mutation, 2: destructive)
+     * @returns A descriptive message for the tooltip
+     */
+    #getCommandCategoryDescription(category: number): string | undefined {
+        switch (category) {
+            case 1:
+                return 'This command is mutation.'
+            case 2:
+                return 'This command may cause significant data loss or damage.'
+            default:
+                return undefined
+        }
+    }
+
     #getWritableStream(chatResultStream: AgenticChatResultStream, toolUse: ToolUse): WritableStream | undefined {
         if (toolUse.name !== 'executeBash') {
             return
@@ -1260,6 +1277,7 @@ export class AgenticChatController implements ChatHandlers {
         toolUse: ToolUse,
         requiresAcceptance: Boolean,
         warning?: string,
+        commandCategory?: number,
         toolType?: string
     ): ChatResult {
         let buttons: Button[] = []
@@ -1300,7 +1318,7 @@ export class AgenticChatController implements ChatHandlers {
                               icon: 'warning',
                               status: 'warning',
                               position: 'left',
-                              // TODO: Add `description` if necessary to show a tooltip
+                              description: this.#getCommandCategoryDescription(commandCategory ?? 0),
                           }
                         : {},
                     body: 'shell',
@@ -1356,7 +1374,7 @@ export class AgenticChatController implements ChatHandlers {
             type: 'tool',
             messageId: this.#getMessageIdForToolUse(toolType, toolUse),
             header,
-            body: warning ? warning + (toolType === 'executeBash' ? '' : '\n\n') + body : body,
+            body: warning ? (toolType === 'executeBash' ? '' : '\n\n') + body : body,
         }
     }
 

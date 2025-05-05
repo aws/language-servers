@@ -16,6 +16,7 @@ export interface InvokeOutput {
 export interface CommandValidation {
     requiresAcceptance: boolean
     warning?: string
+    commandCategory?: number // 0 for normal, 1 more mutation, 2 for destructive
 }
 
 export async function validatePath(path: string, exists: (p: string) => Promise<boolean>) {
@@ -26,11 +27,6 @@ export async function validatePath(path: string, exists: (p: string) => Promise<
     if (!pathExists) {
         throw new Error(`Path "${path}" does not exist or cannot be accessed.`)
     }
-}
-
-export interface CommandValidation {
-    requiresAcceptance: boolean
-    warning?: string
 }
 
 export class ToolApprovalException extends Error {
