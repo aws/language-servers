@@ -621,9 +621,7 @@ export const createMynahUi = (
                             : am.type === 'directive'
                               ? ChatItemType.DIRECTIVE
                               : ChatItemType.ANSWER_STREAM,
-                    ...prepareChatItemFromMessage(am, isPairProgrammingMode, isPartialResult),
-                    // Apply muted if the message should be muted
-                    ...(shouldMute ? { muted: true } : {}),
+                    ...prepareChatItemFromMessage(am, isPairProgrammingMode, isPartialResult, shouldMute),
                 }
 
                 if (!chatItems.find(ci => ci.messageId === am.messageId)) {
@@ -676,8 +674,6 @@ export const createMynahUi = (
                 ...chatResultWithoutType, // type for MynahUI differs from ChatResult types so we ignore it
                 header: header,
                 buttons: buttons,
-                // Apply muted if the message should be muted
-                ...(shouldMute ? { muted: true } : {}),
             })
 
             // TODO, prompt should be disabled until user is authenticated
@@ -842,9 +838,12 @@ export const createMynahUi = (
 
                 const chatItem: ChatItem = {
                     type: oldMessage.type,
-                    ...prepareChatItemFromMessage(updatedMessage, getTabPairProgrammingMode(mynahUi, tabId)),
+                    ...prepareChatItemFromMessage(
+                        updatedMessage,
+                        getTabPairProgrammingMode(mynahUi, tabId),
+                        shouldMute
+                    ),
                     // Apply muted if the message should be muted
-                    ...(shouldMute ? { muted: true } : {}),
                 }
                 mynahUi.updateChatAnswerWithMessageId(tabId, updatedMessage.messageId, chatItem)
             })
@@ -869,7 +868,8 @@ export const createMynahUi = (
     const prepareChatItemFromMessage = (
         message: ChatMessage,
         isPairProgrammingMode: boolean,
-        isPartialResult?: boolean
+        isPartialResult?: boolean,
+        shouldMute = false
     ): Partial<ChatItem> => {
         const contextHeader = contextListToHeader(message.contextList)
         const header = contextHeader || toMynahHeader(message.header) // Is this mutually exclusive?
@@ -933,6 +933,7 @@ export const createMynahUi = (
                     : isPairProgrammingMode
                       ? { 'insert-to-cursor': null }
                       : undefined,
+            ...(shouldMute ? { muted: true } : {}),
         }
     }
 
