@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.0.35](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.34...lsp-codewhisperer/v0.0.35) (2025-05-05)
+
+
+### Bug Fixes
+
+* emit all errors to get total # of errors ([#1252](https://github.com/aws/language-servers/issues/1252)) ([b425a66](https://github.com/aws/language-servers/commit/b425a667082e67a20e6f265cb0e41d049d5149af))
+* hide non-user-generated messages when reloading history ([#1257](https://github.com/aws/language-servers/issues/1257)) ([9540f12](https://github.com/aws/language-servers/commit/9540f12c7d9495b481d0cf61ad2b2c0b8339f156))
+* make LLM less apologetic, increase listDirectory result size ([#1242](https://github.com/aws/language-servers/issues/1242)) ([572cabb](https://github.com/aws/language-servers/commit/572cabb1036171438fe97898f72c85383628bcfd))
+* projectRoot passed to vecLib was malformed ([#1250](https://github.com/aws/language-servers/issues/1250)) ([def522d](https://github.com/aws/language-servers/commit/def522daee62ea37556fefe12352ef28f38523d1))
+* server side timeout causes ISE ([#1254](https://github.com/aws/language-servers/issues/1254)) ([9cb2440](https://github.com/aws/language-servers/commit/9cb2440c165a296e11e0597e14b6c6aa7205f313))
+* show context transparency list when using [@workspace](https://github.com/workspace) ([#1241](https://github.com/aws/language-servers/issues/1241)) ([291c0ba](https://github.com/aws/language-servers/commit/291c0ba945f311f6c1c071d048792de8735d17b8))
+* switch to ignore entries over patterns ([#1236](https://github.com/aws/language-servers/issues/1236)) ([49ae714](https://github.com/aws/language-servers/commit/49ae7141024f9802d3ce671441f978f487a399aa))
+* update header ignore status ([#1239](https://github.com/aws/language-servers/issues/1239)) ([6abf2fd](https://github.com/aws/language-servers/commit/6abf2fd27e8702a89f1ab306f363e04dfa27b978))
+* update reject button status ([#1253](https://github.com/aws/language-servers/issues/1253)) ([78c12c8](https://github.com/aws/language-servers/commit/78c12c8620367ac4276fb564e28ca58292cc8456))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @aws/lsp-core bumped from ^0.0.4 to ^0.0.5
+
 ## [0.0.34](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.33...lsp-codewhisperer/v0.0.34) (2025-05-02)
 
 

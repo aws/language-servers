@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.5](https://github.com/aws/language-servers/compare/lsp-core/v0.0.4...lsp-core/v0.0.5) (2025-05-05)
+
+
+### Bug Fixes
+
+* switch to ignore entries over patterns ([#1236](https://github.com/aws/language-servers/issues/1236)) ([49ae714](https://github.com/aws/language-servers/commit/49ae7141024f9802d3ce671441f978f487a399aa))
+
 ## [0.0.4](https://github.com/aws/language-servers/compare/lsp-core/v0.0.3...lsp-core/v0.0.4) (2025-05-01)
 
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.7](https://github.com/aws/language-servers/compare/chat-client/v0.1.6...chat-client/v0.1.7) (2025-05-05)
+
+
+### Bug Fixes
+
+* prefix if user reject/stop command, whole card should be dimmed ([#1212](https://github.com/aws/language-servers/issues/1212)) ([394db61](https://github.com/aws/language-servers/commit/394db61133e09cfaeff2f7510ab60c571c562130))
+
 ## [0.1.6](https://github.com/aws/language-servers/compare/chat-client/v0.1.5...chat-client/v0.1.6) (2025-05-02)
 
 
