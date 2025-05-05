@@ -689,7 +689,6 @@ export const createMynahUi = (
             header: header,
             buttons: buttons,
             codeBlockActions: isPairProgrammingMode ? { 'insert-to-cursor': null } : undefined,
-            // Apply muted if the message should be muted
         }
 
         if (!chatItems.find(ci => ci.messageId === chatResult.messageId)) {
@@ -853,7 +852,7 @@ export const createMynahUi = (
         isPartialResult?: boolean
     ): Partial<ChatItem> => {
         const contextHeader = contextListToHeader(message.contextList)
-        const header = contextHeader || toMynahHeader(message.header)
+        const header = contextHeader || toMynahHeader(message.header) // Is this mutually exclusive?
         const fileList = toMynahFileList(message.fileList)
 
         let processedHeader = header
@@ -880,9 +879,12 @@ export const createMynahUi = (
             }
         }
 
+        // Check if header should be included
         const includeHeader =
             processedHeader &&
-            ((processedHeader.buttons?.length ?? 0) > 0 ||
+            ((processedHeader.buttons !== undefined &&
+                processedHeader.buttons !== null &&
+                processedHeader.buttons.length > 0) ||
                 processedHeader.status !== undefined ||
                 processedHeader.icon !== undefined)
 
@@ -892,7 +894,7 @@ export const createMynahUi = (
         const processedButtons: ChatItemButton[] | undefined = toMynahButtons(message.buttons)?.map(button =>
             button.id === 'undo-all-changes' ? { ...button, position: 'outside' } : button
         )
-
+        // Adding this conditional check to show the stop message in the center.
         const contentHorizontalAlignment: ChatItem['contentHorizontalAlignment'] =
             message.type === 'directive' && message.messageId?.startsWith('stopped') ? 'center' : undefined
 
@@ -903,6 +905,7 @@ export const createMynahUi = (
             header: includeHeader ? processedHeader : undefined,
             buttons: processedButtons,
             fileList,
+            // file diffs in the header need space
             fullWidth: message.type === 'tool' && message.header?.buttons ? true : undefined,
             padding,
             contentHorizontalAlignment,
