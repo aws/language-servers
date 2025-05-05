@@ -51,8 +51,6 @@ export const QAgenticChatServer =
             chatController.updateConfiguration(updatedConfig)
         }
 
-        const isFreeTierUser = getSsoConnectionType(credentialsProvider)
-
         lsp.onInitialized(async () => {
             // Get initialized service manager and inject it to chatSessionManagementService to pass it down
             amazonQServiceManager = AmazonQTokenServiceManager.getInstance()
@@ -152,6 +150,10 @@ export const QAgenticChatServer =
         chat.onPromptInputOptionChange(params => {
             return chatController.onPromptInputOptionChange(params)
         })
+
+        // ;(chat as any).onPromptInputButtonClick((params: any) => {
+        //     chatController.setUpgradeQMode(params.tabId, 'paidtier')
+        // })
 
         chat.onButtonClick(params => {
             return chatController.onButtonClick(params)
