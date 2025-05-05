@@ -24,6 +24,8 @@ type DeferredHandler = {
 export class ChatSessionService {
     public shareCodeWhispererContentWithAWS = false
     public pairProgrammingMode: boolean = true
+    /** Decides whether the Chat UI should show "Upgrade Q" button/card. */
+    public upgradeQMode: 'paidtier' | 'freetier' | 'freetier-limit' = 'paidtier'
     public contextListSent: boolean = false
     #abortController?: AbortController
     #currentPromptId?: string

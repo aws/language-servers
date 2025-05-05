@@ -1,4 +1,4 @@
-import { ChatItem, ChatItemFormItem, ChatItemType } from '@aws/mynah-ui'
+import { ChatItem, ChatItemButton, ChatItemFormItem, ChatItemType } from '@aws/mynah-ui'
 
 export const paidTierCard: ChatItem = {
     type: ChatItemType.ANSWER,
@@ -30,4 +30,17 @@ export const paidTierStep0: ChatItem = {
 export const paidTierStep1: ChatItem = {
     type: ChatItemType.DIRECTIVE,
     body: 'You have upgraded to Amazon Q Pro',
+}
+
+export const upgradeQButton: ChatItemButton = {
+    flash: 'once',
+    fillState: 'hover',
+    position: 'outside',
+    id: 'upgrade-q',
+    // https://github.com/aws/mynah-ui/blob/main/src/components/icon/icons/q.svg
+    // https://github.com/aws/mynah-ui/blob/main/src/components/icon/icons/rocket.svg
+    // icon: MynahIcons.Q,
+    description: 'Upgrade to Amazon Q Pro',
+    text: 'Upgrade Q',
+    status: 'info',
 }
