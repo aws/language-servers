@@ -15,6 +15,11 @@ export const customerFacingErrorCodes: AgenticChatErrorCode[] = [
     'InputTooLong',
     'PromptCharacterLimit',
 ]
+
+export const unactionableErrorCodes: Partial<Record<AgenticChatErrorCode, string>> = {
+    PromptCharacterLimit: 'User prompt contains too many characters',
+}
+
 export class AgenticChatError extends Error {
     constructor(
         message: string,
