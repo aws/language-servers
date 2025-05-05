@@ -218,7 +218,7 @@ export class TabBarController {
     async restoreTab(selectedTab?: Tab | null) {
         if (selectedTab) {
             const messages = selectedTab.conversations.flatMap((conv: Conversation) =>
-                conv.messages.flatMap(msg => messageToChatMessage(msg))
+                conv.messages.filter(msg => msg.shouldDisplayMessage != false).flatMap(msg => messageToChatMessage(msg))
             )
 
             const { tabId } = await this.#features.chat.openTab({ newTabOptions: { data: { messages } } })

@@ -524,6 +524,7 @@ export class AgenticChatController implements ChatHandlers {
         let currentRequestInput = { ...initialRequestInput }
         let finalResult: Result<AgenticChatResultWithMetadata, string> | null = null
         let iterationCount = 0
+        let shouldDisplayMessage = true
         metric.recordStart()
 
         while (iterationCount < maxAgentLoopIterations) {
@@ -574,8 +575,10 @@ export class AgenticChatController implements ChatHandlers {
                     userIntent: currentMessage.userInputMessage?.userIntent,
                     origin: currentMessage.userInputMessage?.origin,
                     userInputMessageContext: currentMessage.userInputMessage?.userInputMessageContext,
+                    shouldDisplayMessage: shouldDisplayMessage,
                 })
             }
+            shouldDisplayMessage = true
 
             // Phase 4: Response Processing
             const result = await this.#processGenerateAssistantResponseResponseWithTimeout(
@@ -620,6 +623,7 @@ export class AgenticChatController implements ChatHandlers {
                             name: result.data!.toolUses[k].name,
                             input: result.data!.toolUses[k].input,
                         })),
+                    shouldDisplayMessage: shouldDisplayMessage,
                 })
             } else {
                 this.#features.logging.warn('No ChatResult body in response, skipping adding to history')
@@ -641,6 +645,7 @@ export class AgenticChatController implements ChatHandlers {
                 toolResults = await this.#processToolUses(pendingToolUses, chatResultStream, session, tabId, token)
                 if (toolResults.some(toolResult => this.#shouldSendBackErrorContent(toolResult))) {
                     content = 'There was an error processing one or more tool uses. Try again, do not apologize.'
+                    shouldDisplayMessage = false
                 }
                 metric.setDimension('cwsprChatConversationType', 'AgenticChatWithToolUse')
             } else {
@@ -653,6 +658,7 @@ export class AgenticChatController implements ChatHandlers {
                 if (result.error.startsWith('ToolUse input is invalid JSON:')) {
                     content =
                         'Your toolUse input is incomplete because it is too large. Break this task down into multiple tool uses with smaller input. Do not apologize.'
+                    shouldDisplayMessage = false
                 }
             }
             currentRequestInput = this.#updateRequestInputWithToolResults(currentRequestInput, toolResults, content)
