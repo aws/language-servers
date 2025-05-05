@@ -603,10 +603,6 @@ export const createMynahUi = (
         const chatItems = store.chatItems || []
         const isPairProgrammingMode: boolean = getTabPairProgrammingMode(mynahUi, tabId)
 
-        // Check if this is a stopped or rejected response that should be muted
-        const shouldMute =
-            // Check for status indicating stopped/rejected
-            chatResult.header?.status?.text === 'Stopped' || chatResult.header?.status?.text === 'Rejected'
         if (chatResult.additionalMessages?.length) {
             mynahUi.updateStore(tabId, {
                 loadingChat: true,
@@ -621,7 +617,7 @@ export const createMynahUi = (
                             : am.type === 'directive'
                               ? ChatItemType.DIRECTIVE
                               : ChatItemType.ANSWER_STREAM,
-                    ...prepareChatItemFromMessage(am, isPairProgrammingMode, isPartialResult, shouldMute),
+                    ...prepareChatItemFromMessage(am, isPairProgrammingMode, isPartialResult),
                 }
 
                 if (!chatItems.find(ci => ci.messageId === am.messageId)) {
@@ -645,8 +641,6 @@ export const createMynahUi = (
                 buttons: buttons,
                 fileList,
                 codeBlockActions: isPairProgrammingMode ? { 'insert-to-cursor': null } : undefined,
-                // Apply muted if the message should be muted
-                ...(shouldMute ? { muted: true } : {}),
             }
 
             if (!chatItems.find(ci => ci.messageId === chatResult.messageId)) {
@@ -696,7 +690,6 @@ export const createMynahUi = (
             buttons: buttons,
             codeBlockActions: isPairProgrammingMode ? { 'insert-to-cursor': null } : undefined,
             // Apply muted if the message should be muted
-            ...(shouldMute ? { muted: true } : {}),
         }
 
         if (!chatItems.find(ci => ci.messageId === chatResult.messageId)) {
@@ -830,20 +823,9 @@ export const createMynahUi = (
                 const oldMessage = chatItems.find(ci => ci.messageId === updatedMessage.messageId)
                 if (!oldMessage) return
 
-                // Check if this message should be muted
-                const shouldMute =
-                    // Check for status indicating stopped/rejected
-                    updatedMessage.header?.status?.text === 'Stopped' ||
-                    updatedMessage.header?.status?.text === 'Rejected'
-
                 const chatItem: ChatItem = {
                     type: oldMessage.type,
-                    ...prepareChatItemFromMessage(
-                        updatedMessage,
-                        getTabPairProgrammingMode(mynahUi, tabId),
-                        shouldMute
-                    ),
-                    // Apply muted if the message should be muted
+                    ...prepareChatItemFromMessage(updatedMessage, getTabPairProgrammingMode(mynahUi, tabId)),
                 }
                 mynahUi.updateChatAnswerWithMessageId(tabId, updatedMessage.messageId, chatItem)
             })
@@ -868,11 +850,10 @@ export const createMynahUi = (
     const prepareChatItemFromMessage = (
         message: ChatMessage,
         isPairProgrammingMode: boolean,
-        isPartialResult?: boolean,
-        shouldMute = false
+        isPartialResult?: boolean
     ): Partial<ChatItem> => {
         const contextHeader = contextListToHeader(message.contextList)
-        const header = contextHeader || toMynahHeader(message.header) // Is this mutually exclusive?
+        const header = contextHeader || toMynahHeader(message.header)
         const fileList = toMynahFileList(message.fileList)
 
         let processedHeader = header
@@ -899,12 +880,9 @@ export const createMynahUi = (
             }
         }
 
-        // Check if header should be included
         const includeHeader =
             processedHeader &&
-            ((processedHeader.buttons !== undefined &&
-                processedHeader.buttons !== null &&
-                processedHeader.buttons.length > 0) ||
+            ((processedHeader.buttons?.length ?? 0) > 0 ||
                 processedHeader.status !== undefined ||
                 processedHeader.icon !== undefined)
 
@@ -914,15 +892,17 @@ export const createMynahUi = (
         const processedButtons: ChatItemButton[] | undefined = toMynahButtons(message.buttons)?.map(button =>
             button.id === 'undo-all-changes' ? { ...button, position: 'outside' } : button
         )
-        // Adding this conditional check to show the stop message in the center.
+
         const contentHorizontalAlignment: ChatItem['contentHorizontalAlignment'] =
             message.type === 'directive' && message.messageId?.startsWith('stopped') ? 'center' : undefined
+
+        const shouldMute = message.header?.status?.text === 'Stopped' || message.header?.status?.text === 'Rejected'
+
         return {
             body: message.body,
             header: includeHeader ? processedHeader : undefined,
             buttons: processedButtons,
             fileList,
-            // file diffs in the header need space
             fullWidth: message.type === 'tool' && message.header?.buttons ? true : undefined,
             padding,
             contentHorizontalAlignment,
