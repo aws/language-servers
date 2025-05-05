@@ -222,14 +222,15 @@ export function getErrorMessage(error: any): string {
     return String(error)
 }
 
-export function getRequestID(error: any): string {
-    let requestID: string | undefined
+export function getRequestID(error: any): string | undefined {
     if (hasCause(error) && error.cause.$metadata?.requestId) {
-        requestID = error.cause.$metadata.requestId
-    } else if (error instanceof CodeWhispererStreamingServiceException) {
-        requestID = error.$metadata.requestId
+        return error.cause.$metadata.requestId
     }
-    return requestID ?? ''
+    if (error instanceof CodeWhispererStreamingServiceException) {
+        return error.$metadata.requestId
+    }
+
+    return undefined
 }
 
 export function getBearerTokenFromProvider(credentialsProvider: CredentialsProvider) {

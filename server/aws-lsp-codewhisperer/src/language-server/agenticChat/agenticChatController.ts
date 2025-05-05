@@ -1549,7 +1549,7 @@ export class AgenticChatController implements ChatHandlers {
         metric: Metric<CombinedConversationEvent>
     ): ChatResult | ResponseError<ChatResult> {
         const errorMessage = getErrorMessage(err)
-        const requestID = getRequestID(err)
+        const requestID = getRequestID(err) ?? ''
         metric.setDimension('cwsprChatResponseCode', getHttpStatusCode(err) ?? 0)
         metric.setDimension('languageServerVersion', this.#features.runtime.serverInfo.version)
 
