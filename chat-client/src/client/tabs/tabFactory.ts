@@ -5,30 +5,16 @@ import {
     MynahUIDataModel,
     QuickActionCommandGroup,
     TabBarMainAction,
-    ChatItemButton,
 } from '@aws/mynah-ui'
 import { disclaimerCard } from '../texts/disclaimer'
 import { ChatMessage } from '@aws/language-server-runtimes-types'
 import { ChatHistory } from '../features/history'
 import { pairProgrammingPromptInput, programmerModeCard } from '../texts/pairProgramming'
-import { paidTierCard } from '../texts/paidTier'
+import { paidTierCard, upgradeQButton } from '../texts/paidTier'
 
 export type DefaultTabData = MynahUIDataModel
 
 export const ExportTabBarButtonId = 'export'
-
-const upgradeToProButton: ChatItemButton = {
-    flash: 'once',
-    fillState: 'hover',
-    position: 'outside',
-    id: 'upgrade-q',
-    // https://github.com/aws/mynah-ui/blob/main/src/components/icon/icons/q.svg
-    // https://github.com/aws/mynah-ui/blob/main/src/components/icon/icons/rocket.svg
-    // icon: MynahIcons.Q,
-    description: 'Upgrade to Amazon Q Pro',
-    text: 'Upgrade Q',
-    status: 'info',
-}
 
 export class TabFactory {
     private history: boolean = false
@@ -55,7 +41,7 @@ export class TabFactory {
         const tabData: MynahUIDataModel = {
             ...this.getDefaultTabData(),
             ...(disclaimerCardActive ? { promptInputStickyCard: disclaimerCard } : {}),
-            promptInputButtons: showUpgradeButton ? [upgradeToProButton] : [],
+            promptInputButtons: showUpgradeButton ? [upgradeQButton] : [],
             promptInputOptions: this.agenticMode ? [pairProgrammingPromptInput] : [],
             cancelButtonWhenLoading: this.agenticMode, // supported for agentic chat only
         }

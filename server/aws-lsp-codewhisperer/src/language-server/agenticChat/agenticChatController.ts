@@ -29,6 +29,7 @@ import {
     InlineChatResultParams,
     PromptInputOptionChangeParams,
     TextDocument,
+    ChatUpdateParams,
 } from '@aws/language-server-runtimes/protocol'
 import {
     ApplyWorkspaceEditParams,
@@ -74,7 +75,14 @@ import { ChatSessionManagementService } from '../chat/chatSessionManagementServi
 import { ChatTelemetryController } from '../chat/telemetry/chatTelemetryController'
 import { QuickAction } from '../chat/quickActions'
 import { Metric } from '../../shared/telemetry/metric'
-import { getErrorMessage, getHttpStatusCode, getRequestID, isAwsError, isNullish, isObject } from '../../shared/utils'
+import {
+    getErrorMessage,
+    getHttpStatusCode,
+    getRequestID,
+    getSsoConnectionType,
+    isFreeTierLimitError,
+    isNullish,
+} from '../../shared/utils'
 import { HELP_MESSAGE, loadingMessage } from '../chat/constants'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import {
@@ -155,6 +163,7 @@ export class AgenticChatController implements ChatHandlers {
     #userWrittenCodeTracker: UserWrittenCodeTracker | undefined
     #toolUseStartTimes: Record<string, number> = {}
     #toolUseLatencies: Array<{ toolName: string; toolUseId: string; latency: number }> = []
+    #freeTierLimit = false
 
     /**
      * Determines the appropriate message ID for a tool use based on tool type and name
@@ -252,7 +261,15 @@ export class AgenticChatController implements ChatHandlers {
             await this.#renderStoppedShellCommand(params.tabId, params.messageId)
             return { success: true }
         } else if (params.buttonId === 'upgrade-q') {
-            this.#features.logging.warn('clicked upgrade-to-pro-button')
+            const awsAccountId = (params as any).awsAccountId
+            if (typeof awsAccountId !== 'string') {
+                this.#log(`invalid awsAccountId: ${awsAccountId}`)
+                return {
+                    success: false,
+                    failureReason: 'invalid awsAccountId',
+                }
+            }
+            this.setUpgradeQMode(params.tabId, 'paidtier')
             return { success: true }
         } else {
             return {
@@ -1726,6 +1743,12 @@ export class AgenticChatController implements ChatHandlers {
         metric.setDimension('cwsprChatResponseCode', getHttpStatusCode(err) ?? 0)
         metric.setDimension('languageServerVersion', this.#features.runtime.serverInfo.version)
 
+        // TODO handle free tier limit exceeded
+        if (isFreeTierLimitError(err)) {
+            this.setUpgradeQMode(tabId, 'freetier-limit')
+            // throw new AmazonQFreeTierLimitError()
+        }
+
         // use custom error message for unactionable errors (user-dependent errors like PromptCharacterLimit)
         if (err.code && err.code in unactionableErrorCodes) {
             const customErrMessage = unactionableErrorCodes[err.code as keyof typeof unactionableErrorCodes]
@@ -1763,7 +1786,7 @@ export class AgenticChatController implements ChatHandlers {
             return createAuthFollowUpResult(authFollowType)
         }
 
-        if (customerFacingErrorCodes.includes(err.code)) {
+        if (isFreeTierLimitError(err) || customerFacingErrorCodes.includes(err.code)) {
             this.#features.logging.error(`${loggingUtils.formatErr(err)}`)
             if (err.code === 'InputTooLong') {
                 // Clear the chat history in the database for this tab
@@ -1986,7 +2009,11 @@ export class AgenticChatController implements ChatHandlers {
         //     this.#log('Error initializing context commands: ' + error)
         // }
 
-        this.setUpgradeQMode()
+        try {
+            this.setUpgradeQMode()
+        } catch (err) {
+            this.#log('Error initializing Free Tier state: ' + (err as Error).message)
+        }
     }
 
     onSendFeedback({ tabId, feedbackPayload }: FeedbackParams) {
@@ -2012,6 +2039,8 @@ export class AgenticChatController implements ChatHandlers {
         this.#telemetryController.activeTabId = params.tabId
 
         this.#chatSessionManagementService.createSession(params.tabId)
+
+        this.setUpgradeQMode(params.tabId)
     }
 
     onTabChange(params: TabChangeParams) {
@@ -2026,6 +2055,8 @@ export class AgenticChatController implements ChatHandlers {
             name: ChatTelemetryEventName.EnterFocusConversation,
             data: {},
         })
+
+        this.setUpgradeQMode(params.tabId)
     }
 
     onTabRemove(params: TabRemoveParams) {
@@ -2168,6 +2199,43 @@ export class AgenticChatController implements ChatHandlers {
 
             this.#stoppedToolUses.add(toolUseId)
         }
+    }
+
+    /**
+     * Enables or disables the "Upgrade Q" UI in the chat component.
+     *
+     * `mode` behavior:
+     * - 'freetier': always show "Upgrade Q" button.
+     * - 'freetier-limit': also show "Free Tier limit reached" card in chat.
+     *     - This mode is "sticky" until 'paidtier' is passed to override it.
+     * - 'paidtier': don't show "Upgrade Q" button.
+     */
+    async setUpgradeQMode(
+        tabId?: string,
+        mode?: 'paidtier' | 'freetier' | 'freetier-limit' /*, session: ChatSessionService*/
+    ) {
+        if (mode === 'freetier-limit') {
+            this.#freeTierLimit = true // Sticky until 'paidtier' is sent.
+        } else if (mode === 'paidtier') {
+            this.#freeTierLimit = false
+        } else if (this.#freeTierLimit && (!mode || mode === 'freetier')) {
+            mode = 'freetier-limit'
+        } else if (!mode) {
+            const isFreeTierUser = getSsoConnectionType(this.#features.credentialsProvider) === 'builderId'
+            mode = isFreeTierUser ? 'freetier' : 'paidtier'
+        }
+
+        const o: ChatUpdateParams = {
+            tabId: tabId ?? 'xxx',
+            state: { inProgress: false },
+            data: {
+                // Special flag recognized by `chat-client/src/client/mynahUi.ts`.
+                placeholderText: 'upgrade-q',
+                messages: [],
+            },
+        }
+        ;(o as any).upgradeQMode = mode
+        this.#features.chat.sendChatUpdate(o)
     }
 
     async #processGenerateAssistantResponseResponseWithTimeout(
