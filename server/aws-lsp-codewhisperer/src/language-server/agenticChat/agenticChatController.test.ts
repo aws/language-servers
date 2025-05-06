@@ -1081,7 +1081,7 @@ describe('AgenticChatController', () => {
             const typedChatResult = chatResult as ResponseError<ChatResult>
             assert.strictEqual(
                 typedChatResult.data?.body,
-                'Too much context loaded. Please start a new conversation or ask about specific files.'
+                'Too much context loaded. I have cleared the conversation history. Please retry your request with smaller input.'
             )
         })
 
