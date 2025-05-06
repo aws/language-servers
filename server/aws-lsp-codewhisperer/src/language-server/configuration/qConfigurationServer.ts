@@ -276,23 +276,23 @@ export class ServerConfigurationProvider {
                             throw new ResponseError(LSPErrorCodes.RequestCancelled, 'Request cancelled')
                         }
 
-                        if (customizations.length === 0) {
-                            return [
-                                {
-                                    arn: '',
-                                    name: 'Amazon Q foundation (Default)',
-                                    description: '',
-                                    isDefault: true,
-                                    profile: profile,
-                                },
-                            ]
+                        // The default customization is added for each profile.
+                        const defaultCustomization = {
+                            arn: '',
+                            name: 'Amazon Q foundation (Default)',
+                            description: '',
+                            isDefault: true,
+                            profile: profile,
                         }
 
-                        return customizations.map(customization => ({
-                            ...customization,
-                            isDefault: false,
-                            profile: profile,
-                        }))
+                        return [
+                            defaultCustomization,
+                            ...customizations.map(customization => ({
+                                ...customization,
+                                isDefault: false,
+                                profile: profile,
+                            })),
+                        ]
                     })
                     .catch(error => {
                         if (error instanceof ResponseError) {
@@ -302,7 +302,15 @@ export class ServerConfigurationProvider {
                         this.logging.error(
                             `Failed to fetch customizations for profile ${profile.arn} in region ${region}: ${error}`
                         )
-                        return [] as CustomizationWithMetadata[]
+                        return [
+                            {
+                                arn: '',
+                                name: 'Amazon Q foundation (Default)',
+                                description: '',
+                                isDefault: true,
+                                profile: profile,
+                            },
+                        ] as CustomizationWithMetadata[]
                     })
             })
 

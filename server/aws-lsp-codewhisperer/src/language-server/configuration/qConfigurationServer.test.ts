@@ -381,10 +381,24 @@ describe('ServerConfigurationProvider', () => {
             )
 
             // Verify the results
-            assert.strictEqual(result.length, 3)
+            assert.strictEqual(result.length, 5)
 
             // Check that metadata was added correctly
             assert.deepStrictEqual(result[0], {
+                arn: '',
+                name: 'Amazon Q foundation (Default)',
+                description: '',
+                isDefault: true,
+                profile: {
+                    arn: mockProfiles[0].arn,
+                    identityDetails: {
+                        region: 'us-east-1',
+                    },
+                    name: 'Profile 1',
+                },
+            })
+
+            assert.deepStrictEqual(result[1], {
                 arn: 'customization1',
                 name: 'Customization 1',
                 isDefault: false,
@@ -397,7 +411,7 @@ describe('ServerConfigurationProvider', () => {
                 },
             })
 
-            assert.deepStrictEqual(result[2], {
+            assert.deepStrictEqual(result[4], {
                 arn: 'customization3',
                 name: 'Customization 3',
                 isDefault: false,
@@ -415,7 +429,7 @@ describe('ServerConfigurationProvider', () => {
             sinon.assert.calledTwice(listAvailableCustomizationsForProfileAndRegionStub)
         })
 
-        it('add profile information and isDefault flag to true for a profile with 0 customizations', async () => {
+        it('add profile information and isDefault flag to true even for a profile with 0 customizations', async () => {
             // Setup stub for listAvailableCustomizationsForProfileAndRegion
             const listAvailableCustomizationsForProfileAndRegionStub = sinon.stub(
                 serverConfigurationProvider,
@@ -437,7 +451,7 @@ describe('ServerConfigurationProvider', () => {
             )
 
             // Verify the results
-            assert.strictEqual(result.length, 2)
+            assert.strictEqual(result.length, 3)
 
             // Check that metadata was added correctly
             assert.deepStrictEqual(result[0], {
@@ -455,6 +469,20 @@ describe('ServerConfigurationProvider', () => {
             })
 
             assert.deepStrictEqual(result[1], {
+                arn: '',
+                name: 'Amazon Q foundation (Default)',
+                description: '',
+                isDefault: true,
+                profile: {
+                    arn: mockProfiles[1].arn,
+                    identityDetails: {
+                        region: 'us-west-2',
+                    },
+                    name: 'Profile 2',
+                },
+            })
+
+            assert.deepStrictEqual(result[2], {
                 arn: 'customization3',
                 name: 'Customization 3',
                 isDefault: false,
@@ -491,8 +519,21 @@ describe('ServerConfigurationProvider', () => {
             )
 
             // Verify the results
-            assert.strictEqual(result.length, 1)
+            assert.strictEqual(result.length, 2)
             assert.deepStrictEqual(result[0], {
+                arn: '',
+                name: 'Amazon Q foundation (Default)',
+                description: '',
+                isDefault: true,
+                profile: {
+                    arn: mockProfiles[0].arn,
+                    identityDetails: {
+                        region: 'us-east-1',
+                    },
+                    name: 'Profile 1',
+                },
+            })
+            assert.deepStrictEqual(result[1], {
                 arn: 'customization1',
                 name: 'Customization 1',
                 isDefault: false,
@@ -511,7 +552,7 @@ describe('ServerConfigurationProvider', () => {
             sinon.assert.calledOnce(listAvailableCustomizationsForProfileAndRegionStub)
         })
 
-        it('continues processing if fetching customizations for one profile fails', async () => {
+        it('continues processing if fetching customizations for one profile fails - expected to return the default even for case where fetch fails', async () => {
             // Setup stub for listAvailableCustomizationsForProfileAndRegion
             const listAvailableCustomizationsForProfileAndRegionStub = sinon.stub(
                 serverConfigurationProvider,
@@ -534,8 +575,23 @@ describe('ServerConfigurationProvider', () => {
             )
 
             // Should still have results from the first profile
-            assert.strictEqual(result.length, 1)
+            assert.strictEqual(result.length, 3)
+
             assert.deepStrictEqual(result[0], {
+                arn: '',
+                name: 'Amazon Q foundation (Default)',
+                description: '',
+                isDefault: true,
+                profile: {
+                    arn: mockProfiles[0].arn,
+                    identityDetails: {
+                        region: 'us-east-1',
+                    },
+                    name: 'Profile 1',
+                },
+            })
+
+            assert.deepStrictEqual(result[1], {
                 arn: 'customization1',
                 name: 'Customization 1',
                 isDefault: false,
@@ -545,6 +601,20 @@ describe('ServerConfigurationProvider', () => {
                         region: 'us-east-1',
                     },
                     name: 'Profile 1',
+                },
+            })
+
+            assert.deepStrictEqual(result[2], {
+                arn: '',
+                name: 'Amazon Q foundation (Default)',
+                description: '',
+                isDefault: true,
+                profile: {
+                    arn: mockProfiles[1].arn,
+                    identityDetails: {
+                        region: 'us-west-2',
+                    },
+                    name: 'Profile 2',
                 },
             })
 
