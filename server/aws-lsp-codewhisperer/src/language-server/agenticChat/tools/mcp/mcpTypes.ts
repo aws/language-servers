@@ -7,9 +7,7 @@ export interface McpToolDefinition {
     serverName: string
     toolName: string
     description: string
-    inputSchema: any // schema from the server
-    disabled?: boolean
-    autoApprove?: boolean
+    inputSchema: any
 }
 
 export interface MCPServerConfig {
@@ -18,10 +16,8 @@ export interface MCPServerConfig {
     env?: Record<string, string>
     disabled?: boolean
     autoApprove?: boolean
-}
-
-export interface MCPConfig {
-    mcpServers: Record<string, MCPServerConfig>
+    toolOverrides?: Record<string, { autoApprove?: boolean; disabled?: boolean }>
+    __configPath__?: string
 }
 
 export interface ListToolsResponse {
