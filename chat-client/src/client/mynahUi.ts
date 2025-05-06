@@ -471,6 +471,14 @@ export const createMynahUi = (
             }
             messager.onPromptInputOptionChange({ tabId, optionsValues })
         },
+        onPromptInputButtonClick: (tabId, buttonId, eventId) => {
+            const payload: ButtonClickParams = {
+                tabId,
+                messageId: 'not-a-message',
+                buttonId: buttonId,
+            }
+            messager.onPromptInputButtonClick(payload)
+        },
         onMessageDismiss: (tabId, messageId) => {
             if (messageId === programmerModeCard.messageId) {
                 programmingModeCardActive = false

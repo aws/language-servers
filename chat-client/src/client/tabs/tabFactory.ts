@@ -21,7 +21,7 @@ const upgradeToProButton: ChatItemButton = {
     flash: 'once',
     fillState: 'hover',
     position: 'outside',
-    id: 'upgrade-to-pro-button',
+    id: 'upgrade-q',
     // https://github.com/aws/mynah-ui/blob/main/src/components/icon/icons/q.svg
     // https://github.com/aws/mynah-ui/blob/main/src/components/icon/icons/rocket.svg
     // icon: MynahIcons.Q,
