@@ -31,6 +31,7 @@ export const HELP_MESSAGE = `I'm Amazon Q, a generative AI assistant. Learn more
 
 export const DEFAULT_HELP_FOLLOW_UP_PROMPT = 'How can Amazon Q help me?'
 
+// TO BE DEPRECATED, use DEFAULT_EXCLUDE_DIRS and DEFAULT_EXCLUDE_FILES instead
 export const DEFAULT_EXCLUDE_ENTRIES = [
     // Dependency directories
     'node_modules',
@@ -38,6 +39,20 @@ export const DEFAULT_EXCLUDE_ENTRIES = [
     'dist',
     'build',
     'out',
+    // OS specific files
+    '.DS_Store',
+]
+
+export const DEFAULT_EXCLUDE_DIRS = [
+    // Dependency directories
+    'node_modules',
+    // Build outputs
+    'dist',
+    'build',
+    'out',
+]
+
+export const DEFAULT_EXCLUDE_FILES = [
     // OS specific files
     '.DS_Store',
 ]
