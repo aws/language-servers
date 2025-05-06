@@ -355,6 +355,10 @@ export class LocalProjectContextController {
         }
     }
 
+    public isIndexingEnabled(): boolean {
+        return this._isIndexingEnabled
+    }
+
     private fileMeetsFileSizeConstraints(filePath: string, sizeConstraints: SizeConstraints): boolean {
         let fileSize
 
