@@ -2254,10 +2254,12 @@ export class AgenticChatController implements ChatHandlers {
     }
 
     #log(...messages: string[]) {
+        console.log(messages) // TODO: this.#features.logging should actually do something useful, that would be cool
         this.#features.logging.log(messages.join(' '))
     }
 
     #debug(...messages: string[]) {
+        console.debug(messages) // TODO: this.#features.logging should actually do something useful, that would be cool
         this.#features.logging.debug(messages.join(' '))
     }
 }
