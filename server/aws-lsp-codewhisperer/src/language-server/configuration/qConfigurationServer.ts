@@ -25,8 +25,8 @@ export const Q_CUSTOMIZATIONS_CONFIGURATION_SECTION = `${Q_CONFIGURATION_SECTION
 export const Q_DEVELOPER_PROFILES_CONFIGURATION_SECTION = `${Q_CONFIGURATION_SECTION}.${Q_DEVELOPER_PROFILES}`
 
 interface CustomizationWithMetadata extends Customization {
-    region?: string
-    profileArn?: string
+    profile?: AmazonQDeveloperProfile
+    isDefault?: boolean
 }
 
 interface QConfigurationSections {
@@ -276,10 +276,22 @@ export class ServerConfigurationProvider {
                             throw new ResponseError(LSPErrorCodes.RequestCancelled, 'Request cancelled')
                         }
 
+                        if (customizations.length === 0) {
+                            return [
+                                {
+                                    arn: '',
+                                    name: 'Amazon Q foundation (Default)',
+                                    description: '',
+                                    isDefault: true,
+                                    profile: profile,
+                                },
+                            ]
+                        }
+
                         return customizations.map(customization => ({
                             ...customization,
-                            region,
-                            profileArn: profile.arn,
+                            isDefault: false,
+                            profile: profile,
                         }))
                     })
                     .catch(error => {

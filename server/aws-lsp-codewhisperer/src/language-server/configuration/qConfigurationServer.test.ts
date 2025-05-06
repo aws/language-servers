@@ -387,15 +387,84 @@ describe('ServerConfigurationProvider', () => {
             assert.deepStrictEqual(result[0], {
                 arn: 'customization1',
                 name: 'Customization 1',
-                region: 'us-east-1',
-                profileArn: mockProfiles[0].arn,
+                isDefault: false,
+                profile: {
+                    arn: mockProfiles[0].arn,
+                    identityDetails: {
+                        region: 'us-east-1',
+                    },
+                    name: 'Profile 1',
+                },
             })
 
             assert.deepStrictEqual(result[2], {
                 arn: 'customization3',
                 name: 'Customization 3',
-                region: 'us-west-2',
-                profileArn: mockProfiles[1].arn,
+                isDefault: false,
+                profile: {
+                    arn: mockProfiles[1].arn,
+                    identityDetails: {
+                        region: 'us-west-2',
+                    },
+                    name: 'Profile 2',
+                },
+            })
+
+            // Verify the stubs were called correctly
+            sinon.assert.notCalled(listAllAvailableProfilesHandlerStub)
+            sinon.assert.calledTwice(listAvailableCustomizationsForProfileAndRegionStub)
+        })
+
+        it('add profile information and isDefault flag to true for a profile with 0 customizations', async () => {
+            // Setup stub for listAvailableCustomizationsForProfileAndRegion
+            const listAvailableCustomizationsForProfileAndRegionStub = sinon.stub(
+                serverConfigurationProvider,
+                'listAvailableCustomizationsForProfileAndRegion'
+            )
+
+            // Return different customizations for each profile
+            listAvailableCustomizationsForProfileAndRegionStub
+                .withArgs(mockProfiles[0].arn, mockProfiles[0].identityDetails!.region)
+                .resolves([])
+
+            listAvailableCustomizationsForProfileAndRegionStub
+                .withArgs(mockProfiles[1].arn, mockProfiles[1].identityDetails!.region)
+                .resolves([{ arn: 'customization3', name: 'Customization 3' }])
+
+            const result = await serverConfigurationProvider.listAllAvailableCustomizationsWithMetadata(
+                mockProfiles,
+                tokenSource.token
+            )
+
+            // Verify the results
+            assert.strictEqual(result.length, 2)
+
+            // Check that metadata was added correctly
+            assert.deepStrictEqual(result[0], {
+                arn: '',
+                name: 'Amazon Q foundation (Default)',
+                description: '',
+                isDefault: true,
+                profile: {
+                    arn: mockProfiles[0].arn,
+                    identityDetails: {
+                        region: 'us-east-1',
+                    },
+                    name: 'Profile 1',
+                },
+            })
+
+            assert.deepStrictEqual(result[1], {
+                arn: 'customization3',
+                name: 'Customization 3',
+                isDefault: false,
+                profile: {
+                    arn: mockProfiles[1].arn,
+                    identityDetails: {
+                        region: 'us-west-2',
+                    },
+                    name: 'Profile 2',
+                },
             })
 
             // Verify the stubs were called correctly
@@ -426,8 +495,14 @@ describe('ServerConfigurationProvider', () => {
             assert.deepStrictEqual(result[0], {
                 arn: 'customization1',
                 name: 'Customization 1',
-                region: 'us-east-1',
-                profileArn: mockProfiles[0].arn,
+                isDefault: false,
+                profile: {
+                    arn: mockProfiles[0].arn,
+                    identityDetails: {
+                        region: 'us-east-1',
+                    },
+                    name: 'Profile 1',
+                },
             })
 
             // Verify the profile handler was NOT called
@@ -463,8 +538,14 @@ describe('ServerConfigurationProvider', () => {
             assert.deepStrictEqual(result[0], {
                 arn: 'customization1',
                 name: 'Customization 1',
-                region: 'us-east-1',
-                profileArn: mockProfiles[0].arn,
+                isDefault: false,
+                profile: {
+                    arn: mockProfiles[0].arn,
+                    identityDetails: {
+                        region: 'us-east-1',
+                    },
+                    name: 'Profile 1',
+                },
             })
 
             // Verify error was logged
