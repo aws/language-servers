@@ -146,16 +146,10 @@ export class LocalProjectContextController {
             }
 
             // initialize vecLib and index if needed
-            // const libraryPath = this.getVectorLibraryPath()
-            const libraryPath =
-                '/Users/yuxqiang/workspace/jetbrains/q-lsp-chat/plugins/amazonq/build/USER_HOME/Library/Caches/aws/toolkits/language-servers/1.0.0/indexing/dist/extension.js'
+            const libraryPath = this.getVectorLibraryPath()
             const vecLib = vectorLib ?? (await eval(`import("${libraryPath}")`))
             if (vecLib) {
-                this._vecLib = await vecLib.start(
-                    '/Users/yuxqiang/workspace/jetbrains/q-lsp-chat/plugins/amazonq/build/USER_HOME/Library/Caches/aws/toolkits/language-servers/1.0.0/indexing',
-                    this.clientName,
-                    this.indexCacheDirPath
-                )
+                this._vecLib = await vecLib.start(LIBRARY_DIR, this.clientName, this.indexCacheDirPath)
                 if (enableIndexing) {
                     void this.buildIndex()
                 }
