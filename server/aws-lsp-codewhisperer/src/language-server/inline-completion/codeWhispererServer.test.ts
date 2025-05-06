@@ -46,6 +46,7 @@ import { CodeDiffTracker } from './codeDiffTracker'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import { initBaseTestServiceManager, TestAmazonQServiceManager } from '../../shared/amazonQServiceManager/testUtils'
 import { LocalProjectContextController } from '../../shared/localProjectContextController'
+import { URI } from 'vscode-uri'
 
 const updateConfiguration = async (
     features: TestFeatures,
@@ -161,12 +162,14 @@ describe('CodeWhisperer Server', () => {
 
             const expectedGenerateSuggestionsRequest = {
                 fileContext: {
-                    filename: SOME_FILE.uri,
+                    filename: URI.parse(SOME_FILE.uri).path.substring(1),
                     programmingLanguage: { languageName: 'csharp' },
                     leftFileContent: '',
                     rightFileContent: HELLO_WORLD_IN_CSHARP,
+                    // workspaceFolder: undefined,
                 },
                 maxResults: 5,
+                // workspaceId: undefined,
             }
             sinon.assert.calledOnceWithExactly(service.generateSuggestions, expectedGenerateSuggestionsRequest)
         })
@@ -191,12 +194,14 @@ describe('CodeWhisperer Server', () => {
 
             const expectedGenerateSuggestionsRequest = {
                 fileContext: {
-                    filename: SOME_FILE.uri,
+                    filename: URI.parse(SOME_FILE.uri).path.substring(1),
                     programmingLanguage: { languageName: 'csharp' },
                     leftFileContent: firstTwoLines,
                     rightFileContent: remainingLines,
+                    // workspaceFolder: undefined,
                 },
                 maxResults: 5,
+                // workspaceId: undefined,
             }
             sinon.assert.calledOnceWithExactly(service.generateSuggestions, expectedGenerateSuggestionsRequest)
         })
@@ -245,12 +250,14 @@ describe('CodeWhisperer Server', () => {
 
             const expectedGenerateSuggestionsRequest = {
                 fileContext: {
-                    filename: SOME_FILE_WITH_ALT_CASED_LANGUAGE_ID.uri,
+                    filename: URI.parse(SOME_FILE_WITH_ALT_CASED_LANGUAGE_ID.uri).path.substring(1),
                     programmingLanguage: { languageName: 'csharp' },
                     leftFileContent: '',
                     rightFileContent: HELLO_WORLD_IN_CSHARP,
+                    // workspaceFolder: undefined,
                 },
                 maxResults: 5,
+                // workspaceId: undefined,
             }
             sinon.assert.calledOnceWithExactly(service.generateSuggestions, expectedGenerateSuggestionsRequest)
         })
@@ -297,12 +304,14 @@ describe('CodeWhisperer Server', () => {
 
             const expectedGenerateSuggestionsRequest = {
                 fileContext: {
-                    filename: SOME_FILE.uri,
+                    filename: URI.parse(SOME_FILE.uri).path.substring(1),
                     programmingLanguage: { languageName: 'csharp' },
                     leftFileContent: extraContext + '\n',
                     rightFileContent: HELLO_WORLD_IN_CSHARP,
+                    // workspaceFolder: undefined,
                 },
                 maxResults: 5,
+                // workspaceId: undefined,
             }
             sinon.assert.calledOnceWithExactly(service.generateSuggestions, expectedGenerateSuggestionsRequest)
         })
@@ -338,12 +347,14 @@ describe('CodeWhisperer Server', () => {
 
             const expectedGenerateSuggestionsRequest = {
                 fileContext: {
-                    filename: SOME_FILE_WITH_EXTENSION.uri,
+                    filename: URI.parse(SOME_FILE_WITH_EXTENSION.uri).path.substring(1),
                     programmingLanguage: { languageName: 'cpp' },
                     leftFileContent: '',
                     rightFileContent: HELLO_WORLD_IN_CSHARP,
+                    // workspaceFolder: undefined,
                 },
                 maxResults: 5,
+                // workspaceId: undefined,
             }
 
             // Check the service was called with the right parameters
@@ -421,12 +432,14 @@ describe('CodeWhisperer Server', () => {
             const rightContext = lines.slice(cutOffLine).join('\n')
             const expectedGenerateSuggestionsRequest = {
                 fileContext: {
-                    filename: MY_FILE.uri,
+                    filename: URI.parse(MY_FILE.uri).path.substring(1),
                     programmingLanguage: { languageName: 'csharp' },
                     leftFileContent: leftContext,
                     rightFileContent: rightContext,
+                    // workspaceFolder: undefined,
                 },
                 maxResults: 5,
+                // workspaceId: undefined,
             }
             sinon.assert.calledOnceWithExactly(service.generateSuggestions, expectedGenerateSuggestionsRequest)
         })
@@ -456,12 +469,14 @@ describe('CodeWhisperer Server', () => {
             const modifiedRightContext = lines.slice(cutOffLine).join('\n')
             const expectedGenerateSuggestionsRequest = {
                 fileContext: {
-                    filename: MY_WINDOWS_FILE.uri,
+                    filename: URI.parse(MY_WINDOWS_FILE.uri).path.substring(1),
                     programmingLanguage: { languageName: 'csharp' },
                     leftFileContent: modifiedLeftContext,
                     rightFileContent: modifiedRightContext,
+                    // workspaceFolder: undefined,
                 },
                 maxResults: 5,
+                // workspaceId: undefined,
             }
             sinon.assert.calledOnceWithExactly(service.generateSuggestions, expectedGenerateSuggestionsRequest)
         })
@@ -595,16 +610,18 @@ describe('CodeWhisperer Server', () => {
 
                 const expectedGenerateSuggestionsRequest = {
                     fileContext: {
-                        filename: 'file:///TargetFile.java',
+                        filename: 'TargetFile.java',
                         programmingLanguage: { languageName: 'java' },
                         leftFileContent: '',
                         rightFileContent: '',
+                        // workspaceFolder: undefined,
                     },
                     maxResults: 5,
                     supplementalContexts: [
                         { content: 'sample-content', filePath: '/SampleFile.java' },
                         { content: 'sample-content', filePath: '/SampleFile.java' },
                     ],
+                    // workspaceId: undefined,
                 }
                 sinon.assert.calledOnceWithExactly(test_service.generateSuggestions, expectedGenerateSuggestionsRequest)
 
@@ -1031,12 +1048,14 @@ describe('CodeWhisperer Server', () => {
 
             const expectedGenerateSuggestionsRequest = {
                 fileContext: {
-                    filename: SOME_FILE.uri,
+                    filename: URI.parse(SOME_FILE.uri).path.substring(1),
                     programmingLanguage: { languageName: 'csharp' },
                     leftFileContent: SPECIAL_CHARACTER_HELLO_WORLD.substring(0, 1),
                     rightFileContent: SPECIAL_CHARACTER_HELLO_WORLD.substring(1, SPECIAL_CHARACTER_HELLO_WORLD.length),
+                    // workspaceFolder: undefined,
                 },
                 maxResults: 1,
+                // workspaceId: undefined,
             }
             sinon.assert.calledOnceWithExactly(service.generateSuggestions, expectedGenerateSuggestionsRequest)
         })
@@ -1063,12 +1082,14 @@ describe('CodeWhisperer Server', () => {
 
             const expectedGenerateSuggestionsRequest = {
                 fileContext: {
-                    filename: SOME_FILE.uri,
+                    filename: URI.parse(SOME_FILE.uri).path.substring(1),
                     programmingLanguage: { languageName: 'csharp' },
                     leftFileContent: LEFT_FILE_CONTEXT,
                     rightFileContent: RIGHT_FILE_CONTEXT,
+                    // workspaceFolder: undefined,
                 },
                 maxResults: 1,
+                // workspaceId: undefined,
             }
             sinon.assert.calledOnceWithExactly(service.generateSuggestions, expectedGenerateSuggestionsRequest)
         })

@@ -254,6 +254,12 @@
                     "scope": "resource",
                     "type": "boolean",
                     "description": "Share CodeWhisperer content with AWS"
+                },
+                "amazonQ.workspaceContext": {
+                    "scope": "window",
+                    "type": "boolean",
+                    "description": "Allow Amazon Q to create remote workspace for quality improvements",
+                    "default": "true"
                 }
             }
         },
