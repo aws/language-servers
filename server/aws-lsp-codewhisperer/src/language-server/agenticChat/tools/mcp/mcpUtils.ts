@@ -7,14 +7,27 @@ import { Logger, Workspace } from '@aws/language-server-runtimes/server-interfac
 import { URI } from 'vscode-uri'
 import { MCPServerConfig } from './mcpTypes'
 
+/**
+ * Load, validate, and parse MCP server configurations from JSON files.
+ *
+ * - Deduplicates input paths.
+ * - Normalizes file and URI inputs.
+ * - Skips missing, unreadable, or invalid JSON files.
+ * - Validates required fields and logs warnings for issues.
+ *
+ * @param workspace LSP workspace for file I/O
+ * @param logging Logger for warnings and info
+ * @param rawPaths Array of file paths or file:/// URIs
+ * @returns Map of serverName → MCPServerConfig
+ */
 export async function loadMcpServerConfigs(
     workspace: Workspace,
     logging: Logger,
     rawPaths: string[]
 ): Promise<Map<string, MCPServerConfig>> {
     const servers = new Map<string, MCPServerConfig>()
-
-    for (const raw of rawPaths) {
+    const uniquePaths = Array.from(new Set(rawPaths))
+    for (const raw of uniquePaths) {
         // 1) normalize file:/ URIs → real fs paths
         let fsPath: string
         try {
@@ -23,6 +36,7 @@ export async function loadMcpServerConfigs(
         } catch {
             fsPath = raw
         }
+        fsPath = require('path').normalize(fsPath)
 
         // 2) skip missing
         let exists: boolean
@@ -71,11 +85,21 @@ export async function loadMcpServerConfigs(
             }
             const cfg: MCPServerConfig = {
                 command: (entry as any).command,
-                args: Array.isArray((entry as any).args) ? (entry as any).args : [],
-                env: typeof (entry as any).env === 'object' ? (entry as any).env : {},
+                args: Array.isArray((entry as any).args) ? (entry as any).args.map(String) : [],
+                env: typeof (entry as any).env === 'object' && (entry as any).env !== null ? (entry as any).env : {},
                 disabled: !!(entry as any).disabled,
-                autoApprove: Array.isArray((entry as any).autoApprove) ? (entry as any).autoApprove : [],
+                autoApprove: Boolean((entry as any).autoApprove),
+                toolOverrides: (() => {
+                    const o = (entry as any).toolOverrides
+                    if (o && typeof o === 'object' && !Array.isArray(o)) return o
+                    if (o != null) {
+                        logging.warn(`Invalid toolOverrides on '${name}', ignoring.`)
+                    }
+                    return {}
+                })(),
+                __configPath__: fsPath,
             }
+
             servers.set(name, cfg)
             logging.info(`Loaded MCP server '${name}' from ${fsPath}`)
         }

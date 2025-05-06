@@ -33,10 +33,10 @@ export class McpTool {
         writer.releaseLock()
     }
 
-    public requiresAcceptance(_input: any): CommandValidation {
-        // todo: read from config
+    public requiresAcceptance(serverName: string, toolName: string): CommandValidation {
+        const required = McpManager.instance.requiresApproval(serverName, toolName)
         return {
-            requiresAcceptance: true,
+            requiresAcceptance: required,
             warning: `About to invoke MCP tool “${this.def.toolName}”. Do you want to proceed?`,
         }
     }
